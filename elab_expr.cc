@@ -31,6 +31,7 @@
 # include  <map>
 # include  <set>
 # include  <sstream>
+# include  <vector>
 # include "compiler.h"
 
 # include  "PPackage.h"
@@ -4907,6 +4908,23 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
             return nullptr;
       }
       rp = cast_to_width(rp, l_width, signed_flag_, *this);
+
+      NetNet*target = lsig->sig();
+      /* The ordinary l-value used for validation above is temporary;
+	 without this permanent note, `x = (member = 1)' can evade the
+	 continuous/procedural-driver check. An already reserved continuous
+	 driver is the opposite elaboration order of the same conflict. */
+      if (target->coerced_to_uwire()
+	  && target->test_part_driven(target->vector_width()-1, 0, 0)) {
+	cerr << get_fileline() << ": error: Variable '" << target->name()
+	     << "' cannot have continuous and procedural drivers on the"
+	     << " same bits." << endl;
+	des->errors += 1;
+	delete lp;
+	delete rp;
+	return nullptr;
+      }
+      target->note_assignment_expression_write();
 
       string name = "$ivl_assign_expr$";
       name += op_;
@@ -10866,10 +10884,30 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		 sampled correctly -- the same assertion mixing two
 		 different sampling regions. */
 	    if (NetESelect*sel = dynamic_cast<NetESelect*>(sub)) {
+		  vector<const NetESelect*> selects;
+		  const NetExpr*source = sel;
+		  while (const NetESelect*part = dynamic_cast<const NetESelect*>(source)) {
+			selects.push_back(part);
+			source = part->sub_expr();
+		  }
+		  /* Nested selects are reconstructed only when their indices are
+		     constant; otherwise a live index would change the sampled value. */
+		  bool fixed_indices = selects.size() == 1;
+		  if (!fixed_indices) {
+			fixed_indices = all_of(selects.begin(), selects.end(),
+			    [](const NetESelect*part) {
+				if (!part->select()) return true;
+				NetExpr*index = part->select()->dup_expr();
+				eval_expr(index, -1);
+				bool fixed = dynamic_cast<NetEConst*>(index);
+				delete index;
+				return fixed;
+			    });
+		  }
 		  const NetESignal*bsig =
-			dynamic_cast<const NetESignal*>(sel->sub_expr());
+			dynamic_cast<const NetESignal*>(source);
 		  const NetEProperty*bprop =
-			dynamic_cast<const NetEProperty*>(sel->sub_expr());
+			dynamic_cast<const NetEProperty*>(source);
 		  const NetExpr*sample_source = bsig;
 		  if (!sample_source && clocking_static_interface_member_(bprop)
 		      && (bprop->expr_type() == IVL_VT_LOGIC
@@ -10878,7 +10916,7 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		    /* A select of an array word samples too: the word-indexed
 		       load supplies the word's Preponed value and the select
 		       is applied to that, exactly as for a plain vector. */
-		  if (sample_source) {
+		  if (sample_source && fixed_indices) {
 			NetExpr*inner = sample_source->dup_expr();
 			NetESFunc*bfun = inner->net_type()
 			      ? new NetESFunc(name, inner->net_type(), 1)
@@ -10887,19 +10925,23 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			bfun->set_line(*this);
 			bfun->cast_signed(inner->has_sign());
 			bfun->parm(0, inner);
-
-			NetExpr*sbase = sel->select()
-			      ? sel->select()->dup_expr() : 0;
-			ivl_type_t select_type = sel->net_type()
-			      && sel->net_type()->packed_width() == sel->expr_width()
-			      ? sel->net_type() : nullptr;
-			NetESelect*out = select_type
-			      ? new NetESelect(bfun, sbase, sel->expr_width(),
-					       select_type)
-			      : new NetESelect(bfun, sbase, sel->expr_width(),
-					       sel->select_type());
-			out->set_line(*sel);
-			out->cast_signed(sel->has_sign());
+			NetExpr*out = bfun;
+			for (auto it = selects.rbegin(); it != selects.rend(); ++it) {
+			  const NetESelect*part = *it;
+			  NetExpr*sbase = part->select()
+				? part->select()->dup_expr() : nullptr;
+			  ivl_type_t select_type = part->net_type()
+				&& part->net_type()->packed_width() == part->expr_width()
+				? part->net_type() : nullptr;
+			  NetESelect*next = select_type
+				? new NetESelect(out, sbase, part->expr_width(),
+						     select_type, part->select_type())
+				: new NetESelect(out, sbase, part->expr_width(),
+						     part->select_type());
+			  next->set_line(*part);
+			  next->cast_signed(part->has_sign());
+			  out = next;
+			}
 			delete sel;
 			if (expr_wid == out->expr_width()) return out;
 			return cast_to_width_(out, expr_wid);

@@ -1,0 +1,179 @@
+{
+  "date": "2026-09-23",
+  "scope": "Fresh named runtime baseline only: one xbar smoke and one pwrmgr smoke, separate from the 84-row OpenTitan census; not full DV qualification.",
+  "denominator": 2,
+  "counts": {
+    "pass": 2,
+    "fail": 0,
+    "blocked": 0,
+    "unrun": 0
+  },
+  "source": {
+    "application": "OpenTitan Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "pinned_checkout": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34",
+    "pinned_checkout_clean": true,
+    "xbar": {
+      "overlay": "none",
+      "generated_filelist": "evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/matrix-iverilog.scr",
+      "generated_filelist_sha256": "166ab13c0c236c6b241388cb6fb0413d0f4c78e6252fd8b38e62e8eca941e83f"
+    },
+    "pwrmgr": {
+      "overlay": "docs/conformance/release_overlays/opentitan/pwrmgr_clock_activity.patch",
+      "overlay_sha256": "dc4c9b4be456a842e34c41cb002972762395ac0952bcef153d3bca7b4e9af8ec",
+      "patched_checker_sha256": "ff1a4385770643f26e9a9ef403364fc55409c4ac65a833b77eff77180287ec98",
+      "generated_filelist": "evidence/opentitan-released-pwrmgr-current-20260923/absolute-sources-with-timescale.scr",
+      "generated_filelist_sha256": "fe700dd7b012801dfb7206cc1f00f8182fb405f923a9e1246ed5b937c976f601",
+      "timescale": "1ns/1ps"
+    }
+  },
+  "tool_fingerprints": {
+    "iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "vvp_sha256": "5d4d0ca6bbaa695927572bdbba03915a07e20005403a5fe0d7e25e7e659c16ed",
+    "ivl_engine_sha256": "bc817f8f3b5fc9571e2ee0aca7d142a3ed22f5fb8ab9b6c525287a8fcbd13662",
+    "vvp_target_sha256": "8a193a5e84bf27746357c43500a7cf2e3bbbe85de835c1266cff0fd29879acc0",
+    "uvm_version": "Accellera UVM 1.2",
+    "uvm_pkg_sha256": "b8d2fde129abcc2df53e184a0cb2be5338436be55a111aa26943920eede2f826"
+  },
+  "tests": [
+    {
+      "name": "lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1 / xbar_smoke_vseq",
+      "status": "PASS",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-sxbar_peri_bind",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/xbar_peri.vvp",
+        "-c",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/matrix-iverilog.scr"
+      ],
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/xbar_peri.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=xbar_base_test",
+        "+UVM_TEST_SEQ=xbar_smoke_vseq"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "compile_log": "xbar_compile.log",
+      "compile_log_sha256": "4f0d6d3020cae1481d5004c5c8e7cbef57baf1c8b106b803cf6f5fb541cb5b81",
+      "runtime_log": "xbar_runtime.log",
+      "runtime_log_sha256": "0306e6ef2531cd8d016e8e6f802d6e4286fc3fcea2879cbdec5184fbda52967c",
+      "compiled_image": "xbar_peri.vvp",
+      "compiled_image_sha256": "9914bc74c66d45a562e6b2ea39838b70f0d9ad3369f02f7fd75825dfd96d8778",
+      "runtime_checks": {
+        "pass_banner": true,
+        "uvm_counts": {
+          "WARNING": 0,
+          "ERROR": 0,
+          "FATAL": 0
+        },
+        "normal_finish": true,
+        "requests_sent": 180,
+        "scoreboard_items_processed": 354,
+        "response_evidence": "scoreboard check_phase reports expected-versus-actual item-count equality and final queue-size checks; pass banner and zero UVM errors/fatals"
+      }
+    },
+    {
+      "name": "lowrisc:dv:pwrmgr_sim:0.1 / pwrmgr_smoke_vseq seed 1",
+      "status": "PASS",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-spwrmgr_bind",
+        "-spwrmgr_cov_bind",
+        "-spwrmgr_unit_only_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/pwrmgr.vvp",
+        "-c",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-released-pwrmgr-current-20260923/absolute-sources-with-timescale.scr"
+      ],
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/pwrmgr.vvp",
+        "+ntb_random_seed=1",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "compile_log": "pwrmgr_compile.log",
+      "compile_log_sha256": "e5a36e3654b18893cbe6b7764babacaaaef2ffc491e58ddae0fe8c517c1d8d9f",
+      "runtime_log": "pwrmgr_pwrmgr_smoke.log",
+      "runtime_log_sha256": "94e2f8532f29511080361684769b0ae1b4242ed0ea441406fb203e4b2ff6a0e8",
+      "compiled_image": "pwrmgr.vvp",
+      "compiled_image_sha256": "d8145a1c7c98046bd114633faf68b429c4b6cd7371378afe89b1fcee484525df",
+      "runtime_checks": {
+        "pass_banner": true,
+        "uvm_counts": {
+          "WARNING": 0,
+          "ERROR": 0,
+          "FATAL": 0
+        },
+        "normal_finish": true,
+        "tilelink_requests_sent": 25,
+        "tilelink_responses_received": 25,
+        "scoreboard_tl_a": 25,
+        "scoreboard_tl_d": 25
+      }
+    }
+  ],
+  "limitations": [
+    "The established pwrmgr 17-name profile was not completed in this bounded run; this denominator contains only the requested xbar and pwrmgr smoke cases.",
+    "Fresh images were compiled from the existing generated source snapshots; source lists are fingerprinted above, with the pwrmgr checker overlay explicitly selected.",
+    "pwrmgr compile emitted 12 warnings (rst_n coercions, mixed timescale notice, and nonblocking assignments in always_comb); runtime still passed explicit UVM checks.",
+    "Both runtime logs show Icarus\u2019s documented $system-as-task return-value warning; UVM severity summaries are zero."
+  ],
+  "ancillary_unscored_execution": {
+    "profile": "prior pwrmgr 17-name seed-1 sweep",
+    "status": "HALTED; excluded from requested denominator",
+    "completed_process_exit_zero": 14,
+    "interrupted_case": "pwrmgr_disable_rom_integrity_check (log is empty/incomplete)",
+    "unrun_cases": [
+      "pwrmgr_reset_invalid",
+      "pwrmgr_lowpower_invalid"
+    ],
+    "note": "The primary requested denominator remains two smoke cases. These extra invocations were not scored as conformance evidence."
+  }
+}

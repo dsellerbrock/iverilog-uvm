@@ -877,6 +877,60 @@ void NexusSet::rem(const NexusSet&that)
 	    rem_(that.items_[idx]);
 }
 
+void NexusSet::rem_intersect(const NexusSet&that)
+{
+      struct interval_t {
+	    Nexus*nexus;
+	    unsigned base;
+	    unsigned wid;
+      };
+      vector<interval_t> remaining;
+
+      for (size_t idx = 0; idx < items_.size(); idx += 1) {
+	    const elem_t*item = items_[idx];
+	    vector<pair<uint64_t, uint64_t> > spans;
+	    spans.push_back(make_pair(item->base,
+		  uint64_t(item->base) + item->wid));
+
+	    for (size_t ridx = 0; ridx < that.items_.size(); ridx += 1) {
+		  const elem_t*cut = that.items_[ridx];
+		  if (!item->lnk.is_linked(cut->lnk))
+			continue;
+		  uint64_t cut_end = uint64_t(cut->base) + cut->wid;
+		  vector<pair<uint64_t, uint64_t> > next;
+		  for (size_t sidx = 0; sidx < spans.size(); sidx += 1) {
+			uint64_t start = spans[sidx].first;
+			uint64_t end = spans[sidx].second;
+			if (cut->base >= end || cut_end <= start) {
+			      next.push_back(spans[sidx]);
+			} else {
+			      if (start < cut->base)
+				    next.push_back(make_pair(start, cut->base));
+			      if (cut_end < end)
+				    next.push_back(make_pair(cut_end, end));
+			}
+		  }
+		  spans.swap(next);
+	    }
+
+	    for (size_t sidx = 0; sidx < spans.size(); sidx += 1) {
+		  interval_t part = {
+			const_cast<Nexus*>(item->lnk.nexus()),
+			unsigned(spans[sidx].first),
+			unsigned(spans[sidx].second - spans[sidx].first)
+		  };
+		  remaining.push_back(part);
+	    }
+      }
+
+      invalidate_index_();
+      for (size_t idx = 0; idx < items_.size(); idx += 1)
+	    delete items_[idx];
+      items_.clear();
+      for (size_t idx = 0; idx < remaining.size(); idx += 1)
+	    add(remaining[idx].nexus, remaining[idx].base, remaining[idx].wid);
+}
+
 unsigned NexusSet::find_nexus(const NexusSet::elem_t&that) const
 {
       return bsearch_(that);

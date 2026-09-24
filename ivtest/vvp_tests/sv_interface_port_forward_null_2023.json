@@ -1,0 +1,6 @@
+{
+  "type": "EF",
+  "source": "sv_interface_port_forward_chain_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_interface_port_forward_null"],
+  "gold": "sv_interface_port_forward_null"
+}

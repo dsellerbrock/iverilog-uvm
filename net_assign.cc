@@ -28,9 +28,15 @@
 # include  "netenum.h"
 # include  "netvector.h"
 # include  "netmisc.h"
+# include  "compiler.h"
 # include  "ivl_assert.h"
 
 using namespace std;
+
+/* A property l-value registers against its handle NetNet, not the physical
+ * interface member. Keep the live descriptors until late port binding can
+ * resolve every statically bound alias to the concrete member. */
+static set<const NetAssign_*>interface_member_lvals_;
 
 /*
  * NetAssign
@@ -58,6 +64,7 @@ NetAssign_::NetAssign_(NetAssign_*n)
 NetAssign_::NetAssign_(NetNet*s)
 : nest_(0), sig_(s), word_(0), base_(0), sel_type_(IVL_SEL_OTHER)
 {
+      unsafe_task_body_owner_ = ivl_unsafe_current_task_body();
       lwid_ = sig_->vector_width();
       sig_->incr_lref();
       sig_->register_lref(this);
@@ -68,6 +75,7 @@ NetAssign_::NetAssign_(NetNet*s)
 
 NetAssign_::~NetAssign_()
 {
+      interface_member_lvals_.erase(this);
       if (sig_) {
 	    sig_->unregister_lref(this);
 	    sig_->decr_lref();
@@ -411,6 +419,13 @@ void NetAssign_::set_property(const perm_string&mname, unsigned idx)
 {
       member_ = mname;
       member_idx_ = idx;
+      if (is_interface_member())
+	interface_member_lvals_.insert(this);
+}
+
+const set<const NetAssign_*>& NetAssign_::interface_member_lvals()
+{
+      return interface_member_lvals_;
 }
 
 /*

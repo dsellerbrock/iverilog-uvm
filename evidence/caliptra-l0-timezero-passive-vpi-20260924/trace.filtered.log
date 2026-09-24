@@ -1,0 +1,242 @@
+29:STARTUP precision=-12
+30:STARTUP MISSING caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_hwif_in.reset_b
+31:STARTUP MISSING caliptra_top_tb.caliptra_top_dut.abr_inst.abr_ctrl_inst.abr_reg_hwif_in.reset_b
+32:STARTUP MISSING caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.hwif_in.reset_b
+35:STARTUP CHANGE t=0
+36:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.hard_rst_b=0
+37:STARTUP CHANGE t=0
+38:  caliptra_top_tb.cptra_pwrgood=0
+39:STARTUP CHANGE t=0
+40:  caliptra_top_tb.cptra_rst_b=0
+67:STARTUP CHANGE t=0
+68:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.o_cpu_halt_status=x
+69:STARTUP CHANGE t=0
+70:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d1=x
+71:STARTUP CHANGE t=0
+72:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d2=x
+73:STARTUP CHANGE t=0
+74:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dbg_tlu_halted_f=x
+75:STARTUP CHANGE t=0
+76:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.ifu.ifc_fetch_req_f=x
+77:STARTUP CHANGE t=0
+78:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.rst=x
+79:STARTUP CHANGE t=0
+80:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_ctrl_inst.rst_b=x
+81:STARTUP CHANGE t=0
+82:  caliptra_top_tb.caliptra_top_dut.abr_inst.rst_b=x
+85:STARTUP CHANGE t=0
+86:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.core_rst_l=x
+87:STARTUP CHANGE t=0
+88:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.arf.write_collision_unused=x
+89:STARTUP CHANGE t=0
+90:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dcsr_single_step_running=x
+91:STARTUP CHANGE t=0
+92:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.tlu_i0_commit_cmt=x
+93:STARTUP CHANGE t=0
+94:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dec_tlu_flush_lower_r=x
+95:STARTUP CHANGE t=0
+96:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.lsu_bus_buffer_empty_any=x
+97:STARTUP CHANGE t=0
+98:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_done=xxxxx
+99:STARTUP CHANGE t=0
+100:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_valid=xxxxx
+101:STARTUP CHANGE t=0
+102:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.stbuf.stbuf_specvld_any=xxxx
+115:ERROR: Fetching in dBG halt!
+116:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/el2_dma_ctrl.sv:505:
+117:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.genblk4[4].assert_fifo_done_and_novalid
+118:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/el2_dma_ctrl.sv:505:
+119:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.genblk4[3].assert_fifo_done_and_novalid
+120:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/el2_dma_ctrl.sv:505:
+121:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.genblk4[2].assert_fifo_done_and_novalid
+122:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/el2_dma_ctrl.sv:505:
+123:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.genblk4[1].assert_fifo_done_and_novalid
+124:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/el2_dma_ctrl.sv:505:
+125:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.genblk4[0].assert_fifo_done_and_novalid
+126:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/lsu/el2_lsu_bus_buffer.sv:958:
+127:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.GenAssertAge[3].assert_bufempty_agevec
+128:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/lsu/el2_lsu_bus_buffer.sv:958:
+129:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.GenAssertAge[2].assert_bufempty_agevec
+130:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/lsu/el2_lsu_bus_buffer.sv:958:
+131:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.GenAssertAge[1].assert_bufempty_agevec
+132:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/lsu/el2_lsu_bus_buffer.sv:958:
+133:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.GenAssertAge[0].assert_bufempty_agevec
+134:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/lsu/el2_lsu_stbuf.sv:344:
+135:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.stbuf.assert_stbuf_overflow
+136:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/dec/el2_dec_gpr_ctl.sv:94:
+137:       Time: 0  Scope: caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.arf.assert_multiple_wen_to_same_gpr
+138:ERROR: TLU Flushing inside fast interrupt procedure!
+139:ERROR: Commiting while cpu_halt_status asserted!
+140:STARTUP POST-T0 t=1
+141:  caliptra_top_tb.core_clk=0
+142:  caliptra_top_tb.cptra_pwrgood=0
+143:  caliptra_top_tb.cptra_rst_b=0
+144:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.core_rst_l=x
+145:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.ifu.ifc_fetch_req_f=x
+146:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dbg_tlu_halted_f=x
+147:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dcsr_single_step_running=x
+148:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_done=xxxxx
+149:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_valid=xxxxx
+150:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.lsu_bus_buffer_empty_any=x
+151:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.stbuf.stbuf_specvld_any=xxxx
+152:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.arf.write_collision_unused=x
+153:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d1=x
+154:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d2=x
+155:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dec_tlu_flush_lower_r=x
+156:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.tlu_i0_commit_cmt=x
+157:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.o_cpu_halt_status=x
+158:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.hard_rst_b=0
+159:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_uds_flow=x
+160:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_fe_flow=x
+161:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_hek_flow=x
+162:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_wr_ack=x
+163:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_rd_ack=x
+164:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_pending=x
+165:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_req=x
+166:  caliptra_top_tb.caliptra_top_dut.abr_inst.rst_b=x
+167:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_ctrl_inst.rst_b=x
+168:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.rst=x
+169:STARTUP PRE-FIRST-CLK t=4999
+170:  caliptra_top_tb.core_clk=0
+171:  caliptra_top_tb.cptra_pwrgood=0
+172:  caliptra_top_tb.cptra_rst_b=0
+173:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.core_rst_l=x
+174:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.ifu.ifc_fetch_req_f=x
+175:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dbg_tlu_halted_f=x
+176:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dcsr_single_step_running=x
+177:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_done=xxxxx
+178:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_valid=xxxxx
+179:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.lsu_bus_buffer_empty_any=x
+180:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.stbuf.stbuf_specvld_any=xxxx
+181:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.arf.write_collision_unused=x
+182:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d1=x
+183:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d2=x
+184:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dec_tlu_flush_lower_r=x
+185:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.tlu_i0_commit_cmt=x
+186:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.o_cpu_halt_status=x
+187:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.hard_rst_b=0
+188:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_uds_flow=x
+189:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_fe_flow=x
+190:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_hek_flow=x
+191:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_wr_ack=x
+192:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_rd_ack=x
+193:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_pending=x
+194:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_req=x
+195:  caliptra_top_tb.caliptra_top_dut.abr_inst.rst_b=x
+196:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_ctrl_inst.rst_b=x
+197:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.rst=x
+198:STARTUP CHANGE t=5000
+199:  caliptra_top_tb.core_clk=1
+200:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl/abr_reg.sv:68: An external wr_ack strobe was asserted when no external request was active
+201:       Time: 5000  Scope: caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst
+202:ERROR: /Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl/abr_reg.sv:70: An external rd_ack strobe was asserted when no external request was active
+203:       Time: 5000  Scope: caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst
+204:STARTUP CHANGE t=5000
+205:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_uds_flow=0
+206:STARTUP CHANGE t=5000
+207:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_fe_flow=0
+208:STARTUP CHANGE t=5000
+209:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_hek_flow=0
+210:STARTUP CHANGE t=5000
+211:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.rst=0
+212:STARTUP CHANGE t=5000
+213:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_ctrl_inst.rst_b=0
+214:STARTUP CHANGE t=5000
+215:  caliptra_top_tb.caliptra_top_dut.abr_inst.rst_b=0
+218:STARTUP CHANGE t=5000
+219:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.core_rst_l=0
+222:STARTUP CHANGE t=5000
+223:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_pending=0
+228:STARTUP CHANGE t=5000
+229:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.ifu.ifc_fetch_req_f=0
+230:STARTUP CHANGE t=5000
+231:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dbg_tlu_halted_f=0
+232:STARTUP CHANGE t=5000
+233:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d1=0
+234:STARTUP CHANGE t=5000
+235:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d2=0
+236:STARTUP CHANGE t=5000
+237:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.o_cpu_halt_status=0
+238:STARTUP CHANGE t=5000
+239:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_valid=00000
+240:STARTUP CHANGE t=5000
+241:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_done=00000
+242:STARTUP CHANGE t=5000
+243:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_req=0
+244:STARTUP CHANGE t=5000
+245:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dcsr_single_step_running=0
+246:STARTUP CHANGE t=5000
+247:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.lsu_bus_buffer_empty_any=1
+248:STARTUP CHANGE t=5000
+249:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.stbuf.stbuf_specvld_any=0000
+250:STARTUP CHANGE t=5000
+251:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_wr_ack=0
+252:STARTUP CHANGE t=5000
+253:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.arf.write_collision_unused=0
+254:STARTUP CHANGE t=5000
+255:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.tlu_i0_commit_cmt=0
+256:STARTUP CHANGE t=5000
+257:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_rd_ack=0
+258:STARTUP CHANGE t=5000
+259:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dec_tlu_flush_lower_r=0
+260:SVA ERROR: lock_hek_flow was not reset to expected value on hard reset
+261:SVA ERROR: lock_fe_flow was not reset on hard reset
+262:SVA ERROR: lock_uds_flow was not reset on hard reset
+263:STARTUP POST-FIRST-CLK t=5001
+264:  caliptra_top_tb.core_clk=1
+265:  caliptra_top_tb.cptra_pwrgood=0
+266:  caliptra_top_tb.cptra_rst_b=0
+267:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.core_rst_l=0
+268:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.ifu.ifc_fetch_req_f=0
+269:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dbg_tlu_halted_f=0
+270:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dcsr_single_step_running=0
+271:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_done=00000
+272:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_valid=00000
+273:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.lsu_bus_buffer_empty_any=1
+274:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.stbuf.stbuf_specvld_any=0000
+275:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.arf.write_collision_unused=0
+276:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d1=0
+277:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d2=0
+278:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dec_tlu_flush_lower_r=0
+279:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.tlu_i0_commit_cmt=0
+280:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.o_cpu_halt_status=0
+281:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.hard_rst_b=0
+282:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_uds_flow=0
+283:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_fe_flow=0
+284:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_hek_flow=0
+285:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_wr_ack=0
+286:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_rd_ack=0
+287:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_pending=0
+288:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_req=0
+289:  caliptra_top_tb.caliptra_top_dut.abr_inst.rst_b=0
+290:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_ctrl_inst.rst_b=0
+291:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.rst=0
+292:STARTUP STOP t=6000
+293:  caliptra_top_tb.core_clk=1
+294:  caliptra_top_tb.cptra_pwrgood=0
+295:  caliptra_top_tb.cptra_rst_b=0
+296:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.core_rst_l=0
+297:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.ifu.ifc_fetch_req_f=0
+298:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dbg_tlu_halted_f=0
+299:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dcsr_single_step_running=0
+300:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_done=00000
+301:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dma_ctrl.fifo_valid=00000
+302:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.bus_intf.bus_buffer.lsu_bus_buffer_empty_any=1
+303:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.lsu.stbuf.stbuf_specvld_any=0000
+304:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.arf.write_collision_unused=0
+305:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d1=0
+306:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.take_ext_int_start_d2=0
+307:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.dec_tlu_flush_lower_r=0
+308:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.tlu_i0_commit_cmt=0
+309:  caliptra_top_tb.caliptra_top_dut.rvtop.veer.dec.tlu.o_cpu_halt_status=0
+310:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.hard_rst_b=0
+311:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_uds_flow=0
+312:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_fe_flow=0
+313:  caliptra_top_tb.caliptra_top_dut.doe.doe_inst.doe_fsm1.lock_hek_flow=0
+314:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_wr_ack=0
+315:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_rd_ack=0
+316:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_pending=0
+317:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.external_req=0
+318:  caliptra_top_tb.caliptra_top_dut.abr_inst.rst_b=0
+319:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_ctrl_inst.rst_b=0
+320:  caliptra_top_tb.caliptra_top_dut.abr_inst.abr_reg_inst.rst=0

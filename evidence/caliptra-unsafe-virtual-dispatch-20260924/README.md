@@ -1,0 +1,7 @@
+# Unsafe virtual-dispatch reachability focus (2026-09-24)
+
+The previous exact reducer accepted a called interface task through a concrete-base virtual call in explicit `-gcommercial-unsafe` mode; its runtime wrote `value=1` over a continuous `value=0` driver. The baseline RED and installed-tool fingerprints are in `evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability_result.json`.
+
+A private `ivl` linked from the campaign objects with a newly compiled `elaborate.cc` was selected with `iverilog -B`; the shared installation was not changed. The final private tool and fixture hashes, compiler diagnostics, and allowed-control runtime output are in `result.json`. The paired 2017/2023 strict/unsafe matrix rejects the called base-handle override, a transitive subclass override, and a receiver chosen between clean and writer overrides. Direct and nonvirtual called controls also reject. Explicit unsafe mode still accepts uncalled task writers and a statically dispatched `super.go()` call that leaves the writer unused; strict mode rejects their illegal source overlap.
+
+The dedicated `ivtest` focus passed 28/28 with exact gold outputs, and 34 neighboring interface-task controls passed 34/34 using the same private compiler (`focus.log`). These are compiler regression results only. No Caliptra L0 case was counted, and the unsafe-mode results are nonstandard compatibility evidence rather than IEEE conformance.

@@ -1,0 +1,37 @@
+COMPILE ["/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog", "-B/tmp/vif-disjoint-private-20260924/base", "-uvm", "-g2017", "-s", "top", "-o", "/tmp/vif-disjoint-private-20260924/vif_smoke_v2.vvp", "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/tests/vif_smoke_v2.sv"]
+COMPILE_EXIT 0
+iverilog: note: wrote DPI export C stubs to /tmp/vif-disjoint-private-20260924/vif_smoke_v2.dpiexport.c (compile it into your DPI object).
+DPI_MODULE_EMBEDDED True
+RUN ["/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp", "/tmp/vif-disjoint-private-20260924/vif_smoke_v2.vvp"]
+RUN_EXIT 0
+UVM_INFO /tmp/vif-disjoint-private-20260924/base/uvm/src/base/uvm_root.svh(476) @ 0: reporter [UVM/RELNOTES]
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  This implementation of the UVM Library deviates from the 1800.2-2020
+  standard.  See the DEVIATIONS.md file contained in the release
+  for more details.
+
+----------------------------------------------------------------
+Accellera:1800.2:UVM:2020.3.1
+
+All copyright owners for this kit are listed in NOTICE.txt
+All Rights Reserved Worldwide
+----------------------------------------------------------------
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+UVM_INFO @ 0: reporter [RNTST] Running test counter_test...
+PASS counter_test
+UVM_INFO /tmp/vif-disjoint-private-20260924/base/uvm/src/base/uvm_report_server.svh(1009) @ 55: reporter [UVM/REPORT/SERVER]
+--- UVM Report Summary ---
+
+** Report counts by severity
+UVM_INFO :    2
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[UVM/RELNOTES]     1
+
+/tmp/vif-disjoint-private-20260924/base/uvm/src/base/uvm_root.svh:633: $finish called at 55 (1s)

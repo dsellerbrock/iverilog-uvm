@@ -1,0 +1,23 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "image_sha256": "932928e71a04af7f8be2a08eabecf6f96da81226bdf0c394033db0ed566d576c",
+  "exit_code": 0,
+  "elapsed_seconds": 2.251,
+  "uvm_fatal": true,
+  "uvm_error": true,
+  "unresolved_guard": true,
+  "pass_marker": false,
+  "dv_pass": false,
+  "log": "final-vvp-e9b7-runtime.log"
+}

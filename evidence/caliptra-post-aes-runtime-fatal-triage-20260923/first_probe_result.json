@@ -1,0 +1,20 @@
+{
+  "qualification": "instrumented_nonstandard_compatibility_diagnostic",
+  "case": "smoke_test_veer",
+  "sim_exit": 1,
+  "pass_markers": 0,
+  "trace_commits": 621,
+  "last_trace_pc": "0x1e60",
+  "original_assertions_preserved": true,
+  "pinned_sources_modified": false,
+  "overlay_manifest_sha256": "c98ab2bd330fbd2125f490330d184fe2e56ef8608f1c9c28e9c6f81ad64b3170",
+  "overlay_profile_sha256": "ecafefba14a7737ca77e2402da2ad8d3aaca0a02630936b8f7d14b42d850002b",
+  "compiled_vvp_sha256": "a02b9ffda4efc74d4751d53e9670edea5b6984ec08e5266411594d69730fb0f4",
+  "sim_log_sha256": "4aa60ce9490da4ddc047443c72d38f8b31f8db9f71a3dc19bb4f0552815c7321",
+  "observations": [
+    "43845 ns: TLU start=x d1=x d2=0 flush=x ext_ready=x blocked=x mstatus=1 mie=26; original fast-interrupt flush assertion reports an error",
+    "43865 ns: SOC IFC hwif_in has X in CPTRA_HW_ERROR_FATAL; original ERR_HWIF_IN assertion calls fatal",
+    "43865 ns: store buffer has zero committed entries but speculative M count, dual-M, and DCCM-M are X; original overflow assertion reports an error"
+  ],
+  "excerpt": "first_probe_excerpt.log"
+}

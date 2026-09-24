@@ -1,0 +1,2 @@
+ivltests/sv_interface_virtual_override_reachability.v:40: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.
+1 error(s) during elaboration.

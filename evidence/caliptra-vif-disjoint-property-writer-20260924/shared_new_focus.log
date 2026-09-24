@@ -1,0 +1,25 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/vif-disjoint-private-20260924/vif_disjoint_focus.list
+----------------------------------------------------------------------------
+              sv_vif_disjoint_property_writer_direct_legal_2017_strict: Passed.
+              sv_vif_disjoint_property_writer_direct_legal_2017_unsafe: Passed.
+              sv_vif_disjoint_property_writer_direct_legal_2023_strict: Passed.
+              sv_vif_disjoint_property_writer_direct_legal_2023_unsafe: Passed.
+     sv_vif_disjoint_property_writer_modport_alias_illegal_2017_strict: Passed - CE.
+     sv_vif_disjoint_property_writer_modport_alias_illegal_2017_unsafe: Passed - CE.
+     sv_vif_disjoint_property_writer_modport_alias_illegal_2023_strict: Passed - CE.
+     sv_vif_disjoint_property_writer_modport_alias_illegal_2023_unsafe: Passed - CE.
+                sv_vif_disjoint_property_writer_port_legal_2017_strict: Passed.
+                sv_vif_disjoint_property_writer_port_legal_2017_unsafe: Passed.
+                sv_vif_disjoint_property_writer_port_legal_2023_strict: Passed.
+                sv_vif_disjoint_property_writer_port_legal_2023_unsafe: Passed.
+       sv_vif_disjoint_property_writer_same_member_illegal_2017_strict: Passed - CE.
+       sv_vif_disjoint_property_writer_same_member_illegal_2017_unsafe: Passed - CE.
+       sv_vif_disjoint_property_writer_same_member_illegal_2023_strict: Passed - CE.
+       sv_vif_disjoint_property_writer_same_member_illegal_2023_unsafe: Passed - CE.
+sv_vif_disjoint_property_writer_uncertain_receiver_illegal_2017_strict: Passed - CE.
+sv_vif_disjoint_property_writer_uncertain_receiver_illegal_2017_unsafe: Passed - CE.
+sv_vif_disjoint_property_writer_uncertain_receiver_illegal_2023_strict: Passed - CE.
+sv_vif_disjoint_property_writer_uncertain_receiver_illegal_2023_unsafe: Passed - CE.
+============================================================================
+Test results: Ran 20, Failed 0.

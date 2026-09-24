@@ -1,0 +1,11 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+    sv_class_local_struct_shadows_outer_type: Passed.
+sv_class_local_value_shadows_outer_type_fail: Passed - CE.
+                   sv_class_var_shadows_type: Passed.
+  sv_class_typedef_scoped_static_shadow_fail: Passed - CE.
+    sv_class_static_nested_property_lifetime: Passed.
+      sv_param_class_static_container_method: Passed.
+============================================================================
+Test results:
+  Total=6, Passed=6, Failed=0, Not Implemented=0, Expected Fail=0

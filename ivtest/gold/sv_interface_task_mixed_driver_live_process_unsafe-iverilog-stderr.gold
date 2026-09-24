@@ -1,0 +1,2 @@
+ivltests/sv_interface_task_mixed_driver_live_process_unsafe.v:10: error: Cannot perform procedural assignment to variable 'idle.value' because it is also continuously assigned.
+Elaboration failed

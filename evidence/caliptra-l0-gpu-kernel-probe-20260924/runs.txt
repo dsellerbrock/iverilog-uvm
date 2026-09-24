@@ -1,0 +1,61 @@
+GPU=Apple M5
+batch n=4096 cpu_ms=0.0029 metal_submit_sync_ms=0.4758 match=1
+batch n=65536 cpu_ms=0.0455 metal_submit_sync_ms=0.3745 match=1
+batch n=1048576 cpu_ms=0.9263 metal_submit_sync_ms=0.8868 match=1
+chain n=1024 cpu_ms=0.0026 metal_single_thread_ms=0.5832 match=1
+chain n=65536 cpu_ms=0.1760 metal_single_thread_ms=12.3695 match=1
+feedback n=256 metal_submit_sync_each_ms=73.4846 match=1
+
+---
+GPU=Apple M5
+batch n=4096 cpu_ms=0.0032 metal_submit_sync_ms=0.1781 match=1
+batch n=65536 cpu_ms=0.0496 metal_submit_sync_ms=0.1728 match=1
+batch n=1048576 cpu_ms=0.8311 metal_submit_sync_ms=0.6555 match=1
+chain n=1024 cpu_ms=0.0029 metal_single_thread_ms=0.3183 match=1
+chain n=65536 cpu_ms=0.1918 metal_single_thread_ms=7.8976 match=1
+feedback n=256 metal_submit_sync_each_ms=61.2645 match=1
+
+---
+GPU=Apple M5
+batch n=4096 cpu_ms=0.0047 metal_submit_sync_ms=0.1761 match=1
+batch n=65536 cpu_ms=0.0496 metal_submit_sync_ms=0.1750 match=1
+batch n=1048576 cpu_ms=0.8475 metal_submit_sync_ms=0.8690 match=1
+chain n=1024 cpu_ms=0.0029 metal_single_thread_ms=0.4441 match=1
+chain n=65536 cpu_ms=0.1918 metal_single_thread_ms=14.0491 match=1
+feedback n=256 metal_submit_sync_each_ms=71.8468 match=1
+
+---
+GPU=Apple M5
+batch n=4096 cpu_ms=0.0029 metal_submit_sync_ms=0.2340 match=1
+batch n=65536 cpu_ms=0.0455 metal_submit_sync_ms=0.1973 match=1
+batch n=1048576 cpu_ms=0.7654 metal_submit_sync_ms=0.8447 match=1
+chain n=1024 cpu_ms=0.0027 metal_single_thread_ms=0.3972 match=1
+chain n=65536 cpu_ms=0.1760 metal_single_thread_ms=11.8456 match=1
+feedback n=256 metal_submit_sync_each_ms=57.4123 match=1
+
+---
+GPU=Apple M5
+batch n=4096 cpu_ms=0.0032 metal_submit_sync_ms=0.1937 match=1
+batch n=65536 cpu_ms=0.0496 metal_submit_sync_ms=0.1689 match=1
+batch n=1048576 cpu_ms=0.8363 metal_submit_sync_ms=0.6967 match=1
+chain n=1024 cpu_ms=0.0030 metal_single_thread_ms=0.3018 match=1
+chain n=65536 cpu_ms=0.1916 metal_single_thread_ms=8.2506 match=1
+feedback n=256 metal_submit_sync_each_ms=57.4439 match=1
+
+---
+GPU=Apple M5
+batch n=4096 cpu_ms=0.0033 metal_submit_sync_ms=0.1683 match=1
+batch n=65536 cpu_ms=0.0496 metal_submit_sync_ms=0.1739 match=1
+batch n=1048576 cpu_ms=0.8183 metal_submit_sync_ms=1.5553 match=1
+chain n=1024 cpu_ms=0.0030 metal_single_thread_ms=0.3509 match=1
+chain n=65536 cpu_ms=0.1916 metal_single_thread_ms=9.2480 match=1
+feedback n=256 metal_submit_sync_each_ms=64.6853 match=1
+
+---
+GPU=Apple M5
+batch n=4096 cpu_ms=0.0032 metal_submit_sync_ms=0.2071 match=1
+batch n=65536 cpu_ms=0.0496 metal_submit_sync_ms=0.1938 match=1
+batch n=1048576 cpu_ms=0.8446 metal_submit_sync_ms=0.6705 match=1
+chain n=1024 cpu_ms=0.0030 metal_single_thread_ms=0.3865 match=1
+chain n=65536 cpu_ms=0.1919 metal_single_thread_ms=13.7828 match=1
+feedback n=256 metal_submit_sync_each_ms=72.6658 match=1

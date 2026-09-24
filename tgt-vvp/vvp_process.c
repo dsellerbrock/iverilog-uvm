@@ -1216,6 +1216,20 @@ static void assign_to_lvector(ivl_lval_t lval,
 		  clr_word(delay_index);
 	    }
 
+      } else if (ivl_signal_type(sig) == IVL_SIT_UWIRE) {
+	/* A whole-vector unresolved-net NBA needs the delayed force opcode.
+	 * %force/vec4 takes one operand and applies immediately; the ordinary
+	 * %assign/vec4 delay operand would make an invalid force instruction. */
+	int delay_index = allocate_word();
+	if (dexp)
+	    draw_eval_expr_into_integer(dexp, delay_index);
+	else
+	    fprintf(vvp_out, "    %%ix/load %d, %lu, %lu;\n",
+		    delay_index, low_d, hig_d);
+	fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	fprintf(vvp_out, "    %%force/vec4/off/d v%p_%lu, 0, %d;\n",
+		  sig, use_word, delay_index);
+	clr_word(delay_index);
       } else if (dexp != 0) {
 	      /* Calculated delay... */
 	    int delay_index = allocate_word();
@@ -1372,6 +1386,21 @@ static int show_stmt_assign_nb(ivl_statement_t net)
       unsigned nevents = ivl_stmt_nevent(net);
 
       show_stmt_file_line(net, "Nonblocking assignment.");
+
+      /* The force opcodes used for unresolved nets have no event-counted
+       * form. Do not emit an invalid %force/vec4/e instruction. */
+      if (nevents) {
+	for (unsigned idx = 0; idx < ivl_stmt_lvals(net); idx += 1) {
+	    ivl_signal_t item_sig = ivl_lval_sig(ivl_stmt_lval(net, idx));
+	    if (item_sig && ivl_signal_type(item_sig) == IVL_SIT_UWIRE) {
+		fprintf(stderr, "%s:%u: vvp.tgt sorry: event-controlled "
+			"nonblocking assignment to an unresolved net is not "
+			"supported.\n", ivl_stmt_file(net),
+			ivl_stmt_lineno(net));
+		return 1;
+	    }
+	}
+      }
 
 	/* The generic vec4 NBA lowering below assumes every l-value is an
 	 * ordinary signal. IVL exports concatenation members rightmost first,

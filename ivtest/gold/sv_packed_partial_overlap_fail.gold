@@ -1,0 +1,2 @@
+./ivltests/sv_packed_partial_overlap_fail.v:4: error: Variable 'overlap' cannot have multiple drivers.
+1 error(s) during elaboration.

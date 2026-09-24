@@ -1,0 +1,1 @@
+ERROR: ivltests/sv_fatal_string_first_strict.v:3: $fatal's finish number must be numeric.

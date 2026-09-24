@@ -81,6 +81,12 @@ for whole assignments between queues and dynamic arrays, and for native
 task/function value copies, when element width and signedness match.
 Same-kind whole assignments remain strict. This option is not IEEE
 conformance and does not claim to reproduce VCS behavior.
+It also permits a narrow mixed-driver exception for an interface member only
+when every conflicting task-body write is proven unreachable for that concrete
+instance. Called or uncertain tasks, active writable port/ref aliases, and
+non-task writers remain errors. The flag accepts a string-first `$fatal` as a compatibility
+form; strict mode still requires an explicit finish number when arguments are
+present.
 
 ### Run UVM
 

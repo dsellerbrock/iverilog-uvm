@@ -1,0 +1,67 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): virtual_override_focus.list, virtual_override_neighbors.list
+----------------------------------------------------------------------------
+            sv_interface_task_mixed_driver_alias_unsafe: Passed - CE.
+       sv_interface_task_mixed_driver_alias_unsafe_2023: Passed - CE.
+           sv_interface_task_mixed_driver_called_unsafe: Passed - CE.
+      sv_interface_task_mixed_driver_called_unsafe_2023: Passed - CE.
+      sv_interface_task_mixed_driver_double_cont_unsafe: Passed - CE.
+ sv_interface_task_mixed_driver_double_cont_unsafe_2023: Passed - CE.
+         sv_interface_task_mixed_driver_indirect_unsafe: Passed - CE.
+    sv_interface_task_mixed_driver_indirect_unsafe_2023: Passed - CE.
+     sv_interface_task_mixed_driver_live_process_unsafe: Passed - CE.
+sv_interface_task_mixed_driver_live_process_unsafe_2023: Passed - CE.
+        sv_interface_task_mixed_driver_nb_called_unsafe: Passed - CE.
+   sv_interface_task_mixed_driver_nb_called_unsafe_2023: Passed - CE.
+               sv_interface_task_mixed_driver_nb_strict: Passed - CE.
+          sv_interface_task_mixed_driver_nb_strict_2023: Passed - CE.
+        sv_interface_task_mixed_driver_nb_unused_unsafe: Passed.
+   sv_interface_task_mixed_driver_nb_unused_unsafe_2023: Passed.
+        sv_interface_task_mixed_driver_ref_class_strict: Passed - CE.
+   sv_interface_task_mixed_driver_ref_class_strict_2023: Passed - CE.
+        sv_interface_task_mixed_driver_ref_class_unsafe: Passed - CE.
+   sv_interface_task_mixed_driver_ref_class_unsafe_2023: Passed - CE.
+              sv_interface_task_mixed_driver_ref_strict: Passed - CE.
+         sv_interface_task_mixed_driver_ref_strict_2023: Passed - CE.
+              sv_interface_task_mixed_driver_ref_unsafe: Passed - CE.
+         sv_interface_task_mixed_driver_ref_unsafe_2023: Passed - CE.
+          sv_interface_task_mixed_driver_sibling_unsafe: Passed - CE.
+     sv_interface_task_mixed_driver_sibling_unsafe_2023: Passed - CE.
+      sv_interface_task_mixed_driver_static_init_strict: Passed - CE.
+ sv_interface_task_mixed_driver_static_init_strict_2023: Passed - CE.
+      sv_interface_task_mixed_driver_static_init_unsafe: Passed - CE.
+ sv_interface_task_mixed_driver_static_init_unsafe_2023: Passed - CE.
+                  sv_interface_task_mixed_driver_strict: Passed - CE.
+             sv_interface_task_mixed_driver_strict_2023: Passed - CE.
+           sv_interface_task_mixed_driver_unused_unsafe: Passed.
+      sv_interface_task_mixed_driver_unused_unsafe_2023: Passed.
+       sv_interface_virtual_nonvirtual_call_2017_strict: Passed - CE.
+       sv_interface_virtual_nonvirtual_call_2017_unsafe: Passed - CE.
+       sv_interface_virtual_nonvirtual_call_2023_strict: Passed - CE.
+       sv_interface_virtual_nonvirtual_call_2023_unsafe: Passed - CE.
+  sv_interface_virtual_override_direct_call_2017_strict: Passed - CE.
+  sv_interface_virtual_override_direct_call_2017_unsafe: Passed - CE.
+  sv_interface_virtual_override_direct_call_2023_strict: Passed - CE.
+  sv_interface_virtual_override_direct_call_2023_unsafe: Passed - CE.
+      sv_interface_virtual_override_no_call_2017_strict: Passed - CE.
+      sv_interface_virtual_override_no_call_2017_unsafe: Passed.
+      sv_interface_virtual_override_no_call_2023_strict: Passed - CE.
+      sv_interface_virtual_override_no_call_2023_unsafe: Passed.
+   sv_interface_virtual_override_super_only_2017_strict: Passed - CE.
+   sv_interface_virtual_override_super_only_2017_unsafe: Passed.
+   sv_interface_virtual_override_super_only_2023_strict: Passed - CE.
+   sv_interface_virtual_override_super_only_2023_unsafe: Passed.
+   sv_interface_virtual_override_transitive_2017_strict: Passed - CE.
+   sv_interface_virtual_override_transitive_2017_unsafe: Passed - CE.
+   sv_interface_virtual_override_transitive_2023_strict: Passed - CE.
+   sv_interface_virtual_override_transitive_2023_unsafe: Passed - CE.
+    sv_interface_virtual_override_uncertain_2017_strict: Passed - CE.
+    sv_interface_virtual_override_uncertain_2017_unsafe: Passed - CE.
+    sv_interface_virtual_override_uncertain_2023_strict: Passed - CE.
+    sv_interface_virtual_override_uncertain_2023_unsafe: Passed - CE.
+     sv_interface_virtual_override_via_base_2017_strict: Passed - CE.
+     sv_interface_virtual_override_via_base_2017_unsafe: Passed - CE.
+     sv_interface_virtual_override_via_base_2023_strict: Passed - CE.
+     sv_interface_virtual_override_via_base_2023_unsafe: Passed - CE.
+============================================================================
+Test results: Ran 62, Failed 0.

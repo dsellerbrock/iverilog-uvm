@@ -1,0 +1,81 @@
+{
+  "pinned_sources_clean_after": true,
+  "results": [
+    {
+      "name": "smoke_test_hw_config",
+      "command": [
+        "make",
+        "-f",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/tools/scripts/Makefile",
+        "TESTNAME=smoke_test_hw_config",
+        "GCC_PREFIX=/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf",
+        "CALIPTRA_INTERNAL_TRNG=1",
+        "PLAYBOOK_RANDOM_SEED=1",
+        "BUILD_CFLAGS=-std=gnu11 -O2",
+        "program.hex"
+      ],
+      "exit": 0,
+      "program_hex_exists": true,
+      "program_hex_sha256": "16a1f8d2e6c2cc9669b56b59420ed9257cadab29ead959a6768a20b495665a75",
+      "selected_overlay": {
+        "patch": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/docs/conformance/release_overlays/caliptra/hw_config_inline_c11.patch",
+        "patch_sha256": "36aa05fef48b9358556ffd67bcfa9c6f6e62dcbeee20607ef3fb8cb36f664a9c",
+        "source": "src/integration/test_suites/smoke_test_hw_config/caliptra_isr.h",
+        "source_sha256_before": "db796220e45fd7bfcb21906bd167ee49d89611d83d2db4d8d41f764e5898b1c8",
+        "source_sha256_after": "aab3df95a2619a006022c229681777412bcb0ff2a7bc6e279bae299a51469c0a"
+      },
+      "output_tail": [
+        "\t\t\t      --change-section-lma .data_iccm2-0x50000000 \\",
+        "\t\t\t      --change-section-lma       .dccm-0x50000000 \\",
+        "\t\t\t      --pad-to 0x40000 \\",
+        "\t\t\t      --no-change-warnings \\",
+        "\t\t\t      smoke_test_hw_config.exe dccm.hex",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objcopy -O verilog -j .iccm                       --change-section-address .iccm=0 --pad-to 0x40000 --no-change-warnings smoke_test_hw_config.exe iccm.hex",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objcopy -O verilog -j .mailbox --gap-fill 0x0     --change-section-address .mailbox=0 --pad-to 0x40000 --no-change-warnings smoke_test_hw_config.exe mailbox.hex",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objdump -S  smoke_test_hw_config.exe > smoke_test_hw_config.dis",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-size        smoke_test_hw_config.exe | tee smoke_test_hw_config.size",
+        "   text\t   data\t    bss\t    dec\t    hex\tfilename",
+        "  62828\t  15296\t    576\t  78700\t  1336c\tsmoke_test_hw_config.exe",
+        "Completed building smoke_test_hw_config"
+      ]
+    },
+    {
+      "name": "smoke_test_hmac_errortrigger",
+      "command": [
+        "make",
+        "-f",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/tools/scripts/Makefile",
+        "TESTNAME=smoke_test_hmac_errortrigger",
+        "GCC_PREFIX=/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf",
+        "CALIPTRA_INTERNAL_TRNG=1",
+        "PLAYBOOK_RANDOM_SEED=1",
+        "BUILD_CFLAGS=-std=gnu11 -O2",
+        "program.hex"
+      ],
+      "exit": 0,
+      "program_hex_exists": true,
+      "program_hex_sha256": "691a90946b14e9922015bca356f5e3427773af18d0e86a1c73828489c344e338",
+      "selected_overlay": {
+        "patch": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/docs/conformance/release_overlays/caliptra/hmac_errortrigger_stdlib.patch",
+        "patch_sha256": "ed5e27f4b6806a22373943030d31b84396535f21b8d6ef96b8d527ef4efed621",
+        "source": "src/integration/test_suites/smoke_test_hmac_errortrigger/smoke_test_hmac_errortrigger.c",
+        "source_sha256_before": "c5c056fbbc10950f61bb5295e73f2c410ff32bdea1350d73db6e82d590623edb",
+        "source_sha256_after": "c56c7d49ce280090e20bfccdc58cbc4170c39d843d728d889f6e5f7c4210ff12"
+      },
+      "output_tail": [
+        "\t\t\t      --change-section-lma .data_iccm2-0x50000000 \\",
+        "\t\t\t      --change-section-lma       .dccm-0x50000000 \\",
+        "\t\t\t      --pad-to 0x40000 \\",
+        "\t\t\t      --no-change-warnings \\",
+        "\t\t\t      smoke_test_hmac_errortrigger.exe dccm.hex",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objcopy -O verilog -j .iccm                       --change-section-address .iccm=0 --pad-to 0x40000 --no-change-warnings smoke_test_hmac_errortrigger.exe iccm.hex",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objcopy -O verilog -j .mailbox --gap-fill 0x0     --change-section-address .mailbox=0 --pad-to 0x40000 --no-change-warnings smoke_test_hmac_errortrigger.exe mailbox.hex",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objdump -S  smoke_test_hmac_errortrigger.exe > smoke_test_hmac_errortrigger.dis",
+        "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-size        smoke_test_hmac_errortrigger.exe | tee smoke_test_hmac_errortrigger.size",
+        "   text\t   data\t    bss\t    dec\t    hex\tfilename",
+        "  64072\t  15296\t    576\t  79944\t  13848\tsmoke_test_hmac_errortrigger.exe",
+        "Completed building smoke_test_hmac_errortrigger"
+      ]
+    }
+  ]
+}

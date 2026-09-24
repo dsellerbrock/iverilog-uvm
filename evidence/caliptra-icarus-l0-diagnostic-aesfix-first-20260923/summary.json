@@ -1,0 +1,60 @@
+{
+  "selected": 52,
+  "attempted": 1,
+  "passed": 0,
+  "failed": 1,
+  "unrun": 51,
+  "status": "COMPLETE",
+  "qualification": "diagnostic_reset_overlay",
+  "commercial_unsafe": true,
+  "reset_overlay": true,
+  "compiler_flags": [
+    "-g2017",
+    "-gassertions",
+    "-gcommercial-unsafe",
+    "-s",
+    "caliptra_top_tb",
+    "-D",
+    "RV_OPENSOURCE",
+    "-D",
+    "CLP_ASSERT_ON",
+    "-D",
+    "CALIPTRA_INTERNAL_TRNG",
+    "-f",
+    "/tmp/caliptra-l0-reset-ms8z_a72/caliptra_top_tb_icarus_profile.vf",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-diagnostic-aesfix-first-20260923/caliptra_top_tb.vvp"
+  ],
+  "fingerprints_before": {
+    "compiler": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl": "1bfe7343038d3d5879f69a2894c2cb6eec9ee567d536b4ee1eba50d670f0e6f3",
+    "vvp_target": "21c13d775e7eecf7779c9a63817287da44c3cb3bec927343514bee9b37a15f7b",
+    "vvp": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+    "profile": "6afd91c0552b2d6cba338b2e31a99124d548c6688934ff8dbf50b38c3996106b",
+    "jtagdpi": "434b73346370213147b12a265a1b2d453ce05496035d854a4fe87ac3dee23c16",
+    "reset_bfm_overlay": "c5b901d338d0ee31feca6ea0cf9dd67f898c9d053e016cf835ab3468a21af3ed"
+  },
+  "fingerprints_after": {
+    "compiler": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl": "1bfe7343038d3d5879f69a2894c2cb6eec9ee567d536b4ee1eba50d670f0e6f3",
+    "vvp_target": "21c13d775e7eecf7779c9a63817287da44c3cb3bec927343514bee9b37a15f7b",
+    "vvp": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+    "profile": "6afd91c0552b2d6cba338b2e31a99124d548c6688934ff8dbf50b38c3996106b",
+    "jtagdpi": "434b73346370213147b12a265a1b2d453ce05496035d854a4fe87ac3dee23c16",
+    "reset_bfm_overlay": "c5b901d338d0ee31feca6ea0cf9dd67f898c9d053e016cf835ab3468a21af3ed"
+  },
+  "source_integrity_before": {
+    "caliptra_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "caliptra_clean": true,
+    "adams_bridge_commit": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+    "adams_bridge_clean": true
+  },
+  "source_integrity_after": {
+    "caliptra_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "caliptra_clean": true,
+    "adams_bridge_commit": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+    "adams_bridge_clean": true
+  },
+  "source_integrity_error": null,
+  "fingerprint_integrity_error": null
+}

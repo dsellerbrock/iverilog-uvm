@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_nested_packed_preponed.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "sv_assert_nested_packed_preponed"],
+  "gold": "sv_assert_nested_packed_preponed"
+}

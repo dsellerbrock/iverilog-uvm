@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_interface_virtual_override_reachability.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "override_via_base"
+  ],
+  "gold": "sv_interface_virtual_override_via_base_ce"
+}

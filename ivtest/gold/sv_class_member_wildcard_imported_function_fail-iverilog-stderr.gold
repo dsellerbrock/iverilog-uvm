@@ -1,0 +1,2 @@
+ivltests/sv_class_member_wildcard_imported_function_fail.v:8: Error: foo is not a method of class C.
+1 error(s) during elaboration.

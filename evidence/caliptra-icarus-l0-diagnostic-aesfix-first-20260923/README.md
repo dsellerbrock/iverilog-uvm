@@ -1,0 +1,7 @@
+# Copied-reset first-case runtime after AES sensitivity fix
+
+`python3 evidence/caliptra-icarus-l0-runner-20260923/run.py --commercial-unsafe --reset-overlay --timeout 600 --output evidence/caliptra-icarus-l0-diagnostic-aesfix-first-20260923`
+
+The pinned Caliptra v2.1.2 and Adams Bridge v2.0.3 trees were clean and unchanged before and after the run; [summary.json](summary.json) records exact compiler, VVP, profile, reset-copy, and native-DPI hashes. The first released `smoke_test_veer` firmware rebuilt with all four expected image hashes and native vector generators. Its [result.json](smoke_test_veer/result.json) records simulation exit 1, zero pass/fail markers, 17,448 error diagnostics, 621 instruction-trace entries, and a terminal fatal at 43.865 us. The first terminal error is the Veer TLU fast-interrupt flush assertion, followed by `soc_ifc_reg` `ERR_HWIF_IN` and a store-buffer overflow assertion; see [fatal triage](../caliptra-post-aes-runtime-fatal-triage-20260923/README.md). Repeated MLDSA/KV `SVA ERROR` text appears earlier from eager checker function side effects; [paired evidence](../caliptra-post-aes-sva-triage-20260923/README.md) does not establish property failure for those messages.
+
+Verdict: **0/1 diagnostic-reset-overlay cases passed; 51 unrun.** This is a nonstandard copied-testbench, `-gcommercial-unsafe` result and cannot count toward strict Icarus L0 or IEEE conformance. No assertion or pass criterion was suppressed.

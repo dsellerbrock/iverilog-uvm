@@ -1,0 +1,2 @@
+ivltests/sv_interface_task_mixed_driver_static_init.v:11: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.
+1 error(s) during elaboration.

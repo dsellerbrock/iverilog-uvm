@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "exit_code": 0,
+  "timed_out": false,
+  "seconds": 1.98,
+  "vvp_sha256": "5d4d0ca6bbaa695927572bdbba03915a07e20005403a5fe0d7e25e7e659c16ed",
+  "image_sha256": "932928e71a04af7f8be2a08eabecf6f96da81226bdf0c394033db0ed566d576c",
+  "qualification": false
+}

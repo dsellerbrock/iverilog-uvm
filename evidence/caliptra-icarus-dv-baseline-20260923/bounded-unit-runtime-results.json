@@ -1,0 +1,137 @@
+{
+  "scope": "Fresh bounded Icarus unit-runtime checks; only explicit testbench verdict markers count as runtime pass.",
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "vvp_sha256": "5d4d0ca6bbaa695927572bdbba03915a07e20005403a5fe0d7e25e7e659c16ed",
+  "entries": [
+    {
+      "test": "power2round_tb",
+      "pinned_repo_head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+      "filelist": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf",
+      "filelist_sha256": "124f3be49833cbfa80704d37337900f013a66b6ffdf8afc2e303526fa5c50f51",
+      "compile_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2012",
+        "-gassertions",
+        "-s",
+        "power2round_tb",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/power2round_tb/design.vvp",
+        "-f",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+      ],
+      "compile_exit_code": 0,
+      "compile_elapsed_seconds": 0.026,
+      "compile_stdout": "compile.stdout.log",
+      "compile_stderr": "compile.stderr.log",
+      "compile_image_sha256": "eb4c7dff4a03861caf2a7618f6e6b6dce53775e91dfe8111dd161cabbae2f831",
+      "stimulus_hashes": {
+        "power2round.py": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+        "python": "396ac4673c7fda942ed26cfc92c39c46ae95ee574120a9d7270963d55fcaac17",
+        "coeff_low.hex": "50395a40f3413b125b080294910b5901c92b6b58ce665b1e39e4327138afd97e",
+        "coeff_input.hex": "3ed43b5cfe5de361e3c2bef49c87fdfe6323ed26636627da4c44c4f07ee63bde",
+        "coeff_high.hex": "70366b8e6bd47750e23f1d4e9f2c8364ed6dbf4509b127afdbd1d37571e1eea8"
+      },
+      "plusargs": [],
+      "runtime_timeout_seconds": 60,
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/power2round_tb/design.vvp"
+      ],
+      "runtime_exit_code": 0,
+      "runtime_elapsed_seconds": 0.38,
+      "runtime_stdout": "runtime.stdout.log",
+      "runtime_stderr": "runtime.stderr.log",
+      "pass_markers": 1,
+      "fail_markers": 0,
+      "error_marker_count": 0,
+      "runtime_classification": "PASS"
+    },
+    {
+      "test": "rej_bounded_tb",
+      "pinned_repo_head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+      "filelist": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/rej_bounded/config/rej_bounded_tb.vf",
+      "filelist_sha256": "00afea8fb3645e82b0ce3472c9d8ae45e214b43f4e66d68000522c1689d79753",
+      "compile_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2012",
+        "-gassertions",
+        "-s",
+        "rej_bounded_tb",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/rej_bounded_tb/design.vvp",
+        "-f",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/rej_bounded/config/rej_bounded_tb.vf"
+      ],
+      "compile_exit_code": 0,
+      "compile_elapsed_seconds": 0.02,
+      "compile_stdout": "compile.stdout.log",
+      "compile_stderr": "compile.stderr.log",
+      "compile_image_sha256": "3454461e6833df1fb24d927397d1490052651ae0f1cb8a10b016211e2d8389d2",
+      "stimulus_hashes": {
+        "input_vectors.txt": "58854a4172d4d6db35f508450034df08a5f1af0138607d0f4fdab3b1219d3e21",
+        "python": "f6df5517350508db87f01d4196be3df1b7bca05725f5d0551dd66891103efcb4",
+        "exp_results.txt": "80fb391443ea35d640e888b90edc783e570fbf7df8037315be581ce8ea129103",
+        "input_seeds.txt": "9058ebfbad229b1b621ccd0f50d59323d41f99930aefc6814ad660c29ce4f69e",
+        "rej_bounded.py": "f64511a39e29e4d21db02d35e7a8ee9ed66a832d77f8cce88cc25c3dbc5a1c8a"
+      },
+      "plusargs": [
+        "+VEC_CNT=100"
+      ],
+      "runtime_timeout_seconds": 60,
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/rej_bounded_tb/design.vvp",
+        "+VEC_CNT=100"
+      ],
+      "runtime_exit_code": 0,
+      "runtime_elapsed_seconds": 0.648,
+      "runtime_stdout": "runtime.stdout.log",
+      "runtime_stderr": "runtime.stderr.log",
+      "pass_markers": 0,
+      "fail_markers": 1,
+      "error_marker_count": 0,
+      "runtime_classification": "FAIL"
+    },
+    {
+      "test": "csrng_tb",
+      "pinned_repo_head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "filelist": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/csrng_tb/csrng_tb_package_first.vf",
+      "filelist_sha256": "ddc8122e4b2402e2524267050466d49c249b47efb1950793e7198db347055f3c",
+      "compile_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2012",
+        "-gassertions",
+        "-s",
+        "csrng_tb",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/csrng_tb/design.vvp",
+        "-f",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/csrng_tb/csrng_tb_package_first.vf"
+      ],
+      "compile_exit_code": 0,
+      "compile_elapsed_seconds": 0.233,
+      "compile_stdout": "compile.stdout.log",
+      "compile_stderr": "compile.stderr.log",
+      "compile_image_sha256": "4937ae2e397d283464e32f58058c2389a886662de31ee290e36cabb2d53c5027",
+      "stimulus_hashes": {
+        "runtime.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime.stdout.log": "bbaa8044919fcd94491fb96155596d8dbf4d3b63c501b1f539cd6b9fbffa5e9d",
+        "csrng_tb_package_first.vf": "ddc8122e4b2402e2524267050466d49c249b47efb1950793e7198db347055f3c"
+      },
+      "plusargs": [],
+      "runtime_timeout_seconds": 60,
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-dv-baseline-20260923/runtime/csrng_tb/design.vvp"
+      ],
+      "runtime_exit_code": 0,
+      "runtime_elapsed_seconds": 8.982,
+      "runtime_stdout": "runtime.stdout.log",
+      "runtime_stderr": "runtime.stderr.log",
+      "pass_markers": 1,
+      "fail_markers": 0,
+      "error_marker_count": 0,
+      "runtime_classification": "PASS"
+    }
+  ]
+}

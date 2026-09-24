@@ -1,0 +1,12 @@
+--- a/src/axi/rtl/axi_if.sv
++++ b/src/axi/rtl/axi_if.sv
+@@ -261,8 +261,9 @@
+             arlock  `EQ__ '0;
+             arvalid `EQ__ '0;
+             data = new[len+1];
+             resp = new[len+1];
++            resp_user = new[len+1];
+             for (int beat=0; beat <= len; beat++) begin
+                 get_read_beat(beat_data, beat_user, beat_resp);
+                 data[beat]      = beat_data;
+                 resp_user[beat] = beat_user;

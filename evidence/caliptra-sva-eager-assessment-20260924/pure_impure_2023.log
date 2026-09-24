@@ -1,0 +1,7 @@
+INNER time=5000 value=0
+INNER time=15000 value=0
+INNER time=25000 value=0
+INNER time=35000 value=1
+INNER time=45000 value=1
+SUMMARY direct=1 pure=1 impure=1 calls=5 data=1
+evidence/caliptra-sva-eager-assessment-20260924/sampled_pure_vs_impure.sv:41: $finish called at 52000 (1ps)

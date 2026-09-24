@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_vif_disjoint_property_writer.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "disjoint_port_legal"
+  ],
+  "gold": "sv_vif_disjoint_property_writer_pass"
+}

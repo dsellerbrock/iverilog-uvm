@@ -1,0 +1,21 @@
+{
+  "qualification": "instrumented_nonstandard_compatibility_diagnostic",
+  "case": "smoke_test_veer",
+  "compile_exit": 0,
+  "sim_exit": 1,
+  "pass_markers": 0,
+  "trace_commits": 621,
+  "original_assertions_preserved": true,
+  "pinned_sources_modified": false,
+  "compile_sampling_warnings": 32,
+  "overlay_manifest_sha256": "5b83605e00dd1c66999152658429f7be2869ba8bacec80dad534b139005af3f8",
+  "overlay_profile_sha256": "44122cc02f7c6a3be10af54ef99e780a9f62676ea91ae6eece0ca63ff37d6ab1",
+  "compiled_vvp_sha256": "a466e1f64ec8472ea89197cefb994578d6ae4edb09c312fc8ee323545b365f90",
+  "sim_log_sha256": "d3befe8c9ae199eb02b48a5b120e4e133338f5db7e33a96dacb00b8850885830",
+  "observations": [
+    "43845 ns: TLU MEIP=x while CSR stall=0, MIE=1, MEIE=1, LSU fast stall=0; original fast-interrupt flush assertion reports error",
+    "43865 ns: SOC IFC ICCM ECC double-error=x while DCCM ECC=0 and firmware reset window=0; original ERR_HWIF_IN assertion calls fatal",
+    "43865 ns: store-buffer M-stage valid, store, DMA, DCCM address, and dual-address inputs all X; original overflow assertion reports error"
+  ],
+  "excerpt": "second_probe_excerpt.log"
+}

@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_packed_partial_overlap_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_packed_partial_overlap_fail"]
+}

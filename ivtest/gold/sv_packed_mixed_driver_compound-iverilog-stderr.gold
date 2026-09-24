@@ -1,0 +1,1 @@
+ivltests/sv_packed_mixed_driver_compound.v:2: vvp.tgt warning: uwire "static_words" has 5 drivers (compile-progress: treated as wire).

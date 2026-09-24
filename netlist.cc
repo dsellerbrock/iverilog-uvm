@@ -1386,6 +1386,8 @@ void NetNet::unregister_lref(NetAssign_*obj)
 bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
 					   int widx) const
 {
+      if (assignment_expression_write_ || unsafe_ref_actual_write_)
+	return true;
       for (std::vector<NetAssign_*>::const_iterator cur = lref_objs_.begin()
 		 ; cur != lref_objs_.end() ; ++cur) {
 	    const NetAssign_*lv = *cur;
@@ -1446,6 +1448,34 @@ bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
       }
 
       return false;
+}
+
+bool NetNet::only_unreachable_interface_task_drivers(
+      const set<const NetScope*>&reachable_tasks,
+      const set<const NetScope*>&tasks_with_processes) const
+{
+      if (assignment_expression_write_ || unsafe_ref_actual_write_)
+	return false;
+      const NetScope*instance = scope();
+      if (!instance || !instance->is_interface() || !instance->parent())
+	return false;
+
+      bool found = false;
+      for (const NetAssign_*lv : lref_objs_) {
+	if (!lv || lv->is_force_lval())
+	  continue;
+	/* The deferred assignment covers this member's only complete word.
+	   Counting every non-force l-value is intentionally stronger than a
+	   second bit-select analysis; no uncertain selector can escape. */
+	found = true;
+	const NetScope*owner = lv->unsafe_task_body_owner();
+	if (!owner || owner->type() != NetScope::TASK
+	    || owner->parent() != instance
+	    || reachable_tasks.count(owner)
+	    || tasks_with_processes.count(owner))
+	  return false;
+      }
+      return found;
 }
 
 unsigned NetNet::get_refs() const

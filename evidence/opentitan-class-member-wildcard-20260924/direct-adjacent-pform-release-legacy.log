@@ -1,0 +1,41 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                        br_gh191_break: Passed.
+                             br_gh1237: Passed.
+                              br_gh801: Passed.
+                             br_gh801b: Passed.
+                       automatic_task2: Passed.
+                           case_unique: Passed.
+                        func_init_var1: Passed.
+                         fork_join_any: Passed.
+                             function1: Passed.
+                               repeat2: Passed.
+            sv_case_inside_mixed_items: Passed.
+            sv_case_unique_multimatch1: Passed.
+                            sv_class15: Passed.
+                            sv_class17: Passed.
+                 sv_class_constructor1: Passed.
+                sv_class_event_member1: Passed.
+      sv_class_extern_ctor_const_init1: Passed.
+                 sv_class_extern_task1: Passed.
+          sv_class_function_fork_task1: Passed.
+              sv_class_method_var_init: Passed.
+                     sv_class_new_init: Passed.
+            sv_class_static_const_init: Passed.
+       sv_class_const_constructor_init: Passed.
+                        sv_event_array: Passed.
+             sv_event_array_llp64_pack: Passed.
+            sv_function_fork_join_none: Passed.
+sv_interface_member_select_sensitivity: Passed.
+           sv_nettype_class_scope_scan: Passed.
+                    sv_nettype_package: Passed.
+            sv_task_localparam_untyped: Passed.
+                 sv_type_operator_case: Passed.
+                          sv_var_init1: Passed.
+                             task3.14A: Passed.
+                        task_init_var1: Passed.
+                                 wait1: Passed.
+                                 wait3: Passed.
+============================================================================
+Test results:
+  Total=36, Passed=36, Failed=0, Not Implemented=0, Expected Fail=0

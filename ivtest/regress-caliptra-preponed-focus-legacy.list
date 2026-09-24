@@ -1,0 +1,2 @@
+sv_assert_nested_packed_preponed normal,-g2017,-gassertions,-ssv_assert_nested_packed_preponed ivltests gold=sv_assert_nested_packed_preponed.gold
+sv_assert_nested_packed_preponed_2023 normal,-g2023,-gassertions,-ssv_assert_nested_packed_preponed ivltests gold=sv_assert_nested_packed_preponed.gold

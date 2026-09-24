@@ -1,0 +1,34 @@
+{
+  "argv": [
+    "/tmp/unsafe-driver-review.2wvCYe/install/bin/iverilog",
+    "-g2017",
+    "-gassertions",
+    "-gcommercial-unsafe",
+    "-s",
+    "caliptra_top_tb",
+    "-D",
+    "RV_OPENSOURCE",
+    "-D",
+    "CLP_ASSERT_ON",
+    "-D",
+    "CALIPTRA_INTERNAL_TRNG",
+    "-f",
+    "/tmp/caliptra-l0-jtag-port-kckervw6/caliptra_top_tb_icarus_profile.vf",
+    "-o",
+    "/tmp/unsafe-driver-review.2wvCYe/caliptra_top_tb_private.vvp"
+  ],
+  "env_overrides": {
+    "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+    "CALIPTRA_AXI4PC_DIR": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb",
+    "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic",
+    "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic"
+  },
+  "source_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-patched-long-52-20260924/cases/smoke_test_veer/compile.command.json",
+  "copied_inputs_verified": true,
+  "candidate_ivl_sha256": "9691c4f502d6b1cbc8d0bdbf415dcc8433e7c7dcd9f6a051ba33c6f864e501b9",
+  "exit": 0,
+  "elapsed_s": 30.662,
+  "output_sha256": "78988b58bef622ef8ddc535e7071f0ec03fcc3f994a639a3daf1859ac2c265a2",
+  "stdout": "",
+  "stderr": "/tmp/caliptra-l0-checker-vmbe70dr/src/integration/asserts/caliptra_top_sva.sv:581: warning: Anachronistic use of named begin/end to surround generate schemes.\n/tmp/caliptra-l0-checker-vmbe70dr/src/integration/asserts/caliptra_top_sva.sv:594: warning: Anachronistic use of named begin/end to surround generate schemes.\n/tmp/caliptra-l0-checker-vmbe70dr/src/integration/asserts/caliptra_top_sva.sv:607: warning: Anachronistic use of named begin/end to surround generate schemes.\n/tmp/caliptra-l0-checker-vmbe70dr/src/integration/asserts/caliptra_top_sva.sv:621: warning: Anachronistic use of named begin/end to surround generate schemes.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/dma_testcase_generator.sv:49: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/dma_testcase_generator.sv:52: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/dma_testcase_generator.sv:105: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_veer_sram_export.sv:40: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_veer_sram_export.sv:41: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_fifo.sv:238: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_pkg.sv:40: warning: method function 'randomize' is being called as a task.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_pkg.sv:40: warning: method function 'randomize' is being called as a task.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:530: warning: System task ($fatal) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:505: warning: System task ($fatal) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:411: warning: System task ($fatal) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:386: warning: System task ($fatal) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:253: warning: System task ($display) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:262: warning: System task ($display) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:270: warning: System task ($display) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_fifo.sv:322: warning: System task ($display) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:1170: warning: System task ($display) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:1176: warning: System task ($display) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:1182: warning: System task ($display) cannot be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/test_suites/libs/jtagdpi/jtagdpi.sv:24: warning: user task (jtagdpi_tick) must be automatic to be synthesized in an always_ff process.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/el2_pic_ctrl.sv:406: vvp.tgt warning: uwire \"level_intpend_id\" has 42 drivers (compile-progress: treated as wire).\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/riscv_core/veer_el2/rtl/el2_pic_ctrl.sv:405: vvp.tgt warning: uwire \"level_intpend_w_prior_en\" has 42 drivers (compile-progress: treated as wire).\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:2355: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:2356: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.\n"
+}

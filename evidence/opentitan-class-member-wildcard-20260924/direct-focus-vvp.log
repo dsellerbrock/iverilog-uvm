@@ -1,0 +1,11 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-opentitan-class-member-wildcard-focus-vvp.list
+----------------------------------------------------------------------------
+                     sv_class_member_wildcard_import: Passed.
+                sv_class_member_wildcard_import_2023: Passed.
+           sv_class_member_wildcard_import_ambiguous: Passed - CE.
+      sv_class_member_wildcard_import_ambiguous_2023: Passed - CE.
+     sv_class_member_wildcard_imported_function_fail: Passed - CE.
+sv_class_member_wildcard_imported_function_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 6, Failed 0.

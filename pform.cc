@@ -591,6 +591,11 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
       while (scope) {
 	    if (scope->local_symbols.find(name) != scope->local_symbols.end())
 		  return;
+	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
+		  if (class_scope->type && class_scope->type->properties.find(name)
+		      != class_scope->type->properties.end())
+		    return;
+	    }
 	    if (scope->explicit_imports.find(name) != scope->explicit_imports.end()) {
 		    // A genuine reference to a pinned name: record the use so
 		    // a later local declaration of it is correctly rejected.

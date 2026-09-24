@@ -1,0 +1,462 @@
+{
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "candidate_ivl_sha256": "37f1af94081d8a3042ad4f8bb11e61705c24a74c73f3748e9c82dbe59c9287b8",
+  "sources": {
+    "ivtest/ivltests/sv_class_member_wildcard_import.v": "a2227e0547bfb6a4c84ae4b6cc28612afc745363a3bfcd73f7abf3dad67244fd",
+    "ivtest/ivltests/sv_class_member_wildcard_import_ambiguous.v": "46db7a957bc1149ad6ab2212732a0d29039c851eb16aabbbe8b96f6705ea75c5",
+    "ivtest/ivltests/sv_class_member_wildcard_imported_function_fail.v": "f71936b3ba17dd4211a6476f50f38c74169ec41997d56a40d9db4012e1167b32",
+    "ivtest/ivltests/sv_wildcard_import1.v": "34aa588f1f9fd106a54e2480fa5cfe1f6b00629aef833cb56554a20644f39772",
+    "ivtest/ivltests/sv_wildcard_import2.v": "8bf69d6383784e3ae2465c105ebab7fd18be8dd3c7b9a39d76a42bb882455d4f",
+    "ivtest/ivltests/sv_wildcard_import3.v": "cedf8442e4f84b5d4ade69d28ed8ff168327fabf84e87b99a069c094df8d53f1",
+    "ivtest/ivltests/sv_wildcard_import4.v": "21e811f51079305eb18546c6521aedf8c3bfa9aa46b8999366168ea9b62e6853",
+    "ivtest/ivltests/sv_wildcard_import5.v": "1b80aab19a4dc2c0da80912262a37876a078b31b150e311896778c2804bd8aa1",
+    "ivtest/ivltests/sv_wildcard_import6.v": "2be9d8a4527e7695b36d7c0979440958b35df2e12b8bdb6d9e6de22d6b3a8cc4",
+    "ivtest/ivltests/sv_wildcard_import7.v": "c189b30272a5ca6d3e048b79360d271af2b79da413784fa63e245917daae3291",
+    "ivtest/ivltests/sv_wildcard_import8.v": "fb7c26954336aec11a3f88863130c2b4c2993fc6503f39e5df3e9b0f894e8d6e",
+    "ivtest/ivltests/sv_class_member_wildcard_import_2023.v": "028a1c24aff0119b2df195d871d047796b7897ba1bb0e2550af76472f2d6bd70",
+    "ivtest/ivltests/sv_class_member_wildcard_import_ambiguous_2023.v": "bc9bdf7cd9918d8be2d7740135da0677460f697b3500c87d047d622ec1bdcc83",
+    "ivtest/ivltests/sv_class_member_wildcard_imported_function_fail_2023.v": "9291ad35652e308101c39d25d15c924a9ae50935fc9d7afe385564d48e014472"
+  },
+  "rows": [
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_class_member_wildcard_import",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_import.v:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_class_member_wildcard_import",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED",
+      "runtime_stderr": ""
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_class_member_wildcard_import_ambiguous",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_import_ambiguous.v:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_class_member_wildcard_import_ambiguous",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_import_ambiguous.v:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_class_member_wildcard_imported_function_fail",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_imported_function_fail.v:8: Error: foo is not a method of class C.\n1 error(s) during elaboration.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_class_member_wildcard_imported_function_fail",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_imported_function_fail.v:8: Error: foo is not a method of class C.\n1 error(s) during elaboration.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import1",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import1",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import2",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import2",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import3",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import3",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import4",
+      "compile_exit": 5,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:24: error: 'p1' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:25: error: 'p2' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:27: error: 'word' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:29: error: 'v' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:31: error: 'e' has already been imported into this scope from package 'my_package'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import4",
+      "compile_exit": 5,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:24: error: 'p1' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:25: error: 'p2' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:27: error: 'word' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:29: error: 'v' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:31: error: 'e' has already been imported into this scope from package 'my_package'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import5",
+      "compile_exit": 7,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:50: error: Ambiguous use of 'word'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'e'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'v'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p1'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p2'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'f'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'h'. It is exported by both 'my_package1' and by 'my_package2'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import5",
+      "compile_exit": 7,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:50: error: Ambiguous use of 'word'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'e'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'v'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p1'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p2'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'f'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'h'. It is exported by both 'my_package1' and by 'my_package2'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import6",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import6",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import7",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import7",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2017",
+      "case": "sv_wildcard_import8",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2017",
+      "case": "sv_wildcard_import8",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_class_member_wildcard_import",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_import.v:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_class_member_wildcard_import",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED",
+      "runtime_stderr": ""
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_class_member_wildcard_import_ambiguous",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_import_ambiguous.v:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_class_member_wildcard_import_ambiguous",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_import_ambiguous.v:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_class_member_wildcard_imported_function_fail",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_imported_function_fail.v:8: Error: foo is not a method of class C.\n1 error(s) during elaboration.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_class_member_wildcard_imported_function_fail",
+      "compile_exit": 1,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_class_member_wildcard_imported_function_fail.v:8: Error: foo is not a method of class C.\n1 error(s) during elaboration.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import1",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import1",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import2",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import2",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import3",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import3",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import4",
+      "compile_exit": 5,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:24: error: 'p1' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:25: error: 'p2' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:27: error: 'word' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:29: error: 'v' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:31: error: 'e' has already been imported into this scope from package 'my_package'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import4",
+      "compile_exit": 5,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:24: error: 'p1' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:25: error: 'p2' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:27: error: 'word' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:29: error: 'v' has already been imported into this scope from package 'my_package'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import4.v:31: error: 'e' has already been imported into this scope from package 'my_package'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import5",
+      "compile_exit": 7,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:50: error: Ambiguous use of 'word'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'e'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'v'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p1'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p2'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'f'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'h'. It is exported by both 'my_package1' and by 'my_package2'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import5",
+      "compile_exit": 7,
+      "compile_diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:50: error: Ambiguous use of 'word'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'e'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'v'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p1'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:53: error: Ambiguous use of 'p2'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'f'. It is exported by both 'my_package1' and by 'my_package2'.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_wildcard_import5.v:54: error: Ambiguous use of 'h'. It is exported by both 'my_package1' and by 'my_package2'.",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import6",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import6",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import7",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import7",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "installed",
+      "edition": "2023",
+      "case": "sv_wildcard_import8",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    },
+    {
+      "tool": "candidate",
+      "edition": "2023",
+      "case": "sv_wildcard_import8",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "runtime_exit": null,
+      "runtime_stdout": null,
+      "runtime_stderr": null
+    }
+  ]
+}

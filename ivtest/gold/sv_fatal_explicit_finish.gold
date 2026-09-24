@@ -1,0 +1,2 @@
+FATAL: ./ivltests/sv_fatal_explicit_finish.v:3: explicit finish value=23
+       Time: 0  Scope: sv_fatal_explicit_finish

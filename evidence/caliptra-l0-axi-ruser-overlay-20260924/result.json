@@ -1,0 +1,91 @@
+{
+  "source_sha256": "e03bd7a7654eb9c31bd532861b94d59c876810aa9798f9f67f7df2a5a3f5495c",
+  "patch_sha256": "1309b3a8b53de1ffbf5b70e8e0d78ee81cbf23377d999d36a16a43d72047219f",
+  "test_sha256": "35d190ab21a68ffe58aa721e8b0f64e0198940eaa3fb7a2a71791f67e0b45346",
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "modes": [
+    {
+      "mode": "pinned_2017_strict",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 1,
+      "pass_markers": 0,
+      "undefined_ruser_warnings": 2,
+      "ruser_check_failed": true,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:40: AXI read array lengths were not retained\n       Time: 35000  Scope: top.$unm_blk_8\nWarning: cannot write to an undefined darray<vector[32]>.\nWarning: cannot write to an undefined darray<vector[32]>."
+    },
+    {
+      "mode": "pinned_2017_unsafe",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 1,
+      "pass_markers": 0,
+      "undefined_ruser_warnings": 2,
+      "ruser_check_failed": true,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:40: AXI read array lengths were not retained\n       Time: 35000  Scope: top.$unm_blk_8\nWarning: cannot write to an undefined darray<vector[32]>.\nWarning: cannot write to an undefined darray<vector[32]>."
+    },
+    {
+      "mode": "pinned_2023_strict",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 1,
+      "pass_markers": 0,
+      "undefined_ruser_warnings": 2,
+      "ruser_check_failed": true,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:40: AXI read array lengths were not retained\n       Time: 35000  Scope: top.$unm_blk_8\nWarning: cannot write to an undefined darray<vector[32]>.\nWarning: cannot write to an undefined darray<vector[32]>."
+    },
+    {
+      "mode": "pinned_2023_unsafe",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 1,
+      "pass_markers": 0,
+      "undefined_ruser_warnings": 2,
+      "ruser_check_failed": true,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:40: AXI read array lengths were not retained\n       Time: 35000  Scope: top.$unm_blk_8\nWarning: cannot write to an undefined darray<vector[32]>.\nWarning: cannot write to an undefined darray<vector[32]>."
+    },
+    {
+      "mode": "patched_copy_2017_strict",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 0,
+      "pass_markers": 1,
+      "undefined_ruser_warnings": 0,
+      "ruser_check_failed": false,
+      "output": "PASS AXI_RUSER_READ\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:48: $finish called at 35000 (1ps)"
+    },
+    {
+      "mode": "patched_copy_2017_unsafe",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 0,
+      "pass_markers": 1,
+      "undefined_ruser_warnings": 0,
+      "ruser_check_failed": false,
+      "output": "PASS AXI_RUSER_READ\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:48: $finish called at 35000 (1ps)"
+    },
+    {
+      "mode": "patched_copy_2023_strict",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 0,
+      "pass_markers": 1,
+      "undefined_ruser_warnings": 0,
+      "ruser_check_failed": false,
+      "output": "PASS AXI_RUSER_READ\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:48: $finish called at 35000 (1ps)"
+    },
+    {
+      "mode": "patched_copy_2023_unsafe",
+      "compile_exit": 0,
+      "compile_diagnostics": "",
+      "sim_exit": 0,
+      "pass_markers": 1,
+      "undefined_ruser_warnings": 0,
+      "ruser_check_failed": false,
+      "output": "PASS AXI_RUSER_READ\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-axi-ruser-overlay-20260924/axi_ruser_read.sv:48: $finish called at 35000 (1ps)"
+    }
+  ],
+  "patched_source_sha256": "270ae4d86d3f118a67af1d3b0711478add168c8835645e871153abbd3931a31e"
+}

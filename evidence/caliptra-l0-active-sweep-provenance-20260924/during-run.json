@@ -1,0 +1,152 @@
+{
+  "all_expected_only_patch": true,
+  "copies": {
+    "smoke_test_hmac_errortrigger": {
+      "differences": [
+        {
+          "copy": {
+            "mode": "0o644",
+            "sha256": "c56c7d49ce280090e20bfccdc58cbc4170c39d843d728d889f6e5f7c4210ff12",
+            "type": "file"
+          },
+          "path": "src/integration/test_suites/smoke_test_hmac_errortrigger/smoke_test_hmac_errortrigger.c",
+          "source": {
+            "mode": "0o644",
+            "sha256": "c5c056fbbc10950f61bb5295e73f2c410ff32bdea1350d73db6e82d590623edb",
+            "type": "file"
+          }
+        }
+      ],
+      "entries": 5139,
+      "expected_only_patch": true,
+      "root": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-diagnostic-combined-all-p1-20260924/firmware-source/smoke_test_hmac_errortrigger"
+    },
+    "smoke_test_hw_config": {
+      "differences": [
+        {
+          "copy": {
+            "mode": "0o644",
+            "sha256": "aab3df95a2619a006022c229681777412bcb0ff2a7bc6e279bae299a51469c0a",
+            "type": "file"
+          },
+          "path": "src/integration/test_suites/smoke_test_hw_config/caliptra_isr.h",
+          "source": {
+            "mode": "0o644",
+            "sha256": "db796220e45fd7bfcb21906bd167ee49d89611d83d2db4d8d41f764e5898b1c8",
+            "type": "file"
+          }
+        }
+      ],
+      "entries": 5139,
+      "expected_only_patch": true,
+      "root": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-diagnostic-combined-all-p1-20260924/firmware-source/smoke_test_hw_config"
+    }
+  },
+  "firmware_prefix": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf",
+  "gcc_version": "riscv-none-elf-gcc (xPack GNU RISC-V Embedded GCC arm64) 15.2.0",
+  "observed_at_utc": "2026-09-24T15:42:38.290405+00:00",
+  "observed_firmware_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-diagnostic-combined-all-p1-20260924/smoke_test_veer/firmware.log",
+  "qualification": "diagnostic_reset_checker_source_overlay; not IEEE conformance",
+  "run": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-diagnostic-combined-all-p1-20260924",
+  "script_sha256": "16cd151379254bb144ea411ca9cb2b82357f18856277b151869cdd75325bc5de",
+  "source": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+  "source_clean": true,
+  "source_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "source_entries_excluding_git": 5139,
+  "toolchain": {
+    "direct_make_commands": {
+      "as": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-as",
+        "mtime_ns": 1761221036000000000,
+        "mtime_utc": "2025-10-23T12:03:56+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-as",
+        "sha256": "40205b09f655eb44ba69107027fa9f2ccb0b45468633fae357094120d1754da8",
+        "size": 1346304,
+        "symlink_target": null
+      },
+      "cpp": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-cpp",
+        "mtime_ns": 1761221036000000000,
+        "mtime_utc": "2025-10-23T12:03:56+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-cpp",
+        "sha256": "9c4aa48ccf21efa77a92b81d0e4d267b4e683715472d386747c1be472e460e81",
+        "size": 1361152,
+        "symlink_target": null
+      },
+      "gcc": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-gcc",
+        "mtime_ns": 1761221036000000000,
+        "mtime_utc": "2025-10-23T12:03:56+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-gcc",
+        "sha256": "d21f58713e7f2f9a9ef9de8762b2c2d1995cd4cdeda724d5fe4834f3af4737b2",
+        "size": 1361024,
+        "symlink_target": null
+      },
+      "objcopy": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objcopy",
+        "mtime_ns": 1761221036000000000,
+        "mtime_utc": "2025-10-23T12:03:56+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objcopy",
+        "sha256": "96d0c832bf77a27380eb6a638bfec2ee5df6a732d1fb7141234698472f66aec7",
+        "size": 935352,
+        "symlink_target": null
+      },
+      "objdump": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objdump",
+        "mtime_ns": 1761221036000000000,
+        "mtime_utc": "2025-10-23T12:03:56+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-objdump",
+        "sha256": "87a57cf5bdabdf2ca91ebca54fe568bd6c3524f2558782520547b1b8f29b925b",
+        "size": 1469704,
+        "symlink_target": null
+      },
+      "size": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-size",
+        "mtime_ns": 1761221036000000000,
+        "mtime_utc": "2025-10-23T12:03:56+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/riscv-none-elf-size",
+        "sha256": "6378363493f271657f4bd4e0558e1272968ada95b53ba09ccffdbc70433dac66",
+        "size": 687088,
+        "symlink_target": null
+      }
+    },
+    "gcc_reported_subprograms": {
+      "as": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/../lib/gcc/riscv-none-elf/15.2.0/../../../../riscv-none-elf/bin/as",
+        "mtime_ns": 1761221037000000000,
+        "mtime_utc": "2025-10-23T12:03:57+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/riscv-none-elf/bin/as",
+        "sha256": "5bb97fdb458d346accbf055a4d81a7a9be6bccf3889459ec2467d3f55e9d6fd7",
+        "size": 1346288,
+        "symlink_target": null
+      },
+      "cc1": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/../libexec/gcc/riscv-none-elf/15.2.0/cc1",
+        "mtime_ns": 1761221037000000000,
+        "mtime_utc": "2025-10-23T12:03:57+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/libexec/gcc/riscv-none-elf/15.2.0/cc1",
+        "sha256": "ff278be9a81d1dce500a129ee8f6f9c293a419f1cff94a96eead9e9c0a936b0b",
+        "size": 61598416,
+        "symlink_target": null
+      },
+      "collect2": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/../libexec/gcc/riscv-none-elf/15.2.0/collect2",
+        "mtime_ns": 1761221037000000000,
+        "mtime_utc": "2025-10-23T12:03:57+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/libexec/gcc/riscv-none-elf/15.2.0/collect2",
+        "sha256": "e6638157684ae93220cb1656512066374213993429077766fd255c4fbb066922",
+        "size": 389352,
+        "symlink_target": null
+      },
+      "ld": {
+        "invoked_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/../lib/gcc/riscv-none-elf/15.2.0/../../../../riscv-none-elf/bin/ld",
+        "mtime_ns": 1761221037000000000,
+        "mtime_utc": "2025-10-23T12:03:57+00:00",
+        "resolved_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/riscv-none-elf/bin/ld",
+        "sha256": "da83030a33abd43764c05bfcb9b8e7048efba6d42ce0ac7ef5403abfca95be48",
+        "size": 1852240,
+        "symlink_target": null
+      }
+    }
+  }
+}

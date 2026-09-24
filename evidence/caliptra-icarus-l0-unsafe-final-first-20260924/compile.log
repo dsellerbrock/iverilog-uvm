@@ -1,0 +1,26 @@
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/asserts/caliptra_top_sva.sv:584: warning: Anachronistic use of named begin/end to surround generate schemes.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/asserts/caliptra_top_sva.sv:597: warning: Anachronistic use of named begin/end to surround generate schemes.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/asserts/caliptra_top_sva.sv:610: warning: Anachronistic use of named begin/end to surround generate schemes.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/asserts/caliptra_top_sva.sv:624: warning: Anachronistic use of named begin/end to surround generate schemes.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/dma_testcase_generator.sv:49: warning: Static variable initialization requires explicit lifetime in this context.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/dma_testcase_generator.sv:52: warning: Static variable initialization requires explicit lifetime in this context.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/dma_testcase_generator.sv:105: warning: Static variable initialization requires explicit lifetime in this context.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_veer_sram_export.sv:40: warning: Static variable initialization requires explicit lifetime in this context.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_veer_sram_export.sv:41: warning: Static variable initialization requires explicit lifetime in this context.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_fifo.sv:238: warning: Static variable initialization requires explicit lifetime in this context.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_pkg.sv:40: warning: method function 'randomize' is being called as a task.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_pkg.sv:40: warning: method function 'randomize' is being called as a task.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:530: warning: System task ($fatal) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:505: warning: System task ($fatal) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:411: warning: System task ($fatal) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:386: warning: System task ($fatal) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:253: warning: System task ($display) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:262: warning: System task ($display) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_complex.sv:270: warning: System task ($display) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_axi_fifo.sv:322: warning: System task ($display) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:1170: warning: System task ($display) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:1176: warning: System task ($display) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:1182: warning: System task ($display) cannot be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/test_suites/libs/jtagdpi/jtagdpi.sv:24: warning: user task (jtagdpi_tick) must be automatic to be synthesized in an always_ff process.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:2355: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:2356: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.

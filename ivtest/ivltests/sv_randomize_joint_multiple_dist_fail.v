@@ -96,7 +96,9 @@ class guarded_multi;
   rand bad_leaf child;
   rand bit a, b;
   bit enable = 0;
+  int posts;
   function new(); child = new; a = 1; b = 1; child.value = 1; endfunction
+  function void post_randomize(); posts++; endfunction
   constraint c {
     a == b;
     child.value == b;
@@ -115,7 +117,6 @@ module main;
   guarded_multi guarded = new;
   string root_state, child_state;
   string cap_state, cap_child_state;
-  bit guarded_a, guarded_b, guarded_child;
 
   initial begin
     item.srandom(32'h4241444d);
@@ -187,21 +188,15 @@ module main;
     guarded.child.srandom(32'h47554348);
     if (!guarded.randomize() || guarded.a != guarded.b
         || guarded.child.value != guarded.b)
-      $fatal(1, "inactive guarded dist was not sifted");
+      $fatal(1, "inactive guarded dist was not skipped");
     guarded.enable = 1;
-    guarded_a = guarded.a;
-    guarded_b = guarded.b;
-    guarded_child = guarded.child.value;
-    root_state = guarded.get_randstate();
-    child_state = guarded.child.get_randstate();
-    if (guarded.randomize())
-      $fatal(1, "guarded multi-dist was not rejected transactionally");
-    if (guarded.a != guarded_a || guarded.b != guarded_b
-        || guarded.child.value != guarded_child)
-      $fatal(1, "guarded multi-dist changed object state");
-    if (guarded.get_randstate() != root_state
-        || guarded.child.get_randstate() != child_state)
-      $fatal(1, "guarded multi-dist changed RNG state");
+    repeat (180) begin
+      if (!guarded.randomize() || guarded.a != guarded.b
+          || guarded.child.value != guarded.b)
+        $fatal(1, "active guarded multi-dist lost its coupling");
+    end
+    if (guarded.posts != 181)
+      $fatal(1, "active guarded multi-dist skipped post_randomize");
     $display("PASSED");
   end
 endmodule

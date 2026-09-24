@@ -1,0 +1,2 @@
+FATAL: ./ivltests/sv_fatal_string_variable_unsafe.v:4: string-variable value=19
+       Time: 0  Scope: sv_fatal_string_variable

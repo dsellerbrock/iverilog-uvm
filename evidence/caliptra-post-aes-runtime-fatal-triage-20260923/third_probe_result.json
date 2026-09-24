@@ -1,0 +1,25 @@
+{
+  "qualification": "instrumented_nonstandard_compatibility_diagnostic",
+  "case": "smoke_test_veer",
+  "pinned_caliptra_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "compile_exit": 0,
+  "sim_exit": 1,
+  "pass_markers": 0,
+  "trace_entries": 621,
+  "original_assertions_preserved": true,
+  "pinned_sources_modified": false,
+  "compile_sampling_warnings": 32,
+  "overlay_manifest_sha256": "7a981b18fb9d82946fcf6a8af2b197fa72e56f3ee248d736ec8f1874d38acf9d",
+  "overlay_profile_sha256": "7210397153a46ac4635c4e2b535a10caf59299659a8993979fbc23eca1bb8ae5",
+  "compiled_vvp_sha256": "ae73fba1dfea3a3731c0decf5b09747b0903234eb8c242f34ace361ac0e56c12",
+  "compile_log_sha256": "aa43d2a293a324ffa5f8704845595d5e059f16ad2ef69ed54acce9f520e0d21e",
+  "sim_log_sha256": "2b14de79119e2825e093ffa0a968e6102152ba872f531f7c69882092bcf03212",
+  "trace_log_sha256": "6c949cd0f8c51af04b2542d0e097d40343357de7115818a9bf6c9a4bc3e7a2b0",
+  "observations": [
+    "43805 ns: PIC selected_int_priority=z while all 32 leaf priorities checked by the probe are known; mexintpend_in=x",
+    "43845 ns: TLU MEIP=x with known CSR stall, MIE, MEIE, and LSU fast stall; original fast-interrupt flush assertion reports twice",
+    "43865 ns: IFU fetch ECC, SOC IFC ICCM ECC, and store-buffer M-stage packet inputs are X; original SOC IFC fatal and store-buffer assertion action fire"
+  ],
+  "excerpt": "third_probe_excerpt.log",
+  "replay_root": "/tmp/caliptra-runtime-fatal-third-replay-20260924"
+}

@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sv_interface_task_mixed_driver_indirect_unsafe.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gcommercial-unsafe",
+    "-s",
+    "sv_interface_task_mixed_driver_indirect_unsafe"
+  ],
+  "gold": "sv_interface_task_mixed_driver_indirect_unsafe"
+}

@@ -535,6 +535,9 @@ class NexusSet {
 	// Remove the nexus from the set, if it is present.
       void rem(const NexusSet&that);
 
+      // Remove overlapping nexus intervals, retaining any uncovered bits.
+      void rem_intersect(const NexusSet&that);
+
       unsigned find_nexus(const elem_t&that) const;
 
       elem_t& at(unsigned idx);
@@ -992,6 +995,25 @@ class NetNet  : public NetObj, public PortType {
       bool test_part_procedurally_driven(unsigned msb, unsigned lsb,
 					 int widx = 0) const;
 
+      /* An assignment expression exports its side effect as NetEAssignExpr,
+	 so its temporary NetAssign_ validation l-value is destroyed before
+	 continuous-driver checks. Retain that whole-signal writer here. */
+      void note_assignment_expression_write()
+	{ assignment_expression_write_ = true; }
+
+      /* A writable ref actual aliases this interface member in both modes.
+	 Its validation l-value is temporary, but the write survives the call. */
+      void note_unsafe_ref_actual_write()
+	{ unsafe_ref_actual_write_ = true; }
+      bool has_unsafe_ref_actual_write() const
+	{ return unsafe_ref_actual_write_; }
+
+      /* Opt-in compatibility check for one complete packed member: every
+	 behavioral write must belong to an unreachable task of this instance. */
+      bool only_unreachable_interface_task_drivers(
+	    const std::set<const NetScope*>&reachable_tasks,
+	    const std::set<const NetScope*>&tasks_with_processes) const;
+
 	// Treating this node as a uwire, this function tests whether
 	// any bits in the canonical part are already driven. This is
 	// only useful for UNRESOLVED_WIRE objects. The msb and lsb
@@ -1090,6 +1112,8 @@ class NetNet  : public NetObj, public PortType {
 	// consulted lazily, at query time, because an l-value's part
 	// select is not known when it is constructed.
       std::vector<class NetAssign_*> lref_objs_;
+      bool assignment_expression_write_ = false;
+      bool unsafe_ref_actual_write_ = false;
 
       NetNet*net_delay_driver_ = 0;
       NetNet*net_delay_public_ = 0;
@@ -3489,6 +3513,9 @@ class NetAssign_ {
 
       NetScope*scope()const;
 
+      const NetScope* unsafe_task_body_owner() const
+	{ return unsafe_task_body_owner_; }
+
 	// Get the base index of the part select, or 0 if there is no
 	// part select.
       const NetExpr* get_base() const;
@@ -3568,6 +3595,7 @@ class NetAssign_ {
       // real signal in the bound interface-instance scope during synthesis.
       bool is_interface_member() const;
       NetNet* resolve_interface_member_signal() const;
+      static const std::set<const NetAssign_*>& interface_member_lvals();
 
       // Force/release targets are temporary overrides, not permanent
       // procedural drivers. Mark the complete nested l-value chain so
@@ -3610,6 +3638,7 @@ class NetAssign_ {
 	// Nested l-value. If this is set, sig_ must NOT be set!
       NetAssign_*nest_;
       NetNet *sig_;
+      const NetScope*unsafe_task_body_owner_ = nullptr;
 	// Memory word index
       NetExpr*word_;
 	// member/property if signal is a class.

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_joint_proven_guard_unresolved.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_joint_proven_guard_unresolved"
+}

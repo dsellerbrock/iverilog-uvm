@@ -1,0 +1,13 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+          sv_package_qualified_subroutine_lookup: Passed.
+                       sv_self_package_enum_cast: Passed.
+                  sv_self_package_enum_cast_2023: Passed.
+     sv_self_package_enum_cast_unknown_type_fail: Passed - CE.
+sv_self_package_enum_cast_unknown_type_fail_2023: Passed - CE.
+                    sv_missing_package_task_fail: Passed - CE.
+             sv_missing_package_task_shadow_fail: Passed - CE.
+               sv_missing_package_self_task_fail: Passed - CE.
+============================================================================
+Test results:
+  Total=8, Passed=8, Failed=0, Not Implemented=0, Expected Fail=0

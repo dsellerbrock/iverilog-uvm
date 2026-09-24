@@ -1,0 +1,145 @@
+{
+  "pinned_replays": {
+    "otp": {
+      "core": "lowrisc:dv:otp_ctrl_sim:0.1",
+      "lane": "uvm",
+      "dvsim_test": "otp_ctrl_smoke",
+      "status": "FAIL",
+      "setup_returncode": 0,
+      "compile_returncode": 1,
+      "hard_errors": [
+        "../src/lowrisc_dv_mem_bkdr_util_0/mem_bkdr_util.sv:130: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'."
+      ],
+      "setup_warnings": [
+        "WARNING: Unknown item mapping in section Root",
+        "WARNING: Unknown item mapping in section Root",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c has unknown file type 'cSource'"
+      ],
+      "compile_duration_seconds": 0.791,
+      "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "opentitan_dirty": false,
+      "compiler_engine_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10"
+    },
+    "chip": {
+      "core": "lowrisc:dv:chip_sim:0.1",
+      "lane": "uvm",
+      "dvsim_test": "xbar_smoke",
+      "status": "FAIL",
+      "setup_returncode": 0,
+      "compile_returncode": 1,
+      "hard_errors": [
+        "../src/lowrisc_dv_mem_bkdr_util_0/mem_bkdr_util.sv:130: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'."
+      ],
+      "setup_warnings": [
+        "WARNING: Unknown item mapping in section Root",
+        "WARNING: Unknown item mapping in section Root",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_gpiodpi_0.1/gpiodpi.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_uartdpi_0.1/uartdpi.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_usbdpi_0.1/usbdpi.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_usbdpi_0.1/usbdpi_stream.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_usbdpi_0.1/usbdpi_test.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_usbdpi_0.1/usb_crc.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_usbdpi_0.1/usb_monitor.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_usbdpi_0.1/usb_transfer.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_dpi_c_usbdpi_0.1/usb_utils.c has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_secded_enc_0/secded_enc.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_model_aes_1.0/crypto.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_model_aes_1.0/aes.c has unknown file type 'cSource'",
+        "WARNING: util/check_tool_requirements.py has unknown file type ''",
+        "WARNING: tool_requirements.py has unknown file type ''",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_dv_scramble_model_0/scramble_model.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/dpi_memutil.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/sv_scoped.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_scrambled_0/cpp/scrambled_ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_aes_model_dpi_0/aes_model_dpi.c has unknown file type 'cSource'"
+      ],
+      "compile_duration_seconds": 3.166,
+      "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "opentitan_dirty": false,
+      "compiler_engine_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10"
+    }
+  },
+  "paired_reducers": {
+    "member": {
+      "2017": {
+        "compile_diagnostics": [
+          "/tmp/ot-path-lookup-7hFJ9H/member.sv:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'."
+        ],
+        "compiled": false
+      },
+      "2023": {
+        "compile_diagnostics": [
+          "/tmp/ot-path-lookup-7hFJ9H/member.sv:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'."
+        ],
+        "compiled": false
+      }
+    },
+    "ambiguous": {
+      "2017": {
+        "compile_diagnostics": [
+          "/tmp/ot-path-lookup-7hFJ9H/ambiguous.sv:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'."
+        ],
+        "compiled": false
+      },
+      "2023": {
+        "compile_diagnostics": [
+          "/tmp/ot-path-lookup-7hFJ9H/ambiguous.sv:12: error: Ambiguous use of 'path'. It is exported by both 'otp_scrambler_pkg' and by 'sram_scrambler_pkg'."
+        ],
+        "compiled": false
+      }
+    },
+    "explicit": {
+      "2017": {
+        "compile_diagnostics": [],
+        "compiled": true
+      },
+      "2023": {
+        "compile_diagnostics": [],
+        "compiled": true
+      }
+    },
+    "single_import": {
+      "2017": {
+        "compile_diagnostics": [],
+        "compiled": true
+      },
+      "2023": {
+        "compile_diagnostics": [],
+        "compiled": true
+      }
+    }
+  },
+  "sources": {
+    "explicit.sv": "a8995cc41a9ee323d0738bd2e6a91f18844d0940856e78c2b0d21fda08fd1304",
+    "ambiguous.sv": "46db7a957bc1149ad6ab2212732a0d29039c851eb16aabbbe8b96f6705ea75c5",
+    "member.sv": "c7e668f7244bcef68580cf77c77785cd71218fd71c99f201adebc73f3415c8c1",
+    "single_import.sv": "6d1f72bedfd7692072cde05116e0f3860f2d98a93cd26817008bff3a50c57afa",
+    "inherited.sv": "06c66bb11e910bdcbd8cb63cda38846231ee24a99d54858308461029b269c203",
+    "inherited_local_fail.sv": "a819d1ed2a35a08504bcac824b7ce63972c37454bec191f603b68a55a2910371"
+  },
+  "inherited_boundary_baseline": {
+    "sv_class_member_wildcard_inherited": {
+      "2017": [
+        "ivtest/ivltests/sv_class_member_wildcard_inherited.v:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+      ],
+      "2023": [
+        "ivtest/ivltests/sv_class_member_wildcard_inherited.v:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+      ]
+    },
+    "sv_class_member_wildcard_inherited_local_fail": {
+      "2017": [
+        "ivtest/ivltests/sv_class_member_wildcard_inherited_local_fail.v:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+      ],
+      "2023": [
+        "ivtest/ivltests/sv_class_member_wildcard_inherited_local_fail.v:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+      ]
+    }
+  }
+}

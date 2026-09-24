@@ -1,0 +1,6 @@
+edition=2017 mode=partial
+phase=1 local=ae0000000 port=ae0000000
+phase=2 local=eb0000000 port=eb0000000
+phase=3 local=Xa0000000 port=Xa0000000
+PASS
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-post-aes-soc-partial-reducer-20260923/soc_fatal_field.sv:71: $finish called at 6 (1s)
