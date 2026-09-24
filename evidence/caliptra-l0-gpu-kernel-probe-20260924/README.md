@@ -43,3 +43,8 @@ equivalent host callback timing, four-state and force state, event ordering,
 delta-cycle feedback, and stratified regions. This experiment does not
 justify such a rewrite. A GPU vector batch might be revisited after an
 actual VVP profile finds large independent vector bursts.
+
+A [whole-event-kernel model](whole-event-model/README.md) adds a delayed
+update wheel, ordered active work, dependent fanout, four-state logic, and an
+NBA barrier. It is still synthetic and does not establish a Caliptra or VVP
+speedup.
