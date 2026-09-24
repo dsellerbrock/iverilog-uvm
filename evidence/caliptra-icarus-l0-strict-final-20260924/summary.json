@@ -1,0 +1,45 @@
+{
+  "qualification": "strict",
+  "commercial_unsafe": false,
+  "reset_overlay": false,
+  "compiler_flags": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "caliptra_top_tb",
+    "-D",
+    "RV_OPENSOURCE",
+    "-D",
+    "CLP_ASSERT_ON",
+    "-D",
+    "CALIPTRA_INTERNAL_TRNG",
+    "-f",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-icarus-baseline-20260923/caliptra_top_tb_icarus_profile.vf",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-strict-final-20260924/caliptra_top_tb.vvp"
+  ],
+  "selected": 52,
+  "attempted": 0,
+  "passed": 0,
+  "failed": 0,
+  "unrun": 52,
+  "status": "BLOCKED",
+  "blocker": "top compile failed",
+  "compile_exit": 46,
+  "compile_timeout": false,
+  "compile_sampling_warnings": 0,
+  "compile_error": null,
+  "source_integrity_before": {
+    "caliptra_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "caliptra_clean": true,
+    "adams_bridge_commit": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+    "adams_bridge_clean": true
+  },
+  "source_integrity_after": {
+    "caliptra_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "caliptra_clean": true,
+    "adams_bridge_commit": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+    "adams_bridge_clean": true
+  },
+  "source_integrity_error": null
+}

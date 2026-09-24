@@ -1,0 +1,95 @@
+{
+  "date": "2026-09-23",
+  "scope": "Runtime-only replay of exactly the two existing named OpenTitan smoke images under the final audited VVP; no compile or source edits.",
+  "denominator": 2,
+  "counts": {
+    "pass": 2,
+    "fail": 0,
+    "blocked": 0,
+    "unrun": 0
+  },
+  "vvp_path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+  "vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "expected_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "tests": [
+    {
+      "name": "xbar_smoke_vseq",
+      "status": "PASS",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/xbar_peri.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=xbar_base_test",
+        "+UVM_TEST_SEQ=xbar_smoke_vseq"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+      "exit": 0,
+      "timeout": false,
+      "elapsed_seconds": 34.707,
+      "vvp_sha256_before": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+      "vvp_sha256_after": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+      "image": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/xbar_peri.vvp",
+      "image_sha256": "9914bc74c66d45a562e6b2ea39838b70f0d9ad3369f02f7fd75825dfd96d8778",
+      "log": "evidence/opentitan-named-smokes-20260923/final-vvp-e9b7a64a/xbar_runtime.log",
+      "log_sha256": "0306e6ef2531cd8d016e8e6f802d6e4286fc3fcea2879cbdec5184fbda52967c",
+      "checks": {
+        "pass_banner": true,
+        "fail_banner": false,
+        "uvm_counts": {
+          "WARNING": 0,
+          "ERROR": 0,
+          "FATAL": 0
+        },
+        "normal_finish": true,
+        "requests_sent": 180,
+        "scoreboard_items_processed": 354
+      }
+    },
+    {
+      "name": "pwrmgr_smoke_vseq_seed1",
+      "status": "PASS",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/pwrmgr.vvp",
+        "+ntb_random_seed=1",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908",
+      "exit": 0,
+      "timeout": false,
+      "elapsed_seconds": 5.246,
+      "vvp_sha256_before": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+      "vvp_sha256_after": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+      "image": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-named-smokes-20260923/pwrmgr.vvp",
+      "image_sha256": "d8145a1c7c98046bd114633faf68b429c4b6cd7371378afe89b1fcee484525df",
+      "log": "evidence/opentitan-named-smokes-20260923/final-vvp-e9b7a64a/pwrmgr_smoke_runtime.log",
+      "log_sha256": "b6e22de0428d0ee82966f4e1920acf0528388891dca52aa6b221c1ebf6e63365",
+      "checks": {
+        "pass_banner": true,
+        "fail_banner": false,
+        "uvm_counts": {
+          "WARNING": 0,
+          "ERROR": 0,
+          "FATAL": 0
+        },
+        "normal_finish": true,
+        "tilelink_requests_sent": 25,
+        "tilelink_responses_received": 25,
+        "scoreboard_tl_a": 25,
+        "scoreboard_tl_d": 25
+      }
+    }
+  ],
+  "image_provenance": "evidence/opentitan-named-smokes-20260923/result.json; both images prebuilt there, no rebuild."
+}

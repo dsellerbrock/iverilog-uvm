@@ -1,0 +1,74 @@
+[
+  {
+    "edition": "2017",
+    "case": "chain",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 0,
+    "run_stdout": "PASSED\n",
+    "run_stderr": ""
+  },
+  {
+    "edition": "2017",
+    "case": "direct",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 0,
+    "run_stdout": "PASSED\n",
+    "run_stderr": ""
+  },
+  {
+    "edition": "2017",
+    "case": "onehop",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 0,
+    "run_stdout": "PASSED\n",
+    "run_stderr": ""
+  },
+  {
+    "edition": "2017",
+    "case": "null",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 1,
+    "run_stdout": "",
+    "run_stderr": "runtime error: %wait/vif/anyedge attempted to use a null or non-virtual interface; a virtual interface must be initialized before referencing one of its components.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "chain",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 0,
+    "run_stdout": "PASSED\n",
+    "run_stderr": ""
+  },
+  {
+    "edition": "2023",
+    "case": "direct",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 0,
+    "run_stdout": "PASSED\n",
+    "run_stderr": ""
+  },
+  {
+    "edition": "2023",
+    "case": "onehop",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 0,
+    "run_stdout": "PASSED\n",
+    "run_stderr": ""
+  },
+  {
+    "edition": "2023",
+    "case": "null",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "run_exit": 1,
+    "run_stdout": "",
+    "run_stderr": "runtime error: %wait/vif/anyedge attempted to use a null or non-virtual interface; a virtual interface must be initialized before referencing one of its components.\n"
+  }
+]

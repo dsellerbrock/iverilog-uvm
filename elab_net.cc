@@ -1269,11 +1269,26 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	      }
 	}
 	if (procedural_overlap) {
-	      cerr << get_fileline() << ": error: Variable '" << sig->name()
-		   << "' cannot have continuous and procedural drivers on the"
-		   << " same bits." << endl;
-	      des->errors += 1;
-	      return nullptr;
+	      extern bool synthesis;
+	      const NetScope*instance = sig->scope();
+	      bool unsafe_candidate = gn_commercial_unsafe_flag && !synthesis
+		&& var_allowed_in_sv && sig->type() == NetNet::REG
+		&& instance && instance->is_interface() && instance->parent()
+		&& sig->unpacked_dimensions() == 0 && sig->pin_count() == 1
+		&& selected_word_base == 0 && selected_word_count == 1
+		&& lidx == 0 && midx == sig->vector_width()-1;
+	      if (unsafe_candidate) {
+		/* The task-call graph is incomplete until all roots and late
+		   bodies elaborate. Reserve this concrete member now, then
+		   prove every overlapping write dead at the final pass. */
+		ivl_unsafe_defer_interface_driver(sig, this);
+	      } else {
+		cerr << get_fileline() << ": error: Variable '" << sig->name()
+		     << "' cannot have continuous and procedural drivers on the"
+		     << " same bits." << endl;
+		des->errors += 1;
+		return nullptr;
+	      }
 	}
 
 	/* Now that the driven bits and words are known and a behavioural
@@ -1341,6 +1356,9 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			midx, lidx, selected_word_base + idx);
 		  ivl_assert(*this, !overlap);
 	    }
+	    if (sig->coerced_to_uwire() && sig->scope()
+		&& sig->scope()->is_interface() && sig->scope()->parent())
+	      ivl_note_interface_continuous_member(sig, this);
       }
 
       /* A net declaration delay is a boundary after the declared net's

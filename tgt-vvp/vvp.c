@@ -347,6 +347,78 @@ static void order_interface_initials_before_parent(struct process_list_s*list)
       free(by_position);
 }
 
+/* A forwarded interface port reads its parent's handle in a pre-simulation
+ * initializer. Order only compiler-generated port binders from parent scope
+ * to child scope, regardless of forwarding depth; leave user initializers
+ * and every non-binding initializer in their original slots. */
+struct interface_binding_process_s {
+      ivl_process_t process;
+      size_t position;
+      unsigned depth;
+};
+
+static unsigned scope_depth_(ivl_scope_t scope)
+{
+      unsigned depth = 0;
+      for (; scope; scope = ivl_scope_parent(scope)) depth += 1;
+      return depth;
+}
+
+static int process_is_interface_binding_(ivl_process_t process)
+{
+      int init = 0, transient = 0;
+      unsigned idx;
+      if (ivl_process_type(process) != IVL_PR_INITIAL)
+            return 0;
+      for (idx = 0; idx < ivl_process_attr_cnt(process); idx += 1) {
+            ivl_attribute_t attr = ivl_process_attr_val(process, idx);
+            if (strcmp(attr->key, "_ivl_schedule_init") == 0) init = 1;
+            if (strcmp(attr->key, "_ivl_synthesis_transient") == 0)
+                  transient = 1;
+      }
+      return init && transient;
+}
+
+static int compare_interface_binding_depth_(const void*left_arg,
+                                            const void*right_arg)
+{
+      const struct interface_binding_process_s*left =
+            (const struct interface_binding_process_s*)left_arg;
+      const struct interface_binding_process_s*right =
+            (const struct interface_binding_process_s*)right_arg;
+      if (left->depth < right->depth) return -1;
+      if (left->depth > right->depth) return 1;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static void order_interface_port_bindings(struct process_list_s*list)
+{
+      struct interface_binding_process_s*bindings;
+      size_t*positions;
+      size_t count = 0, idx;
+      if (list->count < 2) return;
+      bindings = (struct interface_binding_process_s*)malloc(
+            list->count * sizeof(*bindings));
+      positions = (size_t*)malloc(list->count * sizeof(*positions));
+      assert(bindings && positions);
+      for (idx = 0; idx < list->count; idx += 1) {
+            ivl_process_t process = list->items[idx];
+            if (!process_is_interface_binding_(process)) continue;
+            bindings[count].process = process;
+            bindings[count].position = idx;
+            bindings[count].depth = scope_depth_(ivl_process_scope(process));
+            positions[count++] = idx;
+      }
+      qsort(bindings, count, sizeof(*bindings),
+            compare_interface_binding_depth_);
+      for (idx = 0; idx < count; idx += 1)
+            list->items[positions[idx]] = bindings[idx].process;
+      free(positions);
+      free(bindings);
+}
+
 static int draw_processes(ivl_design_t des)
 {
       struct process_list_s list = { 0, 0, 0 };
@@ -361,6 +433,7 @@ static int draw_processes(ivl_design_t des)
 
       order_normal_initials_lexically(&list);
       order_interface_initials_before_parent(&list);
+      order_interface_port_bindings(&list);
       for (idx = 0; idx < list.count; idx += 1) {
             rc = draw_process(list.items[idx], 0);
             if (rc != 0)
@@ -616,6 +689,55 @@ static void order_descriptors_interface_initials_before_parent(
       free(by_position);
 }
 
+struct ordered_binding_process_s {
+      ivl_process_order_s*process;
+      size_t position;
+      unsigned depth;
+};
+
+static int compare_ordered_binding_depth_(const void*left_arg,
+                                          const void*right_arg)
+{
+      const struct ordered_binding_process_s*left =
+            (const struct ordered_binding_process_s*)left_arg;
+      const struct ordered_binding_process_s*right =
+            (const struct ordered_binding_process_s*)right_arg;
+      if (left->depth < right->depth) return -1;
+      if (left->depth > right->depth) return 1;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static void order_descriptors_interface_port_bindings(
+      ivl_process_order_s**items, size_t count)
+{
+      struct ordered_binding_process_s*bindings;
+      size_t*positions;
+      size_t used = 0, idx;
+      if (count < 2) return;
+      bindings = (struct ordered_binding_process_s*)malloc(
+            count * sizeof(*bindings));
+      positions = (size_t*)malloc(count * sizeof(*positions));
+      assert(bindings && positions);
+      for (idx = 0; idx < count; idx += 1) {
+            ivl_process_order_s*process = items[idx];
+            if (process->type != IVL_PR_INITIAL
+                || !(process->flags & IVL_PROCESS_ORDER_INTERFACE_PORT_BINDING))
+                  continue;
+            bindings[used].process = process;
+            bindings[used].position = idx;
+            bindings[used].depth = scope_depth_(process->scope);
+            positions[used++] = idx;
+      }
+      qsort(bindings, used, sizeof(*bindings),
+            compare_ordered_binding_depth_);
+      for (idx = 0; idx < used; idx += 1)
+            items[positions[idx]] = bindings[idx].process;
+      free(positions);
+      free(bindings);
+}
+
 DLLEXPORT int target_process_order(ivl_process_order_s*processes,
                                    size_t count)
 {
@@ -645,6 +767,7 @@ DLLEXPORT int target_process_order(ivl_process_order_s*processes,
 
       order_descriptors_normal_initials_lexically(ordered, count);
       order_descriptors_interface_initials_before_parent(ordered, count);
+      order_descriptors_interface_port_bindings(ordered, count);
 
       for (idx = 0; idx < count; idx += 1)
             copy[idx] = *ordered[idx];

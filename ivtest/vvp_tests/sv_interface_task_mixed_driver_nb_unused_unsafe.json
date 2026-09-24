@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_interface_task_mixed_driver_nb.v",
+  "iverilog-args": ["-g2017", "-gcommercial-unsafe", "-s", "sv_interface_task_mixed_driver_nb"],
+  "gold": "sv_interface_task_mixed_driver_nb_unused_unsafe"
+}

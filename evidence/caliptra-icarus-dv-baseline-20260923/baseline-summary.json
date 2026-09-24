@@ -1,0 +1,26 @@
+{
+  "caliptra_head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "adams_bridge_head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+  "caliptra_clean": true,
+  "adams_bridge_clean": true,
+  "iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "vvp_sha256": "5d4d0ca6bbaa695927572bdbba03915a07e20005403a5fe0d7e25e7e659c16ed",
+  "unit_compile_counts": {
+    "pass": 20,
+    "fail": 6,
+    "setup": 17,
+    "unsupported": 1,
+    "timeout": 0
+  },
+  "unit_compile_denominator": 44,
+  "bounded_runtime_counts": {
+    "PASS": 2,
+    "FAIL": 1,
+    "BLOCKED": 0,
+    "UNRUN_COMPILE_BLOCKED": 0
+  },
+  "bounded_runtime_denominator": 3,
+  "l0_selected": 52,
+  "l0_runtime_attempted": 0,
+  "l0_runtime_outcome": "UNRUN; strict top compile blocked with 46 errors"
+}

@@ -2894,7 +2894,8 @@ typedef int  (*target_design_end_f)(ivl_design_t des);
 
 typedef enum ivl_process_order_flag_e {
       IVL_PROCESS_ORDER_ANALOG        = 0x01,
-      IVL_PROCESS_ORDER_SCHEDULE_INIT = 0x02
+      IVL_PROCESS_ORDER_SCHEDULE_INIT = 0x02,
+      IVL_PROCESS_ORDER_INTERFACE_PORT_BINDING = 0x04
 } ivl_process_order_flag_t;
 
 /* The cookie identifies the source process and must remain attached to its

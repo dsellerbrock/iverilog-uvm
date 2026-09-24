@@ -1,0 +1,2 @@
+ivltests/sv_interface_port_mixed_driver.v:81: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.
+1 error(s) during elaboration.

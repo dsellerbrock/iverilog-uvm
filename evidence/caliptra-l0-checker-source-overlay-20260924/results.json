@@ -1,0 +1,107 @@
+{
+  "qualification": "paired assertion diagnostic control; not an L0 result",
+  "fixture_sha256": "c6a3d52cc8b750d84f7c19eb45944f222ea3cb60b6738cb2bbbcb74ec9a0a5bd",
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "pinned_checker_sha256": "6bd2ade137a90c0701aab28951ba6f8918724e0467c21756b0c308e6e9081c89",
+  "checker_patch_sha256": "b3cdf87a5c819820fbb02d8b183e6209ab7f5fdb062228046ba27cdaae9dbd19",
+  "patched_checker_sha256": "6e67d67966b030931ec222aacfd0863086c7d35b5e916acd5f358a90ed538654",
+  "rows": [
+    {
+      "edition": "2017",
+      "mode": "pure",
+      "compiler_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-s",
+        "pure_checker_controls",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/caliptra-pure-controls-okmspmca/2017-pure.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-checker-source-overlay-20260924/pure_checker_controls.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "inner_prints": 0,
+      "outer_actions": [
+        "OUTER nba",
+        "OUTER live"
+      ],
+      "counts": "COUNTS vac=0 pass=0 live=1 disabled=0 nba=1 value=1"
+    },
+    {
+      "edition": "2017",
+      "mode": "impure",
+      "compiler_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-DIMPURE",
+        "-s",
+        "pure_checker_controls",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/caliptra-pure-controls-okmspmca/2017-impure.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-checker-source-overlay-20260924/pure_checker_controls.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "inner_prints": 18,
+      "outer_actions": [
+        "OUTER nba",
+        "OUTER live"
+      ],
+      "counts": "COUNTS vac=0 pass=0 live=1 disabled=0 nba=1 value=1"
+    },
+    {
+      "edition": "2023",
+      "mode": "pure",
+      "compiler_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-s",
+        "pure_checker_controls",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/caliptra-pure-controls-okmspmca/2023-pure.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-checker-source-overlay-20260924/pure_checker_controls.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "inner_prints": 0,
+      "outer_actions": [
+        "OUTER nba",
+        "OUTER live"
+      ],
+      "counts": "COUNTS vac=0 pass=0 live=1 disabled=0 nba=1 value=1"
+    },
+    {
+      "edition": "2023",
+      "mode": "impure",
+      "compiler_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-DIMPURE",
+        "-s",
+        "pure_checker_controls",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/caliptra-pure-controls-okmspmca/2023-impure.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-checker-source-overlay-20260924/pure_checker_controls.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "inner_prints": 18,
+      "outer_actions": [
+        "OUTER nba",
+        "OUTER live"
+      ],
+      "counts": "COUNTS vac=0 pass=0 live=1 disabled=0 nba=1 value=1"
+    }
+  ],
+  "passed": 4,
+  "failed": 0
+}

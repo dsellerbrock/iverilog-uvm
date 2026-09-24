@@ -1,0 +1,105 @@
+{
+  "classification": "preexisting false strict/unsafe rejection of legal disjoint virtual-interface ref actual; separate from selected VIF property-lvalue fix",
+  "qualification": "focused reducer only; no Caliptra L0 pass",
+  "fixture": "evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv",
+  "fixture_sha256": "3a79e0dc1f443fe03185eb7f706581ed8907ccb22533b27b25e071f357bf99b3",
+  "tool_sha256": {
+    "iverilog": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl": "ba1dda3daf01870311a137a0b27b46be8a05575e871dba30321ce13480720ba3",
+    "vvp": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6"
+  },
+  "matrix": [
+    {
+      "top": "ref_disjoint",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:14: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "ref_disjoint",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:14: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "ref_disjoint",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:14: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "ref_disjoint",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:14: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "direct_disjoint",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "PASSED"
+    },
+    {
+      "top": "direct_disjoint",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "PASSED"
+    },
+    {
+      "top": "direct_disjoint",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "PASSED"
+    },
+    {
+      "top": "direct_disjoint",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "PASSED"
+    },
+    {
+      "top": "ref_same_member",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:45: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "ref_same_member",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:45: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "ref_same_member",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:45: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "ref_same_member",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity.sv:45: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    }
+  ]
+}

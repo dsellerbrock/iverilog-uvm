@@ -1,0 +1,36 @@
+{
+  "baseline_ivl_sha256": "57702d3e3df92ca83cdc141b9bede1b8344278e237001320c856aab1d10d6813",
+  "candidate_private_ivl_sha256": "17165f168d982299e05ea25b8b6648b24e8c399590c698719567b61b6dae9cd6",
+  "edition_results": {
+    "2017": {
+      "release_shaped_baseline_sampling_warnings": 32,
+      "release_shaped_baseline_assertion_failures": 32,
+      "release_shaped_baseline_exit": 1,
+      "release_shaped_candidate_sampling_warnings": 0,
+      "release_shaped_candidate_assertion_failures": 0,
+      "release_shaped_candidate_exit": 0,
+      "ivtest_baseline_nested_failures": 32,
+      "ivtest_candidate_nested_failures": 0,
+      "ivtest_flat_control_failures": 1,
+      "dynamic_index_candidate_sampling_warnings": 1
+    },
+    "2023": {
+      "release_shaped_baseline_sampling_warnings": 32,
+      "release_shaped_baseline_assertion_failures": 32,
+      "release_shaped_baseline_exit": 1,
+      "release_shaped_candidate_sampling_warnings": 0,
+      "release_shaped_candidate_assertion_failures": 0,
+      "release_shaped_candidate_exit": 0,
+      "ivtest_baseline_nested_failures": 32,
+      "ivtest_candidate_nested_failures": 0,
+      "ivtest_flat_control_failures": 1,
+      "dynamic_index_candidate_sampling_warnings": 1
+    }
+  },
+  "candidate_neighbor_controls": [
+    "sv_assert_select_preponed_sample",
+    "sv_assert_packed_member_preponed_sample"
+  ],
+  "candidate_neighbor_controls_passed": 2,
+  "shared_install_or_release_replay_attempted": false
+}

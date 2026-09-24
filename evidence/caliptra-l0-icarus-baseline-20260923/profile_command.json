@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+    "-g2017",
+    "-gassertions",
+    "-tnull",
+    "-s",
+    "caliptra_top_tb",
+    "-D",
+    "RV_OPENSOURCE",
+    "-D",
+    "CLP_ASSERT_ON",
+    "-f",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-icarus-baseline-20260923/caliptra_top_tb_icarus_profile.vf"
+  ],
+  "env_overrides": {
+    "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+    "CALIPTRA_AXI4PC_DIR": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb",
+    "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic",
+    "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic"
+  },
+  "timeout_s": 120,
+  "qualification": false,
+  "overlay": "Unused Axi4PC sentinel excluded; explicit default timescale matches official VCS integration profile"
+}

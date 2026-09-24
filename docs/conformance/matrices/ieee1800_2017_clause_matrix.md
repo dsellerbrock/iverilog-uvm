@@ -5,6 +5,60 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 24, 2026 — nested packed-select assertion sampling
+
+Concurrent assertion operands must be sampled in the Preponed region. A
+paired 2017/2023 RED showed that nested constant selections of packed-struct
+members were sampled live, producing false assertion results. The local
+elaboration fix reconstructs constant nested selects and retains their type
+metadata. [Paired focus and the dynamic-index boundary](../../../evidence/caliptra-packed-struct-preponed-20260924/README.md)
+record the narrow result; the final installed Caliptra top emits zero of its
+former 32 sampling warnings but still fails strict compilation on 46 mixed
+drivers. Dynamic nested-index sampling and full assertion qualification remain
+open. This is a PARTIAL Preponed-sampling improvement, not an L0 pass.
+
+### September 24, 2026 — disjoint virtual-interface property writers
+
+Strict variable-driver legality is PARTIAL for ordinary VIF members. The
+pre-VIF-fix real-DPI UVM gate failed 356/358 because `vif_smoke` and
+`vif_smoke_v2` reported a false `count` continuous/procedural overlap at line
+96 in both strict and unsafe modes. Their procedural VIF write targets
+`reset`, while the DUT output drives disjoint ordinary `PWire` member
+`count`; paired 2017/2023 temporary REDs reproduce the error. The installed narrow `elaborate.cc` repair resolves the concrete
+receiver/member for direct property writes. Same-member overlap, uncertain receiver, modport alias,
+and same-member or uncertain port/ref aliases still require rejection; no broader unsafe waiver or complete conformance claim follows. A separate paired 2017/2023 review shows known-disjoint `write_ref(vif.reset)` with continuous `bus.count` remains falsely rejected in both modes, while direct `vif.reset` compiles and same-member `ref` correctly rejects. The unresolved `ref` actual loses `property_idx`; this [paired follow-on debt](../../../evidence/caliptra-vif-disjoint-property-writer-20260924/ref_member_identity_result.json) is outside the selected VIF repair and does not block Caliptra L0. The [failing real-DPI UVM gate](../../../evidence/caliptra-final-real-dpi-uvm-20260924.log)
+is the application baseline. The shared installed elaborate.cc candidate passes [20/20 paired dedicated cases](../../../evidence/caliptra-vif-disjoint-property-writer-20260924/shared_new_focus.log) and [16/16 neighboring controls](../../../evidence/caliptra-vif-disjoint-property-writer-20260924/shared_neighbor_focus.log); both real-DPI VIF smokes privately compiled/ran with `PASS counter_test` and zero UVM error/fatal. The installed iverilog/ivl/vvp SHA-256 prefixes are 1590b064/ba1dda3d/e9b7a64a. The [full shared real-DPI UVM gate](../../../evidence/caliptra-vif-final-real-dpi-uvm-20260924.log) now passes 358/358 with zero failures/skips and both VIF smokes passing. The [fresh VIF-install L0 first case](../../../evidence/caliptra-icarus-l0-unsafe-vif-first-20260924/README.md) still fails nonstandard compatibility 0/1 on 17,863 diagnostics. The first broad legacy gate had one expected-warning gold mismatch; focused retest passes, but its rerun was intentionally stopped after a separate P1 unsafe virtual-dispatch called-task false waiver was found. Full JSON and PR qualification are on hold; the 358/358 UVM result proves no full clause conformance.
+
+### September 24, 2026 — unsafe virtual-dispatch task reachability
+
+Strict variable-driver rejection remains required by §§6.5 and 10.3.2. The
+nonstandard `-gcommercial-unsafe` exception is sound only when task-body
+writes are proven unreachable for a concrete interface instance. The [16-case paired 2017/2023 RED](../../../evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability_result.json) found a called task reached through a concrete base
+handle to virtual `Derived.go`; unsafe compilation accepts its overlap with a
+continuous value-0 drive, and VVP drives value 1. This P1 called-case false
+waiver is the selected blocker. The permitted implementation scope is
+`elaborate.cc` plus dedicated paired tests/evidence, with called, genuinely
+unused, uncertain-dispatch, and strict controls. A [private P1 candidate](../../../evidence/caliptra-unsafe-virtual-dispatch-20260924/README.md) passes 28/28 dedicated and 34/34 neighboring checks; shared installation and broad gates remain pending. Existing VIF direct-property focus and real-DPI UVM pass, but broad qualification and publication are on hold; no IEEE or Caliptra L0 pass follows from the unsafe run.
+
+### September 24, 2026 — PIC dependent packed partial drivers
+
+Continuous assignment to disjoint nested packed selections remains PARTIAL.
+The [paired 2017/2023 PIC RED and controls](../../../evidence/caliptra-post-aes-runtime-fatal-triage-20260923/pic_priority_tree_reducer.sv)
+show a known-zero 32-leaf priority tree producing `selected_priority=zzzz`,
+while independent disjoint drivers and whole-array controls pass. The
+selected root cause is a PV partial-driver blend into `NetConcat` in
+`cprop.cc` despite a VP read of the destination, forming a self-cycle. The
+expected result is known zero. The integrated narrow cprop.cc candidate
+passes [paired focus 4/4](../../../evidence/caliptra-pic-integrated-focus-20260924.log),
+and its [initial unsafe pinned compile](../../../evidence/caliptra-icarus-l0-unsafe-pic-first-20260924/summary.json)
+crashed exit 139 on a null `Nexus::first_nlink()` in the new traversal. An
+integrated cprop null guard now compiles the exact top to VVP. The
+[completed first case](../../../evidence/caliptra-icarus-l0-unsafe-pic-nullguard-first-20260924/smoke_test_veer/result.json)
+is nonstandard compatibility 0/1 with 51 unrun: firmware/simulation exit 0
+and a pass marker appear after 633 retired instructions, but 17,863 bad
+diagnostics violate the zero-error gate. The former terminal 43.865 us fatal
+is absent. The prerequisite [real-DPI UVM gate](../../../evidence/caliptra-vif-final-real-dpi-uvm-20260924.log) now passes 358/358 after the separate VIF repair; PIC source work remains suspended while the selected P1 unsafe-dispatch breach blocks broad legacy/JSON qualification and remaining error-root triage. The RED and focus establish no L0 pass.
+
 ### September 23, 2026 — time-zero propagation and coupled distribution follow-on
 
 The local PARTIAL §§4.5/4.9.1 scheduler candidate executes only the original
@@ -17,9 +71,14 @@ the [CSRNG scheduler record](../../../evidence/opentitan-csrng-timezero-schedule
 The selected released CSRNG smoke advances to UVM but fails on a separate
 joint-distribution restriction. Full scheduling and CSRNG DV remain open.
 The paired [guarded-`dist` reducer](../../../evidence/opentitan-csrng-cfg-joint-dist-20260923/README.md)
-shows that legal §18.5.7 conditional hard distributions in nested joint
-randomization remain unsupported by the exact joint sampler; standalone
-guarded distributions and nested unconditional controls pass.
+originally showed that legal §18.5.7 conditional hard distributions in nested
+joint randomization were rejected by the exact joint sampler. A later local
+candidate proves hard-pinned or constant guards active or inactive before
+sampling, with 22/22 paired focused weighted and rollback checks in each
+legacy and JSON harness. Random guards whose truth
+varies across feasible solutions still produce a focused error; the released
+CSRNG UVM smoke reaches that boundary and fails. Sections 18.5.4 and 18.5.7
+therefore remain PARTIAL, and the candidate is not broad qualification.
 
 The local PARTIAL §§18.5.4/18.6.3 solver candidate projects a direct unsigned
 coupled distribution subject over a bounded integral range and samples active
@@ -152,6 +211,27 @@ evidence](../session_logs/2026-09-23_commercial_unsafe_flag.json) records
 focused checks only: no full suite ran on the flag revision. The OpenTitan SPI
 compile still has five unsupported nonblocking property assignment codegen
 errors with the flag, and no OpenTitan DV pass is claimed.
+
+The same explicit flag also permits a separate Caliptra interface-driver
+compatibility exception: only a concrete interface member whose conflicting
+task-body writes are proven unreachable for that instance may pass. Strict
+§§6.5 and 10.3.2 still reject the continuous/procedural overlap. Existing direct-called, exported, uncertain, and non-task writer controls reject; active writable same-member or uncertain `ref` actuals through direct or class-held virtual interfaces are rejected. An independent P1 RED shows a called task reached through a concrete-base virtual override is falsely waived in unsafe mode, so called-case rejection is not yet sound.
+The [paired strict/unsafe controls](../../../evidence/caliptra-interface-driver-reducer-20260923/README.md)
+and [integrated PIC strict pinned replay](../../../evidence/caliptra-icarus-l0-strict-pic-nullguard-20260924/summary.json)
+bound the exception; pre-PIC installed driver and port/ref focus pass 34/34
+and 28/28 respectively in each legacy and JSON harness. Strict compilation
+still exits 46 on 46 overlaps, with 0/52 L0 runtimes attempted. Unsafe
+compilation is nonstandard compatibility, not IEEE conformance or an L0
+runtime pass. The [pre-PIC exact unsafe first-case replay](../../../evidence/caliptra-icarus-l0-unsafe-final-first-20260924/smoke_test_veer/result.json)
+was nonstandard compatibility 0/1 with 51 unrun, 621 instruction-trace
+entries, original assertion actions, and no pass marker. The pre-PIC full legacy
+gate passes 6,551 total with zero unexpected failures; bundled VPI, negative,
+and VVP invariant suites also pass. Pre-PIC JSON passes 3480/3480; the pre-PIC real-DPI
+UVM gate loaded DPI but failed 356/358 on two VIF smoke `count` mixed-driver
+compile diagnostics. These broad gates preceded PIC integration. The initial PIC unsafe compile
+crash is fixed and the [completed first case](../../../evidence/caliptra-icarus-l0-unsafe-pic-nullguard-first-20260924/summary.json)
+fails nonstandard compatibility 0/1 on 17,863 bad diagnostics despite firmware
+and simulation exit 0 and one pass marker; no L0 pass is claimed. The narrow elaborate.cc disjoint-property repair passes [paired focus 20/20](../../../evidence/caliptra-vif-disjoint-property-writer-20260924/shared_new_focus.log), [neighbors 16/16](../../../evidence/caliptra-vif-disjoint-property-writer-20260924/shared_neighbor_focus.log), and [real-DPI UVM 358/358](../../../evidence/caliptra-vif-final-real-dpi-uvm-20260924.log). The [fresh VIF-install first case](../../../evidence/caliptra-icarus-l0-unsafe-vif-first-20260924/README.md) also fails 0/1 on 17,863 diagnostics. The first broad legacy gate failed one expected-warning gold mismatch, and its corrected focused retest passes; the broad rerun was intentionally stopped after the selected P1 unsafe virtual-dispatch defect. Full JSON and PR qualification are on hold.
 
 Governing milestone: **M14B — exhaustive subclause campaign.** The table below
 is the retained M14 simulation-led snapshot. It is useful evidence, but it is
@@ -805,6 +885,15 @@ Every language regression in this section is paired under `-g2017` and
 
 This is a bounded cluster, not complete clause 8, 9, 13, or 25 support. See
 the [session log](../session_logs/2026-09-01_virtual_interface_functions.md).
+
+A later §9.2.2.2.1 correction excludes fully written automatic-function locals
+from `always_comb` implicit sensitivity even when the local is written in bit
+intervals and read as a whole vector. Unwritten read intervals remain inputs;
+exact event-expression matching is unchanged. The
+[paired 2017/2023 RED and 8/8 fix controls](../../../evidence/caliptra-aes-sensitivity-fix-20260923/README.md)
+and synthesis neighbors establish this narrow boundary. The pinned Caliptra
+diagnostic advances past time zero but fails separate assertions, so the clause
+fix is not an L0 pass.
 
 ## 2026-09-02 clauses 6.22, 7.4-7.10, 13.5, 15.4.5-15.4.9, and 25.5/25.7/25.9 refinement
 

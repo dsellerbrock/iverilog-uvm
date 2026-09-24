@@ -1,0 +1,84 @@
+--- a/src/integration/asserts/caliptra_top_sva.sv
++++ b/src/integration/asserts/caliptra_top_sva.sv
+@@ -212,9 +212,6 @@
+     for (int entry = 0; entry < KV_NUM_KEYS; entry++) begin
+       for (int dword = 0; dword < KV_NUM_DWORDS; dword++) begin
+         if (`KEYVAULT_PATH.kv_reg1.hwif_out.KEY_ENTRY[entry][dword].data.value != expected_value) begin
+-          $display("SVA ERROR: KV[%0d][%0d] debug flush failed. Expected: %h, Got: %h, SelValue: %0d", 
+-                   entry, dword, expected_value, 
+-                   `KEYVAULT_PATH.kv_reg1.hwif_out.KEY_ENTRY[entry][dword].data.value, sel_value);
+           return 1'b0;
+         end
+       end
+@@ -650,8 +647,6 @@
+     for (int dword = 0; dword < PRIVKEY_REG_NUM_DWORDS; dword++) begin
+       logic [31:0] expected = byte_swap(`SERVICES_PATH.mldsa_test_vector.privkey[dword]);
+       if (`ABR_PATH.abr_scratch_reg.raw[dword] != expected) begin
+-        $display("SVA ERROR: [MLDSA keygen] SK register %h does not match expected %h at index %h", 
+-                 `ABR_PATH.abr_scratch_reg.raw[dword], expected, dword);
+         return 1'b0;
+       end
+     end
+@@ -661,8 +656,6 @@
+       int idx = PRIVKEY_REG_NUM_DWORDS + (2*dword);
+       logic [31:0] expected = byte_swap(`SERVICES_PATH.mldsa_test_vector.privkey[idx]);
+       if (`ABR_RAMS_PATH.abr_sk_mem_bank0_inst.ram[dword] != expected) begin
+-        $display("SVA ERROR: [MLDSA keygen] SK bank0 %h does not match expected %h at index %h",
+-                 `ABR_RAMS_PATH.abr_sk_mem_bank0_inst.ram[dword], expected, idx);
+         return 1'b0;
+       end
+     end
+@@ -672,8 +665,6 @@
+       int idx = PRIVKEY_REG_NUM_DWORDS + 1 + (2*dword);
+       logic [31:0] expected = byte_swap(`SERVICES_PATH.mldsa_test_vector.privkey[idx]);
+       if (`ABR_RAMS_PATH.abr_sk_mem_bank1_inst.ram[dword] != expected) begin
+-        $display("SVA ERROR: [MLDSA keygen] SK bank1 %h does not match expected %h at index %h",
+-                 `ABR_RAMS_PATH.abr_sk_mem_bank1_inst.ram[dword], expected, idx);
+         return 1'b0;
+       end
+     end
+@@ -687,8 +678,6 @@
+     for (int dword = 0; dword < 8; dword++) begin
+       logic [31:0] expected = byte_swap(`SERVICES_PATH.mldsa_test_vector.pubkey[dword]);
+       if (`ABR_PATH.abr_scratch_reg.raw[dword] != expected) begin
+-        $display("SVA ERROR: [MLDSA keygen] PK register %h does not match expected %h at index %h", 
+-                 `ABR_PATH.abr_scratch_reg.raw[dword], expected, dword);
+         return 1'b0;
+       end
+     end
+@@ -703,8 +692,6 @@
+                                `ABR_RAMS_PATH.abr_pk_mem_inst.ram[i][(j*4)+1],
+                                `ABR_RAMS_PATH.abr_pk_mem_inst.ram[i][(j*4)+0]};
+         if (actual != expected) begin
+-          $display("SVA ERROR: [MLDSA keygen] PK memory %h does not match expected %h at index %0d %0d", 
+-                   actual, expected, i, j);
+           return 1'b0;
+         end
+       end
+@@ -719,8 +706,6 @@
+     for (int dword = 0; dword < SIGNATURE_C_NUM_DWORDS; dword++) begin
+       logic [31:0] expected = byte_swap(`SERVICES_PATH.mldsa_test_vector.signature[dword]);
+       if (`ABR_PATH.signature_reg.raw[dword] != expected) begin
+-        $display("SVA ERROR: [MLDSA signing] Signature C %h does not match expected %h at index %h",
+-                 `ABR_PATH.signature_reg.raw[dword], expected, dword);
+         return 1'b0;
+       end
+     end
+@@ -730,8 +715,6 @@
+       int sig_idx = (SIGNATURE_NUM_DWORDS-1) - ((SIGNATURE_H_NUM_DWORDS-1) - dword);
+       logic [31:0] expected = byte_swap(`SERVICES_PATH.mldsa_test_vector.signature[sig_idx]);
+       if (`ABR_PATH.signature_reg.raw[SIGNATURE_C_NUM_DWORDS + dword] != expected) begin
+-        $display("SVA ERROR: [MLDSA signing] Signature H %h does not match expected %h at index %h",
+-                 `ABR_PATH.signature_reg.raw[SIGNATURE_C_NUM_DWORDS + dword], expected, SIGNATURE_C_NUM_DWORDS + dword);
+         return 1'b0;
+       end
+     end
+@@ -747,8 +730,6 @@
+                                `ABR_RAMS_PATH.abr_sig_z_mem_inst.ram[i][(j*4)+0]};
+         
+         if (actual != expected) begin
+-          $display("SVA ERROR: [MLDSA signing] Sig output %h does not match expected sig %h at index %0d %0d", 
+-                   actual, expected, i, j);
+           return 1'b0;
+         end
+       end

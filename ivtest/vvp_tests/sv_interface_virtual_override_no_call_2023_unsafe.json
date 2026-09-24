@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_interface_virtual_override_reachability.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gcommercial-unsafe",
+    "-s",
+    "override_no_call"
+  ],
+  "gold": "sv_interface_virtual_override_no_call_pass"
+}

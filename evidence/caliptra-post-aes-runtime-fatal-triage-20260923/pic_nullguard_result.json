@@ -1,0 +1,86 @@
+{
+  "qualification": "private_compile_and_focused_runtime_only; unsafe top VVP was not run",
+  "cause": "cprop reachability walk dereferenced null Nexus from an unlinked output pin of a combinational NetNode; const Link::nexus() returns null for unlinked pins",
+  "crash_report": "/Users/danielellerbrock/Library/Logs/DiagnosticReports/ivl-2026-09-24-010303.ips",
+  "crash_report_sha256": "e696d8c7ef688a7cd5c0bd7560ac59b9a323b43abd698bff6e4de43b7d82d1f7",
+  "old_installed_ivl_sha256": "6576456f3a15c1ccf2bcbcf066c25fa757776acb9009fb088500aca4ecf1f330",
+  "corrected_private_ivl_sha256": "ba5b59e10e75e604eef6a6f596bd039de57b0e0a24efb77616f976c0a36d559b",
+  "corrected_cprop_source_sha256": "393c399e8771ec855e3de247d6328368b2966f2a314e6c8d86b691ea40deca7f",
+  "pinned_caliptra_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "profile_sha256": "577861eb1c4c9a26ada2379f55e3215d097e1cc317804a0f3155c3786ed381f2",
+  "small_reproducer": {
+    "source": "ivtest/ivltests/sv_packed_partial_feedback.v",
+    "source_sha256": "4d110edb89974e68944dc57eb4e7dca87f6c15139ffd799874b42915c2ed058a",
+    "trigger": "unrelated_compare = independent[0] < 2'b10; NetCompare has unused output pins",
+    "old_installed_2017_compile_exit": 139,
+    "old_installed_compile_log_sha256": "3e7a8284cb64eb5fbc59a4e0657052754ae36826e7ad382c9d555ad31b5195a4",
+    "corrected_private_2017_compile_exit": 0,
+    "corrected_private_2017_runtime_exit": 0,
+    "corrected_private_2017_runtime_output": "PASSED",
+    "private_paired_vvp_reg": "Ran 4, Failed 0",
+    "private_paired_vvp_reg_log_sha256": "be82240ecbf4933424f3b45fcf22cb150d3046552be029f7088e757ac0af521d",
+    "pic_tree_2017_runtime_exit": 0,
+    "pic_tree_2023_runtime_exit": 0,
+    "old_compile_command": [
+      "local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_packed_partial_feedback",
+      "-o",
+      "/tmp/pic-null-fixture-shared-old.vvp",
+      "ivtest/ivltests/sv_packed_partial_feedback.v"
+    ],
+    "corrected_private_compile_command": [
+      "local-install/bin/iverilog",
+      "-B",
+      "/tmp/icarus-pic-candidate-20260924",
+      "-g2017",
+      "-s",
+      "sv_packed_partial_feedback",
+      "-o",
+      "/tmp/pic-null-fixture-private-new.vvp",
+      "ivtest/ivltests/sv_packed_partial_feedback.v"
+    ]
+  },
+  "full_top_private_compile": {
+    "argv": [
+      "local-install/bin/iverilog",
+      "-B",
+      "/tmp/icarus-pic-candidate-20260924",
+      "-g2017",
+      "-gassertions",
+      "-gcommercial-unsafe",
+      "-s",
+      "caliptra_top_tb",
+      "-D",
+      "RV_OPENSOURCE",
+      "-D",
+      "CLP_ASSERT_ON",
+      "-D",
+      "CALIPTRA_INTERNAL_TRNG",
+      "-f",
+      "evidence/caliptra-l0-icarus-baseline-20260923/caliptra_top_tb_icarus_profile.vf",
+      "-o",
+      "/tmp/caliptra-pic-nullguard-20260924.vvp"
+    ],
+    "environment": {
+      "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+      "CALIPTRA_AXI4PC_DIR": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb",
+      "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic",
+      "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic"
+    },
+    "exit": 0,
+    "wall_seconds": 11.56,
+    "warnings": 26,
+    "target_sorry": 2,
+    "compile_log_sha256": "264f77d73b73f841e830a512eeae74eb365cb08b693c7bf2a8dbaa964638f2bd",
+    "vvp_sha256": "9cf97ae17fea2bc96bbdab42cdb28d273dc9da1310e6625fcfacfac5b4d89393",
+    "vvp_bytes": 355298493,
+    "runtime_executed": false,
+    "target_sorry_diagnostics": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:2355: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.",
+      "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/tb/caliptra_top_tb_services.sv:2356: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed."
+    ]
+  },
+  "shared_build_or_install_modified_by_pic_agent": false
+}

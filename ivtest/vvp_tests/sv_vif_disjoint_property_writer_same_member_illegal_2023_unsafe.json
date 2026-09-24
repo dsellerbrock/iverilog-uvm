@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sv_vif_disjoint_property_writer.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gcommercial-unsafe",
+    "-s",
+    "disjoint_port_same_member_illegal"
+  ],
+  "gold": "sv_vif_disjoint_property_writer_same_member_ce"
+}

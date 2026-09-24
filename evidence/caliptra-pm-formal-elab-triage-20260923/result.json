@@ -1,0 +1,107 @@
+{
+  "caliptra_pin": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "source_sha256": "91622bb3516878883fa98765da85144291a3343573f0777ee1bfdb550ca8fe9c",
+  "ivl_sha256": "6460085bb07160bc45806eab0af310c0437c936f5a4214bec8ce07fcbb4f3ef6",
+  "ivlpp_sha256": "35d983cb76b8df6ad118cfa7add3bb84d384eae38667ea0ffd9d6f54c42ccd21",
+  "runs": [
+    {
+      "edition": "2017",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "ecc_top",
+        "-f",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/config/ecc_top.vf",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv"
+      ],
+      "exit": 2,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:1898: error: '_ivl_sva22_b999' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:1898:      : It was declared here as a variable.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:2951: error: '_ivl_sva23_b999' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:2951:      : It was declared here as a variable.\n"
+    },
+    {
+      "edition": "2023",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "ecc_top",
+        "-f",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/config/ecc_top.vf",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv"
+      ],
+      "exit": 2,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:1898: error: '_ivl_sva22_b999' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:1898:      : It was declared here as a variable.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:2951: error: '_ivl_sva23_b999' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv:2951:      : It was declared here as a variable.\n"
+    }
+  ],
+  "head": "bbbf25e92ea73f437428326a6b52698aedd6260c",
+  "reducers": [
+    {
+      "edition": "2017",
+      "steps": 999,
+      "source_sha256": "f6ed8ecb6e123219fbf111fb592146933b65a2870678597923bd4e0c0f93f816",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "long_sequence_999",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_999.sv"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "edition": "2017",
+      "steps": 1000,
+      "source_sha256": "4debf4c2a1dc56472a80f90d6eaa23b22a9820f8ed43629c6df21461b497d71d",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "long_sequence_1000",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv"
+      ],
+      "exit": 1,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv:5: error: '_ivl_sva0_b999' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv:5:      : It was declared here as a variable.\n"
+    },
+    {
+      "edition": "2023",
+      "steps": 999,
+      "source_sha256": "f6ed8ecb6e123219fbf111fb592146933b65a2870678597923bd4e0c0f93f816",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "long_sequence_999",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_999.sv"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "edition": "2023",
+      "steps": 1000,
+      "source_sha256": "4debf4c2a1dc56472a80f90d6eaa23b22a9820f8ed43629c6df21461b497d71d",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "long_sequence_1000",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv"
+      ],
+      "exit": 1,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv:5: error: '_ivl_sva0_b999' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv:5:      : It was declared here as a variable.\n"
+    }
+  ]
+}

@@ -2147,6 +2147,15 @@ static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
       assignment.set_line(*li);
       NetProc*result = assignment.elaborate(des, scope);
       assignment.replace_lval_rval(0, 0);
+      if (result && continuous_lval) {
+	/* A property-path continuous assignment lowers to a behavioral
+	 * process, but that generated store is the continuous driver itself.
+	 * Exclude it from the late query for independent procedural writers. */
+	if (NetAssignBase*store = dynamic_cast<NetAssignBase*>(result)) {
+	  for (unsigned idx = 0; idx < store->l_val_count(); idx += 1)
+	    store->l_val(idx)->mark_force_lval();
+	}
+      }
       return result;
 }
 
@@ -2217,14 +2226,6 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       return true;
 }
 
-static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
-					 const PGAssign*ga)
-{
-      return elaborate_vif_member_assign_(
-	    des, scope, ga, const_cast<PExpr*>(ga->pin(0)),
-	    const_cast<PExpr*>(ga->pin(1)));
-}
-
 static void delete_unique_delays_(NetExpr*rise, NetExpr*fall, NetExpr*decay)
 {
       std::set<NetExpr*>seen;
@@ -2273,6 +2274,88 @@ struct pending_string_variable_continuous_driver_t {
 
 static vector<pending_string_variable_continuous_driver_t>
       pending_string_variable_continuous_drivers_;
+
+/* The commercial-unsafe compatibility path is deliberately closed-world:
+ * only a write in an uncalled task body of the SAME concrete interface
+ * instance may be ignored. Keep provenance while statements are elaborated;
+ * NetAssign_::scope() is the destination signal's scope, not its writer's. */
+static const NetScope*unsafe_task_body_scope_ = nullptr;
+static set<const NetScope*>unsafe_tasks_with_processes_;
+static vector<pair<const NetScope*,const NetScope*> >unsafe_task_calls_;
+static vector<pair<const NetScope*,const NetScope*> >unsafe_virtual_task_calls_;
+static vector<const NetScope*>unsafe_unknown_callers_;
+
+struct pending_unsafe_interface_driver_t {
+      NetNet*signal;
+      const LineInfo*location;
+};
+static vector<pending_unsafe_interface_driver_t>
+      pending_unsafe_interface_drivers_;
+static vector<pending_unsafe_interface_driver_t>
+      pending_direct_interface_members_;
+
+struct pending_interface_ref_actual_t {
+      NetNet*handle;
+      size_t property_idx;
+      const netclass_t*interface_type;
+};
+static vector<pending_interface_ref_actual_t>
+      pending_interface_ref_actuals_;
+static set<const netclass_t*>unresolved_interface_ref_types_;
+
+const NetScope* ivl_unsafe_current_task_body()
+{
+      return unsafe_task_body_scope_;
+}
+
+void ivl_unsafe_note_spawned_process()
+{
+      if (unsafe_task_body_scope_)
+	unsafe_tasks_with_processes_.insert(unsafe_task_body_scope_);
+}
+
+void ivl_unsafe_defer_interface_driver(NetNet*signal,
+				      const LineInfo*location)
+{
+      pending_unsafe_interface_drivers_.push_back(
+	    {signal, location});
+}
+
+void ivl_note_interface_continuous_member(NetNet*signal,
+					const LineInfo*location)
+{
+      pending_direct_interface_members_.push_back({signal, location});
+}
+
+class unsafe_task_body_guard_t {
+    public:
+      explicit unsafe_task_body_guard_t(const NetScope*owner)
+	: previous_(unsafe_task_body_scope_)
+	{ unsafe_task_body_scope_ = owner; }
+      ~unsafe_task_body_guard_t()
+	{ unsafe_task_body_scope_ = previous_; }
+      void leave_body() { unsafe_task_body_scope_ = nullptr; }
+
+    private:
+      const NetScope*previous_;
+};
+
+static void note_unsafe_task_call_(const NetScope*target,
+				   bool virtual_dispatch = false)
+{
+      if (gn_commercial_unsafe_flag) {
+	unsafe_task_calls_.push_back(make_pair(unsafe_task_body_scope_, target));
+	if (virtual_dispatch)
+	  unsafe_virtual_task_calls_.push_back(
+	      make_pair(unsafe_task_body_scope_, target));
+      }
+}
+
+static void note_unsafe_unknown_call_()
+{
+      if (gn_commercial_unsafe_flag)
+	unsafe_unknown_callers_.push_back(unsafe_task_body_scope_);
+}
 
 /* An ordinary net/variable driven from an interface-member expression keeps
  * normal continuous-assignment semantics through a structural BUFZ. A local
@@ -2432,6 +2515,76 @@ static bool interface_member_static_binding_(const NetAssign_*lval,
       return true;
 }
 
+static bool interface_member_has_property_writer_(
+		const NetNet*member, const netclass_t*interface_type)
+{
+      for (const netclass_t*type : unresolved_interface_ref_types_)
+	if ((interface_type && type->same_interface_layout(interface_type))
+	    || (!interface_type && member->scope()
+		&& type->get_name() == member->scope()->module_name()))
+	  return true;
+
+      for (const NetAssign_*lval : NetAssign_::interface_member_lvals()) {
+	if (lval->is_force_lval())
+	  continue;
+	NetNet*actual = lval->resolve_interface_member_signal();
+	if (actual == member)
+	  return true;
+	if (actual)
+	  continue;
+	/* A run-time-selected handle can alias any instance of this layout.
+	 * Its property cannot alias a different ordinary interface wire,
+	 * however. Keep modport views conservative because their ports may
+	 * rename a property (e.g. .reset(count)). */
+	ivl_type_t owner_type_expr = lval->nest()
+	      ? lval->nest()->net_type()
+	      : lval->sig()->net_type();
+	const netclass_t*owner_type = dynamic_cast<const netclass_t*>(
+	      owner_type_expr);
+	if (!owner_type
+	    || !((interface_type
+		  && owner_type->same_interface_layout(interface_type))
+		 || (!interface_type && member->scope()
+		     && owner_type->get_name()
+			 == member->scope()->module_name())))
+	  continue;
+
+	if (owner_type->interface_modport().nil()
+	    && (!interface_type || interface_type->interface_modport().nil())
+	    && lval->get_property_idx() >= 0
+	    && static_cast<size_t>(lval->get_property_idx())
+		 < owner_type->get_properties()
+	    && interface_member_declaration_(lval).found) {
+	  auto module = pform_modules.find(owner_type->get_name());
+	  if (module != pform_modules.end() && module->second) {
+	    auto concrete = module->second->wires.find(member->name());
+	    if (concrete != module->second->wires.end() && concrete->second) {
+	      perm_string written = lex_strings.make(owner_type->get_prop_name(
+		    static_cast<size_t>(lval->get_property_idx())));
+	      if (written != member->name())
+		continue;
+	    }
+	  }
+	}
+	return true;
+      }
+      return false;
+}
+
+static void finalize_interface_ref_actuals_()
+{
+      for (const auto&pending : pending_interface_ref_actuals_) {
+	NetNet*member = pending.handle
+	      ? pending.handle->resolve_interface_member(
+		    0, pending.property_idx) : nullptr;
+	if (member)
+	  member->note_unsafe_ref_actual_write();
+	else
+	  unresolved_interface_ref_types_.insert(pending.interface_type);
+      }
+      pending_interface_ref_actuals_.clear();
+}
+
 static void finalize_interface_continuous_drivers_(Design*des)
 {
       for (const pending_interface_continuous_driver_t&pending :
@@ -2544,6 +2697,24 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	    }
 
 	    unsigned msb = member->vector_width() - 1;
+	    const netclass_t*interface_type = dynamic_cast<const netclass_t*>(
+		  pending.port->net_type());
+	    bool property_writer = interface_member_has_property_writer_(
+		  member, interface_type);
+	    if (member->test_part_procedurally_driven(msb, 0, 0)
+		|| property_writer) {
+	      if (gn_commercial_unsafe_flag && !property_writer
+		  && member->scope() && member->scope()->is_interface())
+		ivl_unsafe_defer_interface_driver(member, pending.location);
+	      else {
+		cerr << pending.location->get_fileline()
+		     << ": error: Variable '" << member->name()
+		     << "' cannot have continuous and procedural drivers on the"
+		     << " same bits." << endl;
+		des->errors += 1;
+		continue;
+	      }
+	    }
 	    if (member->test_part_driven(msb, 0, 0)) {
 		  cerr << pending.location->get_fileline() << ": error: Variable "
 		       << "interface member `" << member->name()
@@ -2555,6 +2726,18 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	    ivl_assert(*pending.location, !overlap);
       }
       pending_interface_variable_continuous_drivers_.clear();
+
+      for (const auto&pending : pending_direct_interface_members_) {
+	if (pending.signal->has_unsafe_ref_actual_write()
+	    || interface_member_has_property_writer_(pending.signal, nullptr)) {
+	  cerr << pending.location->get_fileline()
+	       << ": error: Variable '" << pending.signal->name()
+	       << "' cannot have continuous and procedural drivers on the"
+	       << " same bits." << endl;
+	  des->errors += 1;
+	}
+      }
+      pending_direct_interface_members_.clear();
 
       for (const pending_string_variable_continuous_driver_t&pending :
 	   pending_string_variable_continuous_drivers_) {
@@ -2569,6 +2752,96 @@ static void finalize_interface_continuous_drivers_(Design*des)
       }
       pending_string_variable_continuous_drivers_.clear();
 
+}
+
+static bool mark_unsafe_virtual_overrides_(
+	const netclass_t*type, perm_string method_name,
+	set<const NetScope*>&reachable, bool&unknown_reachable)
+{
+      if (!type) {
+	unknown_reachable = true;
+	return false;
+      }
+
+      bool changed = false;
+      for (const netclass_t*derived : type->derived_types()) {
+	if (!derived) {
+	  unknown_reachable = true;
+	  continue;
+	}
+	const NetScope*class_scope = derived->class_scope();
+	if (!class_scope) {
+	  unknown_reachable = true;
+	} else {
+	  const NetScope*method = class_scope->child(hname_t(method_name));
+	  if (method && method->type() == NetScope::TASK)
+	    changed |= reachable.insert(method).second;
+	  else if (method)
+	    unknown_reachable = true;
+	}
+	changed |= mark_unsafe_virtual_overrides_(
+	    derived, method_name, reachable, unknown_reachable);
+      }
+      return changed;
+}
+
+static void finalize_unsafe_interface_drivers_(Design*des)
+{
+      if (pending_unsafe_interface_drivers_.empty())
+	return;
+
+      /* A null caller is an executable process, including one-shot task
+	 declaration initializers. A call in a dead task becomes live only when
+	 its caller does. Virtual-interface dispatch contributes every possible
+	 physical target, never just the first candidate. */
+      set<const NetScope*>reachable;
+      bool unknown_reachable = false;
+      bool changed;
+      do {
+	changed = false;
+	for (const auto&call : unsafe_task_calls_) {
+	  if (!call.first || reachable.count(call.first)) {
+	    if (call.second)
+	      changed |= reachable.insert(call.second).second;
+	  }
+	}
+	for (const auto&call : unsafe_virtual_task_calls_) {
+	  if (!call.first || reachable.count(call.first)) {
+	    if (!call.second) {
+	      unknown_reachable = true;
+	      continue;
+	    }
+	    const NetScope*class_scope = call.second->get_class_scope();
+	    const netclass_t*class_type = class_scope
+		? class_scope->class_def() : nullptr;
+	    changed |= mark_unsafe_virtual_overrides_(
+		class_type, call.second->basename(), reachable,
+		unknown_reachable);
+	  }
+	}
+      } while (changed);
+
+      for (const NetScope*caller : unsafe_unknown_callers_)
+	if (!caller || reachable.count(caller)) {
+	  unknown_reachable = true;
+	  break;
+	}
+
+      for (const auto&pending : pending_unsafe_interface_drivers_) {
+	if (!unknown_reachable
+	    && pending.signal->only_unreachable_interface_task_drivers(
+		 reachable, unsafe_tasks_with_processes_))
+	  continue;
+	/* Preserve the ordinary diagnostic and failure when the provenance
+	   or any call target cannot be proved safe. */
+	cerr << pending.location->get_fileline()
+	     << ": error: Variable '" << pending.signal->name()
+	     << "' cannot have continuous and procedural drivers on the"
+	     << " same bits." << endl;
+	des->errors += 1;
+      }
+      pending_unsafe_interface_drivers_.clear();
+      pending_direct_interface_members_.clear();
 }
 
 static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
@@ -2908,7 +3181,10 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      return;
 			}
 			delete_unique_delays_(rise_time, fall_time, decay_time);
-			bool ok = elaborate_vif_member_assign_(des, scope, this);
+			bool ok = elaborate_vif_member_assign_(
+			      des, scope, this,
+			      const_cast<PExpr*>(pin(0)),
+			      const_cast<PExpr*>(pin(1)), nullptr, true);
 			if (ok) {
 			      pending_interface_variable_continuous_driver_t pending = {
 				    port, port_word, property_idx, this
@@ -5973,9 +6249,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  bridge_id->set_line(*pins[idx]);
 		  bool ok = ptype == NetNet::PINPUT
 			? elaborate_vif_member_assign_(des, scope, pins[idx],
-						       bridge_id.get(), pins[idx])
+					       bridge_id.get(), pins[idx])
 			: elaborate_vif_member_assign_(des, scope, pins[idx],
-						       pins[idx], bridge_id.get());
+					       pins[idx], bridge_id.get(),
+					       nullptr, true);
 		  if (!ok)
 			continue;
 		  sig = bridge;
@@ -12319,6 +12596,21 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 
       scope->calls_sys_task(true);
 
+	/* Nonstandard commercial compatibility: treat a string-first $fatal
+	   as though its omitted finish number were 1. IEEE 1800-2017/2023
+	   20.10 requires an explicit finish number when arguments are present. */
+      if (gn_commercial_unsafe_flag && name == "$fatal" && !eparms.empty()
+	  && eparms[0]) {
+	    bool first_is_string = eparms[0]->expr_type() == IVL_VT_STRING;
+	    if (const NetEConst*constant = dynamic_cast<const NetEConst*>(eparms[0]))
+		  first_is_string |= constant->value().is_string();
+	    if (first_is_string) {
+		  NetEConst*finish_number = new NetEConst(verinum((uint64_t)1, 32));
+		  finish_number->set_line(*this);
+		  eparms.insert(eparms.begin(), finish_number);
+	    }
+      }
+
       NetSTask*cur = new NetSTask(name, def_sfunc_as_task, eparms);
       if (immediate_assertion_action_depth_ != 0)
 	    cur->assertion_action();
@@ -13195,7 +13487,9 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
       }
 
       if (methods.empty()) {
-	    vector<NetExpr*>argv;
+	/* Without a physical candidate list the receiver is opaque. */
+	note_unsafe_unknown_call_();
+	vector<NetExpr*>argv;
 	    argv.push_back(receiver);
 	    perm_string name = lex_strings.make(call_name.c_str());
 	    NetSTask*sys = new NetSTask(
@@ -13289,8 +13583,10 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 
       perm_string name = lex_strings.make(call_name.c_str());
       NetSTask*sys = new NetSTask(name.str(), IVL_SFUNC_AS_TASK_IGNORE, argv);
-      for (NetScope*method : methods)
+      for (NetScope*method : methods) {
 	    sys->add_vif_method(method);
+	    note_unsafe_task_call_(method);
+      }
       sys->set_line(loc);
       return sys;
 }
@@ -14668,6 +14964,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    test_task_calls_ok_(des, scope);
 
 	    NetUTask*cur = new NetUTask(task);
+	    note_unsafe_task_call_(task, task->is_virtual_method());
 	    cur->set_line(*this);
 	    return cur;
       }
@@ -16675,6 +16972,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    }
 			      }
 			}
+			if (class_type->is_interface())
+			  note_unsafe_unknown_call_();
 			cerr << get_fileline() << ": warning: "
 			     << "Enable of unknown task ``"
 			     << method_name << "'' ignored"
@@ -16987,6 +17286,32 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 	    if (lv->word() == 0 && lv->get_base() == 0
 		&& lv->get_property_idx() < 0 && !lv->is_array_slice())
 		  sig = lv->sig();
+	    if (!port->get_const() && sig
+		&& sig->scope() && sig->scope()->is_interface())
+		  sig->note_unsafe_ref_actual_write();
+	    if (!port->get_const()
+		&& lv->is_interface_member()) {
+		  /* A writable ref through a virtual-interface receiver can
+		     reach any compatible instance, including a handle nested in
+		     a class property. Keep a port handle until late binding when
+		     its concrete member is known; uncertain handles block all
+		     compatible interface-instance waivers. */
+		  ivl_type_t owner_expr_type = lv->nest()
+			? lv->nest()->net_type() : lv->sig()->net_type();
+		  const netclass_t*owner_type = dynamic_cast<const netclass_t*>(
+			owner_expr_type);
+		  ivl_assert(*this, owner_type);
+		  if (NetNet*member = lv->resolve_interface_member_signal()) {
+		    member->note_unsafe_ref_actual_write();
+		  } else {
+		    NetNet*handle = !lv->nest() && !lv->word()
+			&& !lv->get_base() && !lv->is_array_slice()
+			? lv->sig() : nullptr;
+		    pending_interface_ref_actuals_.push_back({
+			handle, static_cast<size_t>(lv->get_property_idx()),
+			owner_type});
+		  }
+	    }
 
 	      /* A class property: o.p (single hop, the whole property). */
 	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
@@ -17730,6 +18055,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	/* Generate the task call proper... */
       NetUTask*cur = new NetUTask(task, super_call);
+      note_unsafe_task_call_(task, !super_call && task->is_virtual_method());
       cur->set_line(*this);
       block->append(cur);
 
@@ -23421,6 +23747,9 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
       if (scope->elab_stage() > 2)
             return;
 
+      /* A function elaborated on demand from an interface task is not part
+	 of that task body; its writes cannot inherit the task's waiver. */
+      unsafe_task_body_guard_t unsafe_body(nullptr);
       subroutine_fork_context_guard_t fork_context(des);
 
       NetFuncDef*def = scope->func_def();
@@ -23777,6 +24106,13 @@ void PTask::elaborate(Design*des, NetScope*task) const
       task->set_elab_stage(3);
       ivl_assert(*this, def);
 
+      /* An exported task can be entered from C without an SV call site. */
+      if (gn_commercial_unsafe_flag && is_dpi_export())
+	unsafe_task_calls_.push_back(make_pair(nullptr, task));
+
+      unsafe_task_body_guard_t unsafe_body(
+	gn_commercial_unsafe_flag ? task : nullptr);
+
       NetProc*st;
       if (statement_ == 0) {
 	    st = new NetBlock(NetBlock::SEQU, 0);
@@ -23826,6 +24162,10 @@ void PTask::elaborate(Design*des, NetScope*task) const
 		  if (tmp) blk->prepend(tmp);
 	    }
       }
+
+      /* One-shot declaration initializers execute without a call to this
+	 task. Their l-values and task calls are executable roots. */
+      unsafe_body.leave_body();
 
       if (!one_shot_inits.empty()) {
 	    NetProc*proc = 0;
@@ -38349,6 +38689,15 @@ Design* elaborate(list<perm_string>roots)
       pending_interface_continuous_drivers_.clear();
       pending_interface_variable_continuous_drivers_.clear();
       pending_string_variable_continuous_drivers_.clear();
+      pending_unsafe_interface_drivers_.clear();
+      pending_direct_interface_members_.clear();
+      pending_interface_ref_actuals_.clear();
+      unresolved_interface_ref_types_.clear();
+      unsafe_task_calls_.clear();
+      unsafe_virtual_task_calls_.clear();
+      unsafe_unknown_callers_.clear();
+      unsafe_tasks_with_processes_.clear();
+      unsafe_task_body_scope_ = nullptr;
 
 	// Create NetScope objects for compilation units first so that
 	// unit_scopes is populated before packages are processed.
@@ -38683,9 +39032,11 @@ Design* elaborate(list<perm_string>roots)
             bind_root_interface_synthesis_members_(des);
 
       /* Interface module bodies elaborate before their port connections are
-	 * installed. Attach each persistent continuous net driver now, after all
-	 * scalar, array, and forwarded interface bindings are complete. */
+       * installed. Attach each persistent continuous net driver now, after all
+       * scalar, array, and forwarded interface bindings are complete. */
+      finalize_interface_ref_actuals_();
       finalize_interface_continuous_drivers_(des);
+      finalize_unsafe_interface_drivers_(des);
 
       /* Port-based generic type propagation is complete only after every
        * hierarchy edge and late specialized body has elaborated.  Diagnose

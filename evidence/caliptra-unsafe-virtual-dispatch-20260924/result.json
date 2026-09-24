@@ -1,0 +1,258 @@
+{
+  "qualification": "focused explicit -gcommercial-unsafe compatibility regression and strict IEEE overlap guard; not a Caliptra L0 pass",
+  "baseline_red": "evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability_result.json",
+  "fixture": "ivtest/ivltests/sv_interface_virtual_override_reachability.v",
+  "fixture_sha256": "aee54241b0008a16f889168def3edbec3f6c306cbdbbdd1e0b952a73966f02ff",
+  "compiler_source_sha256": "3e22fe3bf5d669178393eb0f2f996e0eafb406563af3d2632d075590c3c5cabc",
+  "tool_sha256": {
+    "installed_iverilog": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "installed_ivl_unchanged": "ba1dda3daf01870311a137a0b27b46be8a05575e871dba30321ce13480720ba3",
+    "private_ivl": "57928f78fae1590b01416ce14c96a4fbb31326f54debb0de11fc70ad73de5cb7",
+    "installed_vvp": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6"
+  },
+  "focused_harness": {
+    "new_cases": 28,
+    "neighbor_cases": 34,
+    "passed": 62,
+    "failed": 0,
+    "log": "evidence/caliptra-unsafe-virtual-dispatch-20260924/focus.log"
+  },
+  "matrix": [
+    {
+      "top": "override_via_base",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:40: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_via_base",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:40: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_via_base",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:40: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_via_base",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:40: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:55: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "value=0\n",
+      "runtime_stderr": ""
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:55: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "value=0\n",
+      "runtime_stderr": ""
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:69: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:69: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:69: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:69: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:85: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:85: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:85: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:85: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_transitive",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:96: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_transitive",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:96: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_transitive",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:96: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_transitive",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:96: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_uncertain",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:109: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_uncertain",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:109: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_uncertain",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:109: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_uncertain",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:109: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_super_only",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:125: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_super_only",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "BASE CALLED\nvalue=0\n",
+      "runtime_stderr": ""
+    },
+    {
+      "top": "override_super_only",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "ivltests/sv_interface_virtual_override_reachability.v:125: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "top": "override_super_only",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "BASE CALLED\nvalue=0\n",
+      "runtime_stderr": ""
+    }
+  ]
+}

@@ -1,5 +1,119 @@
 # Current evidence and work
 
+The selected 52 Caliptra L0 cases run on Icarus with explicit
+`-gcommercial-unsafe` as the main **nonstandard compatibility** lane. A pass
+still requires the intended marker, zero fail/error/assertion diagnostics,
+and meaningful firmware execution. Strict mode supplies focused IEEE
+mixed-driver rejection controls; its full-top compile failure is baseline
+evidence. Named Caliptra and OpenTitan patches and options are selected per
+test on disposable copies under the [release overlay guide](release_overlays/README.md),
+leaving pinned source checkouts unchanged.
+
+On the `e75f26091` main baseline with local candidate changes, the
+[fresh Icarus application DV census](../../evidence/icarus-dv-baseline-20260923/README.md)
+records **0/52 strict Caliptra L0 runtimes attempted**: the [integrated PIC
+strict top compile](../../evidence/caliptra-icarus-l0-strict-pic-nullguard-20260924/summary.json)
+exits 46 on 46 mixed interface-member variable-driver errors, with zero
+Preponed sampling warnings and the release's internal-TRNG define. The opt-in `-gcommercial-unsafe`
+candidate compiled the pre-PIC top only after proving each overlapping task writer
+unused for its concrete interface instance; called and uncertain writers
+still fail. The [pre-PIC exact native-vector first compatibility
+runtime](../../evidence/caliptra-icarus-l0-unsafe-final-first-20260924/smoke_test_veer/result.json)
+was **0/1 attempted**, with 51 unrun, simulation exit 1, zero pass/fail
+markers, 17,467 bad diagnostics and 621 instruction-trace entries. Its
+reported retired-instruction and cycle counters are zero because no final
+CSR dump was reached. Original TLU, SOC IFC and LSU assertions act at
+43.865 us, and compile emitted zero Preponed sampling warnings. This remains
+historical nonstandard compatibility evidence. The [integrated PIC focus](../../evidence/caliptra-pic-integrated-focus-20260924.log)
+passes 4/4 paired cases. Its [initial exact unsafe first-case compile](../../evidence/caliptra-icarus-l0-unsafe-pic-first-20260924/summary.json)
+crashed exit 139 on a null `Nexus::first_nlink()` in the new cprop reachability
+traversal; an integrated null guard now lets the exact top compile to VVP. The
+[completed exact first-case replay](../../evidence/caliptra-icarus-l0-unsafe-pic-nullguard-first-20260924/smoke_test_veer/result.json)
+is nonstandard compatibility **0/1** with 51 unrun. Firmware and simulation
+exit 0 with one pass marker, zero fail markers, 633 retired instructions,
+4,348 cycles, and 634 trace commits, but 17,863 bad diagnostics fail the
+unchanged zero-error gate. The former terminal 43.865 us SOC/TLU/LSU fatal
+is absent, a runtime advance without an L0 pass. PIC source work is
+suspended pending the P1 unsafe virtual-dispatch broad gates and error-root review.
+
+On the later installed P1 compiler (`ivl` SHA-256
+`6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10`),
+the [shared paired virtual-dispatch focus](../../evidence/caliptra-unsafe-virtual-dispatch-20260924/shared_focus.json)
+passes 28/28. Its [strict full-top guard](../../evidence/caliptra-icarus-l0-strict-p1-20260924/README.md)
+still exits 46 on exactly 46 genuine mixed-driver errors, with zero other
+errors or Preponed warnings and no L0 runtime. The [P1-install broad legacy gate](../../evidence/caliptra-virtual-final-ivtest-gate-20260924.log) passes with 6,555 total, 6,550 ordinary passes, zero failures, two not implemented, and three expected failures; bundled VPI 131/131, negatives 155/155, and invariants 15/15 also pass. The [final REAL DPI UVM gate](../../evidence/caliptra-virtual-final-real-dpi-uvm-20260924.log) loads REAL DPI and passes 358/358 with both VIF smokes. The [P1-install full JSON compiler/VVP gate](../../evidence/caliptra-virtual-final-json-gate-20260924.log) passes 3,536/3,536 with zero failures; pristine compatibility review and PR qualification remain pending.
+The completed [bundled-BFM reset-copy diagnostic](../../evidence/caliptra-icarus-l0-diagnostic-reset-vif-20260924/README.md)
+is separately **0/1** with 51 unrun: firmware and simulation exit zero,
+one pass marker, 633 retired instructions, no startup errors, and exactly
+17,844 vacuous KV/MLDSA checker messages as its only bad diagnostics. A
+[six-nanosecond passive trace](../../evidence/caliptra-l0-timezero-passive-vpi-20260924/README.md)
+records unknown reset-dependent checker inputs before the first clock
+without assigning simulator or testbench causality. Pins and tool
+fingerprints remain clean. The zero-error gate rejects the reset-copy case;
+its diagnostic denominator stays separate from pristine unsafe
+compatibility. The frozen [four-helper checker patch and paired controls](../../evidence/caliptra-l0-checker-source-overlay-20260924/README.md)
+pass 4/4 paired 2017/2023 combinations, and the opt-in top compile exits
+zero with zero sampling warnings. The [combined reset/checker disposable-copy first case](../../evidence/caliptra-icarus-l0-diagnostic-combined-p1-20260924/README.md) passes diagnostic qualification **1/1** with 51 unrun, zero bad diagnostics, one pass marker, 633 retired instructions, 4,348 cycles, and 634 trace commits. Pristine unsafe remains **0/1**; this diagnostic result is neither an IEEE nor a pristine L0 pass. The exact 52-case patched diagnostic sweep is active with no additional result yet. A read-only
+pre-`--all` audit found that the two named firmware patches shared one
+disposable source root. The runner now uses per-case roots; a focused check
+across all 52 names and frozen patch hashes checks the two named patch
+targets and keeps the other 50 on the pinned source root; cross-target
+patch-target tampering rejects. Existing single-case results are unaffected;
+the exact 52-case patched diagnostic sweep is active with no additional result yet. Independent review requires whole-copy source-diff attestation for the two copied firmware roots and GCC_PREFIX toolchain hashes before accepting a 52-case result.
+
+An Icarus interface-port initialization fix cleared the initial null virtual interface, and native
+vector generators now stage successfully. A hash-guarded reset-timing copy
+probes a startup race; passive evidence does not yet assign simulator-versus-testbench cause. A
+[paired AES reducer and fix](../../evidence/caliptra-aes-sensitivity-fix-20260923/README.md)
+clear its subsequent time-zero sensitivity stall in both editions. The fresh
+[copied-reset first case](../../evidence/caliptra-icarus-l0-diagnostic-aesfix-first-20260923/summary.json)
+reaches 43.865 us and 621 instruction-trace entries, then fails a pinned
+`soc_ifc_reg` known-input assertion alongside a Veer store-buffer assertion;
+it is **0/1** with no L0 pass marker. A hash-guarded copied-source probe
+finds an unknown PIC interrupt input before the terminal failures. A paired
+2017/2023 reducer of the pinned PIC priority tree yields Z from 32 known-zero
+leaves, proving an isolated Icarus defect. The suspended PIC lane has a
+[narrow cprop.cc root cause](BLOCKERS.md#caliptra-pic-packed-partial-driver-cycle--dependent-packed-partial-drivers-form-a-self-cycle)
+and paired passing controls; the completed first case no longer reaches the
+former terminal fatal, but its remaining error roots and full causal chain
+are unproved. Repeated MLDSA/KV checker messages
+are [eager consequent side effects](../../evidence/caliptra-post-aes-sva-triage-20260923/README.md)
+under false property antecedents in a paired reducer; they still disqualify
+the pre-PIC runtime under the zero-error rule. Strict 2017/2023 mode continues
+rejecting the driver overlap.
+The separate bounded Caliptra/Adams Bridge unit subset has two checked
+runtime passes and one checked failure; 20/44 unit filelists compile, which
+is not a DV pass count. The OpenTitan 84-row matrix has zero clean rows:
+eight runtime rows finish with pass banners but retain setup/compile debt,
+while the others fail compilation, fail runtime, or time out. Its rows are
+not all named tests or seeds. The former 51/52 Caliptra result below used
+Verilator and is not Icarus progress.
+In a separate [fresh named OpenTitan smoke subset](../../evidence/opentitan-named-smokes-20260923/README.md),
+xbar and pwrmgr both pass with checked scoreboard traffic (2/2 attempted);
+pwrmgr uses its documented disposable checker overlay. Only xbar (1/1)
+qualifies as an unmodified-source smoke in that subset. Both named images
+also pass a runtime-only replay under installed VVP `e9b7a64a` with the
+same scoreboard traffic; the 84-row matrix has not been rerun under that
+binary.
+
+The [paired guarded joint-`dist` candidate](session_logs/2026-09-23_joint_proven_guard_focus.json)
+passes 22/22 focused legacy and JSON checks. The earlier post-AES local
+gates passed 6,508 ordinary legacy cases plus two not-implemented and three
+expected-fail cases, 131/131 VPI, 155/155 negative, 15/15 runtime,
+3,442/3,442 JSON, and 358/358 real-DPI UVM. The pre-PIC [full legacy
+gate](../../evidence/caliptra-final-ivtest-gate-20260924.log) passes 6,551
+total: 6,546 ordinary passes, zero failures, two not implemented and three
+expected failures. Bundled VPI 131/131, negatives 155/155, and VVP invariants
+15/15 also pass. Pre-PIC [JSON gate](../../evidence/caliptra-final-json-gate-20260924.log) passes 3480/3480. The pre-PIC [real-DPI UVM gate](../../evidence/caliptra-final-real-dpi-uvm-20260924.log) loaded DPI but failed with 356 passes and two compile failures: `vif_smoke` and `vif_smoke_v2` each report `count` mixed drivers at line 96. The disjoint VIF property-writer false overlap received a narrow elaborate.cc repair. The shared installed candidate passes [20/20 paired dedicated cases](../../evidence/caliptra-vif-disjoint-property-writer-20260924/shared_new_focus.log) and [16/16 neighboring controls](../../evidence/caliptra-vif-disjoint-property-writer-20260924/shared_neighbor_focus.log); both VIF smokes privately compiled/ran under real DPI with `PASS counter_test` and zero UVM error/fatal. Installed iverilog/ivl/vvp SHA-256 prefixes are 1590b064/ba1dda3d/e9b7a64a. The [full shared real-DPI UVM umbrella](../../evidence/caliptra-vif-final-real-dpi-uvm-20260924.log) now passes 358/358 with zero failures/skips and both VIF smokes passing. This clean UVM regression gate is separate from Caliptra L0. The [fresh VIF-install exact unsafe first case](../../evidence/caliptra-icarus-l0-unsafe-vif-first-20260924/README.md) fails nonstandard compatibility 0/1 with 51 unrun and 17,863 diagnostics despite a pass marker and 633 retired instructions. The first [VIF-install broad legacy gate](../../evidence/caliptra-vif-final-ivtest-gate-20260924.log) failed one `sv_packed_mixed_driver_compound` expected-warning gold mismatch (6,555 total; 6,549 pass; two not implemented; three expected failures); its corrected gold passes focused legacy 1/1 and JSON 2/2. The broad rerun was intentionally stopped when independent review found a P1 unsafe virtual-dispatch called-task false waiver. A [private P1 candidate](../../evidence/caliptra-unsafe-virtual-dispatch-20260924/README.md) passed 28/28 dedicated and 34/34 neighboring controls; the installed [shared paired focus](../../evidence/caliptra-unsafe-virtual-dispatch-20260924/shared_focus.json) now passes 28/28. The P1-install broad legacy and REAL DPI UVM gates pass, as does [full JSON](../../evidence/caliptra-virtual-final-json-gate-20260924.log) 3,536/3,536; pristine compatibility review and PR qualification remain pending. [BLOCKERS](BLOCKERS.md) records the selected narrow elaborate.cc repair. Required broader PIC qualification and error-root triage remain pending. A paired self-proof reducer
+exposed and repaired an unsafe success caused by a random-dependent
+distribution weight.
+The pinned OpenTitan CSRNG replay still raises `UVM_FATAL` on a distinct
+unresolved random guard, so it is not a DV pass. The AES focus passes 8/8
+paired cases. On the pre-PIC shared install, driver focus passes 34/34,
+interface-port/ref focus 28/28, and nested constant packed-select Preponed
+focus 2/2 in each legacy and JSON harness. The full top has zero Preponed
+sampling warnings; dynamic nested-index sampling remains unqualified. The VIF property-writer repair passes paired focus and the earlier real-DPI UVM recheck 358/358. The P1 unsafe virtual-dispatch repair now passes installed paired focus 28/28; the first broad legacy gate failed one expected-warning gold mismatch and its rerun was intentionally stopped before P1 installation. The P1-install broad legacy, full JSON 3,536/3,536, and REAL DPI UVM gates pass; pristine compatibility review, PIC error-root review, and publication remain open.
+
 [PR346](https://github.com/dsellerbrock/iverilog-uvm/pull/346) merged after
 exact-head CI success. The later CSRNG parser, solver, pinned-release overlay,
 VVP loader, exact coupled distribution, and time-zero scheduler fixes are

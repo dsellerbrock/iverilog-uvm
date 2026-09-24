@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "sv_fatal_string_first_strict_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_fatal_string_first_strict_2023"
+}

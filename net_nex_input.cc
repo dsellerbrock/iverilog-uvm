@@ -665,7 +665,14 @@ NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) 
         /* Remove from the input set those bits that are outputs
            from other statements. They aren't really inputs
            to the block, just internal intermediate values. */
-      if (rem_out) result->rem(*prev);
+      if (rem_out) {
+	    /* Sensitivity inputs can cover a whole vector while outputs cover
+	     * only selected intervals, so remove just the written overlap. */
+	    if (always_sens)
+		  result->rem_intersect(*prev);
+	    else
+		  result->rem(*prev);
+      }
       delete prev;
 
       return result;

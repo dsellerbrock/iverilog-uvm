@@ -1,0 +1,16 @@
+[
+  {
+    "edition": "2017",
+    "pre_patch_image_sha256": "fe392206a59ccca0234a9d89c3f5fc1b1e120c3bda0dfc1d3dcc72a6d645a8f4",
+    "runtime_exit": 1,
+    "runtime_stderr": "runtime error: %wait/vif/anyedge attempted to use a null or non-virtual interface; a virtual interface must be initialized before referencing one of its components.\n",
+    "runtime_stdout": ""
+  },
+  {
+    "edition": "2023",
+    "pre_patch_image_sha256": "4136eee527ef87c881380030e915aa6b74f54ce523e3382d60a8226a54f8aa18",
+    "runtime_exit": 1,
+    "runtime_stderr": "runtime error: %wait/vif/anyedge attempted to use a null or non-virtual interface; a virtual interface must be initialized before referencing one of its components.\n",
+    "runtime_stdout": ""
+  }
+]

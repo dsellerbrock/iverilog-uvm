@@ -1,0 +1,7 @@
+# SOC IFC fatal field reducer
+
+Pinned Caliptra v2.1.2 `49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e` assigns the packed `CPTRA_HW_ERROR_FATAL` leaves separately in `src/soc_ifc/rtl/soc_ifc_top.sv:1376-1386`, then passes the enclosing packed struct to `soc_ifc_reg`. The [reducer](soc_fatal_field.sv) keeps that leaf shape, including the reserved-field part-select and module input. `-DWHOLE_FIELD` replaces those writes with one whole-field `always_comb` assignment as a control. The tests compare the local and module-input values, including `$isunknown`, under two known ECC input patterns and one intentional X.
+
+Run `sh run.sh` from this directory or by path. It uses this campaign's installed Icarus 13.0 devel (`ivl` SHA-256 `57702d3e3df92ca83cdc141b9bede1b8344278e237001320c856aab1d10d6813`, `vvp` SHA-256 `e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6`). All four compile/runtime combinations pass: [2017 partial](2017_partial.log), [2017 whole](2017_whole.log), [2023 partial](2023_partial.log), [2023 whole](2023_whole.log).
+
+For both assignment forms and editions, known inputs produce `ae0000000` then `eb0000000`. An intentionally X ICCM ECC input produces `Xa0000000`, matching the high-nibble shape observed in the full diagnostic replay. This reduced packed assignment and forwarding path does **not** reproduce a compiler defect. It does not identify which upstream full-design signal becomes X, and no L0 runtime is credited from these unit checks.

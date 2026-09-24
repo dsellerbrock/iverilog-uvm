@@ -1,0 +1,50 @@
+[
+  {
+    "edition": 2017,
+    "variant": "single",
+    "compile_exit": 0,
+    "sim_exit": 0,
+    "pass_marker": true,
+    "watchdog_time0": false
+  },
+  {
+    "edition": 2017,
+    "variant": "pair",
+    "compile_exit": 0,
+    "sim_exit": 0,
+    "pass_marker": false,
+    "watchdog_time0": true
+  },
+  {
+    "edition": 2017,
+    "variant": "whole",
+    "compile_exit": 0,
+    "sim_exit": 0,
+    "pass_marker": true,
+    "watchdog_time0": false
+  },
+  {
+    "edition": 2023,
+    "variant": "single",
+    "compile_exit": 0,
+    "sim_exit": 0,
+    "pass_marker": true,
+    "watchdog_time0": false
+  },
+  {
+    "edition": 2023,
+    "variant": "pair",
+    "compile_exit": 0,
+    "sim_exit": 0,
+    "pass_marker": false,
+    "watchdog_time0": true
+  },
+  {
+    "edition": 2023,
+    "variant": "whole",
+    "compile_exit": 0,
+    "sim_exit": 0,
+    "pass_marker": true,
+    "watchdog_time0": false
+  }
+]

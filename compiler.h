@@ -295,6 +295,16 @@ extern bool gn_shared_loop_index_flag;
 
 extern bool gn_commercial_unsafe_flag;
 
+/* Elaboration-only provenance for the opt-in unused-interface-task driver
+   check. A null owner means an executable or otherwise unproven writer. */
+class NetScope;
+extern const NetScope* ivl_unsafe_current_task_body();
+extern void ivl_unsafe_note_spawned_process();
+extern void ivl_unsafe_defer_interface_driver(
+      NetNet*signal, const LineInfo*location);
+extern void ivl_note_interface_continuous_member(
+      NetNet*signal, const LineInfo*location);
+
 static inline bool gn_system_verilog(void)
 {
       if (generation_flag >= GN_VER2005_SV)

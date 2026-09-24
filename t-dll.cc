@@ -1122,13 +1122,21 @@ bool dll_target::start_design(const Design*des)
       return true;
 }
 
-static bool process_has_schedule_init_(const Attrib*process)
+static unsigned process_order_flags_(const Attrib*process)
 {
+      bool init = false;
+      bool transient = false;
       for (unsigned idx = 0; idx < process->attr_cnt(); idx += 1) {
 	    if (process->attr_key(idx) == "_ivl_schedule_init")
-		  return true;
+		  init = true;
+	    if (process->attr_key(idx) == "_ivl_synthesis_transient")
+		  transient = true;
       }
-      return false;
+      unsigned flags = init ? IVL_PROCESS_ORDER_SCHEDULE_INIT : 0;
+      /* Only generated interface-port binders currently carry both flags. */
+      if (init && transient)
+	    flags |= IVL_PROCESS_ORDER_INTERFACE_PORT_BINDING;
+      return flags;
 }
 
 bool dll_target::order_processes(vector<target_process_ref_t>&processes)
@@ -1164,8 +1172,7 @@ bool dll_target::order_processes(vector<target_process_ref_t>&processes)
 	    descriptors[idx].scope = lookup_scope_(scope);
 	    descriptors[idx].file = line->get_file().str();
 	    descriptors[idx].lineno = line->get_lineno();
-	    if (process_has_schedule_init_(attr))
-		  descriptors[idx].flags |= IVL_PROCESS_ORDER_SCHEDULE_INIT;
+	    descriptors[idx].flags |= process_order_flags_(attr);
       }
 
       int rc = (*target_process_order_)(descriptors.data(),

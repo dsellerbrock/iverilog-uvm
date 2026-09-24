@@ -1,0 +1,105 @@
+{
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "runner_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "source_sha256": {
+    "ivtest/ivltests/sv_always_comb_func_local_interval.v": "7a4045aacf8993bbc19c46739adbbd1d4bf5e89356333747c675ce1db1570e52",
+    "ivtest/ivltests/sv_always_comb_func_local_interval_2023.v": "f3bdb3abaeee11a3a82e251249c5283ab1562d6df94809fc3f88bc789b704cb2",
+    "evidence/caliptra-aes-timezero-20260923/automatic_local.sv": "f33ef31f1081704f031f835a75a9487ead31c1785d9e626a74e91f81cbef007c"
+  },
+  "baseline_red_control": {
+    "2017": {
+      "log": "evidence/caliptra-aes-timezero-20260923/automatic_local_bits_2017_pair.sim.log",
+      "sha256": "b5f928e82da3551c012d17155636bae1b399ad98ca6c2b615fffa9fa29c5c590",
+      "watchdog": true,
+      "pass_marker": false
+    },
+    "2023": {
+      "log": "evidence/caliptra-aes-timezero-20260923/automatic_local_bits_2023_pair.sim.log",
+      "sha256": "b5f928e82da3551c012d17155636bae1b399ad98ca6c2b615fffa9fa29c5c590",
+      "watchdog": true,
+      "pass_marker": false
+    }
+  },
+  "cases": [
+    {
+      "edition": 2017,
+      "case": "fixture",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "edition": 2017,
+      "case": "paired_bit_write",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "edition": 2017,
+      "case": "paired_whole_write",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "edition": 2017,
+      "case": "single_bit_write",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "edition": 2023,
+      "case": "fixture",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "edition": 2023,
+      "case": "paired_bit_write",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "edition": 2023,
+      "case": "paired_whole_write",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "edition": 2023,
+      "case": "single_bit_write",
+      "compile_exit": 0,
+      "run_exit": 0,
+      "pass_marker": true,
+      "watchdog": false,
+      "passed": true,
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sv_interface_virtual_override_reachability.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gcommercial-unsafe",
+    "-s",
+    "override_direct_call"
+  ],
+  "gold": "sv_interface_virtual_override_direct_call_ce"
+}

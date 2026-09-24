@@ -1,0 +1,11 @@
+DIAG_TLU t=43845.000 ns start=x d1=x d2=0 flush=x ext_ready=x blocked=x mstatus=1 mie=26
+DIAG_TLU_INPUT csr_stall=0 mstatus_mie=1 meip=x meie=1 lsu_fast_stall=0 sync_flush=0 intr_valid=0 mret=0 halt=0 reset=0
+ERROR: TLU Flushing inside fast interrupt procedure!
+ERROR: TLU Flushing inside fast interrupt procedure!
+DIAG_SOC_INPUT t=43865.000 ns iccm_ecc=x dccm_ecc=0 fw_window=0 iccm_we=x dccm_we=0
+DIAG_SOC field=CPTRA_HW_ERROR_FATAL value=Xa0000000
+DIAG_SOC_ECC iccm_next=1 iccm_we=x dccm_next=1 dccm_we=0 nmi_we=0 crypto_we=0
+DIAG_STBUF t=43865.000 ns depth=4 valid=0000 committed=0 spec_m=x spec_r=0 total=x dual_m=x dual_r=0 dccm_m=x dccm_r=0
+DIAG_STBUF_M valid=x store=x dma=x addr_dccm=x dual=x
+FATAL: /private/tmp/caliptra-runtime-fatal-second-20260923/source/soc_ifc_reg.sv:7733: [CALIPTRA_ASSERT FAILED] [caliptra_top_tb.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg] ERR_HWIF_IN (/private/tmp/caliptra-runtime-fatal-second-20260923/source/soc_ifc_reg.sv:7723)
+ERROR: /private/tmp/caliptra-runtime-fatal-second-20260923/source/el2_lsu_stbuf.sv:358:

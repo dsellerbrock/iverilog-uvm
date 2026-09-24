@@ -20,6 +20,7 @@
 # include "config.h"
 
 # include  <algorithm>
+# include  <set>
 # include  <vector>
 # include  <cstdlib>
 # include  "netlist.h"
@@ -292,6 +293,43 @@ void cprop_functor::lpm_part_select(Design*des, NetPartSelect*obj)
 		       << ":" << (obj_set.back()->base() + obj_set.back()->width() - 1)
 		       << "] runs off the end of target." << endl;
 	    return;
+      }
+
+	/* A selected driver may read another slice of this same signal.
+	 * Replacing the drivers with a concat then creates a zero-time cycle
+	 * through its own output, and even the independent slice stays Z.
+	 * Only keep the original part drivers when a combinational path from
+	 * the destination reaches one of their inputs. FF state breaks it. */
+      set<const Nexus*> driver_inputs;
+      for (const NetPartSelect*part : obj_set) {
+	    const Nexus*input_nex = part->pin(0).nexus();
+	    if (input_nex)
+		  driver_inputs.insert(input_nex);
+      }
+      vector<const Nexus*> pending(1, nex);
+      set<const Nexus*> seen;
+      while (!pending.empty()) {
+	    const Nexus*cur_nex = pending.back();
+	    pending.pop_back();
+	    if (!seen.insert(cur_nex).second)
+		  continue;
+	    if (driver_inputs.count(cur_nex))
+		  return;
+	    for (const Link*cur = cur_nex->first_nlink(); cur;
+		 cur = cur->next_nlink()) {
+		  if (cur->get_dir() != Link::INPUT)
+			continue;
+		  const NetNode*node = dynamic_cast<const NetNode*>(cur->get_obj());
+		  if (!node || dynamic_cast<const NetFF*>(node))
+			continue;
+		  for (unsigned pin = 0; pin < node->pin_count(); pin += 1) {
+			if (node->pin(pin).get_dir() != Link::OUTPUT)
+			      continue;
+			const Nexus*output_nex = node->pin(pin).nexus();
+			if (output_nex)
+			      pending.push_back(output_nex);
+		  }
+	    }
       }
 
 	// Figure out how many components we are going to need.

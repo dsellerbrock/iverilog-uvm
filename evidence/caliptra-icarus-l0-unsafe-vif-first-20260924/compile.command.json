@@ -1,0 +1,95 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+    "-g2017",
+    "-gassertions",
+    "-gcommercial-unsafe",
+    "-s",
+    "caliptra_top_tb",
+    "-D",
+    "RV_OPENSOURCE",
+    "-D",
+    "CLP_ASSERT_ON",
+    "-D",
+    "CALIPTRA_INTERNAL_TRNG",
+    "-f",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-icarus-baseline-20260923/caliptra_top_tb_icarus_profile.vf",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-unsafe-vif-first-20260924/caliptra_top_tb.vvp"
+  ],
+  "source_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "fingerprints": {
+    "compiler": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl": "ba1dda3daf01870311a137a0b27b46be8a05575e871dba30321ce13480720ba3",
+    "vvp_target": "21c13d775e7eecf7779c9a63817287da44c3cb3bec927343514bee9b37a15f7b",
+    "vvp": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+    "profile": "577861eb1c4c9a26ada2379f55e3215d097e1cc317804a0f3155c3786ed381f2",
+    "jtagdpi": "434b73346370213147b12a265a1b2d453ce05496035d854a4fe87ac3dee23c16"
+  },
+  "commercial_unsafe": true,
+  "reset_overlay": false,
+  "qualification": "nonstandard_compatibility",
+  "compiler_flags": [
+    "-g2017",
+    "-gassertions",
+    "-gcommercial-unsafe",
+    "-s",
+    "caliptra_top_tb",
+    "-D",
+    "RV_OPENSOURCE",
+    "-D",
+    "CLP_ASSERT_ON",
+    "-D",
+    "CALIPTRA_INTERNAL_TRNG",
+    "-f",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-icarus-baseline-20260923/caliptra_top_tb_icarus_profile.vf",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-unsafe-vif-first-20260924/caliptra_top_tb.vvp"
+  ],
+  "expected_smoke_readmemh_sha256": {
+    "program.hex": "87c35ddfd7da3aecaefcfede18ca09cdd196668a3887f84b2378775093650657",
+    "dccm.hex": "b73e91a51835232d301b0c07fd17510d862819e4809c0ff1e558d8cdecd73b98",
+    "iccm.hex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mailbox.hex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "jtagdpi_bundle_sha256": "434b73346370213147b12a265a1b2d453ce05496035d854a4fe87ac3dee23c16",
+  "vector_preflight": {
+    "executables": {
+      "brew": "/opt/homebrew/bin/brew",
+      "clang": "/usr/bin/clang",
+      "make": "/usr/bin/make",
+      "openssl": "/opt/homebrew/bin/openssl",
+      "xxd": "/opt/homebrew/bin/xxd",
+      "python3.12": "/opt/homebrew/bin/python3.12"
+    },
+    "roots": {
+      "openssl@3": "/opt/homebrew/opt/openssl@3",
+      "mbedtls@3": "/opt/homebrew/opt/mbedtls@3"
+    },
+    "tool_sha256": {
+      "brew": "c9a27029eb72dab04f4595041f7670bb03b4cb467297abba817883afb23e0bf3",
+      "clang": "34129c71a01a74f7f3b2443521519b2e5447553fa187f5fcafaaf8c42cc192e2",
+      "make": "34129c71a01a74f7f3b2443521519b2e5447553fa187f5fcafaaf8c42cc192e2",
+      "openssl": "103fc7706cf6646f226d96f29242d81890363499afc730e7ef1fadd64b3a123c",
+      "xxd": "f8a3a17a1ea8d587a0b3a9002fb95fa219a08b127b86d4f5e7626e65ce85dc61",
+      "python3.12": "30b2a6bf9706029b609327ca5db722cd458239df96efc87e1f8e37beed49db2e"
+    },
+    "input_sha256": {
+      "native_mlkem.c": "3a1f1b3e68d71fbc3af0fafc21c5128e3a58c36e9f5a210daae0ba211984afd7",
+      "random_test_ml_kem.py": "fe772557377e9b0c3c44ee487019edae7870cf24f1b4113de0042cb7543af492",
+      "check_native_mlkem.py": "a4fe02b3aeb215f20ca03dc9d77e83b3ebd7368dd9b70e439e33984f558a4a96",
+      "check_native_mldsa.py": "6736c2b4f97cbde737aa5019fe24dcae6d84f60d85dceb5d6a81352cea3ea32a",
+      "stage_mldsa.py": "cc18ece86439621dd686dd77393183b5904c587475a7c215abc4bfd29340e587",
+      "stage_sha256_wntz.py": "083c3c2779e2952e1378f722a920220d5fa8f542f6506441e032f5064646d904",
+      "ecc_secp384r1.c": "9dc6f094f04498c8a1b9d261847e76b61c892b5241e845874fc240739ea22c5d",
+      "doe_test_gen.py": "d94bd571dd599a9431398778f195c05fb3a2f3ddb1adcc38925a2c1b3db6bdc0",
+      "sha256_wntz_test_gen.py": "12eacab8c3b3a8733390a8207432bd23ef98a436434c5f834e91115644a82bdd",
+      "test_dilithium.c": "2f92c445c9e38cf398fb4daf64ceb0db964f94a573ed985a77cf071b52aa5490",
+      "smoke_test_mldsa_vector.hex": "b68858c347fe7b12d4f173c2a6d21844aad8d547fc6cd8587091692365cea775",
+      "openssl_libcrypto": "a12805a18cd5e4f733fa8727b91afa08b587f9da5a760517cd79cb508a3a3f71",
+      "mbedtls_libcrypto": "ead7693040809251492b9acf6953ff65bd21511911e25c439c951eb42076e0bf",
+      "mbedtls_libx509": "5c6d78494d614b5e29bab3cc3c6a3a0f6ebe6d9134a7848420016b7066f3747c",
+      "mbedtls_libtls": "a8b5f140071c4354805d1ab53e69d094ee50726efd65cd2e1eeccd8ff9f1743b"
+    }
+  }
+}

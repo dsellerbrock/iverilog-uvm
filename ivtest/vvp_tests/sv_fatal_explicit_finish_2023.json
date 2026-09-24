@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "sv_fatal_explicit_finish_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_fatal_explicit_finish_2023"
+}

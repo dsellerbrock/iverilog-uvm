@@ -1,0 +1,2 @@
+ivltests/sv_vif_disjoint_property_writer.v:69: error: Variable 'count' cannot have continuous and procedural drivers on the same bits.
+1 error(s) during elaboration.

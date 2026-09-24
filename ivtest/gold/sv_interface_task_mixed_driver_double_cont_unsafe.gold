@@ -1,0 +1,2 @@
+./ivltests/sv_interface_task_mixed_driver_double_cont_unsafe.v:11: error: Variable 'value' cannot have multiple drivers.
+1 error(s) during elaboration.

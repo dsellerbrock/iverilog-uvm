@@ -1,0 +1,2 @@
+FATAL: ./ivltests/sv_fatal_string_first_strict.v:3: string-first value=17
+       Time: 0  Scope: sv_fatal_string_first

@@ -1,0 +1,61 @@
+{
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "runner_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "reducer_sha256": "3049b0ca6a7a82e1af0710ebd38a7d0eeba72cdac112d7023efaada0799dd773",
+  "pinned_caliptra": {
+    "commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "clean_after": true,
+    "files_sha256": {
+      "soc_ifc_reg.sv": "c5aa7e9c0914bafe144d7ad9b51fdb070836f8211a8b7aef037c4fa65d201f77",
+      "soc_ifc_reg_pkg.sv": "13956d2524e09e77fd20619c7fe665fa40798e4a1825367bcb39da52e28c44bb",
+      "caliptra_sva.svh": "4822d70ecf29721a5f660c5e47cc257624a47d99b675f953980b038a96e4dddf"
+    },
+    "assertion": {
+      "file": "src/soc_ifc/rtl/soc_ifc_reg.sv",
+      "line": 7633,
+      "macro_file": "src/libs/rtl/caliptra_sva.svh",
+      "macro_line": 53,
+      "macro_predicate": "!$isunknown(sig)",
+      "expression": "!$isunknown(hwif_in)",
+      "type": "soc_ifc_reg_pkg::soc_ifc_reg__in_t"
+    }
+  },
+  "vvp_lowering": {
+    "edition": 2017,
+    "packed_sample_width_bits": 2422,
+    "details": {
+      "packed_variable": "v0x7c968fc080_0 .var \"sample\", 2421 0;",
+      "isunknown_calls": [
+        "%vpi_func 4 14 \"$isunknown\" 1, v0x7c968fc080_0 {0 0 0 0};",
+        "%vpi_func 4 16 \"$isunknown\" 1, &PV<v0x7c968fc080_0, 2383, 36> {0 0 0 0};",
+        "%vpi_func 4 18 \"$isunknown\" 1, v0x7c968fc080_0 {0 0 0 0};",
+        "%vpi_func 4 19 \"$isunknown\" 1, &PV<v0x7c968fc080_0, 2383, 36> {0 0 0 0};"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "edition": 2017,
+      "compile_exit": 0,
+      "run_exit": 0,
+      "known_struct_check": "passed",
+      "one_nested_x_check": "passed",
+      "width_bits": 2422,
+      "stdout": "PASS width=2422\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-post-aes-hwif-unknown-20260923/isunknown_packed_struct.sv:30: $finish called at 0 (1s)",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "edition": 2023,
+      "compile_exit": 0,
+      "run_exit": 0,
+      "known_struct_check": "passed",
+      "one_nested_x_check": "passed",
+      "width_bits": 2422,
+      "stdout": "PASS width=2422\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-post-aes-hwif-unknown-20260923/isunknown_packed_struct.sv:30: $finish called at 0 (1s)",
+      "stderr": "",
+      "passed": true
+    }
+  ],
+  "conclusion": "The known exact packed type returns $isunknown=0 and a one-X nested field returns 1, matching the independent 2422-bit scan in both editions. This rules out a false positive caused solely by applying $isunknown to this packed struct type; it does not show whether the Caliptra runtime value contained a real X."
+}

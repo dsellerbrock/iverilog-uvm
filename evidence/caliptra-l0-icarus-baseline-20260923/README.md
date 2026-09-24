@@ -1,0 +1,5 @@
+# Strict pinned Caliptra full-top compile baseline
+
+The clean Caliptra v2.1.2 source at `49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e` and its Adams Bridge v2.0.3 submodule at `b77e3d899e828d626cfc2a0d26a6b5704cc121e0` were read without edits. The initial official filelist stopped at `Axi4PC.sv:17`, an intentionally invalid proprietary checker placeholder unused in the default L0 profile. [The diagnostic filelist copy](caliptra_top_tb_icarus_profile.vf) excludes only that entry and adds `+timescale+1ns/1ps`, matching the integration clock profile. It keeps the non-VERILATOR testbench, `RV_OPENSOURCE`, `CLP_ASSERT_ON`, and all assertion/firmware checks.
+
+The [exact command](profile_command.json) reaches 46 interface-member continuous/procedural-driver errors in roughly six seconds; [stderr](profile.stderr.log) records them. This is strict **compile failure**, with zero of the selected 52 L0 runtimes attempted. The separate `-gcommercial-unsafe` option is nonstandard compatibility and does not change this strict verdict.

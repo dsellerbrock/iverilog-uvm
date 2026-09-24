@@ -1,0 +1,110 @@
+{
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "ivl_sha256": "e9b46ba90496126ec0e7c7c035095a4fe90e3471e5e286bb0f225632982898b0",
+  "rows": [
+    {
+      "edition": "2017",
+      "kind": "strict",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_strict.v:9: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2017",
+      "kind": "unused_unsafe",
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      }
+    },
+    {
+      "edition": "2017",
+      "kind": "called_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_called_unsafe.v:9: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2017",
+      "kind": "indirect_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_indirect_unsafe.v:9: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2017",
+      "kind": "alias_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_alias_unsafe.v:10: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2017",
+      "kind": "sibling_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_sibling_unsafe.v:10: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2023",
+      "kind": "strict",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_strict.v:9: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2023",
+      "kind": "unused_unsafe",
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      }
+    },
+    {
+      "edition": "2023",
+      "kind": "called_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_called_unsafe.v:9: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2023",
+      "kind": "indirect_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_indirect_unsafe.v:9: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2023",
+      "kind": "alias_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_alias_unsafe.v:10: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    },
+    {
+      "edition": "2023",
+      "kind": "sibling_unsafe",
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_mixed_driver_sibling_unsafe.v:10: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n",
+      "runtime": null
+    }
+  ]
+}

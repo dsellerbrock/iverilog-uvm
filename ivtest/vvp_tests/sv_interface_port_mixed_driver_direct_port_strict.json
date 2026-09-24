@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_interface_port_mixed_driver.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_interface_port_mixed_driver_direct_port"
+  ],
+  "gold": "sv_interface_port_mixed_driver_direct_ce"
+}

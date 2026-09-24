@@ -2245,6 +2245,7 @@ void Design::add_branch(NetBranch*bra)
 
 void Design::add_process(NetProcTop*pro)
 {
+      ivl_unsafe_note_spawned_process();
       pro->next_ = procs_;
       procs_ = pro;
 }
@@ -2254,6 +2255,7 @@ void Design::add_process(NetProcTop*pro)
 // to the tail to insert is cheap relative to elaboration.
 void Design::add_process_at_tail(NetProcTop*pro)
 {
+      ivl_unsafe_note_spawned_process();
       pro->next_ = 0;
       if (!procs_) {
 	    procs_ = pro;
@@ -2266,6 +2268,7 @@ void Design::add_process_at_tail(NetProcTop*pro)
 
 void Design::add_process(NetAnalogTop*pro)
 {
+      ivl_unsafe_note_spawned_process();
       pro->next_ = aprocs_;
       aprocs_ = pro;
 }

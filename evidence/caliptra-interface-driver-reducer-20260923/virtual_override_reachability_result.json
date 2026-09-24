@@ -1,0 +1,133 @@
+{
+  "finding": "unsafe reachability misses a called interface task through class virtual dispatch; strict rejects",
+  "qualification": "RED reducer only; unsafe compile/runtime is incorrect, not a Caliptra L0 pass",
+  "fixture": "evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv",
+  "fixture_sha256": "67bc647898c79db0e32a1dcaa447803a98e64a027f4ebe588a5e1ef90f59cbce",
+  "tool_sha256": {
+    "iverilog": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl": "ba1dda3daf01870311a137a0b27b46be8a05575e871dba30321ce13480720ba3",
+    "vvp": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6"
+  },
+  "matrix": [
+    {
+      "top": "override_via_base",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:22: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "override_via_base",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "DERIVED CALLED\nvalue=1"
+    },
+    {
+      "top": "override_via_base",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:22: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "override_via_base",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "DERIVED CALLED\nvalue=1"
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:37: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "value=0"
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:37: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "override_no_call",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 0,
+      "compile_output": "",
+      "runtime_exit": 0,
+      "runtime_output": "value=0"
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:51: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:51: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:51: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "override_direct_call",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:51: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2017",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:67: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2017",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:67: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2023",
+      "commercial_unsafe": false,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:67: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    },
+    {
+      "top": "nonvirtual_call",
+      "edition": "2023",
+      "commercial_unsafe": true,
+      "compile_exit": 1,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-interface-driver-reducer-20260923/virtual_override_reachability.sv:67: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration."
+    }
+  ]
+}

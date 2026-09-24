@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_interface_task_mixed_driver_static_init.v",
+  "iverilog-args": ["-g2023", "-s", "sv_interface_task_mixed_driver_static_init"],
+  "gold": "sv_interface_task_mixed_driver_static_init_strict"
+}
