@@ -3398,3 +3398,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Minimal crash reducer](../../evidence/ot-event-triggered-call-crash-20260923/README.md) on the current class-event candidate; compiler exit 134 on macOS.
 - **Reproducer status:** confirmed on the candidate, baseline comparison pending.
 - **Triage status:** untriaged; separate from the selected parenthesis-free class-event `.triggered` ticket.
+
+### DD-053 — unresolved interface task call lowers to a no-op
+
+- **Discovered while working:** CALIPTRA-UNSAFE-VIRTUAL-DISPATCH-REACHABILITY
+- **Observation:** If interface method lookup reaches its unresolved fallback, elaboration warns that the task enable is ignored and returns an empty `NetBlock`. A valid call reaching this path would lose requested behavior; applicability to a legal source case is unproved.
+- **File/function:** `elaborate.cc:16976`, `PCallTask::elaborate_method_`.
+- **Possible clause:** N/A until the fallback's accepted source cases are classified.
+- **Evidence:** Read-only source review during the no-candidate virtual-interface call regression.
+- **Reproducer status:** none
+- **Triage status:** untriaged
