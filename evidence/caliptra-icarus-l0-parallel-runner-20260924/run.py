@@ -49,17 +49,17 @@ def names():
     return selected
 
 
-def command(name, output):
+def command(name, output, timeout):
     return [sys.executable, str(RUNNER), "--commercial-unsafe", "--reset-overlay",
             "--checker-source-overlay", "--ephemeral-jtag-port", "--case", name,
-            "--timeout", "1800", "--output", str(output / "cases" / name)]
+            "--timeout", str(timeout), "--output", str(output / "cases" / name)]
 
 
-def run_one(name, output):
+def run_one(name, output, timeout):
     log = output / "logs" / f"{name}.log"
     with log.open("w") as stream:
         try:
-            code = subprocess.run(command(name, output), cwd=ROOT, stdout=stream,
+            code = subprocess.run(command(name, output, timeout), cwd=ROOT, stdout=stream,
                                   stderr=subprocess.STDOUT, check=False).returncode
         except OSError as exc:
             stream.write(f"Runner launch failed: {exc}\n")
@@ -159,13 +159,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="new sweep output directory")
     parser.add_argument("--jobs", type=int, choices=range(1, 5), default=4)
+    parser.add_argument("--timeout", type=int, default=1800, help="per-case runtime limit in seconds")
     parser.add_argument("--plan", action="store_true", help="print commands without writing or running")
     args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
     selected = names()
     output = args.output.resolve()
     if args.plan:
         print(json.dumps({"selected": len(selected), "jobs": args.jobs,
-                          "commands": [command(name, output) for name in selected]}, indent=2))
+                          "commands": [command(name, output, args.timeout) for name in selected]}, indent=2))
         return 0
     if output == SOURCE or SOURCE in output.parents:
         parser.error("sweep output must not be inside pinned Caliptra sources")
@@ -180,7 +183,7 @@ def main():
     (output / "cases").mkdir()
     exits = {}
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(run_one, name, output): name for name in selected}
+        futures = {pool.submit(run_one, name, output, args.timeout): name for name in selected}
         for future in as_completed(futures):
             name, code = future.result()
             exits[name] = code

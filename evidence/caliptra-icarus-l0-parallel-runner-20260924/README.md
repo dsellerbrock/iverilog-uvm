@@ -9,9 +9,9 @@ from the pristine unsafe lane and IEEE conformance.
 
 ```sh
 python3 evidence/caliptra-icarus-l0-parallel-runner-20260924/run.py \
-  --output evidence/caliptra-icarus-l0-patched-52-20260924 --plan
+  --output evidence/caliptra-icarus-l0-patched-long-52-20260924 --plan
 python3 evidence/caliptra-icarus-l0-parallel-runner-20260924/run.py \
-  --output evidence/caliptra-icarus-l0-patched-52-20260924
+  --output evidence/caliptra-icarus-l0-patched-long-52-20260924 --jobs 3 --timeout 14400
 ```
 
 `--plan` reads and verifies the 52 names but creates no output. The live command
@@ -21,6 +21,11 @@ source/tool integrity and the original pass, zero-error, and firmware-execution
 gate count as passes. Missing, blocked, or invalidated runs stay visible outside
 the numerator. The six xPack GCC tool binaries are hashed before and after the
 sweep; no Verilator or QD BFM process is launched.
+
+`--timeout` defaults to 1,800 seconds per case. The released mailbox firmware
+needs a longer limit: the first four-job attempt was stopped at 24 minutes when
+the startup `.data` copy was only about 14% complete. The 14,400-second
+diagnostic pilot uses the same per-case limit shown above.
 
 Each case checks all of its own before/after fingerprints. Across cases the
 aggregate compares stable compiler, runtime, DPI, and copied-source hashes;
