@@ -1,0 +1,18 @@
+{
+  "description": "Only in scratch VVP: move the three part/concat driver definitions before the net-array declaration; no SV/compiler source changed.",
+  "original_ir": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/concat_driver_candidate-2017.vvp",
+  "array_line_original": 18,
+  "moved_original_lines": [
+    22,
+    23,
+    24
+  ],
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/concat_driver_reordered_diagnostic.vvp"
+  ],
+  "exit": 0,
+  "stdout": "PASS concatenated net array word\n",
+  "stderr": ""
+}

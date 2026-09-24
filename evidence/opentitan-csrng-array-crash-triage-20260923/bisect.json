@@ -1,0 +1,234 @@
+{
+  "scratch": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed-bisect-r0bek0w7",
+  "matched_array_metadata": [
+    {
+      "line": 1805178,
+      "label": "v0x76377b3a00"
+    },
+    {
+      "line": 1805191,
+      "label": "v0x76377b3b40"
+    },
+    {
+      "line": 1805195,
+      "label": "v0x76377b3b60"
+    },
+    {
+      "line": 1805450,
+      "label": "v0x76377b0b00"
+    },
+    {
+      "line": 1805454,
+      "label": "v0x76377b0b20"
+    },
+    {
+      "line": 1805487,
+      "label": "v0x76377b0da0"
+    },
+    {
+      "line": 1805494,
+      "label": "v0x76377b0e00"
+    },
+    {
+      "line": 1805498,
+      "label": "v0x76377b0e20"
+    },
+    {
+      "line": 1805512,
+      "label": "v0x76377b0f80"
+    },
+    {
+      "line": 1805518,
+      "label": "v0x76377b1020"
+    },
+    {
+      "line": 1805520,
+      "label": "v0x76377b1040"
+    },
+    {
+      "line": 1805530,
+      "label": "v0x76377b1120"
+    },
+    {
+      "line": 1805536,
+      "label": "v0x76377b1160"
+    },
+    {
+      "line": 1805538,
+      "label": "v0x76377b1180"
+    },
+    {
+      "line": 1805546,
+      "label": "v0x76377b1220"
+    },
+    {
+      "line": 1805557,
+      "label": "v0x76377b1300"
+    },
+    {
+      "line": 1805561,
+      "label": "v0x76377b1320"
+    },
+    {
+      "line": 1805578,
+      "label": "v0x76377b1480"
+    },
+    {
+      "line": 1805592,
+      "label": "v0x76377b1580"
+    },
+    {
+      "line": 1805596,
+      "label": "v0x76377b15a0"
+    },
+    {
+      "line": 1805607,
+      "label": "v0x76377b1680"
+    },
+    {
+      "line": 1805611,
+      "label": "v0x76377b16a0"
+    },
+    {
+      "line": 1805615,
+      "label": "v0x76377b16c0"
+    },
+    {
+      "line": 1805617,
+      "label": "v0x76377b16e0"
+    },
+    {
+      "line": 1805718,
+      "label": "v0x763770cb20"
+    },
+    {
+      "line": 1813205,
+      "label": "v0x763779da40"
+    },
+    {
+      "line": 1813210,
+      "label": "v0x763779da80"
+    },
+    {
+      "line": 1813232,
+      "label": "v0x763779dd00"
+    }
+  ],
+  "results": [
+    {
+      "keep": 0,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed-bisect-r0bek0w7/keep-0.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "returncode": null,
+      "timed_out": true,
+      "assert_word_size": false,
+      "stderr_tail": "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.\n../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored.\n",
+      "stdout_tail": ""
+    },
+    {
+      "keep": 28,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed-bisect-r0bek0w7/keep-28.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "returncode": -6,
+      "timed_out": false,
+      "assert_word_size": true,
+      "stderr_tail": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483.\n",
+      "stdout_tail": ""
+    },
+    {
+      "keep": 14,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed-bisect-r0bek0w7/keep-14.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "returncode": -6,
+      "timed_out": false,
+      "assert_word_size": true,
+      "stderr_tail": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483.\n",
+      "stdout_tail": ""
+    },
+    {
+      "keep": 7,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed-bisect-r0bek0w7/keep-7.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "returncode": -6,
+      "timed_out": false,
+      "assert_word_size": true,
+      "stderr_tail": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483.\n",
+      "stdout_tail": ""
+    },
+    {
+      "keep": 3,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed-bisect-r0bek0w7/keep-3.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "returncode": -6,
+      "timed_out": false,
+      "assert_word_size": true,
+      "stderr_tail": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483.\n",
+      "stdout_tail": ""
+    },
+    {
+      "keep": 1,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed-bisect-r0bek0w7/keep-1.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "returncode": -6,
+      "timed_out": false,
+      "assert_word_size": true,
+      "stderr_tail": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483.\n",
+      "stdout_tail": ""
+    }
+  ],
+  "first_crashing_count": 1
+}

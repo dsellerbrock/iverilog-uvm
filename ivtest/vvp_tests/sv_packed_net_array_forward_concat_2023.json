@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_packed_net_array_forward_concat_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_packed_net_array_forward_concat"],
+  "gold": "sv_packed_net_array_forward_concat"
+}

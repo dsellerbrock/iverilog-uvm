@@ -1,0 +1,4 @@
+sv_packed_net_array_forward_concat normal,-g2017,-ssv_packed_net_array_forward_concat ivltests gold=sv_packed_net_array_forward_concat.gold
+sv_packed_net_array_forward_concat_2023 normal,-g2023,-ssv_packed_net_array_forward_concat ivltests gold=sv_packed_net_array_forward_concat.gold
+sv_packed_net_array_proc_net_fail CE,-g2017,-ssv_packed_net_array_proc_net_fail ivltests
+sv_packed_net_array_proc_net_fail_2023 CE,-g2023,-ssv_packed_net_array_proc_net_fail ivltests
