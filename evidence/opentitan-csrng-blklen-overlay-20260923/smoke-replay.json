@@ -1,0 +1,142 @@
+{
+  "schema": 1,
+  "source_head": "df9f167f45e2aa7c4555e5d64192487cb00ed739",
+  "pinned_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pristine_sha256_before": "57cd498fa284ce107553050c17bbca22797030c30e643b2e3562877e5742ff52",
+  "scratch_root": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq",
+  "dvsim_metadata": {
+    "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-full-dv-matrix-pinned-uvm12-20260923/results.json",
+    "test": "csrng_smoke",
+    "uvm_test": "csrng_smoke_test",
+    "uvm_test_seq": "csrng_smoke_vseq",
+    "runtime_args": [
+      "+UVM_NO_RELNOTES",
+      "+UVM_VERBOSITY=UVM_LOW",
+      "+cdc_instrumentation_enabled=1",
+      "+smoke_test=1",
+      "+UVM_TESTNAME=csrng_smoke_test",
+      "+UVM_TEST_SEQ=csrng_smoke_vseq"
+    ],
+    "timescale": "1ns/1ps"
+  },
+  "setup": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc",
+      "--cores-root=/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34",
+      "--cores-root=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-full-dv-matrix-pinned-uvm12-20260923/work/matrix-provider-cores",
+      "run",
+      "--target=sim",
+      "--tool=icarus",
+      "--setup",
+      "--build-root=/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup",
+      "lowrisc:dv:csrng_sim:0.1"
+    ],
+    "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908",
+    "exit": 0,
+    "stdout_log": "smoke-setup.stdout.log.gz",
+    "stderr_log": "smoke-setup.stderr.log.gz",
+    "env_path_prefix": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin"
+  },
+  "patch": {
+    "dry_run_command": [
+      "patch",
+      "--dry-run",
+      "-p1",
+      "-d",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/app",
+      "-i",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/docs/conformance/release_overlays/opentitan/csrng_blklen_width.patch"
+    ],
+    "dry_run_exit": 0,
+    "apply_command": [
+      "patch",
+      "-p1",
+      "-d",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/app",
+      "-i",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/docs/conformance/release_overlays/opentitan/csrng_blklen_width.patch"
+    ],
+    "apply_exit": 0,
+    "patched_tb_sha256": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+    "pristine_sha256_after": "57cd498fa284ce107553050c17bbca22797030c30e643b2e3562877e5742ff52"
+  },
+  "compiler": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2017",
+      "-gcommercial-unsafe",
+      "-stb",
+      "-scsrng_bind",
+      "-scsrng_cov_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+      "-c",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/matrix-iverilog.scr"
+    ],
+    "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+    "exit": 0,
+    "errors": [],
+    "warning_count": 33,
+    "stdout_log": "smoke-compile.stdout.log.gz",
+    "stderr_log": "smoke-compile.stderr.log.gz",
+    "vvp": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp"
+  },
+  "runtime": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+      "+UVM_NO_RELNOTES",
+      "+UVM_VERBOSITY=UVM_LOW",
+      "+cdc_instrumentation_enabled=1",
+      "+smoke_test=1",
+      "+UVM_TESTNAME=csrng_smoke_test",
+      "+UVM_TEST_SEQ=csrng_smoke_vseq"
+    ],
+    "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+    "timeout_seconds": 120,
+    "timed_out": false,
+    "exit": -6,
+    "duration_seconds": 1.216,
+    "stdout_log": "smoke-runtime.stdout.log.gz",
+    "stderr_log": "smoke-runtime.stderr.log.gz",
+    "uvm_report_counts": {
+      "UVM_INFO": 0,
+      "UVM_WARNING": 0,
+      "UVM_ERROR": 0,
+      "UVM_FATAL": 0
+    },
+    "pass_banner": false,
+    "fail_banner": false,
+    "fatal_lines": [],
+    "abort_diagnostic": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483."
+  },
+  "tools": {
+    "iverilog": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+      "version_first_line": "Icarus Verilog version 13.0 (devel) ()",
+      "version_command_exit": 0
+    },
+    "vvp": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "sha256": "db6f7715560d5084799c5c6eb41b850fa9a3e03df2aa65167546c80f1c6f4a9c",
+      "version_first_line": "Icarus Verilog runtime version 13.0 (devel) ()",
+      "version_command_exit": 0
+    }
+  }
+}

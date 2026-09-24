@@ -1,0 +1,228 @@
+{
+  "source_head": "df9f167f4",
+  "tools": "campaign local-install/bin/iverilog and vvp",
+  "results": [
+    {
+      "case": "hierarchical_parameter_width",
+      "edition": "2017",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "hierarchical_parameter_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-hierarchical_parameter_width-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv"
+        ],
+        "exit": 2,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv:9: error: A hierarchical reference (`dut.BlkLen') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv:9: error: Indexed part select width must be an integral constants greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv:9:      : This width expression violates that rule: dut.BlkLen\n2 error(s) during elaboration.\n"
+      },
+      "run": null
+    },
+    {
+      "case": "hierarchical_parameter_width",
+      "edition": "2023",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "hierarchical_parameter_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-hierarchical_parameter_width-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv"
+        ],
+        "exit": 2,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv:9: error: A hierarchical reference (`dut.BlkLen') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv:9: error: Indexed part select width must be an integral constants greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_width.sv:9:      : This width expression violates that rule: dut.BlkLen\n2 error(s) during elaboration.\n"
+      },
+      "run": null
+    },
+    {
+      "case": "local_parameter_width",
+      "edition": "2017",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "local_parameter_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-local_parameter_width-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/local_parameter_width.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/csrng-blklen-triage-local_parameter_width-2017.vvp"
+        ],
+        "exit": 0,
+        "stdout": "PASS local constant width\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "local_parameter_width",
+      "edition": "2023",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "local_parameter_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-local_parameter_width-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/local_parameter_width.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/csrng-blklen-triage-local_parameter_width-2023.vvp"
+        ],
+        "exit": 0,
+        "stdout": "PASS local constant width\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "runtime_variable_width",
+      "edition": "2017",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "runtime_variable_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-runtime_variable_width-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv"
+        ],
+        "exit": 2,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv:4: error: A reference to a net or variable (`BlkLen') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv:4: error: Indexed part select width must be an integral constants greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv:4:      : This width expression violates that rule: BlkLen\n2 error(s) during elaboration.\n"
+      },
+      "run": null
+    },
+    {
+      "case": "runtime_variable_width",
+      "edition": "2023",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "runtime_variable_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-runtime_variable_width-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv"
+        ],
+        "exit": 2,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv:4: error: A reference to a net or variable (`BlkLen') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv:4: error: Indexed part select width must be an integral constants greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/runtime_variable_width.sv:4:      : This width expression violates that rule: BlkLen\n2 error(s) during elaboration.\n"
+      },
+      "run": null
+    },
+    {
+      "case": "hierarchical_parameter_value",
+      "edition": "2017",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "hierarchical_parameter_value",
+          "-o",
+          "/tmp/csrng-blklen-triage-hierarchical_parameter_value-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_value.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/csrng-blklen-triage-hierarchical_parameter_value-2017.vvp"
+        ],
+        "exit": 0,
+        "stdout": "PASS hierarchical parameter value\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "hierarchical_parameter_value",
+      "edition": "2023",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "hierarchical_parameter_value",
+          "-o",
+          "/tmp/csrng-blklen-triage-hierarchical_parameter_value-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/hierarchical_parameter_value.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/csrng-blklen-triage-hierarchical_parameter_value-2023.vvp"
+        ],
+        "exit": 0,
+        "stdout": "PASS hierarchical parameter value\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "generate_parameter_width",
+      "edition": "2017",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "generate_parameter_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-generate_parameter_width-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv"
+        ],
+        "exit": 2,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv:7: error: A hierarchical reference (`g.BlkLen') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv:7: error: Indexed part select width must be an integral constants greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv:7:      : This width expression violates that rule: g.BlkLen\n2 error(s) during elaboration.\n"
+      },
+      "run": null
+    },
+    {
+      "case": "generate_parameter_width",
+      "edition": "2023",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "generate_parameter_width",
+          "-o",
+          "/tmp/csrng-blklen-triage-generate_parameter_width-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv"
+        ],
+        "exit": 2,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv:7: error: A hierarchical reference (`g.BlkLen') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv:7: error: Indexed part select width must be an integral constants greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-blklen-triage-20260923/generate_parameter_width.sv:7:      : This width expression violates that rule: g.BlkLen\n2 error(s) during elaboration.\n"
+      },
+      "run": null
+    }
+  ]
+}
