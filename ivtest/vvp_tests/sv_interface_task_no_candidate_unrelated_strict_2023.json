@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_interface_task_no_candidate_waiver.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "no_candidate_unrelated"
+  ],
+  "gold": "sv_interface_task_no_candidate_unrelated_ce"
+}

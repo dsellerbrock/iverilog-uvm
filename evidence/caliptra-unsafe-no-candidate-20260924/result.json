@@ -1,0 +1,230 @@
+{
+  "fixture": "ivtest/ivltests/sv_interface_task_no_candidate_waiver.v",
+  "fixture_sha256": "b43fef490ec457d1b9e0934d05d39704284e769ef541ac2e76af1198843046ad",
+  "installed_iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "candidate_iverilog_sha256": "670fe26ccd249a242c99587e54e823ef7d52690ad7e88b93409503df183a2f8a",
+  "candidate_ivl_sha256": "9691c4f502d6b1cbc8d0bdbf415dcc8433e7c7dcd9f6a051ba33c6f864e501b9",
+  "runtime_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "source_diff_sha256": "2a22677715c80c51b3f811137719b80fb9e9984e3db14b289a8eef6d41d3936c",
+  "rows": [
+    {
+      "tool": "installed",
+      "edition": 2017,
+      "case": "unrelated_strict",
+      "compiler_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/installed-2017-unrelated_strict.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:14: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "installed",
+      "edition": 2017,
+      "case": "unrelated_unsafe",
+      "compiler_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/installed-2017-unrelated_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:14: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "installed",
+      "edition": 2017,
+      "case": "same_type_unsafe",
+      "compiler_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_same_type",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/installed-2017-same_type_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:28: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "installed",
+      "edition": 2023,
+      "case": "unrelated_strict",
+      "compiler_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/installed-2023-unrelated_strict.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:14: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "installed",
+      "edition": 2023,
+      "case": "unrelated_unsafe",
+      "compiler_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/installed-2023-unrelated_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:14: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "installed",
+      "edition": 2023,
+      "case": "same_type_unsafe",
+      "compiler_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_same_type",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/installed-2023-same_type_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:28: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "private_candidate",
+      "edition": 2017,
+      "case": "unrelated_strict",
+      "compiler_argv": [
+        "/tmp/unsafe-driver-review.2wvCYe/install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/private_candidate-2017-unrelated_strict.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:14: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "private_candidate",
+      "edition": 2017,
+      "case": "unrelated_unsafe",
+      "compiler_argv": [
+        "/tmp/unsafe-driver-review.2wvCYe/install/bin/iverilog",
+        "-g2017",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/private_candidate-2017-unrelated_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED\n",
+      "runtime_stderr": ""
+    },
+    {
+      "tool": "private_candidate",
+      "edition": 2017,
+      "case": "same_type_unsafe",
+      "compiler_argv": [
+        "/tmp/unsafe-driver-review.2wvCYe/install/bin/iverilog",
+        "-g2017",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_same_type",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/private_candidate-2017-same_type_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:28: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "private_candidate",
+      "edition": 2023,
+      "case": "unrelated_strict",
+      "compiler_argv": [
+        "/tmp/unsafe-driver-review.2wvCYe/install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/private_candidate-2023-unrelated_strict.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:14: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "tool": "private_candidate",
+      "edition": 2023,
+      "case": "unrelated_unsafe",
+      "compiler_argv": [
+        "/tmp/unsafe-driver-review.2wvCYe/install/bin/iverilog",
+        "-g2023",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_unrelated",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/private_candidate-2023-unrelated_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED\n",
+      "runtime_stderr": ""
+    },
+    {
+      "tool": "private_candidate",
+      "edition": 2023,
+      "case": "same_type_unsafe",
+      "compiler_argv": [
+        "/tmp/unsafe-driver-review.2wvCYe/install/bin/iverilog",
+        "-g2023",
+        "-gcommercial-unsafe",
+        "-s",
+        "no_candidate_same_type",
+        "-o",
+        "/tmp/caliptra-no-candidate-evidence-jugg25i0/private_candidate-2023-same_type_unsafe.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_task_no_candidate_waiver.v:28: error: Variable 'value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+    }
+  ]
+}

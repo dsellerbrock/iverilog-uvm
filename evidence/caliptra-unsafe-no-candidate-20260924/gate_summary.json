@@ -1,0 +1,79 @@
+{
+  "candidate_ivl_sha256": "9691c4f502d6b1cbc8d0bdbf415dcc8433e7c7dcd9f6a051ba33c6f864e501b9",
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "tool_under_test": "private candidate ivl with unchanged installed VVP and read-only linked standard target/UVM assets",
+  "private_test_root": "/tmp/unsafe-driver-review.2wvCYe/ivtest-run",
+  "private_json_test_root": "/tmp/unsafe-driver-review.2wvCYe/ivtest-json-run",
+  "commands": [
+    "PATH=/tmp/unsafe-driver-review.2wvCYe/install/bin:local-install/bin:$PATH perl vvp_reg.pl",
+    "PATH=/tmp/unsafe-driver-review.2wvCYe/install/bin:local-install/bin:$PATH PYTHONDONTWRITEBYTECODE=1 python3 vvp_reg.py"
+  ],
+  "exit_codes": {
+    "legacy_first_incomplete_assets": 10,
+    "legacy_complete": 0,
+    "json_complete": 0
+  },
+  "logs": {
+    "legacy_private.log": {
+      "sha256": "a4ba9a236bc99625be65c999df4c5432c43c0a33efef86d4f52778ebf419baeb",
+      "bytes": 585144,
+      "summary": "  Total=6555, Passed=6540, Failed=10, Not Implemented=2, Expected Fail=3",
+      "counts": {
+        "total": 6555,
+        "passed": 6540,
+        "failed": 10,
+        "not_implemented": 2,
+        "expected_fail": 3
+      }
+    },
+    "legacy_private_complete.log": {
+      "sha256": "a9c5f1a6206043223b5b520eb047f5739f1301ff8e28c35ff5385a1fc1015a76",
+      "bytes": 584960,
+      "summary": "  Total=6555, Passed=6550, Failed=0, Not Implemented=2, Expected Fail=3",
+      "counts": {
+        "total": 6555,
+        "passed": 6550,
+        "failed": 0,
+        "not_implemented": 2,
+        "expected_fail": 3
+      }
+    },
+    "json_private.log": {
+      "sha256": "6f4b6a98fee12b16173e6f39257130d5f59f25b0f8019640e362727215b07097",
+      "bytes": 317747,
+      "summary": "Test results: Ran 3542, Failed 0.",
+      "counts": {
+        "ran": 3542,
+        "failed": 0
+      }
+    },
+    "interface_driver_focus.log": {
+      "sha256": "b6af4d564a34f57b9ae00ca6f35d51ae22354c9c1c2319cc098bde014d38b05a",
+      "bytes": 3078,
+      "summary": "Test results: Ran 40, Failed 0.",
+      "counts": {
+        "ran": 40,
+        "failed": 0
+      }
+    },
+    "virtual_override_focus.log": {
+      "sha256": "acc7cc2756b01a4419bd5f026aac7be2e09509799141b1cde4576616baaaff7d",
+      "bytes": 1899,
+      "summary": "Test results: Ran 24, Failed 0.",
+      "counts": {
+        "ran": 24,
+        "failed": 0
+      }
+    },
+    "interface_port_focus.log": {
+      "sha256": "35e4e9520e91ec19c667db5c0346ccb90c9aa68300cbbc90fd22d5273a7b6afc",
+      "bytes": 2327,
+      "summary": "Test results: Ran 28, Failed 0.",
+      "counts": {
+        "ran": 28,
+        "failed": 0
+      }
+    }
+  },
+  "raw_logs": "Retained in this campaign checkout; SHA-256 and totals are published here instead of 16K lines of harness output."
+}

@@ -13487,8 +13487,7 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
       }
 
       if (methods.empty()) {
-	/* Without a physical candidate list the receiver is opaque. */
-	note_unsafe_unknown_call_();
+	/* No physical instance of this interface can own the method body. */
 	vector<NetExpr*>argv;
 	    argv.push_back(receiver);
 	    perm_string name = lex_strings.make(call_name.c_str());

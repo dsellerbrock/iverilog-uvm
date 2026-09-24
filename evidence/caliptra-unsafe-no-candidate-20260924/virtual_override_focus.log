@@ -1,0 +1,29 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): virtual_override_focus.list
+----------------------------------------------------------------------------
+sv_interface_virtual_override_direct_call_2017_strict: Passed - CE.
+sv_interface_virtual_override_direct_call_2017_unsafe: Passed - CE.
+sv_interface_virtual_override_direct_call_2023_strict: Passed - CE.
+sv_interface_virtual_override_direct_call_2023_unsafe: Passed - CE.
+    sv_interface_virtual_override_no_call_2017_strict: Passed - CE.
+    sv_interface_virtual_override_no_call_2017_unsafe: Passed.
+    sv_interface_virtual_override_no_call_2023_strict: Passed - CE.
+    sv_interface_virtual_override_no_call_2023_unsafe: Passed.
+ sv_interface_virtual_override_super_only_2017_strict: Passed - CE.
+ sv_interface_virtual_override_super_only_2017_unsafe: Passed.
+ sv_interface_virtual_override_super_only_2023_strict: Passed - CE.
+ sv_interface_virtual_override_super_only_2023_unsafe: Passed.
+ sv_interface_virtual_override_transitive_2017_strict: Passed - CE.
+ sv_interface_virtual_override_transitive_2017_unsafe: Passed - CE.
+ sv_interface_virtual_override_transitive_2023_strict: Passed - CE.
+ sv_interface_virtual_override_transitive_2023_unsafe: Passed - CE.
+  sv_interface_virtual_override_uncertain_2017_strict: Passed - CE.
+  sv_interface_virtual_override_uncertain_2017_unsafe: Passed - CE.
+  sv_interface_virtual_override_uncertain_2023_strict: Passed - CE.
+  sv_interface_virtual_override_uncertain_2023_unsafe: Passed - CE.
+   sv_interface_virtual_override_via_base_2017_strict: Passed - CE.
+   sv_interface_virtual_override_via_base_2017_unsafe: Passed - CE.
+   sv_interface_virtual_override_via_base_2023_strict: Passed - CE.
+   sv_interface_virtual_override_via_base_2023_unsafe: Passed - CE.
+============================================================================
+Test results: Ran 24, Failed 0.
