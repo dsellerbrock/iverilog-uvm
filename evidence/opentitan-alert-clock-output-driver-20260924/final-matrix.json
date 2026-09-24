@@ -1,0 +1,290 @@
+[
+  {
+    "edition": "2017",
+    "name": "clocking_input_continuous",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "clocking_output_decl_overlap",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_direct_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_disjoint_no_monitor",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_disjoint_uncalled",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_disjoint_modport",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_alias_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_dynamic_receiver_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2017",
+    "name": "clocking_input_real_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/clocking_input_real_overlap.sv:8: error: Cannot perform procedural assignment to variable 'final_value' because it is also continuously assigned.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_direct_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_direct_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_overlap_uncalled",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_overlap_uncalled.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_overlap_modport",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_overlap_modport.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_alias_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_alias_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "virtual_cb_dynamic_receiver_overlap",
+    "expected_legal": false,
+    "exit": 2,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_dynamic_receiver_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n/tmp/ot-alert-clocking-20260924/virtual_cb_dynamic_receiver_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n2 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "static_cb_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/static_cb_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "name": "clocking_output_real_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/clocking_output_real_overlap.sv:4: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "clocking_input_continuous",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "clocking_output_decl_overlap",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_direct_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_disjoint_no_monitor",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_disjoint_uncalled",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_disjoint_modport",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_alias_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_dynamic_receiver_disjoint",
+    "expected_legal": true,
+    "exit": 0,
+    "matched": true,
+    "stderr": ""
+  },
+  {
+    "edition": "2023",
+    "name": "clocking_input_real_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/clocking_input_real_overlap.sv:8: error: Cannot perform procedural assignment to variable 'final_value' because it is also continuously assigned.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_direct_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_direct_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_overlap_uncalled",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_overlap_uncalled.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_overlap_modport",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_overlap_modport.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_alias_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_alias_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "virtual_cb_dynamic_receiver_overlap",
+    "expected_legal": false,
+    "exit": 2,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/virtual_cb_dynamic_receiver_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n/tmp/ot-alert-clocking-20260924/virtual_cb_dynamic_receiver_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n2 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "static_cb_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/static_cb_overlap.sv:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "name": "clocking_output_real_overlap",
+    "expected_legal": false,
+    "exit": 1,
+    "matched": true,
+    "stderr": "/tmp/ot-alert-clocking-20260924/clocking_output_real_overlap.sv:4: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.\n1 error(s) during elaboration.\n"
+  }
+]

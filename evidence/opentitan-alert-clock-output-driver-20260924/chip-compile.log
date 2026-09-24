@@ -1,0 +1,244 @@
+../src/lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer.sv:743: warning: Static variable initialization requires explicit lifetime in this context.
+../src/lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer.sv:752: warning: Static variable initialization requires explicit lifetime in this context.
+../src/lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer.sv:755: warning: Static variable initialization requires explicit lifetime in this context.
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:151: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:152: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:305: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:395: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:402: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:407: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:410: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:243: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:170: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_spi_agent_0.1/spi_agent_cfg.sv:139: error: the type of the variable 'data' doesn't match the context type.
+../src/lowrisc_dv_spi_agent_0.1/spi_agent_cfg.sv:139:      : variable type=queue of netvector_t:logic unsigned[7:0]
+../src/lowrisc_dv_spi_agent_0.1/spi_agent_cfg.sv:139:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+../src/lowrisc_dv_spi_agent_0.1/spi_agent_cfg.sv:143: error: the type of the variable 'data_arr' doesn't match the context type.
+../src/lowrisc_dv_spi_agent_0.1/spi_agent_cfg.sv:143:      : variable type=dynamic array of netvector_t:bool unsigned[7:0]
+../src/lowrisc_dv_spi_agent_0.1/spi_agent_cfg.sv:143:      : context type=queue of netvector_t:logic unsigned[7:0]
+../src/lowrisc_dv_spi_agent_0.1/spi_host_driver.sv:156: error: task output queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+../src/lowrisc_dv_spi_agent_0.1/spi_host_driver.sv:256: error: task output queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_seq.sv:32: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_flash_seq.sv:73: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_flash_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_flash_seq.sv:73: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_flash_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_tpm_seq.sv:60: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_tpm_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_i2c_agent_0.1/i2c_monitor.sv:85: warning: User function 'reset_state' is being called as a task.
+../src/lowrisc_dv_i2c_agent_0.1/i2c_monitor.sv:111: warning: the actual for `ref' formal `start' cannot be reference-bound (it is storage inside a variable: an array element, class property, container element or part select), so this call COPIES it in and out through a temporary. The called subroutine contains a detached fork (join_none/join_any): a write to `start' from a branch that is still running when the subroutine returns is LOST -- the copy-out back to the actual runs at return, but IEEE 1800-2017 13.5.2 binds the actual itself for the reference's lifetime.
+../src/lowrisc_dv_i2c_agent_0.1/i2c_monitor.sv:111: warning: the actual for `ref' formal `stop' cannot be reference-bound (it is storage inside a variable: an array element, class property, container element or part select), so this call COPIES it in and out through a temporary. The called subroutine contains a detached fork (join_none/join_any): a write to `stop' from a branch that is still running when the subroutine returns is LOST -- the copy-out back to the actual runs at return, but IEEE 1800-2017 13.5.2 binds the actual itself for the reference's lifetime.
+../src/lowrisc_dv_i2c_agent_0.1/seq_lib/i2c_base_seq.sv:184: warning: Unable to bind wire/reg/memory `i' in `i2c_agent_pkg.i2c_base_seq.send_host_mode_txn' (compile-progress: unresolved reference).
+../src/lowrisc_dv_chip_env_0.1/chip_scoreboard.sv:49: error: Unable to resolve foreach target cfg.chip_vif.alerts_if.alerts_cb.alerts in scope chip_env_pkg.chip_scoreboard.process_alerts_for_cov.$ivl_foreach821.
+../src/lowrisc_dv_chip_env_0.1/chip_scoreboard.sv:48: warning: Failed to evaluate event expression 'cfg.chip_vif.alerts_if.alerts_cb.alerts' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_base_vseq.sv:379: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.fast_cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_base_vseq.sv:381: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_stub_cpu_base_vseq.sv:56: warning: Failed to evaluate event expression 'cfg.chip_vif.aon_clk_por_rst_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_common_vseq.sv:29: warning: Class chip_if does not have a property spi_host_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_common_vseq.sv:58: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_common_vseq.sv:59: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_common_vseq.sv:40: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_common_vseq.sv:41: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_base_vseq.sv:1200: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_base_vseq.sv:1202: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_base_vseq.sv:554: warning: Net byte_cnt expects 0 index(es), but got 1 (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_base_vseq.sv:554: warning: Net byte_cnt expects 0 index(es), but got 1 (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_base_vseq.sv:554: warning: Net byte_cnt expects 0 index(es), but got 1 (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_base_vseq.sv:379: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.fast_cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_base_vseq.sv:381: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_random_power_glitch_vseq.sv:99: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_random_power_glitch_vseq.sv:120: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_vseq.sv:67: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_vseq.sv:68: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_vseq.sv:75: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_vseq.sv:76: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_vseq.sv:93: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_deep_sleep_all_reset_vseq.sv:46: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_deep_sleep_all_reset_vseq.sv:47: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_deep_sleep_all_reset_vseq.sv:56: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.fast_cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_por_reset_vseq.sv:44: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_por_reset_vseq.sv:30: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv:62: error: streaming concatenation provides a 32-bit stream, which does not fill the 64-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv:62: error: streaming concatenation provides a 32-bit stream, which does not fill the 64-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv:49: error: streaming concatenation provides a 32-bit stream, which does not fill the 64-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv:83: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.check_wakeup_pin.this has no method "cfg.chip_vif.pinmux_wkup_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv:45: warning: Class chip_if does not have a property pwrb_in_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv:46: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv:47: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv:37: warning: Class chip_if does not have a property pwrb_in_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv:38: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv:39: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:52: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.read_loopback_pads.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:53: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.read_loopback_pads.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:54: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.read_loopback_pads.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:55: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.read_loopback_pads.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:60: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:61: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:62: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:63: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:64: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.sysrst_ctrl_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:65: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.pinmux_wkup_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:66: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.ec_rst_l_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:67: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_outputs_vseq.this has no method "cfg.chip_vif.flash_wp_l_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:34: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:35: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:36: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv:37: warning: Class chip_if does not have a property pwrb_in_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:129: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:130: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:144: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:147: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:84: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:80: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_ec_rst_l_vseq.this has no method "cfg.chip_vif.ec_rst_l_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:111: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_ec_rst_l_vseq.this has no method "cfg.chip_vif.ec_rst_l_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:61: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_ec_rst_l_vseq.this has no method "cfg.chip_vif.ec_rst_l_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:66: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_ec_rst_l_vseq.this has no method "cfg.chip_vif.ec_rst_l_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:67: error: Object chip_env_pkg.chip_sw_sysrst_ctrl_ec_rst_l_vseq.this has no method "cfg.chip_vif.flash_wp_l_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:35: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:36: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:37: warning: Class chip_if does not have a property sysrst_ctrl_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv:38: warning: Class chip_if does not have a property pwrb_in_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_smoke_vseq.sv:60: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_smoke_vseq.sv:69: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_smoke_vseq.sv:75: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_vseq.sv:44: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_vseq.sv:51: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_vseq.sv:57: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_vseq.sv:65: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_vseq.sv:72: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_vseq.sv:78: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_gpio_vseq.sv:86: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_otp_ctrl_vendor_test_csr_access_vseq.sv:19: error: dist references a runtime storage value wider than 64 bits, which the constraint runtime cannot transfer without losing high bits; use a <=64-bit typed intermediate expression.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_passthrough_vseq.sv:135: error: streaming concatenation provides a 28-bit stream, which does not fill the 32-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv:205: error: streaming concatenation provides a 28-bit stream, which does not fill the 32-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_ctrl_integrity_check_vseq.sv:84: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:88: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:89: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:90: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:91: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:94: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:110: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:111: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:112: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:113: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:116: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:42: warning: Failed to evaluate event expression 'cfg.sw_logger_vif.printed_log_event' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:175: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:176: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:190: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:139: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:140: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:141: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:142: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:143: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:148: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:149: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:150: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:151: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:152: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:157: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:158: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:159: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:160: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv:161: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:136: error: Object chip_env_pkg.chip_sw_spi_device_pinmux_sleep_retention_vseq.check_spi_outputs.this has no method "cfg.chip_vif.dios_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:138: error: Object chip_env_pkg.chip_sw_spi_device_pinmux_sleep_retention_vseq.check_spi_outputs.this has no method "cfg.chip_vif.dios_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:140: error: Object chip_env_pkg.chip_sw_spi_device_pinmux_sleep_retention_vseq.check_spi_outputs.this has no method "cfg.chip_vif.dios_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:142: error: Object chip_env_pkg.chip_sw_spi_device_pinmux_sleep_retention_vseq.check_spi_outputs.this has no method "cfg.chip_vif.dios_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:26: warning: Class chip_if does not have a property spi_host_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:40: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:34: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:50: error: Object chip_env_pkg.chip_sw_spi_device_pinmux_sleep_retention_vseq.this has no method "cfg.chip_vif.mios_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:50: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:62: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:56: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:69: error: Object chip_env_pkg.chip_sw_spi_device_pinmux_sleep_retention_vseq.this has no method "cfg.chip_vif.mios_if.sample_pin(...)".
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv:69: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_wake_vseq.sv:58: warning: Failed to evaluate event expression 'cfg.sw_logger_vif.printed_log_event' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_wake_vseq.sv:102: warning: Failed to evaluate event expression 'cfg.chip_vif.sw_straps_if.pins_oe' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_retention_vseq.sv:30: warning: Class chip_if does not have a property gpios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_retention_vseq.sv:51: warning: Failed to evaluate event expression 'cfg.sw_logger_vif.printed_log_event' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_retention_vseq.sv:63: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_retention_vseq.sv:57: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_retention_vseq.sv:64: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_sleep_pin_retention_vseq.sv:66: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_pwm_pulses_vseq.sv:86: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_tap_straps_vseq.sv:280: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_tap_straps_vseq.sv:282: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_repeat_reset_wkup_vseq.sv:69: warning: Failed to evaluate event expression 'cfg.chip_vif.pwrmgr_low_power_if.cb' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_repeat_reset_wkup_vseq.sv:84: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:77: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:354: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:350: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:373: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:369: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:105: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:384: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:390: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:404: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:431: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:446: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:145: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:145: warning: Failed to evaluate event expression 'negedge cfg.chip_vif.cpu_clk_rst_if.rst_n' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rv_core_ibex_lockstep_glitch_vseq.sv:146: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_patt_ios_vseq.sv:37: error: dist references a runtime storage value wider than 64 bits, which the constraint runtime cannot transfer without losing high bits; use a <=64-bit typed intermediate expression.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_aes_masking_off_vseq.sv:89: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_aes_masking_off_vseq.sv:100: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_aes_masking_off_vseq.sv:101: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_aes_masking_off_vseq.sv:146: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_aes_masking_off_vseq.sv:196: warning: Failed to evaluate event expression 'cfg.chip_vif.cpu_clk_rst_if.cbn' (compile-progress: event skipped).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:82: warning: Constraint item in 'periph_to_mio_oe_c' of class chip_padctrl_attributes_vseq is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:537: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:544: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:545: warning: Class chip_if does not have a property dios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:609: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:369: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:378: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:385: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:400: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:401: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:411: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_padctrl_attributes_vseq.sv:407: warning: Class chip_if does not have a property mios_if (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_shutdown_output_vseq.sv:16: error: This assignment requires an explicit cast.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:108: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:109: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:110: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:117: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:118: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:124: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:130: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:132: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:177: sorry: this container slice/index chain is not yet supported.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_jtag_debug_vseq.sv:253: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_power_idle_load_vseq.sv:34: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_power_idle_load_vseq.sv:41: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_power_idle_load_vseq.sv:48: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_power_sleep_load_vseq.sv:57: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_power_sleep_load_vseq.sv:64: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_power_sleep_load_vseq.sv:71: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+../src/lowrisc_dv_chip_sim_0.1/tb/tb.sv:95: warning: input port rst_n is coerced to inout.
+warning: Found both default and explicit timescale based delays. Use
+       : -Wtimescale to find the design element(s) with no explicit
+       : timescale.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:116: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.wakeup_en_regwen_qs' in `tb.dut.top_earlgrey.u_pwrmgr_aon.pwrmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:116: error: Unable to elaborate r-value: tb.dut.u_reg.wakeup_en_regwen_qs
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:118: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.reset_en_regwen_qs' in `tb.dut.top_earlgrey.u_pwrmgr_aon.pwrmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:118: error: Unable to elaborate r-value: tb.dut.u_reg.reset_en_regwen_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:134: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_0_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:134: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_0_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:135: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_1_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:135: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_1_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:136: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_2_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:136: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_2_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:137: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_3_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:137: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_3_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:138: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_4_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:138: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_4_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:139: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_5_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:139: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_5_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:140: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_6_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:140: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_6_qs
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:141: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.sw_rst_regwen_7_qs' in `tb.dut.top_earlgrey.u_rstmgr_aon.rstmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_rstmgr_csr_assert_0/rstmgr_csr_assert_fpv.sv:141: error: Unable to elaborate r-value: tb.dut.u_reg.sw_rst_regwen_7_qs
+../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:113: warning: Unable to bind wire/reg/memory `tb.dut.u_reg.extclk_ctrl_regwen_qs' in `tb.dut.top_earlgrey.u_clkmgr_aon.clkmgr_csr_assert' (compile-progress: unresolved reference).
+../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:113: error: Unable to elaborate r-value: tb.dut.u_reg.extclk_ctrl_regwen_qs
+../src/lowrisc_ip_entropy_src_0.1/rtl/entropy_src_core.sv:3324: assert: elaborate.cc:21450: failed assertion base < vwid
+sh: line 1: 35776 Done                    /tmp/ot-alert-clock-output-driver-20260924/lib/ivl/ivlpp -L -F"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg223d5a1fd" -f"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg23d5a1fd" -p"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrli23d5a1fd"
+     35777 Abort trap: 6           | /tmp/ot-alert-clock-output-driver-20260924/lib/ivl/ivl -C"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh23d5a1fd" -C"/tmp/ot-alert-clock-output-driver-20260924/lib/ivl/vvp.conf" -- -

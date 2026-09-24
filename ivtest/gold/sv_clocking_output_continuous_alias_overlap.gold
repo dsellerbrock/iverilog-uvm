@@ -1,0 +1,2 @@
+./ivltests/sv_clocking_output_continuous_alias_overlap.v:3: error: Variable 'final_value' cannot have continuous and procedural drivers on the same bits.
+1 error(s) during elaboration.

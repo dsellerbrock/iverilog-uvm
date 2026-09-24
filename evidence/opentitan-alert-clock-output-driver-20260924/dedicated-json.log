@@ -1,0 +1,25 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-alert-clock-output-driver-20260924/dedicated-json.list
+----------------------------------------------------------------------------
+          sv_clocking_output_continuous_alias_overlap_2017: Passed - CE.
+          sv_clocking_output_continuous_alias_overlap_2023: Passed - CE.
+       sv_clocking_output_continuous_declaration_only_2017: Passed.
+       sv_clocking_output_continuous_declaration_only_2023: Passed.
+               sv_clocking_output_continuous_disjoint_2017: Passed.
+               sv_clocking_output_continuous_disjoint_2023: Passed.
+sv_clocking_output_continuous_disjoint_first_receiver_2017: Passed.
+sv_clocking_output_continuous_disjoint_first_receiver_2023: Passed.
+        sv_clocking_output_continuous_pending_overlap_2017: Passed - CE.
+        sv_clocking_output_continuous_pending_overlap_2023: Passed - CE.
+     sv_clocking_output_continuous_same_scope_overlap_2017: Passed - CE.
+     sv_clocking_output_continuous_same_scope_overlap_2023: Passed - CE.
+         sv_clocking_output_continuous_static_overlap_2017: Passed - CE.
+         sv_clocking_output_continuous_static_overlap_2023: Passed - CE.
+  sv_clocking_output_continuous_static_overlap_unsafe_2017: Passed - CE.
+  sv_clocking_output_continuous_static_overlap_unsafe_2023: Passed - CE.
+        sv_clocking_output_continuous_virtual_overlap_2017: Passed - CE.
+        sv_clocking_output_continuous_virtual_overlap_2023: Passed - CE.
+ sv_clocking_output_continuous_virtual_overlap_unsafe_2017: Passed - CE.
+ sv_clocking_output_continuous_virtual_overlap_unsafe_2023: Passed - CE.
+============================================================================
+Test results: Ran 20, Failed 0.

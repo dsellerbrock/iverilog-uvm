@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_output_continuous_declaration_only.v:20: $finish called at 1000 (1ps)

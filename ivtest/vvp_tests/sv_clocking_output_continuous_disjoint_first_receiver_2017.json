@@ -1,0 +1,13 @@
+{
+  "type": "normal",
+  "source": "sv_clocking_output_continuous_disjoint.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_clocking_output_continuous_disjoint"
+  ],
+  "vvp-args": [
+    "+first_receiver"
+  ],
+  "gold": "sv_clocking_output_continuous_disjoint"
+}
