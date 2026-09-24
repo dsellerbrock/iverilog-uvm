@@ -1,0 +1,48 @@
+[
+  {
+    "label": "isolated_o3_m5",
+    "sha256": "f0c3e3ae975081f8c00148c388528255396506b1e689f221b6bec53eaa41ea33",
+    "elapsed_s": 180.024,
+    "timed_out": true,
+    "exit": null,
+    "retired_prefix": 369,
+    "trace_lines": 440,
+    "trace_sha256": "9c564706508b07c9c100111b16fd8fce61551ce0f100bfef2ff00f091b611d60",
+    "jtag_listening": true,
+    "errors": 0,
+    "argv": [
+      "/tmp/iverilog-vvp-o3-m5-20260924/vvp/vvp",
+      "-M",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl",
+      "-d",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-jtagdpi-native-20260923/jtagdpi.vpi",
+      "-n",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-mbox-long-pilot-20260924/caliptra_top_tb.vvp",
+      "+CLP_REGRESSION",
+      "+CLP_BUS_LOGS"
+    ]
+  },
+  {
+    "label": "installed_o2",
+    "sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+    "elapsed_s": 180.02,
+    "timed_out": true,
+    "exit": null,
+    "retired_prefix": 369,
+    "trace_lines": 440,
+    "trace_sha256": "9c564706508b07c9c100111b16fd8fce61551ce0f100bfef2ff00f091b611d60",
+    "jtag_listening": true,
+    "errors": 0,
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-M",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl",
+      "-d",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-jtagdpi-native-20260923/jtagdpi.vpi",
+      "-n",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-icarus-l0-mbox-long-pilot-20260924/caliptra_top_tb.vvp",
+      "+CLP_REGRESSION",
+      "+CLP_BUS_LOGS"
+    ]
+  }
+]
