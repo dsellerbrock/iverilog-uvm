@@ -347,8 +347,12 @@ void cprop_functor::lpm_part_select(Design*des, NetPartSelect*obj)
       if (off < sig_width)
 	    part_count += 1;
 
+	/* The eager full-coverage blend used a transparent concat. Preserve
+	 * each selected driver's strength when doing that blend here. */
+      bool transparent = !disable_concatz_generation
+	    && part_count == obj_set.size();
       NetConcat*cncat = new NetConcat(scope, scope->local_symbol(),
-				       sig_width, part_count);
+				       sig_width, part_count, transparent);
       cncat->set_line(*obj);
       des->add_node(cncat);
       connect(cncat->pin(0), obj->pin(1));

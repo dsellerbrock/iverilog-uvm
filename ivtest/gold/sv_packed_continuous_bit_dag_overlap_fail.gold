@@ -1,0 +1,2 @@
+./ivltests/sv_packed_continuous_bit_dag_overlap_fail.v:5: error: Variable 'tree' cannot have multiple drivers.
+1 error(s) during elaboration.

@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_packed_continuous_bit_strength.v",
+  "iverilog-args": ["-g2017", "-s", "sv_packed_continuous_bit_strength"]
+}
