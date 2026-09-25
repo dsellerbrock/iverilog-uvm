@@ -23,7 +23,7 @@ The adjusted **11/49** is a nonstandard compatibility rate for one selected smok
 
 The remaining rows group by their **first observed blocker**, not a proved unique root cause. Some cores have further errors behind that first diagnostic.
 
-| First observed blocker after the two patches | Rows | Examples |
+| First observed blocker after the four named replays | Rows | Examples |
 |---|---:|---|
 | Source-syntax or pinned declaration diagnostics | 10 | Four SPID module-scope `static` tasks; class-scope imports; SPI TPM parameter override |
 | Covergroup or cross-bin compilation | 5 | EDN, I2C, LC_CTRL, PWM, SYSRST_CTRL |
