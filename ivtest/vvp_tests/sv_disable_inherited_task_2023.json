@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_disable_inherited_task.v",
+    "iverilog-args" : [ "-g2023" ]
+}
