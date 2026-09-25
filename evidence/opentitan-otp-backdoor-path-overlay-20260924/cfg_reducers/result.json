@@ -1,0 +1,44 @@
+{
+  "standalone_2017": {
+    "compile": 0,
+    "compile_stderr": "/tmp/ot-otp-cfg-randomize-reducer-20260924/standalone.sv:11: warning: Static variable initialization requires explicit lifetime in this context.\n",
+    "run": 0,
+    "stdout": "PASS standalone z=0 max=3\n/tmp/ot-otp-cfg-randomize-reducer-20260924/standalone.sv:11: $finish called at 0 (1s)\n",
+    "stderr": ""
+  },
+  "standalone_2023": {
+    "compile": 0,
+    "compile_stderr": "/tmp/ot-otp-cfg-randomize-reducer-20260924/standalone.sv:11: warning: Static variable initialization requires explicit lifetime in this context.\n",
+    "run": 0,
+    "stdout": "PASS standalone z=0 max=3\n/tmp/ot-otp-cfg-randomize-reducer-20260924/standalone.sv:11: $finish called at 0 (1s)\n",
+    "stderr": ""
+  },
+  "nested_one_2017": {
+    "compile": 0,
+    "compile_stderr": "/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_one.sv:12: warning: Static variable initialization requires explicit lifetime in this context.\n",
+    "run": 0,
+    "stdout": "FAIL nested_one\n/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_one.sv:12: $finish called at 0 (1s)\n",
+    "stderr": "ERROR: global constraint sampling failed: a joint distribution has an unresolved random guard.\n"
+  },
+  "nested_one_2023": {
+    "compile": 0,
+    "compile_stderr": "/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_one.sv:12: warning: Static variable initialization requires explicit lifetime in this context.\n",
+    "run": 0,
+    "stdout": "FAIL nested_one\n/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_one.sv:12: $finish called at 0 (1s)\n",
+    "stderr": "ERROR: global constraint sampling failed: a joint distribution has an unresolved random guard.\n"
+  },
+  "nested_two_2017": {
+    "compile": 0,
+    "compile_stderr": "/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_two.sv:12: warning: Static variable initialization requires explicit lifetime in this context.\n",
+    "run": 0,
+    "stdout": "FAIL nested_two\n/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_two.sv:12: $finish called at 0 (1s)\n",
+    "stderr": "ERROR: global constraint sampling failed: a joint distribution has an unresolved random guard.\n"
+  },
+  "nested_two_2023": {
+    "compile": 0,
+    "compile_stderr": "/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_two.sv:12: warning: Static variable initialization requires explicit lifetime in this context.\n",
+    "run": 0,
+    "stdout": "FAIL nested_two\n/tmp/ot-otp-cfg-randomize-reducer-20260924/nested_two.sv:12: $finish called at 0 (1s)\n",
+    "stderr": "ERROR: global constraint sampling failed: a joint distribution has an unresolved random guard.\n"
+  }
+}

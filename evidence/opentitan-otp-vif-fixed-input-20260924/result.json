@@ -25,7 +25,11 @@
   "pinned_otp_compile": {
     "exit": 0,
     "explicit_errors": 0,
-    "sorry": 0,
+    "sorry": 46,
+    "sorry_breakdown": {
+      "dropped_covergroup_bins": 6,
+      "vvp_procedural_continuous_assignments": 40
+    },
     "assertions": 0,
     "image_sha256": "7051212cda6b7d77329b2a3a7125f48fc192dafeed7191bd2894c2dde4cc8741"
   },
@@ -56,7 +60,7 @@
     "negative.log": "f9635f3fdf2c910a23e5a14f42d962c882b5565383afe429aa655a328f0e2587",
     "private-build.log": "beb5d2b4e1396c9816ea0975736a4eeceec564de779cabd9b68beb3f3527a326",
     "pinned-otp-compile.log": "bc92f568c3e88ff6dd7f3f7d52b35d8c76a610b02457d7888384454f409952be",
-    "pinned-otp-compile-result.json": "72a853df3ddf0909db2bf59ed0165ef77ac47eb5f47bf4db7fb1a080ba1344a8",
+    "pinned-otp-compile-result.json": "120b12f6b0f1a92b7c639b3954afde5cf94c571562685d77f1294f7485cd3386",
     "pinned-chip-compile.log": "e1007f6f1374caef6069e5d919f0599607e6a96611dcb1ed35e5cf67fdb4520e",
     "pinned-chip-compile-result.json": "5a8a6228875d14390e8a063dbc4abfd377dd982dfff99bf9cf257a43f6be051e",
     "otp-smoke.log": "d7c98b26ead66b02d2c1f453c46b5572bc216c950e0c5fe56d7a8ee3dd8faac0",

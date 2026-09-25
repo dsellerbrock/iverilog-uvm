@@ -1,0 +1,5 @@
+Disposable OTP overlay image: /tmp/ot-otp-backdoor-path-overlay-20260924/otp-overlay.vvp
+Image SHA-256: 7c17498f720d6cfd721d772d57f82bb3bf08010cbdc95bd5a8553fbfa9731e54
+VVP line 2275557:     %pushi/str "tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem";
+The first hierarchy byte in the quoted path is ASCII 116 ('t'); leading spaces: 0.
+The pinned source and memory-backdoor fatal remain unchanged.

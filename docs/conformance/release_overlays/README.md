@@ -16,10 +16,11 @@ copies and record unmodified-source results separately.
 
 ## Known-needed source patches
 
-| Test and disposition | Patch relative to application root | Evidence |
+| Test and disposition | Patch or helper | Evidence |
 | --- | --- | --- |
 | OpenTitan `pwrmgr_smoke_vseq`, seed 3: apply the clock-activity checker correction. The generated checker is used in simulation; the template is patched so regeneration keeps the correction. | [pwrmgr_clock_activity.patch](opentitan/pwrmgr_clock_activity.patch) | [Seed-3 revalidation](../session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json) and [focused checker run](../session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json). Pristine seed 3 fails. |
 | OpenTitan CSRNG `csrng_sim`: replace two nonstandard instance-hierarchical indexed part-select widths with a testbench-local constant matching the released core's 128-bit block length. | [csrng_blklen_width.patch](opentitan/csrng_blklen_width.patch) | [Current runtime replay](../../../evidence/opentitan-csrng-timezero-scheduler-20260923/result.json) reaches UVM after Icarus loader/scheduler fixes but fails at a separate joint-`dist` restriction. |
+| OpenTitan `otp_ctrl_smoke_vseq`: flatten only the two continued RAM-path macros in the testbench. The backdoor fatal, `$size`/`$bits`, and ECC selection remain intact. Select only for this named test; this is source compatibility, not an IEEE conformance result. | [otp_mem_path_overlay.py](opentitan/otp_mem_path_overlay.py) | [Pinned OTP replay](../../../evidence/opentitan-otp-backdoor-path-overlay-20260924/README.md): compilation succeeds, but the smoke still fails at a separate constraint restriction; no DV pass. |
 | Caliptra `csrng_tb` unit filelist: compile the imported RAM package before its consumer and add the existing generated-register header directory. No RTL or checker is changed. | [csrng_tb_filelist.patch](caliptra/csrng_tb_filelist.patch) | [Pinned compile and header provenance](../../../evidence/caliptra-csrng-header-closure-20260923/README.md); [one bounded unit runtime](../../../evidence/caliptra-csrng-unit-runtime-20260923/README.md) passes explicit checks. [Unique-case warnings](../../../evidence/caliptra-csrng-unique-warning-20260923/README.md) arise from X/Z idle selectors; full DV remains open. |
 | Caliptra Adams Bridge `rej_bounded_tb`: apply the scoreboard/zeroize ordering correction. | [rej_bounded_tb.patch](caliptra/rej_bounded_tb.patch) | [Paired pinned-release replay](../session_logs/2026-09-23_caliptra_rej_bounded_race_fix.json) and [upstream PR 303](https://github.com/chipsalliance/adams-bridge/pull/303). Pristine unit run fails. |
 | Caliptra `fv_ecc_dsa_sequencer.sv` formal filelist only: correct an undeclared `DSA_NOP` to the package's `ECC_NOP`. This is required to compile this selected released formal file and is not a DV-test patch. | [ecc_dsa_nop_formal.patch](caliptra/ecc_dsa_nop_formal.patch) | [Pristine failure and patched-copy paired compile](../session_logs/2026-09-23_caliptra_ecc_nop_overlay.json). No formal proof or DV runtime is claimed. |
@@ -36,7 +37,7 @@ a later bounded xbar smoke passed with this source unmodified. See the
 [original run](../session_logs/2026-09-15_opentitan_xbar_smoke_patched.md)
 and [release replay](../session_logs/2026-09-21_qualified_nine_release_retest.json).
 
-Each file is a frozen copy of the patch used in its linked evidence. From the
+Each `.patch` file is a frozen copy of the patch used in its linked evidence. From the
 compiler worktree, validate and apply a selected patch to a **disposable copy**
 of the corresponding application root with `patch --dry-run -p1 -d "$APP_COPY"
 -i "$PATCH"`, followed by the same command without `--dry-run`. Do not apply
@@ -55,6 +56,22 @@ The pinned CSRNG width patch SHA-256 is
 `04dd45643a684aa69ce1a94e67275c9ad0695a7251958ea893579a441901772d`.
 The Caliptra selected-L0 checker diagnostic patch SHA-256 is
 `b3cdf87a5c819820fbb02d8b183e6209ab7f5fdb062228046ba27cdaae9dbd19`.
+
+The OTP helper is explicit and source-hash-guarded. Check it against the pinned
+`hw/ip/otp_ctrl/dv/tb.sv`, then give it the byte-identical FuseSoC-generated
+`tb.sv` and a **new** disposable output path:
+
+```sh
+python3 docs/conformance/release_overlays/opentitan/otp_mem_path_overlay.py \
+  --self-check "$PINNED_OT/hw/ip/otp_ctrl/dv/tb.sv"
+python3 docs/conformance/release_overlays/opentitan/otp_mem_path_overlay.py \
+  "$GENERATED_OTP_TB" "$DISPOSABLE/tb.sv"
+```
+
+Replace only the generated `tb.sv` entry in a copy of the FuseSoC source list
+with that output path. The helper refuses a changed input hash, the same
+input/output path, or an existing output file. Both the original testbench and
+generated source stay untouched.
 
 ## Selected run options
 

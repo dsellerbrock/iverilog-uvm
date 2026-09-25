@@ -20,20 +20,19 @@
     "-DDUT_HIER=tb.dut",
     "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
     "-o",
-    "/tmp/ot-vif-fixed-input-coordinator-20260924/pinned-otp-final/matrix-uvm.vvp",
+    "/tmp/ot-otp-backdoor-path-overlay-20260924/otp-overlay.vvp",
     "-c",
-    "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/matrix-iverilog.scr"
+    "/tmp/ot-otp-backdoor-path-overlay-20260924/matrix-iverilog.scr"
   ],
   "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
   "returncode": 0,
-  "explicit_errors": 0,
-  "sorry": 46,
-  "sorry_breakdown": {
-    "dropped_covergroup_bins": 6,
-    "vvp_procedural_continuous_assignments": 40
-  },
-  "assertions": 0,
-  "image_exists": true,
+  "duration_seconds": 6.324,
+  "pinned_source_sha256": "9ae010405678fbaad44c83143793345af6e5aa1e0152bd2e06a9c838f3d63f1a",
+  "generated_source_sha256": "9ae010405678fbaad44c83143793345af6e5aa1e0152bd2e06a9c838f3d63f1a",
+  "overlay_source_sha256": "a7bd1964e2c7e626d5a25a04597129417a7c47f89c95069da6af86dd094689c6",
+  "inner_filelist_sha256": "84bd023f7da4b5f5fba5992d7a717c42fc44901c88b2804f92d51436704b3d98",
+  "outer_filelist_sha256": "d2615a3449ace5d84bb16ce224eed5db25d47438de712b78157dd90957d0a5be",
   "private_ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
-  "log_sha256": "bc92f568c3e88ff6dd7f3f7d52b35d8c76a610b02457d7888384454f409952be"
+  "image_exists": true,
+  "compile_log_sha256": "2bcadfd5ca7f72c3e75b439c590c27c9f3cbecebbbf98000927d2a353fc45a7c"
 }

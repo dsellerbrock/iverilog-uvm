@@ -3416,5 +3416,5 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** pinned generated `otp_ctrl_sim` `tb.sv:182-191` nested `MEM_*` macros and `DV_STRINGIFY`; `uvm_dpi/uvm_dpi_iverilog.cc` `uvm_hdl_check_path`; `ivlpp/lexor.lex` continued-macro expansion.
 - **Possible clause:** Macro stringification/whitespace semantics require edition-specific review before labeling this an IEEE compiler defect.
 - **Evidence:** [Pinned compile and smoke](../../evidence/opentitan-otp-vif-fixed-input-20260924/README.md); the generated VVP has the padded string and the target `mem` array.
-- **Reproducer status:** confirmed in the released OTP runtime; paired minimal 2017/2023 reducer pending.
-- **Triage status:** untriaged; a disposable-source overlay that flattens only the two `MEM_*` macro bodies is a candidate while preserving the backdoor fatal and width/depth checks.
+- **Reproducer status:** confirmed in the released OTP runtime; paired 2017/2023 continued, flattened, and literal-space controls are in [the path-overlay evidence](../../evidence/opentitan-otp-backdoor-path-overlay-20260924/README.md).
+- **Triage status:** promoted to BLOCKERS.md as OT-OTP-BACKDOOR-PATH-COMPAT; a hash-checked disposable-source overlay clears the path fatal while preserving the backdoor fatal and width/depth checks. The released smoke then fails on the distinct joint-distribution blocker. IEEE macro-whitespace classification remains separate.
