@@ -20,9 +20,10 @@ classified `DEBT`, 35 fail compilation, six fail at runtime, and one times out.
 There are **0/49 zero-debt raw matrix `PASS` statuses**. All seven `DEBT`
 runtime rows complete their selected checks with meaningful traffic and zero
 runtime errors; adding the two current-image OTP/CSRNG named patched replays
-gives **9/49 selected smoke identities passing nonstandard compatibility DV**.
-Forty selected identities still fail compilation or runtime, or time out;
-these are not 40 distinct compiler bugs. HMAC advances from a
+and two PRESENT/PRINCE native-DPI replays gives **11/49 selected smoke
+identities passing nonstandard compatibility DV**. The remaining **38**
+comprise 33 compile failures, four runtime failures, and one timeout; these
+are not 38 distinct compiler bugs. HMAC advances from a
 hard compile error to checked runtime traffic but reports a CSR status
 `UVM_ERROR`; VVP exit zero does not qualify it. The pinned OpenTitan
 checkout remains unmodified. This is nonstandard compatibility evidence;
@@ -52,8 +53,10 @@ encryption/decryption checks, one `TEST PASSED CHECKS`, and zero runtime
 errors or assertions. On that recorded image its base matrix row was `DEBT`
 because of three runner-tracked FuseSoC setup warnings and a separate raw
 backend-deprecation warning. The latest matrix instead records
-`RUNTIME_FAIL` without the native DPI symbol; neither row qualifies as a
-clean matrix DV pass. Extra-argument `$system` acceptance is tracked
+`RUNTIME_FAIL` without the native DPI symbol, while the current-image
+[native-DPI replay](../../evidence/opentitan-cover-open-range-20260925/native-dpi-replays/README.md)
+completes its original checks. Neither raw matrix row qualifies as a
+zero-debt pass. Extra-argument `$system` acceptance is tracked
 separately as DD-062; no full chapter-20 conformance claim follows.
 
 The [open-ended covergroup range follow-on](../../evidence/opentitan-cover-open-range-20260925/README.md)
@@ -75,6 +78,14 @@ base-source matrix's 0/49. OTP records 1343 checked TL A/D pairs with six bin
 groups and 36 endpoints retained; its warned fault-injection branches are
 unexercised by this seed. CSRNG records ordered app-2 instantiate, generate,
 and uninstantiate traffic; one constraint item remains ignored at compile.
+
+The same current-image [PRESENT and PRINCE native-DPI replays](../../evidence/opentitan-cover-open-range-20260925/native-dpi-replays/README.md)
+reuse their exact unsafe matrix-compiled programs, load the required pinned
+reference models, and complete golden and random encryption/decryption checks:
+**2/2 named nonstandard compatibility DV**. PRESENT retains six compile-time
+multiple-driver compatibility warnings. The raw matrix remains 0/49
+zero-debt passes; prior pwrmgr and xbar source patches add no distinct selected
+identity because their base-source rows already pass checked smokes.
 
 On an earlier private OpenTitan Icarus image recorded in the [OTP cover-bin
 endpoint replay](../../evidence/opentitan-otp-cover-bin-method-20260925/README.md),

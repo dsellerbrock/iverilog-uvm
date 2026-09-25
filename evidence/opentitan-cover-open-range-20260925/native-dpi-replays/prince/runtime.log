@@ -1,0 +1,29 @@
+UVM_INFO /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh(392) @ 0: reporter [UVM/RELNOTES] 
+----------------------------------------------------------------
+UVM-1.2
+(C) 2007-2014 Mentor Graphics Corporation
+(C) 2007-2014 Cadence Design Systems, Inc.
+(C) 2006-2014 Synopsys, Inc.
+(C) 2011-2013 Cypress Semiconductor Corp.
+(C) 2013-2014 NVIDIA Corporation
+----------------------------------------------------------------
+
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  You are using a version of the UVM library that has been compiled
+  with `UVM_OBJECT_DO_NOT_NEED_CONSTRUCTOR undefined.
+  See http://www.eda.org/svdb/view.php?id=3770 for more details.
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+All encryption and decryption passes were successful!
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+../src/lowrisc_dv_prim_prince_sim_0.1/tb/prim_prince_tb.sv:307: $finish called at 2624180 (1ps)

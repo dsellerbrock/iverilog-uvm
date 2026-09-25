@@ -17,9 +17,9 @@ The HMAC result is **0/1 released DV**, despite VVP exit 0 and meaningful hash/m
 |---|---:|---|
 | Raw matrix, zero setup/semantic debt | 0/49 | No row has `PASS` status. |
 | Exact base-source matrix commands, completed checked smoke | 7/49 | Seven `DEBT` rows finish with intended pass markers, meaningful sequence or scoreboard activity, and zero runtime errors; their setup/compile warnings remain visible. |
-| Compatibility with documented named patches | **9/49** | The seven above plus current-image OTP and CSRNG named replays. These two match selected test identities but use their documented overlay/DPI profiles, not the exact matrix commands. |
+| Compatibility with documented patches and native dependencies | **11/49** | The seven above, current-image OTP and CSRNG patched replays, and PRESENT and PRINCE with native DPI loaded. All four match selected test identities; the OTP/CSRNG overlay profiles differ from the exact matrix commands. |
 
-The adjusted **9/49** is a nonstandard compatibility rate for one selected smoke per target, not IEEE conformance or the full released OpenTitan test catalog. GPIO traffic is inferred from the completed smoke sequence and its pinned 20–200 transaction loop; its low-verbosity log does not count individual transactions. Forty selected runtime identities still have a compile failure, runtime failure, or timeout after crediting the two patched passes. These 40 rows do **not** represent 40 distinct compiler bugs.
+The adjusted **11/49** is a nonstandard compatibility rate for one selected smoke per target, not IEEE conformance or the full released OpenTitan test catalog. GPIO traffic is inferred from the completed smoke sequence and its pinned 20–200 transaction loop; its low-verbosity log does not count individual transactions. After crediting the four named replays, **38** selected runtime identities still have a compile failure, runtime failure, or timeout. These 38 rows do **not** represent 38 distinct compiler bugs.
 
 The remaining rows group by their **first observed blocker**, not a proved unique root cause. Some cores have further errors behind that first diagnostic.
 
@@ -32,15 +32,16 @@ The remaining rows group by their **first observed blocker**, not a proved uniqu
 | Other type/parser/elaboration compilation | 9 | Entropy source, flash controller, USBDEV, alert handler, others |
 | Package parse or missing module | 3 | Ibex I-cache, ROM controller, `prim_flop_2sync` |
 | Runtime solver limit | 2 | ADC_CTRL, PATTGEN |
-| Native DPI absent from matrix run | 2 | PRESENT, PRINCE |
 | Runtime check failure, root unproved | 2 | HMAC, `trial1` |
 | 120-second timeout | 1 | TL Agent, after more than 1,200 requests |
 
-Several signatures recur across rows, including module-scope `static`, class-scope imports, SPI mixed drivers, covergroup runtime-range drops, and missing native DPI. The categories mix compiler limitations, pinned-source issues, missing runtime dependencies, and unresolved functional failures; there is no defensible count of independent bugs yet.
+The remaining total is 33 compile failures, four runtime failures, and one timeout. Several signatures recur across rows, including module-scope `static`, class-scope imports, SPI mixed drivers, and covergroup runtime-range drops. The categories mix compiler limitations, pinned-source issues, and unresolved functional failures; there is no defensible count of independent bugs yet.
 
 The pinned OpenTitan checkout is `a78922f14a8cc20c7ee569f322a04626f2ac6127` and was clean before and after. The 84-row matrix uses its unmodified generated source lists; documented OTP and CSRNG source overlays require separate named replays. The final private compiler includes merged PR #373 and #374 at main `808ad9f40711cb8277f920a0c7a4a1ab2aa2a99c` plus this open-range change. Compiler engine SHA-256: `9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe`; VVP SHA-256: `e54c7489ae51e3d14ba3b201cd4502b3d8ccfc7742926589cc9bddb82334bcae`. The exact application commands, selected smoke sequence, metadata, and per-row status are in [hmac-combined-result.json](hmac-combined-result.json), with copied [compile and runtime logs](hmac-combined-logs/).
 
 The separate current-image [OTP named replay](otp-current-overlay/result.json) passes 1/1 nonstandard compatibility DV with its hash-checked disposable RAM-path overlay, native DPI, 1343 checked TL A/D pairs, and six original bin groups retaining 36 endpoints. The ten fault-injection selectors are zero in this seed, so the warned `force` branches remain unqualified. The [CSRNG named replay](csrng-current-overlay/result.json) passes 1/1 with its disposable width patch, native AES DPI, and ordered app-2 instantiate/generate/uninstantiate checks; its one ignored compile-time constraint item remains separate. Both use explicit `-gcommercial-unsafe` and preserve original checks. Together these are **2/2 named nonstandard compatibility DV**, not additions to the base-source 0/49 matrix numerator.
+
+The current-image [PRESENT and PRINCE native-DPI replays](native-dpi-replays/README.md) reuse their exact matrix-compiled `.vvp` programs and complete their original golden and random encryption/decryption checks: **2/2 named nonstandard compatibility DV**. The raw matrix omitted the required native libraries, so both rows remain `RUNTIME_FAIL` there. PRESENT retains six compile-time multiple-driver compatibility warnings and is not an IEEE conformance pass. The documented pwrmgr and xbar patches add no further selected identity because their base-source rows already complete checked smokes.
 
 Paired RED logs and combined-image focused results are in this directory. Constructor-dependent open endpoints and `with (item inside {open range})` remain loudly unsupported. A bin mixing an open range with a constructor-dependent closed range is now rejected as a whole, avoiding silent partial coverage. The IEEE wording for open endpoints is in [1800-2017](https://fpga.mit.edu/6205/_static/F25/documentation/1800-2017.pdf) and [1800-2023](https://iccircle.com/static/upload/img20240319175450.pdf), §§19.5.1 and 19.6.1.
 

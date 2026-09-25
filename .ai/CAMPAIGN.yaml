@@ -4,18 +4,19 @@ branch: agent/ot-cover-open-range-20260925
 checkpoint_head: 808ad9f40711cb8277f920a0c7a4a1ab2aa2a99c
 active_open_titan_lane:
   blocker: OT-COVERGROUP-OPEN-ENDED-RANGE
-  phase: LOCAL_GATES_COMPLETE_PR_READY
+  phase: PR375_PUBLISHED_LOCAL_QUALIFIED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925
   prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/375
   baseline_head: 808ad9f40711cb8277f920a0c7a4a1ab2aa2a99c
   baseline: PR373 merged at a7d21d2320c4122ce8f112bfb422e8df31992265 with its independent $system fix; PR374 merged at 808ad9f40711cb8277f920a0c7a4a1ab2aa2a99c. The historical PR374 private compiler ran all 84 pinned OpenTitan rows with explicit -gcommercial-unsafe and 0/49 clean runtime DV; HMAC compiled with a dropped zero-bin cross caused by {[1:$]}.
   standards: Paired strict IEEE 1800-2017/2023 reducers are separate from the pinned -gcommercial-unsafe application replay and DV denominator.
   reproducer: Both strict editions compile the open-ended bin without its value ranges, drop the cross, and fail runtime at 50 percent instead of the expected 16.67 percent; open-ended transition syntax rejects, while illegal [$:$] incorrectly compiles.
   expected: Retain one-null range bounds through parsing; resolve them to signed or unsigned coverpoint-domain edges without expanding wide bins; keep out-of-domain ranges empty and [$:$] illegal.
   source_scope: parse.y and elaborate.cc covergroup range handling, dedicated reducers, OpenTitan-only evidence and owning docs; no pinned source, Caliptra, shared installation, Verilator, GPU, or CI polling.
-  validation: Final combined private ivl 9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe passes paired open-range legacy and JSON focus 8/8 each, full legacy 6694 total with 6689 ordinary passes, zero failures, two not implemented, and three expected failures, full JSON 3743/3743, VPI with PLI1 140/140, real-DPI UVM 358/358, negatives 155/155, SVA dual 62/62, and make check. All 84 pinned matrix compiles use -gcommercial-unsafe. Raw runtime statuses are 7 DEBT, 35 FAIL, 6 RUNTIME_FAIL, and 1 RUNTIME_TIMEOUT, with 0/49 clean released DV; UVM rows are 9 DEBT and 26 FAIL. Seven DEBT rows completed checked, meaningful, zero-error smokes, and two current-image named OTP and CSRNG documented-overlay replays qualify, giving 9/49 selected smoke identities in nonstandard compatibility; 40 identities remain failed or timed out, not 40 unique bugs. HMAC is 0/1 after meaningful traffic and a UVM_ERROR. The earlier pre-integration a083 image is separate.
+  validation: Final combined private ivl 9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe passes paired open-range legacy and JSON focus 8/8 each, full legacy 6694 total with 6689 ordinary passes, zero failures, two not implemented, and three expected failures, full JSON 3743/3743, VPI with PLI1 140/140, real-DPI UVM 358/358, negatives 155/155, SVA dual 62/62, and make check. All 84 pinned matrix compiles use -gcommercial-unsafe. Raw runtime statuses are 7 DEBT, 35 FAIL, 6 RUNTIME_FAIL, and 1 RUNTIME_TIMEOUT, with 0/49 clean released DV; UVM rows are 9 DEBT and 26 FAIL. Seven DEBT rows completed checked, meaningful, zero-error smokes, and four current-image named replays qualify with documented overlays for OTP and CSRNG and native DPI for PRESENT and PRINCE. This gives 11/49 selected nonstandard compatibility smoke identities; 38 remain (33 compile failures, four runtime failures, one timeout), not 38 unique bugs. HMAC is 0/1 after meaningful traffic and a UVM_ERROR. The earlier pre-integration a083 image is separate.
   prior_release_result: PR374 paired focused JSON 19/19 and legacy 17/17, full legacy 6686 with zero failures, SVA 62/62, make check, real-DPI UVM 358/358, VPI 131/131, negatives 155/155, and runtime invariants 15/15 passed on its private image. Pinned unsafe EDN compiled but three bins dropped and released DV stayed 0/1; OTBN cleared the target parse error but later compile errors remained. See evidence/opentitan-package-self-typedef-20260925/README.md and evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md.
-  next_command: Review final combined-image evidence and publish the one-blocker open-range PR; do not poll CI.
+  next_command: Review PR #375 with final combined-image evidence; respond if CI later reports an issue without polling.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
@@ -92,14 +93,14 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-COVERGROUP-OPEN-ENDED-RANGE
-  phase: LOCAL_GATES_COMPLETE_PR_READY
+  phase: PR375_PUBLISHED_LOCAL_QUALIFIED
   owner: Coordinator owns private builds, strict reducers, unsafe HMAC replay, evidence, docs, and PR; separate Caliptra agent owns its runs.
   reproducer: Pinned HMAC {[1:$]} and {[2064:$]} bins disappear and their cross is dropped. Paired 2017/2023 reducers fail runtime, transition syntax rejects, and illegal [$:$] compiles.
   expected: Exact compact open-ended range bins and cross hits with signed and unsigned boundaries; strict rejection of [$:$].
   root_cause_hypothesis: parse.y drops nullable endpoints and elaborate.cc skips them.
   source_scope: Covergroup handling in parse.y and elaborate.cc, dedicated tests, OpenTitan evidence/owning docs only; pinned sources and Caliptra unchanged.
-  validation: Final combined ivl 9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe passes paired focus 8/8 each, full legacy 6694 total with zero failures, JSON 3743/3743, VPI with PLI1 140/140, real-DPI UVM 358/358, negatives 155/155, SVA dual 62/62, and make check. Exact pinned 84-row -gcommercial-unsafe matrix is raw 0/49 clean released DV; seven DEBT rows plus two current-image named documented-overlay replays qualify 9/49 selected nonstandard smoke identities, leaving 40 failed or timed-out identities. HMAC remains 0/1 after meaningful traffic and UVM_ERROR. See evidence/opentitan-cover-open-range-20260925/README.md.
-  next: Review final evidence and publish one-blocker PR; no CI polling.
+  validation: Final combined ivl 9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe passes paired focus 8/8 each, full legacy 6694 total with zero failures, JSON 3743/3743, VPI with PLI1 140/140, real-DPI UVM 358/358, negatives 155/155, SVA dual 62/62, and make check. Exact pinned 84-row -gcommercial-unsafe matrix is raw 0/49 clean released DV; seven DEBT rows plus four current-image named patched or native-DPI replays qualify 11/49 selected nonstandard smoke identities, leaving 38 identities (33 compile failures, four runtime failures, one timeout). HMAC remains 0/1 after meaningful traffic and UVM_ERROR. See evidence/opentitan-cover-open-range-20260925/README.md.
+  next: Review PR #375 and respond if CI later reports an issue; no CI polling.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
@@ -333,4 +334,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Review final combined-image OpenTitan evidence and publish the open-range PR; preserve Caliptra work and do not poll CI."
+next_command: "Review PR #375 with final OpenTitan evidence; preserve Caliptra work and do not poll CI."
