@@ -21,6 +21,16 @@ module sv_function_output_bit_copyback;
     return 7;
   endfunction
 
+  function automatic int read_short(output logic [3:0] data);
+    data = 4'bx1z0;
+    return 9;
+  endfunction
+
+  function automatic int read_signed_short(output logic signed [3:0] data);
+    data = 4'b10xz;
+    return 11;
+  endfunction
+
   task automatic read_task(output logic [31:0] data);
     data = 'x;
     data[7:4] = 4'ha;
@@ -45,6 +55,25 @@ module sv_function_output_bit_copyback;
     result = read_wide(holder.value);
     if (result != 7 || holder.value !== 32'ha4 || $isunknown(holder.value))
       $fatal(1, "property bit output copyback: data=%h", holder.value);
+
+    direct = '1;
+    result = read_short(direct);
+    if (result != 9 || direct !== 32'h4)
+      $fatal(1, "wide direct bit output copyback: data=%h", direct);
+
+    words[0] = '1;
+    result = read_short(words[0]);
+    if (result != 9 || words[0] !== 32'h4 || words[1] !== 32'ha4)
+      $fatal(1, "wide array bit output copyback: data=%h neighbor=%h", words[0], words[1]);
+
+    holder.value = '1;
+    result = read_short(holder.value);
+    if (result != 9 || holder.value !== 32'h4)
+      $fatal(1, "wide property bit output copyback: data=%h", holder.value);
+
+    result = read_signed_short(direct);
+    if (result != 11 || direct !== 32'hfffffff8)
+      $fatal(1, "signed bit output copyback: data=%h", direct);
 
     result = read_wide(four);
     if (result != 7 || four[31:8] !== {24{1'bx}}
