@@ -1,5 +1,7 @@
 # OTP arbiter packed-tree RED
 
+Published as [PR #362](https://github.com/dsellerbrock/iverilog-uvm/pull/362).
+
 The pinned OpenTitan OTP smoke passed **1/1 released DV** on the main-integrated private compiler. The prior PR #360 image reached `tb.dut.u_otp_arb` and reported the enabled `GrantKnown_A` assertion at 1,559,061 ps; that run had no pass marker or meaningful checked traffic. Its compile command, binary hashes, and native DPI bundle are recorded in [the class-identity replay](../opentitan-otp-class-identity-20260924/README.md).
 
 A copied VVP image with diagnostic prints only reports `req_i=00011111111111`, `ready_i=1`, `gnt_o=000xxxxxxxxxxx`, and the 31-bit `mask_tree` entirely Z at the failure. The pinned `hw/ip/prim/rtl/prim_arbiter_tree.sv` assigns `mask_tree[0]=0` and derives each child bit from earlier tree nodes; these selected continuous assignments form an acyclic dependency graph. The [emitted bytecode excerpt](otp_vvp_excerpt.txt) instead has a `.part` read of the full packed tree feeding that tree's `.concat8`. This locates the first wrong value before the later registered priority-mask and grant X values. The [diagnostic script](otp_arb_diagnose.py) and [output](otp_arb_diagnose.stdout) preserve the copied-image probe; the archived output has only trailing whitespace trimmed, with its current hash recorded in `paired_red_result.json`. They do not change the pinned application source or release checks.
