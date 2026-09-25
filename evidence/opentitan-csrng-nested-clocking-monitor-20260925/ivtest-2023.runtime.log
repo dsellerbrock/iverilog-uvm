@@ -1,0 +1,2 @@
+FATAL: ivtest/ivltests/sv_vif_nested_clocking_event_rebind.v:97: p0 nested event/sample mismatch
+       Time: 6000  Scope: sv_vif_nested_clocking_event_rebind

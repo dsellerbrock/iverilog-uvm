@@ -1,0 +1,2 @@
+FATAL: ivtest/ivltests/sv_vif_nested_clocking_event_null_parent_fail.v:25: nested event wait returned through null parent
+       Time: 0  Scope: $unit::nested_clocking_null_monitor.watch_child

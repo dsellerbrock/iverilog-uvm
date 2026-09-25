@@ -4610,6 +4610,8 @@ class NetEvProbe  : public NetNode {
       const std::vector<unsigned>& vif_path() const { return vif_path_; }
       void set_vif_root_pin(unsigned pin) { vif_root_pin_ = pin; }
       unsigned vif_root_pin() const { return vif_root_pin_; }
+      void set_vif_object_expr(const NetExpr*expr);
+      const NetExpr* vif_object_expr() const { return vif_object_expr_; }
 
       // Dynamic class-object mutation sensitivity. For a direct property of
       // the root object obj_N is UINT_MAX. For `base.owner[N].field`, obj_N
@@ -4684,6 +4686,7 @@ class NetEvProbe  : public NetNode {
       unsigned vif_pre_N_ = UINT_MAX;
       std::vector<unsigned> vif_path_;
       unsigned vif_root_pin_ = 0;
+      NetExpr*vif_object_expr_ = nullptr;
       bool is_obj_mutation_ = false;
       unsigned obj_N_ = UINT_MAX;
       unsigned obj_pre_N_ = UINT_MAX;

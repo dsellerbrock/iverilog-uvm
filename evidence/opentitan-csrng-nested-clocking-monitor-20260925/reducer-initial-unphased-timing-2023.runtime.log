@@ -1,0 +1,6 @@
+CONTROL direct_child=1/1 direct_parent=1
+RED p0 nested sample/wake mismatch: 1 000
+FAIL rebound monitor woke on old parent: 2
+RED p1 nested sample/wake mismatch: 3 000
+FATAL: evidence/opentitan-csrng-nested-clocking-monitor-20260925/reducer.sv:123: nested clocking monitor reducer failures=3
+       Time: 22  Scope: tb

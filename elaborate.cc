@@ -66,6 +66,10 @@
 # include  "ivl_assert.h"
 # include "map_named_args.h"
 
+extern const netclass_t* resolve_nested_clocking_child_type(
+      const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
+      perm_string, const LineInfo*);
+
 /* In-line random variable control (IEEE 1800-2017 18.11). Defined in
  * elab_expr.cc next to the other randomize() lowering; shared here so
  * the statement form `void'(obj.randomize(b))' narrows the random set
@@ -1025,6 +1029,7 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 		  return nullptr;
 
 	    PEIdent*pfx = new PEIdent(prefix, lexical_pos);
+	    pfx->set_line(loc);
 	    obj = elab_and_eval(des, scope, pfx, -1);
 	    delete pfx;
 	    if (!obj)
@@ -1152,6 +1157,8 @@ resolve_scope_pform_clocking_event_(const PEIdent*id,
 }
 
 static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from_search_(
+					      const PEIdent*id, Design*des,
+					      NetScope*scope, const LineInfo*loc,
 					      const symbol_search_results&sr,
 					      size_t&base_path_components,
 					      const netclass_t**found_class = nullptr,
@@ -1170,6 +1177,7 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
       if (root_modport != verinum())
 	    active_modport = lex_strings.make(root_modport.as_string().c_str());
 
+      perm_string nested_child_name;
       size_t offset = 0;
       for (pform_name_t::const_iterator it = sr.path_tail.begin()
 		 ; it != sr.path_tail.end() ; ++it, ++offset) {
@@ -1215,9 +1223,24 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 		  }
 	    }
 
-	    int pidx = class_type->property_idx_from_name(it->name);
-	    if (pidx < 0)
-		  return nullptr;
+    int pidx = class_type->property_idx_from_name(it->name);
+    if (pidx < 0) {
+	  if (!nested_child_name.nil() && next == sr.path_tail.end()) {
+	    cerr << loc->get_fileline() << ": error: nested interface '"
+		 << nested_child_name << "' has no clocking block or member '"
+		 << it->name << "'." << endl;
+	    des->errors += 1;
+	    return nullptr;
+	  }
+	  size_t prefix_count = id->path().name.size()
+	    - sr.path_tail.size() + offset + 1;
+	  class_type = resolve_nested_clocking_child_type(
+	    id, des, scope, prefix_count, class_type, it->name, loc);
+	  if (!class_type) return nullptr;
+	  nested_child_name = it->name;
+	  active_modport = class_type->interface_modport();
+	  continue;
+    }
 
 	    ivl_type_t ptype = class_type->get_prop_type(pidx);
 	    perm_string next_modport =
@@ -20629,8 +20652,14 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 	    }
 
 	    size_t clocking_components = 0;
-	    if (resolve_interface_clocking_block_from_search_(
-		  sr, clocking_components)
+    const netclass_t::clocking_block_t*clocking =
+	  resolve_interface_clocking_block_from_search_(
+	    id, des, scope, &loc, sr, clocking_components);
+    if (des->errors != errors_before) {
+	  res.elaborated = true;
+	  return;
+    }
+    if (clocking
 		|| sr.is_scope() || !sr.is_found()) {
 		  res.preserve_pform = true;
 		  return;
@@ -21056,7 +21085,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
        * integral event-or list, collapse the already elaborated leaves into one
        * source-order concat and recurse through the established single-observer
        * lowering. This keeps all subscriptions in the original waiter frame. */
+      const unsigned errors_before_prepared = des->errors;
       bool split_event_list = prepare_event_list_(des, scope, *this, expr_, prepared);
+      if (des->errors != errors_before_prepared)
+	    return nullptr;
       if (unique_ptr<NetExpr>concat =
           prepare_class_property_event_list_concat_(expr_, prepared)) {
             unique_ptr<PECachedEventExpr>cached_expr(new PECachedEventExpr(
@@ -21251,12 +21283,16 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			}
 		  }
 
+		  const unsigned errors_before_clocking = des->errors;
 		  const netclass_t*clocking_class = nullptr;
 		  perm_string clocking_modport;
 		  const netclass_t::clocking_block_t*clocking =
-			resolve_interface_clocking_block_from_search_(sr, base_path_components,
+			resolve_interface_clocking_block_from_search_(id, des, scope, this,
+							      sr, base_path_components,
 							      &clocking_class,
 							      &clocking_modport);
+		  if (des->errors != errors_before_clocking)
+			return nullptr;
 		  /* resolve_interface_clocking_block_from_search_ sets
 		     base_path_components = offset (0-based index into
 		     sr.path_tail where the clocking block was found).
@@ -21713,6 +21749,45 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		       << *expr_[idx]->expr() << "'." << endl;
 		  des->errors += 1;
 		  continue;
+	    }
+
+	    /* A nested child is selected by an expression, not by a chain of
+	     * class property indices. Keep that exact receiver on the probe so
+	     * the VIF wait selects the child's public clocking tick at arm time. */
+	    if (gn_system_verilog()
+		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
+	      const NetEProperty*prop = dynamic_cast<const NetEProperty*>(tmp);
+	      const NetESFunc*child = prop
+		? dynamic_cast<const NetESFunc*>(prop->get_base()) : nullptr;
+	      const netclass_t*child_type = child
+		? dynamic_cast<const netclass_t*>(child->net_type()) : nullptr;
+	      const char*member_name = child_type
+		? child_type->get_prop_name(prop->property_idx()) : nullptr;
+	      if (child && strcmp(child->name(), "$ivl_vif_nested_value") == 0
+		  && child_type && child_type->is_interface()
+		  && member_name && strncmp(member_name, "_ivl_cbtick$", 12) == 0) {
+		NexusSet*roots = child->nex_input();
+		if (!roots || roots->size() != 1) {
+		  cerr << get_fileline() << ": error: nested virtual-interface "
+		       << "clocking event has no unique receiver root." << endl;
+		  des->errors += 1;
+		  delete roots;
+		  delete tmp;
+		  continue;
+		}
+		NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(),
+						 ev, NetEvProbe::ANYEDGE, 1);
+		connect(roots->at(0).lnk, probe->pin(0));
+		probe->set_vif_anyedge_path(std::vector<unsigned>(),
+					    prop->property_idx());
+		probe->set_vif_root_pin(0);
+		probe->set_vif_object_expr(child);
+		des->add_node(probe);
+		expr_count += 1;
+		delete roots;
+		delete tmp;
+		continue;
+	      }
 	    }
 
             /* A compound automatic event may read one or more members of a
@@ -23104,6 +23179,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
           && expr_[0]->expr()) {
 	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
 		  unsigned slot = 0;
+		  const unsigned errors_before_class_event = des->errors;
 		  if (NetExpr*obj = elaborate_class_event_target_(des, scope,
 				*this, id->path().name, id->lexical_pos(), slot)) {
 			NetProc*body = 0;
@@ -23116,6 +23192,8 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 			wa->set_statement(body);
 			return wa;
 		  }
+		  if (des->errors != errors_before_class_event)
+			return nullptr;
 	    }
       }
 

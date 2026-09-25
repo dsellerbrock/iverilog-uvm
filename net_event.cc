@@ -548,6 +548,12 @@ void NetEvProbe::set_synthesis_expr(const NetExpr*expr)
       synthesis_expr_ = expr ? expr->dup_expr() : 0;
 }
 
+void NetEvProbe::set_vif_object_expr(const NetExpr*expr)
+{
+      delete vif_object_expr_;
+      vif_object_expr_ = expr ? expr->dup_expr() : nullptr;
+}
+
 void NetEvProbe::set_event_observer_expr(NetExpr*expr, edge_t edge)
 {
       delete event_observer_expr_;
@@ -724,6 +730,7 @@ NetEvProbe::~NetEvProbe()
 {
       delete synthesis_expr_;
       delete event_observer_expr_;
+      delete vif_object_expr_;
       for (NetExpr*expr : obj_mutation_property_word_expr_)
             delete expr;
       for (NetExpr*expr : obj_mutation_property_bit_expr_)

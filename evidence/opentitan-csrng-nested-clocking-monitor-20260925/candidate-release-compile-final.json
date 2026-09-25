@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-clockmon-20260925/local-install/bin/iverilog",
+    "-g2017",
+    "-gcommercial-unsafe",
+    "-stb",
+    "-scsrng_bind",
+    "-scsrng_cov_bind",
+    "-ssec_cm_prim_count_bind",
+    "-ssec_cm_prim_double_lfsr_bind",
+    "-ssec_cm_prim_onehot_check_bind",
+    "-ssec_cm_prim_sparse_fsm_flop_bind",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_REG_BYTENABLE_WIDTH=4",
+    "-DUVM_REGEX_NO_DPI",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/tmp/ot-csrng-clockmon-build-20260925/csrng-smoke-clockmon-final.vvp",
+    "-c",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/matrix-iverilog.scr"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "exit": 0,
+  "seconds": 3.152876708016265,
+  "image_bytes": 70174127
+}

@@ -40,6 +40,7 @@
 # include  "netscalar.h"
 # include  "PExpr.h"
 # include  "PTask.h"
+# include  "PGate.h"
 # include  "Statement.h"
 # include  "pform_types.h"
 # include  "Module.h"
@@ -4509,6 +4510,90 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
    See netmisc.h for the model description. These were previously
    duplicated as statics in elab_expr.cc and elab_lval.cc; they are
    shared here so expression and l-value elaboration cannot drift. */
+
+const netclass_t* resolve_nested_clocking_child_type(
+		const PEIdent*ident, Design*des, NetScope*scope,
+		size_t prefix_components, const netclass_t*parent_type,
+		perm_string child_name, const LineInfo*diagnostic)
+{
+      if (!parent_type || !parent_type->is_interface()
+	  || !parent_type->interface_definition())
+	return nullptr;
+      const PGModule*child = dynamic_cast<const PGModule*>(
+	const_cast<Module*>(parent_type->interface_definition())->get_gate(child_name));
+      if (!child)
+	return nullptr;
+
+      pform_name_t prefix;
+      auto it = ident->path().name.begin();
+      for (size_t count = 0; count < prefix_components
+	   && it != ident->path().name.end(); ++count, ++it)
+	prefix.push_back(*it);
+      if (prefix.size() != prefix_components)
+	return nullptr;
+      PEIdent*selected = ident->path().package
+	? new PEIdent(ident->path().package, prefix, ident->lexical_pos())
+	: new PEIdent(prefix, ident->lexical_pos());
+      selected->set_line(diagnostic ? *diagnostic : *ident);
+      NetExpr*value = selected->elaborate_expr(des, scope, 0U, 0);
+      delete selected;
+      const netclass_t*type = value
+	? dynamic_cast<const netclass_t*>(value->net_type()) : nullptr;
+      delete value;
+      return type && type->is_interface() ? type : nullptr;
+}
+
+bool rewrite_nested_class_clocking_member_path(
+		const PEIdent*ident, Design*des, NetScope*scope,
+		const symbol_search_results&sr, pform_name_t&rewritten,
+		perm_string*clocking_access)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(sr.type);
+      if (!sr.net || !type || sr.path_tail.size() < 3)
+	return false;
+      size_t offset = 0;
+      for (auto it = sr.path_tail.begin(); it != sr.path_tail.end();
+	   ++it, ++offset) {
+	int pidx = type->property_idx_from_name(it->name);
+	if (pidx < 0) {
+	      /* The prefix used to type this child ends here. Re-entering its
+	       * elaboration would recurse on the identical expression. */
+	      auto cb = it;
+	      if (++cb == sr.path_tail.end()) return false;
+	      auto member = cb;
+	      if (++member == sr.path_tail.end()) return false;
+	      size_t prefix_count = ident->path().name.size()
+		- sr.path_tail.size() + offset + 1;
+	      const netclass_t*child = resolve_nested_clocking_child_type(
+		ident, des, scope, prefix_count, type, it->name, ident);
+	      if (!child) return false;
+      symbol_search_results child_sr = sr;
+      child_sr.type = child;
+	      auto first_remaining = child_sr.path_tail.begin();
+	      std::advance(first_remaining, offset + 1);
+	      child_sr.path_tail.erase(child_sr.path_tail.begin(),
+		first_remaining);
+	      return rewrite_class_clocking_member_path(
+		ident, child_sr, rewritten, false, nullptr,
+		clocking_access);
+	}
+	ivl_type_t ptype = type->get_prop_type(pidx);
+	if (!it->index.empty()) {
+	      if (const netdarray_t*darr = dynamic_cast<const netdarray_t*>(ptype))
+		ptype = darr->element_type();
+	      else if (const netuarray_t*uarr = dynamic_cast<const netuarray_t*>(ptype))
+		ptype = uarr->element_type();
+	      else if (const netarray_t*arr = dynamic_cast<const netarray_t*>(ptype))
+		ptype = arr->element_type();
+	      else if (const netqueue_t*que = dynamic_cast<const netqueue_t*>(ptype))
+		ptype = que->element_type();
+	      else return false;
+	}
+	type = dynamic_cast<const netclass_t*>(ptype);
+	if (!type) return false;
+      }
+      return false;
+}
 
 bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					const symbol_search_results&sr,
