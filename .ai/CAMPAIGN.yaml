@@ -1,25 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-otp-grant-known-20260925
-checkpoint_head: af051298ddfe1100df0c2fc69e15300e45126b2d
+branch: agent/ot-otp-dai-constraint-20260925
+checkpoint_head: fa8ea51d0cf43b406c9c5a70b1e1a45171a56e4b
 active_open_titan_lane:
-  blocker: OT-OTP-PACKED-DRIVER-CHAIN
-  phase: PR368_PUBLISHED
-  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-grant-known-20260925
-  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/367
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/368
-  baseline_head: af051298ddfe1100df0c2fc69e15300e45126b2d
-  baseline_private_ivl_sha256: 5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d
-  baseline_private_vvp_sha256: e9c5a713c88c040fe4e941bd75a0f0e5c40995b273fcd17d1227325cdc4a038b
-  current_private_iverilog_sha256: 6553e869ab94065040105589749ad7f05f91a14baa22a9f4b9f7d25a61b26693
-  current_private_ivl_sha256: 7840b445f0353cc47af9a794c1bf98fc14b1afe549ff4ca26d492eaa755a668c
-  current_private_vvp_sha256: dc5beaf5988e15ba51bfeb8d4fb61b112461e6bc5d0209fcce34f6cc8239c560
-  current_private_system_vpi_sha256: 6b59b37766c36c7704d71d255fa9918372876b141515e302aa4594715b554f96
-  baseline: Fresh exact-head pinned OTP with native DPI and the existing hash-checked RAM-path overlay fails 0/1 released DV at GrantKnown_A, 1559061 ps. A disposable #1step monitor identifies u_otp_arb with known requests/ready but sampled X grant; a strict fully covered three-bit packed-driver chain yields zzz in both editions.
-  standards: IEEE 1800-2017 and 2023 sections 4.9.1, 6.5, 10.1 Table 10-1, and 10.3.2 require legal disjoint packed-bit continuous assignments to propagate at startup and on source changes; section 10.3.2 rejects overlapping variable-element drivers.
-  validation: Paired strict legal chain RED in 2017 and 2023; direct independent per-bit drivers pass, and overlapping variable-driver negatives reject. The final image passes 7/7 focused legacy and 8/8 JSON, including invalid-index, wrong-bit, and competing-bit SDF guards; positive SDF and six-driver controls pass. Make check, full JSON 3661/3661, legacy 6620 total with zero unexpected failures, 155/155 negatives, 62/62 SVA, VPI with PLI1 140/140, and real-DPI UVM 358/358 pass.
-  released_dv: Final native-DPI OTP low and high replays complete with 1256 checked TL A and D items, zero UVM warnings/errors/fatals, and TEST PASSED CHECKS. Qualified released OTP DV remains 0/1 because dai_wr_legal_addr_c is ignored and two DAI addresses are outside the intended partition. Six covergroup bins remain dropped; strict variable-driver qualification is also limited by a treated-as-wire warning. Prior PR367 CSRNG is separately 1/1 nonstandard compatibility DV with an ignored-constraint warning.
-  next_command: PR368 is published. In a separate OpenTitan worktree, establish paired 2017/2023 legal and illegal selected-member constraint reducers for the ignored DAI address rule; keep this PR one blocker and do not poll CI.
+  blocker: OT-OTP-DAI-ADDRESS-CONSTRAINT-CONSTANT-MEMBER
+  phase: PR369_PUBLISHED
+  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-constraint-20260925
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/368
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/369
+  baseline_head: fa8ea51d0cf43b406c9c5a70b1e1a45171a56e4b
+  current_private_tool: ivl ca8a3ab6875d7a7b301f70a1c047f537698c8433edd7d21c0e5b85e7851e6be2
+  baseline: Pinned OTP smoke now completes checked runtime after PR368 but remains 0/1 qualified DV because dai_wr_legal_addr_c is ignored; verbose traffic includes two out-of-partition DAI addresses. Six coverage bins are separately dropped.
+  standards: IEEE 1800-2017/2023 §§6.20.2, 6.20.4, 7.2.1, 11.4.13; conditional constraints 2017 §18.5.7 and 2023 §18.5.6. Rand-indexed PartInfo[part_idx].secret remains a separate solver relation.
+  reproducer: Paired 2017/2023 PartInfo localparam array-struct constraints drop their inside item and incorrectly accept address 3 below partition 0's 4..17 range; scalar aliases reject adjacent invalid addresses and accept boundary 4. A missing member in the constraint is ignored instead of diagnosed.
+  expected: Exact constant member values remain in conditional inside IR, out-of-range choices fail with rollback, legal boundaries pass, and invalid members fail compilation without freezing rand or mutable objects.
+  source_scope: elaborate.cc class-constraint constant/member lowering and dedicated paired reducers, with private OpenTitan build, focused and required broad gates, pinned native-DPI OTP replay, evidence, and owning trackers/docs. No solver or coverage source edits.
+  validation: Pre-fix paired REDs are preserved. New private image passes 6/6 paired focus in both harnesses, legacy 6626 total with zero unexpected failures, JSON 3667/3667, negatives 155/155, SVA 62/62, VPI 140/140, and real-DPI UVM 358/358. Pinned OTP compile retains eleven DAI address ranges and low/high native-DPI replays finish with 1343 checked TL A/D pairs and zero UVM/assertion errors. Qualified OTP DV remains 0/1 due a distinct rand-indexed blank-address constraint and six dropped coverage bins.
+  next_command: PR369 is published. In a separate OpenTitan worktree, address the smaller rand-indexed blank-address constraint with paired strict reducers; keep coverage lowering separate. Do not poll CI.
   boundary: OpenTitan-only work; pinned application sources, installed Caliptra tool, and user-owned campaign AGENTS.md unchanged. No Caliptra job, Verilator, GPU, or CI polling.
 active_icarus_runs:
   selected_52:
@@ -95,16 +92,16 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-OTP-PACKED-DRIVER-CHAIN
-  phase: PR368_PUBLISHED
-  owner: Coordinator owns private build, paired focused and broad gates, pinned native-DPI OTP replay, evidence, review, and one separate PR.
-  reproducer: Strict legal fully covered three-bit packed-bit chain stays zzz instead of 000 in both 2017 and 2023; pinned OTP u_otp_arb sampled grant contains X with known requests and ready, then GrantKnown_A fails.
-  expected: Disjoint packed-bit continuous assignments propagate without a false whole-vector startup cycle, while independent full-width strength and ordinary concat startup remain correct and overlapping variable drivers reject.
-  root_cause_hypothesis: Early elab_net.cc collapse replaces selected drivers before final RHS dependency exists. The resulting self-referential NetConcat waits for all ports and never publishes its constant root. Late cprop.cc already has a feedback guard but cannot recover deleted drivers.
-  source_scope: elab_net.cc, cprop.cc, deletion of now-unused helper from netmisc.cc/netmisc.h, plus scalar same-bit VPI topology in vvp/vpi_priv.cc and vvp/part.h, structural singleton-driver proof at deferred link in vvp/compile.cc and vvp/resolv.h/.cc, and invalid SDF port-bit rejection in vpi/sys_sdf.c; dedicated paired legal and SDF negative tests, OpenTitan-only evidence and docs.
-  validation: Final private image passes paired packed-chain focus 7/7 legacy and 8/8 JSON, including invalid-index, wrong-bit, and competing-bit SDF negatives. Positive SDF and six-driver resolver controls pass. Make check, full JSON 3661/3661, legacy 6620 total with zero unexpected failures, negatives 155/155, SVA dual-engine 62/62, VPI with PLI1 140/140, and real-DPI UVM 358/358 pass. Final native-DPI OTP low and high smokes complete with zero UVM errors, 1256 checked TL request/response pairs and a pass marker, but remain 0/1 qualified released DV because the compiler drops its legal DAI address constraint and two sampled addresses are out of range.
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/368
-  next: PR368 is published. Start the separate selected-member constraint-folding blocker with paired 2017/2023 controls in a new worktree; do not poll CI.
+  id: OT-OTP-DAI-ADDRESS-CONSTRAINT-CONSTANT-MEMBER
+  phase: PR369_PUBLISHED
+  owner: Coordinator owns private build, focused and broad gates, native-DPI OTP replay, evidence, review, and one separate PR; two read-only agents own standards and source trace.
+  reproducer: Paired 2017/2023 package localparam PartInfo array-struct selected member in class constraint is ignored; forced partition 0 address 3 incorrectly succeeds, while scalar aliases reject adjacent invalid addresses. Missing member is also ignored in the constraint but diagnosed in an ordinary expression.
+  expected: Constant selected members lower to exact typed values, legal boundaries pass, outside values fail with rollback, and invalid member access is diagnosed without freezing mutable or rand paths.
+  root_cause_hypothesis: Confirmed elaborate.cc selected-member path_tail rejection before solver IR, with a terminal-name class-property fallback; fixed by folding only a proven lexical parameter path with constant indices.
+  source_scope: elaborate.cc and dedicated paired positive, negative, boundary, and rollback tests; no vvp/vvp_z3.cc or coverage changes in this blocker.
+  validation: Paired 2017/2023 focus 6/6 in legacy and JSON, legacy 6626 total with zero unexpected failures, full JSON 3667/3667, negatives 155/155, SVA 62/62, VPI 140/140, and real-DPI UVM 358/358. Pinned native-DPI OTP checks run to pass marker with 1343 checked TL A/D pairs; qualified released DV remains 0/1 because rand-indexed blank-address guard and six bins are dropped.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/369
+  next: PR369 is published. Start the separate rand-indexed blank-address constraint blocker with paired 2017/2023 legal and invalid-index controls; keep coverage lowering separate. No CI polling.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366

@@ -27322,6 +27322,8 @@ string pexpr_to_rooted_class_constraint_ir(
       return out;
 }
 
+static bool constraint_is_narrow_const_ir_(const string&ir);
+
 static string constraint_constant_ir_(const PEIdent*id,
 				       const NetScope*scope,
 				       const netclass_t*cls,
@@ -27371,8 +27373,36 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    // prefixes and accidentally binding an unrelated lexical constant.
 	    symbol_search_results found;
 	    if (symbol_search(id, des, const_cast<NetScope*>(scope), path,
-			      id->lexical_pos(), &found) && found.path_tail.empty())
-		  return const_ir(found.par_val);
+			      id->lexical_pos(), &found)) {
+		  if (found.path_tail.empty()) return const_ir(found.par_val);
+		  if (!found.par_val) return "";
+		  // A selected parameter member can be folded by ordinary expression
+		  // elaboration, but only after constraint lookup proves every index
+		  // constant. A rand index must not be frozen before solving.
+		  for (const name_component_t&component : path.name)
+		    for (const index_component_t&select : component.index) {
+			  if (select.sel != index_component_t::SEL_BIT
+			      || !select.msb || select.lsb) return "";
+			  string ir = pexpr_to_constraint_ir(
+				select.msb, cls, nullptr, scope);
+			  if (!constraint_is_narrow_const_ir_(ir)) return "";
+		    }
+		  unique_ptr<NetExpr> member(elab_and_eval(
+			des, const_cast<NetScope*>(scope),
+			const_cast<PEIdent*>(id), -1, true));
+		  if (const NetEConst*val =
+			dynamic_cast<const NetEConst*>(member.get())) {
+		    for (unsigned bit = 64 ; bit < val->value().len() ; bit += 1)
+		      if (val->value().get(bit) != verinum::V0) {
+			cerr << id->get_fileline() << ": error: Selected parameter "
+			     << "member has nonzero or unknown bits above bit 63, "
+			     << "which the constraint IR cannot represent." << endl;
+			des->errors += 1;
+			return "";
+		      }
+		  }
+		  return const_ir(member.get());
+	    }
 	    return "";
       }
       if (path.package)
@@ -29619,6 +29649,12 @@ static bool constraint_parse_const_ir_(const string&ir,
       return *end == 0;
 }
 
+static bool constraint_is_narrow_const_ir_(const string&ir)
+{
+      constraint_const_ir_t value;
+      return constraint_parse_const_ir_(ir, value) && value.width <= 64;
+}
+
 static string constraint_format_const_ir_(constraint_const_ir_t value)
 {
       if (value.width < 64)
@@ -31694,9 +31730,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	       * site (or rejected as currently unrepresentable in a declaration
 	       * constraint). Randc legality is diagnosed by the source prewalk. */
 	    if (id->path().package || id->has_scoped_type_prefix()) {
-		  bool direct_package_value = id->path().package
-			&& id->path().name.size() == 1;
-		  if (!id->path().package && id->path().name.size() == 2
+		  bool direct_package_value = id->path().package;
+		  if (!id->path().package && id->path().name.size() >= 2
 		      && constraint_ir_design_ctx_
 		      && constraint_ir_design_ctx_->find_package(
 			   id->path().name.front().name))
@@ -32212,6 +32247,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string state_ir = constraint_class_state_path_ir_(names, cls);
 			if (!state_ir.empty()) return state_ir;
 		  }
+	    }
+
+	      // Resolve a proven lexical parameter root before considering the
+	      // final component as a class property. PartInfo[0].offset must not
+	      // bind an unrelated property named offset, even if folding fails.
+	    if (!target_path && !value_slots && id->path().size() > 1
+		&& constraint_ir_design_ctx_ && scope) {
+		  symbol_search_results found;
+		  if (symbol_search(id, constraint_ir_design_ctx_,
+			const_cast<NetScope*>(scope), id->path(),
+			id->lexical_pos(), &found) && found.par_val)
+		    return constraint_constant_ir_(id, scope, cls);
 	    }
 
 	    int idx = cls ? cls->property_idx_from_name(name) : -1;

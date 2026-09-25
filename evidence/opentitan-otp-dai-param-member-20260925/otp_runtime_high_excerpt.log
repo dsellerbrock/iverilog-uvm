@@ -1,0 +1,7 @@
+UVM_INFO @  36331007 ps: (otp_ctrl_smoke_vseq.sv:122) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] starting seq 1/1
+UVM_INFO @  84113786 ps: (otp_ctrl_smoke_vseq.sv:171) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] starting dai access seq 0/1 with addr 658 in partition 4
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+TEST PASSED CHECKS
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 141094616 (1ps)
