@@ -1,0 +1,2 @@
+ivltests/sv_constraint_partinfo_rand_index_bad_member.v:13: error: Struct parameter `PartInfo' has no member `missing'.
+1 error(s) during elaboration.

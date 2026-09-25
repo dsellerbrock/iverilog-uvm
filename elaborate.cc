@@ -27324,6 +27324,106 @@ string pexpr_to_rooted_class_constraint_ir(
 
 static bool constraint_is_narrow_const_ir_(const string&ir);
 
+/* A package parameter array is expanded into constant element parameters.
+ * Keep a rand index symbolic by passing the selected packed member as a
+ * typed constant table to the solver. Only the one-dimensional, integral
+ * member form is represented here; other forms retain their diagnostics. */
+static string constraint_parameter_member_select_ir_(
+      const PEIdent*id, const NetScope*scope, const netclass_t*cls)
+{
+      Design*des = constraint_ir_design_ctx_;
+      if (!des || !scope || !id) return "";
+      symbol_search_results found;
+      if (!symbol_search(id, des, const_cast<NetScope*>(scope), id->path(),
+			 id->lexical_pos(), &found)
+	  || !found.par_val || !found.scope || found.path_head.empty()
+	  || found.path_tail.size() != 1) return "";
+
+      const name_component_t&root = found.path_head.back();
+      const name_component_t&field = found.path_tail.front();
+      if (!found.scope->is_array_parameter(root.name)
+	  || root.index.size() != 1 || !field.index.empty()
+	  || field.local_scope) return "";
+      const index_component_t&select = root.index.front();
+      if (select.sel != index_component_t::SEL_BIT
+	  || !select.msb || select.lsb) return "";
+      string index_ir = pexpr_to_constraint_ir(select.msb, cls, nullptr, scope);
+      if (index_ir.empty() || index_ir.compare(0, 2, "c:") == 0)
+	return "";
+
+      auto fail = [&](const string&reason) -> string {
+	    cerr << id->get_fileline() << ": error: " << reason << endl;
+	    des->errors += 1;
+	    return "";
+      };
+      auto pit = found.scope->parameters.find(root.name);
+      if (pit == found.scope->parameters.end()
+	  || !pit->second.array_bounds_known
+	  || pit->second.array_dims.size() != 1)
+	return fail("Rand-indexed parameter member requires one known unpacked dimension.");
+      const netrange_t&dim = pit->second.array_dims.front();
+      unsigned long span = dim.width();
+      long low = std::min(dim.get_msb(), dim.get_lsb());
+      if (!span || span > LONG_MAX)
+	return fail("Rand-indexed parameter member array range is not representable.");
+
+      auto element = [&](long index, ivl_type_t&elem_type) -> const NetEConst* {
+	    string name = string(root.name.str()) + "[" + to_string(index) + "]";
+	    perm_string key = lex_strings.make(name.c_str());
+	    return dynamic_cast<const NetEConst*>(
+		  const_cast<NetScope*>(found.scope)->get_parameter(des, key,
+							       elem_type));
+      };
+      ivl_type_t first_type = nullptr;
+      if (!element(low, first_type))
+	return fail("Rand-indexed parameter member has no integral constant element.");
+      // The expanded element parameters can have a flat inferred type;
+      // symbol_search retains the declared packed-struct element type.
+      const netstruct_t*st = dynamic_cast<const netstruct_t*>(found.type);
+      if (!st || !st->packed())
+	return fail("Rand-indexed parameter member requires a packed struct element.");
+      unsigned long member_off = 0;
+      const netstruct_t::member_t*member =
+	st->packed_member(field.name, member_off);
+      if (!member)
+	return fail("Struct parameter `" + string(root.name.str())
+		    + "' has no member `" + string(field.name.str()) + "'.");
+      ivl_type_t member_type = member->net_type;
+      long member_width = member_type ? member_type->packed_width() : 0;
+      if (member_width <= 0 || member_width > 64
+	  || (member_type->base_type() != IVL_VT_BOOL
+	      && member_type->base_type() != IVL_VT_LOGIC))
+	return fail("Rand-indexed parameter member requires a 1..64-bit integral field.");
+      bool two_state = member_type->base_type() == IVL_VT_BOOL;
+      string result = "(psel " + to_string(member_width)
+	  + (member_type->get_signed() ? ":s" : "")
+	  + " c:" + (two_state ? "1" : "0") + " "
+	  + to_string(low) + ":" + to_string(span) + " " + index_ir;
+      for (unsigned long pos = 0; pos < span; pos += 1) {
+	    ivl_type_t elem_type = nullptr;
+	    const NetEConst*value = element(low + (long)pos, elem_type);
+	    if (!value)
+		  return fail("Rand-indexed parameter member has incompatible table elements.");
+	    const verinum&bits = value->value();
+	    if (member_off > bits.len()
+		|| (unsigned long)member_width > bits.len() - member_off)
+		  return fail("Rand-indexed parameter member exceeds its packed element width.");
+	    uint64_t word = 0;
+	    bool defined = true;
+	    for (long bit = 0; bit < member_width; bit += 1) {
+		  verinum::V value_bit = bits.get(member_off + bit);
+		  if (value_bit == verinum::V1) word |= UINT64_C(1) << bit;
+		  else if (value_bit != verinum::V0) defined = false;
+	    }
+	    if (!defined && two_state)
+		  return fail("Two-state parameter member contains X/Z bits.");
+	    result += defined
+		  ? " c:" + to_string(word) + ":" + to_string(member_width)
+		  : " x";
+      }
+      return result + ")";
+}
+
 static string constraint_constant_ir_(const PEIdent*id,
 				       const NetScope*scope,
 				       const netclass_t*cls,
@@ -31740,6 +31840,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string constant = constraint_constant_ir_(id, scope, cls);
 			if (!constant.empty())
 			      return constant;
+			if (!value_slots) {
+			      string selected = constraint_parameter_member_select_ir_(
+				id, scope, cls);
+			      if (!selected.empty()) return selected;
+			}
 		  }
 		  if (value_slots)
 			return scope_randomize_value_slot_(
@@ -32257,8 +32362,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  symbol_search_results found;
 		  if (symbol_search(id, constraint_ir_design_ctx_,
 			const_cast<NetScope*>(scope), id->path(),
-			id->lexical_pos(), &found) && found.par_val)
-		    return constraint_constant_ir_(id, scope, cls);
+			id->lexical_pos(), &found) && found.par_val) {
+		      string constant = constraint_constant_ir_(id, scope, cls);
+		      if (!constant.empty()) return constant;
+		      return constraint_parameter_member_select_ir_(id, scope, cls);
+		    }
 	    }
 
 	    int idx = cls ? cls->property_idx_from_name(name) : -1;

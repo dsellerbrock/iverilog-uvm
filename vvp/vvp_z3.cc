@@ -33,6 +33,7 @@
 # include  <z3.h>
 # include  <z3_optimization.h>
 # include  <cassert>
+# include  <cerrno>
 # include  <cctype>
 # include  <cstdlib>
 # include  <cstring>
@@ -641,7 +642,7 @@ static bool infer_constraint_integral_type_(IRParser&par,
             }
             return out.width && par.expect(')');
       }
-      if (op == "fsel" || op == "delem" || op == "qmelem"
+      if (op == "fsel" || op == "psel" || op == "delem" || op == "qmelem"
           || op == "qfield" || op == "qkeymember" || op == "hselectfield") {
             string header = par.read_token();
             vector<string> fields;
@@ -650,7 +651,7 @@ static bool infer_constraint_integral_type_(IRParser&par,
             while (getline(input, field, ':')) fields.push_back(field);
             bool sign = !fields.empty() && fields.back() == "s";
             size_t n = fields.size() - (sign ? 1 : 0);
-            size_t wi = op == "qmelem" ? 2 : op == "hselectfield" ? 1
+            size_t wi = op == "psel" ? 0 : op == "qmelem" ? 2 : op == "hselectfield" ? 1
                   : op == "qfield" ? 3 : 1;
             if (wi >= n) return false;
             char*end = nullptr;
@@ -2864,6 +2865,126 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    b.set_sv(selected, width ? width : 32);
 	    if (sflag) b.signed_vars.insert(selected);
 	    return selected;
+      }
+
+      /* A selected field of an unpacked parameter array. The leaves are
+       * compile-time constants, but the index remains a solver expression.
+       * An x leaf is an error only when selected (18.3); Table 7-1 gives an
+       * invalid index zero for a 2-state field and X for a 4-state field. */
+      if (op == "psel") {
+            auto malformed = [&](const char*message) {
+                  b.state_errors.push_back(message);
+                  capture_balanced_form(par);
+                  return b.mk_true();
+            };
+            string header = par.read_token();
+            char*end = nullptr;
+            errno = 0;
+            unsigned long parsed_width = strtoul(header.c_str(), &end, 10);
+            bool is_signed = *end == ':' && end[1] == 's' && end[2] == 0;
+            if (end == header.c_str() || errno == ERANGE
+                || parsed_width == 0 || parsed_width > 64
+                || (*end && !is_signed))
+                  return malformed("invalid parameter-array selection width");
+            unsigned width = (unsigned)parsed_width;
+            string state = par.read_token();
+            if (state != "c:0" && state != "c:1")
+                  return malformed("invalid parameter-array selection state kind");
+            bool two_state = state == "c:1";
+            string dimension = par.read_token();
+            errno = 0;
+            long long low = strtoll(dimension.c_str(), &end, 10);
+            if (end == dimension.c_str() || errno == ERANGE || *end != ':')
+                  return malformed("malformed parameter-array selection dimension");
+            const char*span_text = end + 1;
+            errno = 0;
+            unsigned long span = strtoul(span_text, &end, 10);
+            if (end == span_text || *span_text == '-' || errno == ERANGE
+                || *end || span == 0 || span > UINT_MAX
+                || low > INT64_MAX - (int64_t)(span - 1))
+                  return malformed("invalid parameter-array selection dimension");
+
+            unsigned outer_context = b.integral_context_width;
+            int outer_sign = b.integral_context_sign;
+            b.integral_context_width = 0;
+            b.integral_context_sign = -1;
+            IRParser index_shape = par;
+            constraint_integral_type_t index_type;
+            bool known_index_shape = infer_constraint_integral_type_(
+                  index_shape, index_type);
+            if (!known_index_shape) {
+                  IRParser unknown_index = par;
+                  if (unknown_index.read_token().compare(0, 5, "xbad:") != 0) {
+                        b.integral_context_width = outer_context;
+                        b.integral_context_sign = outer_sign;
+                        return malformed("unsupported parameter-array selection index");
+                  }
+            }
+            const char*index_start = par.p;
+            Z3_ast index = build_z3_atom(par, b);
+            b.integral_context_width = outer_context;
+            b.integral_context_sign = outer_sign;
+            if (par.p == index_start
+                || (known_index_shape && par.p != index_shape.p))
+                  return malformed("missing parameter-array selection index");
+            unsigned index_width = b.sv_of(index);
+            if (index_width == UINT_MAX)
+                  return malformed("parameter-array selection index is too wide");
+            unsigned common = max(index_width, 64u) + 1;
+            Z3_ast selected = Z3_mk_unsigned_int64(
+                  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+            Z3_ast valid = Z3_mk_false(b.ctx);
+            for (unsigned long slot = 0; slot < span; ++slot) {
+                  string leaf = par.read_token();
+                  bool unknown = leaf == "x";
+                  uint64_t value = 0;
+                  if (!unknown) {
+                        if (leaf.compare(0, 2, "c:") != 0)
+                              return malformed("malformed parameter-array selection leaf");
+                        const char*text = leaf.c_str() + 2;
+                        if (*text == '-')
+                              return malformed("malformed parameter-array selection leaf");
+                        errno = 0;
+                        value = strtoull(text, &end, 10);
+                        if (end == text || errno == ERANGE || *end != ':')
+                              return malformed("malformed parameter-array selection leaf");
+                        const char*width_text = end + 1;
+                        errno = 0;
+                        unsigned long leaf_width = strtoul(width_text, &end, 10);
+                        if (end == width_text || errno == ERANGE || *end
+                            || leaf_width != width
+                            || (width < 64 && (value >> width) != 0))
+                              return malformed("invalid parameter-array selection leaf width/value");
+                  } else if (two_state) {
+                        return malformed("X/Z leaf in 2-state parameter-array selection");
+                  }
+
+                  int64_t declared_index = low + (int64_t)slot;
+                  Z3_ast declared = b.tag_signed_constant(Z3_mk_unsigned_int64(
+                        b.ctx, (uint64_t)declared_index,
+                        Z3_mk_bv_sort(b.ctx, 64)));
+                  Z3_ast match = Z3_mk_eq(b.ctx,
+                        b.coerce(index, common), b.coerce(declared, common));
+                  if (unknown) {
+                        if (!b.collect_refs_only && b.collect_preferences)
+                              b.state_checks.push_back({match,
+                                    "X/Z parameter-array element in constraint"});
+                  } else {
+                        Z3_ast word = Z3_mk_unsigned_int64(
+                              b.ctx, value, Z3_mk_bv_sort(b.ctx, width));
+                        selected = Z3_mk_ite(b.ctx, match, word, selected);
+                  }
+                  Z3_ast either[2] = {valid, match};
+                  valid = Z3_mk_or(b.ctx, 2, either);
+            }
+            if (!par.expect(')'))
+                  return malformed("malformed parameter-array selection leaf count");
+            if (!two_state && !b.collect_refs_only && b.collect_preferences)
+                  b.state_checks.push_back({Z3_mk_not(b.ctx, valid),
+                        "invalid 4-state parameter-array index in constraint"});
+            b.set_sv(selected, width);
+            if (is_signed) b.signed_vars.insert(selected);
+            return selected;
       }
 
       if (op == "delem") {
