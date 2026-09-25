@@ -4,10 +4,10 @@ branch: agent/ot-otp-cover-bin-method-20260925
 checkpoint_head: 4799a65bf88c0f234f5da7d59eeda62ece50e57f
 active_open_titan_lane:
   blocker: OT-OTP-COVER-BIN-METHOD-ENDPOINT
-  phase: LOCAL_QUALIFIED_RELEASED_DV_1_OF_1_PENDING_PR
+  phase: PR371_PUBLISHED_RELEASED_DV_1_OF_1
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925
   parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/370
-  pr: pending
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/371
   baseline_head: 4799a65bf88c0f234f5da7d59eeda62ece50e57f
   baseline_private_ivl_sha256: e69aaaf36c5e9b16d47248b6eaffef80712be19df01f9e7d5459686b49e09354
   baseline: PRs 362-370 are merged. The pinned OTP smoke completes checked traffic with its DAI guard retained but remains 0/1 qualified DV because six covergroup bins are dropped at compile time.
@@ -16,7 +16,7 @@ active_open_titan_lane:
   expected: Per-instance construction-time endpoint capture with all six bins present, strict illegal ref/mutable rejection, and completed pinned runtime with original checks.
   source_scope: Implicated covergroup binding, elaboration/IR, VVP runtime construction, and dedicated paired reducers; coordinator owns manifests, private build, gates, pinned replay, evidence, review, and separate PR.
   validation: Final private ivl 4bacf9b8e8132998a309990687d3b7cb0cf9bd8ee64dce8d874d32c857726a24; 34/34 paired focus in each harness; legacy 6678 total zero failures, VPI 140/140, JSON 3727/3727, negative 155/155, SVA 62/62, real-DPI UVM 358/358. Pinned OTP native-DPI 1/1 named nonstandard compatibility DV with 36 endpoints retained and 1343 checked TL A/D pairs; strict nested-path compile rejects, no strict DV. Separate CSRNG smoke 1/1 nonstandard compatibility with preexisting ignored constraint warning. OTP bin hits, force-warning branches, and full OpenTitan DV suite remain unqualified.
-  next_command: Publish the reviewed OpenTitan-only blocker PR after final evidence and tracker validation, then merge under the existing user authorization without CI polling. Leave Caliptra runs untouched.
+  next_command: Merge the reviewed PR371 under existing user authorization without CI polling; then select the next OpenTitan-only released DV blocker. Leave Caliptra runs untouched.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
