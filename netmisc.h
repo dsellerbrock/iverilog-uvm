@@ -27,6 +27,13 @@ class netdarray_t;
 class Statement;
 class PExpr;
 class netclass_t;
+struct index_component_t;
+
+/* Validate an indexed dynamic-array slice and return its ascending low
+ * element address. The caller owns the expression. */
+extern NetExpr* elaborate_direct_darray_indexed_base_(
+      Design*, NetScope*, const LineInfo&, const index_component_t&,
+      unsigned&count);
 
 /* Parse the leading digits accepted by the SystemVerilog string-to-integer
  * methods and return their signed 32-bit result without signed host overflow. */

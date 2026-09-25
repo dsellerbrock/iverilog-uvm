@@ -1,0 +1,93 @@
+{
+  "blocker": "OT-SRAM-INDEXED-DARRAY-SLICE",
+  "generated_at_utc": "2026-09-24T19:44:20.343069+00:00",
+  "candidate_base_commit": "b02c91670c907851453eedf59b08dfbbf80ccdaf",
+  "candidate_ivl_sha256": "bea4a909c61157dcd8b0ba8539b5b857b549c69e0b30e1fa3154815f7a70042e",
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_clean": true,
+  "pinned_sram_scrambler_sha256": "c2ac433e6bd4d097e148a424dc440d6c7a6fe6dd9f617c839b3877866e788f61",
+  "focused": {
+    "paired_2017_2023": "14/14",
+    "neighbor_legacy": "89/89",
+    "neighbor_json": "82/82"
+  },
+  "pinned_replays": [
+    {
+      "name": "otp_ctrl_sim",
+      "local_result": "/tmp/ot-indexed-slice-replay-20260924/otp-final/results.json",
+      "compiler_engine_sha256": "bea4a909c61157dcd8b0ba8539b5b857b549c69e0b30e1fa3154815f7a70042e",
+      "status": "FAIL",
+      "setup_returncode": 0,
+      "compile_returncode": 24,
+      "hard_error_count": 22,
+      "remaining_sram_indexed_slice_diagnostics": 0,
+      "runtime_returncode": null
+    },
+    {
+      "name": "chip_sim",
+      "local_result": "/tmp/ot-indexed-slice-replay-20260924/chip/results.json",
+      "compiler_engine_sha256": "bea4a909c61157dcd8b0ba8539b5b857b549c69e0b30e1fa3154815f7a70042e",
+      "status": "FAIL",
+      "setup_returncode": 0,
+      "compile_returncode": 134,
+      "hard_error_count": 60,
+      "remaining_sram_indexed_slice_diagnostics": 0,
+      "runtime_returncode": null,
+      "compiler_abort_assertion": "entropy_src_core.sv:3324: elaborate.cc:21119: base < vwid"
+    }
+  ],
+  "qualification": "compiler blocker advanced; no clean OpenTitan DV runtime; candidate private only",
+  "resource_boundary": "Legal slices wider than 65536 elements emit explicit unsupported diagnostic; NBA and timed indexed-slice assignments remain unsupported",
+  "fixture_sha256": {
+    "read": "fe71a0eef34053cc8fd7ae98bb456e3fbf379893cdcc5e939740b779ef36813b",
+    "write": "943e4db011ab03e770073adac55058ff9bc429d4cb377ff63732b052ddaf9823",
+    "overlap": "7c4eaa1c5c426ebec3058e3a0a74cb27ffcb4e717849d1b3d965d833520f0925",
+    "size_mismatch": "7553c118665010e6570ee760af29f37d0f950b44faa1dc71bbd13482221b8578",
+    "invalid": "aa420dd521fa7d33b07194fcbb3364dfb21da75b7462071d1befff0be15dfaa6",
+    "control": "fc62ca571501f181476811f8844a3375bdb0d27db7ff5324d6c6d8c6aba4dec1",
+    "too_wide": "c3d17791cb414250c991a35cbb0b81d08df5d392aa4674cd370ec18bd34fdd01"
+  },
+  "focus_runner_sha256": "abf52832e63a0021ed1bf35a3dca742ee5aa70eb9d0794207d025559f485207d",
+  "private_regressions": {
+    "candidate_ivl_sha256": "bea4a909c61157dcd8b0ba8539b5b857b549c69e0b30e1fa3154815f7a70042e",
+    "full_legacy": {
+      "log": "/tmp/ot-indexed-slice-private-20260924/full-legacy-fixed-env.log",
+      "total": 6561,
+      "passed": 6556,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "full_json": {
+      "log": "/tmp/ot-indexed-slice-private-20260924/full-json-fixed-env.log",
+      "ran": 3548,
+      "failed": 0
+    },
+    "negative": {
+      "log": "/tmp/ot-indexed-slice-private-20260924/negative.log",
+      "passed": 155,
+      "failed": 0
+    },
+    "vpi": {
+      "log": "/tmp/ot-indexed-slice-private-20260924/vpi.log",
+      "total": 131,
+      "passed": 131,
+      "failed": 0,
+      "not_implemented": 0
+    },
+    "real_dpi_uvm": {
+      "log": "/tmp/ot-indexed-slice-private-20260924/real-dpi-uvm.log",
+      "log_sha256": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12",
+      "status": "COMPLETED",
+      "exit_code": 0,
+      "dpi_mode": "REAL DPI umbrella loaded",
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "vif_smoke": "PASS",
+      "vif_smoke_v2": "PASS"
+    }
+  }
+}

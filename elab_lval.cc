@@ -1386,6 +1386,33 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (use_sel == index_component_t::SEL_IDX_UP ||
           use_sel == index_component_t::SEL_IDX_DO) {
 	    if (reg->darray_type()) {
+	      const name_component_t&nt = path_.back();
+	      if (nt.index.size() == 1 && !reg->queue_type()) {
+		if (need_const_idx) {
+		    cerr << get_fileline() << ": sorry: indexed dynamic-array "
+			 << "slice l-values require a procedural assignment."
+			 << endl;
+		    des->errors += 1;
+		    return nullptr;
+		}
+		if ((reg->type() == NetNet::UNRESOLVED_WIRE) && !is_force) {
+		    ivl_assert(*this, reg->coerced_to_uwire());
+		    report_mixed_assignment_conflict_("dynamic-array slice");
+		    des->errors += 1;
+		    return nullptr;
+		}
+		unsigned count = 0;
+		NetExpr*base = elaborate_direct_darray_indexed_base_(
+		  des, scope, *this, nt.index.front(), count);
+		if (!base) return nullptr;
+		netranges_t dimensions;
+		dimensions.push_back(netrange_t(0, static_cast<long>(count - 1)));
+		ivl_type_t slice_type = new netuarray_t(
+		  dimensions, reg->darray_type()->element_type());
+		NetAssign_*lv = new NetAssign_(reg);
+		lv->set_array_slice(base, slice_type);
+		return lv;
+	      }
 		    // `d[i][base +: w]` / `[base -: w]` into a darray/queue/
 		    // assoc element: word(first index) + part(base, w). The
 		    // codegen RMW paths (%store/dar/vec4/off and the assoc
@@ -1393,7 +1420,6 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 		    // width must be constant. Element vectors are canonical
 		    // LSB-0, so the source base needs no range shift; the
 		    // [b -: w] form addresses down from b (LSB = b-w+1).
-		  const name_component_t&nt = path_.back();
 		  const netdarray_t*da = reg->darray_type();
 		  const netvector_t*ev =
 			dynamic_cast<const netvector_t*>(da->element_type());

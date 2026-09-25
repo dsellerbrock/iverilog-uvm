@@ -1,0 +1,16 @@
+--- a/src/soc_ifc/rtl/soc_ifc_reg.sv
++++ b/src/soc_ifc/rtl/soc_ifc_reg.sv
+@@ -7634,0 +7635,13 @@
++`ifdef CLP_ASSERT_ON
++    function automatic bit hwif_in_sample_probe(
++        input soc_ifc_reg_pkg::soc_ifc_reg__in_t sampled_hwif);
++        if ($isunknown(sampled_hwif))
++            $display("CALIPTRA_HWIF_IN_SAMPLED t=%0t sampled=%b live=%b",
++                     $time, sampled_hwif, hwif_in);
++        return 1'b1;
++    endfunction
++    ERR_HWIF_IN_SAMPLE_PROBE: assert property (@(posedge clk)
++        disable iff ((!hwif_in.cptra_pwrgood) !== 0)
++        (hwif_in_sample_probe(hwif_in)));
++`endif
++

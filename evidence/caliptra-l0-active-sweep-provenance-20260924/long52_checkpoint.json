@@ -1,0 +1,92 @@
+{
+  "created_utc": "2026-09-24T20:40:53.457612+00:00",
+  "qualification": "diagnostic_reset_checker_source_ephemeral_jtag_port_overlay",
+  "commercial_unsafe": true,
+  "selected": 52,
+  "wrapper": {
+    "pid": 86052,
+    "state": "SIGKILL after SIGSTOP pause; prevented further case launches",
+    "aggregate_result": null
+  },
+  "completed": 4,
+  "passed": 1,
+  "failed": 3,
+  "started": [
+    "smoke_test_mbox",
+    "smoke_test_mbox_byte_read",
+    "smoke_test_sha256",
+    "smoke_test_sha512",
+    "smoke_test_sha512_restore",
+    "smoke_test_veer"
+  ],
+  "still_running_at_checkpoint": {
+    "smoke_test_sha512_restore": {
+      "runner_pid": 90047,
+      "vvp_pid": 90688
+    },
+    "smoke_test_sha256": {
+      "runner_pid": 92468,
+      "vvp_pid": 93236
+    }
+  },
+  "not_started": 46,
+  "records": [
+    {
+      "name": "smoke_test_mbox",
+      "passed": false,
+      "sim_exit": 1,
+      "pass_markers": 0,
+      "failed_markers": 0,
+      "bad_diagnostics": 1,
+      "retired_instructions": 0,
+      "trace_commits": 18187,
+      "source_integrity_ok": true,
+      "fingerprint_integrity_ok": true,
+      "qualification": "diagnostic_reset_checker_source_ephemeral_jtag_port_overlay",
+      "result_path": "evidence/caliptra-icarus-l0-patched-long-52-20260924/cases/smoke_test_mbox/smoke_test_mbox/result.json"
+    },
+    {
+      "name": "smoke_test_mbox_byte_read",
+      "passed": false,
+      "sim_exit": 1,
+      "pass_markers": 0,
+      "failed_markers": 0,
+      "bad_diagnostics": 2,
+      "retired_instructions": 0,
+      "trace_commits": 18002,
+      "source_integrity_ok": true,
+      "fingerprint_integrity_ok": true,
+      "qualification": "diagnostic_reset_checker_source_ephemeral_jtag_port_overlay",
+      "result_path": "evidence/caliptra-icarus-l0-patched-long-52-20260924/cases/smoke_test_mbox_byte_read/smoke_test_mbox_byte_read/result.json"
+    },
+    {
+      "name": "smoke_test_sha512",
+      "passed": false,
+      "sim_exit": 1,
+      "pass_markers": 0,
+      "failed_markers": 0,
+      "bad_diagnostics": 2,
+      "retired_instructions": 0,
+      "trace_commits": 18137,
+      "source_integrity_ok": true,
+      "fingerprint_integrity_ok": true,
+      "qualification": "diagnostic_reset_checker_source_ephemeral_jtag_port_overlay",
+      "result_path": "evidence/caliptra-icarus-l0-patched-long-52-20260924/cases/smoke_test_sha512/smoke_test_sha512/result.json"
+    },
+    {
+      "name": "smoke_test_veer",
+      "passed": true,
+      "sim_exit": 0,
+      "pass_markers": 1,
+      "failed_markers": 0,
+      "bad_diagnostics": 0,
+      "retired_instructions": 633,
+      "trace_commits": 634,
+      "source_integrity_ok": true,
+      "fingerprint_integrity_ok": true,
+      "qualification": "diagnostic_reset_checker_source_ephemeral_jtag_port_overlay",
+      "result_path": "evidence/caliptra-icarus-l0-patched-long-52-20260924/cases/smoke_test_veer/smoke_test_veer/result.json"
+    }
+  ],
+  "boundary": "Partial diagnostic compatibility results only; no 52-case aggregate, pristine unsafe, or IEEE conformance claim."
+}

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_stream_fixed_uarray_modport.v",
+  "iverilog-args": ["-g2017", "-s", "stream_slice_bad_top"],
+  "gold": "sv_stream_fixed_uarray_modport_fail"
+}

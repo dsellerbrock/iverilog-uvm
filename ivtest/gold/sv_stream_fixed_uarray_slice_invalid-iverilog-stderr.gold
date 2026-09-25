@@ -1,0 +1,2 @@
+ivltests/sv_stream_fixed_uarray_slice_invalid.v:6: error: unpacked-array slice [4:6] has the opposite direction from declared range [7:2].
+Elaboration failed
