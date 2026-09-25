@@ -1,0 +1,503 @@
+{
+  "private_ivl_sha256": "390ba9430dcbe1ee9584e89f89de1f58ff49f405a27c436eee70f1f6985995df",
+  "passed": 50,
+  "total": 50,
+  "rows": [
+    {
+      "name": "scalar_bit",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "scalar_bit",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "scalar_logic",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "scalar_logic",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_byte",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_byte",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_shortint",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_shortint",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_int",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_int",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_integer",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_integer",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_longint",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_longint",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_time",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "atom_time",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "alias_int",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "alias_int",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "alias_byte",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "alias_byte",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "alias_time",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "alias_time",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "alias_vector",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED alias_vector count=3",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "alias_vector",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED alias_vector count=3",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "typed_vector",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED typed_vector count=3",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "typed_vector",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED typed_vector count=3",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_vector",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED untyped_vector count=4",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_vector",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED untyped_vector count=4",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "single_vector",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED single_vector count=1",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "single_vector",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED single_vector count=1",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "packed_multi",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED packed_multi count=4",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "packed_multi",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED packed_multi count=4",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "unpacked_precedence",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED unpacked_precedence count=2",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "unpacked_precedence",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED unpacked_precedence count=2",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_one_bit",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_one_bit count=1 bits=1 left=0 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_one_bit",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_one_bit count=1 bits=1 left=0 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_cast_int",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_cast_int count=32 bits=32 left=31 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_cast_int",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_cast_int count=32 bits=32 left=31 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_cast_byte",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_cast_byte count=8 bits=8 left=7 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_cast_byte",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_cast_byte count=8 bits=8 left=7 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_typed_int_ref",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_typed_int_ref count=32 bits=32 left=31 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_typed_int_ref",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_typed_int_ref count=32 bits=32 left=31 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_typed_byte_ref",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_typed_byte_ref count=8 bits=8 left=7 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "untyped_typed_byte_ref",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT untyped_typed_byte_ref count=8 bits=8 left=7 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "signed_untyped",
+      "edition": "2017",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT signed_untyped count=32 bits=32 left=31 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "signed_untyped",
+      "edition": "2023",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime": {
+        "exit": 0,
+        "stdout": "RESULT signed_untyped count=32 bits=32 left=31 right=0",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "signed_logic",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "signed_logic",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "signed_bit",
+      "edition": "2017",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "name": "signed_bit",
+      "edition": "2023",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime": null,
+      "ok": true
+    }
+  ]
+}

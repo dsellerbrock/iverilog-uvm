@@ -23508,21 +23508,51 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
       }
 
       if (array_sig == 0) {
-	    /* An unpacked array parameter has no NetNet: its elements are
-	       elaborated as individually named parameters. Resolve the name
-	       lexically (including package imports) and use the evaluated
-	       declaration bounds for the foreach indices. */
+	    /* Array parameters have no NetNet. Resolve the name lexically
+	       (including package imports) and use evaluated declaration bounds
+	       for foreach indices. */
 	    symbol_search_results sr;
 	    if (symbol_search(this, des, scope, array_path_, lexical_pos_, &sr)
 	        && sr.par_val && sr.scope && sr.path_tail.empty()
 	        && !sr.path_head.empty()) {
 		  perm_string param_name = sr.path_head.back().name;
 		  auto param = sr.scope->parameters.find(param_name);
-		  if (param != sr.scope->parameters.end()
-		      && param->second.is_array_param
-		      && param->second.array_bounds_known)
+		  if (param != sr.scope->parameters.end()) {
+		    if (param->second.is_array_param
+		        && param->second.array_bounds_known)
 			return elaborate_static_array_(des, scope,
 					       param->second.array_dims);
+
+		    /* Built-in integral atoms also have implementation packed
+		       dimensions, but are scalar foreach targets. Their singleton
+		       types differ from explicitly declared packed vectors. */
+		    const netvector_t*vec = dynamic_cast<const netvector_t*>(
+			param->second.ivl_type);
+		    if (!param->second.is_array_param
+		        && vec && !vec->get_isint()
+		        && vec != &netvector_t::time_signed
+		        && vec != &netvector_t::time_unsigned
+		        && vec != &netvector_t::chandle_type
+		        && vec != &netvector_t::atom2s64
+		        && vec != &netvector_t::atom2u64
+		        && vec != &netvector_t::atom2s32
+		        && vec != &netvector_t::atom2u32
+		        && vec != &netvector_t::atom2s16
+		        && vec != &netvector_t::atom2u16
+		        && vec != &netvector_t::atom2s8
+		        && vec != &netvector_t::atom2u8) {
+		      if (!vec->packed_dims().empty())
+			return elaborate_static_array_(des, scope,
+					       vec->packed_dims());
+		      /* `parameter signed P = value' has an inferred packed
+		         [value width-1:0] range, unlike an explicit scalar type. */
+		      if (vec->get_implicit() && sr.par_val->expr_width() > 0) {
+			netranges_t dims;
+			dims.push_back(netrange_t(sr.par_val->expr_width()-1, 0));
+			return elaborate_static_array_(des, scope, dims);
+		      }
+		    }
+		  }
 		  cerr << get_fileline() << ": error: Foreach target "
 		       << array_name << " is not an unpacked array parameter."
 		       << endl;
