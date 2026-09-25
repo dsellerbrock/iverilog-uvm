@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-otp-vif-fixed-input-20260924
-checkpoint_head: 093557f29
+checkpoint_head: a42dadb86
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -73,7 +73,8 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-OTP-VIF-FIXED-INPUT
-  phase: FOCUSED_TESTED_PINNED_COMPILE_CLEAN_RUNTIME_BLOCKED
+  phase: PR_PUBLISHED_PINNED_COMPILE_CLEAN_RUNTIME_BLOCKED
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/356
   owner: Delegated implementation agent owns implicated elaborate.cc code and dedicated paired 2017/2023 tests; coordinator owns shared lists, builds, private image, pinned release replay, broader gates, docs, and PR.
   reproducer: evidence/opentitan-otp-vif-fixed-input-20260924/baseline-red.json has 20 paired cases on private Icarus a0233c24; legal class-held fixed-array input dispatch fails with sorry, while four direct/scalar controls pass runtime. Size/type/scalar negatives are masked by the same guard.
   expected: Copy compatible one-dimensional packed-integral whole-array input actual into the selected interface task, preserving declared order and caller copy isolation; reject mismatches explicitly and keep output/inout/ref arrays and fixed-array functions unsupported.

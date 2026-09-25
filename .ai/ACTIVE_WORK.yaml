@@ -1,8 +1,9 @@
-status: opentitan_otp_vif_fixed_input_focused_tested_runtime_blocked
+status: opentitan_otp_vif_fixed_input_pr_published_runtime_blocked
 branch: agent/ot-otp-vif-fixed-input-20260924
 baseline: PR355 published at 093557f29 stacked on PR354; this branch starts from that reviewed local head. AGENTS.md is user-owned dirty work and remains untouched.
 blocker: OT-OTP-VIF-FIXED-INPUT
 prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/355
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/356
 goal: Elaborate compatible one-dimensional packed-integral fixed unpacked-array input task arguments through class-held virtual-interface dynamic dispatch, advancing pinned OTP past otp_ctrl_base_vseq.sv:411 without accepting incompatible actuals or unsupported directions.
 standards: IEEE 1800-2017/2023 method argument and virtual-interface dispatch rules apply; Caliptra -gcommercial-unsafe remains separately labeled nonstandard compatibility.
 l0_execution_profile: Main Caliptra L0 denominator is the exact selected 52 under explicit -gcommercial-unsafe and qualification=nonstandard_compatibility. Strict mode is a focused IEEE conformance guard for genuine mixed-driver overlaps; its 46-error full-top compilation is historical baseline evidence, not the 52-case runtime path. Named Caliptra/OpenTitan patches and options are test-selected on disposable copies per docs/conformance/release_overlays/README.md; pinned source checkouts remain unchanged.
