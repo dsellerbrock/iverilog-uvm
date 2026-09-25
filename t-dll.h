@@ -328,6 +328,7 @@ struct ivl_event_s {
       unsigned vif_pre_N; // UINT_MAX = unused (2-level); set = extra prop hop (3-level)
       std::vector<unsigned> vif_path; // root-to-interface property indices
       unsigned vif_root_pin;
+      ivl_expr_t vif_object_expr; // runtime-selected VIF receiver, if any
       ivl_nexus_t vif_validity;
       bool is_obj_mutation;
       unsigned obj_N;

@@ -1,0 +1,190 @@
+{
+  "blocker": "OT-CSRNG-NESTED-CLOCKING-MONITOR",
+  "baseline_head": "c3d637ac9899be595e7c679a46f289b14d95c1a5",
+  "tools": {
+    "iverilog": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-nested-vif-20260925/local-install/bin/iverilog",
+    "iverilog_sha256": "75ede60183fb00022bec71adba063ccbea09210c7ba89ca8b95d2fc10c360ef1",
+    "vvp": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-nested-vif-20260925/local-install/bin/vvp",
+    "vvp_sha256": "8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014"
+  },
+  "reducer": {
+    "source": "reducer.sv",
+    "source_sha256": "8d1763ad1ceabe030cc9a861aadb159635cf3126058de2bc021bc99a302d67d5",
+    "semantics": "Class-held parent VIF nested child clocking event and sampled valid && ready; independent physical parent clocks; rebind must remain quiet until the selected parent's edge.",
+    "direct_control_observation": "At 5 ns, direct child control wakes once with handshake=1 and direct parent control wakes once.",
+    "baseline_polarity": "RED: the skipped event control resumes immediately at 0 ns and 8 ns instead of p0's 5 ns and p1's 21 ns; nested sample is 000. No old-parent edge wake is claimed.",
+    "cases": [
+      {
+        "edition": "2017",
+        "compile_exit": 0,
+        "compile_log": "reducer-2017.compile.log",
+        "compile_log_sha256": "4dfacee49be85f2b47c632d97e4b5e2e4d5c2efcc63b29324bf3eb58a8261b42",
+        "runtime_exit": 1,
+        "runtime_log": "reducer-2017.runtime.log",
+        "runtime_log_sha256": "f029147c82ae52854281c818c4c4984189b519f452869e4044dcf85de18de124"
+      },
+      {
+        "edition": "2023",
+        "compile_exit": 0,
+        "compile_log": "reducer-2023.compile.log",
+        "compile_log_sha256": "4dfacee49be85f2b47c632d97e4b5e2e4d5c2efcc63b29324bf3eb58a8261b42",
+        "runtime_exit": 1,
+        "runtime_log": "reducer-2023.runtime.log",
+        "runtime_log_sha256": "f029147c82ae52854281c818c4c4984189b519f452869e4044dcf85de18de124"
+      }
+    ],
+    "compile_warning": "Failed to evaluate event expression 'cfg.vif.child.mon_cb' (compile-progress: event skipped)."
+  },
+  "registered_ivtest": {
+    "source": "ivtest/ivltests/sv_vif_nested_clocking_event_rebind.v",
+    "source_sha256": "95aacdb536d909aca224279fe6004e274ecdafd427c5924ef5cbe1ba3eb2b397",
+    "paired_entries": [
+      "2017",
+      "2023"
+    ],
+    "expected_post_fix_gold": "ivtest/gold/sv_vif_nested_clocking_event_rebind.gold",
+    "legacy_stdout_gold": "ivtest/gold/sv_vif_nested_clocking_event_rebind-vvp-stdout.gold",
+    "current_baseline_cases": [
+      {
+        "edition": "2017",
+        "compile_exit": 0,
+        "compile_log": "ivtest-2017.compile.log",
+        "compile_log_sha256": "61e9f56f4a91d29557d794f1277a2f530a7ccce0f124b0cc295688a1ea86a54b",
+        "runtime_exit": 1,
+        "runtime_log": "ivtest-2017.runtime.log",
+        "runtime_log_sha256": "65ba5a918547f2081578ecc570d9f5a7988711f1349ea7ef61a49ae41b92d64f"
+      },
+      {
+        "edition": "2023",
+        "compile_exit": 0,
+        "compile_log": "ivtest-2023.compile.log",
+        "compile_log_sha256": "61e9f56f4a91d29557d794f1277a2f530a7ccce0f124b0cc295688a1ea86a54b",
+        "runtime_exit": 1,
+        "runtime_log": "ivtest-2023.runtime.log",
+        "runtime_log_sha256": "65ba5a918547f2081578ecc570d9f5a7988711f1349ea7ef61a49ae41b92d64f"
+      }
+    ],
+    "manifests": [
+      "ivtest/regress-sv.list",
+      "ivtest/regress-vvp.list",
+      "ivtest/regress-vif-class-nested-value-focus-legacy.list",
+      "ivtest/regress-vif-class-nested-value-focus-vvp.list"
+    ]
+  },
+  "boundaries": [
+    {
+      "name": "null nested child through null class-held parent VIF",
+      "source": "ivtest/ivltests/sv_vif_class_nested_value_null_no_instance_fail.v",
+      "source_sha256": "0ba761795634b12e0645100a9005d31767285d39a8982f9db6314a2440d506b6",
+      "editions": [
+        "2017",
+        "2023"
+      ],
+      "compile_exit": 0,
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e464e9b934ca495991b7852b855",
+      "runtime_exit": 1,
+      "runtime_log": "runtime error: virtual interface method call attempted to use a null or non-virtual interface; a virtual interface must be initialized before calling one of its methods.\n",
+      "runtime_log_sha256": "3c182832cac31ae37cfeaac5e89906a875d4b6adf03a34e25123bdeedec2db6f"
+    },
+    {
+      "name": "class-held modport cannot reach unexported hidden_cb",
+      "source": "ivtest/ivltests/sv_clocking_class_vif_modport_unexported_clocking_fail.v",
+      "source_sha256": "cc7e6428cdd415e4a15e4de38f0a0f8ca9b4400715df89a5bdb3da8ff1672e48",
+      "editions": [
+        "2017",
+        "2023"
+      ],
+      "compile_exit": 1,
+      "compile_log": "modport-{2017,2023}.compile.log",
+      "compile_log_sha256": "f239626e12e0ffcfb7754040ba5ee719b06b5ae1c40148e47b6cca8f96cfd27c",
+      "runtime": "not run"
+    }
+  ],
+  "path_specific_negatives": [
+    {
+      "name": "null cfg.vif at nested child clocking event",
+      "source": "ivtest/ivltests/sv_vif_nested_clocking_event_null_parent_fail.v",
+      "source_sha256": "047c14fb96718259bc8bfa627e4e33f7c28b07ce8d2f93b2d1732b4f351de32f",
+      "editions": [
+        "2017",
+        "2023"
+      ],
+      "baseline_compile_exit": 0,
+      "baseline_compile_log_sha256": "50634c3dc3807ac507a765157d254f6d250434e7bed0509111d01bcb3679aa2c",
+      "baseline_runtime_exit": 1,
+      "baseline_runtime_log_sha256": "793f29db5df54d9311e2f049b7eb891e7ab2c2fe1bb800bf655290c09352dedd",
+      "current_red": "The event is skipped and the task reaches its FATAL trap at 0 ns; the paired test gold instead expects the runtime null-interface error."
+    },
+    {
+      "name": "parent modport hides child used by nested clocking event",
+      "source": "ivtest/ivltests/sv_vif_nested_clocking_event_hidden_child_fail.v",
+      "source_sha256": "174dd01a3858697210d877c8c251ed70d6ffd7ef18e1e8ee4e2433c1dfa02562",
+      "editions": [
+        "2017",
+        "2023"
+      ],
+      "baseline_compile_exit": 2,
+      "baseline_compile_log_sha256": "08da7fa24987f7a228b2a131ee9879cb14dc101e0d1da9e3f9d34bfebb59fe4f",
+      "expected_compile_boundary": "Reject hidden child through monitor_mp under IEEE 1800-2017/2023 \u00a725.5. Baseline also emits a duplicate :0 error and skipped-event warning; the expected test gold pins one focused rejection."
+    }
+  ],
+  "standards_boundary": "The class-held parent VIF to nested child event spelling is an inference from IEEE 1800-2017/2023 \u00a7\u00a714.10, 14.13, and 25.9/25.9.1, not a quoted worked example.",
+  "limitations": [
+    "Registered paired ivtest expects the post-fix PASS gold; the current PR363 baseline fails that case in both editions with the RED described above.",
+    "This is reducer evidence, not a complete CSRNG monitor or released-DV result.",
+    "Baseline RED artifacts were captured before the candidate source edit; final candidate validation is recorded separately above."
+  ],
+  "candidate": {
+    "private_tool": {
+      "iverilog": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-clockmon-20260925/local-install/bin/iverilog",
+      "iverilog_sha256": "aed19c338b03de9869b2127f4fdc6d962e03c76857f7a6ddb546324017ad2fd6",
+      "ivl_sha256": "af9af369147ce1e5fadaaef7dea6e4a035e63cca737342a90ffed3f70bccf84b",
+      "vvp_sha256": "f3c47526cf38fdb1b8ee05a406308c50d56b06218d18df9512ddb7f843a01bab"
+    },
+    "strict_reducers": {
+      "editions": [
+        "2017",
+        "2023"
+      ],
+      "legacy_focus": "22/22",
+      "json_focus": "22/22",
+      "log": "candidate-focus-final-v4.log",
+      "legal_wake_times_ns": [
+        5,
+        21
+      ],
+      "null_runtime": "fatal",
+      "hidden_modport": "compile error",
+      "missing_clocking": "compile error",
+      "missing_baseline": "compile exit 0 with event-skipped warning in both editions",
+      "existing_event_list_negative_neighbors": "4/4 legacy and 4/4 JSON after removing obsolete event-skipped warning from hard-error golds"
+    },
+    "release": {
+      "mode": "Icarus -g2017 -gcommercial-unsafe, named disposable CSRNG overlay, native AES DPI",
+      "compile_exit": 0,
+      "compile_log": "candidate-release-compile-final.stderr.log",
+      "image_sha256": "306c726b83a855c7a094026681aeb54c42563174d23784cb5e4c9d77b0356cec",
+      "skipped_monitor_event": false,
+      "assumed_false_monitor_condition": false,
+      "ignored_int_state_read_enable_constraint": true,
+      "dpi_build_exit": 0,
+      "dpi_bundle_sha256": "720ff9c9339c3ad113c1e17ba7d9d2049cb08a42bca0b066a6df3b2b879b4d82",
+      "runtime_exit": 1,
+      "runtime_log": "candidate-release-runtime-final.stdout.log",
+      "last_time_ps": 1000,
+      "unknown_csr_backdoor_error": true,
+      "end_of_sim_assertion": true,
+      "test_failed_marker": true,
+      "meaningful_command_traffic": false,
+      "released_dv": "0/1",
+      "raw_runtime_stdout_sha256": "cfcfad580219f0de0f9e65c5c00889ce76684d8ae26df92135ca2ecd7b77d96e",
+      "committed_runtime_stdout": "trailing whitespace stripped from raw log; message content unchanged"
+    },
+    "gates": {
+      "make_check": "pass",
+      "broad_legacy": "6609 total, 6604 passed, 0 failed, 2 not implemented, 3 expected failures; VPI 131/131, negatives 155/155, runtime invariants 15/15; exit 0",
+      "full_json": "3648/3648 passed, 0 failed; process exit 0",
+      "real_dpi_uvm": "358/358 passed, 0 failed, 0 skipped; REAL DPI loaded; process exit 0"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "sv_vif_nested_clocking_event_null_parent_fail.v",
+  "iverilog-args": ["-g2023", "-s", "sv_vif_nested_clocking_event_null_parent_fail"],
+  "gold": "sv_vif_class_nested_value_null_fail"
+}

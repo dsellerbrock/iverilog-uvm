@@ -557,6 +557,12 @@ extern "C" unsigned ivl_event_vif_root_pin(ivl_event_t net)
       return net->vif_root_pin;
 }
 
+extern "C" ivl_expr_t ivl_event_vif_object_expr(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_object_expr;
+}
+
 extern "C" ivl_nexus_t ivl_event_vif_validity(ivl_event_t net)
 {
       assert(net);

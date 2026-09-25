@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_vif_nested_clocking_event_rebind.v:119: $finish called at 22000 (1ps)

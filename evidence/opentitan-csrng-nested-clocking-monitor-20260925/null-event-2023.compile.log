@@ -1,0 +1,1 @@
+ivtest/ivltests/sv_vif_nested_clocking_event_null_parent_fail.v:24: warning: Failed to evaluate event expression 'cfg.vif.child.mon_cb' (compile-progress: event skipped).

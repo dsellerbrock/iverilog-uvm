@@ -60,6 +60,10 @@
 
 using namespace std;
 
+extern bool rewrite_nested_class_clocking_member_path(
+      const PEIdent*, Design*, NetScope*, const symbol_search_results&,
+      pform_name_t&, perm_string*);
+
 static const netclass_t* virtual_interface_type_(ivl_type_t type)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(type);
@@ -14022,6 +14026,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       perm_string mapped_access = clocking_access();
       if (rewrite_class_clocking_member_path(this, sr, rewritten_path,
 					      false, nullptr, &mapped_access)
+	  || rewrite_nested_class_clocking_member_path(
+		this, des, scope, sr, rewritten_path, &mapped_access)
 	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path,
 						      false, nullptr, &mapped_access)
 	  || (!sr.net && rewrite_enclosing_scope_clocking_member_path(

@@ -1,0 +1,38 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-clockmon-20260925/local-install/bin/vvp",
+    "-d",
+    "/tmp/ot-csrng-clockmon-build-20260925/csrng-smoke-clockmon-final.dylib",
+    "-n",
+    "/tmp/ot-csrng-clockmon-build-20260925/csrng-smoke-clockmon-final.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "exit": 1,
+  "timeout": false,
+  "seconds": 8.586057499982417,
+  "stdout_lines": 112,
+  "stderr_lines": 2,
+  "last_lines": [
+    "UVM_ERROR :    2",
+    "UVM_FATAL :    0",
+    "** Report counts by id",
+    "[ASSERT FAILED]     1",
+    "[RNTST]     1",
+    "[UVM/REPORT/CATCHER]     2",
+    "[UVM/REPORT/SERVER]     1",
+    "[csr_utils::csr_peek]     1",
+    "[uvm_test_top]     1",
+    "",
+    "FATAL: ../src/lowrisc_dv_dv_test_status_0/dv_test_status_pkg.sv:16: prim_util_pkg::end_of_simulation was already signaled!",
+    "       Time: 1000  Scope: dv_test_status_pkg::dv_test_status",
+    "",
+    "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.",
+    "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored."
+  ]
+}

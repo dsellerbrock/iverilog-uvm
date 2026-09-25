@@ -870,6 +870,7 @@ extern unsigned    ivl_event_vif_pre_N(ivl_event_t net); /* UINT_MAX = 2-level, 
 extern unsigned    ivl_event_vif_path_count(ivl_event_t net);
 extern unsigned    ivl_event_vif_path_index(ivl_event_t net, unsigned idx);
 extern unsigned    ivl_event_vif_root_pin(ivl_event_t net);
+extern ivl_expr_t  ivl_event_vif_object_expr(ivl_event_t net);
 extern ivl_nexus_t ivl_event_vif_validity(ivl_event_t net);
 extern int         ivl_event_is_obj_mutation(ivl_event_t net);
 extern unsigned    ivl_event_obj_N(ivl_event_t net); /* UINT_MAX = root object */

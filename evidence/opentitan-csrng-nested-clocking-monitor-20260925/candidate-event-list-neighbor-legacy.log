@@ -1,0 +1,9 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+     sv_event_list_prepare_single_diag_fail: Passed - CE.
+sv_event_list_prepare_single_diag_fail_2023: Passed - CE.
+    sv_class_event_list_invalid_member_2017: Passed - CE.
+    sv_class_event_list_invalid_member_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=4, Passed=4, Failed=0, Not Implemented=0, Expected Fail=0
