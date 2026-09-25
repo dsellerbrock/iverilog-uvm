@@ -1,5 +1,7 @@
 # OpenTitan CSRNG nested virtual-interface value
 
+The scoped compiler fix is published in [PR #363](https://github.com/dsellerbrock/iverilog-uvm/pull/363).
+
 The pinned CSRNG `csrng_smoke_test` is **0/1 released DV** at the baseline:
 its historical private VVP exits zero but reports a null nested VIF at 0 ps,
 a TL-UL assertion, and `TEST FAILED CHECKS`. The two

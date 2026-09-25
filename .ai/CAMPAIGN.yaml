@@ -4,14 +4,14 @@ branch: agent/ot-csrng-nested-vif-20260925
 checkpoint_head: e8ba46282396f75ebfe878a3f87eb17db551c0ac
 active_open_titan_lane:
   blocker: OT-CSRNG-NESTED-VIF-HANDOFF
-  phase: LOCAL_GATES_PASSED_PR_PREPARATION; separate branch after published OTP PR362.
+  phase: PR363_PUBLISHED_RELEASED_DV_0_OF_1; separate branch after published OTP PR362.
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-nested-vif-20260925
   private_baseline_ivl_sha256: 4e6f6e14ad9628c0e1c0f766db5ee1f21691d43d31f8d1a4033474fb2fc50a9c
   private_baseline_vvp_sha256: 8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014
   current_private_ivl_state: Final scoped source is built privately at ivl SHA-256 a2470636e85fced3aacc6df62f790e32615e339f8dca012f18191d60eaa708bd and VVP SHA-256 8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014; temporary baseline instrumentation is absent. Paired strict focus 14/14 and VIF neighbors 184/184 pass in each harness.
   baseline: Strict 2017/2023 parent and direct-child controls pass 4/4; class-held nested-child RED fails -3 in both editions. Copy-in trace proves a null r-value with no elaboration error.
   released_dv: Final pinned CSRNG with the named disposable BlkLen overlay and explicit -gcommercial-unsafe compiles, then native-DPI runtime reaches 1000 ps but remains 0/1 nonstandard DV on an unknown CSR backdoor field, TEST FAILED CHECKS, follow-on TL assertion, and no meaningful checked traffic. Compile retains skipped mon_cb event, assumed-false monitor condition, and ignored int_state_read_enable_c constraint item. Earlier 0 ps null VIF failure is absent.
-  next_command: Commit and publish one nested-VIF PR after final local validation; do not poll CI.
+  next_command: PR #363 is published; preserve its local gates and release 0/1 evidence. Investigate the unknown CSR field and monitor/constraint omissions as separate next blockers; do not poll CI.
   boundary: OpenTitan private tools only; pinned source and shared Caliptra installation untouched. The user's Caliptra job was terminated and no Caliptra DV is active in this lane.
 active_icarus_runs:
   selected_52:
@@ -88,14 +88,14 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-CSRNG-NESTED-VIF-HANDOFF
-  phase: LOCAL_GATES_PASSED_PR_PREPARATION
+  phase: PR363_PUBLISHED_RELEASED_DV_0_OF_1
   owner: Delegated source and dedicated test lanes completed; coordinator owns private build, release replay, broad gates, evidence, tracker, and one separate PR.
   reproducer: evidence/opentitan-csrng-nested-vif-handoff-20260924/nested_vif_put_only.sv fails legal child value copy-in with code generation -3 in strict 2017 and 2023 while direct child and parent controls pass. The historical pinned CSRNG smoke fails at time zero on a null nested VIF after cfg.randomize.
   expected: A class-held parent VIF selects the child of its current physical instance exactly once; rebinding, aliasing, modport visibility, wrong-type rejection, and null receiver semantics remain correct. No released DV pass without meaningful checked CSRNG traffic and zero errors/assertions.
   root_cause: The nested member walker treated an interface child instance as a missing class property, silently returned no value, and omitted object stores during task/config-db copy-in.
   source_scope: elab_expr.cc and tgt-vvp/eval_object.c plus dedicated paired 2017/2023 tests only. Pinned OpenTitan and installed Caliptra tools remain unchanged; no solver, Caliptra, Verilator, GPU, or CI polling.
   validation: Private ivl a2470636e85fced3aacc6df62f790e32615e339f8dca012f18191d60eaa708bd and VVP 8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014 pass paired strict 14/14 legacy and JSON and neighboring VIF 184/184 each. Pinned CSRNG with its named disposable overlay and explicit -gcommercial-unsafe compiles, but native-DPI runtime remains 0/1 nonstandard DV at 1000 ps on an unknown CSR backdoor field, TEST FAILED CHECKS, and follow-on TL assertion. Compile retains a skipped monitor event, assumed-false condition, and ignored int_state_read_enable_c constraint item. Final broad legacy passes 6601 total with zero failures, VPI 131/131, negatives 155/155, and invariants 15/15; full JSON passes 3640/3640; real-DPI UVM passes 358/358 with zero failed or skipped. See evidence/opentitan-csrng-nested-vif-fix-20260925/result.json.
-  next: Publish the locally validated nested-VIF PR. Record the unknown CSR field and incomplete monitor elaboration as separate later work; do not count this 0/1 runtime as a DV pass.
+  next: PR #363 https://github.com/dsellerbrock/iverilog-uvm/pull/363 is published. Record the unknown CSR field and incomplete monitor/constraint elaboration as separate later work; do not count this 0/1 runtime as a DV pass or poll CI.
 completed_ot_joint_guard:
   id: OT-CSRNG-CFG-JOINT-DIST
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/358
