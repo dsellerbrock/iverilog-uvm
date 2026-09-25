@@ -1,0 +1,5 @@
+# Private ordered-guard OpenTitan replays
+
+The source-tree VVP SHA-256 `bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f` was used without installing over the runtime serving the live Caliptra job. The pinned, previously compiled CSRNG and OTP images matched their recorded SHA-256 values. Exact arguments, working directories, runtime and image hashes, and logs are in the paired `*-private-result.json` and `*-private-runtime.log` files.
+
+Both released smokes advance past the earlier `cfg.randomize()` unresolved-guard diagnostic, but **both remain 0/1 DV**. CSRNG reports a null virtual-interface `%wait/vif/posedge` error and a TL-UL end-of-simulation assertion at 0 ps; its VVP exit 0 is not a pass. OTP raises a 0 ps `[DCLPSQ]` `p_sequencer` cast UVM_FATAL and a TL-UL end-of-simulation assertion; its VVP exit is 1. Neither run has a pass marker or meaningful stimulus/scoreboard completion. These distinct observations are parked as DD-055 and DD-056 for separate triage. The candidate runtime result is a solver advance, not an OpenTitan application pass or IEEE qualification.

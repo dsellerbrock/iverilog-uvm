@@ -3418,3 +3418,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Pinned compile and smoke](../../evidence/opentitan-otp-vif-fixed-input-20260924/README.md); the generated VVP has the padded string and the target `mem` array.
 - **Reproducer status:** confirmed in the released OTP runtime; paired 2017/2023 continued, flattened, and literal-space controls are in [the path-overlay evidence](../../evidence/opentitan-otp-backdoor-path-overlay-20260924/README.md).
 - **Triage status:** promoted to BLOCKERS.md as OT-OTP-BACKDOOR-PATH-COMPAT; a hash-checked disposable-source overlay clears the path fatal while preserving the backdoor fatal and width/depth checks. The released smoke then fails on the distinct joint-distribution blocker. IEEE macro-whitespace classification remains separate.
+
+### DD-055 — CSRNG smoke reaches a null virtual-interface wait
+
+- **Discovered while working:** OT-CSRNG-CFG-JOINT-DIST
+- **Observation:** With the private ordered-guard VVP, the pinned CSRNG smoke gets past `cfg.randomize()` and prints its randomized environment config. The same 0 ps replay also reports `%wait/vif/posedge` on a null or non-virtual interface, then a TL-UL end-of-simulation assertion and `TEST FAILED CHECKS`; VVP exit 0 is not a DV pass. The cause and schedule of the null interface are not yet known.
+- **File/function:** VVP `%wait/vif/posedge`; pinned CSRNG environment and virtual-interface setup require separate triage.
+- **Possible clause:** N/A pending a source-level reproducer and cause.
+- **Evidence:** [Private pinned replay](../../evidence/opentitan-joint-ordered-guard-candidate-20260924/csrng-private-runtime.log) using the unchanged compiled CSRNG image and private VVP SHA-256 `bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f`.
+- **Reproducer status:** confirmed in one pinned private replay; focused reducer pending.
+- **Triage status:** untriaged; outside the selected solver patch.
+
+### DD-056 — OTP smoke reaches an EDN pull-agent sequencer cast fatal
+
+- **Discovered while working:** OT-CSRNG-CFG-JOINT-DIST
+- **Observation:** With the private ordered-guard VVP and named OTP path overlay, the pinned smoke gets past `cfg.randomize()` but `dv_base_seq.sv:10` raises `[DCLPSQ]` while casting `p_sequencer` for `m_edn_pull_agent[0].sequencer` at 0 ps. A TL-UL end-of-simulation assertion follows; there is no pass marker or meaningful traffic. Whether this is an Icarus type/cast defect or environment setup error is unproved.
+- **File/function:** pinned `dv_base_seq.sv:10` `m_set_p_sequencer`; Icarus runtime class cast and OpenTitan EDN pull-agent setup need separate triage.
+- **Possible clause:** N/A pending classification.
+- **Evidence:** [Private pinned replay](../../evidence/opentitan-joint-ordered-guard-candidate-20260924/otp-private-runtime.log) using the unchanged compiled OTP image and private VVP SHA-256 `bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f`.
+- **Reproducer status:** confirmed in one pinned private replay; focused reducer pending.
+- **Triage status:** untriaged; outside the selected solver patch.
