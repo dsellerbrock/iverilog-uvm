@@ -719,8 +719,10 @@ static void add_vpi_call_error(vpi_call_error_type type, const char *name,
 static bool suppress_func_as_task_warn(const char*name)
 {
       /* UVM frequently uses $cast in task form to test conversion
-       * success while intentionally discarding the return value. */
-      return (name && strcmp(name, "$cast") == 0);
+       * success while intentionally discarding the return value.
+       * IEEE 1800 also explicitly permits $system as a task. */
+      return (name && (strcmp(name, "$cast") == 0 ||
+                       strcmp(name, "$system") == 0));
 }
 
 void print_vpi_call_errors()

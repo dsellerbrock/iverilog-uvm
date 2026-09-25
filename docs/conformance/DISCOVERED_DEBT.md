@@ -3488,3 +3488,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Read-only source review during the paired dynamic-index reducer design; no constant-index runtime result is claimed.
 - **Reproducer status:** sketched; paired constant-index reducer still needed.
 - **Triage status:** untriaged, outside this solver-dependent selection blocker.
+
+### DD-062 — `$system` accepts an extra argument
+
+- **Discovered while working:** OT-SYSTEM-FUNCTION-RETURN.
+- **Observation:** Both strict editions compile `$system("exit 0", "exit 7")` without an arity diagnostic. The current ticket only repairs the returned status and legal task use.
+- **File/function:** `vpi/sys_icarus.c` `$system` registration has no `compiletf`; `system_calltf` reads only the first argument.
+- **Possible clause:** IEEE 1800-2017 §20.18.1 and 2023 §20.17.1 allow one string expression or no argument.
+- **Evidence:** [Paired illegal reducer](../../evidence/opentitan-system-return-20260925/system_extra_arg_fail.v) compiles exit zero under both editions before and after the selected function-result fix.
+- **Reproducer status:** paired illegal source accepted; runtime behavior was not assessed.
+- **Triage status:** untriaged, outside the function-result blocker.
