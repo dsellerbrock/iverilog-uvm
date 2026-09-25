@@ -1,9 +1,9 @@
-status: opentitan_unsafe_dv_baseline_after_pr371
+status: opentitan_unsafe_dv_baseline_pr372_published
 branch: agent/ot-dv-baseline-unsafe-20260925
 baseline: PR371 merged at e5eb0901ead2de0fa03ac27d5883d7eac7a2054c. Fresh private Icarus install in the OpenTitan baseline worktree; pinned OpenTitan and UVM 1.2 sources unchanged. Dirty user-owned campaign tree and separate Caliptra run remain untouched.
 blocker: OT-DV-UNSAFE-BASELINE
 prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/371
-pr: pending
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/372
 goal: Rebaseline selected OpenTitan released DV on the newest merged Icarus with explicit -gcommercial-unsafe, then update the per-row table and separate named overlay replays.
 standards: This is nonstandard compatibility evidence, not IEEE 1800 conformance; strict paired reducers remain a separate denominator.
 failing_reproducer: The unpatched 84-row matrix has 27 UVM compile failures, 36 runtime-lane compile failures, five runtime failures, and no clean runtime pass.

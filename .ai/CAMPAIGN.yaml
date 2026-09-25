@@ -4,10 +4,10 @@ branch: agent/ot-dv-baseline-unsafe-20260925
 checkpoint_head: e5eb0901ead2de0fa03ac27d5883d7eac7a2054c
 active_open_titan_lane:
   blocker: OT-DV-UNSAFE-BASELINE
-  phase: RESULTS_RECORDED_REVIEW_PENDING
+  phase: PR372_PUBLISHED_LOCAL_QUALIFIED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925
   parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/371
-  pr: pending
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/372
   baseline_head: e5eb0901ead2de0fa03ac27d5883d7eac7a2054c
   baseline_private_ivl_sha256: 20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223
   baseline: PR371 merged. The latest private compiler ran the pinned OpenTitan one-smoke-per-target matrix with -gcommercial-unsafe in all 84 compile commands; no application-source overlays in those rows.
@@ -16,7 +16,7 @@ active_open_titan_lane:
   expected: Exact per-row profile, source and compiler hashes, archived logs, and separate overlay-selected named DV outcomes.
   source_scope: OpenTitan matrix runner option, its self-test, evidence, and owning docs/trackers only; no pinned source or Caliptra changes.
   validation: Runner self-test passes; all 84 commands include -gcommercial-unsafe, all 181 logs are hash-verified, and compiler hashes remain stable. Conservative clean matrix DV 0/49; eight pass banners have unresolved setup and sometimes compile debt. Same-image selected OTP and CSRNG overlay/native-DPI smokes each qualify 1/1 named nonstandard compatibility DV outside the matrix denominator. See evidence/opentitan-icarus-dv-baseline-unsafe-20260925/README.md.
-  next_command: Review and publish the unsafe baseline table and evidence; do not poll CI or touch Caliptra.
+  next_command: After PR372 merges, use this baseline to select the next OpenTitan-only blocker; do not poll CI or touch Caliptra.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
@@ -93,15 +93,15 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-DV-UNSAFE-BASELINE
-  phase: RESULTS_RECORDED_REVIEW_PENDING
+  phase: PR372_PUBLISHED_LOCAL_QUALIFIED
   owner: Coordinator owns baseline evidence, table, tracker, and publication; separate Caliptra agent owns its runs.
   reproducer: Latest merged Icarus under explicit unsafe mode produces 0/49 clean base-source runtime rows and eight pass banners with unresolved debt.
   expected: Publish the exact 84-row table and separately qualified named OTP/CSRNG overlay replays.
   root_cause_hypothesis: Measurement only; per-row failures remain classified in the matrix result.
   source_scope: OpenTitan runner/evidence/owning docs only; pinned sources and Caliptra unchanged.
   validation: Self-test passes, 84/84 unsafe commands and 181/181 logs verified; named OTP and CSRNG each 1/1 nonstandard compatibility DV on this compiler.
-  pr: pending
-  next: Review and publish; no CI polling.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/372
+  next: After PR372 merges, select the next OpenTitan-only blocker; no CI polling.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
@@ -335,4 +335,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Review and publish the September 25 OpenTitan -gcommercial-unsafe 84-row baseline and its separate named OTP/CSRNG overlay replays; preserve the Caliptra run and do not poll CI."
+next_command: "After PR372 merges, use the September 25 OpenTitan -gcommercial-unsafe 84-row baseline to select the next released-DV blocker; preserve the Caliptra run and do not poll CI."
