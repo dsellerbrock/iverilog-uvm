@@ -1,0 +1,2 @@
+SDF ERROR: ivltests/sdf_selected_resolver_bit.sdf:11: Could not find intermodpath!
+PASS: overlapping SDF path rejected

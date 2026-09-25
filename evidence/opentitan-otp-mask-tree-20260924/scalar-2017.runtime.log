@@ -1,0 +1,2 @@
+scalar=100
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/scalar.sv:5: $finish called at 1 (1s)

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "vvp_reg.py"
+  ],
+  "returncode": 0,
+  "duration_seconds": 471.39329508296214,
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "5053e2f40951b919587319ff0fac920099d113dd20ea933fbb9c22a112d5cb07",
+  "log_sha256": "f90777743484502c574e89967c253bb0d1c06e372a47aedea488ecfbe5a97b15",
+  "timed_out": false,
+  "archived_log_sha256": "f90777743484502c574e89967c253bb0d1c06e372a47aedea488ecfbe5a97b15",
+  "summary": {
+    "ran": 3640,
+    "failed": 0,
+    "sdf_br_gh1248_passed": true,
+    "sdf_paired_controls_passed": 8
+  }
+}

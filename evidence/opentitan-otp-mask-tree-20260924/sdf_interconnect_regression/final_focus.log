@@ -1,0 +1,14 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-otp-mask-tree-sdf-final-20260924/sdf-nine-focus.list
+----------------------------------------------------------------------------
+                             br_gh1248: Passed.
+        sdf_selected_resolver_bit_2017: Passed.
+        sdf_selected_resolver_bit_2023: Passed.
+ sdf_selected_resolver_extend_bit_2017: Passed.
+ sdf_selected_resolver_extend_bit_2023: Passed.
+sdf_selected_resolver_overlap_bit_2017: Passed.
+sdf_selected_resolver_overlap_bit_2023: Passed.
+  sdf_selected_resolver_wrong_bit_2017: Passed.
+  sdf_selected_resolver_wrong_bit_2023: Passed.
+============================================================================
+Test results: Ran 9, Failed 0.

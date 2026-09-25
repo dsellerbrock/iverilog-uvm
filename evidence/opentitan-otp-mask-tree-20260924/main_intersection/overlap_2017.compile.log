@@ -1,0 +1,2 @@
+/tmp/ot-otp-main-intersection-20260924/overlap.sv:11: error: Variable 's' cannot have multiple drivers.
+1 error(s) during elaboration.

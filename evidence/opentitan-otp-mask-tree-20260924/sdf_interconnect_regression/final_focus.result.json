@@ -1,0 +1,25 @@
+{
+  "phase": "private final VVP focused SDF regression and paired controls",
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "5053e2f40951b919587319ff0fac920099d113dd20ea933fbb9c22a112d5cb07",
+  "command": [
+    "python3",
+    "vvp_reg.py",
+    "/tmp/ot-otp-mask-tree-sdf-final-20260924/sdf-nine-focus.list"
+  ],
+  "tests": [
+    "br_gh1248",
+    "sdf_selected_resolver_bit_2017",
+    "sdf_selected_resolver_bit_2023",
+    "sdf_selected_resolver_extend_bit_2017",
+    "sdf_selected_resolver_extend_bit_2023",
+    "sdf_selected_resolver_wrong_bit_2017",
+    "sdf_selected_resolver_wrong_bit_2023",
+    "sdf_selected_resolver_overlap_bit_2017",
+    "sdf_selected_resolver_overlap_bit_2023"
+  ],
+  "passed": 9,
+  "failed": 0,
+  "log_sha256": "d1fc58856c6735cb4495c8e45b0201ac8f7c314ea2695c2bdc921eb6809b88e5",
+  "scope": "2017/2023 matching-bit and six-input extension-port delay; wrong-bit and same-bit overlapping-driver annotations rejected with undelayed runtime"
+}

@@ -1,0 +1,52 @@
+{
+  "private_vvp_sha256": "5053e2f40951b919587319ff0fac920099d113dd20ea933fbb9c22a112d5cb07",
+  "cwd": "ivtest",
+  "editions": {
+    "2017": {
+      "compile_command": [
+        "iverilog",
+        "-g2017",
+        "-Ttyp",
+        "-ginterconnect",
+        "-gspecify",
+        "-DEXTEND_BIT",
+        "-o",
+        "/tmp/ot-otp-mask-tree-sdf-final-20260924/extend_focus/extend-2017.vvp",
+        "ivltests/sdf_selected_resolver_bit.v"
+      ],
+      "runtime_command": [
+        "vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-sdf-final-20260924/extend_focus/extend-2017.vvp"
+      ],
+      "image_sha256": "31dba7da1fcc1e22870df3811991fbd72bd404fdb9ee45d32530cc661088dc92",
+      "runtime_log_sha256": "4a974290f8a950d273d9fb01bff74e2ac8b9603aaba26116f6cfdc54122c4da4",
+      "resolver_input_count": 6,
+      "selected_source_input_port": 4,
+      "result": "PASS: selected resolver bit path"
+    },
+    "2023": {
+      "compile_command": [
+        "iverilog",
+        "-g2023",
+        "-Ttyp",
+        "-ginterconnect",
+        "-gspecify",
+        "-DEXTEND_BIT",
+        "-o",
+        "/tmp/ot-otp-mask-tree-sdf-final-20260924/extend_focus/extend-2023.vvp",
+        "ivltests/sdf_selected_resolver_bit.v"
+      ],
+      "runtime_command": [
+        "vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-sdf-final-20260924/extend_focus/extend-2023.vvp"
+      ],
+      "image_sha256": "ab02ce2749d41bb9a2a6b631f48c9a3bd34541bc219a0a628be8b654b39f9a6e",
+      "runtime_log_sha256": "4a974290f8a950d273d9fb01bff74e2ac8b9603aaba26116f6cfdc54122c4da4",
+      "resolver_input_count": 6,
+      "selected_source_input_port": 4,
+      "result": "PASS: selected resolver bit path"
+    }
+  }
+}

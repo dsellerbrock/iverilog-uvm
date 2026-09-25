@@ -1,0 +1,28 @@
+{
+  "command": [
+    "/tmp/ot-joint-private-tools-20260924/vvp",
+    "-d",
+    "/tmp/ot-otp-class-identity-20260924/otp_final_native_dpi.dylib",
+    "-n",
+    "/tmp/ot-otp-mask-tree-final-20260924/otp.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=otp_ctrl_base_test",
+    "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+  ],
+  "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "env": {
+    "IVL_SVA_NFA": "1"
+  },
+  "returncode": 0,
+  "timed_out": false,
+  "duration_seconds": 376.356,
+  "image_sha256": "7690a59f1de0cf0875f4c1941e20c95f68f9f47b6a8507dae9b2ad7d4db556c5",
+  "private_ivl_sha256": "5164a40b3cd44b4fd58a42accf85c1433ecd42a3836f9eb304d6518ff8d31931",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "dpi_sha256": "530f58ec0e3702dc6ae2fe1c260832f41a018ce466a29a7597254f75c5658a95",
+  "archived_log_sha256": "a6b2a7b61539f941ebc9a7126a0679bfa99ff9255b15af8896e71fc22f26cdbb",
+  "archived_log_normalization": "trailing whitespace only"
+}

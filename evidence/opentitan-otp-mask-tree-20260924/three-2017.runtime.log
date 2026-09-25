@@ -1,0 +1,3 @@
+tree=zzz root=z leaf=z
+FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/three.sv:9: legal disjoint tree wrong
+       Time: 1  Scope: otp_mask_tree_three

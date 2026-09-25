@@ -1,0 +1,2 @@
+/tmp/ot-otp-main-intersection-20260924/legal.sv:7: vvp.tgt warning: uwire "s" has 3 drivers (compile-progress: treated as wire).
+/tmp/ot-otp-main-intersection-20260924/legal.sv:2: vvp.tgt warning: uwire "tree" has 3 drivers (compile-progress: treated as wire).

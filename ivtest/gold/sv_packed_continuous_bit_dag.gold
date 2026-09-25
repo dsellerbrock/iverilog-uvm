@@ -1,0 +1,5 @@
+./ivltests/sv_packed_continuous_bit_dag.v:5: vvp.tgt warning: uwire "cycle" has 2 drivers (compile-progress: treated as wire).
+./ivltests/sv_packed_continuous_bit_dag.v:6: vvp.tgt warning: uwire "reverse_tree" has 3 drivers (compile-progress: treated as wire).
+./ivltests/sv_packed_continuous_bit_dag.v:3: vvp.tgt warning: uwire "tree" has 3 drivers (compile-progress: treated as wire).
+./ivltests/sv_packed_continuous_bit_dag.v:4: vvp.tgt warning: uwire "wide" has 31 drivers (compile-progress: treated as wire).
+PASSED

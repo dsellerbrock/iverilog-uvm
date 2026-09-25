@@ -1,0 +1,32 @@
+{
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/362",
+  "merged_chain_prs": [
+    363,
+    364,
+    365,
+    366,
+    367,
+    368,
+    369,
+    370
+  ],
+  "main_commit_before_reconciliation": "101c692c3ca36d365dd231cd4caf5886b25dd6a5",
+  "original_pr362_head": "e296183ae373788bddff2abf247fe814b344b81a",
+  "reconciliation": "Retain only PR362 unique paired packed-driver and selected-SDF tests, focus lists, and revision-scoped evidence; keep all compiler and VVP source from merged main.",
+  "private_tool_sha256": {
+    "iverilog": "c69366ca97fadc1e7b186774a7f3976605aacabddaa5fa41c9716b7c21cb9de5",
+    "ivl": "e69aaaf36c5e9b16d47248b6eaffef80712be19df01f9e7d5459686b49e09354",
+    "vvp": "89f85afdc64135c74f10054014352283fe8c73284dfd658231d569cddaa64c84"
+  },
+  "focused_legacy": "6/6",
+  "focused_json": "14/14",
+  "full_json": "3693/3693",
+  "legacy_full": "Not rerun: source matches merged main, whose PR370 full legacy passed 6638 total with zero unexpected failures; the six new legacy entries pass in focus.",
+  "real_dpi_uvm": "Not rerun: no source changes relative to merged main; PR370 passed 358/358 on this same private tool.",
+  "qualified_released_otp_dv": "0/1; no new pinned replay because the compiler source is identical to PR370, whose replay dropped six intended covergroup bins.",
+  "logs": [
+    "reconciled_focus_legacy.log",
+    "reconciled_focus_json.log",
+    "reconciled_full_json.log.gz"
+  ]
+}

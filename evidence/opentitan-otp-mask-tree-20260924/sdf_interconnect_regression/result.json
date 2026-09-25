@@ -1,0 +1,24 @@
+{
+  "phase": "failed integrated full JSON before SDF path repair; not a qualified gate",
+  "source_head": "a88708311707750c344e410b1e3a8c1d8262d48c",
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "full_json_command": [
+    "python3",
+    "vvp_reg.py"
+  ],
+  "full_json_returncode": 1,
+  "full_json_total": 3632,
+  "full_json_failed": 1,
+  "full_json_failed_name": "br_gh1248",
+  "full_json_raw_log_sha256": "daf4951e47fb7443bad7ffdc90250c57f2d3877198b2b6210be58c464a7835dd",
+  "focus_test": "ivtest/vvp_tests/br_gh1248.json",
+  "expected_first_transition_ns": "1.130",
+  "integrated_first_transition_ns": "1.120",
+  "cause": "SDF INTERCONNECT i1/Y to i2/A cannot find path across part/pv, resolver, and part_sa fanout retained by dependency-safe selected-driver topology",
+  "exact_focused_failure_log_sha256": "5f1b4ec42ca4cd9d6055e1e47d52485c19892789e3d384d0c99dce15fe7b324a",
+  "installed_runtime_log_sha256": "64f24169026b45605c29013e8c0cefa86f280acbb2ca00db3ff109c9902cf8e1",
+  "integrated_runtime_log_sha256": "3ef60fe7c5a775c1103756393629613cd904f5e576c5928cb539c5c8d20f21e2"
+}

@@ -1,0 +1,24 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-otp-mask-tree-integrated-20260924/br_gh1248.list
+----------------------------------------------------------------------------
+gold/br_gh1248-vvp-stdout.gold and log/br_gh1248-vvp-stdout.log differ:
+--- gold/br_gh1248-vvp-stdout.gold
++++ log/br_gh1248-vvp-stdout.log
+@@ -1,10 +1,11 @@
++SDF ERROR: ivltests/br_gh1248.sdf:18: Could not find intermodpath!
+ 0.000: x xxx x
+ 1.000: x xx0 0
+ 1.070: x x00 0
+-1.130: 0 000 0
++1.120: 0 000 0
+ 2.000: 0 001 1
+ 2.050: 0 011 1
+-2.120: 1 111 1
++2.110: 1 111 1
+ 3.000: 1 110 0
+ 3.070: 1 100 0
+-3.130: 0 000 0
++3.120: 0 000 0
+br_gh1248: Failed - Gold output doesn't match actual output.
+============================================================================
+Test results: Ran 1, Failed 1.

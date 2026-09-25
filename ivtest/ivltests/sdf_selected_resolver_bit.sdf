@@ -1,0 +1,15 @@
+(DELAYFILE
+ (SDFVERSION "3.0")
+ (DESIGN "sdf_selected_resolver_bit")
+ (DIVIDER /)
+ (TIMESCALE 1ns)
+ (CELL
+  (CELLTYPE "selected_top")
+  (INSTANCE dut)
+  (DELAY
+   (ABSOLUTE
+    (INTERCONNECT src/Y sink/A (0.010))
+   )
+  )
+ )
+)

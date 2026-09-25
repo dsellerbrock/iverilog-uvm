@@ -1,0 +1,4 @@
+./ivltests/sv_packed_partial_feedback.v:5: vvp.tgt warning: uwire "dependent" has 2 drivers (compile-progress: treated as wire).
+./ivltests/sv_packed_partial_feedback.v:6: vvp.tgt warning: uwire "nested" has 3 drivers (compile-progress: treated as wire).
+./ivltests/sv_packed_partial_feedback.v:9: vvp.tgt warning: uwire "whole_read" has 2 drivers (compile-progress: treated as wire).
+PASSED

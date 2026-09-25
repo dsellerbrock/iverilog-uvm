@@ -1,0 +1,2 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/illegal.sv:4: error: Variable 'tree' cannot have multiple drivers.
+1 error(s) during elaboration.

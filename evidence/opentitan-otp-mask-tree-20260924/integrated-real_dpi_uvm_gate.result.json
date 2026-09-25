@@ -1,0 +1,20 @@
+{
+  "command": [
+    "bash",
+    ".github/uvm_test.sh"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "duration_seconds": 1048.701,
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "log_sha256": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12",
+  "archived_log_sha256": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12",
+  "archived_log_normalization": "trailing whitespace only",
+  "real_dpi_loaded": true,
+  "summary": {
+    "passed": 358,
+    "failed": 0,
+    "skipped": 0
+  }
+}

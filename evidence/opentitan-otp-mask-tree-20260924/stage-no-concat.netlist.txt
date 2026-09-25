@@ -1,0 +1,64 @@
+DESIGN TIME PRECISION: 10e0
+PACKAGES:
+$unit package $unit 0 children, 0 classes
+    timescale = 10e0 / 10e0
+    enum sets {
+    }
+    enum names {
+    }
+SCOPES:
+otp_mask_tree_three module <otp_mask_tree_three> instance 0 children, 0 classes
+    in compilation unit $unit
+    timescale = 10e0 / 10e0
+    enum sets {
+    }
+    enum names {
+    }
+    wire: _ivl_11 unpacked dims=0 pin_count=1 (local) netvector_t:logic unsigned[0:0] (eref=0, lref=0) scope=otp_mask_tree_three #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x105301350 otp_mask_tree_three._ivl_11
+    wire /*implicit*/: _ivl_12 unpacked dims=0 pin_count=1 (local) netvector_t:bool unsigned[0:0] (eref=0, lref=0) scope=otp_mask_tree_three #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x1053015c0 otp_mask_tree_three._ivl_12
+    wire /*implicit*/: _ivl_14 unpacked dims=0 pin_count=1 (local) netvector_t:logic unsigned[0:0] (eref=0, lref=0) scope=otp_mask_tree_three #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x105300980 otp_mask_tree_three._ivl_14
+    wire /*implicit*/: _ivl_2 unpacked dims=0 pin_count=1 (local) netvector_t:bool unsigned[0:0] (eref=0, lref=0) scope=otp_mask_tree_three #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x105300620 otp_mask_tree_three._ivl_2
+    wire: _ivl_7 unpacked dims=0 pin_count=1 (local) netvector_t:logic unsigned[0:0] (eref=0, lref=0) scope=otp_mask_tree_three #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x105300aa0 otp_mask_tree_three._ivl_7
+    wire: tree unpacked dims=0 pin_count=1 netvector_t:logic unsigned[2:0] (eref=6, lref=0) scope=otp_mask_tree_three #(0,0,0) vector_width=3 pin_count=1
+        [0]: 0x105300590 otp_mask_tree_three.tree
+ELABORATED NODES:
+NetPartSelect(PV): _ivl_1 #(.,.,.) off=0 wid=1
+    0 pin0 I (strong0 strong1): 0x105300620 otp_mask_tree_three._ivl_2
+    1 pin1 O (strong0 strong1): 0x105300590 otp_mask_tree_three.tree
+constant 1'd0: _ivl_3 #(.,.,.)
+    0 pin0 O (strong0 strong1): 0x105300620 otp_mask_tree_three._ivl_2
+NetPartSelect(PV): _ivl_5 #(.,.,.) off=1 wid=1
+    0 pin0 I (strong0 strong1): 0x105300aa0 otp_mask_tree_three._ivl_7
+    1 pin1 O (strong0 strong1): 0x105300590 otp_mask_tree_three.tree
+NetPartSelect(VP): _ivl_6 #(.,.,.) off=0 wid=1
+    0 pin0 O (strong0 strong1): 0x105300aa0 otp_mask_tree_three._ivl_7
+    1 pin1 I (strong0 strong1): 0x105300590 otp_mask_tree_three.tree
+NetPartSelect(PV): _ivl_9 #(.,.,.) off=2 wid=1
+    0 pin0 I (strong0 strong1): 0x105300980 otp_mask_tree_three._ivl_14
+    1 pin1 O (strong0 strong1): 0x105300590 otp_mask_tree_three.tree
+NetPartSelect(VP): _ivl_10 #(.,.,.) off=1 wid=1
+    0 pin0 O (strong0 strong1): 0x105301350 otp_mask_tree_three._ivl_11
+    1 pin1 I (strong0 strong1): 0x105300590 otp_mask_tree_three.tree
+constant 1'd1: _ivl_13 #(.,.,.)
+    0 pin0 O (strong0 strong1): 0x1053015c0 otp_mask_tree_three._ivl_12
+logic: or #(0,0,0) _ivl_15 scope=otp_mask_tree_three
+    0 pin0 O (strong0 strong1): 0x105300980 otp_mask_tree_three._ivl_14
+    1 pin1 I (strong0 strong1): 0x105301350 otp_mask_tree_three._ivl_11
+    2 pin2 I (strong0 strong1): 0x1053015c0 otp_mask_tree_three._ivl_12
+ELABORATED BRANCHES:
+ELABORATED PROCESSES:
+initial  /* evidence/opentitan-otp-mask-tree-20260924/three.sv:6 in otp_mask_tree_three */
+  begin
+      #1
+        begin
+        end
+      $display("tree=%b root=%b leaf=%b", tree[2:0], <select=tree[2:0]['sd0+:1] expr_type=logic>, <select=tree[2:0]['sd2+:1] expr_type=logic>);
+      if ((tree[2:0])!==(3'd4))
+          $fatal(32'sd1, "legal disjoint tree wrong");
+      $finish;
+  end

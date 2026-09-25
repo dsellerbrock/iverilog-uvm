@@ -1,0 +1,91 @@
+{
+  "integrated_head": "a88708311707750c344e410b1e3a8c1d8262d48c",
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "cases": [
+    {
+      "name": "legal",
+      "edition": "2017",
+      "source_sha256": "2a2ecec88d94c2e1a2520277a1367984b616a73cba7967199da0ebd6511edd4d",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "legal",
+        "-o",
+        "/tmp/ot-otp-main-intersection-20260924/legal_2017.vvp",
+        "/tmp/ot-otp-main-intersection-20260924/legal.sv"
+      ],
+      "compile_exit": 0,
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-main-intersection-20260924/legal_2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_output": "PASSED",
+      "overlap_diagnostic": false
+    },
+    {
+      "name": "legal",
+      "edition": "2023",
+      "source_sha256": "2a2ecec88d94c2e1a2520277a1367984b616a73cba7967199da0ebd6511edd4d",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2023",
+        "-s",
+        "legal",
+        "-o",
+        "/tmp/ot-otp-main-intersection-20260924/legal_2023.vvp",
+        "/tmp/ot-otp-main-intersection-20260924/legal.sv"
+      ],
+      "compile_exit": 0,
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-main-intersection-20260924/legal_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_output": "PASSED",
+      "overlap_diagnostic": false
+    },
+    {
+      "name": "overlap",
+      "edition": "2017",
+      "source_sha256": "de39c6ef199d554ec8329087079ae17a7cb45b9174f5557c267ae65a223206e4",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "overlap",
+        "-o",
+        "/tmp/ot-otp-main-intersection-20260924/overlap_2017.vvp",
+        "/tmp/ot-otp-main-intersection-20260924/overlap.sv"
+      ],
+      "compile_exit": 1,
+      "runtime_argv": null,
+      "runtime_exit": null,
+      "runtime_output": null,
+      "overlap_diagnostic": true
+    },
+    {
+      "name": "overlap",
+      "edition": "2023",
+      "source_sha256": "de39c6ef199d554ec8329087079ae17a7cb45b9174f5557c267ae65a223206e4",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2023",
+        "-s",
+        "overlap",
+        "-o",
+        "/tmp/ot-otp-main-intersection-20260924/overlap_2023.vvp",
+        "/tmp/ot-otp-main-intersection-20260924/overlap.sv"
+      ],
+      "compile_exit": 1,
+      "runtime_argv": null,
+      "runtime_exit": null,
+      "runtime_output": null,
+      "overlap_diagnostic": true
+    }
+  ]
+}

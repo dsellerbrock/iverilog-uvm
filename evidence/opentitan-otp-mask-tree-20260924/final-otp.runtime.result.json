@@ -1,0 +1,30 @@
+{
+  "command": [
+    "/tmp/ot-joint-private-tools-20260924/vvp",
+    "-d",
+    "/tmp/ot-otp-class-identity-20260924/otp_final_native_dpi.dylib",
+    "-n",
+    "/tmp/ot-otp-mask-tree-integrated-20260924/otp.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=otp_ctrl_base_test",
+    "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+  ],
+  "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "env": {
+    "IVL_SVA_NFA": "1"
+  },
+  "returncode": 0,
+  "duration_seconds": 298.69733075000113,
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "5053e2f40951b919587319ff0fac920099d113dd20ea933fbb9c22a112d5cb07",
+  "image_sha256": "447e877af0b8d3ee43bf28fb4b8d36a241948abf3914c0a2b4fe554b35d92efd",
+  "dpi_sha256": "530f58ec0e3702dc6ae2fe1c260832f41a018ce466a29a7597254f75c5658a95",
+  "runtime_log_sha256": "9074c55933f4d4e1e6547853f8da666dccb0027c698cd8b6e151d891e207786e",
+  "timed_out": false,
+  "archived_log_path": "integrated-otp.runtime.log",
+  "archived_log_sha256": "a6b2a7b61539f941ebc9a7126a0679bfa99ff9255b15af8896e71fc22f26cdbb",
+  "archived_log_normalization": "trailing whitespace only; identical to pre-SDF archived runtime, so log is reused"
+}

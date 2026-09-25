@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sdf_selected_resolver_bit.v",
+  "iverilog-args": ["-g2017", "-Ttyp", "-ginterconnect", "-gspecify", "-DEXTEND_BIT"],
+  "gold": "sdf_selected_resolver_bit"
+}
