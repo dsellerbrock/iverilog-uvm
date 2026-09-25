@@ -1,0 +1,43 @@
+{
+  "classification": "nonstandard compatibility",
+  "cwd": "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/bin/iverilog",
+    "-g2012",
+    "-stb",
+    "-sotp_ctrl_bind",
+    "-sotp_ctrl_cov_bind",
+    "-ssec_cm_prim_count_bind",
+    "-ssec_cm_prim_double_lfsr_bind",
+    "-ssec_cm_prim_onehot_check_bind",
+    "-ssec_cm_prim_sparse_fsm_flop_bind",
+    "-gcommercial-unsafe",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_REG_BYTENABLE_WIDTH=4",
+    "-DUVM_REGEX_NO_DPI",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.vvp",
+    "-c",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/otp_overlay/matrix-iverilog.scr"
+  ],
+  "original_matrix_compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/bin/iverilog -g2012 -stb -sotp_ctrl_bind -sotp_ctrl_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-runtime.vvp -c /private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-iverilog.scr",
+  "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "tool_hashes": {
+    "driver": "5e2b9db7ed1068910edef732b59e558463b2521998810041de09884cfbcafb95",
+    "compiler_engine": "20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223",
+    "vvp_target": "f11cf34cb958c9c490fd709783bdd1fef7734729d86042de970909a30e6d2090",
+    "vvp_runtime": "21ced9054cdb7409534fc73509bf91b0a04d6614736c0a1adb7abd04bb6e49a5"
+  },
+  "input_sha256": {
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/otp_overlay/tb.sv": "a7bd1964e2c7e626d5a25a04597129417a7c47f89c95069da6af86dd094689c6",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/otp_overlay/source-list.scr": "d1352db3be121c5fd13c595dcb6159edeb9a818834726a1ece65e3f5eba9a498",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/otp_overlay/matrix-iverilog.scr": "a4672433f51176c6e3b19816a6a99f84f149de98bb5a9e3e0670aea052b4accd"
+  }
+}

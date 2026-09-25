@@ -1,0 +1,2 @@
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored.

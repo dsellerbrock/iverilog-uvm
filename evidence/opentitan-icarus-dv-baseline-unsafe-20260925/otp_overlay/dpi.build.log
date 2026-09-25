@@ -1,0 +1,69 @@
+$ cc -std=c99 -O2 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925 -I/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_prince_ref_0.1 -c /private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c -o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_prince.o
+$ c++ -std=c++11 -O2 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925 -c /private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc -o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_present.o
+$ c++ -std=c++11 -O2 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925 -c /private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc -o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/digestpp_dpi.o
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:59:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+   59 |   uint8_t digest_arr[digest_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:59:22: note: read of non-const variable 'digest_len' is not allowed in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:57:12: note: declared here
+   57 |   uint64_t digest_len = sha_len / 8;
+      |            ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:119:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  119 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:119:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:114:37: note: declared here
+  114 |                            uint64_t output_len, svOpenArrayHandle digest) {
+      |                                     ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:143:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  143 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:143:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:138:37: note: declared here
+  138 |                            uint64_t output_len, svOpenArrayHandle digest) {
+      |                                     ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:169:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  169 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:169:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:164:38: note: declared here
+  164 |                             uint64_t output_len, svOpenArrayHandle digest) {
+      |                                      ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:197:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  197 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:197:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:192:38: note: declared here
+  192 |                             uint64_t output_len, svOpenArrayHandle digest) {
+      |                                      ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:231:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  231 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:231:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:219:67: note: declared here
+  219 |                           const char *customization_str, uint64_t output_len,
+      |                                                                   ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:267:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  267 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:267:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:258:40: note: declared here
+  258 |                               uint64_t output_len, svBitVecVal *digest) {
+      |                                        ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:305:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  305 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:305:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:293:67: note: declared here
+  293 |                           const char *customization_str, uint64_t output_len,
+      |                                                                   ^
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:341:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  341 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:341:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc:332:40: note: declared here
+  332 |                               uint64_t output_len, svBitVecVal *digest) {
+      |                                        ^
+9 warnings generated.
+$ cc -std=c99 -O2 -fPIC -c /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.dpiexport.c -o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.dpiexport.o
+$ c++ -dynamiclib -undefined dynamic_lookup /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_prince.o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_present.o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/digestpp_dpi.o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.dpiexport.o -o /private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_native_dpi.dylib

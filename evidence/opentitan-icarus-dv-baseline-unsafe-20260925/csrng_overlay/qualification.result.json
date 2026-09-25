@@ -1,0 +1,36 @@
+{
+  "classification": "named released DV, nonstandard compatibility; seed-specific",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "latest_icarus_main_commit": "e5eb0901ead2de0fa03ac27d5883d7eac7a2054c",
+  "tool_sha256": {
+    "iverilog": "5e2b9db7ed1068910edef732b59e558463b2521998810041de09884cfbcafb95",
+    "ivl": "20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223",
+    "vvp": "21ced9054cdb7409534fc73509bf91b0a04d6614736c0a1adb7abd04bb6e49a5"
+  },
+  "overlay": {
+    "patch_sha256": "04dd45643a684aa69ce1a94e67275c9ad0695a7251958ea893579a441901772d",
+    "source_sha256": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+    "filelist_sha256": "62189bdfd6eb6d9a1b8d681410c3ba110d10a6048a64ab87813455ced74994c0"
+  },
+  "compile": {
+    "exit": 0,
+    "unsafe_flag": true,
+    "ignored_constraint_items": 1,
+    "preexisting_uwire_substitution_warnings": 3,
+    "compiled_program_sha256": "9054a0546df60d534d56ce95ba32fb1ededf37c734aef14a01c1d851eafb6771"
+  },
+  "native_dpi_sha256": "bbd231f3deba974114d9b880c8423e7e47ea8b07f7c91f5657fc75c23e4eceb3",
+  "runtime": {
+    "exit": 0,
+    "timed_out": false,
+    "seconds": 80.17,
+    "pass_markers": 1,
+    "fail_markers": 0,
+    "error_lines": 0,
+    "app2_instantiate": 1,
+    "app2_generate": 1,
+    "app2_uninstantiate": 3,
+    "finish_marker": true,
+    "log_sha256": "9e21a32e62e21b242e2a22e06661cee0ef99801f2a335698549cd4a9da1bfe52"
+  }
+}

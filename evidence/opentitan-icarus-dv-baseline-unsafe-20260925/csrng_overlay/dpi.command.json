@@ -1,0 +1,28 @@
+{
+  "command": [
+    "clang",
+    "-dynamiclib",
+    "-fPIC",
+    "-Wl,-undefined,dynamic_lookup",
+    "-I",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/include/iverilog",
+    "-I",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_csrng_sim_0.1/src/lowrisc_dv_aes_model_dpi_0",
+    "-I",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_csrng_sim_0.1/src/lowrisc_model_aes_1.0",
+    "-I",
+    "/opt/homebrew/opt/openssl@3/include",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_csrng_sim_0.1/src/lowrisc_dv_aes_model_dpi_0/aes_model_dpi.c",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_csrng_sim_0.1/src/lowrisc_model_aes_1.0/aes.c",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_csrng_sim_0.1/src/lowrisc_model_aes_1.0/crypto.c",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/csrng_overlay/csrng.dpiexport.c",
+    "-L",
+    "/opt/homebrew/opt/openssl@3/lib",
+    "-lcrypto",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/csrng_overlay/csrng.dylib"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/csrng_overlay",
+  "exit": 0,
+  "duration_seconds": 0.187
+}
