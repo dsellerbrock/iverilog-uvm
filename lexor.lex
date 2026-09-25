@@ -188,6 +188,7 @@ static int ts_prec = 0;
  * lex_in_package_scope.
  */
 static PPackage* in_package_scope = 0;
+static PPackage* active_package_prefix = 0;
 void lex_in_package_scope(PPackage*pkg)
 {
       in_package_scope = pkg;
@@ -439,6 +440,10 @@ TU [munpf]
 [a-zA-Z_][a-zA-Z0-9$_]*/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"::" {
       if (in_function_header)
 	    scoped_function_header_name = true;
+      active_package_prefix = !in_package_scope && gn_system_verilog()
+	    ? pform_test_active_package_identifier(yytext) : 0;
+      if (active_package_prefix && pform_test_type_identifier(yylloc, yytext))
+	    active_package_prefix = 0;
       REJECT;
 }
 
@@ -452,6 +457,8 @@ TU [munpf]
 
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
+      PPackage*active_package = active_package_prefix;
+      active_package_prefix = 0;
 
       if (sva_named_decl_header == 3) {
 	    if (rc == K_logic) {
@@ -610,6 +617,12 @@ TU [munpf]
 	    }
       }
 
+      if (rc == IDENTIFIER && active_package) {
+	    delete[]yylval.text;
+	    yylval.package = active_package;
+	    rc = PACKAGE_IDENTIFIER;
+      }
+
 	/* If this identifier names a previously declared type, then
 	   return this as a TYPE_IDENTIFIER instead. */
 	if (rc == IDENTIFIER && gn_system_verilog()) {
@@ -641,7 +654,18 @@ TU [munpf]
   }
 
 
+  /* An escaped identifier needs whitespace to terminate before ::. */
+\\[^ \t\b\f\r\n]+/[ \t\b\f\r\n]([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"::" {
+      active_package_prefix = !in_package_scope && gn_system_verilog()
+	    ? pform_test_active_package_identifier(yytext+1) : 0;
+      if (active_package_prefix && pform_test_type_identifier(yylloc, yytext+1))
+	    active_package_prefix = 0;
+      REJECT;
+}
+
 \\[^ \t\b\f\r\n]+         {
+      PPackage*active_package = active_package_prefix;
+      active_package_prefix = 0;
       assert(yylloc.lexical_pos != UINT_MAX);
       yylloc.lexical_pos += 1;
       yylval.text = strdupnew(yytext+1);
@@ -649,6 +673,11 @@ TU [munpf]
       scoped_function_header_name = false;
       ordinary_function_header_name = false;
       sva_named_decl_header = 0;
+      if (active_package) {
+	    delete[]yylval.text;
+	    yylval.package = active_package;
+	    return PACKAGE_IDENTIFIER;
+      }
       if (gn_system_verilog()) {
 	    if (PPackage*pkg = pform_test_package_identifier(yylval.text)) {
 		  delete[]yylval.text;

@@ -1,0 +1,16 @@
+# OpenTitan Icarus matrix
+
+- Generated: `2026-09-25T19:02:52.161960+00:00`
+- OpenTitan revision: `a78922f14a8cc20c7ee569f322a04626f2ac6127`
+- Icarus: `Icarus Verilog version 13.0 (devel) ()`
+- Compiler engine SHA-256: `f045786db709fa604990b8de166cfc78c84896acff8850ccbdac3d8eef0978d0`
+- UVM/runtime compile profile: `commercial-unsafe`
+- Jobs: `2`
+- Status counts: `FAIL=2`
+
+A `DEBT` result exited successfully but emitted a warning or explicit semantic degradation. It is not a conformance pass.
+
+| Lane | Core | Status | Hard errors | Semantic debt | Log |
+|---|---|---:|---:|---:|---|
+| uvm | `lowrisc:dv:edn_sim:0.1` | **FAIL** | 3 | 21 | `/private/tmp/ot-edn-package-self-qual-20260925/work/uvm/lowrisc_dv_edn_sim_0.1/matrix-compile.log` |
+| runtime | `lowrisc:dv:edn_sim:0.1` | **FAIL** | 3 | 21 | `/private/tmp/ot-edn-package-self-qual-20260925/work/runtime/lowrisc_dv_edn_sim_0.1/matrix-compile.log` |

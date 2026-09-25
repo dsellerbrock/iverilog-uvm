@@ -1,0 +1,2 @@
+./ivltests/sv_package_self_typedef_forward_fail.v:3: syntax error
+./ivltests/sv_package_self_typedef_forward_fail.v:3: error: Invalid class item.

@@ -1,0 +1,6 @@
+[1/2] uvm lowrisc:dv:edn_sim:0.1
+  -> FAIL
+[2/2] runtime lowrisc:dv:edn_sim:0.1
+  -> FAIL
+JSON: /private/tmp/ot-edn-package-self-qual-20260925/work/opentitan-matrix.json
+Markdown: /private/tmp/ot-edn-package-self-qual-20260925/work/opentitan-matrix.md

@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_package_self_typedef.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_package_self_typedef"
+}
