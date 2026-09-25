@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_packed_partial_index_nonzero_lsb.v",
+    "iverilog-args" : [ "-g2023", "-gcommercial-unsafe" ]
+}

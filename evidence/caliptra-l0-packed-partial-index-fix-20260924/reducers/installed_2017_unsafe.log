@@ -1,0 +1,7 @@
+loc.a=x800e002800600 ext.a=x800e002800600
+direct ext.a[3]=xX00 loc.a[3]=xX00
+port ADR[0]=0600 expected=2000
+port ADR[1]=0a00 expected=2001
+port ADR[2]=0e00 expected=2002
+port ADR[3]=xX00 expected=2003
+RESULT RED

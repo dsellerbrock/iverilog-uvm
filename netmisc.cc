@@ -3590,11 +3590,16 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
       }
 
 	// Pad out to the full dimensionality: a chain that stops short
-	// addresses the START of the remaining slice.
+	// addresses the START of the remaining slice, which is each
+	// remaining dimension's declared LSB (canonical offset 0), not
+	// index 0: [3:0][17:4] m; m[i] starts at m[i][4].
+      netranges_t::const_iterator pad_dim = pdims.begin();
+      std::advance(pad_dim, use_index.size());
       while (use_index.size() < ndims) {
 	    index_component_t pad;
 	    pad.sel = index_component_t::SEL_BIT;
-	    pad.msb = new PENumber(new verinum((uint64_t)0, integer_width));
+	    pad.msb = new PENumber(new verinum((int64_t)pad_dim->get_lsb()));
+	    ++pad_dim;
 	    pad.lsb = 0;
 	    use_index.push_back(pad);
       }
