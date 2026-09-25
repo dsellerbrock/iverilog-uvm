@@ -6053,6 +6053,14 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 	    marked_ir = vvp_z3_mark_unknown_slots(ir_text, slot_unknown);
 	    ir_text = marked_ir.c_str();
       }
+      string wide_ir, wide_error;
+      bool wide_slots_ok = vvp_z3_substitute_wide_value_slots(
+	    ir_text, slot_words, wide_ir, wide_error);
+      if (wide_slots_ok)
+	    ir_text = wide_ir.c_str();
+      else
+	    fprintf(stderr, "VVP error: randomize() with: %s.\n",
+		    wide_error.c_str());
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
@@ -6095,9 +6103,10 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 
       if (!scope_form && !thr->randomize_calls.empty()
           && thr->randomize_calls.back().needs_function_stages)
-            return randomize_staged_begin_(thr, cobj, sel, &options, expansion_ok);
+            return randomize_staged_begin_(thr, cobj, sel, &options,
+					   expansion_ok && wide_slots_ok);
       randomize_graph_session_t session(!scope_form);
-      bool solve_ok = expansion_ok;
+      bool solve_ok = expansion_ok && wide_slots_ok;
       if (!scope_form && !thr->randomize_calls.empty())
 	    solve_ok = solve_ok && thr->randomize_calls.back().state_calls_ok;
       if (solve_ok) solve_ok = randomize_solve_(session, cobj, sel, &options);
@@ -6197,10 +6206,12 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    }
       }
       vector<uint64_t> slot_vals(n_vals);
+      vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> slot_unknown(n_vals, false);
       bool any_unknown = false;
       for (unsigned i = n_vals ; i > 0 ; i -= 1) {
 	    vvp_vector4_t v = thr->pop_vec4();
+	    slot_words[i - 1] = v;
 	    uint64_t bits = 0;
 	    for (unsigned b = 0 ; b < v.size() ; b += 1) {
 		  if (v.value(b) == BIT4_1) {
@@ -6234,7 +6245,15 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	  string scope_ir = code->text ? code->text : "";
 	  if (any_unknown)
 		scope_ir = vvp_z3_mark_unknown_slots(scope_ir, slot_unknown);
-	  bool ok = vvp_z3_randomize_scope(scope_ir,
+	  string wide_ir, wide_error;
+	  bool ok = vvp_z3_substitute_wide_value_slots(scope_ir, slot_words,
+						      wide_ir, wide_error);
+	  if (ok)
+		scope_ir = wide_ir;
+	  else
+		fprintf(stderr, "VVP error: std::randomize() with: %s.\n",
+			wide_error.c_str());
+	  ok = ok && vvp_z3_randomize_scope(scope_ir,
 				       targets, widths, slot_vals, object_vals,
 				       object_known,
 				       model);
@@ -6269,9 +6288,11 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 	    thr->pop_object(ignored);
       }
       vector<uint64_t> slot_vals(n_vals);
+      vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> unknown(n_vals, false);
       for (unsigned i = n_vals; i > 0; --i) {
 	    vvp_vector4_t word = thr->pop_vec4();
+	    slot_words[i - 1] = word;
 	    uint64_t bits = 0;
 	    for (unsigned b = 0; b < word.size(); ++b) {
 		  if (word.value(b) == BIT4_1 && b < 64)
@@ -6294,6 +6315,14 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
       meta_ok = meta_ok && end != max_text && *end == '|';
       string ir = meta_ok ? end + 1 : "";
       if (meta_ok) ir = vvp_z3_mark_unknown_slots(ir, unknown);
+      string wide_ir, wide_error;
+      bool wide_slots_ok = !meta_ok || vvp_z3_substitute_wide_value_slots(
+	    ir, slot_words, wide_ir, wide_error);
+      if (meta_ok && wide_slots_ok)
+	    ir = wide_ir;
+      else if (!wide_slots_ok)
+	    fprintf(stderr, "VVP error: std::randomize() with: %s.\n",
+		    wide_error.c_str());
       vector<string> elements;
       vthread_t rng_owner = logical_process_thread_(thr);
       string rng_state = thread_rng_get_state_(rng_owner);
@@ -6301,7 +6330,8 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 	    | thread_rng_next_(rng_owner);
       static const vector<vector<uint64_t> > no_objects;
       static const vector<vector<bool> > no_known;
-      bool ok = meta_ok && width > 0 && width <= 65536 && n_objs == 0
+      bool ok = meta_ok && wide_slots_ok && width > 0 && width <= 65536
+	    && n_objs == 0
 	    && vvp_z3_randomize_scope_queue(ir, (unsigned)width, max_size,
 		  slot_vals, no_objects, no_known, seed, elements);
       if (!meta_ok || width == 0 || width > 65536 || n_objs != 0)

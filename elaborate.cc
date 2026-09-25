@@ -27191,7 +27191,9 @@ static string constraint_ir_shape_value_slots_(
 		  }
 		  return "";
 	    }
-	    if (width == 0 || width > 64) width = 32;
+	      // A slot wider than 64 bits keeps its width: the runtime
+	      // substitutes it from its complete value, not the 64-bit word.
+	    if (width == 0) width = 32;
 	    out += function_slot ? "fv:" : "v:";
 	    out += to_string(slot) + ":" + to_string(width);
 	    if (actual.is_signed) out += ":s";
@@ -29674,7 +29676,9 @@ static string scope_randomize_value_slot_(const PExpr*expr,
 	    constraint_inline_prebuilt_value_slots_->push_back(nullptr);
       if (scope_randomize_signal_slots_)
 	    scope_randomize_signal_slots_->push_back(direct_signal);
-      if (width == 0 || (width > 64 && !constraint_dist_payload_depth_))
+	// Slots wider than 64 bits keep their width; the runtime substitutes
+	// them from their complete value instead of the 64-bit slot word.
+      if (width == 0)
 	    width = 32;
       return string(function_result ? "fv:" : "v:")
 	    + to_string(slot) + ":" + to_string(width);

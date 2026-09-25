@@ -5193,7 +5193,8 @@ static bool substitute_function_slots_(const string&ir,
  * Build wide constants from existing concat/trunc IR instead of narrowing the
  * runtime value through uint64_t. */
 static bool substitute_class_slots_(const string&ir,
-      const vector<vvp_vector4_t>&slot_vals, string&result, string&error)
+      const vector<vvp_vector4_t>&slot_vals, string&result, string&error,
+      unsigned min_width = 0)
 {
       result.clear();
       const char*begin = ir.c_str();
@@ -5221,6 +5222,11 @@ static bool substitute_class_slots_(const string&ir,
             q = end;
             bool is_signed = q[0] == ':' && q[1] == 's';
             if (is_signed) q += 2;
+            if (width <= min_width) {
+                  result.append(p, q - p);
+                  p = q;
+                  continue;
+            }
             if (slot > UINT_MAX || slot >= slot_vals.size()
                 || slot_vals[(size_t)slot].size() == 0) {
                   error = "missing class constraint function capture slot "
@@ -5262,6 +5268,15 @@ static bool substitute_class_slots_(const string&ir,
             p = q;
       }
       return true;
+}
+
+/* Value slots wider than 64 bits cannot pass through the uint64_t slot
+ * vectors. Substitute them from their complete runtime values first, leaving
+ * narrower slots for the ordinary path. */
+bool vvp_z3_substitute_wide_value_slots(const string&ir,
+      const vector<vvp_vector4_t>&slot_words, string&result, string&error)
+{
+      return substitute_class_slots_(ir, slot_words, result, error, 64);
 }
 
 /* Scope std::randomize may also carry queue/darray membership operands.
