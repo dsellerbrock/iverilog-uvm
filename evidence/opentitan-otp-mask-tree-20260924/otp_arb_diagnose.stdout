@@ -15,7 +15,7 @@ OTP_ARB_FAIL tb.dut.u_otp_arb req=00011111111111 ready=1 gnt=000xxxxxxxxxxx
 OTP_ARB_DIRECT root_mask=null mask_bit1=null mask_d=xxxxxxxxxxxxxx root_sel=null
 OTP_ARB_TREE mask_q=xxxxxxxxxxxxxx req_tree=0000011111111111001111110111111 prio_tree=00000xxxxxxxxxxx00xxxxxx0xxxxxx sel_tree=00000xxxxxxxxxxx00xxxxxx0xxxxx1 mask_tree=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
 UVM_ERROR @   1559061 ps: (prim_arbiter_tree.sv:206) [ASSERT FAILED] GrantKnown_A
-UVM_INFO @   1559061 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+UVM_INFO @   1559061 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER]
 --- UVM Report catcher Summary ---
 
 
@@ -26,7 +26,7 @@ Number of caught UVM_FATAL reports   :    0
 Number of caught UVM_ERROR reports   :    0
 Number of caught UVM_WARNING reports :    0
 
-UVM_INFO @   1559061 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+UVM_INFO @   1559061 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER]
 --- UVM Report Summary ---
 
 Quit count reached!
@@ -45,7 +45,7 @@ UVM_FATAL :    0
 
 
 TEST FAILED CHECKS
- _____         _      __       _ _          _ _ 
+ _____         _      __       _ _          _ _
 |_   _|__  ___| |_   / _| __ _(_) | ___  __| | |
   | |/ _ \/ __| __| | |_ / _` | | |/ _ \/ _` | |
   | |  __/\__ \ |_  |  _| (_| | | |  __/ (_| |_|

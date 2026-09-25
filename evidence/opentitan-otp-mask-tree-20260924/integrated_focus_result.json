@@ -1,0 +1,46 @@
+{
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "focus": [
+    {
+      "name": "legacy",
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-opentitan-otp-mask-tree-focus-legacy.list"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+      "exit_code": 0,
+      "duration_seconds": 0.218,
+      "log_sha256": "02122d8f3639c40cd789babbb643a66c3827ffc2b939aa9dcce1d6cab9e953d8",
+      "last_lines": [
+        "        sv_packed_continuous_bit_strength_2023: Passed.",
+        "     sv_packed_continuous_bit_dag_overlap_fail: Passed - CE.",
+        "sv_packed_continuous_bit_dag_overlap_fail_2023: Passed - CE.",
+        "============================================================================",
+        "Test results:",
+        "  Total=6, Passed=6, Failed=0, Not Implemented=0, Expected Fail=0"
+      ]
+    },
+    {
+      "name": "json",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-opentitan-otp-mask-tree-focus-vvp.list"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+      "exit_code": 0,
+      "duration_seconds": 0.237,
+      "log_sha256": "2aa87352bab4f1ab6a0bcecc016526dff5db6b9e64d7ec0c50b134e53b9e479a",
+      "last_lines": [
+        "     sv_packed_continuous_bit_dag_overlap_fail: Passed - CE.",
+        "sv_packed_continuous_bit_dag_overlap_fail_2023: Passed - CE.",
+        "             sv_packed_continuous_bit_strength: Passed.",
+        "        sv_packed_continuous_bit_strength_2023: Passed.",
+        "============================================================================",
+        "Test results: Ran 6, Failed 0."
+      ]
+    }
+  ]
+}

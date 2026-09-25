@@ -6,7 +6,7 @@
   "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
   "pinned_otp_image_sha256": "384df0a94485dca6974616258c583975421a2b3d06dd73bdb63e2da7e224ead3",
   "diagnostic_script_sha256": "ab76af75c4e33bb0dd5b9a86aabbda2db7f2867cdcceff471dce989ed0bf29b7",
-  "diagnostic_log_sha256": "2399ddac71cc3ce795443edfefc9ac2adbf6e8ecfe78b918878c477cc69ecc7d",
+  "diagnostic_log_sha256": "6d161c2316f608f763c25efe623959ea4496ea8fda4b429093909733d4461d2d",
   "cases": [
     {
       "edition": "2017",

@@ -1,0 +1,26 @@
+{
+  "reason": "origin/main advanced with merged PR361 after these gates started; qualification must run on integrated source",
+  "pre_integration_branch_head": "a971ac4cd",
+  "origin_main": "e8ba46282396f75ebfe878a3f87eb17db551c0ac",
+  "partial_unqualified": true,
+  "gates": [
+    {
+      "name": "legacy_gate",
+      "log": "superseded-legacy_gate.partial.log",
+      "log_sha256": "30ed383e59a7a84f1693530bf8266ab8293faab01cb415edb4c07da17f06c857",
+      "exit_code": 143,
+      "signal": "SIGTERM",
+      "aggregate_result": null
+    },
+    {
+      "name": "real_dpi_uvm_gate",
+      "log": "superseded-real_dpi_uvm_gate.partial.log",
+      "log_sha256": "67dcc429035cadc3fba047c137b65c2df36edb8db24d832386177e805bf740d3",
+      "exit_code": 143,
+      "signal": "SIGTERM",
+      "aggregate_result": null,
+      "raw_log_sha256": "99a182a482f73d6103379882d6b512709a3b518317e46a9955583fdc6f3d779f",
+      "log_normalization": "trailing whitespace only"
+    }
+  ]
+}

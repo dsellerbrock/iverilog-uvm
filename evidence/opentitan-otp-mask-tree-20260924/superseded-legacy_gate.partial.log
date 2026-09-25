@@ -1,0 +1,4 @@
+PASS: all 66 covergroup API functions exported
+PASS copy-out context malformed-bytecode checks (6/6)
+indexed dynamic-array slice: PASS 16/16
+=== ivtest sweep (vendored suite) ===
