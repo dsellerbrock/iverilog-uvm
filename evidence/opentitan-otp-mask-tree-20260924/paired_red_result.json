@@ -1,0 +1,166 @@
+{
+  "blocker": "OT-OTP-PACKED-MASK-TREE-CONTINUOUS-DRIVER",
+  "base_commit": "c7de6f5c94f312a5ee8572845bc7e75051490b9a",
+  "private_compiler_wrapper_sha256": "52adf39c42f6eee9fec58b902987cefab106b8e1785c6060b71d820712ed1e3e",
+  "private_ivl_sha256": "57eec3fcd5e3b38c614f1e48ceb5f774e275e7b8d3b874e5e8eebb7feca423f3",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "pinned_otp_image_sha256": "384df0a94485dca6974616258c583975421a2b3d06dd73bdb63e2da7e224ead3",
+  "diagnostic_script_sha256": "ab76af75c4e33bb0dd5b9a86aabbda2db7f2867cdcceff471dce989ed0bf29b7",
+  "diagnostic_log_sha256": "2399ddac71cc3ce795443edfefc9ac2adbf6e8ecfe78b918878c477cc69ecc7d",
+  "cases": [
+    {
+      "edition": "2017",
+      "case": "three",
+      "source_sha256": "fbffb2c29437c5aa74b069c6f9c397d47c1197ff330c51863bc824a10a189390",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "otp_mask_tree_three",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/three-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/three.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log": "three-2017.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "image_sha256": "1ab702607e18dc4203d21277a9b5a1a730ee66a448a9171019c340f890f08cd1",
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-red-20260924/three-2017.vvp"
+      ],
+      "runtime_exit": 1,
+      "runtime_log": "three-2017.runtime.log",
+      "runtime_log_sha256": "ea23e035029baa3568a1460d305ee70cd8b4f66669fbe22fa46be279a62c5011"
+    },
+    {
+      "edition": "2017",
+      "case": "scalar",
+      "source_sha256": "a5e61b88f995198b572b441eaf6c917a25b316d2d00a5d594647dd624d0a6c54",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "otp_mask_tree_scalar",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/scalar-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/scalar.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log": "scalar-2017.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "image_sha256": "dee6a0c1870079ec69c9bfa05d55abba79fa8eadd2412f8f7c8e22cc4df8d9bf",
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-red-20260924/scalar-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_log": "scalar-2017.runtime.log",
+      "runtime_log_sha256": "0d9689b1a4595db876e9318286cd5cdf65844989ff3dd58da298a808cbbb68bc"
+    },
+    {
+      "edition": "2017",
+      "case": "illegal",
+      "source_sha256": "f66b9d9dce811187021d9c02eb146083526f025e3dac6ede1850ee6816150c62",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "otp_mask_tree_illegal",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/illegal-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/illegal.sv"
+      ],
+      "compile_exit": 1,
+      "compile_log": "illegal-2017.compile.log",
+      "compile_log_sha256": "1d48397015a80505b3e8f871f1b44b4a1f6c438055113bfcb9c2e5e3f319851c"
+    },
+    {
+      "edition": "2023",
+      "case": "three",
+      "source_sha256": "fbffb2c29437c5aa74b069c6f9c397d47c1197ff330c51863bc824a10a189390",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2023",
+        "-s",
+        "otp_mask_tree_three",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/three-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/three.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log": "three-2023.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "image_sha256": "85d65c50cbb7a9f67f68b808b0925ecf97c5a7cf9ae473bf6784e90ba13362eb",
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-red-20260924/three-2023.vvp"
+      ],
+      "runtime_exit": 1,
+      "runtime_log": "three-2023.runtime.log",
+      "runtime_log_sha256": "ea23e035029baa3568a1460d305ee70cd8b4f66669fbe22fa46be279a62c5011"
+    },
+    {
+      "edition": "2023",
+      "case": "scalar",
+      "source_sha256": "a5e61b88f995198b572b441eaf6c917a25b316d2d00a5d594647dd624d0a6c54",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2023",
+        "-s",
+        "otp_mask_tree_scalar",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/scalar-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/scalar.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log": "scalar-2023.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "image_sha256": "828de188631310b8ab4c686cdac0d6a0c59360b6668f2b4b777d6b2e44599033",
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-red-20260924/scalar-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_log": "scalar-2023.runtime.log",
+      "runtime_log_sha256": "0d9689b1a4595db876e9318286cd5cdf65844989ff3dd58da298a808cbbb68bc"
+    },
+    {
+      "edition": "2023",
+      "case": "illegal",
+      "source_sha256": "f66b9d9dce811187021d9c02eb146083526f025e3dac6ede1850ee6816150c62",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2023",
+        "-s",
+        "otp_mask_tree_illegal",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/illegal-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/illegal.sv"
+      ],
+      "compile_exit": 1,
+      "compile_log": "illegal-2023.compile.log",
+      "compile_log_sha256": "1d48397015a80505b3e8f871f1b44b4a1f6c438055113bfcb9c2e5e3f319851c"
+    }
+  ],
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_tracked_clean": true,
+  "pinned_arbiter_source_sha256": "1c882b2439f50110e74919824b840281f514d60d60a1ea3680c20e0573c4b69d",
+  "otp_vvp_excerpt_sha256": "5a37c1a8f24a25fd5e2e6d6d87b415c4ef02d7d47c0023fcb70d2e6ada60f5a8",
+  "released_otp_dv": {
+    "selected": 1,
+    "passed": 0,
+    "assertion": "GrantKnown_A",
+    "failing_scope": "tb.dut.u_otp_arb",
+    "failure_time_ps": 1559061,
+    "req_i": "00011111111111",
+    "ready_i": "1",
+    "gnt_o": "000xxxxxxxxxxx",
+    "mask_tree": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+    "meaningful_checked_traffic": false
+  }
+}
