@@ -6,16 +6,16 @@ active_open_titan_lane:
   blocker: OT-PACKAGE-SELF-QUALIFIED-TYPEDEF
   phase: PR374_PUBLISHED_LOCAL_QUALIFIED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925
-  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/372
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/373
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
   baseline_head: 6014f8ebf664a6ecca84536c0d7fc2a30fa1ead4
   baseline_private_ivl_sha256: 20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223
-  baseline: PR372 merged its pinned 84-row -gcommercial-unsafe matrix with no application-source overlays and 0/49 clean runtime rows. PR373 is open independently on $system return values.
+  baseline: PR372 merged its pinned 84-row -gcommercial-unsafe matrix with no application-source overlays and 0/49 clean runtime rows. The fresh full PR374 candidate matrix also uses -gcommercial-unsafe in 84/84 rows and remains 0/49 clean runtime. PR373 merged at a7d21d2320c4122ce8f112bfb422e8df31992265; its $system fix is in this rebased branch.
   standards: Strict 2017/2023 package-scoping reducers and nonstandard unsafe-mode released OpenTitan replays have separate denominators.
   reproducer: Released EDN and OTBN use already-declared typedefs through their own still-open package names; the previous compiler rejected those references before endpackage registration.
   expected: Accept the active package as a scoped prefix without overriding nearer same-name class, import, or inherited typedefs; reject forward and missing members.
   source_scope: Active package lookup in pform_package.cc and lexor.lex, paired dedicated tests and OpenTitan evidence/trackers. No pinned source, Caliptra, VVP, solver, Verilator, GPU, or CI polling.
-  validation: Private ivl f045786db709fa604990b8de166cfc78c84896acff8850ccbdac3d8eef0978d0 passes paired focused JSON 19/19 and legacy 17/17, final full legacy 6686 total with zero failures, SVA 62/62, make check, and real-DPI UVM 358/358. First full gate's VPI 131/131, negatives 155/155, and runtime invariants 15/15 passed; its three diagnostic-gold mismatches were corrected before the unchanged-binary full legacy rerun. Exact unsafe EDN compiles clear target syntax but three dropped bins prevent runtime; OTBN clears target syntax but later elaboration fails. Last full PR372 matrix baseline is 0/49; this candidate has only named replays, not a new full matrix.
+  validation: Private ivl f045786db709fa604990b8de166cfc78c84896acff8850ccbdac3d8eef0978d0 passes paired focused JSON 19/19 and legacy 17/17, final full legacy 6686 total with zero failures, SVA 62/62, make check, and real-DPI UVM 358/358. First full gate's VPI 131/131, negatives 155/155, and runtime invariants 15/15 passed; its three diagnostic-gold mismatches were corrected before the unchanged-binary full legacy rerun. Exact unsafe EDN compiles clear target syntax but three dropped bins prevent runtime; OTBN clears target syntax but later elaboration fails. The fresh full PR374 unsafe matrix has 84/84 flagged compiles and remains 0/49 clean runtime, with unchanged row statuses versus PR372; see evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md.
   next_command: Review PR374 and respond if CI later reports an issue; do not poll CI or touch Caliptra.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
@@ -99,7 +99,7 @@ active_blocker:
   expected: Resolve already-declared active-package typedefs through package qualification; preserve same-named class shadowing and reject unknown or forward typedefs in both editions.
   root_cause_hypothesis: Confirmed; package lookup reaches packages_by_name only after endpackage, so the active package was not classified for its own scoped type uses.
   source_scope: pform_package.cc and parser/lexer package-token handling only if paired reducers require it; dedicated tests and OpenTitan owning evidence/docs. No pinned source, Caliptra, VVP, solver, Verilator, GPU, or CI polling.
-  validation: Paired focus 19/19 JSON and 17/17 legacy, final full legacy 6686 total with zero failures, SVA 62/62, real-DPI UVM 358/358. First full gate's VPI 131/131, negative 155/155, runtime 15/15 passed; exact diagnostic gold updates were followed by an unchanged-binary full legacy pass. Pinned unsafe EDN compiles exit zero but dropped bins block runtime; OTBN target parse clears but later compile errors remain. Last full PR372 matrix baseline is 0/49; no current-image full matrix was run.
+  validation: Paired focus 19/19 JSON and 17/17 legacy, final full legacy 6686 total with zero failures, SVA 62/62, real-DPI UVM 358/358. First full gate's VPI 131/131, negative 155/155, runtime 15/15 passed; exact diagnostic gold updates were followed by an unchanged-binary full legacy pass. Pinned unsafe EDN compiles exit zero but dropped bins block runtime; OTBN target parse clears but later compile errors remain. The full PR374 unsafe matrix completes 84/84 flagged compiles and remains 0/49 clean runtime; see evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md.
   prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/373
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
   next: Review PR374 and respond if CI later reports an issue. No CI polling.
@@ -336,4 +336,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "After PR372 merges, use the September 25 OpenTitan -gcommercial-unsafe 84-row baseline to select the next released-DV blocker; preserve the Caliptra run and do not poll CI."
+next_command: "Review PR374 with its completed -gcommercial-unsafe 84-row OpenTitan baseline at 0/49 clean runtime; respond if CI later reports an issue without polling. Select the next released-DV blocker after safe integration, and preserve the separate Caliptra work."

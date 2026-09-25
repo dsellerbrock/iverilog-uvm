@@ -9,20 +9,23 @@ evidence. Named Caliptra and OpenTitan patches and options are selected per
 test on disposable copies under the [release overlay guide](release_overlays/README.md),
 leaving pinned source checkouts unchanged.
 
-The [latest OpenTitan unsafe DV baseline](../../evidence/opentitan-icarus-dv-baseline-unsafe-20260925/README.md)
-uses the private Icarus build from merged `main` at `e5eb0901e` and
+The [latest complete OpenTitan unsafe DV baseline](../../evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md)
+uses the private PR #374 Icarus compiler at `1d2aca710` and
 `-gcommercial-unsafe` for **all 84** selected UVM/runtime compile rows.
-The [per-row table](../../evidence/opentitan-icarus-dv-baseline-unsafe-20260925/results.md)
+The [per-row table](../../evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/results.md)
 records 8/35 UVM compiles with debt and 27 failures; among 49 runtime rows,
 eight complete with pass banners and debt, 36 fail compilation, and five fail
-runtime. There are **0/49 clean, qualified matrix DV passes**. The pinned
-OpenTitan checkout is unmodified. Disposable-overlay OTP and CSRNG named
-smokes each pass **1/1 named nonstandard compatibility DV** on that same
-private tool, with checked traffic and their compile-warning limits recorded
-separately from the base-source matrix and IEEE conformance.
+runtime. There are **0/49 clean, qualified matrix DV passes**, unchanged from
+the [previous full unsafe baseline](../../evidence/opentitan-icarus-dv-baseline-unsafe-20260925/README.md).
+The pinned OpenTitan checkout is unmodified. EDN's former package-type parse
+errors clear, but three dropped coverage bins still block its runtime; OTBN's
+same parse blocker clears, but later hard diagnostics remain. Earlier
+disposable-overlay OTP and CSRNG named smokes each passed **1/1 named
+nonstandard compatibility DV** on their recorded private tool images; they
+were not rerun or included in the PR #374 base-source matrix or IEEE counts.
 
-The [new `$system` return-value candidate](../../evidence/opentitan-system-return-20260925/README.md)
-passes paired 2017/2023 direct reducers on a private active-worktree VVP.
+The [merged PR #373 `$system` return-value fix](../../evidence/opentitan-system-return-20260925/README.md)
+passed paired 2017/2023 direct reducers on its recorded private VVP.
 The pinned released `prim_prince_sim` compiles with `-gcommercial-unsafe` and,
 after loading its native DPI model, completes **1/1 named checked nonstandard
 compatibility replay**: five golden and one random vector, reference-model
