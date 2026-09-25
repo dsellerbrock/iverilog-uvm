@@ -94,7 +94,7 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-SYSTEM-FUNCTION-RETURN
-  phase: LOCAL_QUALIFIED_PR_PENDING
+  phase: PR373_PUBLISHED_LOCAL_QUALIFIED
   owner: Coordinator owns direct VPI fix, paired reducers, private build, pinned unsafe PRINCE replay, review, and publication; separate Caliptra agent owns its live runs.
   reproducer: PR372 prim_prince_sim reports absent dv.stop but takes poll_for_stop UVM_FATAL at 1 us; paired 2017/2023 function-result reducers compiled but exited 1 at the nonzero-status check before implementation.
   expected: $system function returns C system() int status, task form discards it, and no-argument form calls system(NULL); application replay retains -gcommercial-unsafe and original checks.
@@ -102,7 +102,8 @@ active_blocker:
   source_scope: vpi/sys_icarus.c and the $system-only task-warning predicate in vvp/vpi_tasks.cc, dedicated paired tests, OpenTitan-only evidence and owning docs; extra-argument validation remains separate; pinned sources and Caliptra unchanged.
   validation: Private ARM64 installed; paired RED exits 1 then GREEN exits 0 with only PASSED; final focus legacy 2/2, JSON 2/2, chapter-20 JSON 7/7; full ivtest gate 6680 total zero failures, bundled VPI 131/131, negatives 155/155, runtime invariants 15/15; real-DPI UVM 358/358 with zero failures or skips. Pinned unsafe PRINCE with native DPI completes checked 1/1 named nonstandard compatibility, matrix DEBT on three runner-tracked setup warnings plus a raw backend-deprecation warning; merged clean rate stays 0/49. Full JSON is deferred under the approximately ten-fix integration cadence.
   prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/372
-  next: Publish the single-blocker PR after final evidence and staged-diff review. Do not poll CI or touch Caliptra.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/373
+  next: Respond if CI later reports an issue; do not poll CI or touch Caliptra.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366

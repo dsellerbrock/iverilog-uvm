@@ -1,8 +1,9 @@
-status: opentitan_system_return_local_qualified_pr_pending
+status: opentitan_system_return_pr373_published_local_qualified
 branch: agent/ot-system-return-prince-20260925
 baseline: PR372 merged at 6014f8ebf664a6ecca84536c0d7fc2a30fa1ead4. Its 84 OpenTitan compile commands used -gcommercial-unsafe. Pinned sources and the separate live Caliptra run remain untouched.
 blocker: OT-SYSTEM-FUNCTION-RETURN
 prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/372
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/373
 goal: Correct the standard $system function result in the VPI implementation, then replay pinned released OpenTitan PRINCE with -gcommercial-unsafe and all original DV checks.
 standards: IEEE 1800-2017 section 20.18.1 and IEEE 1800-2023 section 20.17.1 require the $system function to return the C system() int result; task calls discard that result and no-argument calls use system(NULL). Paired edition reducers are IEEE evidence; OpenTitan unsafe-mode replay is nonstandard compatibility evidence.
 failing_reproducer: The PR372 prim_prince_sim runtime log reports an absent dv.stop and then UVM_FATAL [poll_for_stop] at 1 us. Paired 2017/2023 $system function-result reducers compiled but exited 1 at the nonzero-status check before implementation; both also showed the false task warning.
