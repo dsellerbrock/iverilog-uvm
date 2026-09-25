@@ -1,0 +1,53 @@
+tb.dut.u_otp_ctrl_lfsr_timer.u_prim_double_lfsr.gen_double_lfsr[0].u_prim_lfsr.p_randomize_default_seed: DefaultSeed = 0x453d28ea98, DefaultSeedLocal = 0xd1bb3b6c98
+tb.dut.u_otp_ctrl_lfsr_timer.u_prim_double_lfsr.gen_double_lfsr[1].u_prim_lfsr.p_randomize_default_seed: DefaultSeed = 0x453d28ea98, DefaultSeedLocal = 0xc890a3bd43
+tb.dut.u_otp_ctrl_lfsr_timer.u_prim_double_lfsr.p_sync_lfsr_default_seed: Updated gen_double_lfsr[1].u_prim_lfsr.DefaultSeedLocal = 0xd1bb3b6c98
+UVM_INFO @ 0 ps: reporter [RNTST] Running test  (via factory override for test "otp_ctrl_base_test")...
+1000 ps: (../src/lowrisc_dv_otp_ctrl_cov_0/otp_ctrl_cov_if.sv:105) [tb.dut.u_otp_ctrl_cov_if] Creating covergroup lc_esc_en_condition_cg
+1000 ps: (../src/lowrisc_dv_otp_ctrl_cov_0/otp_ctrl_cov_if.sv:106) [tb.dut.u_otp_ctrl_cov_if] Creating covergroup flash_data_req_condition_cg
+1000 ps: (../src/lowrisc_dv_otp_ctrl_cov_0/otp_ctrl_cov_if.sv:107) [tb.dut.u_otp_ctrl_cov_if] Creating covergroup flash_addr_req_condition_cg
+1000 ps: (../src/lowrisc_dv_otp_ctrl_cov_0/otp_ctrl_cov_if.sv:108) [tb.dut.u_otp_ctrl_cov_if] Creating covergroup sram_0_req_condition_cg
+1000 ps: (../src/lowrisc_dv_otp_ctrl_cov_0/otp_ctrl_cov_if.sv:109) [tb.dut.u_otp_ctrl_cov_if] Creating covergroup sram_1_req_condition_cg
+1000 ps: (../src/lowrisc_dv_otp_ctrl_cov_0/otp_ctrl_cov_if.sv:110) [tb.dut.u_otp_ctrl_cov_if] Creating covergroup otbn_req_condition_cg
+1000 ps: (../src/lowrisc_dv_otp_ctrl_cov_0/otp_ctrl_cov_if.sv:111) [tb.dut.u_otp_ctrl_cov_if] Creating covergroup lc_prog_req_condition_cg
+UVM_INFO @    548612 ps: (dv_base_reg.sv:329) [otp_ctrl_core_reg_block.direct_access_regwen] lock_lockable_flds          0 val
+UVM_INFO @   1423641 ps: (mem_bkdr_util.sv:530) [mem_bkdr_util] Clear memory
+OTP_ARB_TREE 1559000 ps tb.dut.u_otp_arb.gen_normal_case N=14 pre_maskq=xxxxxxxxxxxxxx pre_maskd=xxxxxxxxxxxxxx pre_reqtree=0000011111111111001111110111111 pre_priotree=00000xxxxxxxxxxx00xxxxxx0xxxxxx pre_seltree=00000xxxxxxxxxxx00xxxxxx0xxxxx1 pre_masktree=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz live_maskq=xxxxxxxxxxxxxx live_maskd=xxxxxxxxxxxxxx live_reqtree=0000011111111111001111110111111 live_priotree=00000xxxxxxxxxxx00xxxxxx0xxxxxx live_seltree=00000xxxxxxxxxxx00xxxxxx0xxxxx1 live_masktree=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+OTP_ARB_DIAG 1559000 ps tb.dut.u_otp_arb pre_rst=1 pre_req=00011111111111 pre_ready=1 pre_gnt=000xxxxxxxxxxx live_rst=1 live_req=00011111111111 live_ready=1 live_gnt=000xxxxxxxxxxx
+UVM_ERROR @   1559061 ps: (prim_arbiter_tree_diag.sv:219) [ASSERT FAILED] GrantKnown_A
+UVM_INFO @   1559061 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER]
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @   1559061 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER]
+--- UVM Report Summary ---
+
+Quit count reached!
+Quit count :     1 of     1
+** Report counts by severity
+UVM_INFO :    4
+UVM_WARNING :    0
+UVM_ERROR :    1
+UVM_FATAL :    0
+** Report counts by id
+[ASSERT FAILED]     1
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[mem_bkdr_util]     1
+[otp_ctrl_core_reg_block.direct_access_regwen]     1
+
+
+TEST FAILED CHECKS
+ _____         _      __       _ _          _ _
+|_   _|__  ___| |_   / _| __ _(_) | ___  __| | |
+  | |/ _ \/ __| __| | |_ / _` | | |/ _ \/ _` | |
+  | |  __/\__ \ |_  |  _| (_| | | |  __/ (_| |_|
+  |_|\___||___/\__| |_|  \__,_|_|_|\___|\__,_(_)
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:135: $finish called at 1559061 (1ps)

@@ -21,6 +21,7 @@
 
 # include  "config.h"
 # include  "vvp_net.h"
+# include  <vector>
 
 /*
  * Resolver nodes are similar to wide functors, in that they may have
@@ -53,6 +54,11 @@ class resolv_core : public vvp_net_fun_t {
 
       virtual void count_drivers(unsigned bit_idx, unsigned counts[3]) =0;
 
+      void set_input_source(unsigned port, vvp_net_t*source);
+      bool sole_part_pv_source(unsigned bit, const vvp_net_t*source,
+                               unsigned source_port) const;
+      vvp_net_t* output_net() const { return net_; }
+
       void enable_driver_activity_notifications()
             { notify_driver_activity_ = true; }
 
@@ -71,6 +77,7 @@ class resolv_core : public vvp_net_fun_t {
       unsigned nports_;
       vvp_net_t*net_;
       bool notify_driver_activity_;
+      std::vector<vvp_net_t*> input_sources_;
 };
 
 class resolv_extend : public vvp_net_fun_t {
@@ -95,6 +102,11 @@ class resolv_extend : public vvp_net_fun_t {
 			unsigned base, unsigned vwid) override
             { core_->recv_vec8_pv_(port_base_ + port.port(), bit,
                                    base, vwid); }
+
+      void set_input_source(unsigned port, vvp_net_t*source)
+            { core_->set_input_source(port_base_ + port, source); }
+      resolv_core* core() const { return core_; }
+      unsigned core_port(unsigned port) const { return port_base_ + port; }
 
     private:
       resolv_core*core_;
@@ -121,6 +133,7 @@ class resolv_tri : public resolv_core {
       ~resolv_tri() override;
 
       void count_drivers(unsigned bit_idx, unsigned counts[3]) override;
+      bool is_plain_tri() const { return hiz_value_.is_hiz(); }
 
     private:
       void recv_vec4_(unsigned port, const vvp_vector4_t&bit) override;

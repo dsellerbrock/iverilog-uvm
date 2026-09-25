@@ -1,0 +1,10 @@
+Final private tool SHA256: ivl 7840b445f0353cc47af9a794c1bf98fc14b1afe549ff4ca26d492eaa755a668c; vvp dc5beaf5988e15ba51bfeb8d4fb61b112461e6bc5d0209fcce34f6cc8239c560; system.vpi 6b59b37766c36c7704d71d255fa9918372876b141515e302aa4594715b554f96
+make check: Hello, World (exit 0)
+packed-chain focus legacy: Total=7, Passed=7, Failed=0
+packed-chain and SDF focus JSON: Ran 8, Failed 0
+full JSON: Ran 3661, Failed 0
+full legacy: Total=6620, Passed=6615, Failed=0, Not Implemented=2, Expected Fail=3
+negative tests: 155 passed, 0 failed
+sva_nfa dual-run: 62 passed, 0 failed
+VPI with PLI1: Total=140, Passed=140, Failed=0
+REAL DPI UVM: 358 passed, 0 failed, 0 skipped

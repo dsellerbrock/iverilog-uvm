@@ -18,6 +18,7 @@
  */
 
 # include  "resolv.h"
+# include  "part.h"
 # include  "schedule.h"
 # include  "compile.h"
 # include  "statistics.h"
@@ -42,13 +43,44 @@ using namespace std;
 
 
 resolv_core::resolv_core(unsigned nports, vvp_net_t*net)
-: nports_(nports), net_(net), notify_driver_activity_(false)
+: nports_(nports), net_(net), notify_driver_activity_(false),
+  input_sources_(nports, nullptr)
 {
       count_functors_resolv += 1;
 }
 
 resolv_core::~resolv_core()
 {
+}
+
+void resolv_core::set_input_source(unsigned port, vvp_net_t*source)
+{
+      assert(port < nports_);
+      input_sources_[port] = source;
+}
+
+bool resolv_core::sole_part_pv_source(unsigned bit,
+                                     const vvp_net_t*source,
+                                     unsigned source_port) const
+{
+      if (source_port >= nports_ || input_sources_[source_port] != source)
+	    return false;
+      bool found = false;
+      for (unsigned port = 0; port < nports_; ++port) {
+	    const vvp_net_t*input = input_sources_[port];
+	    // Constants, unresolved links, and full-width drivers may drive bit.
+	    if (!input)
+		  return false;
+	    const auto*part = dynamic_cast<const vvp_fun_part_pv*>(input->fun);
+	    if (!part)
+		  return false;
+	    if (bit < part->get_base() || bit - part->get_base() >= part->get_wid())
+		  continue;
+	    if (port != source_port || found)
+		  return false;
+	    found = true;
+      }
+      return found;
 }
 
 void resolv_core::notify_driver_activity()
