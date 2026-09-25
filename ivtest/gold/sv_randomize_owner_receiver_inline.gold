@@ -1,0 +1,3 @@
+./ivltests/sv_randomize_owner_receiver_inline.v:33: warning: method function 'randomize' is being called as a task.
+./ivltests/sv_randomize_owner_receiver_inline.v:63: warning: method function 'randomize' is being called as a task.
+PASSED

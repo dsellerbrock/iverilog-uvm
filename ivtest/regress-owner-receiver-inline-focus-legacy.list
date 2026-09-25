@@ -1,0 +1,4 @@
+sv_randomize_owner_receiver_inline normal,-g2017,-s,sv_randomize_owner_receiver_inline ivltests gold=sv_randomize_owner_receiver_inline.gold
+sv_randomize_owner_receiver_inline_2023 normal,-g2023,-s,sv_randomize_owner_receiver_inline ivltests gold=sv_randomize_owner_receiver_inline.gold
+sv_randomize_owner_receiver_invalid CE,-g2017,-s,sv_randomize_owner_receiver_invalid ivltests gold=sv_randomize_owner_receiver_invalid.gold
+sv_randomize_owner_receiver_invalid_2023 CE,-g2023,-s,sv_randomize_owner_receiver_invalid ivltests gold=sv_randomize_owner_receiver_invalid_2023.gold
