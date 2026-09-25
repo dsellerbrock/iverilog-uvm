@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: a conditional joint distribution with randc cannot be proved exactly.
+PASSED
