@@ -27426,6 +27426,36 @@ static string constraint_parameter_member_select_ir_(
       return result + ")";
 }
 
+/* A constraint constant of any width. Up to 64 bits it is one c: atom;
+ * wider values are 64-bit chunks joined by concat (most significant first),
+ * the form the runtime also uses for wide captured values. Only V1 bits are
+ * set, as in the 64-bit atom. */
+static string constraint_const_bits_ir_(const verinum&v, unsigned width,
+					bool is_signed)
+{
+      auto chunk = [&](unsigned low, unsigned chunk_width) {
+	    uint64_t bits = 0;
+	    for (unsigned i = 0 ; i < chunk_width ; i += 1)
+		  if (low + i < v.len() && v.get(low + i) == verinum::V1)
+			bits |= (uint64_t)1 << i;
+	    return to_string(bits);
+      };
+      if (width <= 64)
+	    return "c:" + chunk(0, width) + ":" + to_string(width)
+		  + (is_signed ? ":s" : "");
+      string parts;
+      for (unsigned high = width ; high > 0 ; ) {
+	    unsigned low = high > 64 ? high - 64 : 0;
+	    parts += " c:" + chunk(low, high - low) + ":"
+		  + to_string(high - low);
+	    high = low;
+      }
+      string ir = "(concat" + parts + ")";
+      if (is_signed)
+	    ir = "(trunc:" + to_string(width) + ":s " + ir + ")";
+      return ir;
+}
+
 static string constraint_constant_ir_(const PEIdent*id,
 				       const NetScope*scope,
 				       const netclass_t*cls,
@@ -27442,8 +27472,7 @@ static string constraint_constant_ir_(const PEIdent*id,
 		  if (val->expr_type() == IVL_VT_STRING) return "";
 		  *full_value = v;
 	    } else if (constraint_dist_reject_wide_value_(id, v)) return "";
-	    return "c:" + to_string(v.as_ulong64()) + ":"
-		  + to_string(v.len()) + (v.has_sign() ? ":s" : "");
+	    return constraint_const_bits_ir_(v, v.len(), v.has_sign());
       };
       bool declared = false;
       auto in_scope = [&](NetScope*sc, perm_string name) -> string {
@@ -27617,7 +27646,7 @@ static string constraint_class_state_path_ir_(
 
       if (!constraint_state_prop_ok_(cur_type, false)) return "";
       unsigned wid = cur_type ? cur_type->packed_width() : 0;
-      if (wid == 0 || (wid > 64 && !constraint_dist_payload_depth_)) wid = 32;
+      if (wid == 0) wid = 32;
       return "r:" + path + ":" + to_string(wid)
 	   + ((cur_type && cur_type->get_signed()) ? ":s" : "");
 }
@@ -31573,7 +31602,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    const verinum&v = num->value();
 	    if (constraint_dist_reject_wide_value_(num, v)) return "";
-	    uint64_t val = 0;
 	    unsigned bits = v.len();
 	      // An unsized integer literal has at least the implementation's
 	      // integer width (IEEE 1800-2017 5.7.1).  Using only its trimmed
@@ -31582,11 +31610,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // is 32 bits when evaluated by the language runtime.
 	    if (!v.has_len() && !v.is_single() && bits < integer_width)
 		  bits = integer_width;
-	    for (unsigned i = 0 ; i < v.len() && i < 64 ; i += 1)
-		  if (v.get(i) == verinum::V1)
-			val |= (uint64_t)1 << i;
-	    return "c:" + to_string(val) + ":" + to_string(bits)
-		  + (v.has_sign() ? ":s" : "");
+	    return constraint_const_bits_ir_(v, bits, v.has_sign());
       }
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {

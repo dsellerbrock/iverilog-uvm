@@ -6295,9 +6295,9 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 	    slot_words[i - 1] = word;
 	    uint64_t bits = 0;
 	    for (unsigned b = 0; b < word.size(); ++b) {
-		  if (word.value(b) == BIT4_1 && b < 64)
-			bits |= UINT64_C(1) << b;
-		  else if (word.value(b) != BIT4_0)
+		  if (word.value(b) == BIT4_1) {
+			if (b < 64) bits |= UINT64_C(1) << b;
+		  } else if (word.value(b) != BIT4_0)
 			unknown[i - 1] = true;
 	    }
 	    slot_vals[i - 1] = bits;

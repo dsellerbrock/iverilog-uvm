@@ -37,6 +37,7 @@
 # include  <cctype>
 # include  <cstdlib>
 # include  <cstring>
+# include  <memory>
 # include  <sstream>
 # include  <map>
 # include  <set>
@@ -1383,6 +1384,21 @@ static bool vec4_is_two_state_(const vvp_vector4_t&value)
       return true;
 }
 
+/* Ground a two-state state value as a constant of the given bit-vector
+ * width, zero-extended or truncated like Z3_mk_unsigned_int64, at any width
+ * (IEEE 1800-2017/2023 18.3). X/Z still fails. */
+static bool vec4_to_bv_const_(Z3_context ctx, const vvp_vector4_t&value,
+			      unsigned width, Z3_ast&out)
+{
+      if (value.size() == 0 || width == 0 || !vec4_is_two_state_(value))
+	    return false;
+      std::unique_ptr<bool[]> bits(new bool[width]);
+      for (unsigned bit = 0; bit < width; ++bit)
+	    bits[bit] = bit < value.size() && value.value(bit) == BIT4_1;
+      out = Z3_mk_bv_numeral(ctx, width, bits.get());
+      return true;
+}
+
 /* Object reads must retain identity, not property_object::get_vec4's
  * intentional nullness view (IEEE 1800-2017/2023 8.4, 11.4.5, 18.4).
  * A null final handle is a value; a null owner or invalid index is an error. */
@@ -1469,12 +1485,11 @@ static Z3_ast scalar_property_ref_(Z3Builder&b, unsigned idx,
       if (b.graph && idx < b.graph->properties.size() && !b.graph->active(idx)) {
             vvp_vector4_t data;
             b.object(idx)->get_vec4(b.local_index(idx), data);
-            uint64_t bits = 0;
-            if (!vec4_to_uint64_(data, bits)) {
-                  b.state_errors.push_back("unsupported width or X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
-                  bits = 0;
+            Z3_ast value;
+            if (!vec4_to_bv_const_(b.ctx, data, width, value)) {
+                  b.state_errors.push_back("X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
+                  value = Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
             }
-            Z3_ast value = Z3_mk_unsigned_int64(b.ctx, bits, Z3_mk_bv_sort(b.ctx, width));
             return sflag ? b.tag_signed_constant(value) : value;
       }
       Z3_ast var = b.get_prop_var(idx, width);
@@ -1619,15 +1634,14 @@ static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
 	    if (!b.graph->element_active(idx, elem)) {
 		  vvp_vector4_t data;
 		  owner->get_vec4(member, data, elem);
-		  uint64_t bits = 0;
-		  if (!vec4_to_uint64_(data, bits)) {
+		  Z3_ast value;
+		  if (!vec4_to_bv_const_(b.ctx, data, width, value)) {
 			b.state_errors.push_back(
-			      "unsupported width or X/Z value in constraint guard "
+			      "X/Z value in constraint guard "
 			      "(IEEE 1800-2017/2023 18.3)");
-			bits = 0;
+			value = Z3_mk_unsigned_int64(
+			      b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
 		  }
-		  Z3_ast value = Z3_mk_unsigned_int64(
-			b.ctx, bits, Z3_mk_bv_sort(b.ctx, width));
 		  return sflag ? b.tag_signed_constant(value) : value;
 	    }
 	    Z3_ast var = b.get_elem_var(idx, width, elem);
@@ -1670,12 +1684,12 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       if (*p == ':') {
 	    char*end = nullptr;
 	    width = (unsigned)strtoul(p + 1, &end, 10);
-	    if (width == 0 || width > 64) width = 32;
+	    if (width == 0) width = 32;
 	    p = end;
 	    sflag = (*p == ':' && p[1] == 's');
       }
 
-      uint64_t bits = 0;
+      vvp_vector4_t state_value;
       vvp_cobject*cur = b.cobj;
       string path_error;
       if (!path.empty()) {
@@ -1688,12 +1702,7 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 	    if (!cur || path.back() >= cur->get_defn()->property_count())
                   path_error = "null/invalid constraint object path";
 	    if (path_error.empty()) {
-		  vvp_vector4_t vec;
-		  cur->get_vec4(path.back(), vec);
-		  unsigned nbits = vec.size();
-		  if (nbits > 64) nbits = 64;
-		  for (unsigned bit = 0 ; bit < nbits ; bit += 1)
-			if (vec.value(bit) == BIT4_1) bits |= (1ULL << bit);
+		  cur->get_vec4(path.back(), state_value);
 	    }
       }
 
@@ -1705,8 +1714,11 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       if (b.graph && cur && !path.empty())
             return scalar_property_ref_(b, b.graph->intern(cur, path.back()),
                                         width, sflag);
-      Z3_sort sort = Z3_mk_bv_sort(b.ctx, width);
-      Z3_ast val = Z3_mk_unsigned_int64(b.ctx, bits, sort);
+      Z3_ast val;
+      if (!vec4_to_bv_const_(b.ctx, state_value, width, val)) {
+            b.state_errors.push_back("X/Z value in constraint state (IEEE 1800-2017/2023 18.3)");
+            return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+      }
 	if (sflag) val = b.tag_signed_constant(val);
       return val;
 }
@@ -6245,12 +6257,15 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
             to.push_back(Z3_mk_unsigned_int64(b.ctx, number, Z3_get_sort(b.ctx, var)));
       };
       auto word = [&](Z3_ast var, const vvp_vector4_t&data) {
-            uint64_t number = 0;
-            if (!vec4_to_uint64_(data, number)) {
-                  b.state_errors.push_back("unsupported width or X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
+            Z3_ast value;
+            if (!vec4_to_bv_const_(b.ctx, data,
+                        Z3_get_bv_sort_size(b.ctx, Z3_get_sort(b.ctx, var)),
+                        value)) {
+                  b.state_errors.push_back("X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
                   return false;
             }
-            bits(var, number);
+            from.push_back(var);
+            to.push_back(value);
             return true;
       };
       for (const auto&ref : state_refs) {
