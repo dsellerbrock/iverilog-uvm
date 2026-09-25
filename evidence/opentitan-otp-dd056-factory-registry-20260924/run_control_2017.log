@@ -1,0 +1,2 @@
+PASS: same-parameter factory object accepted
+PASS: unequal-parameter factory object rejected

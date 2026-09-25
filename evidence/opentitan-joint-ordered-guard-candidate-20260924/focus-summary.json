@@ -1,0 +1,653 @@
+{
+  "runtime": "vvp/vvp",
+  "prior_passed": 22,
+  "prior_total": 22,
+  "added_passed": 6,
+  "added_total": 6,
+  "rows": [
+    {
+      "key": "sv_joint_proven_guard_conjunction",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_conjunction.vvp",
+        "-g2017",
+        "ivtest/ivltests/sv_joint_proven_guard_conjunction.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_conjunction.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_conjunction-vvp-stdout.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_conjunction_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_conjunction_2023.vvp",
+        "-g2023",
+        "ivtest/ivltests/sv_joint_proven_guard_conjunction.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_conjunction_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_conjunction-vvp-stdout.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_macro",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_macro.vvp",
+        "-g2017",
+        "ivtest/ivltests/sv_joint_proven_guard_macro.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_macro.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_macro-vvp-stdout.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_macro_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_macro_2023.vvp",
+        "-g2023",
+        "ivtest/ivltests/sv_joint_proven_guard_macro.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_macro_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_macro-vvp-stdout.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_positive",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_positive.vvp",
+        "-g2017",
+        "ivtest/ivltests/sv_joint_proven_guard_positive.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_positive.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_positive-vvp-stdout.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_positive_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_positive_2023.vvp",
+        "-g2023",
+        "ivtest/ivltests/sv_joint_proven_guard_positive.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_positive_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_positive-vvp-stdout.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_selfproof",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_selfproof.vvp",
+        "-g2017",
+        "ivtest/ivltests/sv_joint_proven_guard_selfproof.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_selfproof.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_selfproof-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_joint_proven_guard_selfproof-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_selfproof_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_selfproof_2023.vvp",
+        "-g2023",
+        "ivtest/ivltests/sv_joint_proven_guard_selfproof.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_selfproof_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_selfproof-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_joint_proven_guard_selfproof-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_unresolved",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_unresolved.vvp",
+        "-g2017",
+        "ivtest/ivltests/sv_joint_proven_guard_unresolved.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_unresolved.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_unresolved-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_joint_proven_guard_unresolved-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_joint_proven_guard_unresolved_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_unresolved_2023.vvp",
+        "-g2023",
+        "ivtest/ivltests/sv_joint_proven_guard_unresolved.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_proven_guard_unresolved_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_proven_guard_unresolved-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_joint_proven_guard_unresolved-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_dist_guarded_large_exact",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact.vvp",
+        "-g2017",
+        "ivtest/ivltests/sv_dist_guarded_large_exact.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_dist_guarded_large_exact-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_dist_guarded_large_exact-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_dist_guarded_large_exact_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact_2023.vvp",
+        "-g2023",
+        "ivtest/ivltests/sv_dist_guarded_large_exact_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_dist_guarded_large_exact_2023-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_dist_guarded_large_exact_2023-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_dist_guarded_large_exact_unresolved",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact_unresolved.vvp",
+        "-g2017",
+        "ivtest/ivltests/sv_dist_guarded_large_exact_unresolved.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact_unresolved.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_dist_guarded_large_exact_unresolved-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_dist_guarded_large_exact_unresolved-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_dist_guarded_large_exact_unresolved_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact_unresolved_2023.vvp",
+        "-g2023",
+        "ivtest/ivltests/sv_dist_guarded_large_exact_unresolved_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_dist_guarded_large_exact_unresolved_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_dist_guarded_large_exact_unresolved_2023-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_dist_guarded_large_exact_unresolved_2023-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist.vvp",
+        "-g2017",
+        "-s",
+        "sv_randomize_joint_ordered_dist",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_2023.vvp",
+        "-g2023",
+        "-s",
+        "sv_randomize_joint_ordered_dist",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist_fail",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_fail.vvp",
+        "-g2017",
+        "-s",
+        "sv_randomize_joint_ordered_dist_fail",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist_fail.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_fail.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_fail-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_fail-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist_fail_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_fail_2023.vvp",
+        "-g2023",
+        "-s",
+        "sv_randomize_joint_ordered_dist_fail",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist_fail.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_fail_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_fail-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_fail-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist_ranges",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_ranges.vvp",
+        "-g2017",
+        "-s",
+        "sv_randomize_joint_ordered_dist_ranges",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist_ranges.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_ranges.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_ranges-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_ranges-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist_ranges_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_ranges_2023.vvp",
+        "-g2023",
+        "-s",
+        "sv_randomize_joint_ordered_dist_ranges",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist_ranges_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_ranges_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_ranges-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_ranges-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist_transaction",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_transaction.vvp",
+        "-g2017",
+        "-s",
+        "sv_randomize_joint_ordered_dist_transaction",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist_transaction.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_transaction.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_transaction-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_transaction-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_randomize_joint_ordered_dist_transaction_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_transaction_2023.vvp",
+        "-g2023",
+        "-s",
+        "sv_randomize_joint_ordered_dist_transaction",
+        "ivtest/ivltests/sv_randomize_joint_ordered_dist_transaction_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_randomize_joint_ordered_dist_transaction_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_transaction-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_randomize_joint_ordered_dist_transaction-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_joint_ordered_guard_fiber",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_fiber.vvp",
+        "-g2017",
+        "-s",
+        "sv_joint_ordered_guard_fiber",
+        "ivtest/ivltests/sv_joint_ordered_guard_fiber.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_fiber.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_ordered_guard_fiber.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_ordered_guard_fiber_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_fiber_2023.vvp",
+        "-g2023",
+        "-s",
+        "sv_joint_ordered_guard_fiber",
+        "ivtest/ivltests/sv_joint_ordered_guard_fiber_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_fiber_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_ordered_guard_fiber.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_ordered_guard_tautology",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_tautology.vvp",
+        "-g2017",
+        "-s",
+        "sv_joint_ordered_guard_tautology",
+        "ivtest/ivltests/sv_joint_ordered_guard_tautology.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_tautology.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_ordered_guard_tautology.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_ordered_guard_tautology_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_tautology_2023.vvp",
+        "-g2023",
+        "-s",
+        "sv_joint_ordered_guard_tautology",
+        "ivtest/ivltests/sv_joint_ordered_guard_tautology_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_tautology_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_ordered_guard_tautology.gold",
+      "stderr_gold": null,
+      "passed": true
+    },
+    {
+      "key": "sv_joint_ordered_guard_coupled_reject",
+      "edition": "2017",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_coupled_reject.vvp",
+        "-g2017",
+        "-s",
+        "sv_joint_ordered_guard_coupled_reject",
+        "ivtest/ivltests/sv_joint_ordered_guard_coupled_reject.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_coupled_reject.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_ordered_guard_coupled_reject-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_joint_ordered_guard_coupled_reject-vvp-stderr.gold",
+      "passed": true
+    },
+    {
+      "key": "sv_joint_ordered_guard_coupled_reject_2023",
+      "edition": "2023",
+      "compile_cmd": [
+        "local-install/bin/iverilog",
+        "-Iivtest",
+        "-Iivtest/ivltests",
+        "-o",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_coupled_reject_2023.vvp",
+        "-g2023",
+        "-s",
+        "sv_joint_ordered_guard_coupled_reject",
+        "ivtest/ivltests/sv_joint_ordered_guard_coupled_reject_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_cmd": [
+        "vvp/vvp",
+        "/tmp/ot-joint-focus-20260924/sv_joint_ordered_guard_coupled_reject_2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "stdout_gold": "ivtest/gold/sv_joint_ordered_guard_coupled_reject-vvp-stdout.gold",
+      "stderr_gold": "ivtest/gold/sv_joint_ordered_guard_coupled_reject-vvp-stderr.gold",
+      "passed": true
+    }
+  ]
+}

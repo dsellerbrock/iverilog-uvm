@@ -1,0 +1,8 @@
+{
+  "command": "perl vvp_reg.pl regress-joint-proven-guard-legacy.list",
+  "exit_code": 0,
+  "elapsed_seconds": 84.725,
+  "ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
+  "vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "log_sha256": "bcc7cbdfe2ef551f6c12e43162a71e5a87e6cf962834953070180aa952dc433a"
+}

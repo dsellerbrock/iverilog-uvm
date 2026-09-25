@@ -1,0 +1,8 @@
+{
+  "command": "python3 vvp_reg.py regress-joint-proven-guard-vvp.list",
+  "exit_code": 0,
+  "elapsed_seconds": 127.133,
+  "ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
+  "vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "log_sha256": "c688ba7b5554903b92adcff4b5b15db574df4f9c0419434bcd06ddbce8ebfbeb"
+}

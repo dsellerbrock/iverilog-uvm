@@ -1,0 +1,134 @@
+{
+  "compiler_engine_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
+  "vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "cases": [
+    {
+      "edition": "2017",
+      "name": "parent_control",
+      "source_sha256": "d8afdb0cb2e9d29f1b51256423ccb96e5bcf0672d01896710abf2b859d4df87b",
+      "compile_argv": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2017",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/parent_control-2017.vvp",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/parent_vif_control.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+        "-n",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/parent_control-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_log_sha256": "13bd516a31fe8e271972f6025aae98c522f748ecf20d71da3d1c66276cd3c78a",
+      "runtime_pass_marker": true
+    },
+    {
+      "edition": "2017",
+      "name": "direct_child_control",
+      "source_sha256": "3b1cf2275bc59acf7835b61fb9af97649673683c4ca97a0be3b020237802bdfb",
+      "compile_argv": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2017",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/direct_child_control-2017.vvp",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/direct_nested_control.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+        "-n",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/direct_child_control-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_log_sha256": "bd9ded02ecbf7c6b276bebbbfac07fa3e6e1c8108020029c464d64ffd48be700",
+      "runtime_pass_marker": true
+    },
+    {
+      "edition": "2017",
+      "name": "class_nested_red",
+      "source_sha256": "3698ffb9317e2b163d4fd20832c21ddbd944bc9730150c971c027b4ffd70c076",
+      "compile_argv": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2017",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/class_nested_red-2017.vvp",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/nested_vif_put_only.sv"
+      ],
+      "compile_exit": 255,
+      "compile_log_sha256": "9bc616b8dc4e647c822b034b8602f4e2595682ee47ad79f65b3ed32b01aeb2c9"
+    },
+    {
+      "edition": "2023",
+      "name": "parent_control",
+      "source_sha256": "d8afdb0cb2e9d29f1b51256423ccb96e5bcf0672d01896710abf2b859d4df87b",
+      "compile_argv": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2023",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/parent_control-2023.vvp",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/parent_vif_control.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+        "-n",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/parent_control-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_log_sha256": "13bd516a31fe8e271972f6025aae98c522f748ecf20d71da3d1c66276cd3c78a",
+      "runtime_pass_marker": true
+    },
+    {
+      "edition": "2023",
+      "name": "direct_child_control",
+      "source_sha256": "3b1cf2275bc59acf7835b61fb9af97649673683c4ca97a0be3b020237802bdfb",
+      "compile_argv": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2023",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/direct_child_control-2023.vvp",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/direct_nested_control.sv"
+      ],
+      "compile_exit": 0,
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+        "-n",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/direct_child_control-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_log_sha256": "bd9ded02ecbf7c6b276bebbbfac07fa3e6e1c8108020029c464d64ffd48be700",
+      "runtime_pass_marker": true
+    },
+    {
+      "edition": "2023",
+      "name": "class_nested_red",
+      "source_sha256": "3698ffb9317e2b163d4fd20832c21ddbd944bc9730150c971c027b4ffd70c076",
+      "compile_argv": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2023",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/class_nested_red-2023.vvp",
+        "/tmp/ot-csrng-vif-handoff-probe-20260924/nested_vif_put_only.sv"
+      ],
+      "compile_exit": 255,
+      "compile_log_sha256": "9bc616b8dc4e647c822b034b8602f4e2595682ee47ad79f65b3ed32b01aeb2c9"
+    }
+  ]
+}

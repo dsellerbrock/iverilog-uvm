@@ -3418,3 +3418,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Pinned compile and smoke](../../evidence/opentitan-otp-vif-fixed-input-20260924/README.md); the generated VVP has the padded string and the target `mem` array.
 - **Reproducer status:** confirmed in the released OTP runtime; paired 2017/2023 continued, flattened, and literal-space controls are in [the path-overlay evidence](../../evidence/opentitan-otp-backdoor-path-overlay-20260924/README.md).
 - **Triage status:** promoted to BLOCKERS.md as OT-OTP-BACKDOOR-PATH-COMPAT; a hash-checked disposable-source overlay clears the path fatal while preserving the backdoor fatal and width/depth checks. The released smoke then fails on the distinct joint-distribution blocker. IEEE macro-whitespace classification remains separate.
+
+### DD-055 — CSRNG nested virtual-interface value omitted at config-db handoff
+
+- **Discovered while working:** OT-CSRNG-CFG-JOINT-DIST
+- **Observation:** The private ordered-guard VVP advances the pinned CSRNG smoke past cfg.randomize(), but the same 0 ps replay reports a null %wait/vif/posedge, TL-UL assertion, and TEST FAILED CHECKS. VVP exit 0 is not a DV pass. A hash-verified opcode probe locates the failing wait in the 129-bit genbits push-pull monitor. The parent CSRNG VIF is nonnull and the nested agent receives its config object, but the child VIF is null before monitor assignment. In the original VVP image, the two config-db set calls for cfg.vif.cmd_push_if and cfg.vif.genbits_push_if omit the %store/obj for formal value, so the callee receives default null.
+- **File/function:** PCallTask::elaborate_build_call_ in elaborate.cc builds the copy-in assignment; PEIdent::elaborate_expr_class_field_ in elab_expr.cc resolves the class-held nested VIF actual, and tgt-vvp/stmt_assign.c emits a valid object store. Which compiler stage loses the assignment remains to be traced.
+- **Possible clause:** N/A until the compiler path is reduced/classified; the released parent-to-child VIF handoff should preserve the interface object value.
+- **Evidence:** [Hash-checked released replay, bytecode and paired 2017/2023 RED/controls](../../evidence/opentitan-csrng-nested-vif-handoff-20260924/README.md).
+- **Reproducer status:** parent-VIF and direct-nested controls compile/run; class-held nested handoff fails code generation -3 in strict 2017 and 2023. The original released image shows omitted value stores.
+- **Triage status:** independent compiler lowering blocker, outside the ordered-guard solver patch. CSRNG remains 0/1 DV, and no compiler fix has been applied.
+
+### DD-056 — OTP smoke reaches an EDN pull-agent sequencer cast fatal
+
+- **Discovered while working:** OT-CSRNG-CFG-JOINT-DIST
+- **Observation:** The private ordered-guard VVP advances the named-overlay OTP smoke past cfg.randomize(), then dv_base_seq.sv:10 raises DCLPSQ at 0 ps for m_edn_pull_agent[0].sequencer. The compiled factory creates a push_pull_sequencer #(32,33) descriptor different from the same-parameter descriptor required by p_sequencer; both use the same registry get. A bytecode-only diagnostic accepting the factory descriptor clears DCLPSQ but the run still ends in assertion failure, so OTP remains 0/1 DV with no meaningful traffic or pass.
+- **File/function:** elab_scope.cc:3533-3540 uses source-sensitive specialization keys for multiple value parameters; elaborate_specialized_class_type in elab_scope.cc:4013-4043 uses the semantic cache only for C-prefixed keys. Named versus positional forms of the same parameter values therefore emit different class descriptors.
+- **Possible clause:** IEEE 1800-2017/2023 parameterized class type identity; classify against the exact clauses before a conformance claim.
+- **Evidence:** [Paired 2017/2023 RED and bytecode probes](../../evidence/opentitan-otp-dd056-factory-registry-20260924/README.md) and [private pinned OTP replay](../../evidence/opentitan-joint-ordered-guard-candidate-20260924/otp-private-runtime.log).
+- **Reproducer status:** paired named/positional equal-value specialization casts fail in both editions; positional-only controls pass and unequal-value casts reject as expected.
+- **Triage status:** separate compiler canonicalization blocker, outside the selected vvp/vvp_z3.cc solver patch. No pinned-source or compiler fix has been applied.

@@ -1,0 +1,16 @@
+{
+  "command": "bash .github/uvm_test.sh",
+  "private_tool_path": "/tmp/ot-joint-private-tools-20260924",
+  "private_ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "exit_code": 0,
+  "real_dpi_loaded": true,
+  "elapsed_seconds": 902.379,
+  "log_sha256": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12",
+  "summary": {
+    "passed": 358,
+    "failed": 0,
+    "skipped": 0,
+    "real_dpi_loaded": true
+  }
+}

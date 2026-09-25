@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+    "-n",
+    "/tmp/ot-csrng-vif-handoff-probe-20260924/csrng-parent.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "image_sha256": "5a4c29626e0345ae07cde764a449b8493696d80859a00d773a5b22096bf8e3bc",
+  "vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "returncode": 0,
+  "timed_out": false,
+  "duration_seconds": 11.155,
+  "log_sha256": "4b1391ec504a18f821d6f1ed06d7429c91a45ed8bd0e6ed40bf44ea7a860b97d",
+  "parent_markers": 2,
+  "agent_markers": 6,
+  "monitor_markers": 2,
+  "vif_runtime_errors": 1,
+  "test_failed_markers": 1
+}

@@ -1,0 +1,305 @@
+{
+  "original_image_sha256": "932928e71a04af7f8be2a08eabecf6f96da81226bdf0c394033db0ed566d576c",
+  "copy_image_sha256": "36347e1fae3a4bc6d41a143756a162d479fad21cf94fc693a293eaf98f914058",
+  "restored_original_sha256": "932928e71a04af7f8be2a08eabecf6f96da81226bdf0c394033db0ed566d576c",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+    "-n",
+    "/tmp/ot-csrng-vif-opcode-probe-20260924/csrng-smoke-wait-probe.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "returncode": 0,
+  "duration_seconds": 10.06,
+  "markers": [
+    {
+      "site": 1,
+      "line": 11409,
+      "function": "TD_alert_esc_agent_pkg.alert_esc_base_driver.get_req ",
+      "marker": "IVL_WAIT_PROBE_01_VVP_LINE_11409"
+    },
+    {
+      "site": 2,
+      "line": 11897,
+      "function": "TD_alert_esc_agent_pkg.alert_esc_base_monitor.reset_thread ",
+      "marker": "IVL_WAIT_PROBE_02_VVP_LINE_11897"
+    },
+    {
+      "site": 3,
+      "line": 11938,
+      "function": "TD_alert_esc_agent_pkg.alert_esc_base_monitor.wait_for_reset_done ",
+      "marker": "IVL_WAIT_PROBE_03_VVP_LINE_11938"
+    },
+    {
+      "site": 4,
+      "line": 23741,
+      "function": "TD_alert_esc_agent_pkg.alert_monitor.alert_init_thread ",
+      "marker": "IVL_WAIT_PROBE_04_VVP_LINE_23741"
+    },
+    {
+      "site": 5,
+      "line": 25840,
+      "function": "TD_alert_esc_agent_pkg.alert_monitor.reset_thread ",
+      "marker": "IVL_WAIT_PROBE_05_VVP_LINE_25840"
+    },
+    {
+      "site": 6,
+      "line": 26319,
+      "function": "TD_alert_esc_agent_pkg.alert_monitor.wait_alert_init_done ",
+      "marker": "IVL_WAIT_PROBE_06_VVP_LINE_26319"
+    },
+    {
+      "site": 7,
+      "line": 27878,
+      "function": "TD_alert_esc_agent_pkg.alert_receiver_driver.alert_init_thread ",
+      "marker": "IVL_WAIT_PROBE_07_VVP_LINE_27878"
+    },
+    {
+      "site": 8,
+      "line": 29220,
+      "function": "TD_alert_esc_agent_pkg.alert_receiver_driver.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_08_VVP_LINE_29220"
+    },
+    {
+      "site": 9,
+      "line": 31545,
+      "function": "TD_alert_esc_agent_pkg.alert_sender_driver.alert_init_thread ",
+      "marker": "IVL_WAIT_PROBE_09_VVP_LINE_31545"
+    },
+    {
+      "site": 10,
+      "line": 33564,
+      "function": "TD_alert_esc_agent_pkg.alert_sender_driver.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_10_VVP_LINE_33564"
+    },
+    {
+      "site": 11,
+      "line": 39861,
+      "function": "TD_alert_esc_agent_pkg.esc_receiver_driver.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_11_VVP_LINE_39861"
+    },
+    {
+      "site": 12,
+      "line": 41629,
+      "function": "TD_alert_esc_agent_pkg.esc_sender_driver.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_12_VVP_LINE_41629"
+    },
+    {
+      "site": 13,
+      "line": 237914,
+      "function": "TD_csrng_agent_pkg.csrng_monitor.handle_reset ",
+      "marker": "IVL_WAIT_PROBE_13_VVP_LINE_237914"
+    },
+    {
+      "site": 14,
+      "line": 237967,
+      "function": "TD_csrng_agent_pkg.csrng_monitor.run_phase ",
+      "marker": "IVL_WAIT_PROBE_14_VVP_LINE_237967"
+    },
+    {
+      "site": 15,
+      "line": 350801,
+      "function": "TD_dv_lib_pkg._ivl_37.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_15_VVP_LINE_350801"
+    },
+    {
+      "site": 16,
+      "line": 356371,
+      "function": "TD_dv_lib_pkg._ivl_40.wait_for_reset ",
+      "marker": "IVL_WAIT_PROBE_16_VVP_LINE_356371"
+    },
+    {
+      "site": 17,
+      "line": 361969,
+      "function": "TD_dv_lib_pkg._ivl_48.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_17_VVP_LINE_361969"
+    },
+    {
+      "site": 18,
+      "line": 362910,
+      "function": "TD_dv_lib_pkg._ivl_50.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_18_VVP_LINE_362910"
+    },
+    {
+      "site": 19,
+      "line": 363626,
+      "function": "TD_dv_lib_pkg._ivl_52.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_19_VVP_LINE_363626"
+    },
+    {
+      "site": 20,
+      "line": 370941,
+      "function": "TD_dv_lib_pkg._ivl_59.wait_for_reset ",
+      "marker": "IVL_WAIT_PROBE_20_VVP_LINE_370941"
+    },
+    {
+      "site": 21,
+      "line": 405425,
+      "function": "TD_dv_lib_pkg.dv_base_scoreboard.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_21_VVP_LINE_405425"
+    },
+    {
+      "site": 22,
+      "line": 409835,
+      "function": "TD_dv_lib_pkg.dv_base_vseq.wait_for_reset ",
+      "marker": "IVL_WAIT_PROBE_22_VVP_LINE_409835"
+    },
+    {
+      "site": 23,
+      "line": 577534,
+      "function": "TD_push_pull_agent_pkg._ivl_23.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_23_VVP_LINE_577534"
+    },
+    {
+      "site": 24,
+      "line": 579602,
+      "function": "TD_push_pull_agent_pkg._ivl_25.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_24_VVP_LINE_579602"
+    },
+    {
+      "site": 25,
+      "line": 579655,
+      "function": "TD_push_pull_agent_pkg._ivl_25.run_phase ",
+      "marker": "IVL_WAIT_PROBE_25_VVP_LINE_579655"
+    },
+    {
+      "site": 26,
+      "line": 618854,
+      "function": "TD_push_pull_agent_pkg._ivl_33.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_26_VVP_LINE_618854"
+    },
+    {
+      "site": 27,
+      "line": 620832,
+      "function": "TD_push_pull_agent_pkg._ivl_35.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_27_VVP_LINE_620832"
+    },
+    {
+      "site": 28,
+      "line": 620885,
+      "function": "TD_push_pull_agent_pkg._ivl_35.run_phase ",
+      "marker": "IVL_WAIT_PROBE_28_VVP_LINE_620885"
+    },
+    {
+      "site": 29,
+      "line": 684455,
+      "function": "TD_push_pull_agent_pkg._ivl_49.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_29_VVP_LINE_684455"
+    },
+    {
+      "site": 30,
+      "line": 694365,
+      "function": "TD_push_pull_agent_pkg._ivl_52.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_30_VVP_LINE_694365"
+    },
+    {
+      "site": 31,
+      "line": 694418,
+      "function": "TD_push_pull_agent_pkg._ivl_52.run_phase ",
+      "marker": "IVL_WAIT_PROBE_31_VVP_LINE_694418"
+    },
+    {
+      "site": 32,
+      "line": 710647,
+      "function": "TD_push_pull_agent_pkg._ivl_56.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_32_VVP_LINE_710647"
+    },
+    {
+      "site": 33,
+      "line": 716606,
+      "function": "TD_push_pull_agent_pkg._ivl_59.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_33_VVP_LINE_716606"
+    },
+    {
+      "site": 34,
+      "line": 716659,
+      "function": "TD_push_pull_agent_pkg._ivl_59.run_phase ",
+      "marker": "IVL_WAIT_PROBE_34_VVP_LINE_716659"
+    },
+    {
+      "site": 35,
+      "line": 793689,
+      "function": "TD_push_pull_agent_pkg._ivl_81.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_35_VVP_LINE_793689"
+    },
+    {
+      "site": 36,
+      "line": 795651,
+      "function": "TD_push_pull_agent_pkg._ivl_82.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_36_VVP_LINE_795651"
+    },
+    {
+      "site": 37,
+      "line": 795704,
+      "function": "TD_push_pull_agent_pkg._ivl_82.run_phase ",
+      "marker": "IVL_WAIT_PROBE_37_VVP_LINE_795704"
+    },
+    {
+      "site": 38,
+      "line": 796989,
+      "function": "TD_push_pull_agent_pkg._ivl_85.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_38_VVP_LINE_796989"
+    },
+    {
+      "site": 39,
+      "line": 798915,
+      "function": "TD_push_pull_agent_pkg._ivl_86.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_39_VVP_LINE_798915"
+    },
+    {
+      "site": 40,
+      "line": 798968,
+      "function": "TD_push_pull_agent_pkg._ivl_86.run_phase ",
+      "marker": "IVL_WAIT_PROBE_40_VVP_LINE_798968"
+    },
+    {
+      "site": 41,
+      "line": 861627,
+      "function": "TD_push_pull_agent_pkg.push_pull_driver.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_41_VVP_LINE_861627"
+    },
+    {
+      "site": 42,
+      "line": 868572,
+      "function": "TD_push_pull_agent_pkg.push_pull_monitor.monitor_reset ",
+      "marker": "IVL_WAIT_PROBE_42_VVP_LINE_868572"
+    },
+    {
+      "site": 43,
+      "line": 868625,
+      "function": "TD_push_pull_agent_pkg.push_pull_monitor.run_phase ",
+      "marker": "IVL_WAIT_PROBE_43_VVP_LINE_868625"
+    },
+    {
+      "site": 44,
+      "line": 892661,
+      "function": "TD_tl_agent_pkg.tl_device_driver.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_44_VVP_LINE_892661"
+    },
+    {
+      "site": 45,
+      "line": 898120,
+      "function": "TD_tl_agent_pkg.tl_host_driver.reset_signals ",
+      "marker": "IVL_WAIT_PROBE_45_VVP_LINE_898120"
+    },
+    {
+      "site": 46,
+      "line": 905222,
+      "function": "TD_tl_agent_pkg.tl_monitor.reset_thread ",
+      "marker": "IVL_WAIT_PROBE_46_VVP_LINE_905222"
+    },
+    {
+      "site": 47,
+      "line": 905440,
+      "function": "TD_tl_agent_pkg.tl_monitor.wait_for_reset_done ",
+      "marker": "IVL_WAIT_PROBE_47_VVP_LINE_905440"
+    }
+  ],
+  "log_sha256": "6c1e4ec787b08a1fdfc9a1806ca52b9ca6ecb004f6bb9d47850a0355af50ddba"
+}

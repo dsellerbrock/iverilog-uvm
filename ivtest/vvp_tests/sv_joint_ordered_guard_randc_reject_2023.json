@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_joint_ordered_guard_randc_reject_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-Iivltests",
+    "-s",
+    "sv_joint_ordered_guard_randc_reject"
+  ],
+  "gold": "sv_joint_ordered_guard_randc_reject"
+}

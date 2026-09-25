@@ -7320,7 +7320,8 @@ static bool z3_full_power_two_domain_(Z3_context ctx, Z3_solver base,
  * auxiliary bindings, so indirect dependencies cannot disappear from a factor.
  * Keep the shared solver for feasibility; this partitions sampling, not solving. */
 static bool z3_joint_components_(Z3_context ctx, Z3_solver base,
-      const vector<Z3_ast>&variables, vector<vector<Z3_ast> >&components)
+      const vector<Z3_ast>&variables, vector<vector<Z3_ast> >&components,
+      const vector<pair<Z3_ast,Z3_ast> >&preference_edges = {})
 {
       map<Z3_ast, Z3_ast> parent;
       auto root = [&](Z3_ast var) {
@@ -7372,6 +7373,8 @@ static bool z3_joint_components_(Z3_context ctx, Z3_solver base,
                         pending.push_back(Z3_get_app_arg(ctx, app, i));
             }
       }
+      for (const auto&edge : preference_edges)
+            parent[root(edge.first)] = root(edge.second);
       // Preserve first semantic occurrence order, independent of AST addresses.
       map<Z3_ast, size_t> positions;
       components.clear();
@@ -8544,12 +8547,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         stages[ev.var] = final_stage - found->second;
             }
             vector<vector<Z3_ast> > components;
-            if (!z3_joint_components_(ctx, base, variables, components))
+            vector<pair<Z3_ast,Z3_ast> > preference_edges;
+            for (const auto&spec : builder.dist_specs) {
+                  if (dist_disabled(spec) || !dist_active(spec)) continue;
+                  for (Z3_ast guard : spec.guards) {
+                        set<Z3_ast> constants;
+                        if (!z3_collect_constants_(ctx, guard, constants))
+                              return fail_joint("a joint distribution guard contains an unsupported expression");
+                        for (Z3_ast constant : constants)
+                              preference_edges.emplace_back(spec.subject, constant);
+                  }
+            }
+            if (!z3_joint_components_(ctx, base, variables, components,
+                  preference_edges))
                   return fail_joint("the joint dependency graph contains an unsupported expression");
             struct JointDistBinding {
                   const Z3Builder::DistSpec*spec;
                   size_t subject_column;
                   unsigned stage;
+                  bool conditional;
             };
             vector<vector<JointDistBinding> > distributions(components.size());
             for (auto&spec : builder.dist_specs) {
@@ -8561,6 +8577,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   // complete hard constraint set before any joint draw; a
                   // variable guard needs conditional-fiber sampling and must
                   // not be treated as an unconditional preference.
+                  bool conditional = false;
                   if (!spec.guards.empty()) {
                         Z3_ast active = spec.guards.size() == 1
                               ? spec.guards.front()
@@ -8578,8 +8595,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                             && can_deactivate == Z3_L_FALSE)
                               return fail_joint(nullptr);
                         if (can_activate == Z3_L_FALSE) continue;
-                        if (can_deactivate != Z3_L_FALSE)
-                              return fail_joint("a joint distribution has an unresolved random guard");
+                        conditional = can_deactivate != Z3_L_FALSE;
                         spec.exact_supported = spec.exact_supported_without_guard;
                   }
                   // A discarded soft owner, non-ground item, or active
@@ -8597,7 +8613,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         if (subject_stage != stages.end())
                               stage = subject_stage->second;
                         distributions[ci].push_back({
-                              &spec, (size_t)(subject - component.begin()), stage
+                              &spec, (size_t)(subject - component.begin()), stage,
+                              conditional
                         });
                         found = true;
                         break;
@@ -8650,6 +8667,143 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         return fail_joint(reason);
                   }
             }
+            auto guard_active = [&](const JointDistBinding&binding) -> int {
+                  if (!binding.conditional) return 1;
+                  const auto&guards = binding.spec->guards;
+                  Z3_ast active = guards.size() == 1 ? guards.front()
+                        : Z3_mk_and(ctx, (unsigned)guards.size(),
+                              guards.data());
+                  Z3_ast inactive = Z3_mk_not(ctx, active);
+                  Z3_lbool yes = Z3_solver_check_assumptions(ctx, base, 1, &active);
+                  Z3_lbool no = Z3_solver_check_assumptions(ctx, base, 1, &inactive);
+                  if (yes == Z3_L_UNDEF || no == Z3_L_UNDEF
+                      || yes == no) return -1;
+                  return yes == Z3_L_TRUE ? 1 : 0;
+            };
+            // A conditional preference is due only after its strict
+            // solve-before prefix. Prove every feasible prefix and the
+            // residual weighted factors before any RNG draw. Substitution
+            // removes the pinned guard from each hard clause; the ordinary
+            // occurrence partition then includes auxiliary/state identities.
+            for (size_t ci = 0; ci < components.size(); ++ci) {
+                  const auto&bindings = distributions[ci];
+                  if (none_of(bindings.begin(), bindings.end(),
+                        [](const JointDistBinding&b) { return b.conditional; }))
+                        continue;
+                  if (defer_ordered_joint_randc)
+                        return fail_joint("a conditional joint distribution with randc cannot be proved exactly");
+                  const auto&component = components[ci];
+                  for (unsigned stage = 0; stage <= final_stage; ++stage) {
+                        bool distribution_due = any_of(bindings.begin(), bindings.end(),
+                              [&](const JointDistBinding&b) {
+                                    return b.stage == stage;
+                              });
+                        if (!distribution_due) continue;
+                        vector<Z3_ast> prefix_vars;
+                        for (Z3_ast var : component) {
+                              auto found = stages.find(var);
+                              if (found != stages.end() && found->second < stage)
+                                    prefix_vars.push_back(var);
+                        }
+                        vector<vector<uint64_t> > prefixes;
+                        const char*reason = nullptr;
+                        if (z3_enumerate_joint_(ctx, base, prefix_vars,
+                              ENUM_DOMAIN_CAP, prefixes, reason) != Z3_L_TRUE)
+                              return fail_joint(reason ? reason
+                                    : "a conditional joint prefix cannot be enumerated exactly");
+                        for (const auto&prefix : prefixes) {
+                              Z3_solver_push(ctx, base);
+                              vector<Z3_ast> values;
+                              for (size_t i = 0; i < prefix_vars.size(); ++i) {
+                                    Z3_ast value = Z3_mk_unsigned_int64(ctx,
+                                          prefix[i], Z3_get_sort(ctx, prefix_vars[i]));
+                                    values.push_back(value);
+                                    Z3_solver_assert(ctx, base,
+                                          Z3_mk_eq(ctx, prefix_vars[i], value));
+                              }
+                              const char*failure = nullptr;
+                              set<Z3_ast> weighted;
+                              vector<Z3_ast> active_subjects;
+                              for (const auto&binding : bindings) {
+                                    if (binding.stage != stage) continue;
+                                    int active = guard_active(binding);
+                                    if (active < 0) {
+                                          failure = "a joint distribution has an unresolved random guard";
+                                          break;
+                                    }
+                                    if (!active) continue;
+                                    weighted.insert(binding.spec->subject);
+                                    active_subjects.push_back(binding.spec->subject);
+                                    uint64_t ignored = 0;
+                                    if (!z3_resolve_dist_exact(ctx, base, opt,
+                                          *binding.spec,
+                                          owner_rng(binding.spec->rng_owner),
+                                          ignored, false, true)) {
+                                          failure = "an active conditional joint distribution cannot be validated exactly";
+                                          break;
+                                    }
+                              }
+                              if (!failure && active_subjects.size() > 1) {
+                                    Z3_solver residual = Z3_mk_simple_solver(ctx);
+                                    Z3_solver_inc_ref(ctx, residual);
+                                    Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
+                                    Z3_ast_vector_inc_ref(ctx, assertions);
+                                    for (unsigned i = 0; i < Z3_ast_vector_size(ctx, assertions); ++i) {
+                                          Z3_ast clause = Z3_ast_vector_get(ctx, assertions, i);
+                                          if (!prefix_vars.empty())
+                                                clause = Z3_substitute(ctx, clause,
+                                                      (unsigned)prefix_vars.size(),
+                                                      prefix_vars.data(), values.data());
+                                          Z3_solver_assert(ctx, residual, Z3_simplify(ctx, clause));
+                                    }
+                                    Z3_ast_vector_dec_ref(ctx, assertions);
+                                    vector<Z3_ast> remaining_vars;
+                                    for (Z3_ast var : component)
+                                          if (find(prefix_vars.begin(), prefix_vars.end(), var)
+                                                == prefix_vars.end())
+                                                remaining_vars.push_back(var);
+                                    vector<vector<Z3_ast> > factors;
+                                    if (!z3_joint_components_(ctx, residual,
+                                          remaining_vars, factors)) {
+                                          failure = "a conditional joint residual factor cannot be proved";
+                                    } else {
+                                          for (const auto&factor : factors) {
+                                                unsigned due = 0;
+                                                for (Z3_ast subject : active_subjects)
+                                                      due += find(factor.begin(), factor.end(), subject)
+                                                            != factor.end();
+                                                if (due > 1) {
+                                                      failure = "coupled same-stage conditional distributions lack a complete fiber proof";
+                                                      break;
+                                                }
+                                          }
+                                    }
+                                    Z3_solver_dec_ref(ctx, residual);
+                              }
+                              if (!failure) {
+                                    vector<Z3_ast> projection;
+                                    for (Z3_ast var : component) {
+                                          unsigned due = final_stage;
+                                          auto found = stages.find(var);
+                                          if (found != stages.end()) due = found->second;
+                                          if (due == stage && !weighted.count(var))
+                                                projection.push_back(var);
+                                    }
+                                    if (!projection.empty()) {
+                                          vector<vector<uint64_t> > projection_values;
+                                          const char*projection_reason = nullptr;
+                                          if (z3_enumerate_joint_(ctx, base, projection,
+                                                ENUM_DOMAIN_CAP, projection_values,
+                                                projection_reason) != Z3_L_TRUE)
+                                                failure = projection_reason ? projection_reason
+                                                      : "an inactive conditional subject cannot be sampled exactly";
+                                    }
+                              }
+                              Z3_solver_pop(ctx, base, 1);
+                              if (failure) return fail_joint(failure);
+                        }
+                  }
+            }
             // IEEE 1800-2017 18.5.4 and IEEE 1800-2023 18.5.3 do
             // not define product weights (or any other combination rule) for
             // separate dist expressions in one coupled component. Resolve
@@ -8677,6 +8831,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   set<Z3_ast> weighted;
                   for (const auto&binding : bindings) {
                         weighted.insert(binding.spec->subject);
+                        if (binding.conditional) continue;
                         uint64_t ignored = 0;
                         if (!z3_resolve_dist_exact(ctx, base, opt,
                               *binding.spec,
@@ -8745,9 +8900,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                           Z3_mk_eq(ctx, component[column], value));
                               }
                               uint64_t ignored = 0;
-                              bool valid = z3_resolve_dist_exact(ctx, base, opt,
-                                    *spec, owner_rng(spec->rng_owner), ignored,
-                                    true, true);
+                              int active = guard_active(distributions[ci][0]);
+                              bool valid = active >= 0 && (!active
+                                    || z3_resolve_dist_exact(ctx, base, opt,
+                                          *spec, owner_rng(spec->rng_owner), ignored,
+                                          true, true));
                               Z3_solver_pop(ctx, base, 1);
                               if (!valid)
                                     return fail_joint("an ordered distribution cannot be resolved for every proved prefix fiber");
@@ -8941,15 +9098,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         continue;
                   }
                   if (bindings.size() > 1) {
-                        set<Z3_ast> weighted;
-                        for (const auto&binding : bindings)
-                              weighted.insert(binding.spec->subject);
                         for (unsigned stage = 0; stage <= final_stage; ++stage) {
+                              set<Z3_ast> weighted;
                               // Weighted subjects are resolved before ordinary
                               // peers at the same stage. Otherwise a uniform
                               // projection could erase an ordered dist marginal.
                               for (const auto&binding : bindings) {
                                     if (binding.stage != stage) continue;
+                                    int active = guard_active(binding);
+                                    if (active < 0)
+                                          return fail_joint("a joint distribution guard changed after its proved prefix");
+                                    if (!active) continue;
+                                    weighted.insert(binding.spec->subject);
                                     uint64_t subject = 0;
                                     if (!z3_resolve_dist_exact(ctx, base, opt,
                                           *binding.spec,
@@ -8988,7 +9148,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   // hard solver immediately, so a distribution on a later
                   // subject is sampled from its actual conditional fiber.
                   for (unsigned stage = 0; stage <= final_stage; ++stage) {
-                        if (spec && stage == dist_stage) {
+                        int active = spec && stage == dist_stage
+                              ? guard_active(bindings[0]) : 0;
+                        if (active < 0)
+                              return fail_joint("a joint distribution guard changed after its proved prefix");
+                        if (active) {
                               uint64_t subject = 0;
                               if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
                                     owner_rng(spec->rng_owner), subject,
