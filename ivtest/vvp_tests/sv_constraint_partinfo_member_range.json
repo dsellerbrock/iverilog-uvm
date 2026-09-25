@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_partinfo_member_range.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "sv_constraint_partinfo_member_range"
+}

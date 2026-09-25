@@ -1,0 +1,81 @@
+{
+  "blocker": "OT-OTP-DAI-ADDRESS-CONSTRAINT-CONSTANT-MEMBER",
+  "base_commit": "fa8ea51d0cf43b406c9c5a70b1e1a45171a56e4b",
+  "parent_pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/368",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "private_tool_sha256": {
+    "iverilog": "cfaefd2ab8ebea464685d21618a799ae3a61632b9762f6de9abf330180897e3a",
+    "ivl": "ca8a3ab6875d7a7b301f70a1c047f537698c8433edd7d21c0e5b85e7851e6be2",
+    "vvp": "db9252c0c99ee899a1beed3194cf6579eb8a18b492126357c1d2afbf714381e0",
+    "system_vpi": "6b59b37766c36c7704d71d255fa9918372876b141515e302aa4594715b554f96"
+  },
+  "strict_ieee_2017_2023": {
+    "pre_fix": "Both editions ignored the legal selected-member range, then accepted an adjacent invalid address. The missing-member negative also compiled with an ignored-item warning.",
+    "post_fix": "Both editions pass four legal endpoints, four adjacent-invalid and rollback checks, scalar-alias, mutable-state, property-shadow and explicit-package controls; absent or non-representable wide selected members produce compile errors.",
+    "focus_legacy": "6/6",
+    "focus_json": "6/6",
+    "standards": "IEEE 1800-2017/2023 sections 6.20.2, 6.20.4, 7.2.1, 11.4.13; conditional constraints 2017 18.5.7 and 2023 18.5.6",
+    "scope_limit": "Only parameter-root selected members with proven constant indexes and values representable in the 64-bit constraint IR are folded. Rand-indexed members remain solver-dependent and unsupported here."
+  },
+  "promotion_gates": {
+    "make_check": "passed",
+    "full_legacy": "6626 total; 6621 passed; 0 unexpected failures; 2 not implemented; 3 expected failures",
+    "full_json": "3667/3667",
+    "negatives": "155/155",
+    "sva_nfa_dual": "62/62",
+    "vpi_pli1": "140/140",
+    "uvm_real_dpi": "358/358; 0 failed; 0 skipped"
+  },
+  "otp_release_inputs": {
+    "outer_filelist_sha256": "d2615a3449ace5d84bb16ce224eed5db25d47438de712b78157dd90957d0a5be",
+    "native_dpi_sha256": "530f58ec0e3702dc6ae2fe1c260832f41a018ce466a29a7597254f75c5658a95",
+    "overlay": "Existing hash-checked RAM-path macro overlay on a disposable generated source copy; pinned OpenTitan checkout unchanged"
+  },
+  "otp_compile": {
+    "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-constraint-20260925/local-install/bin/iverilog",
+      "-g2012", "-stb", "-sotp_ctrl_bind", "-sotp_ctrl_cov_bind",
+      "-ssec_cm_prim_count_bind", "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind", "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-uvm", "-DUVM", "-DUVM_NO_DEPRECATED", "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32", "-DUVM_BYTENABLE_WIDTH=4", "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION", "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o", "/tmp/ot-otp-dai-current-20260925/otp_exact.vvp",
+      "-c", "/tmp/ot-otp-backdoor-path-overlay-20260924/matrix-iverilog.scr"
+    ],
+    "exit": 0,
+    "compiled_program_sha256": "9b6ba8cab0d6884db3879e04c5cc0fef1a7cf463515cd2c7a05acdda8093c5c2",
+    "conditional_dai_legal_addr_ranges": 11,
+    "ignored_dai_legal_addr_items": 0,
+    "ignored_dai_blank_addr_items": 1,
+    "dropped_covergroup_bins": 6,
+    "procedural_continuous_assignment_sorry": 40
+  },
+  "released_otp_dv": {
+    "test": "otp_ctrl_smoke_vseq",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-constraint-20260925/local-install/bin/vvp",
+      "-d", "/tmp/ot-otp-class-identity-20260924/otp_final_native_dpi.dylib",
+      "-n", "/tmp/ot-otp-dai-current-20260925/otp_exact.vvp",
+      "+UVM_NO_RELNOTES", "+UVM_VERBOSITY=UVM_HIGH",
+      "+cdc_instrumentation_enabled=1", "+smoke_test=1",
+      "+UVM_TESTNAME=otp_ctrl_base_test", "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+    ],
+    "runtime_env": { "IVL_SVA_NFA": "1" },
+    "runtime_cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+    "low_and_high_exit": 0,
+    "completed_ps": 141094616,
+    "pass_marker_each": 1,
+    "fail_markers": 0,
+    "uvm_warning_error_fatal_each": [0, 0, 0],
+    "assertion_errors": 0,
+    "checked_tl_a_items_high": 1343,
+    "checked_tl_d_items_high": 1343,
+    "dai_attempt": "0x658 in partition 4, within the emitted 0x650..0x670 range",
+    "qualified_released_dv": "0/1",
+    "reason_unqualified": "The distinct rand-indexed PartInfo[part_idx].secret condition in dai_wr_blank_addr_c is ignored and six intended covergroup bins are dropped. All original application checks remain present; omitted checks are not credited as passes."
+  },
+  "separate_results": "Strict paired IEEE reducers, real-DPI UVM regression, and released OTP DV have separate denominators. No Caliptra or Verilator result is included."
+}

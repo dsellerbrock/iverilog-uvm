@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_partinfo_bad_member.v:14: error: Struct parameter `PartInfo['sd0]' has no member `missing'.
+1 error(s) during elaboration.
