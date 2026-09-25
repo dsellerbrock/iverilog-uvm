@@ -1,0 +1,2 @@
+evidence/opentitan-csrng-nested-vif-handoff-20260924/nested_vif_put_only.sv:24: nested-VIF argument rv=0 errors_before=0 errors_after=0
+error: Code generator failure: -3

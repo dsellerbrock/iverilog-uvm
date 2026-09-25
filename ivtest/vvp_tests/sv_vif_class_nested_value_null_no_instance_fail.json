@@ -1,0 +1,10 @@
+{
+  "type": "RE",
+  "source": "sv_vif_class_nested_value_null_no_instance_fail.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_vif_class_nested_value_null_no_instance_fail"
+  ],
+  "gold": "sv_vif_class_nested_value_null_no_instance_fail"
+}

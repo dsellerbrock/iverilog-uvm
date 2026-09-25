@@ -1820,10 +1820,89 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       return 0;
 }
 
+/* The frontend supplies exact (parent instance, named child instance)
+ * scope pairs. Evaluate the parent VIF once, then materialize only the child
+ * belonging to the bound instance. With no pair, the declared parent has no
+ * concrete instance and the selection must fail on its null receiver. */
+static int eval_object_nested_vif_value(ivl_expr_t expr)
+{
+      unsigned parm_count = ivl_expr_parms(expr);
+      ivl_type_t result_type = ivl_expr_net_type(expr);
+      if (parm_count < 1 || (parm_count - 1) % 2 != 0
+	  || !result_type || ivl_type_base(result_type) != IVL_VT_CLASS) {
+	    fprintf(stderr, "%s:%u: vvp.tgt error: malformed nested "
+		    "virtual-interface value expression\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    return 1;
+      }
+
+      unsigned ninst = (parm_count - 1) / 2;
+      if (!ninst) {
+	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+	    if (errors)
+		return errors;
+	    fprintf(vvp_out, "    %%vif/fatal;\n");
+	    return 0;
+      }
+      for (unsigned idx = 0; idx < ninst; ++idx) {
+	    ivl_expr_t parent_expr = ivl_expr_parm(expr, 1 + 2*idx);
+	    ivl_expr_t child_expr = ivl_expr_parm(expr, 2 + 2*idx);
+	    ivl_scope_t parent = parent_expr && ivl_expr_type(parent_expr) == IVL_EX_SCOPE
+		  ? ivl_expr_scope(parent_expr) : 0;
+	    ivl_scope_t child = child_expr && ivl_expr_type(child_expr) == IVL_EX_SCOPE
+		  ? ivl_expr_scope(child_expr) : 0;
+	    ivl_type_t child_type = child_expr ? ivl_expr_net_type(child_expr) : 0;
+	    if (!parent || !child || ivl_scope_parent(child) != parent
+		|| ivl_scope_type(parent) != IVL_SCT_MODULE
+		|| ivl_scope_type(child) != IVL_SCT_MODULE
+		|| !child_type || ivl_type_base(child_type) != IVL_VT_CLASS) {
+		  fprintf(stderr, "%s:%u: vvp.tgt error: invalid nested "
+			  "virtual-interface instance pair %u\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr), idx);
+		  return 1;
+	    }
+      }
+
+      unsigned lab_end = local_count++;
+      unsigned*lab_inst = calloc(ninst, sizeof(unsigned));
+      assert(lab_inst);
+      int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+      if (errors) {
+	    free(lab_inst);
+	    return errors;
+      }
+
+      for (unsigned idx = 0; idx < ninst; ++idx) {
+	    ivl_scope_t parent = ivl_expr_scope(ivl_expr_parm(expr, 1 + 2*idx));
+	    lab_inst[idx] = local_count++;
+	    fprintf(vvp_out, "    %%jmp/vif T_%u.%u, S_%p;\n",
+		    thread_count, lab_inst[idx], parent);
+      }
+      fprintf(vvp_out, "    %%vif/fatal;\n");
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
+
+      for (unsigned idx = 0; idx < ninst; ++idx) {
+	    ivl_expr_t child_expr = ivl_expr_parm(expr, 2 + 2*idx);
+	    ivl_scope_t child = ivl_expr_scope(child_expr);
+	    ivl_type_t child_type = ivl_expr_net_type(child_expr);
+	    ensure_class_type_emitted(child_type);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_inst[idx]);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out, "    %%new/vif S_%p, C%p;\n", child, child_type);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
+      }
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_end);
+      free(lab_inst);
+      return 0;
+}
+
 static int eval_object_sfunc(ivl_expr_t expr)
 {
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
+
+      if (strcmp(name, "$ivl_vif_nested_value") == 0)
+	    return eval_object_nested_vif_value(expr);
 
       if (strncmp(name, "$ivl_vif_func$", 14) == 0) {
             switch (ivl_expr_value(expr)) {

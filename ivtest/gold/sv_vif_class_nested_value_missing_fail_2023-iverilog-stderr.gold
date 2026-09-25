@@ -1,0 +1,2 @@
+./ivltests/sv_vif_class_nested_value_missing_fail.v:26: error: Unable to resolve virtual-interface value in assignment or argument (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.

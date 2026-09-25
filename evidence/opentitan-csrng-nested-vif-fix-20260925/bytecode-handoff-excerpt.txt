@@ -1,0 +1,47 @@
+Image SHA-256: 9a1c2c8d4323d556c30b9428fdb9c7bc7662ecd08e355ba88d6e52a5acdcd0a5
+Selected csrng_agent.build_phase child-handoff bytecode; line numbers are from the full generated image.
+206610:     %test_nul/obj;
+206611:     %jmp/1 T_776.23826, 4;
+206612:     %prop/obj 16, 0; eval_object_property
+206613:     %pop/obj 1, 1;
+206614:     %jmp T_776.23827;
+206615: T_776.23826;
+206616:     %pop/obj 1, 0;
+206617:     %null;
+206618: T_776.23827;
+206619:     %jmp/vif T_776.23830, S_0x794dec4600;
+206620:     %jmp/vif T_776.23831, S_0x794dec4840;
+206621:     %vif/fatal;
+206622:     %jmp T_776.23825;
+206623: ; Inline class definition for specialized/interface type
+206624: C0x79527a0000  .class "push_pull_if" "tb.csrng_if[0].cmd_push_if" [768]
+208168:  ;
+208169: T_776.23831;
+208170:     %pop/obj 1, 0;
+208171:     %new/vif S_0x794dec48a0, C0x79527a0a00;
+208172:     %jmp T_776.23825;
+208173: T_776.23825;
+208174:     %store/obj v0x794e3a0e40_0;
+208175:     %callf/void TD_uvm_pkg._ivl_1176.set, S_0x794e353840;
+208176:     %free S_0x794e353840;
+208199:     %pop/obj 1, 1;
+208200:     %jmp T_776.23834;
+208201: T_776.23833;
+208202:     %pop/obj 1, 0;
+208203:     %null;
+208204: T_776.23834;
+208205:     %jmp/vif T_776.23837, S_0x794dec4600;
+208206:     %jmp/vif T_776.23838, S_0x794dec4840;
+208207:     %vif/fatal;
+208208:     %jmp T_776.23832;
+208209: ; Inline class definition for specialized/interface type
+208210: C0x79527a0500  .class "push_pull_if" "tb.csrng_if[0].genbits_push_if" [768]
+209754:  ;
+209755: T_776.23838;
+209756:     %pop/obj 1, 0;
+209757:     %new/vif S_0x794dec4900, C0x79527a0f00;
+209758:     %jmp T_776.23832;
+209759: T_776.23832;
+209760:     %store/obj v0x794e3aece0_0;
+209761:     %callf/void TD_uvm_pkg._ivl_1206.set, S_0x794e35f120;
+209762:     %free S_0x794e35f120;
