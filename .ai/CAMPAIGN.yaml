@@ -4,10 +4,10 @@ branch: agent/ot-csrng-function-output-bit-copyback-20260925
 checkpoint_head: dbb4f851f872529731e62603d98447fb678a735d
 active_open_titan_lane:
   blocker: OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
-  phase: LOCALLY_QUALIFIED_PR_PENDING_RELEASED_DV_0_OF_1
+  phase: PR365_PUBLISHED_RELEASED_DV_0_OF_1
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-bit-copyback-20260925
   parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/364
-  pr: pending
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/365
   baseline_private_ivl_sha256: af9af369147ce1e5fadaaef7dea6e4a035e63cca737342a90ffed3f70bccf84b
   baseline_private_vvp_sha256: f3c47526cf38fdb1b8ee05a406308c50d56b06218d18df9512ddb7f843a01bab
   baseline: PR364 pinned CSRNG runtime fails 0/1 at 1000 ps because X from the physical pre-reset CSR is retained in two-state uvm_reg_data_t after function output copy-back.
@@ -16,7 +16,7 @@ active_open_titan_lane:
   private_final_vvp_sha256: c6fd0821d294d548f41fbab33792db2d7e582c98cd01dab5d432ee199e929483
   validation: Paired strict 2017/2023 legal bit and four-state controls plus nonlvalue negatives pass 4/4 in each focused runner; make check passes. Broad legacy passes 6613 total with zero failures, full JSON 3652/3652 after private optional FPGA target installation, and real-DPI UVM 358/358 zero failed/skipped. Independent review found no actionable copy-back defect.
   released_dv: Named-overlay pinned CSRNG compile exits zero with native DPI and explicit -g2017 -gcommercial-unsafe, but still ignores int_state_read_enable_c. Runtime reaches 5537881 ps, then UVM_FATAL at the first cs_item.randomize() and TEST FAILED CHECKS before command traffic; VVP exit zero does not change 0/1 released nonstandard compatibility DV.
-  next_command: Publish one PR stacked on PR364; keep receiver-qualified inline randomize and ignored constraint as distinct future blockers. Do not poll CI.
+  next_command: PR365 is published; select receiver-qualified inline randomize as the next distinct blocker and keep the ignored constraint separate. Do not poll CI.
   boundary: OpenTitan private tool only; pinned application sources, installed Caliptra tool, and user-owned campaign AGENTS.md unchanged. Caliptra jobs remain stopped; no Verilator, GPU, or CI polling.
 active_icarus_runs:
   selected_52:
@@ -93,14 +93,14 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
-  phase: LOCALLY_QUALIFIED_PR_PENDING_RELEASED_DV_0_OF_1
+  phase: PR365_PUBLISHED_RELEASED_DV_0_OF_1
   owner: Coordinator owns the private build, strict reducers, pinned native-DPI replay, broad gates, evidence, review, and one stacked PR.
   reproducer: Paired strict 2017/2023 function output logic[1023:0] containing X/Z copies into bit[31:0] retaining unknowns, while direct assignment and native task copy-out convert them to zero. Pinned CSRNG at 1000 ps copies the physical pre-reset X through uvm_hdl_read into two-state uvm_reg_data_t and fails $isunknown(field_val).
   expected: Resize the returned formal value to each actual receiver's width, then cast to two-state only for bit actuals; preserve X/Z in four-state actuals and reject nonlvalue output actuals. Ref-type mismatch acceptance is separate DD-058.
   root_cause_hypothesis: Confirmed tgt-vvp/draw_ufunc.c function output copy-back omitted the two-state cast; narrower formal outputs also needed padding before direct, array-element, and scalar-property stores.
   source_scope: tgt-vvp/draw_ufunc.c plus dedicated paired 2017/2023 tests, focused evidence, and owning OpenTitan trackers only; no VVP runtime, pinned source, Caliptra, or installed Caliptra tool edits.
   validation: Focused legacy and JSON 4/4 each, make check, broad legacy 6613 total zero failed, full JSON 3652/3652, and real-DPI UVM 358/358 zero failed/skipped. Independent review found no actionable defect. Pinned native-DPI CSRNG progresses to 5537881 ps but fails 0/1 at a separate receiver-qualified inline randomize blocker before command traffic; ignored int_state_read_enable_c is separate.
-  next: Publish the copy-back PR stacked on PR364, then select the distinct inline randomize blocker in another PR. Do not poll CI.
+  next: PR365 https://github.com/dsellerbrock/iverilog-uvm/pull/365 is published; select the distinct inline randomize blocker in another PR. Do not poll CI.
 completed_ot_joint_guard:
   id: OT-CSRNG-CFG-JOINT-DIST
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/358
