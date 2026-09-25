@@ -221,6 +221,11 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 			break;
 		  }
 	    }
+	    if (!vpi_port_bit) {
+		  vpi_printf("SDF ERROR: %s:%d: Could not find port1 bit %d!\n",
+		             sdf_fname, sdf_lineno, port1.index);
+		  return;
+	    }
       }
 
 	// Check whether we have a single bit of a port for port2
@@ -243,6 +248,11 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 			vpi_release_handle(iter); // Free the iterator
 			break;
 		  }
+	    }
+	    if (!vpi_port_bit) {
+		  vpi_printf("SDF ERROR: %s:%d: Could not find port2 bit %d!\n",
+		             sdf_fname, sdf_lineno, port2.index);
+		  return;
 	    }
       }
 

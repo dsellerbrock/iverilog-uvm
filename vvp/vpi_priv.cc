@@ -24,6 +24,7 @@
 # include  "logic.h"
 # include  "part.h"
 # include  "concat.h"
+# include  "resolv.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -1841,6 +1842,49 @@ tuple<bool, vvp_net_ptr_t, bool> check_connected_to_concat8(vvp_net_ptr_t cur, v
       return {false, vvp_net_ptr_t(nullptr, 0), false};
 }
 
+// Follow one packed partial driver through a resolver to the same slice.
+// A resolver's other slices are not paths from this driver.
+static tuple<bool, vvp_net_ptr_t, bool>
+check_connected_through_part_pv(vvp_net_ptr_t cur, vvp_net_t*net2)
+{
+      auto*pv = dynamic_cast<vvp_fun_part_pv*>(cur.ptr()->fun);
+      if (!pv || pv->get_wid() != 1)
+	return {false, vvp_net_ptr_t(nullptr, 0), false};
+
+      for (vvp_net_ptr_t res = cur.ptr()->out_; res.ptr();
+	   res = res.ptr()->port[res.port()]) {
+	auto*core = dynamic_cast<resolv_core*>(res.ptr()->fun);
+	unsigned source_port = res.port();
+	if (!core) {
+	      auto*ext = dynamic_cast<resolv_extend*>(res.ptr()->fun);
+	      if (ext) {
+		    core = ext->core();
+		    source_port = ext->core_port(source_port);
+	      }
+	}
+	const auto*tri = dynamic_cast<resolv_tri*>(core);
+	if (!tri || !tri->is_plain_tri()
+	    || !core->sole_part_pv_source(pv->get_base(), cur.ptr(), source_port))
+	      continue;
+	for (vvp_net_ptr_t select = core->output_net()->out_; select.ptr();
+	     select = select.ptr()->port[select.port()]) {
+	      auto*part = dynamic_cast<vvp_fun_part_sa*>(select.ptr()->fun);
+	      if (!part || part->get_base() != pv->get_base()
+		  || part->get_wid() != pv->get_wid())
+		    continue;
+	      vvp_net_ptr_t prev(nullptr, 0);
+	      for (vvp_net_ptr_t sink = select.ptr()->out_; sink.ptr();
+		   sink = sink.ptr()->port[sink.port()]) {
+		    if (sink.ptr() == net2)
+			  return {true, prev.ptr() ? prev : select,
+				  !prev.ptr()};
+		    prev = sink;
+	      }
+	}
+      }
+      return {false, vvp_net_ptr_t(nullptr, 0), false};
+}
+
 // Used to get intermodpath for two ports
 vpiHandle vpi_handle_multi(PLI_INT32 type,
                            vpiHandle ref1,
@@ -1991,6 +2035,9 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    tie(is_connected, previous_node, is_output) = port2_has_index
 		  ? check_connected_to_concat8(cur, net2, vvp_net_ptr_t(net1, 0))
 		  : check_connected_to_concat8_and_part_sa(cur, net2, vvp_net_ptr_t(net1, 0));
+	    if (!is_connected && !port2_has_index)
+		  tie(is_connected, previous_node, is_output) =
+		    check_connected_through_part_pv(cur, net2);
 	    if ( (!port2_has_index && cur.ptr() == net2) || is_connected ) {
 		  vvp_net_t*new_net = new vvp_net_t;
 

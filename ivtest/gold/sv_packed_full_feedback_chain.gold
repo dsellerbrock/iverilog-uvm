@@ -1,0 +1,2 @@
+./ivltests/sv_packed_full_feedback_chain.v:4: vvp.tgt warning: uwire "variable_chain" has 3 drivers (compile-progress: treated as wire).
+PASSED

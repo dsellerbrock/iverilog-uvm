@@ -1,0 +1,3 @@
+SDF ERROR: sdf_same_bit_competing.sdf:9: Could not find intermodpath!
+COMPLETED
+sdf_same_bit_competing.v:15: $finish called at 6000 (1ps)

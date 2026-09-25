@@ -1,0 +1,11 @@
+(DELAYFILE
+ (SDFVERSION "3.0")
+ (DESIGN "br_gh1248_wrong_bit")
+ (DIVIDER /)
+ (TIMESCALE 1ns)
+ (CELL
+  (CELLTYPE "top")
+  (INSTANCE dut)
+  (DELAY (ABSOLUTE (INTERCONNECT i1/Y i0/A (0.010))))
+ )
+)

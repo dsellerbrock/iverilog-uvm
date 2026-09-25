@@ -733,8 +733,6 @@ extern uint64_t get_scaled_time_from_real(const Design*des,
                                           NetScope*scope,
                                           const NetECReal*val);
 
-extern void collapse_partselect_pv_to_concat(Design*des, NetNet*sig);
-
 /* When true, NetAssign_::nex_output() reports only the bits a CONSTANT,
    in-range bit/part select actually assigns, instead of claiming the
    whole signal. OFF by default -- synthesis reads that set to decide

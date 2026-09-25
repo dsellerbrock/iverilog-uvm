@@ -1,0 +1,11 @@
+(DELAYFILE
+ (SDFVERSION "3.0")
+ (DESIGN "sdf_same_bit_competing")
+ (DIVIDER /)
+ (TIMESCALE 1ns)
+ (CELL
+  (CELLTYPE "top")
+  (INSTANCE dut)
+  (DELAY (ABSOLUTE (INTERCONNECT i1/Y i2/A (0.010))))
+ )
+)

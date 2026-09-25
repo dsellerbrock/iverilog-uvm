@@ -108,6 +108,9 @@ class vvp_fun_part_pv  : public vvp_net_fun_t {
       vvp_fun_part_pv(unsigned base, unsigned wid, unsigned vec_wid);
       ~vvp_fun_part_pv() override;
 
+      unsigned get_base() const { return base_; }
+      unsigned get_wid() const { return wid_; }
+
     public:
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;

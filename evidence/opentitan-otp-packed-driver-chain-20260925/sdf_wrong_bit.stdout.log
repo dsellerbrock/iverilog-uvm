@@ -1,0 +1,2 @@
+SDF ERROR: sdf_wrong_bit.sdf:9: Could not find intermodpath!
+sdf_wrong_bit.v:10: $finish called at 3000 (1ps)

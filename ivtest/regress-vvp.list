@@ -291,6 +291,7 @@ sdf_interconnect1		vvp_tests/sdf_interconnect1.json
 sdf_interconnect2		vvp_tests/sdf_interconnect2.json
 sdf_interconnect3		vvp_tests/sdf_interconnect3.json
 sdf_interconnect4		vvp_tests/sdf_interconnect4.json
+sdf_singleton_guard		vvp_tests/sdf_singleton_guard.json
 sf_countbits_fail		vvp_tests/sf_countbits_fail.json
 sf_countones_fail		vvp_tests/sf_countones_fail.json
 sf_isunknown_fail		vvp_tests/sf_isunknown_fail.json
@@ -3840,6 +3841,8 @@ sv_interface_port_mixed_driver_unused_unsafe vvp_tests/sv_interface_port_mixed_d
 sv_interface_port_mixed_driver_unused_unsafe_2023 vvp_tests/sv_interface_port_mixed_driver_unused_unsafe_2023.json
 
 # PIC packed-driver and disjoint VIF property writer, paired 2017/2023.
+sv_packed_full_feedback_chain vvp_tests/sv_packed_full_feedback_chain.json
+sv_packed_full_feedback_chain_2023 vvp_tests/sv_packed_full_feedback_chain_2023.json
 sv_packed_partial_feedback vvp_tests/sv_packed_partial_feedback.json
 sv_packed_partial_feedback_2023 vvp_tests/sv_packed_partial_feedback_2023.json
 sv_packed_partial_overlap_fail vvp_tests/sv_packed_partial_overlap_fail.json

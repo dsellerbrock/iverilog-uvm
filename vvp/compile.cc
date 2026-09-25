@@ -1121,6 +1121,10 @@ bool vvp_net_resolv_list_s::resolve(bool mes)
 
       if (tmp) {
 	      // Link the input port to the located output.
+	    if (auto*core = dynamic_cast<resolv_core*>(port.ptr()->fun))
+		  core->set_input_source(port.port(), tmp);
+	    else if (auto*ext = dynamic_cast<resolv_extend*>(port.ptr()->fun))
+		  ext->set_input_source(port.port(), tmp);
 	    tmp->link(port);
 	    return true;
       }

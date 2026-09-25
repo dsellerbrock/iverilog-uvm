@@ -1,0 +1,22 @@
+(DELAYFILE
+ (SDFVERSION "3.0")
+ (DESIGN "sdf_singleton_guard")
+ (DIVIDER /)
+ (TIMESCALE 1ns)
+ (CELL
+  (CELLTYPE "plain_chain")
+  (INSTANCE plain_dut)
+  (DELAY (ABSOLUTE
+   (INTERCONNECT i1/Y[9] i2/A (0.500))
+   (INTERCONNECT i1/Y i2/A[9] (0.500))
+   (INTERCONNECT i1/Y i0/A (0.500))
+  ))
+ )
+ (CELL
+  (CELLTYPE "competing_chain")
+  (INSTANCE competing_dut)
+  (DELAY (ABSOLUTE
+   (INTERCONNECT i1/Y i2/A (0.500))
+  ))
+ )
+)
