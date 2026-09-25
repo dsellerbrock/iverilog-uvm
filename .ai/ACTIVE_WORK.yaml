@@ -1,8 +1,9 @@
-status: opentitan_joint_dist_ordered_guard_pr_ready
+status: opentitan_joint_dist_ordered_guard_pr_published
 branch: agent/ot-joint-dist-ordered-guards-20260924
 baseline: PR357 published at b7537a171 stacked on PR356. AGENTS.md is user-owned dirty work and remains untouched.
 blocker: OT-CSRNG-CFG-JOINT-DIST
 prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/357
+current_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/358
 goal: Sample legal hard conditional dist exactly when an earlier solve-before stage makes each guard provably active or inactive in every feasible fiber. Keep unresolved, UNKNOWN, unproved, unsupported-weight, cap, and randc cases loudly unsupported; preserve rollback. Replay pinned CSRNG and OTP with named overlays.
 standards: IEEE 1800-2017 §§18.5.4 and 18.5.7 and IEEE 1800-2023 §§18.5.3 and 18.5.6 govern dist and conditional constraints. OpenTitan overlays are release compatibility, and Caliptra -gcommercial-unsafe remains nonstandard compatibility.
 l0_execution_profile: Main Caliptra L0 denominator is the exact selected 52 under explicit -gcommercial-unsafe and qualification=nonstandard_compatibility. Strict mode is a focused IEEE mixed-driver overlap guard. Named Caliptra/OpenTitan patches and options are test-selected on disposable copies per docs/conformance/release_overlays/README.md; pinned source checkouts and all test checks remain unchanged.
