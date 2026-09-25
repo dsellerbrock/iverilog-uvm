@@ -1,0 +1,2 @@
+ivltests/sv_function_output_nonlvalue_fail.v:10: error: Constant values not allowed in l-value expressions.
+1 error(s) during elaboration.

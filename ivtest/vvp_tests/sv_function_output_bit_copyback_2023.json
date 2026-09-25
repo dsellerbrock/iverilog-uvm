@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_function_output_bit_copyback_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_function_output_bit_copyback"],
+  "gold": "sv_function_output_bit_copyback"
+}

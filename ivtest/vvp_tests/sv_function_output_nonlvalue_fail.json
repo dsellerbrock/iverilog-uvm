@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_function_output_nonlvalue_fail.v",
+  "iverilog-args": ["-g2017", "-s", "sv_function_output_nonlvalue_fail"],
+  "gold": "sv_function_output_nonlvalue_fail"
+}
