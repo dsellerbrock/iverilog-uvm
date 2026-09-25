@@ -21,6 +21,7 @@
 
 # include  "config.h"
 # include  "vvp_net.h"
+# include  <vector>
 
 /*
  * Resolver nodes are similar to wide functors, in that they may have
@@ -53,6 +54,12 @@ class resolv_core : public vvp_net_fun_t {
 
       virtual void count_drivers(unsigned bit_idx, unsigned counts[3]) =0;
 
+      void link_input(unsigned port, vvp_net_t*source);
+      void unlink_input(unsigned port, vvp_net_t*source);
+      vvp_net_t* input_source(unsigned port) const;
+      unsigned input_count() const { return nports_; }
+      vvp_net_t* output_net() const { return net_; }
+
       void enable_driver_activity_notifications()
             { notify_driver_activity_ = true; }
 
@@ -71,6 +78,8 @@ class resolv_core : public vvp_net_fun_t {
       unsigned nports_;
       vvp_net_t*net_;
       bool notify_driver_activity_;
+      std::vector<vvp_net_t*> input_sources_;
+      bool ambiguous_input_sources_;
 };
 
 class resolv_extend : public vvp_net_fun_t {
@@ -95,6 +104,13 @@ class resolv_extend : public vvp_net_fun_t {
 			unsigned base, unsigned vwid) override
             { core_->recv_vec8_pv_(port_base_ + port.port(), bit,
                                    base, vwid); }
+
+      void link_input(unsigned port, vvp_net_t*source)
+            { core_->link_input(port_base_ + port, source); }
+      void unlink_input(unsigned port, vvp_net_t*source)
+            { core_->unlink_input(port_base_ + port, source); }
+      resolv_core* core() const { return core_; }
+      unsigned core_port(unsigned port) const { return port_base_ + port; }
 
     private:
       resolv_core*core_;

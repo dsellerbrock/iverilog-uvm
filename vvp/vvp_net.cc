@@ -200,6 +200,13 @@ void vvp_net_t::link(vvp_net_ptr_t port_to_link)
 {
       vvp_net_t*net = port_to_link.ptr();
 
+	// SDF needs structural input provenance before considering a resolved
+	// vector bit a source-specific interconnect path.
+      if (resolv_core*resolver = dynamic_cast<resolv_core*>(net->fun))
+	    resolver->link_input(port_to_link.port(), this);
+      else if (resolv_extend*extension = dynamic_cast<resolv_extend*>(net->fun))
+	    extension->link_input(port_to_link.port(), this);
+
 	// Connect nodes with vvp_fun_modpath_src to the head of the
 	// linked list, so that vvp_fun_modpath_src are always evaluated
 	// before their respective vvp_fun_modpath
@@ -244,6 +251,11 @@ void vvp_net_t::unlink(vvp_net_ptr_t dst_ptr)
 {
       vvp_net_t*net = dst_ptr.ptr();
       unsigned net_port = dst_ptr.port();
+
+      if (resolv_core*resolver = dynamic_cast<resolv_core*>(net->fun))
+	    resolver->unlink_input(net_port, this);
+      else if (resolv_extend*extension = dynamic_cast<resolv_extend*>(net->fun))
+	    extension->unlink_input(net_port, this);
 
       if (out_ == dst_ptr) {
 	      /* If the drive fan-out list starts with this pointer,

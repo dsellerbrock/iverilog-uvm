@@ -42,13 +42,37 @@ using namespace std;
 
 
 resolv_core::resolv_core(unsigned nports, vvp_net_t*net)
-: nports_(nports), net_(net), notify_driver_activity_(false)
+: nports_(nports), net_(net), notify_driver_activity_(false),
+  input_sources_(nports, nullptr), ambiguous_input_sources_(false)
 {
       count_functors_resolv += 1;
 }
 
 resolv_core::~resolv_core()
 {
+}
+
+void resolv_core::link_input(unsigned port, vvp_net_t*source)
+{
+      if (port >= nports_) {
+	    ambiguous_input_sources_ = true;
+	    return;
+      }
+      if (input_sources_[port])
+	    ambiguous_input_sources_ = true;
+      input_sources_[port] = source;
+}
+
+void resolv_core::unlink_input(unsigned port, vvp_net_t*source)
+{
+      if (port < nports_ && input_sources_[port] == source)
+            input_sources_[port] = nullptr;
+}
+
+vvp_net_t* resolv_core::input_source(unsigned port) const
+{
+      return !ambiguous_input_sources_ && port < nports_
+	    ? input_sources_[port] : nullptr;
 }
 
 void resolv_core::notify_driver_activity()

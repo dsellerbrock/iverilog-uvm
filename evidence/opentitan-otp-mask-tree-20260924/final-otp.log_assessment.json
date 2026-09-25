@@ -1,0 +1,22 @@
+{
+  "raw_runtime_log_sha256": "9074c55933f4d4e1e6547853f8da666dccb0027c698cd8b6e151d891e207786e",
+  "archived_log_sha256": "a6b2a7b61539f941ebc9a7126a0679bfa99ff9255b15af8896e71fc22f26cdbb",
+  "archived_log_path": "integrated-otp.runtime.log",
+  "runtime_exit": 0,
+  "timed_out": false,
+  "finish_time_ps": 132917271,
+  "pass_marker_count": 1,
+  "fail_marker_count": 0,
+  "uvm_summary": {
+    "UVM_INFO": 2492,
+    "UVM_WARNING": 0,
+    "UVM_ERROR": 0,
+    "UVM_FATAL": 0
+  },
+  "runtime_error_reports": 0,
+  "smoke_sequence_start_count": 1,
+  "scoreboard_state_info_count": 2472,
+  "scoreboard_after_start_log_count": 2470,
+  "traffic_qualification": "narrow released OTP smoke only: core TL A/D monitor-FIFO callbacks routed through enabled OTP scoreboard after starting seq 1/1; no A/D, read/write, DAI, or key-request breakdown",
+  "identical_raw_log_to_pre_sdf": true
+}
