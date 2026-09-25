@@ -1,0 +1,2 @@
+./ivltests/sv_vif_class_nested_value_wrong_modport_fail.v:28: error: cannot access nested interface 'child' through modport 'restricted' of interface 'nested_value_modport_outer_if' — it is not listed in that modport (IEEE 1800-2017/2023 25.5).
+1 error(s) during elaboration.

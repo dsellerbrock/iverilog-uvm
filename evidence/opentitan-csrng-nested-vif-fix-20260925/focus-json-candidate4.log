@@ -1,0 +1,19 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-vif-class-nested-value-focus-vvp.list
+----------------------------------------------------------------------------
+                         sv_vif_class_nested_value_handoff: Passed.
+                    sv_vif_class_nested_value_handoff_2023: Passed.
+                    sv_vif_class_nested_value_missing_fail: Passed - CE.
+               sv_vif_class_nested_value_missing_fail_2023: Passed - CE.
+     sv_vif_class_nested_value_no_instance_wrong_type_fail: Passed - CE.
+sv_vif_class_nested_value_no_instance_wrong_type_fail_2023: Passed - CE.
+                       sv_vif_class_nested_value_null_fail: Passed.
+                  sv_vif_class_nested_value_null_fail_2023: Passed.
+           sv_vif_class_nested_value_null_no_instance_fail: Passed.
+      sv_vif_class_nested_value_null_no_instance_fail_2023: Passed.
+              sv_vif_class_nested_value_wrong_modport_fail: Passed - CE.
+         sv_vif_class_nested_value_wrong_modport_fail_2023: Passed - CE.
+                 sv_vif_class_nested_value_wrong_type_fail: Passed - CE.
+            sv_vif_class_nested_value_wrong_type_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 14, Failed 0.

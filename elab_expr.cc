@@ -36,6 +36,7 @@
 
 # include  "PPackage.h"
 # include  "PClass.h"
+# include  "PGate.h"
 # include  "pform.h"
 # include  "parse_api.h"
 # include  "Module.h"
@@ -3440,6 +3441,7 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       NetExpr *rval;
       int context_wid = -1;
       bool typed_elab = false;
+      unsigned rval_errors_before = des->errors;
 
       switch (lv_type) {
 	  case IVL_VT_DARRAY:
@@ -3500,15 +3502,46 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 		  typed_elab = true;
       }
 
-      if (lv_net_type && typed_elab) {
+	if (lv_net_type && typed_elab) {
 	    rval = elab_and_eval(
 		  des, scope, expr, lv_net_type, need_const, extra_flags);
       } else {
 	    rval = elab_and_eval(des, scope, expr, context_wid, need_const,
 				 false, lv_type, force_unsigned, extra_flags);
       }
-      if (rval == 0)
+      if (rval == 0) {
+	    if (des->errors == rval_errors_before
+		&& virtual_interface_type_(lv_net_type)) {
+		  cerr << expr->get_fileline() << ": error: Unable to resolve "
+		       << "virtual-interface value in assignment or argument "
+		       << "(IEEE 1800-2017/2023 25.9)." << endl;
+		  des->errors += 1;
+	    }
 	    return 0;
+      }
+
+      /* The nested-child marker retains its source interface type. Check the
+	 assignment-like destination here, before copy-in can put a child of a
+	 different interface definition (or modport view) in a VIF formal. */
+      const NetESFunc*nested_vif = dynamic_cast<const NetESFunc*>(rval);
+      if (nested_vif && strcmp(nested_vif->name(), "$ivl_vif_nested_value") == 0) {
+	    const netclass_t*target = virtual_interface_type_(lv_net_type);
+	    const netclass_t*source = virtual_interface_type_(rval->net_type());
+	    if (!target || !source
+		|| !target->interface_assignment_compatible_from(source)) {
+		  if (target)
+			report_virtual_interface_assignment_mismatch_(
+			  des, *expr, target, source);
+		  else {
+			cerr << expr->get_fileline() << ": error: A nested "
+			     << "virtual-interface value requires a compatible "
+			     << "virtual-interface target." << endl;
+			des->errors += 1;
+		  }
+		  delete rval;
+		  return 0;
+	    }
+      }
 
 	/* A nonconstant replication of string data is intrinsically string,
 	 * even when all of its operands are literals (Table 6-9). A string
@@ -11963,6 +11996,160 @@ static NetESelect* make_container_member_element_select_(NetExpr*member_expr,
       return sel;
 }
 
+/* A nested interface is an instance scope, not a property of the enclosing
+ * interface type. Pair each compatible parent instance with its own named
+ * child so a virtual parent handle can select the child at run time. */
+static void collect_nested_vif_value_scopes_(
+		Design*des, NetScope*scope, const netclass_t*parent_type,
+		perm_string child_name,
+		vector<pair<NetScope*,NetScope*>>&pairs,
+		const netclass_t*&child_type, bool&valid)
+{
+      if (!scope)
+	    return;
+
+      if (scope->is_interface()
+	  && scope->module_name() == parent_type->get_name()) {
+	    const netclass_t*scope_type =
+		  elaborate_interface_instance_type(des, scope);
+	    if (scope_type && parent_type->same_interface_layout(scope_type)) {
+		  NetScope*child = scope->child(hname_t(child_name));
+		  const netclass_t*next_type = child && child->is_interface()
+			? elaborate_interface_instance_type(des, child) : nullptr;
+		  if (!next_type || !next_type->is_interface()
+		      || (child_type && !child_type->same_interface_type(next_type)))
+			valid = false;
+		  else {
+			if (!child_type)
+			      child_type = next_type;
+			pairs.push_back(make_pair(scope, child));
+		  }
+	    }
+      }
+
+      for (const auto&entry : scope->children())
+	    collect_nested_vif_value_scopes_(des, entry.second, parent_type,
+		  child_name, pairs, child_type, valid);
+}
+
+static NetExpr* elaborate_nested_vif_value_(
+		const LineInfo*li, Design*des, NetExpr*base_expr,
+		const netclass_t*parent_type, const name_component_t&comp,
+		ivl_type_t&out_type)
+{
+      vector<pair<NetScope*,NetScope*>> pairs;
+      const netclass_t*child_type = nullptr;
+      bool valid = true;
+      for (NetScope*root : des->find_root_scopes())
+	    collect_nested_vif_value_scopes_(des, root, parent_type,
+		  comp.name, pairs, child_type, valid);
+
+      /* With no usable child, leave the existing typed-VIF actual boundary
+	 to report the unresolved value. A mix of valid and invalid concrete
+	 parents is diagnosed here because it cannot form a sound dispatch. */
+      if (pairs.empty() && !valid) {
+	    delete base_expr;
+	    return nullptr;
+      }
+      if (!valid) {
+	    cerr << li->get_fileline() << ": error: Nested virtual-interface child `"
+		 << comp.name << "' is missing, is not an interface, or has "
+		 << "incompatible types across parent instances." << endl;
+	    des->errors += 1;
+	    delete base_expr;
+	    return nullptr;
+      }
+
+      /* A declaration may have no concrete parent instance. Its VIF can
+	 only be null, but the child selection is still well typed and must
+	 reach the runtime null-receiver check. Other non-property members,
+	 including clocking blocks, retain their established elaboration path. */
+      if (pairs.empty()) {
+	    Module*parent_def =
+		  const_cast<Module*>(parent_type->interface_definition());
+	    PGModule*decl = parent_def ? dynamic_cast<PGModule*>(
+		  parent_def->get_gate(comp.name)) : nullptr;
+	    auto child_def = decl ? pform_modules.find(decl->get_type())
+			  : pform_modules.end();
+	    if (!decl || child_def == pform_modules.end()
+		|| !child_def->second->is_interface) {
+		delete base_expr;
+		return nullptr;
+	    }
+	    if (decl->is_array() || !child_def->second->param_names.empty()) {
+		cerr << li->get_fileline() << ": sorry: An uninstantiated "
+		     << "nested virtual-interface child array or parameterized "
+		     << "child cannot be typed without a concrete instance."
+		     << endl;
+		des->errors += 1;
+		delete base_expr;
+		return nullptr;
+	    }
+	    interface_type_t declared_child(decl->get_type(), true);
+	    declared_child.set_line(*li);
+	    child_type = dynamic_cast<const netclass_t*>(
+		  declared_child.elaborate_type(
+		    des, const_cast<netclass_t*>(parent_type)->definition_scope()));
+	    if (!child_type || !child_type->is_interface()) {
+		delete base_expr;
+		return nullptr;
+	    }
+      }
+
+      if (!comp.index.empty()) {
+	    cerr << li->get_fileline() << ": sorry: Indexed nested virtual-interface "
+		 << "instances are not supported." << endl;
+	    des->errors += 1;
+	    delete base_expr;
+	    return nullptr;
+      }
+
+      /* The ordinary modport gate only recognizes interface properties.
+	 A nested instance is a scope, so check this missing-property path
+	 against the selected view explicitly. */
+      perm_string modport = parent_type->interface_modport();
+      if (!modport.nil()) {
+	    auto module_it = pform_modules.find(parent_type->get_name());
+	    const PModport*view = nullptr;
+	    if (module_it != pform_modules.end()) {
+		  auto view_it = module_it->second->modports.find(modport);
+		  if (view_it != module_it->second->modports.end())
+			view = view_it->second;
+	    }
+	    if (!view || (view->simple_ports.count(comp.name) == 0
+		  && view->import_ports.count(comp.name) == 0
+		  && view->export_ports.count(comp.name) == 0)) {
+		  cerr << li->get_fileline() << ": error: cannot access nested "
+		       << "interface '" << comp.name << "' through modport '"
+		       << modport << "' of interface '" << parent_type->get_name()
+		       << "' — it is not listed in that modport "
+		       << "(IEEE 1800-2017/2023 25.5)." << endl;
+		  des->errors += 1;
+		  delete base_expr;
+		  return nullptr;
+	    }
+      }
+
+      NetESFunc*result = new NetESFunc("$ivl_vif_nested_value",
+		  static_cast<ivl_type_t>(child_type), 1 + 2*pairs.size());
+      result->set_line(*li);
+      result->parm(0, base_expr);
+      for (size_t idx = 0; idx < pairs.size(); ++idx) {
+	    NetEScope*parent = new NetEScope(pairs[idx].first,
+		  static_cast<ivl_type_t>(parent_type));
+	    const netclass_t*instance_child_type =
+		  elaborate_interface_instance_type(des, pairs[idx].second);
+	    NetEScope*child = new NetEScope(pairs[idx].second,
+		  static_cast<ivl_type_t>(instance_child_type));
+	    parent->set_line(*li);
+	    child->set_line(*li);
+	    result->parm(1 + 2*idx, parent);
+	    result->parm(2 + 2*idx, child);
+      }
+      out_type = child_type;
+      return result;
+}
+
 static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 							Design*des, NetScope*scope,
 							NetExpr*base_expr,
@@ -13131,6 +13318,9 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 
       int pidx = ensure_class_property_idx_(des, class_type, comp.name);
       if (pidx < 0) {
+	    if (class_type->is_interface())
+		  return elaborate_nested_vif_value_(li, des, base_expr,
+				class_type, comp, out_type);
 	    delete base_expr;
 	    return 0;
       }
@@ -14390,7 +14580,10 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      continue;
 			}
 			name_component_t prop_comp = tail_comp;
-			prop_comp.index.clear();
+			/* Preserve an index on a non-property interface child so the
+			   scoped-value path rejects it instead of dropping the select. */
+			if (tprop >= 0)
+			      prop_comp.index.clear();
 			NetExpr*next_expr = elaborate_nested_method_target_property(this, des, scope,
 									   base_expr, cur_class,
 									   prop_comp, cur_type);

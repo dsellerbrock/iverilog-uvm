@@ -1,0 +1,15 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                sv_vif_class_nested_value_handoff: Passed.
+           sv_vif_class_nested_value_handoff_2023: Passed.
+           sv_vif_class_nested_value_missing_fail: ==> Failed - CE - output does not match gold file.
+      sv_vif_class_nested_value_missing_fail_2023: ==> Failed - CE - output does not match gold file.
+        sv_vif_class_nested_value_wrong_type_fail: Passed - CE.
+   sv_vif_class_nested_value_wrong_type_fail_2023: Passed - CE.
+     sv_vif_class_nested_value_wrong_modport_fail: Passed - CE.
+sv_vif_class_nested_value_wrong_modport_fail_2023: Passed - CE.
+              sv_vif_class_nested_value_null_fail: Passed - RE.
+         sv_vif_class_nested_value_null_fail_2023: Passed - RE.
+============================================================================
+Test results:
+  Total=10, Passed=8, Failed=2, Not Implemented=0, Expected Fail=0

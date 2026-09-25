@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "topic": "OT-CSRNG-NESTED-VIF-HANDOFF",
+  "branch": "agent/ot-csrng-nested-vif-20260925",
+  "base_commit": "e8ba46282396f75ebfe878a3f87eb17db551c0ac",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_clean": true,
+  "release_profile": "nonstandard OpenTitan compatibility: -g2017 -gcommercial-unsafe plus named disposable csrng_blklen_width overlay",
+  "named_overlay_sha256": "04dd45643a684aa69ce1a94e67275c9ad0695a7251958ea893579a441901772d",
+  "strict_ieee_reducers": {
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "legacy": {
+      "total": 14,
+      "passed": 14,
+      "failed": 0
+    },
+    "json": {
+      "total": 14,
+      "passed": 14,
+      "failed": 0
+    }
+  },
+  "neighboring_vif": {
+    "legacy": {
+      "total": 184,
+      "passed": 184,
+      "failed": 0
+    },
+    "json": {
+      "total": 184,
+      "passed": 184,
+      "failed": 0
+    }
+  },
+  "tools": {
+    "private_ivl_sha256": "a2470636e85fced3aacc6df62f790e32615e339f8dca012f18191d60eaa708bd",
+    "private_vvp_sha256": "8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014",
+    "private_iverilog_sha256": "75ede60183fb00022bec71adba063ccbea09210c7ba89ca8b95d2fc10c360ef1",
+    "dpi_bundle_sha256": "f611fc0263a55cbd8af8ce75c61efe4e540805dcf0e45a480d1fd00a305c776a"
+  },
+  "release_csrng_smoke": {
+    "count": {
+      "passed": 0,
+      "total": 1
+    },
+    "qualified_pass": false,
+    "compile": {
+      "exit": 0,
+      "seconds": 3.0715345840435475,
+      "image_bytes": 70150010,
+      "image_sha256": "9a1c2c8d4323d556c30b9428fdb9c7bc7662ecd08e355ba88d6e52a5acdcd0a5",
+      "warnings": 31,
+      "skipped_monitor_event": true,
+      "assumed_false_monitor_condition": true,
+      "ignored_int_state_read_enable_constraint_item": true,
+      "profile": "release-compile-candidate4.json",
+      "stderr": "release-compile-candidate4.stderr.log"
+    },
+    "runtime": {
+      "exit": 1,
+      "timed_out": false,
+      "seconds": 8.272395250038244,
+      "last_reported_time_ps": 1000,
+      "intended_pass_marker": false,
+      "fail_marker": true,
+      "meaningful_csrng_command_traffic": false,
+      "scoreboard_comparisons": false,
+      "csr_peek_unknown_field_uvm_error": true,
+      "tl_end_of_sim_assertion": true,
+      "end_of_simulation_fatal": true,
+      "native_aes_dpi_loaded": true,
+      "profile": "release-runtime-candidate4.json",
+      "stdout": "release-runtime-candidate4.stdout.log",
+      "stderr": "release-runtime-candidate4.stderr.log"
+    },
+    "interpretation": "The earlier 0 ps null nested-VIF failure is absent. Runtime fails on an unknown CSR backdoor field before meaningful checked traffic; exact path and cause are unresolved. Compile-progress monitor omissions and an ignored constraint item independently prevent full DV qualification."
+  },
+  "supported_boundary": "zero-concrete-parent scalar unparameterized nested child compiles and null receiver fails at runtime; parameterized or array child without a concrete parent is explicitly unsupported",
+  "promotion_gates": {
+    "broad_legacy": {
+      "total": 6601,
+      "passed": 6596,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3,
+      "vpi": "131/131",
+      "negative": "155/155",
+      "runtime_invariants": "15/15",
+      "log": "broad-legacy-final.log"
+    },
+    "real_dpi_uvm": {
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "log": "real-dpi-uvm-final.log"
+    },
+    "full_json": {
+      "total": 3640,
+      "passed": 3640,
+      "failed": 0,
+      "log": "full-json-final.log"
+    }
+  }
+}

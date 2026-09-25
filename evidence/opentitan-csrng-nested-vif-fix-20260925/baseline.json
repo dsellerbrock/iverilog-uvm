@@ -1,0 +1,82 @@
+{
+  "branch": "agent/ot-csrng-nested-vif-20260925",
+  "base_head": "e8ba46282396f75ebfe878a3f87eb17db551c0ac",
+  "baseline_private_ivl_sha256": "4e6f6e14ad9628c0e1c0f766db5ee1f21691d43d31f8d1a4033474fb2fc50a9c",
+  "baseline_private_vvp_sha256": "8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014",
+  "source_sha256": {
+    "parent_vif_control.sv": "d8afdb0cb2e9d29f1b51256423ccb96e5bcf0672d01896710abf2b859d4df87b",
+    "direct_nested_control.sv": "3b1cf2275bc59acf7835b61fb9af97649673683c4ca97a0be3b020237802bdfb",
+    "nested_vif_put_only.sv": "3698ffb9317e2b163d4fd20832c21ddbd944bc9730150c971c027b4ffd70c076"
+  },
+  "compile_template": [
+    "local-install/bin/iverilog",
+    "-g{edition}",
+    "-s",
+    "tb",
+    "-o",
+    "<output>",
+    "evidence/opentitan-csrng-nested-vif-handoff-20260924/{source}"
+  ],
+  "runtime_template": [
+    "local-install/bin/vvp",
+    "<output>"
+  ],
+  "cases": [
+    {
+      "name": "parent_control",
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_log": "parent_control-2017.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_exit": 0,
+      "runtime_log": "parent_control-2017.runtime.log",
+      "runtime_log_sha256": "13bd516a31fe8e271972f6025aae98c522f748ecf20d71da3d1c66276cd3c78a"
+    },
+    {
+      "name": "direct_child_control",
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_log": "direct_child_control-2017.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_exit": 0,
+      "runtime_log": "direct_child_control-2017.runtime.log",
+      "runtime_log_sha256": "bd9ded02ecbf7c6b276bebbbfac07fa3e6e1c8108020029c464d64ffd48be700"
+    },
+    {
+      "name": "class_nested_red",
+      "edition": "2017",
+      "compile_exit": 255,
+      "compile_log": "class_nested_red-2017.compile.log",
+      "compile_log_sha256": "9bc616b8dc4e647c822b034b8602f4e2595682ee47ad79f65b3ed32b01aeb2c9"
+    },
+    {
+      "name": "parent_control",
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_log": "parent_control-2023.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_exit": 0,
+      "runtime_log": "parent_control-2023.runtime.log",
+      "runtime_log_sha256": "13bd516a31fe8e271972f6025aae98c522f748ecf20d71da3d1c66276cd3c78a"
+    },
+    {
+      "name": "direct_child_control",
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_log": "direct_child_control-2023.compile.log",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_exit": 0,
+      "runtime_log": "direct_child_control-2023.runtime.log",
+      "runtime_log_sha256": "bd9ded02ecbf7c6b276bebbbfac07fa3e6e1c8108020029c464d64ffd48be700"
+    },
+    {
+      "name": "class_nested_red",
+      "edition": "2023",
+      "compile_exit": 255,
+      "compile_log": "class_nested_red-2023.compile.log",
+      "compile_log_sha256": "9bc616b8dc4e647c822b034b8602f4e2595682ee47ad79f65b3ed32b01aeb2c9"
+    }
+  ],
+  "copy_in_trace_log": "copy-in-trace.log",
+  "copy_in_trace_observation": "At nested_vif_put_only.sv:24, the r-value pointer is null and design errors remain zero before and after elaboration. Diagnostic source change was reverted."
+}
