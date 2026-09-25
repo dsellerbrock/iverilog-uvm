@@ -94,10 +94,10 @@
 - **Boundary:** Preserve pinned source and released checks. A compiler repair must retain valid nested VIF object identity and reject genuinely null/invalid handles; a VVP exit 0 does not qualify the smoke.
 - **Evidence:** [Hash-checked replay, bytecode and paired controls/RED](../../evidence/opentitan-csrng-nested-vif-handoff-20260924/README.md).
 
-### OT-OTP-CLASS-SPECIALIZATION-IDENTITY — factory sequencer cast fails
+### OT-OTP-CLASS-SPECIALIZATION-IDENTITY — selected factory sequencer type identity
 
 - **State:** The private ordered-guard VVP advances OTP past cfg.randomize(), then released OTP remains 0/1 DV at 0 ps on DCLPSQ for its EDN pull-agent sequencer. Equivalent named and positional value parameterizations of push_pull_sequencer #(32,33) receive different class descriptors while sharing one factory registry. A paired strict 2017/2023 reducer fails the same-type cast; positional-only controls pass and unequal types reject. The source-sensitive multi-value-parameter specialization key in elab_scope.cc is implicated, with no compiler fix yet.
-- **Boundary:** Preserve the pinned OTP source, named RAM-path overlay, and every released assertion. A bytecode cast diagnostic clears DCLPSQ but ends on later failed checks, so it is not a DV pass.
+- **Boundary:** Fix only the central concrete specialization key in `elab_scope.cc` with paired 2017/2023 legal and illegal class-identity reducers. Preserve the pinned OTP source, named RAM-path overlay, and every released assertion. A bytecode cast diagnostic clears DCLPSQ but ends on later failed checks, so it is not a DV pass.
 - **Evidence:** [Paired reducer, specialization-key trace and disposable bytecode probe](../../evidence/opentitan-otp-dd056-factory-registry-20260924/README.md).
 
 ### CALIPTRA-UNSAFE-VIRTUAL-DISPATCH-REACHABILITY — called task falsely waived (selected P1)

@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-joint-dist-ordered-guards-20260924
-checkpoint_head: 13425491e
+branch: agent/ot-otp-class-identity-20260924
+checkpoint_head: 82830b670
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -76,16 +76,20 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
+  id: OT-OTP-CLASS-SPECIALIZATION-IDENTITY
+  phase: PAIRED_RED_COMPLETE_SAME_IMAGE_CONTROLS_PENDING
+  owner: One implementation lane owns only elab_scope.cc central class specialization key and dedicated paired ivtest fixtures; coordinator owns private builds, focused/required promotion gates, pinned OTP release replay, evidence, docs, review, and PR.
+  reproducer: evidence/opentitan-otp-dd056-factory-registry-20260924/otp_factory_registry_reducer.sv fails equal-value named/default versus positional cast under strict 2017 and 2023. Positional-only controls pass and unequal DeviceWidth rejects. Pinned OTP advances beyond cfg.randomize with PR358 but raises DCLPSQ at 0 ps; 0/1 released DV.
+  expected: Equivalent concrete effective value parameters share a nominal specialization independent of named/positional/default spelling; unequal widths, type/string actuals, and distinct declaration owners remain distinct. Unproved/deferred cases retain source-sensitive fallback and are not falsely merged.
+  root_cause: canonical_specialization_parm_key_ in elab_scope.cc rejects every multi-parameter value formal at its type_flag guard, causing the central cache to key the same effective #(32,33) class by O| versus N| source spelling.
+  source_scope: elab_scope.cc and dedicated paired 2017/2023 class-identity ivtest sources/golds/manifests/focus lists only. No vvp/vvp_z3.cc, installed Caliptra tool, pinned application checkout, Caliptra code/evidence, other compiler source, Verilator/GPU, or CI polling.
+  validation: Pre-fix paired OTP reducer is RED in strict 2017/2023, positional-only legal control is green, unequal DeviceWidth negative rejects. Private ivl SHA-256 302d7094 and VVP bbe72e9d underlie PR358 and the pinned DCLPSQ replay; installed Caliptra ivl/vvp 6ec92c48/e9b7a64a remain unchanged. The PR358 legacy 6581-total zero-failure, JSON 3616/3616, and real-DPI UVM 358/358 results are separate regression gates, not OTP DV passes.
+  next: Add same-image positional, fully named, and omitted-default legal RED with unequal illegal controls; run paired pre-fix checks, implement the smallest central semantic-key fix, then focused and broad gates and pinned OTP replay. Publish one separate PR even if another released checker remains.
+completed_ot_joint_guard:
   id: OT-CSRNG-CFG-JOINT-DIST
-  phase: PR358_PUBLISHED_NEXT_BLOCKER_SELECTION
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/358
-  owner: Delegated implementation agent owns only vvp/vvp_z3.cc and dedicated paired constraint fixtures/manifests. Coordinator owns private build, gates, pinned replays with named overlays, evidence, docs, and PR.
-  reproducer: Paired nested guarded-dist REDs in evidence/opentitan-csrng-cfg-joint-dist-20260923/ and evidence/opentitan-otp-backdoor-path-overlay-20260924/cfg_reducers/ fail with an unresolved random guard, while standalone controls pass. The new coupled-child RED in evidence/opentitan-joint-ordered-guard-red-20260924/ compiles in 2017/2023 but exits 1 on its first randomize in each edition. Pinned CSRNG and OTP both fail cfg.randomize at time zero with no DV pass.
-  expected: Preflight each feasible earlier-stage prefix without RNG, prove due guards active/inactive against hard constraints, validate exact active weights, and sample inactive subjects through ordinary exact stage sampling. Same-stage or unproved guards, UNKNOWN, caps, unsupported weights, and randc conflicts stay loud; preserve transaction rollback.
-  root_cause: vvp/vvp_z3.cc globally tests a joint dist guard before staged solve-before variables are pinned and rejects a globally variable guard even when each earlier-stage fiber can prove it. A global unconditional preference or silently dropped inactive dist would bias sampling.
-  source_scope: vvp/vvp_z3.cc and dedicated paired 2017/2023 tests/manifests only. No pinned source, installed Caliptra compiler/runtime, Caliptra runner/checker, Verilator/GPU, or CI polling.
-  validation: Private source-tree Icarus passes prior guard focus 22/22, initial paired ordered cases 6/6, extra paired independent/randc/prefix-cap cases 6/6, registered legacy 34/34, and JSON 34/34. Final expanded broad legacy passed 6581 total with 6576 ordinary passes, zero failures, two not implemented, three expected failures, VPI 131/131, negatives 155/155, and runtime invariants 15/15; full JSON passed 3616/3616 with zero failures. Private real-DPI UVM passed 358/358 with zero failed/skipped. Pinned CSRNG and OTP advance beyond cfg.randomize but remain 0/1 DV each on distinct nested-VIF handoff and class-specialization identity blockers at 0 ps, with no pass marker or meaningful traffic. OTP compile still has 46 nonfatal sorry diagnostics and an ignored constraint item. Caliptra selected-52 diagnostic remains one separate pass, five failures, 46 unstarted, no aggregate verdict; the v2 passive state probe was user-stopped before its target X outside the numerator.
-  next: PR358 is published with exact solver/test validation. Select the smaller OTP named/positional class-identity blocker with paired RED and legal/illegal controls in a separate PR; keep CSRNG nested-VIF lowering parked.
+  source_commit: 16e3fbdff
+  result: Published exact earlier-stage conditional-fiber solver; focus 34/34 in legacy and JSON, legacy 6581 total zero failed, JSON 3616/3616, real-DPI UVM 358/358. Pinned CSRNG/OTP each remain 0/1 released DV after cfg.randomize at separate time-zero compiler blockers.
 completed_ot_path_overlay:
   id: OT-OTP-BACKDOOR-PATH-COMPAT
   phase: PR_PUBLISHED_NEXT_JOINT_DIST_RUNTIME_RED
@@ -308,4 +312,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "PR358 https://github.com/dsellerbrock/iverilog-uvm/pull/358 publishes the validated ordered joint-dist solver. Switch to a separate stacked branch, activate only OT-OTP-CLASS-SPECIALIZATION-IDENTITY, preserve the paired 2017/2023 RED, add same-image legal named/positional/default and unequal illegal controls, then fix the central multi-value specialization key. Coordinator owns private build, focused and promotion gates, pinned OTP release replay, evidence, review, and the separate PR. CSRNG nested-VIF remains parked; no Caliptra work, Verilator/GPU, or CI polling."
+next_command: "On agent/ot-otp-class-identity-20260924, run paired 2017/2023 pre-fix equal-value cast RED and unequal controls, add same-image positional/full-named/omitted-default permanent reducer, then fix only elab_scope.cc canonical_specialization_parm_key_. Keep the installed Caliptra tool untouched for its separate live job. Coordinator privately rebuilds ivl, runs focused/neighbor and required legacy/JSON/real-DPI UVM promotion gates, replays pinned OTP with named overlay and intact checks, and publishes one OTP PR. Report released DV separately; no Verilator/GPU or CI polling."
