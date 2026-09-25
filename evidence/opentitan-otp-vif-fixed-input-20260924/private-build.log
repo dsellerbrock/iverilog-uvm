@@ -1,0 +1,19 @@
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g0 -O2 -std=c++11 -MD -c elaborate.cc -o elaborate.o
+elaborate.cc:32353:41: warning: declaration shadows a local variable [-Wshadow]
+ 32353 |             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+       |                                         ^
+elaborate.cc:32340:34: note: previous declaration is here
+ 32340 |             if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+       |                                  ^
+elaborate.cc:31419:27: warning: comparison of integers of different signs: 'unsigned int' and 'const int' [-Wsign-compare]
+ 31419 |                       && (unsigned)qidx == dynforeach_emit_ctx_->prop_idx) {
+       |                          ~~~~~~~~~~~~~~ ^  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+elaborate.cc:37745:19: warning: enumeration value 'SEL_WITH' not handled in switch [-Wswitch]
+ 37745 |                                       switch (s->op) {
+       |                                               ^~~~~
+elaborate.cc:37745:19: note: add missing switch cases
+ 37745 |                                       switch (s->op) {
+       |                                               ^
+3 warnings generated.
+mv elaborate.d dep/elaborate.d
+g++ -Wl,-all_load  -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o ivl main.o async.o design_dump.o discipline.o dup_expr.o elaborate.o sv_edition.o elab_expr.o elaborate_analog.o elab_lval.o elab_net.o elab_scope.o elab_sig.o elab_sig_analog.o elab_type.o emit.o eval_attrib.o eval_tree.o expr_synth.o functor.o lexor.o lexor_keyword.o link_const.o load_module.o netlist.o netmisc.o nettypes.o net_analog.o net_assign.o net_design.o netclass.o netdarray.o netenum.o netparray.o netqueue.o netscalar.o netstruct.o netvector.o net_event.o net_expr.o net_func.o net_func_eval.o net_link.o net_modulo.o net_nex_input.o net_nex_output.o net_proc.o net_scope.o net_tran.o net_udp.o map_named_args.o pad_to_width.o parse.o parse_misc.o pform.o pform_sva_nfa.o pform_analog.o pform_disciplines.o pform_dump.o pform_package.o pform_pclass.o pform_types.o symbol_search.o sync.o sys_funcs.o verinum.o verireal.o vpi_modules.o target.o Attrib.o HName.o Module.o PClass.o PDelays.o PEvent.o PExpr.o PFunction.o PGate.o PGenerate.o PModport.o PNamedItem.o PPackage.o PScope.o PSpec.o PTimingCheck.o PTask.o PUdp.o PWire.o Statement.o AStatement.o LineInfo.o StringHeap.o cprop.o exposenodes.o nodangle.o synth.o synth2.o syn-rules.o t-dll.o t-dll-api.o t-dll-expr.o t-dll-proc.o t-dll-analog.o -ldl

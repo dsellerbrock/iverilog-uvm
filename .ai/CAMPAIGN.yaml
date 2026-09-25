@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-alert-clock-output-driver-20260924
-checkpoint_head: 7ee01db72
+branch: agent/ot-otp-vif-fixed-input-20260924
+checkpoint_head: 093557f29
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -72,16 +72,20 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
+  id: OT-OTP-VIF-FIXED-INPUT
+  phase: FOCUSED_TESTED_PINNED_COMPILE_CLEAN_RUNTIME_BLOCKED
+  owner: Delegated implementation agent owns implicated elaborate.cc code and dedicated paired 2017/2023 tests; coordinator owns shared lists, builds, private image, pinned release replay, broader gates, docs, and PR.
+  reproducer: evidence/opentitan-otp-vif-fixed-input-20260924/baseline-red.json has 20 paired cases on private Icarus a0233c24; legal class-held fixed-array input dispatch fails with sorry, while four direct/scalar controls pass runtime. Size/type/scalar negatives are masked by the same guard.
+  expected: Copy compatible one-dimensional packed-integral whole-array input actual into the selected interface task, preserving declared order and caller copy isolation; reject mismatches explicitly and keep output/inout/ref arrays and fixed-array functions unsupported.
+  root_cause: elaborate.cc interface_method_dynamic_signature_ rejects every fixed unpacked formal before candidate-specific argument elaboration and VVP input marshalling.
+  source_scope: Implicated elaborate.cc and dedicated paired tests only; no installed compiler, pinned source, Caliptra unsafe logic, or live runner edits.
+  validation: Final private ivl SHA-256 302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890 passes paired 22/22, dedicated gold 12/12, registered JSON 13/13, legacy 4/4, neighboring VIF JSON 44/44, negatives 155/155, and REAL DPI UVM 358/358 with zero failed/skipped. Pinned OTP compile exits 0 with zero errors/sorries/assertions. Its first released smoke is a DV failure at time zero on a padded OTP RAM hierarchy path with one UVM_FATAL, no pass marker/traffic, and 512 follow-on assertions. Pinned chip remains compile-blocked with 48 errors and a sensitivity assertion. Evidence is evidence/opentitan-otp-vif-fixed-input-20260924/result.json. Caliptra copied-source unsafe diagnostic remains one pass and five ERR_HWIF_IN failures of six completed selected cases, 46 unstarted, no full-52 aggregate; source-sampling companion remains active outside the numerator.
+  next: Review and publish the focused compiler checkpoint, then separately select DD-054 for a checked disposable OTP macro overlay and rerun the released smoke without weakening its backdoor fatal. Keep installed Caliptra tools unchanged while VVP PID 32124 runs; do not poll CI or run GPU/Verilator.
+completed_ot_alert_clocking_output_alias:
   id: OT-ALERT-ESC-CLOCKING-OUTPUT-ALIAS
   phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_RUNTIME
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/355
-  owner: Delegated implementation agent owns implicated elaborate.cc code and dedicated paired 2017/2023 tests; coordinator owns shared lists, builds, private image, pinned replays, broad gates, docs, and PR.
-  reproducer: /tmp/ot-alert-clocking-20260924/scope-matrix.json has 36 paired strict compile cases with 16 mismatches. Disjoint virtual clocking outputs falsely conflict with continuous assignments, while real static/same-scope output writes falsely compile. Pinned OTP has ten alert_esc_if.sv:93/95 errors.
-  expected: Map validated hidden clocking-output writes to their declared raw target; accept disjoint writes, reject real same-member writes, and retain conservative diagnostics for unknown alias/modport mappings.
-  root_cause: elaborate.cc interface_member_has_property_writer_ treats virtual hidden clocking-buffer lvalues as writes to every interface member; successful static output source writes are absent from the late direct-member overlap check.
-  source_scope: Implicated elaborate.cc and dedicated paired tests only for implementation; no installed compiler, pinned source, Caliptra unsafe logic, or live runner edits.
-  validation: Final private Icarus SHA-256 a0233c248d419513e1eaa7dee9d8b9164479287d4bc0a7a4ff468ae4e03c89c9 clears ten pinned OTP alert_esc_if diagnostics, leaving one unrelated fixed unpacked-array virtual-interface task input limitation (compile exit 1, zero explicit errors; no DV runtime). Paired focus 36/36, dedicated JSON 20/20, legacy 7/7, clocking neighbors 36/36, and negatives 155/155 pass. Final-image full JSON was intentionally stopped in the long constraint section to preserve Caliptra diagnostic CPU; a prior d189 image passed 3572/3572, which is not a final-image result. Pinned chip remains at 48 errors and its sensitivity assertion. Caliptra copied-source unsafe diagnostic is separately one pass and five ERR_HWIF_IN failures of six completed selected cases, with 46 unstarted and a separate producer-sampling companion active outside any 52-case aggregate.
-  next: PR355 is published stacked on PR354. Select the separate virtual-interface fixed-array task-input blocker using paired REDs, while the Caliptra producer-sampling VVP runs on unchanged installed tools. Do not poll CI or run GPU/Verilator.
+  validation: Final private ivl a0233c24 passes paired 36/36, dedicated JSON 20/20, legacy 7/7, neighbors 36/36, and negatives 155/155; pinned OTP loses ten explicit errors but stops at one unsupported fixed-array input with no DV runtime. Final-image full JSON was stopped in the long constraint section; preceding d189 image passed 3572/3572. Evidence is evidence/opentitan-alert-clock-output-driver-20260924/result.json.
 completed_ot_fixed_slice_to_queue:
   id: OT-OTP-FIXED-SLICE-TO-QUEUE
   phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_RUNTIME

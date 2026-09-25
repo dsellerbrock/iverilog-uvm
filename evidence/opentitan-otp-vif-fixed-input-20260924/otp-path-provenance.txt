@@ -1,0 +1,22 @@
+Generated pinned OTP source: /tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_otp_ctrl_sim_0.1/tb.sv
+178:   // Instantitate the memory backdoor util instance only for OS implementation
+179:   // Proprietary IP will instantiate their own backdoor util
+180:
+181:   if (`PRIM_DEFAULT_IMPL == prim_pkg::ImplGeneric) begin : gen_impl_generic
+182:     `define MEM_MODULE_PATH \
+183:         tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv
+184:
+185:     `define MEM_ARRAY_PATH \
+186:         `MEM_MODULE_PATH.u_mem.gen_generic.u_impl_generic.mem
+187:
+188:     initial begin : mem_bkdr_util_gen
+189:       mem_bkdr_util m_mem_bkdr_util;
+190:       m_mem_bkdr_util = new(.name("mem_bkdr_util"),
+191:                             .path(`DV_STRINGIFY(`MEM_ARRAY_PATH)),
+192:                             .depth($size(`MEM_ARRAY_PATH)),
+193:                             .n_bits($bits(`MEM_ARRAY_PATH)),
+194:                             .err_detection_scheme(mem_bkdr_util_pkg::EccHamming_22_16));
+
+Compiled VVP image: /tmp/ot-vif-fixed-input-coordinator-20260924/pinned-otp-final/matrix-uvm.vvp
+2275557:     %pushi/str "                  tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem";
+Leading spaces before tb.dut: 18

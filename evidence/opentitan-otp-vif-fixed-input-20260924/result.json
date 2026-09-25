@@ -1,0 +1,68 @@
+{
+  "blocker": "OT-OTP-VIF-FIXED-INPUT",
+  "branch_start_head": "093557f29",
+  "private_ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "release_top": "otp_ctrl",
+  "baseline": {
+    "paired_cases": 20,
+    "runtime_controls_passed": 4,
+    "log": "baseline-red.json",
+    "compile_failures": 16
+  },
+  "focused": {
+    "paired_cases": 22,
+    "runtime_passed": 6,
+    "negative_rejected": 16,
+    "registered_json": "13/13",
+    "registered_legacy": "4/4",
+    "neighbors_json": "44/44",
+    "negative_suite": "155/155",
+    "dedicated_gold": "12/12",
+    "real_dpi_uvm": "358 passed, 0 failed, 0 skipped; REAL DPI loaded"
+  },
+  "pinned_otp_compile": {
+    "exit": 0,
+    "explicit_errors": 0,
+    "sorry": 0,
+    "assertions": 0,
+    "image_sha256": "7051212cda6b7d77329b2a3a7125f48fc192dafeed7191bd2894c2dde4cc8741"
+  },
+  "pinned_chip_compile": {
+    "exit": 134,
+    "explicit_errors": 48,
+    "sorry": 11,
+    "assertions": 1,
+    "image_exists": false
+  },
+  "otp_smoke": {
+    "vvp_exit": 0,
+    "dv_pass": false,
+    "fatal_at_time_zero": true,
+    "actual_uvm_fatals": 1,
+    "postfinish_assertion_errors": 512,
+    "pass_markers": 0,
+    "meaningful_traffic": false,
+    "first_fatal": "mem_bkdr_util.sv:76 invalid padded OTP RAM hierarchy path"
+  },
+  "files_sha256": {
+    "baseline-red.json": "bfab9ed36304b5abbaf7369cafc5464844ca3f1801874f8a04431efc415b29ac",
+    "paired-green.json": "d13ec6d395b12a3526a40ddced682fc0d5511271ed309e3317990cc713536c11",
+    "dedicated-green.json": "5cad3b32f9c5ac6070200f29340dd7526547b3c45a64985ba7dcd1448e1376a5",
+    "focused-json.log": "0f43e7da3af25da00ec44ec27ae97b81fb4023c137a6ddf233185c24e3f0ec3a",
+    "focused-legacy.log": "4b668cb4b13f2847b33567ed34fb3e2391e02da19b8eb8dbd4341cfe0ae2b87c",
+    "neighbors-json.log": "18618b02e6e0755cbdd5d2a3decb35cefb3f47df8a59b4eae7e5f9600d3bd1a2",
+    "negative.log": "f9635f3fdf2c910a23e5a14f42d962c882b5565383afe429aa655a328f0e2587",
+    "private-build.log": "beb5d2b4e1396c9816ea0975736a4eeceec564de779cabd9b68beb3f3527a326",
+    "pinned-otp-compile.log": "bc92f568c3e88ff6dd7f3f7d52b35d8c76a610b02457d7888384454f409952be",
+    "pinned-otp-compile-result.json": "72a853df3ddf0909db2bf59ed0165ef77ac47eb5f47bf4db7fb1a080ba1344a8",
+    "pinned-chip-compile.log": "e1007f6f1374caef6069e5d919f0599607e6a96611dcb1ed35e5cf67fdb4520e",
+    "pinned-chip-compile-result.json": "5a8a6228875d14390e8a063dbc4abfd377dd982dfff99bf9cf257a43f6be051e",
+    "otp-smoke.log": "d7c98b26ead66b02d2c1f453c46b5572bc216c950e0c5fe56d7a8ee3dd8faac0",
+    "otp-smoke-command.json": "bbe6fcd9d44fe30ab0bbc58571c4e35870e7e88e1ff331d1b606d3196c91eb59",
+    "otp-smoke-process-result.json": "c91c37447f81f36e5c107d0e0819b79623f4f430cd1174831d1932562fdf85d6",
+    "otp-path-provenance.txt": "d9ef1934a3f56ca1c5b3643bae29f2595f8945b35224a92a82786f755fe1cae3",
+    "real-dpi-uvm.log": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12"
+  }
+}

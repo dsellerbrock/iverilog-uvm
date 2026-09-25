@@ -1,0 +1,4 @@
+./ivltests/sv_vif_fixed_input_negative.v:30: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.
+./ivltests/sv_vif_fixed_input_negative.v:31: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.
+./ivltests/sv_vif_fixed_input_negative.v:32: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.
+3 error(s) during elaboration.

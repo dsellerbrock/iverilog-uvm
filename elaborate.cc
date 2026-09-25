@@ -13743,6 +13743,21 @@ static bool interface_method_dynamic_signature_(
 		  return false;
 	    }
 	    if (port->unpacked_dimensions() > 0) {
+		  const netuarray_t*array =
+		    dynamic_cast<const netuarray_t*>(port->array_type());
+		  ivl_type_t element = array ? array->element_type() : nullptr;
+		  bool packed_integral = element && element->packed()
+		    && element->packed_width() > 0
+		    && (element->base_type() == IVL_VT_BOOL
+			|| element->base_type() == IVL_VT_LOGIC);
+		  // ponytail: extend beyond one packed-integral dimension only
+		  // after the selected-candidate marshaller has matching checks.
+		  if (def->scope() && def->scope()->type() == NetScope::TASK
+		      && port->port_type() == NetNet::PINPUT
+		      && port->unpacked_dimensions() == 1 && array
+		      && array->static_dimensions().size() == 1
+		      && packed_integral)
+		    continue;
 		  cerr << loc.get_fileline() << ": sorry: virtual-interface "
 		       << "method "
 		       << (port->port_type() == NetNet::PINPUT ? "input " : "")
@@ -14026,10 +14041,55 @@ static vector<NetExpr*> elaborate_interface_method_argument_row_(
 			      argument_type = lval->net_type();
 			delete lval;
 		  }
+		  unsigned errors_before = des->errors;
 		  result[idx] = elaborate_rval_expr(
 			des, caller_scope, argument_type, actuals[idx], false);
-		  if (!result[idx])
+		  if (!result[idx]) {
 			hard_error = true;
+			continue;
+		  }
+		  if (port->unpacked_dimensions() == 1) {
+			if (des->errors != errors_before) {
+			      hard_error = true;
+			      continue;
+			}
+			const NetESignal*signal =
+			      dynamic_cast<const NetESignal*>(result[idx]);
+			const NetNet*actual = signal ? signal->sig() : nullptr;
+			const netuarray_t*actual_array = actual
+			      ? dynamic_cast<const netuarray_t*>(actual->array_type())
+			      : nullptr;
+			const netuarray_t*formal_array =
+			      dynamic_cast<const netuarray_t*>(port->array_type());
+			if (!actual || signal->word_index()
+			    || actual->unpacked_dimensions() != 1 || !actual_array) {
+			      cerr << loc.get_fileline() << ": sorry: virtual-interface "
+			           << "fixed-array task input argument " << (idx+1)
+			           << " requires a whole one-dimensional fixed-array "
+				  "signal actual." << endl;
+			      des->errors += 1;
+			      hard_error = true;
+			} else if (!formal_array
+				   || !formal_array->type_equivalent(actual_array)
+				   || !actual_array->type_equivalent(formal_array)) {
+			      cerr << loc.get_fileline() << ": error: virtual-interface "
+			           << "fixed-array task input argument " << (idx+1)
+			           << " requires the formal's element type and "
+				  "element count." << endl;
+			      des->errors += 1;
+			      hard_error = true;
+			}
+		  }
+		  continue;
+	    }
+
+	    if (port->unpacked_dimensions() == 1) {
+		  cerr << loc.get_fileline() << ": sorry: virtual-interface "
+		       << "fixed-array task input argument " << (idx+1)
+		       << " requires an explicit whole-array signal actual; "
+			  "omitted/default arrays are not yet supported." << endl;
+		  des->errors += 1;
+		  hard_error = true;
 		  continue;
 	    }
 

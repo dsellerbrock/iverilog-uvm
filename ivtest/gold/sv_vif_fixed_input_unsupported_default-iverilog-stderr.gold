@@ -1,0 +1,2 @@
+ivltests/sv_vif_fixed_input_negative.v:44: sorry: virtual-interface fixed-array task input argument 1 requires an explicit whole-array signal actual; omitted/default arrays are not yet supported.
+1 error(s) during elaboration.
