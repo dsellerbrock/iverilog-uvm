@@ -4,10 +4,10 @@ branch: agent/ot-package-self-qual-20260925
 checkpoint_head: 6014f8ebf664a6ecca84536c0d7fc2a30fa1ead4
 active_open_titan_lane:
   blocker: OT-PACKAGE-SELF-QUALIFIED-TYPEDEF
-  phase: LOCAL_QUALIFIED_PR_PENDING
+  phase: PR374_PUBLISHED_LOCAL_QUALIFIED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925
   parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/372
-  pr: pending
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
   baseline_head: 6014f8ebf664a6ecca84536c0d7fc2a30fa1ead4
   baseline_private_ivl_sha256: 20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223
   baseline: PR372 merged its pinned 84-row -gcommercial-unsafe matrix with no application-source overlays and 0/49 clean runtime rows. PR373 is open independently on $system return values.
@@ -16,7 +16,7 @@ active_open_titan_lane:
   expected: Accept the active package as a scoped prefix without overriding nearer same-name class, import, or inherited typedefs; reject forward and missing members.
   source_scope: Active package lookup in pform_package.cc and lexor.lex, paired dedicated tests and OpenTitan evidence/trackers. No pinned source, Caliptra, VVP, solver, Verilator, GPU, or CI polling.
   validation: Private ivl f045786db709fa604990b8de166cfc78c84896acff8850ccbdac3d8eef0978d0 passes paired focused JSON 19/19 and legacy 17/17, final full legacy 6686 total with zero failures, SVA 62/62, make check, and real-DPI UVM 358/358. First full gate's VPI 131/131, negatives 155/155, and runtime invariants 15/15 passed; its three diagnostic-gold mismatches were corrected before the unchanged-binary full legacy rerun. Exact unsafe EDN compiles clear target syntax but three dropped bins prevent runtime; OTBN clears target syntax but later elaboration fails. Last full PR372 matrix baseline is 0/49; this candidate has only named replays, not a new full matrix.
-  next_command: Publish the locally qualified one-blocker PR; do not poll CI or touch Caliptra.
+  next_command: Review PR374 and respond if CI later reports an issue; do not poll CI or touch Caliptra.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
@@ -93,7 +93,7 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-PACKAGE-SELF-QUALIFIED-TYPEDEF
-  phase: LOCAL_QUALIFIED_PR_PENDING
+  phase: PR374_PUBLISHED_LOCAL_QUALIFIED
   owner: Coordinator owns isolated parser fix, paired reducers, private build, pinned unsafe EDN replay, evidence, review, and publication; separate Caliptra work remains untouched.
   reproducer: Released EDN had four parse failures on self-qualified typedefs declared earlier in its own package body; OTBN had the same shape at otbn_env_cov.sv:2294. Paired REDs and illegal boundaries are archived.
   expected: Resolve already-declared active-package typedefs through package qualification; preserve same-named class shadowing and reject unknown or forward typedefs in both editions.
@@ -101,7 +101,8 @@ active_blocker:
   source_scope: pform_package.cc and parser/lexer package-token handling only if paired reducers require it; dedicated tests and OpenTitan owning evidence/docs. No pinned source, Caliptra, VVP, solver, Verilator, GPU, or CI polling.
   validation: Paired focus 19/19 JSON and 17/17 legacy, final full legacy 6686 total with zero failures, SVA 62/62, real-DPI UVM 358/358. First full gate's VPI 131/131, negative 155/155, runtime 15/15 passed; exact diagnostic gold updates were followed by an unchanged-binary full legacy pass. Pinned unsafe EDN compiles exit zero but dropped bins block runtime; OTBN target parse clears but later compile errors remain. Last full PR372 matrix baseline is 0/49; no current-image full matrix was run.
   prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/373
-  next: Publish this locally qualified one-blocker PR. No CI polling.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
+  next: Review PR374 and respond if CI later reports an issue. No CI polling.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
