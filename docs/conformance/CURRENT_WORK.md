@@ -9,7 +9,26 @@ evidence. Named Caliptra and OpenTitan patches and options are selected per
 test on disposable copies under the [release overlay guide](release_overlays/README.md),
 leaving pinned source checkouts unchanged.
 
-The [latest complete OpenTitan unsafe DV baseline](../../evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md)
+The [latest complete OpenTitan unsafe DV baseline](../../evidence/opentitan-cover-open-range-20260925/latest-unsafe-matrix.md)
+uses the combined private Icarus compiler (`ivl` SHA-256
+`9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe`)
+and explicit `-gcommercial-unsafe` for all 84 selected compile rows. This
+matrix uses the pinned base-source filelists; test-specific OpenTitan overlays
+are recorded as separate named replays. Of 35
+UVM rows, nine compile with debt and 26 fail; of 49 runtime rows, seven are
+classified `DEBT`, 35 fail compilation, six fail at runtime, and one times out.
+There are **0/49 zero-debt raw matrix `PASS` statuses**. All seven `DEBT`
+runtime rows complete their selected checks with meaningful traffic and zero
+runtime errors; adding the two current-image OTP/CSRNG named patched replays
+gives **9/49 selected smoke identities passing nonstandard compatibility DV**.
+Forty selected identities still fail compilation or runtime, or time out;
+these are not 40 distinct compiler bugs. HMAC advances from a
+hard compile error to checked runtime traffic but reports a CSR status
+`UVM_ERROR`; VVP exit zero does not qualify it. The pinned OpenTitan
+checkout remains unmodified. This is nonstandard compatibility evidence;
+paired strict IEEE reducers and UVM regression counts are separate.
+
+The [previous PR #374 unsafe DV baseline](../../evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md)
 uses the private PR #374 Icarus compiler at `1d2aca710` and
 `-gcommercial-unsafe` for **all 84** selected UVM/runtime compile rows.
 The [per-row table](../../evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/results.md)
@@ -30,13 +49,34 @@ The pinned released `prim_prince_sim` compiles with `-gcommercial-unsafe` and,
 after loading its native DPI model, completes **1/1 named checked nonstandard
 compatibility replay**: five golden and one random vector, reference-model
 encryption/decryption checks, one `TEST PASSED CHECKS`, and zero runtime
-errors or assertions. Its base matrix row remains `DEBT` because three
-runner-tracked FuseSoC setup warnings remain, with a separate raw
-backend-deprecation warning, so the merged baseline's **0/49 clean runtime
-matrix rate is unchanged**. Extra-argument `$system` acceptance is tracked
+errors or assertions. On that recorded image its base matrix row was `DEBT`
+because of three runner-tracked FuseSoC setup warnings and a separate raw
+backend-deprecation warning. The latest matrix instead records
+`RUNTIME_FAIL` without the native DPI symbol; neither row qualifies as a
+clean matrix DV pass. Extra-argument `$system` acceptance is tracked
 separately as DD-062; no full chapter-20 conformance claim follows.
 
-On the final private OpenTitan Icarus image recorded in the [OTP cover-bin
+The [open-ended covergroup range follow-on](../../evidence/opentitan-cover-open-range-20260925/README.md)
+preserves HMAC's upper-length bin and cross. Its pinned smoke runs real message
+traffic with `-gcommercial-unsafe`, but a CSR status mirror mismatch reports
+`UVM_ERROR` and `TEST FAILED CHECKS`: **0/1 released HMAC DV**. The full 84-row
+rerun above is on this image. Paired strict 2017/2023 reducers qualify constant
+open range bins and transitions, not the nonstandard application replay. The
+combined-image local gates pass full legacy 6,694 total with zero unexpected
+failures, JSON/VVP 3,743/3,743, VPI with PLI1 140/140, and REAL DPI UVM
+358/358; these counts are separate from released DV.
+
+On that same compiler, the documented disposable-source [OTP RAM-path
+overlay](../../evidence/opentitan-cover-open-range-20260925/otp-current-overlay/result.json)
+and [CSRNG width overlay](../../evidence/opentitan-cover-open-range-20260925/csrng-current-overlay/result.json)
+each complete a named `-gcommercial-unsafe` smoke with native DPI and the
+original checks: **2/2 named nonstandard compatibility DV**, separate from the
+base-source matrix's 0/49. OTP records 1343 checked TL A/D pairs with six bin
+groups and 36 endpoints retained; its warned fault-injection branches are
+unexercised by this seed. CSRNG records ordered app-2 instantiate, generate,
+and uninstantiate traffic; one constraint item remains ignored at compile.
+
+On an earlier private OpenTitan Icarus image recorded in the [OTP cover-bin
 endpoint replay](../../evidence/opentitan-otp-cover-bin-method-20260925/README.md),
 the pinned `otp_ctrl_smoke_vseq` completes **1/1 released nonstandard
 compatibility DV** with six previously dropped coverage bins retained,

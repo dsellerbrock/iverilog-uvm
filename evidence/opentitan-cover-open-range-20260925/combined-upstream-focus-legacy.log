@@ -1,0 +1,8 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+Warning: only using first file argument to script.
+     sv_system_return: Passed.
+sv_system_return_2023: Passed.
+============================================================================
+Test results:
+  Total=2, Passed=2, Failed=0, Not Implemented=0, Expected Fail=0

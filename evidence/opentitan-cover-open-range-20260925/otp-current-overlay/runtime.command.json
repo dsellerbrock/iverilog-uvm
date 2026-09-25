@@ -1,0 +1,24 @@
+{
+  "classification": "nonstandard compatibility; compile used -gcommercial-unsafe",
+  "cwd": "/private/tmp/ot-open-range-full-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/bin/vvp",
+    "-d",
+    "/private/tmp/ot-open-range-otp-20260925/otp_native_dpi.dylib",
+    "-n",
+    "/private/tmp/ot-open-range-otp-20260925/otp_compat.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_HIGH",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=otp_ctrl_base_test",
+    "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+  ],
+  "env_override": {
+    "IVL_SVA_NFA": "1"
+  },
+  "niceness_delta": 10,
+  "vvp_sha256": "e54c7489ae51e3d14ba3b201cd4502b3d8ccfc7742926589cc9bddb82334bcae",
+  "program_sha256": "0b8d6fd2e9fc812dd0aa94d2504ab99190e95b5faa01dc9817d2db5a9190417b",
+  "native_dpi_sha256": "fddf0821174e3ee1cab8acde06f10088cd98c0b557dc6ecf6ac634fa0509e12e"
+}

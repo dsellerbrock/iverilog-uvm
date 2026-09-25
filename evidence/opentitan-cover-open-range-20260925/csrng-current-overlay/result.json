@@ -1,0 +1,65 @@
+{
+  "classification": "1/1 named released CSRNG DV, nonstandard Icarus compatibility (-g2017 -gcommercial-unsafe plus named disposable width overlay); separate from IEEE reducers and 84-row matrix",
+  "qualified": true,
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_clean": true,
+  "compiler_checkout_head": "0d3126189103f1691666d2ed8ad80a562c3ac8b7",
+  "tool_sha256": {
+    "iverilog": "b732343c6d8f620761c9d518fa3137c4e9c7c5ee9100d4210240dcd3ab7ffd9b",
+    "ivl": "9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe",
+    "vvp": "e54c7489ae51e3d14ba3b201cd4502b3d8ccfc7742926589cc9bddb82334bcae"
+  },
+  "source_sha256": {
+    "pinned_tb": "57cd498fa284ce107553050c17bbca22797030c30e643b2e3562877e5742ff52",
+    "width_patch": "04dd45643a684aa69ce1a94e67275c9ad0695a7251958ea893579a441901772d",
+    "disposable_patched_tb": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+    "generated_setup_filelist": "3d3e6001a2b29390a6bc0ac39846976e803376e808fbe3cc7930ea22496ee9d1",
+    "overlay_source_list": "970bb87172405c633060cc39d4ebc25feccd2985191556f9ffba7ae21d6c4c31",
+    "overlay_wrapper": "0d05f96a05e09bca0a08e82578978a3fad0b199cf2dbe67ad1683eb0442a4ada"
+  },
+  "binary_sha256": {
+    "csrng_vvp": "2e2b88340005c4739c85586c6fc3491e57edbf905ab286cb448562810368b7de",
+    "native_aes_dpi": "2edb3cc0819d0c7e919266778d4090027c9599a08492731a00c3b33e84db0662"
+  },
+  "compile": {
+    "exit": 0,
+    "warnings": 32,
+    "ignored_constraint_items": 1,
+    "uwire_substitution_warnings": 3,
+    "command_record": "compile.command.json",
+    "log": "compile.log"
+  },
+  "native_dpi": {
+    "exit": 0,
+    "command_record": "dpi.command.json",
+    "log": "dpi.log"
+  },
+  "runtime": {
+    "exit": 0,
+    "timed_out": false,
+    "seconds": 128.769,
+    "pass_markers": 1,
+    "fail_markers": 0,
+    "fatal_or_assertion_error_lines": 0,
+    "reported_uvm_errors": 0,
+    "reported_uvm_fatals": 0,
+    "app2_instantiate_ps": [
+      15371293
+    ],
+    "app2_generate_ps": [
+      24704701
+    ],
+    "app2_uninstantiate_ps": [
+      25000,
+      3580532,
+      46663210
+    ],
+    "sequence_finished_ps": [
+      72830086
+    ],
+    "finish_ps": 77830086,
+    "log_sha256": "14186034d68fc3d794b7243b058fb1dfcf36d4bebf864adf28197a19a47fc1f7",
+    "command_record": "runtime.command.json",
+    "log": "runtime.log"
+  }
+}

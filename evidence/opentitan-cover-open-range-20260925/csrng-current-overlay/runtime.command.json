@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/bin/vvp",
+    "-d",
+    "/private/tmp/ot-open-range-csrng-20260925/csrng.dylib",
+    "-n",
+    "/private/tmp/ot-open-range-csrng-20260925/csrng.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_MEDIUM",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/private/tmp/ot-open-range-full-unsafe-20260925/work/runtime/lowrisc_dv_csrng_sim_0.1/sim-icarus",
+  "env_override": {
+    "IVL_SVA_NFA": "1"
+  },
+  "exit": 0,
+  "timed_out": false,
+  "duration_seconds": 128.769
+}

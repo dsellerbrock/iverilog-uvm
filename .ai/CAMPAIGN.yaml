@@ -1,22 +1,21 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-package-self-qual-20260925
-checkpoint_head: 6014f8ebf664a6ecca84536c0d7fc2a30fa1ead4
+branch: agent/ot-cover-open-range-20260925
+checkpoint_head: 808ad9f40711cb8277f920a0c7a4a1ab2aa2a99c
 active_open_titan_lane:
-  blocker: OT-PACKAGE-SELF-QUALIFIED-TYPEDEF
-  phase: PR374_PUBLISHED_LOCAL_QUALIFIED
-  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925
-  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/373
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
-  baseline_head: 6014f8ebf664a6ecca84536c0d7fc2a30fa1ead4
-  baseline_private_ivl_sha256: 20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223
-  baseline: PR372 merged its pinned 84-row -gcommercial-unsafe matrix with no application-source overlays and 0/49 clean runtime rows. The fresh full PR374 candidate matrix also uses -gcommercial-unsafe in 84/84 rows and remains 0/49 clean runtime. PR373 merged at a7d21d2320c4122ce8f112bfb422e8df31992265; its $system fix is in this rebased branch.
-  standards: Strict 2017/2023 package-scoping reducers and nonstandard unsafe-mode released OpenTitan replays have separate denominators.
-  reproducer: Released EDN and OTBN use already-declared typedefs through their own still-open package names; the previous compiler rejected those references before endpackage registration.
-  expected: Accept the active package as a scoped prefix without overriding nearer same-name class, import, or inherited typedefs; reject forward and missing members.
-  source_scope: Active package lookup in pform_package.cc and lexor.lex, paired dedicated tests and OpenTitan evidence/trackers. No pinned source, Caliptra, VVP, solver, Verilator, GPU, or CI polling.
-  validation: Private ivl f045786db709fa604990b8de166cfc78c84896acff8850ccbdac3d8eef0978d0 passes paired focused JSON 19/19 and legacy 17/17, final full legacy 6686 total with zero failures, SVA 62/62, make check, and real-DPI UVM 358/358. First full gate's VPI 131/131, negatives 155/155, and runtime invariants 15/15 passed; its three diagnostic-gold mismatches were corrected before the unchanged-binary full legacy rerun. Exact unsafe EDN compiles clear target syntax but three dropped bins prevent runtime; OTBN clears target syntax but later elaboration fails. The fresh full PR374 unsafe matrix has 84/84 flagged compiles and remains 0/49 clean runtime, with unchanged row statuses versus PR372; see evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md.
-  next_command: Review PR374 and respond if CI later reports an issue; do not poll CI or touch Caliptra.
+  blocker: OT-COVERGROUP-OPEN-ENDED-RANGE
+  phase: LOCAL_GATES_COMPLETE_PR_READY
+  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925
+  prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
+  baseline_head: 808ad9f40711cb8277f920a0c7a4a1ab2aa2a99c
+  baseline: PR373 merged at a7d21d2320c4122ce8f112bfb422e8df31992265 with its independent $system fix; PR374 merged at 808ad9f40711cb8277f920a0c7a4a1ab2aa2a99c. The historical PR374 private compiler ran all 84 pinned OpenTitan rows with explicit -gcommercial-unsafe and 0/49 clean runtime DV; HMAC compiled with a dropped zero-bin cross caused by {[1:$]}.
+  standards: Paired strict IEEE 1800-2017/2023 reducers are separate from the pinned -gcommercial-unsafe application replay and DV denominator.
+  reproducer: Both strict editions compile the open-ended bin without its value ranges, drop the cross, and fail runtime at 50 percent instead of the expected 16.67 percent; open-ended transition syntax rejects, while illegal [$:$] incorrectly compiles.
+  expected: Retain one-null range bounds through parsing; resolve them to signed or unsigned coverpoint-domain edges without expanding wide bins; keep out-of-domain ranges empty and [$:$] illegal.
+  source_scope: parse.y and elaborate.cc covergroup range handling, dedicated reducers, OpenTitan-only evidence and owning docs; no pinned source, Caliptra, shared installation, Verilator, GPU, or CI polling.
+  validation: Final combined private ivl 9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe passes paired open-range legacy and JSON focus 8/8 each, full legacy 6694 total with 6689 ordinary passes, zero failures, two not implemented, and three expected failures, full JSON 3743/3743, VPI with PLI1 140/140, real-DPI UVM 358/358, negatives 155/155, SVA dual 62/62, and make check. All 84 pinned matrix compiles use -gcommercial-unsafe. Raw runtime statuses are 7 DEBT, 35 FAIL, 6 RUNTIME_FAIL, and 1 RUNTIME_TIMEOUT, with 0/49 clean released DV; UVM rows are 9 DEBT and 26 FAIL. Seven DEBT rows completed checked, meaningful, zero-error smokes, and two current-image named OTP and CSRNG documented-overlay replays qualify, giving 9/49 selected smoke identities in nonstandard compatibility; 40 identities remain failed or timed out, not 40 unique bugs. HMAC is 0/1 after meaningful traffic and a UVM_ERROR. The earlier pre-integration a083 image is separate.
+  prior_release_result: PR374 paired focused JSON 19/19 and legacy 17/17, full legacy 6686 with zero failures, SVA 62/62, make check, real-DPI UVM 358/358, VPI 131/131, negatives 155/155, and runtime invariants 15/15 passed on its private image. Pinned unsafe EDN compiled but three bins dropped and released DV stayed 0/1; OTBN cleared the target parse error but later compile errors remained. See evidence/opentitan-package-self-typedef-20260925/README.md and evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md.
+  next_command: Review final combined-image evidence and publish the one-blocker open-range PR; do not poll CI.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
@@ -92,17 +91,15 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-PACKAGE-SELF-QUALIFIED-TYPEDEF
-  phase: PR374_PUBLISHED_LOCAL_QUALIFIED
-  owner: Coordinator owns isolated parser fix, paired reducers, private build, pinned unsafe EDN replay, evidence, review, and publication; separate Caliptra work remains untouched.
-  reproducer: Released EDN had four parse failures on self-qualified typedefs declared earlier in its own package body; OTBN had the same shape at otbn_env_cov.sv:2294. Paired REDs and illegal boundaries are archived.
-  expected: Resolve already-declared active-package typedefs through package qualification; preserve same-named class shadowing and reject unknown or forward typedefs in both editions.
-  root_cause_hypothesis: Confirmed; package lookup reaches packages_by_name only after endpackage, so the active package was not classified for its own scoped type uses.
-  source_scope: pform_package.cc and parser/lexer package-token handling only if paired reducers require it; dedicated tests and OpenTitan owning evidence/docs. No pinned source, Caliptra, VVP, solver, Verilator, GPU, or CI polling.
-  validation: Paired focus 19/19 JSON and 17/17 legacy, final full legacy 6686 total with zero failures, SVA 62/62, real-DPI UVM 358/358. First full gate's VPI 131/131, negative 155/155, runtime 15/15 passed; exact diagnostic gold updates were followed by an unchanged-binary full legacy pass. Pinned unsafe EDN compiles exit zero but dropped bins block runtime; OTBN target parse clears but later compile errors remain. The full PR374 unsafe matrix completes 84/84 flagged compiles and remains 0/49 clean runtime; see evidence/opentitan-icarus-dv-baseline-pr374-unsafe-20260925/README.md.
-  prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/373
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/374
-  next: Review PR374 and respond if CI later reports an issue. No CI polling.
+  id: OT-COVERGROUP-OPEN-ENDED-RANGE
+  phase: LOCAL_GATES_COMPLETE_PR_READY
+  owner: Coordinator owns private builds, strict reducers, unsafe HMAC replay, evidence, docs, and PR; separate Caliptra agent owns its runs.
+  reproducer: Pinned HMAC {[1:$]} and {[2064:$]} bins disappear and their cross is dropped. Paired 2017/2023 reducers fail runtime, transition syntax rejects, and illegal [$:$] compiles.
+  expected: Exact compact open-ended range bins and cross hits with signed and unsigned boundaries; strict rejection of [$:$].
+  root_cause_hypothesis: parse.y drops nullable endpoints and elaborate.cc skips them.
+  source_scope: Covergroup handling in parse.y and elaborate.cc, dedicated tests, OpenTitan evidence/owning docs only; pinned sources and Caliptra unchanged.
+  validation: Final combined ivl 9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe passes paired focus 8/8 each, full legacy 6694 total with zero failures, JSON 3743/3743, VPI with PLI1 140/140, real-DPI UVM 358/358, negatives 155/155, SVA dual 62/62, and make check. Exact pinned 84-row -gcommercial-unsafe matrix is raw 0/49 clean released DV; seven DEBT rows plus two current-image named documented-overlay replays qualify 9/49 selected nonstandard smoke identities, leaving 40 failed or timed-out identities. HMAC remains 0/1 after meaningful traffic and UVM_ERROR. See evidence/opentitan-cover-open-range-20260925/README.md.
+  next: Review final evidence and publish one-blocker PR; no CI polling.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
@@ -336,4 +333,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Review PR374 with its completed -gcommercial-unsafe 84-row OpenTitan baseline at 0/49 clean runtime; respond if CI later reports an issue without polling. Select the next released-DV blocker after safe integration, and preserve the separate Caliptra work."
+next_command: "Review final combined-image OpenTitan evidence and publish the open-range PR; preserve Caliptra work and do not poll CI."

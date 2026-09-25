@@ -1,0 +1,145 @@
+UVM_INFO @ 0 ps: reporter [RNTST] Running test csrng_smoke_test...
+UVM_INFO @         0 ps: (csrng_smoke_test.sv:18) uvm_test_top [uvm_test_top] 
+
+	 |**************** csrng_env_cfg *************************| 	
+	 |***** otp_en_cs_sw_app_read           :       'h96 *****| 	
+	 |***** lc_hw_debug_en                  :       'h05 *****| 	
+	 |***** enable                          :  MuBi4True *****| 	
+	 |***** sw_app_enable                   : MuBi4False *****| 	
+	 |***** read_int_state                  :  MuBi4True *****| 	
+	 |***** regwen                          :          1 *****| 	
+	 |***** check_int_state                 :          1 *****| 	
+	 |***** int_state_read_enable           :        'h7 *****| 	
+	 |***** int_state_read_enable_regwen    :          0 *****| 	
+	 |***** fips_force_enable               :          9 *****| 	
+	 |---------------- knobs ---------------------------------| 	
+	 |***** otp_en_cs_sw_app_read_pct       :         80 *****| 	
+	 |***** otp_en_cs_sw_app_read_inval_pct :         80 *****| 	
+	 |***** lc_hw_debug_en_pct              :         50 *****| 	
+	 |***** enable_pct                      :        100 *****| 	
+	 |***** sw_app_enable_pct               :         90 *****| 	
+	 |***** read_int_state_pct              :         95 *****| 	
+	 |***** regwen_pct                      :        100 *****| 	
+	 |***** check_int_state_pct             :        100 *****| 	
+	 |***** int_state_read_enable_pct       :         95 *****| 	
+	 |***** int_state_read_enable_regwen_pct:         50 *****| 	
+	 |***** fips_force_enable_pct           :         50 *****| 	
+	 |***** num_cmds_min                    :          0 *****| 	
+	 |***** num_cmds_max                    :          0 *****| 	
+	 |***** min_aes_halt_clks               :          0 *****| 	
+	 |***** max_aes_halt_clks               :          0 *****| 	
+	 |********************************************************| 	
+
+UVM_INFO @         0 ps: [TPREGR] Original object type 'alert_esc_base_monitor' already registered to produce 'alert_monitor'.  Replacing with override to produce type 'alert_monitor'.
+UVM_INFO @         0 ps: [TPREGR] Original object type 'alert_esc_base_driver' already registered to produce 'alert_receiver_driver'.  Replacing with override to produce type 'alert_receiver_driver'.
+UVM_INFO @         0 ps: (dv_base_test.sv:97) uvm_test_top [uvm_test_top] Starting test sequence csrng_smoke_vseq
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:551) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_sfifo_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:552) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_cfg_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:553) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_cmds_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:554) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_sts_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:555) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_err_code_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:556) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_err_code_test_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:557) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_recov_alert_sts_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:558) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_otp_en_sw_app_read_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:559) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_genbits_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:560) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_state_db_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:561) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_es_sample_cg
+UVM_INFO @     25000 ps: (csrng_scoreboard.sv:83) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] CSRNG disabled, clearing scoreboard state.
+UVM_INFO @     25000 ps: (csrng_scoreboard.sv:529) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Uninstantiate of app 0
+UVM_INFO @     25000 ps: (csrng_scoreboard.sv:529) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Uninstantiate of app 1
+UVM_INFO @     25000 ps: (csrng_scoreboard.sv:529) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Uninstantiate of app 2
+UVM_INFO @   3580532 ps: (csrng_scoreboard.sv:83) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] CSRNG disabled, clearing scoreboard state.
+UVM_INFO @   3580532 ps: (csrng_scoreboard.sv:529) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Uninstantiate of app 0
+UVM_INFO @   3580532 ps: (csrng_scoreboard.sv:529) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Uninstantiate of app 1
+UVM_INFO @   3580532 ps: (csrng_scoreboard.sv:529) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Uninstantiate of app 2
+UVM_INFO @   4329538 ps: (dv_base_reg.sv:329) [csrng_reg_block.regwen] lock_lockable_flds          1 val
+UVM_INFO @   5371213 ps: (dv_base_reg.sv:329) [csrng_reg_block.int_state_read_enable_regwen] lock_lockable_flds          0 val
+UVM_INFO @  15371293 ps: (csrng_scoreboard.sv:492) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Instantiate of app 2
+UVM_INFO @  15371293 ps: (csrng_scoreboard.sv:456) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Update of app 2
+UVM_INFO @  24704701 ps: (csrng_scoreboard.sv:546) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Generate of app 2
+UVM_INFO @  24704701 ps: (csrng_scoreboard.sv:456) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Update of app 2
+UVM_INFO @  46663210 ps: (csrng_scoreboard.sv:529) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Uninstantiate of app 2
+UVM_INFO @  72830086 ps: (dv_base_test.sv:101) uvm_test_top [uvm_test_top] Finished test sequence csrng_smoke_vseq
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_tl_agent_csrng_reg_block.monitor [uvm_test_top.env.m_tl_agent_csrng_reg_block.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_tl_agent_csrng_reg_block.monitor [uvm_test_top.env.m_tl_agent_csrng_reg_block.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_entropy_src_agent.monitor [uvm_test_top.env.m_entropy_src_agent.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_entropy_src_agent.monitor [uvm_test_top.env.m_entropy_src_agent.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_edn_agent[1].monitor [uvm_test_top.env.m_edn_agent[1].monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_edn_agent[1].monitor [uvm_test_top.env.m_edn_agent[1].monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_edn_agent[1].m_genbits_push_agent.monitor [uvm_test_top.env.m_edn_agent[1].m_genbits_push_agent.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_edn_agent[1].m_genbits_push_agent.monitor [uvm_test_top.env.m_edn_agent[1].m_genbits_push_agent.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_edn_agent[1].m_cmd_push_agent.monitor [uvm_test_top.env.m_edn_agent[1].m_cmd_push_agent.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_edn_agent[1].m_cmd_push_agent.monitor [uvm_test_top.env.m_edn_agent[1].m_cmd_push_agent.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_edn_agent[0].monitor [uvm_test_top.env.m_edn_agent[0].monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_edn_agent[0].monitor [uvm_test_top.env.m_edn_agent[0].monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_edn_agent[0].m_genbits_push_agent.monitor [uvm_test_top.env.m_edn_agent[0].m_genbits_push_agent.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_edn_agent[0].m_genbits_push_agent.monitor [uvm_test_top.env.m_edn_agent[0].m_genbits_push_agent.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_edn_agent[0].m_cmd_push_agent.monitor [uvm_test_top.env.m_edn_agent[0].m_cmd_push_agent.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_edn_agent[0].m_cmd_push_agent.monitor [uvm_test_top.env.m_edn_agent[0].m_cmd_push_agent.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_alert_agent_recov_alert.monitor [uvm_test_top.env.m_alert_agent_recov_alert.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_alert_agent_recov_alert.monitor [uvm_test_top.env.m_alert_agent_recov_alert.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_alert_agent_fatal_alert.monitor [uvm_test_top.env.m_alert_agent_fatal_alert.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_alert_agent_fatal_alert.monitor [uvm_test_top.env.m_alert_agent_fatal_alert.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:74) uvm_test_top.env.m_aes_halt_agent.monitor [uvm_test_top.env.m_aes_halt_agent.monitor] watchdog_ok_to_end: raising objection
+UVM_INFO @  74830086 ps: (dv_base_monitor.sv:82) uvm_test_top.env.m_aes_halt_agent.monitor [uvm_test_top.env.m_aes_halt_agent.monitor] watchdog_ok_to_end: starting the timer (count: 1)
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_tl_agent_csrng_reg_block.monitor [uvm_test_top.env.m_tl_agent_csrng_reg_block.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_entropy_src_agent.monitor [uvm_test_top.env.m_entropy_src_agent.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_edn_agent[1].monitor [uvm_test_top.env.m_edn_agent[1].monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_edn_agent[1].m_genbits_push_agent.monitor [uvm_test_top.env.m_edn_agent[1].m_genbits_push_agent.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_edn_agent[1].m_cmd_push_agent.monitor [uvm_test_top.env.m_edn_agent[1].m_cmd_push_agent.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_edn_agent[0].monitor [uvm_test_top.env.m_edn_agent[0].monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_edn_agent[0].m_genbits_push_agent.monitor [uvm_test_top.env.m_edn_agent[0].m_genbits_push_agent.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_edn_agent[0].m_cmd_push_agent.monitor [uvm_test_top.env.m_edn_agent[0].m_cmd_push_agent.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_alert_agent_recov_alert.monitor [uvm_test_top.env.m_alert_agent_recov_alert.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_alert_agent_fatal_alert.monitor [uvm_test_top.env.m_alert_agent_fatal_alert.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  75830086 ps: (dv_base_monitor.sv:99) uvm_test_top.env.m_aes_halt_agent.monitor [uvm_test_top.env.m_aes_halt_agent.monitor] watchdog_ok_to_end: dropping objection
+UVM_INFO @  77830086 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @  77830086 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count :     0 of     1
+** Report counts by severity
+UVM_INFO :   55
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[TPREGR]     2
+[UVM/REPORT/CATCHER]     1
+[csrng_reg_block.int_state_read_enable_regwen]     1
+[csrng_reg_block.regwen]     1
+[uvm_test_top]     3
+[uvm_test_top.env.m_aes_halt_agent.monitor]     3
+[uvm_test_top.env.m_alert_agent_fatal_alert.monitor]     3
+[uvm_test_top.env.m_alert_agent_recov_alert.monitor]     3
+[uvm_test_top.env.m_edn_agent[0].m_cmd_push_agent.monitor]     3
+[uvm_test_top.env.m_edn_agent[0].m_genbits_push_agent.monitor]     3
+[uvm_test_top.env.m_edn_agent[0].monitor]     3
+[uvm_test_top.env.m_edn_agent[1].m_cmd_push_agent.monitor]     3
+[uvm_test_top.env.m_edn_agent[1].m_genbits_push_agent.monitor]     3
+[uvm_test_top.env.m_edn_agent[1].monitor]     3
+[uvm_test_top.env.m_entropy_src_agent.monitor]     3
+[uvm_test_top.env.m_tl_agent_csrng_reg_block.monitor]     3
+[uvm_test_top.env.scoreboard]    13
+
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 77830086 (1ps)

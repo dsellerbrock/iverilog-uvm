@@ -1,0 +1,26 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-system-return-focus-vvp.list, regress-package-self-typedef-focus-vvp.list
+----------------------------------------------------------------------------
+     sv_const_nonlocal_static_package_qualified_shadow: Passed - CE.
+sv_const_nonlocal_static_package_qualified_shadow_2023: Passed - CE.
+                     sv_missing_package_self_task_fail: Passed - CE.
+                sv_missing_package_self_task_fail_2023: Passed - CE.
+                sv_package_qualified_subroutine_lookup: Passed.
+           sv_package_qualified_subroutine_lookup_2023: Passed.
+                sv_package_self_class_method_collision: Passed.
+                               sv_package_self_typedef: Passed.
+                          sv_package_self_typedef_2023: Passed.
+                  sv_package_self_typedef_forward_fail: Passed - CE.
+             sv_package_self_typedef_forward_fail_2023: Passed - CE.
+                  sv_package_self_typedef_missing_fail: Passed - CE.
+             sv_package_self_typedef_missing_fail_2023: Passed - CE.
+                   sv_package_self_typedef_shadow_fail: Passed - CE.
+              sv_package_self_typedef_shadow_fail_2023: Passed - CE.
+                             sv_self_package_enum_cast: Passed.
+                        sv_self_package_enum_cast_2023: Passed.
+           sv_self_package_enum_cast_unknown_type_fail: Passed - CE.
+      sv_self_package_enum_cast_unknown_type_fail_2023: Passed - CE.
+                                      sv_system_return: Passed.
+                                 sv_system_return_2023: Passed.
+============================================================================
+Test results: Ran 21, Failed 0.

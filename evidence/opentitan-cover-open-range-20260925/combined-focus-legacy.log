@@ -1,0 +1,13 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                sv_covergroup_open_end_ranges: Passed.
+           sv_covergroup_open_end_ranges_2023: Passed.
+            sv_covergroup_open_end_transition: Passed.
+       sv_covergroup_open_end_transition_2023: Passed.
+          sv_covergroup_open_end_both_illegal: Passed - CE.
+     sv_covergroup_open_end_both_illegal_2023: Passed - CE.
+     sv_covergroup_ctor_bin_ranges_unresolved: Passed.
+sv_covergroup_ctor_bin_ranges_unresolved_2023: Passed.
+============================================================================
+Test results:
+  Total=8, Passed=8, Failed=0, Not Implemented=0, Expected Fail=0

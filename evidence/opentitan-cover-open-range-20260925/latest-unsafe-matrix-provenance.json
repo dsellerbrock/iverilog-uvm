@@ -1,0 +1,109 @@
+{
+  "all_compiler_component_hashes_stable": true,
+  "archive_sha256": "81d5e24ceb421ea5336a48e26059ef84d4372980a55c4c03185a483f68161720",
+  "archived_log_count": 182,
+  "compiled_rows": 84,
+  "compiler_fingerprint_end": {
+    "components": {
+      "compiler_engine": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/ivl",
+        "sha256": "9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe"
+      },
+      "driver": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/bin/iverilog",
+        "sha256": "b732343c6d8f620761c9d518fa3137c4e9c7c5ee9100d4210240dcd3ab7ffd9b"
+      },
+      "normal_config": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/vvp.conf",
+        "sha256": "955c021f896ef670e532fc8ef57e8185104a15695efd1b1e9479b9a0358d435a"
+      },
+      "synthesis_config": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/vvp-s.conf",
+        "sha256": "63f029ceeaabcd95c1e59b63037ecca49f4f4366d1b40c6f9afc47113d9e2e3e"
+      },
+      "uvm_dpi": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/uvm_dpi.vpi",
+        "sha256": "924ea0f642027c8acf809ccd5cdacd820833a8dbc8bd290b40b85c76f9ea9b72"
+      },
+      "vvp_runtime": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/bin/vvp",
+        "sha256": "e54c7489ae51e3d14ba3b201cd4502b3d8ccfc7742926589cc9bddb82334bcae"
+      },
+      "vvp_target": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/vvp.tgt",
+        "sha256": "307083f7f6a43497ef487303467f77d76a380acf2b6becc12baf63134cb3f6c7"
+      }
+    },
+    "uvm_sources": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+    }
+  },
+  "compiler_fingerprint_start": {
+    "components": {
+      "compiler_engine": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/ivl",
+        "sha256": "9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe"
+      },
+      "driver": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/bin/iverilog",
+        "sha256": "b732343c6d8f620761c9d518fa3137c4e9c7c5ee9100d4210240dcd3ab7ffd9b"
+      },
+      "normal_config": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/vvp.conf",
+        "sha256": "955c021f896ef670e532fc8ef57e8185104a15695efd1b1e9479b9a0358d435a"
+      },
+      "synthesis_config": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/vvp-s.conf",
+        "sha256": "63f029ceeaabcd95c1e59b63037ecca49f4f4366d1b40c6f9afc47113d9e2e3e"
+      },
+      "uvm_dpi": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/uvm_dpi.vpi",
+        "sha256": "924ea0f642027c8acf809ccd5cdacd820833a8dbc8bd290b40b85c76f9ea9b72"
+      },
+      "vvp_runtime": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/bin/vvp",
+        "sha256": "e54c7489ae51e3d14ba3b201cd4502b3d8ccfc7742926589cc9bddb82334bcae"
+      },
+      "vvp_target": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl/vvp.tgt",
+        "sha256": "307083f7f6a43497ef487303467f77d76a380acf2b6becc12baf63134cb3f6c7"
+      }
+    },
+    "uvm_sources": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+    }
+  },
+  "icarus_commit": "0d3126189103f1691666d2ed8ad80a562c3ac8b7",
+  "lane_counts": {
+    "runtime": 49,
+    "uvm": 35
+  },
+  "lane_status_counts": {
+    "runtime": {
+      "DEBT": 7,
+      "FAIL": 35,
+      "RUNTIME_FAIL": 6,
+      "RUNTIME_TIMEOUT": 1
+    },
+    "uvm": {
+      "DEBT": 9,
+      "FAIL": 26
+    }
+  },
+  "matrix_markdown_sha256": "8a2be5ef79be8bad07aebd1a0585f19d6f2091ef8b24dd3d4712153721d7772a",
+  "matrix_result_sha256": "7626f27374ea24b412eb740919ebc540ca99ef06c6d0cc8a829b9ad5a7eb6ee6",
+  "pinned_opentitan_clean": true,
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "prior_pr374_matrix_sha256": "551383e8c9a2c701f85ef43dcae9598d4ccca8f8fad010d79a15f5fecd488ea6",
+  "qualified_runtime_dv_denominator": 49,
+  "qualified_runtime_dv_passes": 0,
+  "status_counts": {
+    "DEBT": 16,
+    "FAIL": 61,
+    "RUNTIME_FAIL": 6,
+    "RUNTIME_TIMEOUT": 1
+  },
+  "unsafe_flagged_compile_rows": 84
+}
