@@ -1,21 +1,25 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-csrng-inline-receiver-20260925
-checkpoint_head: 2fd5b6effa416b2b7e1c042c2ccf09f8495d14db
+branch: agent/ot-csrng-aes-clear-20260925
+checkpoint_head: 8dc7bd712233d49b08ca4077e9015a650af9062d
 active_open_titan_lane:
-  blocker: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
-  phase: PR366_PUBLISHED_AES_ASSERTION_NEXT
-  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925
-  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/365
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
-  baseline_private_ivl_sha256: b4e5dec66b067e2e74526dbe1b0086de4a4152dc5cfc5126db6920a535a1f408
-  baseline_private_vvp_sha256: c6fd0821d294d548f41fbab33792db2d7e582c98cd01dab5d432ee199e929483
-  baseline: PR365 pinned native-DPI CSRNG reaches 5537881 ps then fails 0/1 released DV before command traffic because the first owner-held cs_item.randomize() captures qualified member constraints as caller values.
-  standards: IEEE 1800-2017/2023 sections 18.7 and 18.7.1 for inline target/caller lookup; 18.6.1 and 18.6.3 for target randomization and rollback; active-object fixed-state rule 2017 18.5.9 / 2023 18.5.8.
-  validation: Paired 2017/2023 legal and invalid-member baseline RED 0/4 each becomes 4/4 each in legacy and JSON; neighboring focus 11/11 each; make check passes; full legacy 6617 total zero unexpected failures, JSON 3656/3656, real-DPI UVM 358/358. Strict alias and explicit-this gaps remain DD-059/60.
-  released_dv: Pinned native-DPI CSRNG remains 0/1 released nonstandard compatibility DV; VVP exits zero after one AES AesSecCmDataRegKeySca assertion and TEST FAILED CHECKS at 16454635 ps. Medium verbosity shows one observed SW-app instantiate command, no completed generate/genbits check or pass marker. Ignored int_state_read_enable_c is separate.
-  next_command: Start the separate AES assertion blocker after worktree audit; strict 2017/2023 exact-shape reducer passes, so discriminate full-design selector/data/X history versus SVA sampling with a diagnostic-only observer. Keep original checks active and do not poll CI.
-  boundary: OpenTitan private tool only; pinned application sources, installed Caliptra tool, and user-owned campaign AGENTS.md unchanged. Caliptra jobs remain stopped; no Verilator, GPU, or CI polling.
+  blocker: OT-CSRNG-AES-FINAL-ROUND-STATE-ASSERTION
+  phase: LOCAL_GATES_AND_RELEASE_PASS_PR_PENDING
+  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-aes-clear-20260925
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
+  pr: pending
+  baseline_head: 3bc99d9310ec383011f761f6878c123a80dc0cc2
+  baseline_private_ivl_sha256: 5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d
+  baseline_private_vvp_sha256: fbd1a91179518a3e56f9b20832058b27abdc813744f383d9ff093225c1e1b757
+  current_private_iverilog_sha256: 4e98b3a27b646486860199f176a71fa732c192b5abb6ca99aa48518b9ee2a0ca
+  current_private_ivl_sha256: 5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d
+  current_private_vvp_sha256: e9c5a713c88c040fe4e941bd75a0f0e5c40995b273fcd17d1227325cdc4a038b
+  baseline: PR366 pinned native-DPI CSRNG in explicit unsafe compatibility mode reaches one observed SW-app instantiate at 15371293 ps and fails 0/1 released DV at AesSecCmDataRegKeySca at 16454635 ps.
+  standards: IEEE 1800-2017 section 7.4.3 and 2023 section 7.4.6 allow fixed unpacked-array equality; both editions sections 16.5.1, 16.6, 16.9.3, and 16.12.7 govern Preponed sampling, assertion Boolean values, past samples, and next-tick implication. Section 11.4.5 governs ambiguous equality.
+  validation: Paired strict RED is 0/1 legacy and 0/2 JSON before the fix; final private focus passes 1/1 legacy and 2/2 JSON with positive, deliberate-negative, second-word, held-force, and strength-resolved controls. Neighboring Preponed focus passes 1/1 each; make check, legacy 6618 total with zero unexpected failures, JSON 3658/3658, negatives 155/155, SVA dual-engine 62/62, VPI with PLI1 140/140, force-array runtime 2/2, and real-DPI UVM 358/358 pass. The first JSON attempt lacked the optional FPGA target; after private install its two controls pass and final JSON is clean.
+  released_dv: Final pinned native-DPI CSRNG smoke passes 1/1 nonstandard compatibility DV with original AES assertion active, scoreboard instantiate/generate/uninstantiate traffic, completed sequence, TEST PASSED CHECKS, and zero UVM errors/fatals at 77830086 ps. Ignored int_state_read_enable_c warning remains separate.
+  next_command: Review final diff and evidence, then publish one stacked PR. No CI polling.
+  boundary: OpenTitan-only work; pinned application sources, installed Caliptra tool, and user-owned campaign AGENTS.md unchanged. No Caliptra job, Verilator, GPU, or CI polling.
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -90,15 +94,21 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
+  id: OT-CSRNG-AES-FINAL-ROUND-STATE-ASSERTION
+  phase: LOCAL_GATES_AND_RELEASE_PASS_PR_PENDING
+  owner: Coordinator owns disposable-source diagnostics, standards/reducer grounding, private OpenTitan build if needed, pinned native-DPI replay, gates, evidence, review, and one separate PR.
+  reproducer: Pinned CSRNG reaches one observed SW-app instantiate command and then AesSecCmDataRegKeySca UVM_ERROR at 16454635 ps with TEST FAILED CHECKS; no completed generate/genbits check or pass marker.
+  expected: Preserve the original final-round state-clearing assertion and all checks; distinguish mux selection, input data, unknowns, NBA state update, and SVA sampled history before implementation.
+  root_cause_hypothesis: Confirmed by strict paired RED and the unchanged pinned CSRNG assertion passing after underlying net-word Preponed history is enabled and read.
+  source_scope: vvp/array.cc and vvp/vpi_priv.h net-backed fixed-array Preponed history delegation, dedicated paired tests, OpenTitan-only evidence and owning docs; no pinned source, Caliptra, or installed tool edits.
+  validation: Current strict paired focus passes 1/1 legacy and 2/2 JSON after baseline RED; neighboring focus 1/1 each and make check pass. Full legacy 6618 total with zero unexpected failures, JSON 3658/3658, negatives 155/155, SVA dual-engine 62/62, VPI with PLI1 140/140, force-array runtime 2/2, and real-DPI UVM 358/358 pass. Released CSRNG 1/1 nonstandard compatibility DV with meaningful scoreboard traffic and zero UVM errors/fatals. See evidence/opentitan-csrng-aes-final-round-20260925/result.json.
+  next: Finish final review, then publish this blocker as one stacked PR. No CI polling.
+completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
-  phase: PR366_PUBLISHED_AES_ASSERTION_NEXT
-  owner: Coordinator owns private build, strict reducers, pinned native-DPI replay, broad gates, evidence, review, and one stacked PR.
-  reproducer: On PR365 baseline, paired strict 2017/2023 owner-held req.randomize() with req.clen==12 returned zero although 12 is legal; emitted constraint IR captured req.clen as caller state. Pinned CSRNG failed its first cs_item.randomize() at 5537881 ps before command traffic.
-  expected: Resolve the stable caller-held receiver's qualified member as the target property when target-class lookup does not claim that name; preserve target-class shadow, explicit local qualification, distinct caller handles, failed-solve rollback, and invalid-member rejection.
-  root_cause_hypothesis: Confirmed class-property lookup represents the receiver as @.req and randomize_receiver_root_ formerly accepted only a one-component path, dropping its identity before constraint IR classification.
-  source_scope: Proven receiver-root elaboration in elab_expr.cc, elaborate.cc only if required, paired dedicated tests, focused evidence, and owning OpenTitan trackers; no solver/runtime, pinned source, Caliptra, or installed Caliptra tool edits.
-  validation: PR366 direct receiver fix has strict focus 4/4 each, neighbors 11/11 each, make check, legacy 6617 zero unexpected failures, JSON 3656/3656, and real-DPI UVM 358/358; released CSRNG remains 0/1 at a separate AES assertion.
-  next: Continue OpenTitan only with the AES assertion as a separate blocker and PR; the current strict AES clearing reducer passes and full-design cause is unproved. Keep released DV separate and do not poll CI.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
+  source_commit: 2fd5b6effa416b2b7e1c042c2ccf09f8495d14db
+  evidence_commit: 3bc99d9310ec383011f761f6878c123a80dc0cc2
+  result: Published direct owner-held receiver elaboration; strict paired focus 4/4 each, neighboring focus 11/11 each, full legacy 6617 zero unexpected failures, JSON 3656/3656, real-DPI UVM 358/358. Pinned CSRNG remains 0/1 released nonstandard compatibility DV at a separate AES assertion.
 completed_ot_joint_guard:
   id: OT-CSRNG-CFG-JOINT-DIST
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/358

@@ -1,0 +1,14 @@
+58:v0x776a9604c0_0 .net8 v0x776a9604c0 0, 7 0, RS_0x776a980480; 2 drivers, strength-aware
+60:v0x776a9604c0_1 .net8 v0x776a9604c0 1, 7 0, RS_0x776a9804a0; 2 drivers, strength-aware
+101:    %load/preponed/av v0x776a9604c0, 4;
+104:    %load/preponed/av v0x776a960440, 4;
+110:    %load/preponed/av v0x776a9604c0, 4;
+113:    %load/preponed/av v0x776a960440, 4;
+263:    %hist/on/av v0x776a960440;
+264:    %hist/on/av v0x776a9604c0;
+371:    %load/preponed/av v0x776a9604c0, 4;
+375:    %load/preponed/av v0x776a9604c0, 4;
+380:    %load/preponed/av v0x776a9604a0, 4;
+387:    %load/preponed/av v0x776a9604a0, 4;
+574:    %hist/on/av v0x776a9604a0;
+575:    %hist/on/av v0x776a9604c0;

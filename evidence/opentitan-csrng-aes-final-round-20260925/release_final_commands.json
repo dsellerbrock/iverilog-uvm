@@ -1,0 +1,29 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-aes-clear-20260925/local-install/bin/vvp",
+    "-d",
+    "/tmp/ot-csrng-aes-fixed-release-20260925/csrng.dylib",
+    "-n",
+    "/tmp/ot-csrng-aes-fixed-release-20260925/csrng.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_MEDIUM",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "exit": 0,
+  "timeout": false,
+  "seconds": 51.992,
+  "private_tool_sha256": {
+    "iverilog": "4e98b3a27b646486860199f176a71fa732c192b5abb6ca99aa48518b9ee2a0ca",
+    "ivl": "5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d",
+    "vvp": "e9c5a713c88c040fe4e941bd75a0f0e5c40995b273fcd17d1227325cdc4a038b"
+  },
+  "compiled_program_sha256": "86014298265750e11c85bd6c2a04382bac069929e943e9469b90f4610884a411",
+  "native_dpi_sha256": "6aa61f92a4f1255f32d46b28569bf0bed82dbdbe5ff8ffbaa10bfad33bc2d997",
+  "filelist_sha256": "5801cea09e222556b2c1e6c202b2ce03c84b0398e2b3a06ee09505ed1971df7b",
+  "tb_overlay_sha256": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+  "pinned_aes_source_sha256": "febc6a30c5ea0d1dddbd2971fc7c7299a4365c94b814fbbc9e71d4979c31a37f"
+}
