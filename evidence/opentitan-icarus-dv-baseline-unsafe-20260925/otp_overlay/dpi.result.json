@@ -1,0 +1,26 @@
+{
+  "steps": [
+    {
+      "exit_code": 0,
+      "duration_seconds": 0.055
+    },
+    {
+      "exit_code": 0,
+      "duration_seconds": 0.306
+    },
+    {
+      "exit_code": 0,
+      "duration_seconds": 0.642
+    },
+    {
+      "exit_code": 0,
+      "duration_seconds": 0.026
+    },
+    {
+      "exit_code": 0,
+      "duration_seconds": 0.036
+    }
+  ],
+  "all_exit_zero": true,
+  "library_sha256": "e2cd0dfa2780330ebd2b6a04d2a0638bd64c372890895f8243f1990cb7d5fa86"
+}

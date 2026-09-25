@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/bin/iverilog",
+    "-g2012",
+    "-stb",
+    "-scsrng_bind",
+    "-scsrng_cov_bind",
+    "-ssec_cm_prim_count_bind",
+    "-ssec_cm_prim_double_lfsr_bind",
+    "-ssec_cm_prim_onehot_check_bind",
+    "-ssec_cm_prim_sparse_fsm_flop_bind",
+    "-gcommercial-unsafe",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_REG_BYTENABLE_WIDTH=4",
+    "-DUVM_REGEX_NO_DPI",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/csrng_overlay/csrng.vvp",
+    "-c",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/evidence/opentitan-icarus-dv-baseline-unsafe-20260925/csrng_overlay/matrix-iverilog.scr"
+  ],
+  "cwd": "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_csrng_sim_0.1/sim-icarus",
+  "exit": 0,
+  "duration_seconds": 4.546
+}

@@ -1,0 +1,68 @@
+{
+  "commands": [
+    [
+      "cc",
+      "-std=c99",
+      "-O2",
+      "-fPIC",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925",
+      "-I/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_prince_ref_0.1",
+      "-c",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c",
+      "-o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_prince.o"
+    ],
+    [
+      "c++",
+      "-std=c++11",
+      "-O2",
+      "-fPIC",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925",
+      "-c",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc",
+      "-o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_present.o"
+    ],
+    [
+      "c++",
+      "-std=c++11",
+      "-O2",
+      "-fPIC",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925",
+      "-c",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc",
+      "-o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/digestpp_dpi.o"
+    ],
+    [
+      "cc",
+      "-std=c99",
+      "-O2",
+      "-fPIC",
+      "-c",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.dpiexport.c",
+      "-o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.dpiexport.o"
+    ],
+    [
+      "c++",
+      "-dynamiclib",
+      "-undefined",
+      "dynamic_lookup",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_prince.o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/crypto_dpi_present.o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/digestpp_dpi.o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.dpiexport.o",
+      "-o",
+      "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_native_dpi.dylib"
+    ]
+  ],
+  "source_sha256": {
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c": "5585191425d1f0b8ec8f7803d10908ac4c338e25d7fb7e1f63c3358aa289e771",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc": "cd3feda5d8c6f98006206f35478fa8f01aefad9a08819f8b2416cb3addb01145",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc": "e28ecdb376b7a97474dbcf1a54c1afd5b3898f57799a0e635e575da9176c769d",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.dpiexport.c": "56a03fcea159d492a5f7b2ad655601f49e3913327b148fc16df681f3c668ed62",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_prince_ref_0.1/prince_ref.h": "e4f068ab456e58c6c71b0d178ac8a46813062d3e576c781b3f161c4235b74755"
+  }
+}

@@ -1,22 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-otp-cover-bin-method-20260925
-checkpoint_head: 4799a65bf88c0f234f5da7d59eeda62ece50e57f
+branch: agent/ot-dv-baseline-unsafe-20260925
+checkpoint_head: e5eb0901ead2de0fa03ac27d5883d7eac7a2054c
 active_open_titan_lane:
-  blocker: OT-OTP-COVER-BIN-METHOD-ENDPOINT
-  phase: PR371_PUBLISHED_RELEASED_DV_1_OF_1
-  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925
-  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/370
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/371
-  baseline_head: 4799a65bf88c0f234f5da7d59eeda62ece50e57f
-  baseline_private_ivl_sha256: e69aaaf36c5e9b16d47248b6eaffef80712be19df01f9e7d5459686b49e09354
-  baseline: PRs 362-370 are merged. The pinned OTP smoke completes checked traffic with its DAI guard retained but remains 0/1 qualified DV because six covergroup bins are dropped at compile time.
-  standards: IEEE 1800-2017/2023 §§19.3 and 19.5; verify exact method-call legality and construction-time semantics before implementation.
-  reproducer: Pinned otp_ctrl_env_cov.sv has six bins with 36 ral.<register>.get_offset() endpoints under a non-ref covergroup constructor RAL handle. The compiler reports runtime range expressions cannot be represented and drops each bin.
-  expected: Per-instance construction-time endpoint capture with all six bins present, strict illegal ref/mutable rejection, and completed pinned runtime with original checks.
-  source_scope: Implicated covergroup binding, elaboration/IR, VVP runtime construction, and dedicated paired reducers; coordinator owns manifests, private build, gates, pinned replay, evidence, review, and separate PR.
-  validation: Final private ivl 4bacf9b8e8132998a309990687d3b7cb0cf9bd8ee64dce8d874d32c857726a24; 34/34 paired focus in each harness; legacy 6678 total zero failures, VPI 140/140, JSON 3727/3727, negative 155/155, SVA 62/62, real-DPI UVM 358/358. Pinned OTP native-DPI 1/1 named nonstandard compatibility DV with 36 endpoints retained and 1343 checked TL A/D pairs; strict nested-path compile rejects, no strict DV. Separate CSRNG smoke 1/1 nonstandard compatibility with preexisting ignored constraint warning. OTP bin hits, force-warning branches, and full OpenTitan DV suite remain unqualified.
-  next_command: Merge the reviewed PR371 under existing user authorization without CI polling; then select the next OpenTitan-only released DV blocker. Leave Caliptra runs untouched.
+  blocker: OT-DV-UNSAFE-BASELINE
+  phase: RESULTS_RECORDED_REVIEW_PENDING
+  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/371
+  pr: pending
+  baseline_head: e5eb0901ead2de0fa03ac27d5883d7eac7a2054c
+  baseline_private_ivl_sha256: 20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223
+  baseline: PR371 merged. The latest private compiler ran the pinned OpenTitan one-smoke-per-target matrix with -gcommercial-unsafe in all 84 compile commands; no application-source overlays in those rows.
+  standards: Nonstandard compatibility evidence only; IEEE reducers and UVM regression are separate denominators.
+  reproducer: 35 UVM compiles yield 8 DEBT and 27 FAIL. The 49 runtime rows yield 8 DEBT checked completions, 36 compile FAIL, and 5 RUNTIME_FAIL.
+  expected: Exact per-row profile, source and compiler hashes, archived logs, and separate overlay-selected named DV outcomes.
+  source_scope: OpenTitan matrix runner option, its self-test, evidence, and owning docs/trackers only; no pinned source or Caliptra changes.
+  validation: Runner self-test passes; all 84 commands include -gcommercial-unsafe, all 181 logs are hash-verified, and compiler hashes remain stable. Conservative clean matrix DV 0/49; eight pass banners have unresolved setup and sometimes compile debt. Same-image selected OTP and CSRNG overlay/native-DPI smokes each qualify 1/1 named nonstandard compatibility DV outside the matrix denominator. See evidence/opentitan-icarus-dv-baseline-unsafe-20260925/README.md.
+  next_command: Review and publish the unsafe baseline table and evidence; do not poll CI or touch Caliptra.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
@@ -92,16 +92,16 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-OTP-COVER-BIN-METHOD-ENDPOINT
-  phase: REDUCERS_IN_PROGRESS_RELEASED_DV_0_OF_1
-  owner: Implementation agent owns implicated source and dedicated paired reducers; coordinator owns private build, shared manifests, promotion gates, exact pinned replay, evidence, review, tracker, and one separate PR.
-  reproducer: Six OTP bins with 36 ral.<register>.get_offset() endpoints are dropped at compile time with runtime-range-expression diagnostics.
-  expected: Evaluate legal non-ref constructor-handle method endpoints at covergroup construction per instance, preserve full bin denominator, and reject illegal or uncertain cases.
-  root_cause_hypothesis: Flattened call path bypasses constructor-root binding and current dynamic range IR cannot encode method-path endpoints.
-  source_scope: Implicated covergroup binding, elaboration/IR, VVP construction, and paired tests; no pinned OpenTitan or Caliptra file/tool/process/worktree edits.
-  validation: Baseline pinned released OTP DV remains 0/1 despite completed checked runtime; candidate pending.
+  id: OT-DV-UNSAFE-BASELINE
+  phase: RESULTS_RECORDED_REVIEW_PENDING
+  owner: Coordinator owns baseline evidence, table, tracker, and publication; separate Caliptra agent owns its runs.
+  reproducer: Latest merged Icarus under explicit unsafe mode produces 0/49 clean base-source runtime rows and eight pass banners with unresolved debt.
+  expected: Publish the exact 84-row table and separately qualified named OTP/CSRNG overlay replays.
+  root_cause_hypothesis: Measurement only; per-row failures remain classified in the matrix result.
+  source_scope: OpenTitan runner/evidence/owning docs only; pinned sources and Caliptra unchanged.
+  validation: Self-test passes, 84/84 unsafe commands and 181/181 logs verified; named OTP and CSRNG each 1/1 nonstandard compatibility DV on this compiler.
   pr: pending
-  next: Paired baseline RED, narrow implementation, private broad gates and exact pinned replay; no CI polling.
+  next: Review and publish; no CI polling.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
@@ -335,4 +335,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "On agent/ot-otp-class-identity-20260924, run paired 2017/2023 pre-fix equal-value cast RED and unequal controls, add same-image positional/full-named/omitted-default permanent reducer, then fix only elab_scope.cc canonical_specialization_parm_key_. Keep the installed Caliptra tool untouched for its separate live job. Coordinator privately rebuilds ivl, runs focused/neighbor and required legacy/JSON/real-DPI UVM promotion gates, replays pinned OTP with named overlay and intact checks, and publishes one OTP PR. Report released DV separately; no Verilator/GPU or CI polling."
+next_command: "Review and publish the September 25 OpenTitan -gcommercial-unsafe 84-row baseline and its separate named OTP/CSRNG overlay replays; preserve the Caliptra run and do not poll CI."

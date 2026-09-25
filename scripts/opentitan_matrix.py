@@ -2098,8 +2098,11 @@ def compile_command(
     top_options: Sequence[str],
     output: Path,
     uvm_home: Path | None = None,
+    commercial_unsafe: bool = False,
 ) -> list[str]:
     command = [str(iverilog), "-g2012", *top_options]
+    if commercial_unsafe and job.lane in {"uvm", "runtime"}:
+        command.append("-gcommercial-unsafe")
     if job.lane == "rtl":
         command.extend(["-S", "-DSYNTHESIS"])
     elif job.lane == "sva":
@@ -2309,7 +2312,8 @@ def run_job(
     executable = work_root / f"matrix-{job.lane}.vvp"
     compile_result = command_result(
         compile_command(
-            job, iverilog, compiler_source_list, top_options, executable, args.uvm_home
+            job, iverilog, compiler_source_list, top_options, executable,
+            args.uvm_home, args.commercial_unsafe,
         ),
         cwd=source_list.parent,
         env=env,
@@ -2475,6 +2479,7 @@ def markdown_report(report: dict[str, object]) -> str:
         + (" (dirty)" if metadata["opentitan_dirty"] else ""),
         f"- Icarus: `{metadata['iverilog_version']}`",
         f"- Compiler engine SHA-256: `{engine.get('sha256', 'unavailable')}`",
+        f"- UVM/runtime compile profile: `{metadata['uvm_runtime_compile_profile']}`",
         f"- Jobs: `{len(results)}`",
         "- Status counts: "
         + ", ".join(f"`{key}={value}`" for key, value in sorted(counts.items())),
@@ -2720,6 +2725,20 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert "-DUVM_REGEX_NO_DPI" not in uvm_runtime_compile
     assert "--uvm-no-dpi" not in uvm_runtime_compile
     assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in uvm_runtime_compile
+    assert "-gcommercial-unsafe" not in uvm_runtime_compile
+    assert parser().parse_args(["--commercial-unsafe"]).commercial_unsafe
+    for lane in ("uvm", "runtime"):
+        assert "-gcommercial-unsafe" in compile_command(
+            Job(lane, Core(parsed[0], ""), uvm_target),
+            Path("iverilog"), Path("uvm.scr"), [], Path("uvm.vvp"),
+            commercial_unsafe=True,
+        )
+    for lane in ("rtl", "sva"):
+        assert "-gcommercial-unsafe" not in compile_command(
+            Job(lane, Core(parsed[0], ""), uvm_target),
+            Path("iverilog"), Path("uvm.scr"), [], Path("uvm.vvp"),
+            commercial_unsafe=True,
+        )
     regex_uvm_target = dataclasses.replace(
         uvm_target,
         build_options=(
@@ -2782,6 +2801,11 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert "-uvm" not in directed_runtime_compile
     assert not any(option.startswith("-DUVM") for option in directed_runtime_compile)
     assert "-DSIMULATION" in directed_runtime_compile
+    assert "-gcommercial-unsafe" in compile_command(
+        Job("runtime", directed_core, directed_target),
+        Path("iverilog"), Path("directed.scr"), [], Path("directed.vvp"),
+        commercial_unsafe=True,
+    )
     directed_with_uvm_import = dataclasses.replace(
         directed_target, requires_uvm_library=True
     )
@@ -3054,6 +3078,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--runtime-timeout", type=int, default=300)
     result.add_argument("--runtime-arg", action="append", default=[])
     result.add_argument(
+        "--commercial-unsafe", action="store_true",
+        help="use -gcommercial-unsafe for UVM and runtime compiles",
+    )
+    result.add_argument(
         "--dpi-library",
         action="append",
         type=Path,
@@ -3189,6 +3217,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "fusesoc_version": fusesoc_version,
         "fusesoc_python": fusesoc_python_info,
         "top_mapping": args.top,
+        "uvm_runtime_compile_profile": (
+            "commercial-unsafe" if args.commercial_unsafe else "default"
+        ),
         "matrix_provider_core_root": str(matrix_core_root),
         "englishbreakfast_mapping_sha256": hashlib.sha256(
             ENGLISHBREAKFAST_MAPPING_CORE.encode()

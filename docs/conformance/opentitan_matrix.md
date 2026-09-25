@@ -159,6 +159,13 @@ The default reports are `opentitan-matrix.json` and `opentitan-matrix.md` under
 the build root.  `DEBT` and all failure/timeout statuses make the runner return
 nonzero, allowing the matrix to become a genuine zero-debt gate.
 
+For OpenTitan compatibility DV, pass `--commercial-unsafe` with the UVM and
+runtime lanes. This adds `-gcommercial-unsafe` to those compile commands and
+records the profile in JSON and Markdown; RTL and SVA commands are unchanged.
+Results using this opt-in flag are nonstandard compatibility results, separate
+from IEEE conformance. The [2026-09-25 unsafe baseline](../../evidence/opentitan-icarus-dv-baseline-unsafe-20260925/README.md)
+records the exact pinned-source 84-row command and per-row table.
+
 ## Per-core simulation setup
 
 FuseSoC literal `sim` targets do not carry every build option that OpenTitan

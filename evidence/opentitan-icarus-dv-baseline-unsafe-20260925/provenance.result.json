@@ -1,0 +1,45 @@
+{
+  "baseline_icarus_commit": "e5eb0901ead2de0fa03ac27d5883d7eac7a2054c",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_clean": true,
+  "compiled_rows": 84,
+  "unsafe_flagged_compile_rows": 84,
+  "all_compiler_component_hashes_stable": true,
+  "compiler_components": {
+    "driver": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/bin/iverilog",
+      "expected_sha256": "5e2b9db7ed1068910edef732b59e558463b2521998810041de09884cfbcafb95",
+      "end_sha256": "5e2b9db7ed1068910edef732b59e558463b2521998810041de09884cfbcafb95"
+    },
+    "compiler_engine": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/lib/ivl/ivl",
+      "expected_sha256": "20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223",
+      "end_sha256": "20df9f85fbea3da012ffe67b0dff167323a87c20d68f561914d69ceb34c06223"
+    },
+    "vvp_target": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/lib/ivl/vvp.tgt",
+      "expected_sha256": "f11cf34cb958c9c490fd709783bdd1fef7734729d86042de970909a30e6d2090",
+      "end_sha256": "f11cf34cb958c9c490fd709783bdd1fef7734729d86042de970909a30e6d2090"
+    },
+    "vvp_runtime": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/bin/vvp",
+      "expected_sha256": "21ced9054cdb7409534fc73509bf91b0a04d6614736c0a1adb7abd04bb6e49a5",
+      "end_sha256": "21ced9054cdb7409534fc73509bf91b0a04d6614736c0a1adb7abd04bb6e49a5"
+    },
+    "normal_config": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/lib/ivl/vvp.conf",
+      "expected_sha256": "4e833bbdf0180e18dba3872ec8af312bda3f72825084ebd5837b375cc4a55811",
+      "end_sha256": "4e833bbdf0180e18dba3872ec8af312bda3f72825084ebd5837b375cc4a55811"
+    },
+    "synthesis_config": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/lib/ivl/vvp-s.conf",
+      "expected_sha256": "ab8e49fac21279c8628e223b35a3fe5d819ed93115df1fce7509d852319c6238",
+      "end_sha256": "ab8e49fac21279c8628e223b35a3fe5d819ed93115df1fce7509d852319c6238"
+    },
+    "uvm_dpi": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/lib/ivl/uvm_dpi.vpi",
+      "expected_sha256": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0",
+      "end_sha256": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0"
+    }
+  }
+}

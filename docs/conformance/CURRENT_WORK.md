@@ -9,6 +9,18 @@ evidence. Named Caliptra and OpenTitan patches and options are selected per
 test on disposable copies under the [release overlay guide](release_overlays/README.md),
 leaving pinned source checkouts unchanged.
 
+The [latest OpenTitan unsafe DV baseline](../../evidence/opentitan-icarus-dv-baseline-unsafe-20260925/README.md)
+uses the private Icarus build from merged `main` at `e5eb0901e` and
+`-gcommercial-unsafe` for **all 84** selected UVM/runtime compile rows.
+The [per-row table](../../evidence/opentitan-icarus-dv-baseline-unsafe-20260925/results.md)
+records 8/35 UVM compiles with debt and 27 failures; among 49 runtime rows,
+eight complete with pass banners and debt, 36 fail compilation, and five fail
+runtime. There are **0/49 clean, qualified matrix DV passes**. The pinned
+OpenTitan checkout is unmodified. Disposable-overlay OTP and CSRNG named
+smokes each pass **1/1 named nonstandard compatibility DV** on that same
+private tool, with checked traffic and their compile-warning limits recorded
+separately from the base-source matrix and IEEE conformance.
+
 On the final private OpenTitan Icarus image recorded in the [OTP cover-bin
 endpoint replay](../../evidence/opentitan-otp-cover-bin-method-20260925/README.md),
 the pinned `otp_ctrl_smoke_vseq` completes **1/1 released nonstandard
@@ -93,7 +105,7 @@ the pre-PIC runtime under the zero-error rule. Strict 2017/2023 mode continues
 rejecting the driver overlap.
 The separate bounded Caliptra/Adams Bridge unit subset has two checked
 runtime passes and one checked failure; 20/44 unit filelists compile, which
-is not a DV pass count. The OpenTitan 84-row matrix has zero clean rows:
+is not a DV pass count. The September 23 OpenTitan 84-row matrix has zero clean rows:
 eight runtime rows finish with pass banners but retain setup/compile debt,
 while the others fail compilation, fail runtime, or time out. Its rows are
 not all named tests or seeds. The former 51/52 Caliptra result below used
@@ -103,7 +115,7 @@ xbar and pwrmgr both pass with checked scoreboard traffic (2/2 attempted);
 pwrmgr uses its documented disposable checker overlay. Only xbar (1/1)
 qualifies as an unmodified-source smoke in that subset. Both named images
 also pass a runtime-only replay under installed VVP `e9b7a64a` with the
-same scoreboard traffic; the 84-row matrix has not been rerun under that
+same scoreboard traffic; that earlier matrix was not rerun under that
 binary.
 
 The [paired guarded joint-`dist` candidate](session_logs/2026-09-23_joint_proven_guard_focus.json)

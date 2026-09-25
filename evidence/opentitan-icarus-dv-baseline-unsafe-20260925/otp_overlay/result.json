@@ -1,0 +1,80 @@
+{
+  "classification": "released OpenTitan DV, nonstandard -gcommercial-unsafe compatibility + pinned RAM path source overlay",
+  "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "test": "otp_ctrl_smoke_vseq",
+  "compile": {
+    "exit_code": 0,
+    "nonstandard_purity_warnings": 36,
+    "dropped_bins": 0,
+    "ignored_constraint_items": 0,
+    "procedural_continuous_assignment_sorry": 40,
+    "uwire_multiple_driver_compile_progress_warnings": 36
+  },
+  "native_dpi_build": {
+    "steps": [
+      {
+        "exit_code": 0,
+        "duration_seconds": 0.055
+      },
+      {
+        "exit_code": 0,
+        "duration_seconds": 0.306
+      },
+      {
+        "exit_code": 0,
+        "duration_seconds": 0.642
+      },
+      {
+        "exit_code": 0,
+        "duration_seconds": 0.026
+      },
+      {
+        "exit_code": 0,
+        "duration_seconds": 0.036
+      }
+    ],
+    "all_exit_zero": true,
+    "library_sha256": "e2cd0dfa2780330ebd2b6a04d2a0638bd64c372890895f8243f1990cb7d5fa86"
+  },
+  "runtime": {
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_seconds": 258.296,
+    "completed_ps": 141094616,
+    "pass_markers": 1,
+    "fail_or_assertion_lines": [],
+    "fail_or_assertion_count": 0,
+    "uvm_summary": {
+      "WARNING": 0,
+      "ERROR": 0,
+      "FATAL": 0
+    },
+    "scoreboard_tl_a_after_sequence_start": 1343,
+    "scoreboard_tl_d_after_sequence_start": 1343,
+    "dai_attempts": [
+      "UVM_INFO @  84113786 ps: (otp_ctrl_smoke_vseq.sv:171) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] starting dai access seq 0/1 with addr 66c in partition 4"
+    ],
+    "partition_injection_selectors": [
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 0 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 1 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 2 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 3 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 4 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 5 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 6 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 7 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 8 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 9 inject mubi value: read=0, write=0"
+    ],
+    "scoreboard_tl_a_after_smoke_iteration_start": 1342,
+    "scoreboard_tl_d_after_smoke_iteration_start": 1342
+  },
+  "caveats": [
+    "Six covergroup bin groups and 36 method endpoints retained by compile; this seed does not prove a functional bin hit.",
+    "40 procedural force-RHS sorry diagnostics remain; all ten logged partition injection selectors were read=0/write=0, so warned force branches were unexercised.",
+    "36 preexisting uwire multiple-driver compile-progress warnings remain; this named compatibility pass is not an IEEE conformance result."
+  ],
+  "raw_runtime_stdout_sha256": "4c095236a00d8682d457bb6a1121c46c19f8821a60e909376346e663c488e89a",
+  "raw_runtime_stderr_sha256": "9906d2445f08978a2cc71b167a25651dd5e164d4347154c6442ed99bdcf01150",
+  "qualified_released_dv": true
+}

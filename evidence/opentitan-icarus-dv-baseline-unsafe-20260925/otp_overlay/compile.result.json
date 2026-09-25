@@ -1,0 +1,8 @@
+{
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_seconds": 5.979,
+  "program_sha256": "c4d1a90e657a0ffa958f3e4febe1becfe95f117860bb194373ede39d1306aff7",
+  "dpiexport_sha256": "56a03fcea159d492a5f7b2ad655601f49e3913327b148fc16df681f3c668ed62",
+  "stderr_sha256": "e717e6f5bae4cc7d193bd1df3956bf89d747e2269f135bd4fc1448efceb6b684"
+}

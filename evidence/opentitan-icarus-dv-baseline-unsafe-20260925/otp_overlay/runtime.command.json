@@ -1,0 +1,26 @@
+{
+  "classification": "nonstandard compatibility (-gcommercial-unsafe)",
+  "cwd": "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-dv-baseline-20260925/local-install/bin/vvp",
+    "-d",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_native_dpi.dylib",
+    "-n",
+    "/private/tmp/ot-dv-baseline-unsafe-20260925/otp-overlay-20260925/otp_compat.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_HIGH",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=otp_ctrl_base_test",
+    "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+  ],
+  "env_override": {
+    "IVL_SVA_NFA": "1"
+  },
+  "verbosity_note": "UVM_HIGH replaces selected UVM_LOW only to expose checked TL traffic; test and sequence unchanged.",
+  "input_sha256": {
+    "vvp": "21ced9054cdb7409534fc73509bf91b0a04d6614736c0a1adb7abd04bb6e49a5",
+    "program": "c4d1a90e657a0ffa958f3e4febe1becfe95f117860bb194373ede39d1306aff7",
+    "native_dpi": "e2cd0dfa2780330ebd2b6a04d2a0638bd64c372890895f8243f1990cb7d5fa86"
+  }
+}
