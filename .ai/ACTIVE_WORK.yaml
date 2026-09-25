@@ -1,8 +1,9 @@
-status: opentitan_lc_packed_coverpoint_local_qualified_pr_pending
+status: opentitan_lc_packed_coverpoint_pr376_published_local_qualified
 branch: agent/ot-lc-packed-coverpoint-20260925
 baseline: PR375 merged at 1891f0128627ff0b3124216f0040780087336f82. The latest pinned 84-row OpenTitan baseline uses -gcommercial-unsafe for every compile; 11/49 selected checked compatibility smokes pass after documented overlays and native DPI, while the raw matrix has 0/49 zero-debt PASS statuses. Pinned sources and Caliptra remain untouched.
 blocker: OT-LC-PACKED-COVERPOINT-SHAPE
 prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/375
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/376
 goal: Preserve the literal zero and nonzero bins of a legal coverpoint over a bitwise expression of packed-struct operands, first observed in pinned LC_CTRL err_inj_cg, without weakening coverage or DV checks.
 standards: Paired IEEE 1800-2017 and 2023 sections 11.6, 11.7, 11.8, and 19.5 require the self-determined integral coverpoint-expression shape and correct bitwise width/sign rules. The pinned -gcommercial-unsafe replay remains separate nonstandard compatibility evidence.
 failing_reproducer: Before the fix, paired strict 2017/2023 packed-struct bitwise coverpoints dropped both legal bins and reported 1.5625% after the zero sample instead of 50%; invalid [$:$] controls rejected. The pinned lc_ctrl_sim likewise dropped no_err_inj and err_inj; four later hard errors were separate.

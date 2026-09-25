@@ -4,9 +4,10 @@ branch: agent/ot-lc-packed-coverpoint-20260925
 checkpoint_head: 1891f0128627ff0b3124216f0040780087336f82
 active_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
-  phase: LOCAL_QUALIFIED_PR_PENDING
+  phase: PR376_PUBLISHED_LOCAL_QUALIFIED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-lc-coverpoint-20260925
   prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/375
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/376
   baseline_head: 1891f0128627ff0b3124216f0040780087336f82
   baseline: PR375 merged with paired open-range semantic tests and an 84-row pinned -gcommercial-unsafe OpenTitan matrix. Seven checked base-matrix DEBT rows plus four current-image named overlay/native-DPI replays qualify 11/49 selected compatibility smokes; raw zero-debt status remains 0/49. Pinned sources and Caliptra untouched.
   standards: Paired strict IEEE 1800-2017/2023 coverpoint/bin semantics are separate from pinned unsafe-mode application replay.
@@ -14,7 +15,7 @@ active_open_titan_lane:
   expected: Resolve the integral width and signedness of the coverpoint expression, retain zero and nonzero bins, and prove partial/full coverage without ignoring any requested bin.
   source_scope: elaborate.cc declaration-time coverpoint shape inference, paired dedicated regressions, pinned LC_CTRL evidence, and owning docs only. No VVP, Caliptra, pinned source, shared install, Verilator, GPU, or CI polling. The newly observed X/Z sampling bug is a separate recorded debt, not this implementation scope.
   validation: Final private ivl ab49a9f08784275c53a57ff177e6d7e68afb23718ff04198e473cbf2509fbcad passes paired 10/10 legacy and 10/10 JSON focus, make check, negatives 155/155, SVA dual 62/62, full legacy 6704 total with 6699 ordinary passes and zero failures, VPI 140/140, JSON/VVP 3753/3753, and real-DPI UVM 358/358. Exact pinned unsafe LC_CTRL replay drops neither target bin but retains four hard error sites and 18 debt diagnostics, so remains 0/1 released DV. Prior checked compatibility baseline remains 11/49; no full current-image matrix census.
-  next_command: Review final diff and evidence, commit and publish the one-blocker PR; do not poll CI or merge before required checks pass.
+  next_command: Respond if CI later reports an issue; do not poll CI or merge before required checks pass.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
@@ -91,14 +92,14 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-LC-PACKED-COVERPOINT-SHAPE
-  phase: LOCAL_QUALIFIED_PR_PENDING
+  phase: PR376_PUBLISHED_LOCAL_QUALIFIED
   owner: Coordinator owns paired reducers, private build, pinned unsafe LC_CTRL replay, evidence, docs, and review; separate Caliptra agent owns its runs.
   reproducer: Pinned LC_CTRL packed-struct bitwise coverpoint drops literal zero bin and nonzero open range with a loud runtime-range sorry; four later hard compile errors are distinct.
   expected: Preserve both bins and their exact zero/nonzero sampling denominator with correct integral width and signedness.
   root_cause_hypothesis: Confirmed declaration-time PEIdent::test_width zero for nested class properties under bitwise operators; coverpoint_effective_shape formerly resolved only direct identifier/member type, causing eval_ranges to drop bins. Recursive packed operand shape recovery uses standard width/sign rules.
   source_scope: elaborate.cc shape inference if proven, paired dedicated tests, OpenTitan evidence and owning docs. No pinned source, VVP, Caliptra, shared installation, Verilator, GPU, or CI polling.
   validation: Paired legal RED was 1.5625% instead of 50%; final private paired focus passes 10/10 legacy and 10/10 JSON, make check, negatives 155/155, SVA 62/62, full legacy 6704 total with zero failures, VPI 140/140, JSON/VVP 3753/3753, and real-DPI UVM 358/358. Exact pinned unsafe LC_CTRL compile improves from six to four hard error sites and 20 to 18 debt diagnostics but remains 0/1 released DV. Preceding partial logs are unqualified. Checked compatibility baseline remains prior 11/49.
-  next: Publish the locally qualified one-blocker PR, retain DD-063 as separate X/Z sampling debt, and do not poll CI.
+  next: Retain DD-063 as separate X/Z sampling debt and respond if PR376 CI later reports an issue; do not poll CI.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
@@ -332,4 +333,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Review final evidence, commit and publish the locally qualified OpenTitan one-blocker PR; preserve Caliptra work and do not poll CI."
+next_command: "PR376 is published with local qualification; preserve Caliptra work and respond only if CI later reports an issue, without polling."

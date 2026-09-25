@@ -3881,7 +3881,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### OT-LC-PACKED-COVERPOINT-SHAPE — bitwise packed coverpoint bin domain
 
-- **State:** Final private-image local qualification passes: paired focus 10/10 in both runners, full legacy 6,704 total with zero failures, JSON/VVP 3,753/3,753, VPI 140/140, real-DPI UVM 358/358, negative 155/155, SVA dual-run 62/62, and `make check`. Publication is pending.
+- **State:** [PR #376](https://github.com/dsellerbrock/iverilog-uvm/pull/376) is published as a draft with final private-image local qualification: paired focus 10/10 in both runners, full legacy 6,704 total with zero failures, JSON/VVP 3,753/3,753, VPI 140/140, real-DPI UVM 358/358, negative 155/155, SVA dual-run 62/62, and `make check`.
 - **Failure:** Paired 2017/2023 coverpoints over `cfg.err_inj & ~ErrInjMask` dropped both literal zero and open-ended nonzero bins because declaration-time `test_width()` returned zero for nested class properties. The zero sample then reported 1.5625% instead of 50%.
 - **Fix:** `elaborate.cc` recovers integral packed operand shapes recursively for unary and binary bitwise expressions, using the standard result width and signedness. It retains both bins and their sampled denominator. Invalid `[$:$]` rejects; unsupported 65-bit bins stay loud.
 - **Evidence:** [Paired reducers and exact pinned unsafe replay](../../evidence/opentitan-lc-packed-coverpoint-20260925/README.md). The pinned `lc_ctrl_sim` compile no longer drops either bin, but four hard error sites and 18 debt diagnostics remain. **LC_CTRL is 0/1 released DV**, and the prior selected OpenTitan compatibility baseline remains 11/49; no full current-image matrix was run for this change.

@@ -1,5 +1,7 @@
 # OpenTitan LC_CTRL packed coverpoint shape
 
+Published as draft [PR #376](https://github.com/dsellerbrock/iverilog-uvm/pull/376) after local qualification.
+
 This ticket fixes declaration-time width and signedness inference for a legal
 bitwise coverpoint over packed class properties. IEEE 1800-2017 and 2023
 §§11.6, 11.7, 11.8, and 19.5 make an implicitly typed coverpoint use its
