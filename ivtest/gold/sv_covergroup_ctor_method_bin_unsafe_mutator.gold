@@ -1,0 +1,2 @@
+./ivltests/sv_covergroup_ctor_method_bin_unsafe_mutator.v:15: warning: -gcommercial-unsafe covergroup constructor method bin endpoint evaluated without IEEE 1800 19.5 purity proof; nonstandard compatibility behavior.
+PASSED

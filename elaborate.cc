@@ -30351,7 +30351,9 @@ static bool constraint_static_return_definite_(const NetProc*proc,
 
 class constraint_function_purity_t : public target_t {
     public:
-      explicit constraint_function_purity_t(Design*des) : des_(des) { }
+      explicit constraint_function_purity_t(Design*des,
+		bool require_const_properties = false)
+		: des_(des), require_const_properties_(require_const_properties) { }
 
       bool check(const NetScope*scope)
       {
@@ -30414,6 +30416,24 @@ class constraint_function_purity_t : public target_t {
       {
 	    if (!automatic_ && sig == return_)
 		  return fail_("reads retained state from a nonautomatic function return variable");
+	    if (require_const_properties_ && function_) {
+		  bool local = false;
+		  for (const NetScope*cur = sig->scope(); cur; cur = cur->parent())
+			if (cur == function_) { local = true; break; }
+		  if (!local) return fail_("reads nonlocal variable state");
+	    }
+	    return true;
+      }
+      bool property_read(const NetEProperty*expr)
+      {
+	    if (!require_const_properties_) return true;
+	    const NetExpr*base = expr->get_base();
+	    ivl_type_t type = base ? base->net_type()
+		: expr->get_sig() ? expr->get_sig()->net_type() : nullptr;
+	    const netclass_t*owner = dynamic_cast<const netclass_t*>(type);
+	    if (!owner || expr->property_idx() >= owner->get_properties()
+		|| !owner->get_prop_qual(expr->property_idx()).test_const())
+		return fail_("reads mutable or unresolved class property");
 	    return true;
       }
 
@@ -30566,6 +30586,7 @@ class constraint_function_purity_t : public target_t {
 	    return true;
       }
       Design*des_;
+	bool require_const_properties_ = false;
       const NetScope*function_ = nullptr;
       const NetNet*return_ = nullptr;
       bool automatic_ = true;
@@ -30585,7 +30606,8 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 	    return check.signal_read(e->sig())
 		&& constraint_pure_expr_(e->word_index(), check);
       if (const NetEProperty*e = dynamic_cast<const NetEProperty*>(expr))
-	    return constraint_pure_expr_(e->get_base(), check)
+	    return check.property_read(e)
+		&& constraint_pure_expr_(e->get_base(), check)
 		&& constraint_pure_expr_(e->get_index(), check);
       if (const NetEBinary*e = dynamic_cast<const NetEBinary*>(expr))
 	    return constraint_pure_expr_(e->left(), check)
@@ -30640,6 +30662,50 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 	    return true;
       }
       return false;
+}
+
+// IEEE 1800 19.5 uses the same side-effect ban as constraints and additionally
+// disallows a method body from reading mutable object state. This strict proof
+// is intentionally separate from the -gcommercial-unsafe compatibility path.
+bool covergroup_constructor_method_pure(Design*des, const NetEUFunc*call,
+		std::string&reason)
+{
+      if (!call || !call->func() || !call->func()->func_def()) {
+	    reason = "method body is unresolved";
+	    return false;
+      }
+      const NetFuncDef*def = call->func()->func_def();
+      for (unsigned idx = 0; idx < def->port_count(); ++idx) {
+	    NetNet*port = def->port(idx);
+	    if (!port || port->port_type() != NetNet::PINPUT) {
+		reason = "method argument direction is unsupported by this purity proof (const ref may be legal)";
+		return false;
+	    }
+      }
+      // The source endpoint has no explicit arguments, but ordinary call
+      // lowering inserts every omitted default into NetEUFunc::parms_. A
+      // mutable caller expression there is evaluated at construction even
+      // when the method body itself is pure. Admit only resolved constants;
+      // richer defaults need their own caller-context state proof.
+      if (call->parm_count() != def->port_count()) {
+	    reason = "effective method arguments are unresolved";
+	    return false;
+      }
+      for (unsigned idx = 1; idx < call->parm_count(); ++idx) {
+	    const NetExpr*arg = call->parm(idx);
+	    if (!dynamic_cast<const NetEConst*>(arg)
+		&& !dynamic_cast<const NetECReal*>(arg)
+		&& !dynamic_cast<const NetENull*>(arg)) {
+		reason = "omitted method default is not a proven constant";
+		return false;
+	    }
+      }
+      constraint_function_purity_t purity(des, true);
+      if (!purity.check(call->func())) {
+	    reason = purity.reason();
+	    return false;
+      }
+      return true;
 }
 
 static bool constraint_call_dependencies_(const NetExpr*expr,
@@ -35582,6 +35648,191 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    && cgdef->ctor_formal_is_ref[ci]);
 		    }
 
+		      // Reserve leading scalar slots before any option or bin-counter
+		      // properties. The constructor initializer evaluates these after
+		      // its ordinary arguments and before VVP resolves dynamic bins.
+		    std::set<const PExpr*> method_endpoints;
+		    NetScope*endpoint_scope = nullptr;
+		    auto reserve_method_endpoint = [&](const PExpr*expr) {
+			  const PECallFunction*call =
+			      dynamic_cast<const PECallFunction*>(expr);
+			  if (!call || call->receiver_expr()
+			      || call->path().package
+			      || call->has_scoped_type_prefix()
+			      || call->path().name.size() < 2
+			      || !call->get_parms().empty()
+			      || !call->with_constraints().empty()) return;
+			  const name_component_t&root = call->path().name.front();
+			  if (root.local_scope || !root.index.empty()) return;
+			  size_t formal_idx = cgdef->ctor_formals.size();
+			  for (size_t fi = 0; fi < cgdef->ctor_formals.size(); fi += 1)
+			      if (cgdef->ctor_formals[fi] == root.name
+				  && (fi >= cgdef->ctor_formal_is_ref.size()
+				      || !cgdef->ctor_formal_is_ref[fi]))
+				  formal_idx = fi;
+			  for (perm_string formal : cgdef->sample_formals)
+			      if (formal == root.name)
+				  formal_idx = cgdef->ctor_formals.size();
+			  if (formal_idx == cgdef->ctor_formals.size()
+			      || !method_endpoints.insert(expr).second)
+			      return;
+			  const auto&path = call->path().name;
+			  bool selected_path = path.size() != 2;
+			  ivl_type_t receiver_type =
+			      cg_class->covgrp_ctor_formal_type(formal_idx);
+			  size_t part = 0;
+			  for (const name_component_t&component : path) {
+				if (part++ == 0 || part == path.size()) continue;
+				const netclass_t*owner =
+				      dynamic_cast<const netclass_t*>(receiver_type);
+				int prop = owner
+				      ? owner->property_idx_from_name(component.name) : -1;
+				if (prop < 0) {
+				      cerr << expr->get_fileline()
+					   << ": error: covergroup constructor method bin "
+					   << "receiver member path is unresolved." << endl;
+				      des->errors += 1;
+				      return;
+				}
+				receiver_type = owner->get_prop_type((size_t)prop);
+				if (component.index.size() > 1) {
+				      cerr << expr->get_fileline()
+					   << ": error: covergroup constructor method bin "
+					   << "receiver supports one fixed selection per member."
+					   << endl;
+				      des->errors += 1;
+				      return;
+				}
+				for (const index_component_t&index : component.index) {
+				  const PENumber*literal = dynamic_cast<const PENumber*>(index.msb);
+				  if (index.sel != index_component_t::SEL_BIT
+				      || !literal || !literal->value().is_defined()
+				      || literal->value().len() > 64 || index.lsb) {
+				    cerr << expr->get_fileline()
+					 << ": error: covergroup constructor method bin endpoint "
+					 << "requires fixed literal member selections." << endl;
+				    des->errors += 1;
+				    return;
+				  }
+				  const netuarray_t*array =
+				      dynamic_cast<const netuarray_t*>(receiver_type);
+				  if (!array || array->static_dimensions().size() != 1) {
+				    cerr << expr->get_fileline()
+					 << ": error: covergroup constructor method bin "
+					 << "receiver selection has no proven fixed bounds."
+					 << endl;
+				    des->errors += 1;
+				    return;
+				  }
+				  const netrange_t&bounds =
+				      array->static_dimensions().front();
+				  if (!literal->value().has_sign()
+				      && literal->value().as_ulong64() > (uint64_t)LONG_MAX) {
+				    cerr << expr->get_fileline()
+					 << ": error: covergroup constructor method bin "
+					 << "receiver selection exceeds the supported fixed "
+					 << "index range." << endl;
+				    des->errors += 1;
+				    return;
+				  }
+				  long chosen = literal->value().as_long();
+				  if (chosen < std::min(bounds.get_msb(), bounds.get_lsb())
+				      || chosen > std::max(bounds.get_msb(), bounds.get_lsb())) {
+				    cerr << expr->get_fileline()
+					 << ": error: covergroup constructor method bin "
+					 << "receiver selection is outside fixed array bounds."
+					 << endl;
+				    des->errors += 1;
+				    return;
+				  }
+				  receiver_type = array->element_type();
+				  selected_path = true;
+				}
+			  }
+			  if (!path.back().index.empty()) {
+				cerr << expr->get_fileline()
+				     << ": error: covergroup constructor method bin "
+				     << "method itself has an unsupported selection." << endl;
+				des->errors += 1;
+				return;
+			  }
+			  if (selected_path && !gn_commercial_unsafe_flag) {
+				cerr << expr->get_fileline()
+				     << ": error: covergroup constructor method bin endpoint "
+				     << "uses a nested receiver path whose const-state "
+				     << "legality is unproven; strict mode currently supports "
+				     << "only a direct non-ref constructor formal." << endl;
+				des->errors += 1;
+				return;
+			  }
+			  if (!endpoint_scope) {
+				endpoint_scope = new NetScope(class_scope_,
+				      hname_t(class_scope_->local_symbol()),
+				      NetScope::BEGIN_END);
+				endpoint_scope->set_line(expr);
+				endpoint_scope->set_elab_stage(3);
+				for (size_t fi = 0; fi < cg_class->covgrp_ctor_formal_count(); ++fi)
+				      new NetNet(endpoint_scope,
+					cg_class->covgrp_ctor_formal_name(fi), NetNet::REG,
+					cg_class->covgrp_ctor_formal_type(fi));
+			  }
+			  NetExpr*lowered = elab_and_eval(des, endpoint_scope,
+				const_cast<PExpr*>(expr), -1, false, false);
+			  const NetEUFunc*method = dynamic_cast<const NetEUFunc*>(lowered);
+			  unsigned width = lowered ? lowered->expr_width() : 0;
+			  bool is_signed = lowered && lowered->has_sign();
+			  if (!method || width == 0 || width > 64
+			      || (lowered->expr_type() != IVL_VT_BOOL
+				  && lowered->expr_type() != IVL_VT_LOGIC)) {
+				cerr << expr->get_fileline()
+				     << ": error: covergroup constructor method bin endpoint "
+				     << "requires a resolved integral method return of 1..64 bits."
+				     << endl;
+				des->errors += 1;
+				delete lowered;
+				return;
+			  }
+			  if (!gn_commercial_unsafe_flag) {
+				std::string reason;
+				if (!covergroup_constructor_method_pure(des, method, reason)) {
+				      cerr << expr->get_fileline()
+					   << ": error: covergroup constructor method bin "
+					   << "endpoint is not proven pure under IEEE 1800 19.5: "
+					   << reason << "." << endl;
+				      des->errors += 1;
+				      delete lowered;
+				      return;
+				}
+			  } else {
+				cerr << expr->get_fileline()
+				     << ": warning: -gcommercial-unsafe covergroup constructor "
+				     << "method bin endpoint evaluated without IEEE 1800 19.5 "
+				     << "purity proof; nonstandard compatibility behavior." << endl;
+			  }
+			  delete lowered;
+			  std::string stem = "__covgrp_ctor_method_"
+			      + std::to_string(method_endpoints.size());
+			  std::string name = stem;
+			  unsigned suffix = 0;
+			  while (cg_class->property_idx_from_name(
+				lex_strings.make(name.c_str())) >= 0)
+			      name = stem + "_" + std::to_string(++suffix);
+			  cg_class->set_property(lex_strings.make(name.c_str()),
+			      property_qualifier_t::make_none(),
+			      new netvector_t(IVL_VT_LOGIC, width - 1, 0, is_signed));
+			  int prop = cg_class->property_idx_from_name(
+			      lex_strings.make(name.c_str()));
+			  if (prop >= 0)
+			      cg_class->add_covgrp_ctor_method_endpoint(
+				expr, (unsigned)prop, width, is_signed);
+		    };
+		    for (const auto&coverpoint : cgdef->coverpoints)
+		      for (const auto&bin : coverpoint.bins)
+			for (const auto&range : bin.ranges) {
+			  reserve_method_endpoint(range.first);
+			  reserve_method_endpoint(range.second);
+			}
+
 		      // M11-4: `with function sample(<formals>)` names.
 		      // sample() call sites bind these positionally to
 		      // the call arguments as coverpoint/guard sources.
@@ -35802,6 +36053,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    };
 		    range_references_runtime = [&](const PExpr*expr) -> bool {
 			  if (!expr) return false;
+			  for (const auto&endpoint : cg_class->covgrp_ctor_method_endpoints())
+				if (endpoint.expr == expr) return true;
 			  if (cg_class->covgrp_range_ref(expr)) return true;
 			  if (is_direct_ctor_formal(expr)
 			      || is_direct_parent_const(expr)) return true;
@@ -35983,6 +36236,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				return false;
 		    };
 		    auto ctor_range_ir = [&](const PExpr*expr) -> std::string {
+			for (const auto&endpoint : cg_class->covgrp_ctor_method_endpoints())
+			      if (endpoint.expr == expr)
+				return "p:" + std::to_string(endpoint.prop) + ":"
+				      + std::to_string(endpoint.width)
+				      + (endpoint.is_signed ? ":s" : "");
 			return pexpr_to_covergroup_constraint_ir(
 			      expr, cg_class, cg_standalone ? nullptr : this,
 			      des, class_scope_);
@@ -36052,6 +36310,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    std::function<ctor_range_shape_t(const PExpr*)> ctor_range_shape;
 		    ctor_range_shape = [&](const PExpr*expr) -> ctor_range_shape_t {
 			  if (!expr) return std::make_pair(false, false);
+			  for (const auto&endpoint : cg_class->covgrp_ctor_method_endpoints())
+				if (endpoint.expr == expr) return std::make_pair(true, true);
 			  bool references_runtime = range_references_runtime(expr);
 			  if (is_direct_ctor_formal(expr)
 			      || is_direct_parent_const(expr)) {

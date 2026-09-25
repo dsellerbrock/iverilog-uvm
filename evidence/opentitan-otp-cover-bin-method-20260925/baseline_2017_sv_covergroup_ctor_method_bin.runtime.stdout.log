@@ -1,0 +1,2 @@
+FATAL: ivltests/sv_covergroup_ctor_method_bin.v:26: endpoint followed the caller handle after construction
+       Time: 0  Scope: top

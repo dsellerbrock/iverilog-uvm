@@ -1,0 +1,2 @@
+FATAL: ivltests/sv_covergroup_ctor_method_bin_signed.v:24: narrow signed endpoint was treated as unsigned
+       Time: 0  Scope: top

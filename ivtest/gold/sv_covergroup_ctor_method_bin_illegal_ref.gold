@@ -1,0 +1,3 @@
+./ivltests/sv_covergroup_ctor_method_bin_illegal_ref.v:16: error: covergroup bin `illegal' range expression references ref covergroup argument `ral'; IEEE 1800 19.5 permits only non-ref covergroup arguments.
+./ivltests/sv_covergroup_ctor_method_bin_illegal_ref.v:16: error: covergroup bin `illegal' range expression references ref covergroup argument `ral'; IEEE 1800 19.5 permits only non-ref covergroup arguments.
+2 error(s) during elaboration.

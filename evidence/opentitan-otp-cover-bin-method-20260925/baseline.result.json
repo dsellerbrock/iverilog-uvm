@@ -1,0 +1,106 @@
+{
+  "prior_image_sha256": {
+    "iverilog": "c69366ca97fadc1e7b186774a7f3976605aacabddaa5fa41c9716b7c21cb9de5",
+    "ivl": "e69aaaf36c5e9b16d47248b6eaffef80712be19df01f9e7d5459686b49e09354",
+    "vvp": "89f85afdc64135c74f10054014352283fe8c73284dfd658231d569cddaa64c84"
+  },
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/ivtest",
+  "cases": {
+    "2017_sv_covergroup_ctor_method_bin": {
+      "source": "ivltests/sv_covergroup_ctor_method_bin.v",
+      "compile_command": [
+        "/tmp/ot-otp-pr370-private-prefix-20260925/bin/iverilog",
+        "-g2017",
+        "-s",
+        "top",
+        "-o",
+        "/tmp/ot-cover-baseline-2017-sv_covergroup_ctor_method_bin.vvp",
+        "ivltests/sv_covergroup_ctor_method_bin.v"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 1,
+      "dropped_bin_diagnostics": 1,
+      "runtime_fatal": true
+    },
+    "2017_sv_covergroup_ctor_method_bin_signed": {
+      "source": "ivltests/sv_covergroup_ctor_method_bin_signed.v",
+      "compile_command": [
+        "/tmp/ot-otp-pr370-private-prefix-20260925/bin/iverilog",
+        "-g2017",
+        "-s",
+        "top",
+        "-o",
+        "/tmp/ot-cover-baseline-2017-sv_covergroup_ctor_method_bin_signed.vvp",
+        "ivltests/sv_covergroup_ctor_method_bin_signed.v"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 1,
+      "dropped_bin_diagnostics": 1,
+      "runtime_fatal": true
+    },
+    "2017_sv_covergroup_ctor_method_bin_default_mutable": {
+      "source": "ivltests/sv_covergroup_ctor_method_bin_default_mutable.v",
+      "compile_command": [
+        "/tmp/ot-otp-pr370-private-prefix-20260925/bin/iverilog",
+        "-g2017",
+        "-s",
+        "top",
+        "-o",
+        "/tmp/ot-cover-baseline-2017-sv_covergroup_ctor_method_bin_default_mutable.vvp",
+        "ivltests/sv_covergroup_ctor_method_bin_default_mutable.v"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "dropped_bin_diagnostics": 1,
+      "runtime_fatal": false
+    },
+    "2023_sv_covergroup_ctor_method_bin": {
+      "source": "ivltests/sv_covergroup_ctor_method_bin_2023.v",
+      "compile_command": [
+        "/tmp/ot-otp-pr370-private-prefix-20260925/bin/iverilog",
+        "-g2023",
+        "-s",
+        "top",
+        "-o",
+        "/tmp/ot-cover-baseline-2023-sv_covergroup_ctor_method_bin.vvp",
+        "ivltests/sv_covergroup_ctor_method_bin_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 1,
+      "dropped_bin_diagnostics": 1,
+      "runtime_fatal": true
+    },
+    "2023_sv_covergroup_ctor_method_bin_signed": {
+      "source": "ivltests/sv_covergroup_ctor_method_bin_signed_2023.v",
+      "compile_command": [
+        "/tmp/ot-otp-pr370-private-prefix-20260925/bin/iverilog",
+        "-g2023",
+        "-s",
+        "top",
+        "-o",
+        "/tmp/ot-cover-baseline-2023-sv_covergroup_ctor_method_bin_signed.vvp",
+        "ivltests/sv_covergroup_ctor_method_bin_signed_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 1,
+      "dropped_bin_diagnostics": 1,
+      "runtime_fatal": true
+    },
+    "2023_sv_covergroup_ctor_method_bin_default_mutable": {
+      "source": "ivltests/sv_covergroup_ctor_method_bin_default_mutable_2023.v",
+      "compile_command": [
+        "/tmp/ot-otp-pr370-private-prefix-20260925/bin/iverilog",
+        "-g2023",
+        "-s",
+        "top",
+        "-o",
+        "/tmp/ot-cover-baseline-2023-sv_covergroup_ctor_method_bin_default_mutable.vvp",
+        "ivltests/sv_covergroup_ctor_method_bin_default_mutable_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "dropped_bin_diagnostics": 1,
+      "runtime_fatal": false
+    }
+  }
+}

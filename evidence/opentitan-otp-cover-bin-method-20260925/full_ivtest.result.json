@@ -1,0 +1,26 @@
+{
+  "command": ".github/test.sh",
+  "exit_code": 0,
+  "private_iverilog_sha256": "6d4eccc3533e112ab9c8c3a48d8207458aca2c1c379f42137543f7108fda0cd9",
+  "private_ivl_sha256": "4bacf9b8e8132998a309990687d3b7cb0cf9bd8ee64dce8d874d32c857726a24",
+  "private_vvp_sha256": "d0ef9361d88ac2ce9b13e182a998226abe132082b8abdb6a06131104bf9c446e",
+  "legacy": {
+    "total": 6678,
+    "passed": 6673,
+    "failed": 0,
+    "not_implemented": 2,
+    "expected_fail": 3
+  },
+  "vpi_with_pli1": {
+    "total": 140,
+    "passed": 140,
+    "failed": 0,
+    "not_implemented": 0
+  },
+  "json_vvp": {
+    "total": 3727,
+    "failed": 0
+  },
+  "log": "full_ivtest.log.gz",
+  "uncompressed_log_sha256": "f1e78c7f132d81cf5cfe77b09eec924d9bbb8f4bc65c367b62260382b7e1dbe7"
+}

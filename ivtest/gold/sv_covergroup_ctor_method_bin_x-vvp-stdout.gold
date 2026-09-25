@@ -1,0 +1,2 @@
+FATAL: ivltests/sv_covergroup_ctor_method_bin_x.v:10: covergroup constructor method bin endpoint is X or Z
+       Time: 0  Scope: top.wrapper_c._ivl_3

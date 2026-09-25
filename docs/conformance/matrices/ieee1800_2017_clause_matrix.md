@@ -2098,3 +2098,19 @@ evidence](../../../evidence/opentitan-csrng-aes-final-round-20260925/README.md)
 also show the unchanged pinned CSRNG smoke reaching one checked nonstandard
 compatibility pass. Other array kinds and a force transition within the
 sampled slot are not qualified by this focused fix.
+
+### September 25 §19.5 covergroup constructor method endpoints
+
+The PARTIAL 2017/2023 §19.5 subset now captures an integral bin endpoint
+returned by an automatic method on a direct non-ref constructor formal once
+per covergroup instance, before resolving dynamic bins. Strict mode checks
+the method body and effective default arguments for constant-state purity;
+mutable and impure endpoints reject, while ref, unresolved, and invalid
+forms remain loudly unsupported. Paired
+positive and negative reducers pass 34/34 in each legacy and JSON harness.
+Nested receiver paths remain unsupported in strict mode when their
+const-state legality is unproven. The pinned OTP nested RAL path runs only
+under explicit `-gcommercial-unsafe`, which warns and skips the purity proof;
+its 1/1 released smoke result is nonstandard compatibility evidence, not
+§19.5 conformance or proof of a functional coverage hit. See the
+[revision-scoped record](../../../evidence/opentitan-otp-cover-bin-method-20260925/README.md).

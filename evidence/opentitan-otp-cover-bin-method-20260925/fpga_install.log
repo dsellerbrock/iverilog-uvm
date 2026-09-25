@@ -1,0 +1,5 @@
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/local-install/lib/ivl" "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/local-install/share/man/man1"
+/usr/bin/install -c -m 644 ./iverilog-fpga.man "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/local-install/share/man/man1/iverilog-fpga.1"
+/usr/bin/install -c ./fpga.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/local-install/lib/ivl/fpga.tgt"
+/usr/bin/install -c -m 644 ./fpga.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/local-install/lib/ivl/fpga.conf"
+/usr/bin/install -c -m 644 ./fpga-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/local-install/lib/ivl/fpga-s.conf"

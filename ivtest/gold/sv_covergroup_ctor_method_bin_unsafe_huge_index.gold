@@ -1,0 +1,5 @@
+./ivltests/sv_covergroup_ctor_method_bin_unsafe_huge_index.v:15: error: covergroup constructor method bin receiver selection exceeds the supported fixed index range.
+warning: verinum::as_long() truncated 64 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 64 bits to 63, returns 9223372036854775807
+sorry: covergroup bin 'selected' has a runtime range expression that cannot be represented; the bin is dropped.
+1 error(s) during elaboration.

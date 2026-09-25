@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_covergroup_ctor_method_bin_unsafe.v",
+  "iverilog-args": ["-g2017", "-gcommercial-unsafe", "-s", "top"],
+  "gold": "sv_covergroup_ctor_method_bin_unsafe"
+}
