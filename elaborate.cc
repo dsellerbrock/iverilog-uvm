@@ -31716,6 +31716,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    pform_name_t::const_iterator target_component;
 	    bool target_path = constraint_target_path_begin_(
 		  id->path(), cls, target_owner, target_component);
+	    if (target_path && value_slots
+		&& !constraint_class_object_root_.nil()
+		&& id->path().name.front().name == constraint_class_object_root_
+		&& target_component != id->path().name.end()
+		&& target_owner
+		&& target_owner->property_idx_from_name(
+		     target_component->name) < 0) {
+		  cerr << id->get_fileline() << ": error: Inline constraint member `"
+		       << target_component->name
+		       << "' is not a property of the randomize() receiver."
+		       << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
 
 	      // A genuinely caller-qualified expression such as local::rw.addr
 	      // or top.rw.addr is captured at the call site. An unqualified root

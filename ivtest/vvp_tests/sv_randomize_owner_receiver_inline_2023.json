@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_randomize_owner_receiver_inline_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_randomize_owner_receiver_inline"],
+  "gold": "sv_randomize_owner_receiver_inline_2023"
+}

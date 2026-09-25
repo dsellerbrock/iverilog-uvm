@@ -194,12 +194,25 @@ static string randomize_sel_(const PECallFunction*call,
       return randomize_arg_selector(call->get_parms(), class_type, call);
 }
 
-static perm_string randomize_receiver_root_(const pform_name_t&path)
+static perm_string randomize_receiver_root_(const pform_name_t&path,
+					    const netclass_t*class_type)
 {
-      if (path.size() != 1 || !path.front().index.empty()
-	  || path.front().local_scope)
+	const name_component_t*root = nullptr;
+	if (path.size() == 1) {
+	      root = &path.front();
+	} else if (path.size() == 2
+		   && path.front().name == perm_string::literal(THIS_TOKEN)
+		   && path.front().index.empty()
+		   && !path.front().local_scope) {
+	      // Class-property lookup inserts an implicit-this component.
+	      root = &path.back();
+	}
+	// A same-named property in the randomized class wins inline lookup.
+	if (!root || !root->index.empty() || root->local_scope
+	    || (class_type
+		&& class_type->property_idx_from_name(root->name) >= 0))
 	    return perm_string();
-      return path.front().name;
+	return root->name;
 }
 
 /* Build a NetESFunc for randomize() with inline with-constraints.
@@ -15961,7 +15974,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 							      randomize_with_identifiers(), obj_expr,
 							      class_type, des, scope,
 							      randomize_receiver_root_(
-								    search_results.path_head));
+								    search_results.path_head,
+								    class_type));
 						  rand_expr->set_line(*this);
 						  return rand_expr;
 					    }
@@ -17903,7 +17917,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 						  with_constraints(),
 						  randomize_with_identifiers(), sub_expr,
 						  class_type, des, scope,
-						  randomize_receiver_root_(use_path));
+						  randomize_receiver_root_(use_path,
+								    class_type));
 				      rand_expr->set_line(*this);
 				      return rand_expr;
 				}

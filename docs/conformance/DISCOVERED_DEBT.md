@@ -3458,3 +3458,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Paired diagnostic source and compile logs](../../evidence/opentitan-csrng-function-output-bit-copyback-20260925/ref-mismatch.sv).
 - **Reproducer status:** confirmed acceptance in both editions; no runtime semantics assessed.
 - **Triage status:** untriaged, outside this output copy-back blocker.
+
+### DD-059 — inline constraints capture an aliased active random variable as caller state
+
+- **Discovered while working:** OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT.
+- **Observation:** With `owner.alt` and `owner.req` pointing to the same item, `alt.randomize() with { req.clen == 12; }` returns zero and leaves `clen=0` in both strict editions. The direct `req.randomize() with { req.clen == 12; }` now succeeds, while a distinct object reference remains fixed caller state. A spelling-only receiver-root mapping cannot distinguish the two aliases.
+- **File/function:** `elab_expr.cc` receiver-root extraction and `elaborate.cc` inline constraint caller-value capture; a general fix needs active-object identity at solve time rather than lexical root matching alone.
+- **Clause:** IEEE 1800-2017 §18.5.9 and 2023 §18.5.8 select active random variables from the invoked object and treat other references as state; §18.7 governs inline name lookup.
+- **Evidence:** [Paired strict alias reducer and logs](../../evidence/opentitan-csrng-inline-receiver-20260925/alias_identity.sv) with `boundary_results.json` in the same directory.
+- **Reproducer status:** paired 2017/2023 compile exit zero; runtime exit one at the same-object alias after bare and direct-receiver controls pass.
+- **Triage status:** separate identity-aware blocker; the current PR qualifies only the stable direct receiver spelling and must not claim general inline alias conformance.
+
+### DD-060 — explicit `this` inline target lookup accepts a caller-only member
+
+- **Discovered while working:** OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT.
+- **Observation:** `this.no_such_member` in a target object's inline constraint is accepted when the caller class declares `no_such_member` but the randomized class does not. Both strict editions compile it without an error, although explicit `this` must bind in the randomized class.
+- **File/function:** `elaborate.cc` inline target-path lookup and expression elaboration; exact first fallback remains to be traced.
+- **Clause:** IEEE 1800-2017/2023 §18.7 requires `this`-qualified inline names to bind to the randomized object's class and makes an unresolved target name an error.
+- **Evidence:** [Paired strict reducer and compile logs](../../evidence/opentitan-csrng-inline-receiver-20260925/explicit_this_caller_shadow_illegal.sv) with `boundary_results.json` in the same directory.
+- **Reproducer status:** paired 2017/2023 compile exit zero; runtime not assessed.
+- **Triage status:** separate lookup blocker; the current PR's negative check covers only an absent member through the direct receiver spelling.

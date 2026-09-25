@@ -1,0 +1,9 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+      sv_randomize_owner_receiver_inline: ==> Failed - running vvp.
+ sv_randomize_owner_receiver_inline_2023: ==> Failed - running vvp.
+     sv_randomize_owner_receiver_invalid: ==> Failed - CE (no error reported).
+sv_randomize_owner_receiver_invalid_2023: ==> Failed - CE (no error reported).
+============================================================================
+Test results:
+  Total=4, Passed=0, Failed=4, Not Implemented=0, Expected Fail=0

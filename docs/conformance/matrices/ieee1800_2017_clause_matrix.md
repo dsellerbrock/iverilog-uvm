@@ -2067,3 +2067,19 @@ directions/defaults/multidimensional forms. The pinned OTP top now compiles,
 but its first released smoke fails a separate time-zero padded memory-path
 check. This is neither OTP DV success nor full subroutine/interface
 qualification.
+
+### September 25 direct owner-held inline randomize receiver
+
+The PARTIAL §§18.7, 18.7.1, 18.6.1, and 18.6.3 subset now resolves a direct,
+unindexed owner-held receiver spelling such as `req.randomize() with {
+req.clen == 12; }` to the randomized object's member when target-class name
+lookup does not claim `req`. Paired strict 2017/2023 legal and invalid-member
+tests pass 4/4 in both legacy and JSON runners; distinct caller state,
+`local::` qualification, target-class shadowing, and failed-solve rollback
+are checked. [PR #366](https://github.com/dsellerbrock/iverilog-uvm/pull/366)
+and its [revision-scoped evidence](../../../evidence/opentitan-csrng-inline-receiver-20260925/README.md)
+record the full gates and pinned replay. Same-object alias identity and an
+explicit-`this` caller fallback still fail separate strict reducers (DD-059/60),
+so neither edition's full inline lookup semantics are QUALIFIED. The pinned
+CSRNG smoke remains 0/1 released nonstandard compatibility DV at a later AES
+assertion.
