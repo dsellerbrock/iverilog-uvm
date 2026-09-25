@@ -1,0 +1,4 @@
+FAIL: same-parameter factory object rejected
+PASS: unequal-parameter factory object rejected
+FATAL: evidence/opentitan-otp-dd056-factory-registry-20260924/otp_factory_registry_reducer.sv:81: factory registry specialization failure
+       Time: 0  Scope: otp_factory_registry_reducer.$unm_blk_1

@@ -1,0 +1,22 @@
+{
+  "command": "./.github/ivtest_gate.sh",
+  "private_tool_path": "/tmp/ot-joint-private-tools-20260924",
+  "private_ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "exit_code": 0,
+  "elapsed_seconds": 820.972,
+  "log_sha256": "a6428046580a3b1c645aef9b0909e7421ff0cec2102c41c04f1a8d7c8cfe327c",
+  "summary": {
+    "total": 6581,
+    "passed": 6576,
+    "failed": 0,
+    "not_implemented": 2,
+    "expected_fail": 3,
+    "vpi_passed": 131,
+    "vpi_total": 131,
+    "negative_passed": 155,
+    "negative_failed": 0,
+    "runtime_invariants_passed": 15,
+    "runtime_invariants_total": 15
+  }
+}

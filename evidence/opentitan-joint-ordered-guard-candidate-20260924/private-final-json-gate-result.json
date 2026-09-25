@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "python3",
+    "./vvp_reg.py"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+  "path_prefix": "/tmp/ot-joint-private-tools-20260924:/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin",
+  "exit_code": 0,
+  "duration_seconds": 475.838,
+  "log_sha256": "178e85138e3f3796ef26c2816535cb727fe4ff603c6b2784a4141879c612438c",
+  "private_ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "summary": {
+    "ran": 3616,
+    "failed": 0
+  }
+}
