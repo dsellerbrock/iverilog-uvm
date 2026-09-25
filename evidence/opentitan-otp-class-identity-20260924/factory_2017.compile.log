@@ -1,0 +1,1 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-dd056-factory-registry-20260924/otp_factory_registry_reducer.sv:64: warning: Static variable initialization requires explicit lifetime in this context.

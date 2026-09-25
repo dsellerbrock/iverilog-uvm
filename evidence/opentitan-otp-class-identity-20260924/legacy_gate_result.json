@@ -1,0 +1,12 @@
+{
+  "command": [
+    "./.github/ivtest_gate.sh"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_seconds": 1405.403,
+  "private_ivl_sha256": "57eec3fcd5e3b38c614f1e48ceb5f774e275e7b8d3b874e5e8eebb7feca423f3",
+  "private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "log_sha256": "61aa850ed7ea8187bb797b2ed56438f469ba588d70dff493a964c4d5700e27a6"
+}

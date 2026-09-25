@@ -1,0 +1,3 @@
+ivltests/sv_class_multi_value_identity_fail_2017.v:6: error: Incompatible type in typed constructor call.
+ivltests/sv_class_multi_value_identity_fail_2017.v:6:      : Constructor type `class mvi_box{}` is not compatible with the target type `class mvi_box{}`.
+Elaboration failed
