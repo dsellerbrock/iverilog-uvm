@@ -50,22 +50,12 @@ caliptra_l0_hwif_in_failure:
   a log byte-identical to evidence/caliptra-icarus-l0-strict-p1-20260924.
 - Copied-source diagnostic profile, private fixed compiler (outside the
   installed-tool 52 numerator): smoke_test_veer PASS (qualified, see above);
-  smoke_test_mbox: see README "Results".
+  smoke_test_mbox PASS (23813 retired, zero bad diagnostics; see README).
 - Private gates: see README "Gates".
 
-## Request: schedule the representative long case
+## Representative long case: done
 
-Two private-compiler `smoke_test_mbox` runs (copied-source diagnostic profile,
-`--timeout 14400`) were killed externally mid-run, the second within about a
-minute of launch, even from a separate POSIX session. If the coordinator reaps
-unregistered Caliptra VVP jobs, please run this case (about 3 h uncontended)
-from this branch's worktree, whose runner uses the private fixed compiler:
-
-    cd iverilog-uvm-caliptra-l0-20260924
-    python3 evidence/caliptra-icarus-l0-runner-20260923/run.py --case smoke_test_mbox \
-      --commercial-unsafe --reset-overlay --checker-source-overlay \
-      --ephemeral-jtag-port --timeout 14400 --output <new dir>
-
-Qualify it only on completed firmware, the pass marker, zero fail markers and
-zero assertion/error diagnostics. Then decide whether to install the fixed
-compiler before restarting the 52-case sweep.
+smoke_test_mbox passed on the private fixed compiler (same diagnostic profile,
+--timeout 14400). Next decision for the coordinator: whether to install the
+fixed compiler before restarting the 52-case sweep. Do not restart it on the
+installed ivl 6ec92c48, which reproduces ERR_HWIF_IN.
