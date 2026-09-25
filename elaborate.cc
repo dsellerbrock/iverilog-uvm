@@ -36418,6 +36418,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				    || range_references_runtime(range.second))
 				      return false;
 			  if (value_width == 0 || value_width > 64) return false;
+			  const __int128 value_min = value_signed
+			? -((__int128)1 << (value_width - 1)) : 0;
+			  const __int128 value_max = value_signed
+			? ((__int128)1 << (value_width - 1)) - 1
+			: value_width == 64 ? (__int128)UINT64_MAX
+			: ((__int128)1 << value_width) - 1;
 			  auto mask = [](unsigned width) -> uint64_t {
 				return width >= 64 ? UINT64_MAX
 				      : (UINT64_C(1) << width) - 1;
@@ -36500,34 +36506,48 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					below, above};
 			  };
 			  for (auto& range : ranges) {
-					if (!range.first || !range.second) continue;
-					NetExpr* lo_e = elab_and_eval(des, class_scope_,
-							      range.first, -1,
-							      false, false);
-				NetExpr* hi_e = elab_and_eval(des, class_scope_,
-							      range.second, -1,
-							      false, false);
+					if (!range.first && !range.second) {
+					      cerr << "error: covergroup bin '" << bin_name
+						   << "' has two open range bounds." << endl;
+					      return false;
+					}
+					NetExpr* lo_e = range.first
+						? elab_and_eval(des, class_scope_,
+								      range.first, -1,
+								      false, false) : nullptr;
+				NetExpr* hi_e = range.second
+						? elab_and_eval(des, class_scope_,
+								      range.second, -1,
+								      false, false) : nullptr;
 				NetEConst* lo_c = dynamic_cast<NetEConst*>(lo_e);
 				NetEConst* hi_c = dynamic_cast<NetEConst*>(hi_e);
-				bool okc = lo_c && hi_c;
-				bool defined = okc && lo_c->value().is_defined()
-				      && hi_c->value().is_defined();
+				bool okc = (!range.first || lo_c)
+				      && (!range.second || hi_c);
+				bool defined = okc
+				      && (!lo_c || lo_c->value().is_defined())
+				      && (!hi_c || hi_c->value().is_defined());
 				if (defined) {
-				      resolved_endpoint_t lo = resolve_endpoint(lo_c);
-				      resolved_endpoint_t hi = resolve_endpoint(hi_c);
+				      resolved_endpoint_t lo = lo_c
+					? resolve_endpoint(lo_c)
+					: resolved_endpoint_t{value_min, false, false, false};
+				      resolved_endpoint_t hi = hi_c
+					? resolve_endpoint(hi_c)
+					: resolved_endpoint_t{value_max, false, false, false};
 				      bool warned = lo.warning || hi.warning;
 				      if (warned)
-					    cerr << range.first->get_fileline()
+					    cerr << (range.first ? range.first : range.second)->get_fileline()
 						 << ": warning: covergroup bin '" << bin_name
 						 << "' has a value outside its effective "
 						 << (value_signed ? "signed " : "unsigned ")
 						 << value_width << "-bit coverpoint type; "
 						    "the affected range is intersected with "
 						    "that type's domain." << endl;
-				      bool singleton = range.first == range.second;
+				      bool singleton = range.first && range.first == range.second;
 				      bool empty = singleton && warned;
 				      empty = empty || (lo.below && hi.below)
-					    || (lo.above && hi.above);
+					    || (lo.above && hi.above)
+					    || (!range.second && lo.above)
+					    || (!range.first && hi.below);
 				      if (!empty) {
 					    __int128 first = lo.effective;
 					    __int128 last = hi.effective;
@@ -36542,7 +36562,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    }
 				      }
 				} else if (okc) {
-				      cerr << range.first->get_fileline()
+				      cerr << (range.first ? range.first : range.second)->get_fileline()
 					   << ": warning: covergroup bin '" << bin_name
 					   << "' has an X/Z endpoint; the affected range "
 					      "is excluded." << endl;
@@ -37587,7 +37607,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  || range_has_binding_error(range.second);
 			      }
 				      for (auto&range : bin.ranges) {
-					    if (!range.first || !range.second) continue;
+					    if (!range.first || !range.second) {
+						dyn_ok = false;
+						break;
+					    }
 					    ctor_range_shape_t lo_shape =
 						  ctor_range_shape(range.first);
 					    ctor_range_shape_t hi_shape =
@@ -38284,6 +38307,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							 cp_value_signedness[cp_indexes[dim]],
 							 s->bin_name.nil() ? "bins" : s->bin_name.str()))
 						      return false;
+						if (!s->intersect_ranges.empty() && irr.empty()) {
+						      append_select_token(out, "F");
+						      return true;
+						}
 						std::vector<std::string> leaves;
 						const std::vector<xbin_desc_t>&descs =
 						      cp_value_bins[cp_indexes[dim]];

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_covergroup_open_end_transition.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "sv_covergroup_open_end_transition"
+}

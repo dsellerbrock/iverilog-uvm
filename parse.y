@@ -115,7 +115,7 @@ static void cov_bins_set_ranges_(class_type_t::pform_cov_bins_t*b,
 {
       if (!lst) return;
       for (auto& r : *lst) {
-	    if (r.is_range && r.lo && r.hi) {
+	    if (r.is_range) {
 		  b->ranges.push_back(std::make_pair(r.lo, r.hi));
 	    } else if (!r.is_range && r.hi) {
 		  b->ranges.push_back(std::make_pair(r.hi, r.hi));
@@ -139,7 +139,7 @@ static class_type_t::pform_cov_trans_term_t* cov_transition_term_(
       term->repeat_hi = repeat_hi;
       if (lst) {
 	    for (auto&r : *lst) {
-		  if (r.is_range && r.lo && r.hi)
+		  if (r.is_range)
 			term->ranges.push_back(std::make_pair(r.lo, r.hi));
 		  else if (!r.is_range && r.hi)
 			term->ranges.push_back(std::make_pair(r.hi, r.hi));
@@ -4937,7 +4937,7 @@ cross_bins_primary
 	s->cp_name = lex_strings.make($3);
 	if ($7) {
 	      for (auto& r : *$7) {
-		    if (r.is_range && r.lo && r.hi)
+		    if (r.is_range)
 			  s->intersect_ranges.push_back(std::make_pair(r.lo, r.hi));
 		    else if (!r.is_range && r.hi) {
 			  s->intersect_ranges.push_back(std::make_pair(r.hi, r.hi));
@@ -4955,7 +4955,7 @@ cross_bins_primary
 	s->bin_name = lex_strings.make($5);
 	if ($9) {
 	      for (auto& r : *$9) {
-		    if (r.is_range && r.lo && r.hi)
+		    if (r.is_range)
 			  s->intersect_ranges.push_back(std::make_pair(r.lo, r.hi));
 		    else if (!r.is_range && r.hi) {
 			  s->intersect_ranges.push_back(std::make_pair(r.hi, r.hi));
@@ -5056,6 +5056,10 @@ trans_step
       { $$ = new std::pair<PExpr*,PExpr*>($1, $1); }
   | '[' expression ':' expression ']'
       { $$ = new std::pair<PExpr*,PExpr*>($2, $4); }
+  | '[' expression ':' '$' ']'
+      { $$ = new std::pair<PExpr*,PExpr*>($2, nullptr); }
+  | '[' '$' ':' expression ']'
+      { $$ = new std::pair<PExpr*,PExpr*>(nullptr, $4); }
   ;
 
 /* ========= End covergroup grammar ========= */
@@ -5967,11 +5971,6 @@ inside_value_range
   | '[' '$' ':' expression ']'
       { inside_range_t*r = new inside_range_t;
 	r->lo = nullptr;  r->hi = $4;  r->is_range = true;
-	$$ = r;
-      }
-  | '[' '$' ':' '$' ']'
-      { inside_range_t*r = new inside_range_t;
-	r->lo = nullptr;  r->hi = nullptr;  r->is_range = true;
 	$$ = r;
       }
   ;
