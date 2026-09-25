@@ -1,0 +1,2 @@
+FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/ivtest/ivltests/sv_constraint_partinfo_rand_index.v:44: secret partition accepted four-byte-only address
+       Time: 0  Scope: test

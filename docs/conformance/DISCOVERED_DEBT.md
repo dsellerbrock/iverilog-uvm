@@ -3478,3 +3478,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Paired strict reducer and compile logs](../../evidence/opentitan-csrng-inline-receiver-20260925/explicit_this_caller_shadow_illegal.sv) with `boundary_results.json` in the same directory.
 - **Reproducer status:** paired 2017/2023 compile exit zero; runtime not assessed.
 - **Triage status:** separate lookup blocker; the current PR's negative check covers only an absent member through the direct receiver spelling.
+
+### DD-061 — constant out-of-range parameter-array read may lose two-state default
+
+- **Discovered while working:** OT-OTP-DAI-RAND-INDEXED-PARTINFO-GUARD.
+- **Observation:** Source review found the pre-existing constant-index parameter-array elaboration path constructs an X value for an invalid selection without checking whether the selected integral type is two-state. This PR's solver-dependent selection handles the declared two-state/four-state distinction; the separate constant-folding path remains unqualified.
+- **File/function:** `elab_expr.cc` constant unpacked parameter-array selection; exact call chain needs triage.
+- **Clause:** IEEE 1800-2017 §7.4.6 and 2023 §7.4.5, Table 7-1 (invalid-index integral read default).
+- **Evidence:** Read-only source review during the paired dynamic-index reducer design; no constant-index runtime result is claimed.
+- **Reproducer status:** sketched; paired constant-index reducer still needed.
+- **Triage status:** untriaged, outside this solver-dependent selection blocker.

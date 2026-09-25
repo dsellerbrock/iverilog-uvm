@@ -1,0 +1,258 @@
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C libveriuser all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C cadpli all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+./mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/include" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install"
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/include
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1
+/usr/bin/install -c -m 644 iverilog-vpi.man "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1/iverilog-vpi.1"
+/usr/bin/install -c ./iverilog-vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin/iverilog-vpi"
+/usr/bin/install -c ./ivl "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/ivl"
+/usr/bin/install -c -m 644 ./constants.vams "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/include/constants.vams"
+/usr/bin/install -c -m 644 ./disciplines.vams "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/include/disciplines.vams"
+/usr/bin/install -c -m 644 ./uvm_dpi/uvm_legacy_recorder.svh "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/include/uvm_legacy_recorder.svh"
+/usr/bin/install -c -m 644 ./ivl_target.h "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog/ivl_target.h"
+/usr/bin/install -c -m 644 ./_pli_types.h "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog/_pli_types.h"
+/usr/bin/install -c -m 644 ./sv_vpi_user.h "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog/sv_vpi_user.h"
+/usr/bin/install -c -m 644 ./svdpi.h "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog/svdpi.h"
+/usr/bin/install -c -m 644 ./vpi_user.h "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog/vpi_user.h"
+/usr/bin/install -c -m 644 ./acc_user.h "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog/acc_user.h"
+/usr/bin/install -c -m 644 ./veriuser.h "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog/veriuser.h"
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C libveriuser install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C cadpli install &&  true
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./ivlpp "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/ivlpp"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./vhdlpp "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vhdlpp"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" \
+		"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib" \
+		"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1" \
+		"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install"
+/usr/bin/install -c -m 644 vvp.man "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1/vvp.1"
+/usr/bin/install -c ./vvp "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin/vvp"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib" "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c -m 644 ./libvpi.a "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/libvpi.a"
+/usr/bin/install -c ./system.vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/system.vpi"
+/usr/bin/install -c ./va_math.vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/va_math.vpi"
+/usr/bin/install -c ./v2005_math.vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/v2005_math.vpi"
+/usr/bin/install -c ./v2009.vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/v2009.vpi"
+/usr/bin/install -c ./vhdl_sys.vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vhdl_sys.vpi"
+/usr/bin/install -c ./vhdl_textio.vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vhdl_textio.vpi"
+/usr/bin/install -c ./vpi_debug.vpi "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vpi_debug.vpi"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./null.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/null.tgt"
+/usr/bin/install -c -m 644 ./null.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/null.conf"
+/usr/bin/install -c -m 644 ./null-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/null-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./stub.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/stub.tgt"
+/usr/bin/install -c -m 644 ./stub.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/stub.conf"
+/usr/bin/install -c -m 644 ./stub-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/stub-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./vvp.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vvp.tgt"
+/usr/bin/install -c -m 644 ./vvp.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vvp.conf"
+/usr/bin/install -c -m 644 ./vvp-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vvp-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./vhdl.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vhdl.tgt"
+/usr/bin/install -c -m 644 ./vhdl.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vhdl.conf"
+/usr/bin/install -c -m 644 ./vhdl-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vhdl-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./vlog95.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vlog95.tgt"
+/usr/bin/install -c -m 644 ./vlog95.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vlog95.conf"
+/usr/bin/install -c -m 644 ./vlog95-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/vlog95-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./pcb.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/pcb.tgt"
+/usr/bin/install -c -m 644 ./pcb.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/pcb.conf"
+/usr/bin/install -c -m 644 ./pcb-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/pcb-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./blif.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/blif.tgt"
+/usr/bin/install -c -m 644 ./blif.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/blif.conf"
+/usr/bin/install -c -m 644 ./blif-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/blif-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./sizer.tgt "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/sizer.tgt"
+/usr/bin/install -c -m 644 ./sizer.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/sizer.conf"
+/usr/bin/install -c -m 644 ./sizer-s.conf "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/sizer-s.conf"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" \
+		"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1" \
+		"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install"
+/usr/bin/install -c -m 644 iverilog.man "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1/iverilog.1"
+/usr/bin/install -c ./iverilog "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin/iverilog"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib"
+/usr/bin/install -c -m 644 ./libveriuser.a "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/libveriuser.a"
+./../mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl"
+/usr/bin/install -c ./cadpli.vpl "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/cadpli.vpl"
+/Applications/Xcode.app/Contents/Developer/usr/bin/make installuvm
+./mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/include/iverilog" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/include" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/share/man/man1" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install"
+Installing UVM sources to /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/uvm/src ...
+mkdir /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/uvm
+Building UVM DPI runtime module ...
+IVPI=./iverilog-vpi VVP_DEF=./vvp/vvp.def \
+	    sh ./uvm_dpi/build_uvm_dpi.sh --name=uvm_dpi \
+	    -I. -I. -I./uvm-core/src/dpi -Lvpi ./uvm_dpi/uvm_dpi_iverilog.cc
+Compiling ./uvm_dpi/uvm_dpi_iverilog.cc...
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:73:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   73 |     sprintf(buffer, "uvm_glob_to_re called with glob=NULL");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:97:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   97 |       sprintf(buffer, "uvm_glob_to_re() glob exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:119:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  119 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:129:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  129 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:146:13: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  146 |             sprintf(buffer, "uvm_glob_to_re() expansion exceeds max length(%0d)", UVM_REGEX_MAX_LENGTH);
+      |             ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:161:13: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  161 |             sprintf(buffer, "uvm_glob_to_re() expansion exceeds max length(%0d)", UVM_REGEX_MAX_LENGTH);
+      |             ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:188:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  188 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:198:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  198 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:206:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  206 |       sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:258:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  258 |       sprintf(buffer, "uvm_re_comp() re exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:285:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  285 |     sprintf(buffer, "uvm_re_comp: internal memory allocation error");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:310:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  310 |     sprintf(uvm_re_buffer(), "uvm_re_exec: NULL rexp");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:73:
+./uvm-core/src/dpi/uvm_regex.cc:314:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  314 |     sprintf(uvm_re_buffer(), "uvm_re_exec: NULL str");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from ./uvm_dpi/uvm_dpi_iverilog.cc:76:
+./uvm-core/src/dpi/uvm_svcmd_dpi.c:47:20: warning: unused parameter 'lvl' [-Wunused-parameter]
+   47 | void push_data(int lvl,char *entry, int cmd) {
+      |                    ^
+14 warnings generated.
+Making uvm_dpi.vpi from  uvm_dpi_iverilog.o...
+rm -f uvm_dpi_iverilog.o
+Installed /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/lib/ivl/uvm_dpi.vpi

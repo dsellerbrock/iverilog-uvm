@@ -1,0 +1,3 @@
+exit=1
+FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/ivtest/ivltests/sv_constraint_partinfo_rand_index_negative_bound.v:34: signed negative bound lost secret guard
+       Time: 0  Scope: test
