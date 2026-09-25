@@ -3462,9 +3462,9 @@ static std::string canonical_specialization_parm_key_(
 	    return out.str();
       }
 
-	/* Normalize concrete class-type actuals across omitted, named and
-	 * positional forms, including independent defaults. Unresolved forwarding
-	 * and non-class types still retain their source-sensitive keys below. */
+	/* Normalize concrete multi-formal actuals in declaration order. A bare
+	 * dependent value default may reuse an earlier formal of the same type;
+	 * unresolved forwarding retains its source-sensitive key. */
       if (pclass->parameter_order.size() < 2)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
@@ -3497,7 +3497,18 @@ static std::string canonical_specialization_parm_key_(
 		  all_bare_class_defaults = false;
 	    prior_formals.insert(*name_it);
       }
-      if (!has_bare_dependent_default && !all_bare_class_defaults)
+      bool has_value_formal = false;
+      for (std::list<perm_string>::const_iterator name_it =
+		   pclass->parameter_order.begin()
+	   ; name_it != pclass->parameter_order.end(); ++name_it) {
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
+		  pclass->parameters.find(*name_it);
+	    if (formal != pclass->parameters.end() && formal->second
+		&& !formal->second->type_flag)
+		  has_value_formal = true;
+      }
+      if (!has_value_formal && !has_bare_dependent_default
+	  && !all_bare_class_defaults)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
       std::map<perm_string,const PExpr*> supplied;
@@ -3525,6 +3536,7 @@ static std::string canonical_specialization_parm_key_(
       }
 
       std::map<perm_string,std::string> effective;
+      std::map<perm_string,std::string> effective_type;
       std::ostringstream out;
       out << "C";
       for (std::list<perm_string>::const_iterator name_it =
@@ -3533,8 +3545,106 @@ static std::string canonical_specialization_parm_key_(
 	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
 		  pclass->parameters.find(*name_it);
 	    if (formal == pclass->parameters.end() || !formal->second
-		|| !formal->second->expr || !formal->second->type_flag)
+		|| !formal->second->expr)
 		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+
+	    if (!formal->second->type_flag) {
+		  std::map<perm_string,const PExpr*>::const_iterator supplied_actual =
+		    supplied.find(*name_it);
+		  const PExpr*actual = supplied_actual == supplied.end()
+		    || !supplied_actual->second ? formal->second->expr
+		    : supplied_actual->second;
+		  NetScope*actual_scope = supplied_actual == supplied.end()
+		    || !supplied_actual->second ? definition_scope : call_scope;
+		  std::string key;
+		  if (!formal->second->data_type) {
+		    if (cache_value_parameter_is_deferred_(
+			  des, actual_scope, actual))
+		      return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		    std::ostringstream tmp;
+		    append_cache_expr_key_(des, actual_scope, tmp, actual, 0);
+		    key = tmp.str();
+		    if (key.empty() || key.find("@scope=") != std::string::npos)
+		      return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  } else {
+		    ivl_type_t formal_type = formal->second->data_type
+		      ->elaborate_type(des, definition_scope);
+		    if (!formal_type)
+		      return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		    std::ostringstream type_out;
+		    append_cache_ivl_type_key_(des, type_out, formal_type);
+		    const std::string type_key = type_out.str();
+		    bool reused_prior = false;
+		    if (supplied_actual == supplied.end() || !supplied_actual->second) {
+		      for (std::map<perm_string,std::string>::const_iterator prior =
+			   effective.begin(); prior != effective.end(); ++prior) {
+			if (pexpr_matches_parameter_name_(actual, prior->first)
+			    && effective_type[prior->first] == type_key) {
+			  key = prior->second;
+			  reused_prior = true;
+			  break;
+			}
+		      }
+		    }
+		    if (!reused_prior) {
+		      if (cache_value_parameter_is_deferred_(
+			    des, actual_scope, actual))
+			return parmvalue_cache_key_(
+			  des, call_scope, overrides, pclass);
+		      std::string value_key;
+		      const bool aggregate_constant =
+			dynamic_cast<const netstruct_t*>(formal_type)
+			&& !formal_type->packed();
+		      if (formal_type->base_type() == IVL_VT_REAL
+			  || formal_type->base_type() == IVL_VT_STRING
+			  || aggregate_constant) {
+			if (!cache_typed_constant_value_key_(
+			      des, actual_scope, actual, formal_type, value_key)) {
+			  const PExpr*origin = actual;
+			  NetScope*origin_scope = actual_scope;
+			  if (!cache_parameter_source_lineage_(
+				des, origin_scope, origin)
+			      || (!cache_typed_constant_value_key_(
+				    des, origin_scope, origin, formal_type, value_key)
+				  && !cache_source_lineage_key_(
+				    des, origin_scope, origin, value_key)))
+			    return parmvalue_cache_key_(
+			      des, call_scope, overrides, pclass);
+			}
+		      } else {
+			if (!formal_type->packed()
+			    || (formal_type->base_type() != IVL_VT_BOOL
+			      && formal_type->base_type() != IVL_VT_LOGIC)
+			    || formal_type->packed_width() <= 0)
+			  return parmvalue_cache_key_(
+			    des, call_scope, overrides, pclass);
+			verinum value;
+			bool unbounded = false;
+			if (!cache_integral_constant_value_(
+			    des, actual_scope, actual, value, unbounded,
+			    formal_type->packed_width()))
+			  return parmvalue_cache_key_(
+			    des, call_scope, overrides, pclass);
+			value = cast_to_width(value, formal_type->packed_width());
+			value.has_sign(formal_type->get_signed());
+			value.has_len(true);
+			if (formal_type->base_type() == IVL_VT_BOOL)
+			  value.cast_to_int2();
+			std::ostringstream tmp;
+			tmp << "<constant:variant=integral:unbounded="
+		    << unbounded << ":";
+			append_exact_verinum_key_(tmp, value);
+			tmp << ">";
+			value_key = tmp.str();
+		      }
+		      key = type_key + "=" + value_key;
+		    }
+		    effective_type[*name_it] = type_key;
+		  }
+		  effective[*name_it] = key;
+		  out << "|" << *name_it << "=" << key;
+		  continue;
+	    }
 	    const int formal_kind = 1;
 
 	    const PExpr*default_expr = formal->second->expr;

@@ -1,0 +1,2 @@
+ivltests/sv_class_multi_value_dependent_width_fail_2017.v:4: error: Unable to bind parameter `W' in `sv_class_multi_value_dependent_width_fail_2017'
+1 error(s) during elaboration.

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_class_multi_value_dependent_width_fail_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_class_multi_value_dependent_width_fail_2017"
+}
