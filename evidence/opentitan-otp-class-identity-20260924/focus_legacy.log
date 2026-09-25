@@ -1,0 +1,11 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+            sv_class_multi_value_identity_2017: Passed.
+            sv_class_multi_value_identity_2023: Passed.
+       sv_class_multi_value_identity_fail_2017: Passed - CE.
+       sv_class_multi_value_identity_fail_2023: Passed - CE.
+sv_class_multi_value_dependent_width_fail_2017: Passed - CE.
+sv_class_multi_value_dependent_width_fail_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=6, Passed=6, Failed=0, Not Implemented=0, Expected Fail=0

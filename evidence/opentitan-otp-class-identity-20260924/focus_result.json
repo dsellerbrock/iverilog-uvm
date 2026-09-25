@@ -1,0 +1,34 @@
+{
+  "legacy": {
+    "command": [
+      "perl",
+      "./vvp_reg.pl",
+      "regress-otp-class-identity-focus-legacy.list"
+    ],
+    "cwd": "/tmp/ot-otp-class-ivtest-isolated-20260924",
+    "exit_code": 0,
+    "duration_seconds": 0.385,
+    "log_sha256": "899c443343c272535ce56208d26233b12281587f27075cd4185d117ae8bb26a9",
+    "tail": [
+      "============================================================================",
+      "Test results:",
+      "  Total=6, Passed=6, Failed=0, Not Implemented=0, Expected Fail=0"
+    ]
+  },
+  "json": {
+    "command": [
+      "python3",
+      "./vvp_reg.py",
+      "regress-otp-class-identity-focus-vvp.list"
+    ],
+    "cwd": "/tmp/ot-otp-class-ivtest-isolated-20260924",
+    "exit_code": 0,
+    "duration_seconds": 0.399,
+    "log_sha256": "ccbf62ddaf40d0c6dd4ba9d74800a39391a7479c307c0af46b8963a6d9b74df4",
+    "tail": [
+      "       sv_class_multi_value_identity_fail_2023: Passed - CE.",
+      "============================================================================",
+      "Test results: Ran 6, Failed 0."
+    ]
+  }
+}

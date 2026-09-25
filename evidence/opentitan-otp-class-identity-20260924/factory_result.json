@@ -1,0 +1,44 @@
+{
+  "2017": {
+    "compile_command": [
+      "/tmp/ot-joint-private-tools-20260924/iverilog",
+      "-g2017",
+      "-s",
+      "otp_factory_registry_reducer",
+      "-o",
+      "/tmp/ot-otp-class-identity-20260924/factory_2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-dd056-factory-registry-20260924/otp_factory_registry_reducer.sv"
+    ],
+    "compile_exit": 0,
+    "runtime_command": [
+      "/tmp/ot-joint-private-tools-20260924/vvp",
+      "-n",
+      "/tmp/ot-otp-class-identity-20260924/factory_2017.vvp"
+    ],
+    "runtime_exit": 0,
+    "equal_accepted": true,
+    "unequal_rejected": true,
+    "fatal": false
+  },
+  "2023": {
+    "compile_command": [
+      "/tmp/ot-joint-private-tools-20260924/iverilog",
+      "-g2023",
+      "-s",
+      "otp_factory_registry_reducer",
+      "-o",
+      "/tmp/ot-otp-class-identity-20260924/factory_2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-dd056-factory-registry-20260924/otp_factory_registry_reducer.sv"
+    ],
+    "compile_exit": 0,
+    "runtime_command": [
+      "/tmp/ot-joint-private-tools-20260924/vvp",
+      "-n",
+      "/tmp/ot-otp-class-identity-20260924/factory_2023.vvp"
+    ],
+    "runtime_exit": 0,
+    "equal_accepted": true,
+    "unequal_rejected": true,
+    "fatal": false
+  }
+}

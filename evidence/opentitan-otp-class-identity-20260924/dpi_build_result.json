@@ -1,0 +1,88 @@
+{
+  "sources": [
+    {
+      "path": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c",
+      "sha256": "5585191425d1f0b8ec8f7803d10908ac4c338e25d7fb7e1f63c3358aa289e771"
+    },
+    {
+      "path": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_prince_ref_0.1/prince_ref.h",
+      "sha256": "e4f068ab456e58c6c71b0d178ac8a46813062d3e576c781b3f161c4235b74755"
+    },
+    {
+      "path": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc",
+      "sha256": "cd3feda5d8c6f98006206f35478fa8f01aefad9a08819f8b2416cb3addb01145"
+    },
+    {
+      "path": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc",
+      "sha256": "e28ecdb376b7a97474dbcf1a54c1afd5b3898f57799a0e635e575da9176c769d"
+    },
+    {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/svdpi.h",
+      "sha256": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    {
+      "path": "/tmp/ot-otp-class-identity-20260924/otp_final.dpiexport.c",
+      "sha256": "3da21c3abb1f61ac02a226c5774f13ec2260098d23d56d6e386375c95ff405c3"
+    }
+  ],
+  "compile_commands": [
+    [
+      "cc",
+      "-std=c99",
+      "-O2",
+      "-fPIC",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908",
+      "-I/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_prince_ref_0.1",
+      "-c",
+      "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c",
+      "-o",
+      "/tmp/ot-otp-class-identity-20260924/crypto_dpi_prince.o"
+    ],
+    [
+      "c++",
+      "-std=c++11",
+      "-O2",
+      "-fPIC",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908",
+      "-c",
+      "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc",
+      "-o",
+      "/tmp/ot-otp-class-identity-20260924/crypto_dpi_present.o"
+    ],
+    [
+      "c++",
+      "-std=c++11",
+      "-O2",
+      "-fPIC",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908",
+      "-c",
+      "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc",
+      "-o",
+      "/tmp/ot-otp-class-identity-20260924/digestpp_dpi.o"
+    ],
+    [
+      "cc",
+      "-std=c99",
+      "-O2",
+      "-fPIC",
+      "-c",
+      "/tmp/ot-otp-class-identity-20260924/otp_final.dpiexport.c",
+      "-o",
+      "/tmp/ot-otp-class-identity-20260924/otp_final.dpiexport.o"
+    ],
+    [
+      "c++",
+      "-dynamiclib",
+      "-undefined",
+      "dynamic_lookup",
+      "/tmp/ot-otp-class-identity-20260924/crypto_dpi_prince.o",
+      "/tmp/ot-otp-class-identity-20260924/crypto_dpi_present.o",
+      "/tmp/ot-otp-class-identity-20260924/digestpp_dpi.o",
+      "/tmp/ot-otp-class-identity-20260924/otp_final.dpiexport.o",
+      "-o",
+      "/tmp/ot-otp-class-identity-20260924/otp_final_native_dpi.dylib"
+    ]
+  ],
+  "all_exit_zero": true,
+  "library_sha256": "530f58ec0e3702dc6ae2fe1c260832f41a018ce466a29a7597254f75c5658a95"
+}
