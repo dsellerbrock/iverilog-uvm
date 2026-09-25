@@ -4,10 +4,10 @@ branch: agent/ot-otp-grant-known-20260925
 checkpoint_head: af051298ddfe1100df0c2fc69e15300e45126b2d
 active_open_titan_lane:
   blocker: OT-OTP-PACKED-DRIVER-CHAIN
-  phase: LOCAL_GATES_PASSED_PR_PENDING
+  phase: PR368_PUBLISHED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-grant-known-20260925
   parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/367
-  pr: pending
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/368
   baseline_head: af051298ddfe1100df0c2fc69e15300e45126b2d
   baseline_private_ivl_sha256: 5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d
   baseline_private_vvp_sha256: e9c5a713c88c040fe4e941bd75a0f0e5c40995b273fcd17d1227325cdc4a038b
@@ -19,7 +19,7 @@ active_open_titan_lane:
   standards: IEEE 1800-2017 and 2023 sections 4.9.1, 6.5, 10.1 Table 10-1, and 10.3.2 require legal disjoint packed-bit continuous assignments to propagate at startup and on source changes; section 10.3.2 rejects overlapping variable-element drivers.
   validation: Paired strict legal chain RED in 2017 and 2023; direct independent per-bit drivers pass, and overlapping variable-driver negatives reject. The final image passes 7/7 focused legacy and 8/8 JSON, including invalid-index, wrong-bit, and competing-bit SDF guards; positive SDF and six-driver controls pass. Make check, full JSON 3661/3661, legacy 6620 total with zero unexpected failures, 155/155 negatives, 62/62 SVA, VPI with PLI1 140/140, and real-DPI UVM 358/358 pass.
   released_dv: Final native-DPI OTP low and high replays complete with 1256 checked TL A and D items, zero UVM warnings/errors/fatals, and TEST PASSED CHECKS. Qualified released OTP DV remains 0/1 because dai_wr_legal_addr_c is ignored and two DAI addresses are outside the intended partition. Six covergroup bins remain dropped; strict variable-driver qualification is also limited by a treated-as-wire warning. Prior PR367 CSRNG is separately 1/1 nonstandard compatibility DV with an ignored-constraint warning.
-  next_command: Publish the reviewed OTP packed-driver PR without CI polling. Then select the separate ignored DAI address-constraint folding blocker with paired 2017/2023 controls.
+  next_command: PR368 is published. In a separate OpenTitan worktree, establish paired 2017/2023 legal and illegal selected-member constraint reducers for the ignored DAI address rule; keep this PR one blocker and do not poll CI.
   boundary: OpenTitan-only work; pinned application sources, installed Caliptra tool, and user-owned campaign AGENTS.md unchanged. No Caliptra job, Verilator, GPU, or CI polling.
 active_icarus_runs:
   selected_52:
@@ -96,15 +96,15 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-OTP-PACKED-DRIVER-CHAIN
-  phase: LOCAL_GATES_PASSED_PR_PENDING
+  phase: PR368_PUBLISHED
   owner: Coordinator owns private build, paired focused and broad gates, pinned native-DPI OTP replay, evidence, review, and one separate PR.
   reproducer: Strict legal fully covered three-bit packed-bit chain stays zzz instead of 000 in both 2017 and 2023; pinned OTP u_otp_arb sampled grant contains X with known requests and ready, then GrantKnown_A fails.
   expected: Disjoint packed-bit continuous assignments propagate without a false whole-vector startup cycle, while independent full-width strength and ordinary concat startup remain correct and overlapping variable drivers reject.
   root_cause_hypothesis: Early elab_net.cc collapse replaces selected drivers before final RHS dependency exists. The resulting self-referential NetConcat waits for all ports and never publishes its constant root. Late cprop.cc already has a feedback guard but cannot recover deleted drivers.
   source_scope: elab_net.cc, cprop.cc, deletion of now-unused helper from netmisc.cc/netmisc.h, plus scalar same-bit VPI topology in vvp/vpi_priv.cc and vvp/part.h, structural singleton-driver proof at deferred link in vvp/compile.cc and vvp/resolv.h/.cc, and invalid SDF port-bit rejection in vpi/sys_sdf.c; dedicated paired legal and SDF negative tests, OpenTitan-only evidence and docs.
   validation: Final private image passes paired packed-chain focus 7/7 legacy and 8/8 JSON, including invalid-index, wrong-bit, and competing-bit SDF negatives. Positive SDF and six-driver resolver controls pass. Make check, full JSON 3661/3661, legacy 6620 total with zero unexpected failures, negatives 155/155, SVA dual-engine 62/62, VPI with PLI1 140/140, and real-DPI UVM 358/358 pass. Final native-DPI OTP low and high smokes complete with zero UVM errors, 1256 checked TL request/response pairs and a pass marker, but remain 0/1 qualified released DV because the compiler drops its legal DAI address constraint and two sampled addresses are out of range.
-  pr: pending
-  next: Publish this reviewed blocker PR without CI polling, then start a separate selected-member constraint-folding blocker PR with paired 2017/2023 controls.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/368
+  next: PR368 is published. Start the separate selected-member constraint-folding blocker with paired 2017/2023 controls in a new worktree; do not poll CI.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366

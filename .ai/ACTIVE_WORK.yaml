@@ -1,9 +1,9 @@
-status: opentitan_otp_packed_driver_chain_local_gates_passed_pr_pending
+status: opentitan_otp_packed_driver_chain_pr368_published
 branch: agent/ot-otp-grant-known-20260925
 baseline: This worktree starts at open PR367 af051298ddfe1100df0c2fc69e15300e45126b2d. The final private ivl, VVP, and system.vpi SHA256 values are 7840b445f0353cc47af9a794c1bf98fc14b1afe549ff4ca26d492eaa755a668c, dc5beaf5988e15ba51bfeb8d4fb61b112461e6bc5d0209fcce34f6cc8239c560, and 6b59b37766c36c7704d71d255fa9918372876b141515e302aa4594715b554f96. Pinned sources and the user-owned dirty campaign tree are unchanged; no Caliptra process is running.
 blocker: OT-OTP-PACKED-DRIVER-CHAIN
 prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/367
-pr: pending
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/368
 goal: Repair the fully covered packed-vector driver feedback that leaves the released OTP arbiter grant unknown, with one separate reviewed PR and unchanged released checks.
 standards: IEEE 1800-2017 and 2023 sections 4.9.1, 6.5, 10.1 Table 10-1, and 10.3.2 require time-zero and RHS-change reevaluation of legal disjoint packed-variable bit-select continuous assignments; section 10.3.2 also forbids multiple drivers on one variable element. Net resolution is a separate section 6.6/6.6.1 case. The released OTP replay uses the existing hash-checked disposable RAM-path overlay, not pristine-source qualification.
 failing_reproducer: On the current private compiler, pinned native-DPI otp_ctrl_smoke_vseq compiles but fails 0/1 released DV at 1559061 ps with one GrantKnown_A UVM_ERROR and TEST FAILED CHECKS. A disposable #1step monitor identifies tb.dut.u_otp_arb with known req=00011111111111 and ready=1 but sampled gnt=000xxxxxxxxxxx; its priority mask is X and mask_tree is Z. A strict three-bit fully covered legal chain with constant bit 0 and each higher bit reading its predecessor remains zzz and fatals in both 2017 and 2023. Independent per-bit constants pass and overlapping variable drivers reject in both editions.

@@ -1,5 +1,6 @@
 {
   "blocker": "OT-OTP-PACKED-DRIVER-CHAIN",
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/368",
   "base_commit": "af051298ddfe1100df0c2fc69e15300e45126b2d",
   "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
   "private_tool_sha256": {
