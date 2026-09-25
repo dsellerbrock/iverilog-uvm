@@ -1,0 +1,141 @@
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c elaborate.cc -o elaborate.o
+flex -s -t lexor.lex > lexor.cc
+bison --verbose -t -p VL --defines=parse.h -o parse.cc parse.y
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c net_design.cc -o net_design.o
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c parse_misc.cc -o parse_misc.o
+parse.y: warning: 3 nonterminals useless in grammar [-Wother]
+parse.y: warning: 5 rules useless in grammar [-Wother]
+parse.y:6682.1-16: warning: nonterminal useless in grammar: method_qualifier [-Wother]
+ 6682 | method_qualifier /* IEEE1800-2005: A.1.8 */
+      | ^~~~~~~~~~~~~~~~
+parse.y:7189.1-15: warning: nonterminal useless in grammar: open_range_list [-Wother]
+ 7189 | open_range_list /* IEEE1800-2005 A.2.11 */
+      | ^~~~~~~~~~~~~~~
+parse.y:9434.1-11: warning: nonterminal useless in grammar: value_range [-Wother]
+ 9434 | value_range /* IEEE1800-2005: A.8.3 */
+      | ^~~~~~~~~~~
+parse.y: warning: 572 shift/reduce conflicts [-Wconflicts-sr]
+parse.y: warning: 1122 reduce/reduce conflicts [-Wconflicts-rr]
+parse.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
+parse.y:3789.7-3791.56: warning: rule useless in parser due to conflicts [-Wother]
+ 3789 |       { pform_pop_scope();
+      |       ^~~~~~~~~~~~~~~~~~~~
+parse.y:7514.7-7515.103: warning: rule useless in parser due to conflicts [-Wother]
+ 7514 |       { pform_pop_scope();
+      |       ^~~~~~~~~~~~~~~~~~~~
+parse.y:17284.40-67: warning: rule useless in parser due to conflicts [-Wother]
+17284 |   | package_scope hierarchy_identifier { lex_in_package_scope(0); } a...
+      |                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+mv parse_misc.d dep/parse_misc.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c pform.cc -o pform.o
+pform.cc:1556:75: warning: unused parameter 'loc' [-Wunused-parameter]
+ 1556 | static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
+      |                                                                           ^
+pform.cc:7300:60: warning: unused parameter 'loc' [-Wunused-parameter]
+ 7300 | void pform_set_clocking_default_skews(const struct vlltype&loc,
+      |                                                            ^
+pform.cc:8089:52: warning: unused parameter 'loc' [-Wunused-parameter]
+ 8089 | void pform_end_clocking_block(const struct vlltype&loc)
+      |                                                    ^
+elaborate.cc:32667:41: warning: declaration shadows a local variable [-Wshadow]
+ 32667 |             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+       |                                         ^
+elaborate.cc:32654:34: note: previous declaration is here
+ 32654 |             if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+       |                                  ^
+elaborate.cc:31699:27: warning: comparison of integers of different signs: 'unsigned int' and 'const int' [-Wsign-compare]
+ 31699 |                       && (unsigned)qidx == dynforeach_emit_ctx_->prop_idx) {
+       |                          ~~~~~~~~~~~~~~ ^  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pform.cc:13361:39: warning: unused parameter 'loc' [-Wunused-parameter]
+ 13361 | pform_sva_repeat(const struct vlltype&loc,
+       |                                       ^
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c pform_sva_nfa.cc -o pform_sva_nfa.o
+pform.cc:15482:27: warning: unused parameter 'loc' [-Wunused-parameter]
+ 15482 |                                         const struct vlltype&loc, int op_type,
+       |                                                              ^
+elaborate.cc:38276:19: warning: enumeration value 'SEL_WITH' not handled in switch [-Wswitch]
+ 38276 |                                       switch (s->op) {
+       |                                               ^~~~~
+elaborate.cc:38276:19: note: add missing switch cases
+ 38276 |                                       switch (s->op) {
+       |                                               ^
+mv net_design.d dep/net_design.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c pform_analog.cc -o pform_analog.o
+mv pform_analog.d dep/pform_analog.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c pform_disciplines.cc -o pform_disciplines.o
+mv pform_sva_nfa.d dep/pform_sva_nfa.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c pform_package.cc -o pform_package.o
+mv pform_disciplines.d dep/pform_disciplines.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c pform_pclass.cc -o pform_pclass.o
+mv pform_package.d dep/pform_package.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor.cc -o lexor.o
+<stdout>:2844:13: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 2844 |             if ( ! (yy_state_buf) )
+      |             ^
+<stdout>:2842:9: note: previous statement is here
+ 2842 |         if ( ! (yy_state_buf) )
+      |         ^
+<stdout>:5029:3: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 5029 |                 return yy_is_jam ? 0 : yy_current_state;
+      |                 ^
+<stdout>:5026:2: note: previous statement is here
+ 5026 |         if ( ! yy_is_jam )
+      |         ^
+mv pform_pclass.d dep/pform_pclass.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor_keyword.cc -o lexor_keyword.o
+2 warnings generated.
+mv lexor.d dep/lexor.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c parse.cc -o parse.o
+./lexor_keyword.gperf:39:21: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   39 | Lkwd::keyword_hash (register const char *str, register unsigned int len)
+      |                     ^~~~~~~~
+./lexor_keyword.gperf:39:47: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   39 | Lkwd::keyword_hash (register const char *str, register unsigned int len)
+      |                                               ^~~~~~~~
+./lexor_keyword.gperf:70:3: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   70 |   register unsigned int hval = len;
+      |   ^~~~~~~~
+./lexor_keyword.gperf:100:25: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  100 | Lkwd::check_identifier (register const char *str, register unsigned int len)
+      |                         ^~~~~~~~
+./lexor_keyword.gperf:100:51: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  100 | Lkwd::check_identifier (register const char *str, register unsigned int len)
+      |                                                   ^~~~~~~~
+./lexor_keyword.gperf:281:11: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  281 |           register const char *s = wordlist[key].name;
+      |           ^~~~~~~~
+6 warnings generated.
+mv lexor_keyword.d dep/lexor_keyword.d
+parse.cc:21015:18: warning: missing field 'lexical_pos' initializer [-Wmissing-field-initializers]
+ 21015 |   = { 1, 1, 1, 1 }
+       |                  ^
+parse.y:197:19: warning: unused variable 'recently_completed_class_method_' [-Wunused-variable]
+  197 | static PTaskFunc* recently_completed_class_method_ = 0;
+      |                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 warnings generated.
+mv parse.d dep/parse.d
+5 warnings generated.
+mv pform.d dep/pform.d
+3 warnings generated.
+mv elaborate.d dep/elaborate.d
+g++ -Wl,-all_load  -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o ivl main.o async.o design_dump.o discipline.o dup_expr.o elaborate.o sv_edition.o elab_expr.o elaborate_analog.o elab_lval.o elab_net.o elab_scope.o elab_sig.o elab_sig_analog.o elab_type.o emit.o eval_attrib.o eval_tree.o expr_synth.o functor.o lexor.o lexor_keyword.o link_const.o load_module.o netlist.o netmisc.o nettypes.o net_analog.o net_assign.o net_design.o netclass.o netdarray.o netenum.o netparray.o netqueue.o netscalar.o netstruct.o netvector.o net_event.o net_expr.o net_func.o net_func_eval.o net_link.o net_modulo.o net_nex_input.o net_nex_output.o net_proc.o net_scope.o net_tran.o net_udp.o map_named_args.o pad_to_width.o parse.o parse_misc.o pform.o pform_sva_nfa.o pform_analog.o pform_disciplines.o pform_dump.o pform_package.o pform_pclass.o pform_types.o symbol_search.o sync.o sys_funcs.o verinum.o verireal.o vpi_modules.o target.o Attrib.o HName.o Module.o PClass.o PDelays.o PEvent.o PExpr.o PFunction.o PGate.o PGenerate.o PModport.o PNamedItem.o PPackage.o PScope.o PSpec.o PTimingCheck.o PTask.o PUdp.o PWire.o Statement.o AStatement.o LineInfo.o StringHeap.o cprop.o exposenodes.o nodangle.o synth.o synth2.o syn-rules.o t-dll.o t-dll-api.o t-dll-expr.o t-dll-proc.o t-dll-analog.o -ldl
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C libveriuser all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C cadpli all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+g++ -I. -I.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_tasks.cc -o vpi_tasks.o
+mv vpi_tasks.d dep/vpi_tasks.d
+g++ -Wl,-all_load  -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vvp main.o lib_main.o parse.o parse_misc.o lexor.o arith.o array_common.o array.o bufif.o compile.o concat.o dff.o class_type.o enum_type.o extend.o file_line.o latch.o npmos.o part.o permaheap.o reduce.o resolv.o sfunc.o stop.o substitute.o symbols.o ufunc.o codes.o vthread.o schedule.o statistics.o tables.o udp.o vvp_island.o vvp_net.o vvp_net_sig.o vvp_object.o vvp_assoc.o vvp_cobject.o vvp_darray.o vvp_dpi.o vvp_mailbox.o vvp_vinterface.o vvp_z3.o event.o logic.o delay.o words.o island_tran.o vpi_modules.o vpi_bit.o vpi_callback.o vpi_cobject.o vpi_const.o vpi_darray.o vpi_event.o vpi_iter.o vpi_mcd.o vpi_priv.o vpi_scope.o vpi_real.o vpi_signal.o vpi_string.o vpi_tasks.o vpi_time.o vpi_vthr_vector.o vpip_bin.o vpip_hex.o vpip_oct.o vpip_to_dec.o vpip_format.o vvp_vpi.o -lbz2 -lz -lpthread -lreadline -ltermcap   -lz3 -lffi -ldl
+gcc -std=gnu23 -I. -I..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_icarus.c -o sys_icarus.o
+mv sys_icarus.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -o system.vpi sys_table.o sys_convert.o sys_countdrivers.o sys_coverage.o sys_darray.o sys_deposit.o sys_display.o sys_fileio.o sys_finish.o sys_icarus.o sys_plusargs.o sys_queue.o sys_random.o sys_random_mti.o sys_readmem.o sys_readmem_lex.o sys_scanf.o sys_sva.o sys_sdf.o sys_time.o sys_vcd.o sys_vcdoff.o sys_dumpports.o vcd_priv.o mt19937int.o sys_priv.o sdf_parse.o sdf_lexor.o stringheap.o vams_simparam.o table_mod.o table_mod_parse.o table_mod_lexor.o sys_lxt.o lxt_write.o sys_lxt2.o lxt2_write.o sys_fst.o fstapi.o fastlz.o lz4.o vcd_priv2.o sys_sv_class.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.

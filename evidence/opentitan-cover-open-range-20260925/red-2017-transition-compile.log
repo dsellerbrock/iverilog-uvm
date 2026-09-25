@@ -1,0 +1,2 @@
+ivtest/ivltests/sv_covergroup_open_end_transition.v:4: syntax error
+ivtest/ivltests/sv_covergroup_open_end_transition.v:4: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).

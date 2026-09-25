@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_open_end_both_illegal.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "sv_covergroup_open_end_both_illegal"
+}

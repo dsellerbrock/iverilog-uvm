@@ -1,0 +1,9 @@
+[
+  "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/local-install/bin/vvp",
+  "-n",
+  "-d",
+  "/private/tmp/ot-native-dpi-replays-wexm46xx/present_dpi.dylib",
+  "/private/tmp/ot-open-range-full-unsafe-20260925/work/runtime/lowrisc_dv_prim_present_sim_0.1/matrix-runtime.vvp",
+  "+cdc_instrumentation_enabled=1",
+  "+smoke_test=1"
+]

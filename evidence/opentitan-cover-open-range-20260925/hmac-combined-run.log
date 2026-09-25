@@ -1,0 +1,4 @@
+[1/2] uvm lowrisc:dv:hmac_sim:0.1 -> DEBT
+[2/2] runtime lowrisc:dv:hmac_sim:0.1 -> RUNTIME_FAIL
+JSON: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/evidence/opentitan-cover-open-range-20260925/hmac-combined-result.json
+Markdown: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925/evidence/opentitan-cover-open-range-20260925/hmac-combined-result.md

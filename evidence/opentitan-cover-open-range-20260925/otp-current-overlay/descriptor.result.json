@@ -1,0 +1,13 @@
+{
+  "class": "__covgrp_otp_ctrl_csr_rd_after_alert_cg_wrap_csr_rd_after_alert_cg_t",
+  "constructor_method_fields": 36,
+  "dynamic_endpoint_counts": {
+    "unbuffered_digests": 10,
+    "hw_digests": 4,
+    "secret_digests": 6,
+    "direct_access_rdata": 2,
+    "status": 1,
+    "error_code": 13
+  },
+  "total": 36
+}

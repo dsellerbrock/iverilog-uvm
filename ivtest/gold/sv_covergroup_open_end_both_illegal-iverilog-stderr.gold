@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_open_end_both_illegal.v:4: syntax error
+ivltests/sv_covergroup_open_end_both_illegal.v:4: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).

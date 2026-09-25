@@ -1,0 +1,26 @@
+[
+  [
+    "cc",
+    "-std=c99",
+    "-O2",
+    "-fPIC",
+    "-c",
+    "/private/tmp/ot-open-range-full-unsafe-20260925/work/runtime/lowrisc_dv_prim_present_sim_0.1/matrix-runtime.dpiexport.c",
+    "-o",
+    "/private/tmp/ot-native-dpi-replays-wexm46xx/present_dpiexport.o"
+  ],
+  [
+    "c++",
+    "-std=c++17",
+    "-O2",
+    "-fPIC",
+    "-dynamiclib",
+    "-undefined",
+    "dynamic_lookup",
+    "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-cover-open-range-20260925",
+    "/private/tmp/ot-open-range-full-unsafe-20260925/work/runtime/lowrisc_dv_prim_present_sim_0.1/src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc",
+    "/private/tmp/ot-native-dpi-replays-wexm46xx/present_dpiexport.o",
+    "-o",
+    "/private/tmp/ot-native-dpi-replays-wexm46xx/present_dpi.dylib"
+  ]
+]

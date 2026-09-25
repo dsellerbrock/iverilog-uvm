@@ -12,6 +12,7 @@ module top;
       bins unsupported_fill_nested = {[0:limit & '1]};
       bins unsupported_folded_width = {[0:limit + (8'hff + 8'h1)]};
       bins unsupported_select = {[0:limit[2:0]]};
+      bins unsupported_open_sibling = {[5:$], [0:limit]};
       bins unsupported_with = {[0:limit]} with (item < limit);
     }
     other_cp: coverpoint value { bins zero = {0}; }

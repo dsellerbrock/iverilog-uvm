@@ -1,0 +1,35 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-opentitan-open-range-focus-vvp.list
+----------------------------------------------------------------------------
+gold/sv_covergroup_ctor_bin_ranges_unresolved-iverilog-stderr.gold and log/sv_covergroup_ctor_bin_ranges_unresolved-iverilog-stderr.log differ:
+--- gold/sv_covergroup_ctor_bin_ranges_unresolved-iverilog-stderr.gold
++++ log/sv_covergroup_ctor_bin_ranges_unresolved-iverilog-stderr.log
+@@ -8,7 +8,6 @@
+ sorry: covergroup bin 'unsupported_fill_nested' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: covergroup bin 'unsupported_folded_width' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: covergroup bin 'unsupported_select' has a runtime range expression that cannot be represented; the bin is dropped.
+-sorry: covergroup bin 'unsupported_open_sibling' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: constructor-dependent covergroup bin 'unsupported_with' uses a 'with' filter that cannot yet be evaluated at construction; the bin is dropped.
+ sorry: covergroup bin 'unsupported_width' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: covergroup bin 'unsupported_ctor_set' set expression cannot yet capture a constructor-formal container; the bin is dropped.
+     sv_covergroup_ctor_bin_ranges_unresolved: Failed - Gold output doesn't match actual output.
+gold/sv_covergroup_ctor_bin_ranges_unresolved-iverilog-stderr.gold and log/sv_covergroup_ctor_bin_ranges_unresolved_2023-iverilog-stderr.log differ:
+--- gold/sv_covergroup_ctor_bin_ranges_unresolved-iverilog-stderr.gold
++++ log/sv_covergroup_ctor_bin_ranges_unresolved_2023-iverilog-stderr.log
+@@ -8,7 +8,6 @@
+ sorry: covergroup bin 'unsupported_fill_nested' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: covergroup bin 'unsupported_folded_width' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: covergroup bin 'unsupported_select' has a runtime range expression that cannot be represented; the bin is dropped.
+-sorry: covergroup bin 'unsupported_open_sibling' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: constructor-dependent covergroup bin 'unsupported_with' uses a 'with' filter that cannot yet be evaluated at construction; the bin is dropped.
+ sorry: covergroup bin 'unsupported_width' has a runtime range expression that cannot be represented; the bin is dropped.
+ sorry: covergroup bin 'unsupported_ctor_set' set expression cannot yet capture a constructor-formal container; the bin is dropped.
+sv_covergroup_ctor_bin_ranges_unresolved_2023: Failed - Gold output doesn't match actual output.
+          sv_covergroup_open_end_both_illegal: Passed - CE.
+     sv_covergroup_open_end_both_illegal_2023: Passed - CE.
+                sv_covergroup_open_end_ranges: Passed.
+           sv_covergroup_open_end_ranges_2023: Passed.
+            sv_covergroup_open_end_transition: Passed.
+       sv_covergroup_open_end_transition_2023: Passed.
+============================================================================
+Test results: Ran 8, Failed 2.

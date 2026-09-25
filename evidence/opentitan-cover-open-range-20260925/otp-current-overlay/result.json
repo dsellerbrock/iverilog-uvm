@@ -1,0 +1,75 @@
+{
+  "classification": "released OpenTitan DV, nonstandard -gcommercial-unsafe compatibility with pinned OTP RAM-path overlay",
+  "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "test": "otp_ctrl_smoke_vseq",
+  "tool_sha256": {
+    "ivl": "9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe",
+    "vvp": "e54c7489ae51e3d14ba3b201cd4502b3d8ccfc7742926589cc9bddb82334bcae",
+    "uvm_dpi": "924ea0f642027c8acf809ccd5cdacd820833a8dbc8bd290b40b85c76f9ea9b72"
+  },
+  "overlay_tb_sha256": "a7bd1964e2c7e626d5a25a04597129417a7c47f89c95069da6af86dd094689c6",
+  "compile": {
+    "exit_code": 0,
+    "nonstandard_purity_warnings": 36,
+    "dropped_bins": 0,
+    "ignored_constraint_items": 0,
+    "procedural_continuous_assignment_sorry": 40,
+    "uwire_multiple_driver_compile_progress_warnings": 36,
+    "hard_errors": 0
+  },
+  "runtime": {
+    "exit_code": 0,
+    "timed_out": false,
+    "wall_seconds": 354.44,
+    "child_user_cpu_seconds": 348.727,
+    "child_sys_cpu_seconds": 3.235,
+    "completed_ps": 141094616,
+    "pass_markers": 1,
+    "fail_markers": 0,
+    "error_or_assertion_lines": [],
+    "uvm_summary": {
+      "WARNING": 0,
+      "ERROR": 0,
+      "FATAL": 0
+    },
+    "scoreboard_tl_a_after_sequence_start": 1343,
+    "scoreboard_tl_d_after_sequence_start": 1343,
+    "dai_attempts": [
+      "UVM_INFO @  84113786 ps: (otp_ctrl_smoke_vseq.sv:171) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] starting dai access seq 0/1 with addr 66c in partition 4"
+    ],
+    "partition_injection_selectors": [
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 0 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 1 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 2 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 3 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 4 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 5 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 6 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 7 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 8 inject mubi value: read=0, write=0",
+      "UVM_INFO @  55321198 ps: (otp_ctrl_base_vseq.sv:408) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otp_ctrl_smoke_vseq] partition 9 inject mubi value: read=0, write=0"
+    ]
+  },
+  "bin_descriptor": {
+    "class": "__covgrp_otp_ctrl_csr_rd_after_alert_cg_wrap_csr_rd_after_alert_cg_t",
+    "constructor_method_fields": 36,
+    "dynamic_endpoint_counts": {
+      "unbuffered_digests": 10,
+      "hw_digests": 4,
+      "secret_digests": 6,
+      "direct_access_rdata": 2,
+      "status": 1,
+      "error_code": 13
+    },
+    "total": 36
+  },
+  "raw_runtime_stdout_sha256": "b01630bc3f1830768239cf647907bb0e4416151f9742dc1cbb5158be1cb8b263",
+  "compressed_runtime_stdout_sha256": "8cb13d62e8d0dad9f3e60b1588804a6170cec80257493ea8002fdc5700ff95a5",
+  "raw_runtime_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "qualified_released_dv": true,
+  "caveats": [
+    "The six original bin groups and 36 method endpoints are retained, but this smoke does not prove a functional coverage bin hit.",
+    "Forty procedural force-RHS sorry diagnostics remain; all ten logged partition injection selectors are read=0/write=0, so those warned branches were unexercised.",
+    "Thirty-six preexisting uwire multiple-driver compile-progress warnings remain; this named run is nonstandard compatibility evidence, not IEEE conformance."
+  ]
+}
