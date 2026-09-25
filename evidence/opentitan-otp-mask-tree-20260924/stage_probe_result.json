@@ -1,0 +1,65 @@
+{
+  "pre_fix_private_ivl_sha256": "57eec3fcd5e3b38c614f1e48ceb5f774e275e7b8d3b874e5e8eebb7feca423f3",
+  "pre_fix_private_vvp_sha256": "bbe72e9db2dcffd0269173e21c52f6a315b9bd97f17dfda225a2c004f8ea2a8f",
+  "source_sha256": "fbffb2c29437c5aa74b069c6f9c397d47c1197ff330c51863bc824a10a189390",
+  "diagnostic_flag_only_not_final_fix": true,
+  "variants": [
+    {
+      "name": "default",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "otp_mask_tree_three",
+        "-N",
+        "/tmp/ot-otp-mask-tree-red-20260924/stage-default.netlist",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/stage-default.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/three.sv"
+      ],
+      "compile_exit": 0,
+      "netlist_file": "stage-default.netlist.txt",
+      "netlist_sha256": "05d35d2c03f61448f5d773d79eb3736793dde969261d5de136d0dbd7717e0a28",
+      "image_sha256": "fd83e852e77c3c0a175f050beee3e1b00f4f65bba08e144406e0216d5ad7438e",
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-red-20260924/stage-default.vvp"
+      ],
+      "runtime_exit": 1,
+      "runtime_log": "stage-default.runtime.log",
+      "runtime_log_sha256": "ebc5d6c81e182d1f8619b634b226d9c0531bdea72882102c00ef087d5d51b719",
+      "netlist_has_concat8": true,
+      "netlist_has_pv": false
+    },
+    {
+      "name": "no-concat",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "otp_mask_tree_three",
+        "-pDISABLE_CONCATZ_GENERATION=true",
+        "-N",
+        "/tmp/ot-otp-mask-tree-red-20260924/stage-no-concat.netlist",
+        "-o",
+        "/tmp/ot-otp-mask-tree-red-20260924/stage-no-concat.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-otp-mask-tree-20260924/three.sv"
+      ],
+      "compile_exit": 0,
+      "netlist_file": "stage-no-concat.netlist.txt",
+      "netlist_sha256": "778983f5121eb3adc5b734aa08cd3ce0a567f6f12e0618e3731bdb8b3ea41954",
+      "image_sha256": "6dfa309302810044aca986c9f3d1c67bcacf2c55104bcf825389d82c4761549e",
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-red-20260924/stage-no-concat.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_log": "stage-no-concat.runtime.log",
+      "runtime_log_sha256": "39e97d6ccafec8590c7e9bdaa955c1c2d7e1e1c31b80dba7ae2d6f89db361ecd",
+      "netlist_has_concat8": false,
+      "netlist_has_pv": true
+    }
+  ]
+}

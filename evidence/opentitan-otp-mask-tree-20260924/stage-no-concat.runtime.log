@@ -1,0 +1,2 @@
+tree=100 root=0 leaf=1
+evidence/opentitan-otp-mask-tree-20260924/three.sv:10: $finish called at 1 (1s)

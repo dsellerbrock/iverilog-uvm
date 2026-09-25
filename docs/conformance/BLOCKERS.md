@@ -103,8 +103,8 @@
 ### OT-OTP-PACKED-MASK-TREE-CONTINUOUS-DRIVER — selected arbiter grant X
 
 - **State:** The pinned OTP smoke is **0/1 released DV** after PR #360's class-identity fix. `GrantKnown_A` fires in `tb.dut.u_otp_arb` at 1,559,061 ps: requests and ready are known, while `gnt_o` contains X and the packed `mask_tree` is entirely Z despite its constant-zero root. A legal three-bit disjoint packed-bit assignment tree reproduces the Z value in strict 2017 and 2023; scalar equivalents pass and overlapping variable-bit drivers reject in both modes.
-- **Hypothesis and boundary:** The emitted VVP reads a part of the full packed tree while assembling that same full vector, creating feedback absent from the source's acyclic bit graph. The first incorrect elaboration, netlist, or target representation is not yet attributed. Fix only the proven shared selected continuous-driver path and keep four-state behavior, genuine-cycle behavior, strict overlap rejection, pinned source, and all released assertions intact. CSRNG's nested-VIF value loss is a separate parked blocker.
-- **Evidence:** [Paired RED, controls, copied-image probe, and exact binary hashes](../../evidence/opentitan-otp-mask-tree-20260924/README.md).
+- **Root cause and boundary:** The elaboration-time `collapse_partselect_pv_to_concat` rewrites selected drivers into a whole-vector concat before all assignment RHS connections are complete. The resulting `.part` read of the same full tree creates feedback absent from the source's acyclic bit graph. A pre-fix diagnostic that retains the selected drivers passes the minimal reducer; the existing later `cprop` blend can inspect the complete graph. Fix only this premature rewrite and keep four-state behavior, genuine-cycle behavior, strict overlap rejection, pinned source, and all released assertions intact. CSRNG's nested-VIF value loss is a separate parked blocker.
+- **Evidence:** [Paired RED, netlist stage probe, copied-image probe, and exact binary hashes](../../evidence/opentitan-otp-mask-tree-20260924/README.md).
 
 ### CALIPTRA-UNSAFE-VIRTUAL-DISPATCH-REACHABILITY — called task falsely waived (selected P1)
 
