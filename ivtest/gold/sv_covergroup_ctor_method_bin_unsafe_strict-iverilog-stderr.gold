@@ -1,0 +1,7 @@
+ivltests/sv_covergroup_ctor_method_bin_unsafe.v:22: error: covergroup constructor method bin endpoint uses a nested receiver path whose const-state legality is unproven; strict mode currently supports only a direct non-ref constructor formal.
+ivltests/sv_covergroup_ctor_method_bin_unsafe.v:23: error: covergroup constructor method bin endpoint uses a nested receiver path whose const-state legality is unproven; strict mode currently supports only a direct non-ref constructor formal.
+ivltests/sv_covergroup_ctor_method_bin_unsafe.v:24: error: covergroup constructor method bin endpoint uses a nested receiver path whose const-state legality is unproven; strict mode currently supports only a direct non-ref constructor formal.
+sorry: covergroup bin 'status' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'err0' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'err1' has a runtime range expression that cannot be represented; the bin is dropped.
+3 error(s) during elaboration.

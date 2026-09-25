@@ -1,0 +1,2 @@
+sorry: covergroup bin 'illegal' has a runtime range expression that cannot be represented; the bin is dropped.
+Warning: unsupported covergroup constructor property type 7 at index 0; leaving default value

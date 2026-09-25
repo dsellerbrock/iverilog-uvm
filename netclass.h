@@ -642,6 +642,24 @@ class netclass_t : public ivl_type_s {
       bool covgrp_ctor_formal_is_ref(size_t i) const
       { return i < covgrp_ctor_is_ref_.size() && covgrp_ctor_is_ref_[i]; }
 
+      struct covgrp_ctor_method_endpoint_t {
+            covgrp_ctor_method_endpoint_t(const PExpr*source, unsigned property,
+		unsigned bits, bool sign)
+		: expr(source), prop(property), width(bits), is_signed(sign) { }
+            const PExpr*expr;
+            unsigned prop;
+            unsigned width;
+            bool is_signed;
+      };
+      void add_covgrp_ctor_method_endpoint(const PExpr*expr, unsigned prop,
+		unsigned width, bool is_signed)
+      { covgrp_ctor_method_endpoints_.push_back(
+	    covgrp_ctor_method_endpoint_t(expr, prop, width, is_signed)); }
+      std::vector<covgrp_ctor_method_endpoint_t>& covgrp_ctor_method_endpoints()
+      { return covgrp_ctor_method_endpoints_; }
+      const std::vector<covgrp_ctor_method_endpoint_t>& covgrp_ctor_method_endpoints() const
+      { return covgrp_ctor_method_endpoints_; }
+
 	// Semantic binding for direct identifiers used in covergroup range
 	// expressions. A found-but-illegal symbol is retained here so later
 	// constant evaluation cannot accidentally fall through to a parameter or
@@ -796,6 +814,7 @@ class netclass_t : public ivl_type_s {
 	std::vector<ivl_type_t> covgrp_ctor_types_;
 	std::vector<PExpr*> covgrp_ctor_defaults_;
 	std::vector<bool> covgrp_ctor_is_ref_;
+      std::vector<covgrp_ctor_method_endpoint_t> covgrp_ctor_method_endpoints_;
 	std::map<const PExpr*,covgrp_range_ref_t> covgrp_range_refs_;
 	std::vector<covgrp_parent_const_dep_t> covgrp_parent_const_dependencies_;
 	bool covgrp_range_bindings_complete_ = false;

@@ -1,0 +1,33 @@
+{
+  "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925/local-install/bin/iverilog",
+    "-g2012",
+    "-stb",
+    "-sotp_ctrl_bind",
+    "-sotp_ctrl_cov_bind",
+    "-ssec_cm_prim_count_bind",
+    "-ssec_cm_prim_double_lfsr_bind",
+    "-ssec_cm_prim_onehot_check_bind",
+    "-ssec_cm_prim_sparse_fsm_flop_bind",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_BYTENABLE_WIDTH=4",
+    "-DUVM_REGEX_NO_DPI",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/tmp/ot-cover-otp-final-20260925/otp_strict.vvp",
+    "-c",
+    "/tmp/ot-otp-backdoor-path-overlay-20260924/matrix-iverilog.scr"
+  ],
+  "input_hashes": {
+    "/tmp/ot-otp-backdoor-path-overlay-20260924/matrix-iverilog.scr": "d2615a3449ace5d84bb16ce224eed5db25d47438de712b78157dd90957d0a5be",
+    "/private/tmp/ot-otp-backdoor-path-overlay-20260924/source-list.scr": "84bd023f7da4b5f5fba5992d7a717c42fc44901c88b2804f92d51436704b3d98"
+  },
+  "ivl_sha256": "4bacf9b8e8132998a309990687d3b7cb0cf9bd8ee64dce8d874d32c857726a24"
+}

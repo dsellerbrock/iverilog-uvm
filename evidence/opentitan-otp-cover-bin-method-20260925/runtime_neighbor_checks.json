@@ -1,0 +1,29 @@
+{
+  "covgrp_exports": {
+    "command": [
+      "python3",
+      "tests/vvp_runtime/run_covgrp_exports.py"
+    ],
+    "exit": 0,
+    "stdout": "PASS: all 66 covergroup API functions exported",
+    "stderr": ""
+  },
+  "covgrp_metadata": {
+    "command": [
+      "sh",
+      "tests/vvp_runtime/run_covgrp_metadata.sh"
+    ],
+    "exit": 0,
+    "stdout": "PASS covergroup transition/option/cross/parent metadata bounds",
+    "stderr": ""
+  },
+  "covgrp_options": {
+    "command": [
+      "sh",
+      "tests/vvp_runtime/run_covgrp_options_report.sh"
+    ],
+    "exit": 0,
+    "stdout": "PASS covergroup procedural option/report invariants (3/3)",
+    "stderr": ""
+  }
+}

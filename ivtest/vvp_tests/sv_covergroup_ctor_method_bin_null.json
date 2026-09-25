@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "sv_covergroup_ctor_method_bin_null.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "sv_covergroup_ctor_method_bin_null"
+}

@@ -1,0 +1,39 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                           sv_covergroup_ctor_method_bin: Passed.
+                      sv_covergroup_ctor_method_bin_2023: Passed.
+           sv_covergroup_ctor_method_bin_default_mutable: Passed - CE.
+      sv_covergroup_ctor_method_bin_default_mutable_2023: Passed - CE.
+              sv_covergroup_ctor_method_bin_default_pure: Passed.
+         sv_covergroup_ctor_method_bin_default_pure_2023: Passed.
+            sv_covergroup_ctor_method_bin_illegal_impure: Passed - CE.
+       sv_covergroup_ctor_method_bin_illegal_impure_2023: Passed - CE.
+           sv_covergroup_ctor_method_bin_illegal_mutable: Passed - CE.
+      sv_covergroup_ctor_method_bin_illegal_mutable_2023: Passed - CE.
+               sv_covergroup_ctor_method_bin_illegal_ref: Passed - CE.
+          sv_covergroup_ctor_method_bin_illegal_ref_2023: Passed - CE.
+              sv_covergroup_ctor_method_bin_nested_const: Passed - CE.
+         sv_covergroup_ctor_method_bin_nested_const_2023: Passed - CE.
+                      sv_covergroup_ctor_method_bin_null: Passed - RE.
+                 sv_covergroup_ctor_method_bin_null_2023: Passed - RE.
+                    sv_covergroup_ctor_method_bin_signed: Passed.
+               sv_covergroup_ctor_method_bin_signed_2023: Passed.
+                    sv_covergroup_ctor_method_bin_unsafe: Passed.
+               sv_covergroup_ctor_method_bin_unsafe_2023: Passed.
+            sv_covergroup_ctor_method_bin_unsafe_dynamic: Passed - CE.
+       sv_covergroup_ctor_method_bin_unsafe_dynamic_2023: Passed - CE.
+         sv_covergroup_ctor_method_bin_unsafe_huge_index: Passed - CE.
+    sv_covergroup_ctor_method_bin_unsafe_huge_index_2023: Passed - CE.
+            sv_covergroup_ctor_method_bin_unsafe_mutator: Passed.
+       sv_covergroup_ctor_method_bin_unsafe_mutator_2023: Passed.
+     sv_covergroup_ctor_method_bin_unsafe_mutator_strict: Passed - CE.
+sv_covergroup_ctor_method_bin_unsafe_mutator_strict_2023: Passed - CE.
+                sv_covergroup_ctor_method_bin_unsafe_oob: Passed - CE.
+           sv_covergroup_ctor_method_bin_unsafe_oob_2023: Passed - CE.
+             sv_covergroup_ctor_method_bin_unsafe_strict: Passed - CE.
+        sv_covergroup_ctor_method_bin_unsafe_strict_2023: Passed - CE.
+                         sv_covergroup_ctor_method_bin_x: Passed - RE.
+                    sv_covergroup_ctor_method_bin_x_2023: Passed - RE.
+============================================================================
+Test results:
+  Total=34, Passed=34, Failed=0, Not Implemented=0, Expected Fail=0

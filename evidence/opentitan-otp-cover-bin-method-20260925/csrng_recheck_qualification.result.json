@@ -1,0 +1,29 @@
+{
+  "classification": "nonstandard compatibility (-gcommercial-unsafe)",
+  "test": "csrng_smoke_vseq",
+  "qualified_released_dv": "1/1",
+  "private_tool_sha256": {
+    "iverilog": "6d4eccc3533e112ab9c8c3a48d8207458aca2c1c379f42137543f7108fda0cd9",
+    "ivl": "4bacf9b8e8132998a309990687d3b7cb0cf9bd8ee64dce8d874d32c857726a24",
+    "vvp": "d0ef9361d88ac2ce9b13e182a998226abe132082b8abdb6a06131104bf9c446e"
+  },
+  "filelist_sha256": "5801cea09e222556b2c1e6c202b2ce03c84b0398e2b3a06ee09505ed1971df7b",
+  "compile_exit": 0,
+  "runtime_exit": 0,
+  "completed_ps": 77830086,
+  "pass_markers": 1,
+  "fail_markers": 0,
+  "uvm_summary": {
+    "UVM_WARNING": 0,
+    "UVM_ERROR": 0,
+    "UVM_FATAL": 0
+  },
+  "fatal_or_assertion_error_lines": 0,
+  "checked_app2_traffic": {
+    "instantiate_ps": 15371293,
+    "generate_ps": 24704701,
+    "post_instantiate_uninstantiate_ps": 46663210
+  },
+  "ignored_constraint_items": 1,
+  "ignored_constraint_note": "Known int_state_read_enable_c item remains separately unqualified; this smoke run did not fail its intended checks."
+}

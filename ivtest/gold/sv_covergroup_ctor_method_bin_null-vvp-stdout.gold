@@ -1,0 +1,2 @@
+FATAL: ivltests/sv_covergroup_ctor_method_bin_null.v:10: covergroup constructor method bin has null or invalid receiver
+       Time: 0  Scope: top.wrapper_c._ivl_3

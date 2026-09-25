@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_ctor_method_bin_unsafe_huge_index.v",
+  "iverilog-args": ["-g2017", "-gcommercial-unsafe", "-s", "top"],
+  "gold": "sv_covergroup_ctor_method_bin_unsafe_huge_index"
+}

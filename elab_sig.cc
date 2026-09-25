@@ -1727,6 +1727,53 @@ static void bind_covergroup_range_expr_(
 	    return;
       }
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    // `ral.status.get_offset()` is one flattened call path, not a
+	    // receiver PEIdent. Bind its lexical root before lowering the call;
+	    // otherwise a ref formal or mutable enclosing property can evade
+	    // the direct-identifier checks above and become a dropped bin.
+	    const pform_scoped_name_t&path = call->path();
+	    if (!call->receiver_expr() && !path.package
+		&& !call->has_scoped_type_prefix()
+		&& path.name.size() >= 2
+		&& !path.name.front().local_scope
+		&& path.name.front().index.empty()) {
+		  perm_string root = path.name.front().name;
+		  for (size_t idx = 0; idx < cgdef->ctor_formals.size(); idx += 1)
+		    if (cgdef->ctor_formals[idx] == root) {
+			  if (idx < cgdef->ctor_formal_is_ref.size()
+			      && cgdef->ctor_formal_is_ref[idx]) {
+			    cg_class->bind_covgrp_range_ref(
+				  expr, netclass_t::COVGRP_RANGE_CTOR_REF,
+				  -1, (unsigned)idx);
+			    cerr << expr->get_fileline()
+				 << ": error: covergroup bin `" << bin_name
+				 << "' range expression references ref covergroup "
+				 << "argument `" << root
+				 << "'; IEEE 1800 19.5 permits only non-ref "
+				 << "covergroup arguments." << endl;
+			    des->errors += 1;
+			  }
+			  return;
+		    }
+		  if (!standalone) {
+		    int prop = parent->property_idx_from_name(root);
+		    if (prop >= 0
+			&& !parent->get_prop_qual((size_t)prop).test_const()) {
+		      cg_class->bind_covgrp_range_ref(
+			    expr, netclass_t::COVGRP_RANGE_PARENT_MUTABLE, prop);
+		      cerr << expr->get_fileline()
+			   << ": error: covergroup bin `" << bin_name
+			   << "' range expression references mutable "
+			   << "enclosing-class property `" << root
+			   << "'; IEEE 1800 19.5 permits only constant "
+			   << "expressions, enclosing-class global or "
+			   << "instance constants, or non-ref covergroup "
+			   << "arguments." << endl;
+		      des->errors += 1;
+		      return;
+		    }
+		  }
+	    }
 	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
 					call->receiver_expr(), standalone);
 	    for (const named_pexpr_t&parm : call->get_parms())

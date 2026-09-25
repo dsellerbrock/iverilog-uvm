@@ -9,6 +9,20 @@ evidence. Named Caliptra and OpenTitan patches and options are selected per
 test on disposable copies under the [release overlay guide](release_overlays/README.md),
 leaving pinned source checkouts unchanged.
 
+On the final private OpenTitan Icarus image recorded in the [OTP cover-bin
+endpoint replay](../../evidence/opentitan-otp-cover-bin-method-20260925/README.md),
+the pinned `otp_ctrl_smoke_vseq` completes **1/1 released nonstandard
+compatibility DV** with six previously dropped coverage bins retained,
+1343 checked TL A/D pairs, and zero UVM or assertion failures. The same
+image separately recompiles and passes pinned `csrng_smoke_vseq` **1/1
+nonstandard compatibility DV** with checked app-2 instantiate/generate/
+uninstantiate traffic. These are two named tests, not a full OpenTitan
+suite rate. OTP's after-alert bin hits and fault-injection `force` branches
+are not qualified by this seed; CSRNG's ignored `int_state_read_enable_c`
+item remains separate. Strict OTP compilation rejects 36 unproven nested
+receiver endpoints and has no released runtime. The paired strict reducer,
+UVM regression, and released-DV denominators are distinct.
+
 On the `e75f26091` main baseline with local candidate changes, the
 [fresh Icarus application DV census](../../evidence/icarus-dv-baseline-20260923/README.md)
 records **0/52 strict Caliptra L0 runtimes attempted**: the [integrated PIC

@@ -27483,6 +27483,118 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 		  }
 		  if (bad_args) des->errors += 1;
 
+		  if (!ctype->covgrp_ctor_method_endpoints().empty()) {
+			// %new/cobj resolves its dynamic bins before returning. Capture
+			// each endpoint in the initializer itself, after the constructor
+			// actuals have been evaluated exactly once.
+			NetScope*declaration =
+			      ctype->covgrp_options().declaration_scope;
+			ivl_assert(*this, declaration);
+			NetScope*wrapper = new NetScope(declaration,
+			      hname_t(declaration->local_symbol()), NetScope::FUNC);
+			wrapper->is_auto(true);
+			wrapper->set_line(this);
+			wrapper->set_elab_stage(3);
+			vector<NetNet*>ports;
+			vector<NetExpr*>values;
+			for (size_t k = 0; k < nformals; ++k) {
+			      NetNet*formal = new NetNet(wrapper,
+				ctype->covgrp_ctor_formal_name(k), NetNet::REG,
+				ctype->covgrp_ctor_formal_type(k));
+			      formal->port_type(NetNet::PINPUT);
+			      ports.push_back(formal);
+			      values.push_back(new NetESignal(formal));
+			}
+			NetNet*result = new NetNet(wrapper,
+			      wrapper->basename(), NetNet::REG, ctype);
+			vector<NetExpr*>defaults(ports.size(), nullptr);
+			NetFuncDef*def = new NetFuncDef(wrapper, result, ports,
+			      defaults);
+			wrapper->set_func_def(def);
+			NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
+			body->set_line(*this);
+			for (const auto&endpoint :
+			      ctype->covgrp_ctor_method_endpoints()) {
+			      ivl_type_t slot_type =
+				ctype->get_prop_type(endpoint.prop);
+			      perm_string slot_name;
+			      do { slot_name = wrapper->local_symbol(); }
+			      while (slot_name == wrapper->basename());
+			      NetNet*slot = new NetNet(wrapper,
+				slot_name, NetNet::REG, slot_type);
+			      verinum unknown(verinum::Vx, endpoint.width, true);
+			      unknown.has_sign(endpoint.is_signed);
+			      NetAssign*clear = new NetAssign(new NetAssign_(slot),
+				new NetEConst(unknown));
+			      clear->set_line(*endpoint.expr);
+			      body->append(clear);
+			      NetExpr*value = elab_and_eval(des, wrapper,
+				const_cast<PExpr*>(endpoint.expr), -1, false, false);
+			      const NetEUFunc*method =
+				dynamic_cast<const NetEUFunc*>(value);
+			      const NetExpr*receiver = method && method->parm_count()
+				? method->parm(0) : nullptr;
+			      if (!method || !receiver
+				  || receiver->expr_type() != IVL_VT_CLASS
+				  || value->expr_width() != endpoint.width
+				  || value->has_sign() != endpoint.is_signed) {
+				cerr << endpoint.expr->get_fileline()
+				     << ": error: covergroup constructor method bin "
+				     << "endpoint changed type or has no class receiver."
+				     << endl;
+				des->errors += 1;
+				delete value;
+				values.push_back(new NetESignal(slot));
+				continue;
+			      }
+			      NetExpr*receiver_copy = receiver->dup_expr();
+			      NetENull*null_value = new NetENull(receiver->net_type());
+			      NetEBComp*valid = new NetEBComp('N', receiver_copy,
+				null_value);
+			      valid->set_line(*endpoint.expr);
+			      vector<NetExpr*>fatal_args;
+			      fatal_args.push_back(new NetEConst(verinum((uint64_t)1, 32)));
+			      fatal_args.push_back(new NetECString(
+				"covergroup constructor method bin has null or invalid receiver"));
+			      NetSTask*fatal = new NetSTask("$fatal",
+				IVL_SFUNC_AS_TASK_IGNORE, fatal_args);
+			      fatal->set_line(*endpoint.expr);
+			      NetAssign*assign = new NetAssign(new NetAssign_(slot), value);
+			      assign->set_line(*endpoint.expr);
+			      NetCondit*checked = new NetCondit(valid, assign, fatal);
+			      checked->set_line(*endpoint.expr);
+			      body->append(checked);
+			      NetESFunc*unknown_check = new NetESFunc(
+				"$isunknown", IVL_VT_BOOL, 1, 1);
+			      unknown_check->parm(0, new NetESignal(slot));
+			      vector<NetExpr*>unknown_args;
+			      unknown_args.push_back(new NetEConst(verinum((uint64_t)1, 32)));
+			      unknown_args.push_back(new NetECString(
+				"covergroup constructor method bin endpoint is X or Z"));
+			      NetSTask*unknown_fatal = new NetSTask("$fatal",
+				IVL_SFUNC_AS_TASK_IGNORE, unknown_args);
+			      unknown_fatal->set_line(*endpoint.expr);
+			      NetCondit*known = new NetCondit(unknown_check,
+				unknown_fatal, nullptr);
+			      known->set_line(*endpoint.expr);
+			      body->append(known);
+			      values.push_back(new NetESignal(slot));
+			}
+			NetEArrayPattern*inits = new NetEArrayPattern(ctype, values);
+			NetENew*cg_new = new NetENew(ctype, nullptr, inits);
+			cg_new->set_line(*this);
+			NetAssign*ret = new NetAssign(new NetAssign_(result), cg_new);
+			ret->set_line(*this);
+			body->append(ret);
+			def->set_proc(body);
+			delete obj;
+			NetEUFunc*call = new NetEUFunc(scope, wrapper,
+			      new NetESignal(result), init_values, true);
+			call->set_line(*this);
+			return elaborate_covgrp_options(des, scope, ctype,
+			      call, *this);
+		  }
+
 		    // IVL_EX_NEW already has an initializer operand. For a
 		    // class object it is a heterogeneous positional array whose
 		    // elements initialize the leading constructor-formal

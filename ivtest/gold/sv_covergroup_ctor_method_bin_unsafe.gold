@@ -1,0 +1,4 @@
+./ivltests/sv_covergroup_ctor_method_bin_unsafe.v:22: warning: -gcommercial-unsafe covergroup constructor method bin endpoint evaluated without IEEE 1800 19.5 purity proof; nonstandard compatibility behavior.
+./ivltests/sv_covergroup_ctor_method_bin_unsafe.v:23: warning: -gcommercial-unsafe covergroup constructor method bin endpoint evaluated without IEEE 1800 19.5 purity proof; nonstandard compatibility behavior.
+./ivltests/sv_covergroup_ctor_method_bin_unsafe.v:24: warning: -gcommercial-unsafe covergroup constructor method bin endpoint evaluated without IEEE 1800 19.5 purity proof; nonstandard compatibility behavior.
+PASSED

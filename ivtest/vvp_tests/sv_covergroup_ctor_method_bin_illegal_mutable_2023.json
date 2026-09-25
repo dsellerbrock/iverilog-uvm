@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_ctor_method_bin_illegal_mutable.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "sv_covergroup_ctor_method_bin_illegal_mutable"
+}

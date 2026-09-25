@@ -1,0 +1,60 @@
+{
+  "blocker": "OT-OTP-COVER-BIN-METHOD-ENDPOINT",
+  "classification": "nonstandard compatibility (-gcommercial-unsafe)",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "input_hashes": {
+    "/tmp/ot-otp-backdoor-path-overlay-20260924/matrix-iverilog.scr": "d2615a3449ace5d84bb16ce224eed5db25d47438de712b78157dd90957d0a5be",
+    "/private/tmp/ot-otp-backdoor-path-overlay-20260924/source-list.scr": "84bd023f7da4b5f5fba5992d7a717c42fc44901c88b2804f92d51436704b3d98"
+  },
+  "private_tool_sha256": {
+    "iverilog": "6d4eccc3533e112ab9c8c3a48d8207458aca2c1c379f42137543f7108fda0cd9",
+    "ivl": "4bacf9b8e8132998a309990687d3b7cb0cf9bd8ee64dce8d874d32c857726a24",
+    "vvp": "d0ef9361d88ac2ce9b13e182a998226abe132082b8abdb6a06131104bf9c446e",
+    "native_dpi": "530f58ec0e3702dc6ae2fe1c260832f41a018ce466a29a7597254f75c5658a95",
+    "compiled_program": "4b2a6c43733c04bb398993b6c0b11c94fb6dc308e62535875b3951c85037c45a"
+  },
+  "strict_compile": {
+    "exit": 36,
+    "unsupported_nested_receiver_diagnostics": 36,
+    "classification": "strict subset rejection; no DV runtime"
+  },
+  "compat_compile": {
+    "exit": 0,
+    "explicit_nonstandard_warnings": 36,
+    "dropped_bins": 0,
+    "ignored_constraint_items": 0,
+    "preexisting_procedural_continuous_assignment_sorry": 40
+  },
+  "coverage_dynamic_endpoint_counts": {
+    "unbuffered_digests": 10,
+    "hw_digests": 4,
+    "secret_digests": 6,
+    "direct_access_rdata": 2,
+    "status": 1,
+    "error_code": 13
+  },
+  "coverage_dynamic_endpoint_total": 36,
+  "released_otp_dv": {
+    "test": "otp_ctrl_smoke_vseq",
+    "runtime_exit": 0,
+    "completed_ps": 141094616,
+    "pass_markers": 1,
+    "fail_markers": 0,
+    "uvm_summary": {
+      "UVM_WARNING": 0,
+      "UVM_ERROR": 0,
+      "UVM_FATAL": 0
+    },
+    "fatal_or_assertion_error_lines": 0,
+    "checked_tl_a_after_sequence_start": 1343,
+    "checked_tl_d_after_sequence_start": 1343,
+    "dai_attempts": [
+      "starting dai access seq 0/1 with addr 66c in partition 4"
+    ],
+    "qualified_released_dv": "1/1",
+    "coverage_bin_hits_proven": false,
+    "coverage_note": "Six bin groups and 36 endpoints are retained and evaluated at construction, but this smoke does not demonstrate a functional bin hit.",
+    "preexisting_force_warning_note": "40 compile-time force-RHS sorry warnings; all 10 logged partition injection selectors are read=0/write=0 in this seed, so warned force branches were unexercised."
+  },
+  "separate_denominators": "Strict IEEE reducers, repository real-DPI UVM regression, and pinned nonstandard OpenTitan DV are distinct; no Caliptra run is included."
+}

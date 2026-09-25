@@ -1,23 +1,23 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-otp-dai-rand-index-20260925
-checkpoint_head: 2e7ee7a4410aeb7706ca2259c736921d80b8ad2e
+branch: agent/ot-otp-cover-bin-method-20260925
+checkpoint_head: 4799a65bf88c0f234f5da7d59eeda62ece50e57f
 active_open_titan_lane:
-  blocker: OT-OTP-DAI-RAND-INDEXED-PARTINFO-GUARD
-  phase: PR370_PUBLISHED_RELEASED_DV_0_OF_1
-  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925
-  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/369
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/370
-  baseline_head: 2e7ee7a4410aeb7706ca2259c736921d80b8ad2e
-  baseline_private_ivl_sha256: ca8a3ab6875d7a7b301f70a1c047f537698c8433edd7d21c0e5b85e7851e6be2
-  baseline: Pinned OTP smoke completes checked traffic and retains all eleven DAI address ranges after PR369, but dai_wr_blank_addr_c drops its rand-indexed PartInfo[part_idx].secret guard; six coverage bins are separately dropped. Qualified released OTP DV is 0/1.
-  standards: IEEE 1800-2017 §§7.4.6, 18.3, 18.5.7, 18.5.13; 2023 §§7.4.5, 18.3, 18.5.6, 18.5.12. Table 7-1 distinguishes invalid four-state X from two-state zero; X/Z constraint values error and failed randomize retains prior state.
-  reproducer: Paired 2017/2023 ivtest/ivltests/sv_constraint_partinfo_rand_index* fixtures are baseline RED on PR369. Secret address 4 incorrectly passes after an ignored-item warning; missing member wrongly compiles. Pinned solver IR retains modulo-4 but drops the conditional modulo-8 guard.
-  expected: Solve secret partitions with modulo-8 alignment and nonsecret partitions with modulo-4; preserve failed-solve rollback, missing-member diagnostics, and invalid-index semantics without freezing a random index or fabricating values.
-  source_scope: elaborate.cc, vvp/vvp_z3.cc, and dedicated paired reducers as required for exact constant-table lookup; coordinator owns private build, manifests, gates, pinned OTP replay, evidence, trackers, and PR review. Coverage lowering and pinned application sources are separate.
-  validation: Pre-fix paired controls are RED in both editions; final private focused legacy and JSON checks pass 12/12 each. Full legacy 6638 has zero unexpected failures, JSON 3679/3679, negatives 155/155, SVA 62/62, VPI with PLI1 140/140, real-DPI UVM 358/358, and make check pass. Exact pinned OTP retains the random-indexed guard and completes 1343 checked TL A/D pairs, but remains 0/1 qualified DV because six coverage bins are dropped.
-  next_command: PR370 is published. Select the separate dropped-covergroup-bin blocker with paired 2017/2023 reducers; keep pinned sources and all released OTP checks. No CI polling.
-  boundary: OpenTitan-only work; installed Caliptra tool, pinned sources, and dirty user-owned campaign AGENTS.md unchanged. No Caliptra job, Verilator, GPU, or CI polling.
+  blocker: OT-OTP-COVER-BIN-METHOD-ENDPOINT
+  phase: PR371_PUBLISHED_RELEASED_DV_1_OF_1
+  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-cover-bin-method-20260925
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/370
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/371
+  baseline_head: 4799a65bf88c0f234f5da7d59eeda62ece50e57f
+  baseline_private_ivl_sha256: e69aaaf36c5e9b16d47248b6eaffef80712be19df01f9e7d5459686b49e09354
+  baseline: PRs 362-370 are merged. The pinned OTP smoke completes checked traffic with its DAI guard retained but remains 0/1 qualified DV because six covergroup bins are dropped at compile time.
+  standards: IEEE 1800-2017/2023 §§19.3 and 19.5; verify exact method-call legality and construction-time semantics before implementation.
+  reproducer: Pinned otp_ctrl_env_cov.sv has six bins with 36 ral.<register>.get_offset() endpoints under a non-ref covergroup constructor RAL handle. The compiler reports runtime range expressions cannot be represented and drops each bin.
+  expected: Per-instance construction-time endpoint capture with all six bins present, strict illegal ref/mutable rejection, and completed pinned runtime with original checks.
+  source_scope: Implicated covergroup binding, elaboration/IR, VVP runtime construction, and dedicated paired reducers; coordinator owns manifests, private build, gates, pinned replay, evidence, review, and separate PR.
+  validation: Final private ivl 4bacf9b8e8132998a309990687d3b7cb0cf9bd8ee64dce8d874d32c857726a24; 34/34 paired focus in each harness; legacy 6678 total zero failures, VPI 140/140, JSON 3727/3727, negative 155/155, SVA 62/62, real-DPI UVM 358/358. Pinned OTP native-DPI 1/1 named nonstandard compatibility DV with 36 endpoints retained and 1343 checked TL A/D pairs; strict nested-path compile rejects, no strict DV. Separate CSRNG smoke 1/1 nonstandard compatibility with preexisting ignored constraint warning. OTP bin hits, force-warning branches, and full OpenTitan DV suite remain unqualified.
+  next_command: Merge the reviewed PR371 under existing user authorization without CI polling; then select the next OpenTitan-only released DV blocker. Leave Caliptra runs untouched.
+  boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -92,16 +92,16 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-OTP-DAI-RAND-INDEXED-PARTINFO-GUARD
-  phase: PR370_PUBLISHED_RELEASED_DV_0_OF_1
-  owner: Coordinator owns implementation integration, private build, focused/broad gates, pinned OTP replay, evidence, review, and one separate PR; read-only triage scoped reducers and source root.
-  reproducer: Pinned OTP's PartInfo[part_idx].secret conditional is ignored, leaving only modulo-4 alignment. Paired 2017/2023 reducers are RED on the PR369 baseline; missing-member negative also wrongly compiles.
-  expected: Solver-dependent secret selection enforces modulo-8 only on selected secret entries and retains invalid-index semantics, rollback, and member diagnostics.
-  root_cause_hypothesis: Fixed-index member folding rejects rand part_idx; conditional constraint lowering then drops the whole item. A constant-table selection relation must cross elaborate.cc to the VVP solver, with no pre-solve index freezing.
-  source_scope: elaborate.cc, vvp/vvp_z3.cc, and dedicated paired tests; no coverage lowering, pinned sources, Caliptra, Verilator, or GPU work.
-  validation: Baseline paired RED verified on the parent private image; final private focused legacy and JSON checks pass 12/12 each. Full legacy 6638 has zero unexpected failures, JSON 3679/3679, negatives 155/155, SVA 62/62, VPI with PLI1 140/140, real-DPI UVM 358/358, and make check pass. Pinned OTP compiles with the guard retained and runs checked traffic, but qualified released DV remains 0/1 because six bins are dropped.
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/370
-  next: PR370 is published. Address six dropped OTP covergroup bins under a separate blocker and PR, without weakening any released check. No CI polling.
+  id: OT-OTP-COVER-BIN-METHOD-ENDPOINT
+  phase: REDUCERS_IN_PROGRESS_RELEASED_DV_0_OF_1
+  owner: Implementation agent owns implicated source and dedicated paired reducers; coordinator owns private build, shared manifests, promotion gates, exact pinned replay, evidence, review, tracker, and one separate PR.
+  reproducer: Six OTP bins with 36 ral.<register>.get_offset() endpoints are dropped at compile time with runtime-range-expression diagnostics.
+  expected: Evaluate legal non-ref constructor-handle method endpoints at covergroup construction per instance, preserve full bin denominator, and reject illegal or uncertain cases.
+  root_cause_hypothesis: Flattened call path bypasses constructor-root binding and current dynamic range IR cannot encode method-path endpoints.
+  source_scope: Implicated covergroup binding, elaboration/IR, VVP construction, and paired tests; no pinned OpenTitan or Caliptra file/tool/process/worktree edits.
+  validation: Baseline pinned released OTP DV remains 0/1 despite completed checked runtime; candidate pending.
+  pr: pending
+  next: Paired baseline RED, narrow implementation, private broad gates and exact pinned replay; no CI polling.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
