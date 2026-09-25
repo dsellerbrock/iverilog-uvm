@@ -1,0 +1,29 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-vif-class-nested-value-focus-vvp.list
+----------------------------------------------------------------------------
+                sv_vif_class_nested_value_handoff: Passed.
+           sv_vif_class_nested_value_handoff_2023: Passed.
+gold/sv_vif_class_nested_value_missing_fail-iverilog-stderr.gold and log/sv_vif_class_nested_value_missing_fail-iverilog-stderr.log differ:
+--- gold/sv_vif_class_nested_value_missing_fail-iverilog-stderr.gold
++++ log/sv_vif_class_nested_value_missing_fail-iverilog-stderr.log
+@@ -1,2 +1,2 @@
+-ivltests/sv_vif_class_nested_value_missing_fail.v:26: error: Nested virtual-interface child `absent' is missing, is not an interface, or has incompatible types across parent instances.
++ivltests/sv_vif_class_nested_value_missing_fail.v:26: error: Unable to resolve virtual-interface value in assignment or argument (IEEE 1800-2017/2023 25.9).
+ 1 error(s) during elaboration.
+           sv_vif_class_nested_value_missing_fail: Failed - CE (Gold file doesn't match output).
+gold/sv_vif_class_nested_value_missing_fail_2023-iverilog-stderr.gold and log/sv_vif_class_nested_value_missing_fail_2023-iverilog-stderr.log differ:
+--- gold/sv_vif_class_nested_value_missing_fail_2023-iverilog-stderr.gold
++++ log/sv_vif_class_nested_value_missing_fail_2023-iverilog-stderr.log
+@@ -1,2 +1,2 @@
+-./ivltests/sv_vif_class_nested_value_missing_fail.v:26: error: Nested virtual-interface child `absent' is missing, is not an interface, or has incompatible types across parent instances.
++./ivltests/sv_vif_class_nested_value_missing_fail.v:26: error: Unable to resolve virtual-interface value in assignment or argument (IEEE 1800-2017/2023 25.9).
+ 1 error(s) during elaboration.
+      sv_vif_class_nested_value_missing_fail_2023: Failed - CE (Gold file doesn't match output).
+              sv_vif_class_nested_value_null_fail: Passed.
+         sv_vif_class_nested_value_null_fail_2023: Passed.
+     sv_vif_class_nested_value_wrong_modport_fail: Passed - CE.
+sv_vif_class_nested_value_wrong_modport_fail_2023: Passed - CE.
+        sv_vif_class_nested_value_wrong_type_fail: Passed - CE.
+   sv_vif_class_nested_value_wrong_type_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 10, Failed 2.

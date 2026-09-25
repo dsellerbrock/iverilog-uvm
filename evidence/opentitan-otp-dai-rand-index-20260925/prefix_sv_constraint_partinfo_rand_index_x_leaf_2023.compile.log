@@ -1,0 +1,2 @@
+exit=0
+./ivltests/sv_constraint_partinfo_rand_index_x_leaf.v:14: warning: Constraint item in 'blank_c' of class x_leaf_item is not representable in the constraint solver and is ignored (further similar warnings suppressed).

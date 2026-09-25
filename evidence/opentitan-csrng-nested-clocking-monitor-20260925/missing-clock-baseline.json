@@ -1,0 +1,12 @@
+[
+  {
+    "edition": "2017",
+    "exit": 0,
+    "stderr": "ivltests/sv_vif_nested_clocking_event_missing_fail.v:17: warning: Failed to evaluate event expression 'vif.child.no_such_cb' (compile-progress: event skipped)."
+  },
+  {
+    "edition": "2023",
+    "exit": 0,
+    "stderr": "./ivltests/sv_vif_nested_clocking_event_missing_fail.v:17: warning: Failed to evaluate event expression 'vif.child.no_such_cb' (compile-progress: event skipped)."
+  }
+]

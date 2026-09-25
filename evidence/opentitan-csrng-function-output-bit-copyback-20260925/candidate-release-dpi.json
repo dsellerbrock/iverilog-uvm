@@ -1,0 +1,27 @@
+{
+  "argv": [
+    "clang",
+    "-dynamiclib",
+    "-fPIC",
+    "-Wl,-undefined,dynamic_lookup",
+    "-I",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-bit-copyback-20260925/local-install/include/iverilog",
+    "-I",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_dv_aes_model_dpi_0",
+    "-I",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0",
+    "-I",
+    "/opt/homebrew/opt/openssl@3/include",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_dv_aes_model_dpi_0/aes_model_dpi.c",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/aes.c",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/crypto.c",
+    "/tmp/ot-csrng-backdoor-probe-20260925/csrng-candidate.dpiexport.c",
+    "-L",
+    "/opt/homebrew/opt/openssl@3/lib",
+    "-lcrypto",
+    "-o",
+    "/tmp/ot-csrng-backdoor-probe-20260925/csrng-candidate.dylib"
+  ],
+  "exit": 0,
+  "seconds": 0.09322554199025035
+}

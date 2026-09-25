@@ -29,7 +29,6 @@
 # include  "vvp_cleanup.h"
 #endif
 # include  <vector>
-# include  <set>
 # include  <cstdio>
 # include  <cstdarg>
 # include  <cstring>
@@ -1843,136 +1842,47 @@ tuple<bool, vvp_net_ptr_t, bool> check_connected_to_concat8(vvp_net_ptr_t cur, v
       return {false, vvp_net_ptr_t(nullptr, 0), false};
 }
 
-/* Selected scalar drivers can reach a scalar input through a vector
- * resolver. Only accept the direct PV -> resolver -> matching SA route:
- * treating the resolver as a general pass-through would confuse different
- * bits of the same vector. Keep the insertion edge after the SA, as for the
- * existing concat route, so that the selected interconnect alone is delayed.
- */
-struct selected_resolver_path_t {
-      selected_resolver_path_t()
-      : matches(0), output_net(nullptr),
-        previous(nullptr, 0), destination(nullptr, 0) { }
-
-      unsigned matches;
-      vvp_net_t* output_net;
-      vvp_net_ptr_t previous;
-      vvp_net_ptr_t destination;
-};
-
-/* The delay is inserted after the resolver, so any other driver of this
- * bit would also be delayed. Require the source PV to be the only
- * structural driver of the selected bit. Unknown and non-PV inputs fail
- * closed because their driven range cannot be proven disjoint. */
-static bool selected_resolver_bit_exclusive(const resolv_core*resolver,
-                                            unsigned source_port,
-                                            vvp_net_t*source,
-                                            unsigned bit,
-                                            unsigned vec_wid)
+// Follow one packed partial driver through a resolver to the same slice.
+// A resolver's other slices are not paths from this driver.
+static tuple<bool, vvp_net_ptr_t, bool>
+check_connected_through_part_pv(vvp_net_ptr_t cur, vvp_net_t*net2)
 {
-      if (resolver->input_source(source_port) != source)
-	    return false;
+      auto*pv = dynamic_cast<vvp_fun_part_pv*>(cur.ptr()->fun);
+      if (!pv || pv->get_wid() != 1)
+	return {false, vvp_net_ptr_t(nullptr, 0), false};
 
-      for (unsigned idx = 0; idx < resolver->input_count(); idx += 1) {
-	    vvp_net_t*driver = resolver->input_source(idx);
-	    if (!driver)
-	          return false;
-	    if (idx == source_port)
-	          continue;
-	    const vvp_fun_part_pv* part_pv =
-	          dynamic_cast<vvp_fun_part_pv*>(driver->fun);
-	    if (!part_pv || part_pv->get_vec_wid() != vec_wid ||
-	        part_pv->get_wid() == 0 ||
-	        part_pv->get_base() >= vec_wid ||
-	        part_pv->get_wid() > vec_wid - part_pv->get_base())
-	          return false;
-	    if (bit >= part_pv->get_base() &&
-	        bit - part_pv->get_base() < part_pv->get_wid())
-	          return false;
+      for (vvp_net_ptr_t res = cur.ptr()->out_; res.ptr();
+	   res = res.ptr()->port[res.port()]) {
+	auto*core = dynamic_cast<resolv_core*>(res.ptr()->fun);
+	unsigned source_port = res.port();
+	if (!core) {
+	      auto*ext = dynamic_cast<resolv_extend*>(res.ptr()->fun);
+	      if (ext) {
+		    core = ext->core();
+		    source_port = ext->core_port(source_port);
+	      }
+	}
+	const auto*tri = dynamic_cast<resolv_tri*>(core);
+	if (!tri || !tri->is_plain_tri()
+	    || !core->sole_part_pv_source(pv->get_base(), cur.ptr(), source_port))
+	      continue;
+	for (vvp_net_ptr_t select = core->output_net()->out_; select.ptr();
+	     select = select.ptr()->port[select.port()]) {
+	      auto*part = dynamic_cast<vvp_fun_part_sa*>(select.ptr()->fun);
+	      if (!part || part->get_base() != pv->get_base()
+		  || part->get_wid() != pv->get_wid())
+		    continue;
+	      vvp_net_ptr_t prev(nullptr, 0);
+	      for (vvp_net_ptr_t sink = select.ptr()->out_; sink.ptr();
+		   sink = sink.ptr()->port[sink.port()]) {
+		    if (sink.ptr() == net2)
+			  return {true, prev.ptr() ? prev : select,
+				  !prev.ptr()};
+		    prev = sink;
+	      }
+	}
       }
-
-      return true;
-}
-
-static selected_resolver_path_t find_selected_resolver_path(vvp_net_t* net1,
-                                                            vvp_net_t* net2)
-{
-      selected_resolver_path_t path;
-
-      for (vvp_net_ptr_t pv = net1->out_; pv.ptr();
-           pv = pv.ptr()->port[pv.port()]) {
-	    const vvp_fun_part_pv* part_pv =
-	          dynamic_cast<vvp_fun_part_pv*>(pv.ptr()->fun);
-	    if (!part_pv || pv.port() != 0 || part_pv->get_wid() != 1 ||
-	        part_pv->get_base() >= part_pv->get_vec_wid())
-	          continue;
-
-	    for (vvp_net_ptr_t resolver = pv.ptr()->out_; resolver.ptr();
-	         resolver = resolver.ptr()->port[resolver.port()]) {
-		  resolv_core*core =
-		        dynamic_cast<resolv_core*>(resolver.ptr()->fun);
-		  unsigned source_port = resolver.port();
-		  if (!core) {
-		        resolv_extend*extend =
-		              dynamic_cast<resolv_extend*>(resolver.ptr()->fun);
-		        if (!extend)
-		              continue;
-		        core = extend->core();
-		        source_port = extend->core_port(resolver.port());
-		  }
-		  if (!selected_resolver_bit_exclusive(core, source_port,
-		                                      pv.ptr(), part_pv->get_base(),
-		                                      part_pv->get_vec_wid()))
-		        continue;
-
-		  for (vvp_net_ptr_t sa = core->output_net()->out_; sa.ptr();
-		       sa = sa.ptr()->port[sa.port()]) {
-		        const vvp_fun_part_sa* part_sa =
-		              dynamic_cast<vvp_fun_part_sa*>(sa.ptr()->fun);
-		        if (!part_sa || sa.port() != 0 ||
-		            part_sa->get_wid() != 1 ||
-		            part_sa->get_base() != part_pv->get_base())
-		              continue;
-
-		        vvp_net_ptr_t previous(nullptr, 0);
-		        for (vvp_net_ptr_t destination = sa.ptr()->out_;
-		             destination.ptr();
-		             previous = destination,
-		             destination = destination.ptr()->port[destination.port()]) {
-		              if (destination.ptr() != net2 || destination.port() != 0)
-		                    continue;
-		              if (++path.matches > 1)
-		                    return path;
-		              path.output_net = sa.ptr();
-		              path.previous = previous;
-		              path.destination = destination;
-		        }
-		  }
-	    }
-      }
-
-      return path;
-}
-
-static bool has_other_interconnect_path(vvp_net_t* net1, vvp_net_t* net2)
-{
-      vector<vvp_net_ptr_t> pending(1, net1->out_);
-      set<vvp_net_t*> seen;
-      while (!pending.empty()) {
-	    vvp_net_ptr_t cur = pending.back();
-	    pending.pop_back();
-	    while (cur.ptr()) {
-		  if (cur.ptr() == net2)
-		        return true;
-		  if (seen.insert(cur.ptr()).second &&
-		      (dynamic_cast<vvp_fun_concat8*>(cur.ptr()->fun) ||
-		       dynamic_cast<vvp_fun_part_sa*>(cur.ptr()->fun) ||
-		       dynamic_cast<vvp_fun_concat*>(cur.ptr()->fun)))
-		        pending.push_back(cur.ptr()->out_);
-		  cur = cur.ptr()->port[cur.port()];
-	    }
-      }
-      return false;
+      return {false, vvp_net_ptr_t(nullptr, 0), false};
 }
 
 // Used to get intermodpath for two ports
@@ -2112,26 +2022,9 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    }
       }
 
-	// Selected scalar drivers can retain their PV nodes when blending would
-	// create a combinational cycle. Find only the same-bit resolver route.
-      selected_resolver_path_t selected_path;
-      if (!port1_has_index && !port2_has_index &&
-	  port1->get_width() == 1 && port2->get_width() == 1)
-	    selected_path = find_selected_resolver_path(net1, net2);
-      if (selected_path.matches > 1) {
-	    fprintf(stderr, "VPI error: Ambiguous selected intermodpath!\n");
-	    return nullptr;
-      }
-      if (selected_path.matches && has_other_interconnect_path(net1, net2)) {
-	    fprintf(stderr, "VPI error: Ambiguous selected intermodpath!\n");
-	    return nullptr;
-      }
-
 	// Iterate over all nodes connected to port1
-      vvp_net_ptr_t cur = selected_path.matches ? selected_path.destination
-	  : net1->out_;
-      vvp_net_ptr_t prev = selected_path.matches ? selected_path.previous
-	  : vvp_net_ptr_t(nullptr, 0);
+      vvp_net_ptr_t cur = net1->out_;
+      vvp_net_ptr_t prev = vvp_net_ptr_t(nullptr, 0);
 
       while (cur.ptr()) {
 	      // Either port2 is directly connected to port1
@@ -2139,25 +2032,21 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	      // to port1 through a net of concat8s
 	    bool is_connected, is_output;
 	    vvp_net_ptr_t previous_node;
-	    if (selected_path.matches) {
-		  is_connected = false;
-		  is_output = false;
-	    } else {
-		  tie(is_connected, previous_node, is_output) = port2_has_index
-			? check_connected_to_concat8(cur, net2, vvp_net_ptr_t(net1, 0))
-			: check_connected_to_concat8_and_part_sa(cur, net2, vvp_net_ptr_t(net1, 0));
-	    }
-	    if ( selected_path.matches ||
-		 (!port2_has_index && cur.ptr() == net2) || is_connected ) {
+	    tie(is_connected, previous_node, is_output) = port2_has_index
+		  ? check_connected_to_concat8(cur, net2, vvp_net_ptr_t(net1, 0))
+		  : check_connected_to_concat8_and_part_sa(cur, net2, vvp_net_ptr_t(net1, 0));
+	    if (!is_connected && !port2_has_index)
+		  tie(is_connected, previous_node, is_output) =
+		    check_connected_through_part_pv(cur, net2);
+	    if ( (!port2_has_index && cur.ptr() == net2) || is_connected ) {
 		  vvp_net_t*new_net = new vvp_net_t;
 
 		    // Create new node with intermodpath and connect port2 to it
 		  int width = 1; // TODO
 		  vvp_fun_intermodpath*obj = new vvp_fun_intermodpath(new_net, width);
 
-		  vvp_net_t* output_net = selected_path.matches
-		        ? selected_path.output_net : net1;
-		  if (!selected_path.matches && is_connected) {
+		  vvp_net_t* output_net = net1;
+		  if (is_connected) {
 			if (is_output) {
 			      output_net = previous_node.ptr(); // net2 is direct output of part_sa
 			      cur = output_net->out_;

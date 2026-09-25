@@ -3842,12 +3842,13 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			? "posedge"
 			: ivl_event_is_vif_negedge(ev) ? "negedge" : "anyedge";
 		  unsigned root_pin = ivl_event_vif_root_pin(ev);
+		  ivl_expr_t vif_object_expr = ivl_event_vif_object_expr(ev);
 		  ivl_nexus_t this_nex = 0;
 		  if (ivl_event_npos(ev) > root_pin) this_nex = ivl_event_pos(ev, root_pin);
 		  else if (ivl_event_nneg(ev) > root_pin) this_nex = ivl_event_neg(ev, root_pin);
 		  else if (ivl_event_nany(ev) > root_pin) this_nex = ivl_event_any(ev, root_pin);
 		  unsigned path_count = ivl_event_vif_path_count(ev);
-		  if (!this_nex) {
+		  if (!this_nex && !vif_object_expr) {
 			fprintf(stderr,
 			      "error: virtual-interface wait event %s has no root nexus "
 			      "(nany=%u, npos=%u, nneg=%u, root=%u)\n",
@@ -3855,7 +3856,11 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			      ivl_event_npos(ev), ivl_event_nneg(ev), root_pin);
 			return 1;
 		  }
-		  draw_object_from_net(this_nex, ivl_event_scope(ev));
+		  if (vif_object_expr) {
+			if (draw_eval_object(vif_object_expr)) return 1;
+		  } else {
+			draw_object_from_net(this_nex, ivl_event_scope(ev));
+		  }
 		  if (path_count == 0 && ivl_event_vif_N(ev) == UINT_MAX) {
 			/* Direct interface-port member `@(edge p.sig)`: the base
 			   object loaded above IS the virtual interface, so there
@@ -3921,6 +3926,7 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  for (idx = 0 ; idx < ivl_stmt_nevent(net) ; idx += 1) {
 		  ivl_event_t ev = ivl_stmt_events(net, idx);
 		  unsigned root_pin = ivl_event_vif_root_pin(ev);
+		  ivl_expr_t vif_object_expr = ivl_event_vif_object_expr(ev);
 		  ivl_nexus_t this_nex = 0;
 		  if (ivl_event_nany(ev) > root_pin)
 			this_nex = ivl_event_any(ev, root_pin);
@@ -3928,14 +3934,18 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			this_nex = ivl_event_pos(ev, root_pin);
 		  else if (ivl_event_nneg(ev) > root_pin)
 			this_nex = ivl_event_neg(ev, root_pin);
-		  if (!this_nex) {
+		  if (!this_nex && !vif_object_expr) {
 			fprintf(stderr,
 			      "error: virtual-interface event %s has no root nexus\n",
 			      ivl_event_basename(ev));
 			return 1;
 		  }
 			unsigned path_count = ivl_event_vif_path_count(ev);
-			draw_object_from_net(this_nex, ivl_event_scope(ev));
+			if (vif_object_expr) {
+				if (draw_eval_object(vif_object_expr)) return 1;
+			} else {
+				draw_object_from_net(this_nex, ivl_event_scope(ev));
+			}
 			if (path_count > 0) {
 			      for (unsigned path = 0 ; path < path_count ; path += 1)
 				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n",

@@ -1,0 +1,6 @@
+SDF ERROR: ivltests/sdf_singleton_guard.sdf:10: Could not find port1 bit 9!
+SDF ERROR: ivltests/sdf_singleton_guard.sdf:11: Could not find port2 bit 9!
+SDF ERROR: ivltests/sdf_singleton_guard.sdf:12: Could not find intermodpath!
+SDF ERROR: ivltests/sdf_singleton_guard.sdf:19: Could not find intermodpath!
+PASSED
+ivltests/sdf_singleton_guard.v:21: $finish called at 1100 (1ps)

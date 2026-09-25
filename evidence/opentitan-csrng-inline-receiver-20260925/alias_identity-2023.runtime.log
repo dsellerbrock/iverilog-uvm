@@ -1,0 +1,5 @@
+bare ok=1 clen=12
+self ok=1 clen=12
+same ok=0 clen=0
+FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/evidence/opentitan-csrng-inline-receiver-20260925/alias_identity.sv:40: alias not solved
+       Time: 0  Scope: top.$unm_blk_1

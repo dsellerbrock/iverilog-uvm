@@ -1,0 +1,36 @@
+{
+  "argv": [
+    "clang",
+    "-dynamiclib",
+    "-fPIC",
+    "-Wl,-undefined,dynamic_lookup",
+    "-I",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-nested-vif-20260925/local-install/include/iverilog",
+    "-I",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_dv_aes_model_dpi_0",
+    "-I",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0",
+    "-I",
+    "/opt/homebrew/opt/openssl@3/include",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_dv_aes_model_dpi_0/aes_model_dpi.c",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/aes.c",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/crypto.c",
+    "/tmp/ot-csrng-nested-vif-20260925/csrng-smoke-candidate4.dpiexport.c",
+    "-L",
+    "/opt/homebrew/opt/openssl@3/lib",
+    "-lcrypto",
+    "-o",
+    "/tmp/ot-csrng-nested-vif-20260925/csrng-smoke-candidate4.dylib"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-nested-vif-20260925",
+  "exit": 0,
+  "source_sha256": {
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_dv_aes_model_dpi_0/aes_model_dpi.c": "6875d9f44ba9cf92298a90a0bbeecd60390efca1ed9d74429de530ea28b7843e",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/aes.c": "425b50e1ce8625e2c2430eb21e55c083c39e1b27165dab9bb31ac8b4511589e3",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/crypto.c": "89289f27536c0e4dd94e8d56fc5015d1e7e8d22feaa7bd9b79362ff2b7ce616d",
+    "/tmp/ot-csrng-nested-vif-20260925/csrng-smoke-candidate4.dpiexport.c": "460f983f209a92eb7e4a58f397293619b37ff1daf438f82c4ee8f7b6e9640475"
+  },
+  "bundle": "/tmp/ot-csrng-nested-vif-20260925/csrng-smoke-candidate4.dylib",
+  "bundle_sha256": "f611fc0263a55cbd8af8ce75c61efe4e540805dcf0e45a480d1fd00a305c776a",
+  "stderr_log": "release-dpi-build-candidate4.stderr.log"
+}

@@ -1,0 +1,93 @@
+{
+  "blocker": "OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT",
+  "base_commit": "c111320aa8f08b15e3ad372c28a1cea84b35b3d4",
+  "source_fix_commit": "2fd5b6effa416b2b7e1c042c2ccf09f8495d14db",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_clean": true,
+  "private_tool_sha256": {
+    "iverilog": "b93f73000e75159c4064a487d4137aac2624c617cbdbc19ee845a4e95fe0f957",
+    "ivl": "5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d",
+    "vvp": "fbd1a91179518a3e56f9b20832058b27abdc813744f383d9ff093225c1e1b757",
+    "uvm_dpi": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0"
+  },
+  "strict_ieee_2017_2023_direct_receiver": {
+    "baseline_focus": {
+      "legacy_passed": 0,
+      "legacy_total": 4,
+      "json_passed": 0,
+      "json_total": 4
+    },
+    "final_focus": {
+      "legacy_passed": 4,
+      "legacy_total": 4,
+      "json_passed": 4,
+      "json_total": 4
+    },
+    "neighbor_focus": {
+      "legacy_passed": 11,
+      "legacy_total": 11,
+      "json_passed": 11,
+      "json_total": 11
+    },
+    "controls": [
+      "expression and statement forms",
+      "distinct caller handle fixed",
+      "local:: caller state",
+      "target-class name shadow",
+      "failed-solve rollback",
+      "invalid receiver member rejected"
+    ],
+    "unresolved": [
+      "DD-059 same-object alias identity",
+      "DD-060 explicit-this caller fallback"
+    ]
+  },
+  "promotion_gates": {
+    "make_check_exit": 0,
+    "legacy": {
+      "exit": 0,
+      "total": 6617,
+      "passed": 6612,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "json": {
+      "exit": 0,
+      "ran": 3656,
+      "failed": 0
+    },
+    "real_dpi_uvm": {
+      "exit": 0,
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "real_dpi_loaded": true,
+      "language_mode": "2012"
+    }
+  },
+  "released_csrng_nonstandard_compatibility": {
+    "flags": [
+      "-g2017",
+      "-gcommercial-unsafe"
+    ],
+    "compile_exit": 0,
+    "native_aes_dpi_build_exit": 0,
+    "vvp_exit": 0,
+    "runtime_completed": true,
+    "sim_time_ps": 16454635,
+    "uvm_error_count": 1,
+    "uvm_fatal_count": 0,
+    "assertion_error_count": 1,
+    "failed_checks_marker": true,
+    "intended_pass_marker": false,
+    "observed_sw_app_instantiate_command": true,
+    "observed_sw_app_instantiate_ps": 15371293,
+    "completed_generate_genbits_check": false,
+    "meaningful_test_traffic_for_pass": false,
+    "passed": 0,
+    "attempted": 1,
+    "first_failure": "aes_cipher_core.sv:827 AesSecCmDataRegKeySca",
+    "ignored_constraint_separate": "int_state_read_enable_c"
+  }
+}

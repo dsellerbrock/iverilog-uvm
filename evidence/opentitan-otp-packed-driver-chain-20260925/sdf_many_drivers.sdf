@@ -1,0 +1,11 @@
+(DELAYFILE
+ (SDFVERSION "3.0")
+ (DESIGN "sdf_many_drivers")
+ (DIVIDER /)
+ (TIMESCALE 1ns)
+ (CELL
+  (CELLTYPE "top")
+  (INSTANCE dut)
+  (DELAY (ABSOLUTE (INTERCONNECT i4/Y i5/A (0.010))))
+ )
+)

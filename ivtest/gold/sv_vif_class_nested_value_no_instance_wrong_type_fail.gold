@@ -1,0 +1,2 @@
+./ivltests/sv_vif_class_nested_value_no_instance_wrong_type_fail.v:26: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.

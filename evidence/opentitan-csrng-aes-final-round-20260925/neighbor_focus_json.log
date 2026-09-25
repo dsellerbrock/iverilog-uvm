@@ -1,0 +1,6 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-assert-preponed-resolved-net-focus-vvp.list
+----------------------------------------------------------------------------
+sv_assert_preponed_resolved_net_strength: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.

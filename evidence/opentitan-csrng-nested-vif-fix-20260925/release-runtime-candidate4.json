@@ -1,0 +1,38 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-nested-vif-20260925/local-install/bin/vvp",
+    "-d",
+    "/tmp/ot-csrng-nested-vif-20260925/csrng-smoke-candidate4.dylib",
+    "-n",
+    "/tmp/ot-csrng-nested-vif-20260925/csrng-smoke-candidate4.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "image_sha256": "9a1c2c8d4323d556c30b9428fdb9c7bc7662ecd08e355ba88d6e52a5acdcd0a5",
+  "dpi_bundle_sha256": "f611fc0263a55cbd8af8ce75c61efe4e540805dcf0e45a480d1fd00a305c776a",
+  "vvp_sha256": "8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014",
+  "timeout_seconds": 120,
+  "exit": 1,
+  "duration_seconds": 8.272395250038244,
+  "pass_banner": false,
+  "fail_banner": true,
+  "last_lines": [
+    "[ASSERT FAILED]     1",
+    "[RNTST]     1",
+    "[UVM/REPORT/CATCHER]     2",
+    "[UVM/REPORT/SERVER]     1",
+    "[csr_utils::csr_peek]     1",
+    "[uvm_test_top]     1",
+    "",
+    "FATAL: ../src/lowrisc_dv_dv_test_status_0/dv_test_status_pkg.sv:16: prim_util_pkg::end_of_simulation was already signaled!",
+    "       Time: 1000  Scope: dv_test_status_pkg::dv_test_status",
+    "",
+    "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.",
+    "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored."
+  ]
+}

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sdf_singleton_guard.v",
+    "iverilog-args" : [ "-Ttyp", "-ginterconnect", "-gspecify" ],
+    "gold"          : "sdf_singleton_guard"
+}

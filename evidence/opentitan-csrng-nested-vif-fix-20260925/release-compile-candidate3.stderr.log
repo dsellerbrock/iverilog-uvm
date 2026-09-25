@@ -1,0 +1,32 @@
+../src/lowrisc_dv_csrng_agent_0.1/csrng_monitor.sv:115: warning: Failed to evaluate event expression 'cfg.vif.cmd_push_if.mon_cb' (compile-progress: event skipped).
+../src/lowrisc_dv_csrng_agent_0.1/csrng_monitor.sv:116: warning: condition expression failed to elaborate; ASSUMING FALSE and compiling only the else-branch (compile-progress). The surrounding logic will misbehave if this branch matters.
+../src/lowrisc_dv_csrng_env_0.1/csrng_env_cfg.sv:135: warning: Constraint item in 'int_state_read_enable_c' of class csrng_env_cfg is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_intr_vseq.sv:98: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_intr_vseq.sv:119: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_intr_vseq.sv:125: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_intr_vseq.sv:148: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_intr_vseq.sv:155: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_intr_vseq.sv:161: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:131: warning: User function 'uvm_hdl_force' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:134: warning: User function 'uvm_hdl_release' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:144: warning: User function 'uvm_hdl_force' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:148: warning: User function 'uvm_hdl_release' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:280: warning: User function 'uvm_hdl_force' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:282: warning: User function 'uvm_hdl_release' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:292: warning: User function 'uvm_hdl_force' is being called as a task.
+../src/lowrisc_dv_csrng_env_0.1/seq_lib/csrng_err_vseq.sv:295: warning: User function 'uvm_hdl_release' is being called as a task.
+../src/lowrisc_dv_csrng_sim_0.1/tb.sv:51: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:102: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_csrng_csr_assert_0/csrng_csr_assert_fpv.sv:104: warning: A non-blocking assignment should not be used in an always_comb process.
+iverilog: note: wrote DPI export C stubs to /tmp/ot-csrng-nested-vif-20260925/csrng-smoke-candidate3.dpiexport.c (compile it into your DPI object).

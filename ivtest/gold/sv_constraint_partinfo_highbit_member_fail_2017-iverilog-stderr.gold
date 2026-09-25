@@ -1,0 +1,2 @@
+ivltests/sv_constraint_partinfo_highbit_member_fail.v:12: error: Selected parameter member has nonzero or unknown bits above bit 63, which the constraint IR cannot represent.
+1 error(s) during elaboration.

@@ -1754,6 +1754,7 @@ void dll_target::event(const NetEvent*net)
       obj->vif_member_word = UINT_MAX;
       obj->vif_pre_N = UINT_MAX;
       obj->vif_root_pin = 0;
+      obj->vif_object_expr = 0;
       obj->vif_validity = 0;
       obj->is_obj_mutation = false;
       obj->obj_N = UINT_MAX;
@@ -1776,6 +1777,25 @@ void dll_target::event(const NetEvent*net)
 			observer_expr->expr_scan(this);
 			obj->observer_expr = expr_;
                         obj->observer_edge = pr->event_observer_edge();
+			expr_ = 0;
+		  }
+		  if (const NetExpr*vif_expr = pr->vif_object_expr()) {
+			assert(obj->vif_object_expr == 0);
+			materialize_event_selector_signals_(this, vif_expr);
+			/* Events are exported before ordinary scope traversal. The
+			 * selected child's concrete parent/child scope pairs must exist
+			 * before the expression is scanned into the target event. */
+			if (const NetESFunc*nested =
+			      dynamic_cast<const NetESFunc*>(vif_expr)) {
+			  if (strcmp(nested->name(), "$ivl_vif_nested_value") == 0)
+			    for (unsigned parm = 1; parm < nested->nparms(); ++parm)
+			      if (const NetEScope*instance =
+				    dynamic_cast<const NetEScope*>(nested->parm(parm)))
+				scope(instance->scope());
+			}
+			assert(expr_ == 0);
+			vif_expr->expr_scan(this);
+			obj->vif_object_expr = expr_;
 			expr_ = 0;
 		  }
 		  if (pr->vif_validity()) {

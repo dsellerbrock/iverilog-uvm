@@ -1,0 +1,6 @@
+Warning: property_atom::set_vec4 indexed conversion failed; coercing non-numeric value to 0
+direct bit output copyback: result=7 data=xxxxxxaX
+narrow bit output copyback: result=7 data=X
+property bit output copyback: data=00000000
+assoc entry=00000000 unknown=0
+DIAGNOSTIC DONE

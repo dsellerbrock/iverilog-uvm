@@ -1,0 +1,2 @@
+# Whole net-array Preponed history; positive and deliberate-negative controls.
+sv_assert_net_uarray_preponed normal,-g2017,-ssv_assert_net_uarray_preponed ivltests gold=sv_assert_net_uarray_preponed.gold

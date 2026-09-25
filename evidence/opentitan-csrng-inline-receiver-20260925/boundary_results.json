@@ -1,0 +1,60 @@
+{
+  "alias_identity-2017": {
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/ot-inline-alias_identity-2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/evidence/opentitan-csrng-inline-receiver-20260925/alias_identity.sv"
+    ],
+    "compile_exit": 0,
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/vvp",
+      "/tmp/ot-inline-alias_identity-2017.vvp"
+    ],
+    "runtime_exit": 1
+  },
+  "explicit_this_caller_shadow_illegal-2017": {
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/ot-inline-explicit_this_caller_shadow_illegal-2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/evidence/opentitan-csrng-inline-receiver-20260925/explicit_this_caller_shadow_illegal.sv"
+    ],
+    "compile_exit": 0
+  },
+  "alias_identity-2023": {
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/ot-inline-alias_identity-2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/evidence/opentitan-csrng-inline-receiver-20260925/alias_identity.sv"
+    ],
+    "compile_exit": 0,
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/vvp",
+      "/tmp/ot-inline-alias_identity-2023.vvp"
+    ],
+    "runtime_exit": 1
+  },
+  "explicit_this_caller_shadow_illegal-2023": {
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/ot-inline-explicit_this_caller_shadow_illegal-2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/evidence/opentitan-csrng-inline-receiver-20260925/explicit_this_caller_shadow_illegal.sv"
+    ],
+    "compile_exit": 0
+  }
+}

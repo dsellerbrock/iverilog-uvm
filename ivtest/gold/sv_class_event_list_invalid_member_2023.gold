@@ -1,3 +1,2 @@
 ./ivltests/sv_class_event_list_invalid_member_2023.v:9: error: Class cfg_t has no property absent.
-./ivltests/sv_class_event_list_invalid_member_2023.v:9: warning: Failed to evaluate event expression 'cfg.absent' (compile-progress: event skipped).
 1 error(s) during elaboration.

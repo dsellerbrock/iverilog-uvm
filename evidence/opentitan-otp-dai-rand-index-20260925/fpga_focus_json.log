@@ -1,0 +1,7 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-otp-rand-index-current-20260925/fpga_focus.list
+----------------------------------------------------------------------------
+  synth_dual_async_fpga_reject: Passed - CE.
+synth_single_async_fpga_reject: Passed - CE.
+============================================================================
+Test results: Ran 2, Failed 0.

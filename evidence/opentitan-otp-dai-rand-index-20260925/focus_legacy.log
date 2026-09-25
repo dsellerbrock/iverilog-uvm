@@ -1,0 +1,17 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                    sv_constraint_partinfo_rand_index: Passed.
+               sv_constraint_partinfo_rand_index_2023: Passed.
+          sv_constraint_partinfo_rand_index_oob_logic: Passed.
+     sv_constraint_partinfo_rand_index_oob_logic_2023: Passed.
+            sv_constraint_partinfo_rand_index_oob_bit: Passed.
+       sv_constraint_partinfo_rand_index_oob_bit_2023: Passed.
+         sv_constraint_partinfo_rand_index_bad_member: Passed - CE.
+    sv_constraint_partinfo_rand_index_bad_member_2023: Passed - CE.
+     sv_constraint_partinfo_rand_index_negative_bound: Passed.
+sv_constraint_partinfo_rand_index_negative_bound_2023: Passed.
+             sv_constraint_partinfo_rand_index_x_leaf: Passed.
+        sv_constraint_partinfo_rand_index_x_leaf_2023: Passed.
+============================================================================
+Test results:
+  Total=12, Passed=12, Failed=0, Not Implemented=0, Expected Fail=0

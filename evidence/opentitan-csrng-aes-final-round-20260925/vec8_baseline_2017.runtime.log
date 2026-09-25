@@ -1,0 +1,2 @@
+FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-aes-clear-20260925/evidence/opentitan-csrng-aes-final-round-20260925/vec8_standalone.sv:54: whole-array Preponed/$past failed: current=1 past=1 failures=2
+       Time: 16000  Scope: aes_vec8_preponed

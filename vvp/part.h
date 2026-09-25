@@ -110,7 +110,6 @@ class vvp_fun_part_pv  : public vvp_net_fun_t {
 
       unsigned get_base() const { return base_; }
       unsigned get_wid() const { return wid_; }
-      unsigned get_vec_wid() const { return vwid_; }
 
     public:
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,

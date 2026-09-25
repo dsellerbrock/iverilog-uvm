@@ -1,0 +1,75 @@
+{
+  "blocker": "OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK",
+  "base_commit": "91e5499e5b0b6b9bb103c72f1fc7f9f8ea5fc2f1",
+  "source_fix_commit": "dbb4f851f",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_clean": true,
+  "private_tool_sha256": {
+    "iverilog": "b4e5dec66b067e2e74526dbe1b0086de4a4152dc5cfc5126db6920a535a1f408",
+    "vvp": "c6fd0821d294d548f41fbab33792db2d7e582c98cd01dab5d432ee199e929483"
+  },
+  "strict_ieee_2017_2023": {
+    "baseline_focus": {
+      "legacy_passed": 2,
+      "legacy_total": 4,
+      "json_passed": 2,
+      "json_total": 4
+    },
+    "final_focus": {
+      "legacy_passed": 4,
+      "legacy_total": 4,
+      "json_passed": 4,
+      "json_total": 4
+    },
+    "controls": [
+      "bit direct/array/property",
+      "signed and unsigned width",
+      "four-state preserved",
+      "native task",
+      "nonlvalue rejected"
+    ]
+  },
+  "promotion_gates": {
+    "make_check_exit": 0,
+    "legacy": {
+      "exit": 0,
+      "total": 6613,
+      "passed": 6608,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "json": {
+      "exit": 0,
+      "ran": 3652,
+      "failed": 0
+    },
+    "real_dpi_uvm": {
+      "exit": 0,
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "real_dpi_loaded": true
+    },
+    "setup_note": "The first JSON attempt had two missing optional fpga target files in the private prefix; focused tests passed 2/2 after building/installing the existing target, then full JSON passed. Ivl and VVP hashes stayed unchanged."
+  },
+  "released_csrng_nonstandard_compatibility": {
+    "flags": [
+      "-g2017",
+      "-gcommercial-unsafe"
+    ],
+    "compile_exit": 0,
+    "native_dpi_build_exit": 0,
+    "vvp_exit": 0,
+    "runtime_completed": true,
+    "sim_time_ps": 5537881,
+    "uvm_fatal_count": 1,
+    "failed_checks_marker": true,
+    "intended_pass_marker": false,
+    "meaningful_command_traffic": false,
+    "passed": 0,
+    "attempted": 1,
+    "first_failure": "csrng_smoke_vseq.sv:21 cs_item.randomize()",
+    "ignored_constraint_separate": "int_state_read_enable_c"
+  }
+}

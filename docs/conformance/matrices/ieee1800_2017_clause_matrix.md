@@ -2067,3 +2067,34 @@ directions/defaults/multidimensional forms. The pinned OTP top now compiles,
 but its first released smoke fails a separate time-zero padded memory-path
 check. This is neither OTP DV success nor full subroutine/interface
 qualification.
+
+### September 25 direct owner-held inline randomize receiver
+
+The PARTIAL §§18.7, 18.7.1, 18.6.1, and 18.6.3 subset now resolves a direct,
+unindexed owner-held receiver spelling such as `req.randomize() with {
+req.clen == 12; }` to the randomized object's member when target-class name
+lookup does not claim `req`. Paired strict 2017/2023 legal and invalid-member
+tests pass 4/4 in both legacy and JSON runners; distinct caller state,
+`local::` qualification, target-class shadowing, and failed-solve rollback
+are checked. [PR #366](https://github.com/dsellerbrock/iverilog-uvm/pull/366)
+and its [revision-scoped evidence](../../../evidence/opentitan-csrng-inline-receiver-20260925/README.md)
+record the full gates and pinned replay. Same-object alias identity and an
+explicit-`this` caller fallback still fail separate strict reducers (DD-059/60),
+so neither edition's full inline lookup semantics are QUALIFIED. The pinned
+CSRNG smoke remains 0/1 released nonstandard compatibility DV at a later AES
+assertion.
+
+### September 25 net-array Preponed history for whole-array assertions
+
+The PARTIAL 2017 §§7.4.3, 16.5.1, 16.9.3, and 16.12.7 correction gives
+net-backed integral fixed unpacked-array words their underlying wire's
+first-write history when a concurrent assertion samples a whole array.
+The paired 2023 boundary uses §7.4.6 and the same assertion clauses.
+An input changing after the antecedent's Preponed sample no longer changes
+its `$past` value; a scalar share, a second array word, a deliberate bad
+update, a held force, and two strength-resolved net words are independent
+controls. [Strict RED and final
+evidence](../../../evidence/opentitan-csrng-aes-final-round-20260925/README.md)
+also show the unchanged pinned CSRNG smoke reaching one checked nonstandard
+compatibility pass. Other array kinds and a force transition within the
+sampled slot are not qualified by this focused fix.

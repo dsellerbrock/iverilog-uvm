@@ -1,0 +1,8 @@
+ATTEMPT 1 sel=2 d=b1b2b3b4b5b6b7b8b9babbbcbdbebfc0 init=b1b2b3b4b5b6b7b8b9babbbcbdbebfc0 out=a1a2a3a4a5a6a7a8a9aaabacadaeafa0
+SEMANTIC_PASS attempt=1 q=b1b2b3b4b5b6b7b8b9babbbcbdbebfc0 init=b1b2b3b4b5b6b7b8b9babbbcbdbebfc0 out=a1a2a3a4a5a6a7a8a9aaabacadaeafa0
+ATTEMPT 2 sel=1 d=c1c2c3c4c5c6c7c8c9cacbcccdcecfd0 init=b1b2b3b4b5b6b7b8b9babbbcbdbebfc0 out=c1c2c3c4c5c6c7c8c9cacbcccdcecfd0
+SEMANTIC_FAIL attempt=2 q=c1c2c3c4c5c6c7c8c9cacbcccdcecfd0 init=b1b2b3b4b5b6b7b8b9babbbcbdbebfc0 out=c1c2c3c4c5c6c7c8c9cacbcccdcecfd0
+SVA_FAIL case_time=45000
+RESULT negative=1 attempts=2 nba_checks=2 nba_failures=0 semantic_passes=1 semantic_failures=1 sva_failures=1
+EXPECTED_RESULT_PASS negative=1
+/tmp/ot-aes-sva-reducer.pwsOfI/aes_clear_overlap_param.sv:143: $finish called at 61000 (1ps)

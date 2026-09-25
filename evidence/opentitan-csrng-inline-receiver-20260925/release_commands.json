@@ -1,0 +1,122 @@
+{
+  "pinned_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_clean": true,
+  "patched_tb_sha256": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+  "filelist_sha256": "5801cea09e222556b2c1e6c202b2ce03c84b0398e2b3a06ee09505ed1971df7b",
+  "stages": {
+    "compile": {
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/iverilog",
+        "-g2017",
+        "-gcommercial-unsafe",
+        "-stb",
+        "-scsrng_bind",
+        "-scsrng_cov_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/tmp/ot-csrng-inline-release-20260925/csrng-inline.vvp",
+        "-c",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/matrix-iverilog.scr"
+      ],
+      "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+      "exit": 0,
+      "seconds": 3.198,
+      "timeout": false
+    },
+    "dpi": {
+      "argv": [
+        "clang",
+        "-dynamiclib",
+        "-fPIC",
+        "-Wl,-undefined,dynamic_lookup",
+        "-I",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/include/iverilog",
+        "-I",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_dv_aes_model_dpi_0",
+        "-I",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0",
+        "-I",
+        "/opt/homebrew/opt/openssl@3/include",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_dv_aes_model_dpi_0/aes_model_dpi.c",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/aes.c",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/src/lowrisc_model_aes_1.0/crypto.c",
+        "/tmp/ot-csrng-inline-release-20260925/csrng-inline.dpiexport.c",
+        "-L",
+        "/opt/homebrew/opt/openssl@3/lib",
+        "-lcrypto",
+        "-o",
+        "/tmp/ot-csrng-inline-release-20260925/csrng-inline.dylib"
+      ],
+      "cwd": null,
+      "exit": 0,
+      "seconds": 0.113,
+      "timeout": false
+    },
+    "runtime": {
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/vvp",
+        "-d",
+        "/tmp/ot-csrng-inline-release-20260925/csrng-inline.dylib",
+        "-n",
+        "/tmp/ot-csrng-inline-release-20260925/csrng-inline.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+      "exit": 0,
+      "seconds": 17.875,
+      "timeout": false,
+      "stdout": "release-runtime.stdout.log.gz",
+      "stderr": "release-runtime.stderr.log"
+    },
+    "diagnostic_runtime_medium": {
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-inline-receiver-20260925/local-install/bin/vvp",
+        "-d",
+        "/tmp/ot-csrng-inline-release-20260925/csrng-inline.dylib",
+        "-n",
+        "/tmp/ot-csrng-inline-release-20260925/csrng-inline.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_MEDIUM",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=csrng_smoke_test",
+        "+UVM_TEST_SEQ=csrng_smoke_vseq"
+      ],
+      "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+      "exit": 0,
+      "timeout": false,
+      "stdout": "release-runtime-medium.stdout.log.gz",
+      "stderr": "release-runtime-medium.stderr.log"
+    }
+  },
+  "private_tool_sha256": {
+    "iverilog": "b93f73000e75159c4064a487d4137aac2624c617cbdbc19ee845a4e95fe0f957",
+    "ivl": "5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d",
+    "vvp": "fbd1a91179518a3e56f9b20832058b27abdc813744f383d9ff093225c1e1b757",
+    "uvm_dpi": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0"
+  },
+  "base_commit": "c111320aa8f08b15e3ad372c28a1cea84b35b3d4",
+  "source_fix_commit": "2fd5b6effa416b2b7e1c042c2ccf09f8495d14db",
+  "source_sha256": {
+    "elab_expr.cc": "e5e3b3044b725e77c7eef2da903118940c0f28ad1d2312fc42ea17112173842a",
+    "elaborate.cc": "de4146e280fa15ee1d9417b612cda07ccd31cd91f7b2bc265410353fa12485d9"
+  }
+}

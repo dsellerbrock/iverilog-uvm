@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_vif_class_nested_value_wrong_modport_fail_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_vif_class_nested_value_wrong_modport_fail"
+  ],
+  "gold": "sv_vif_class_nested_value_wrong_modport_fail_2023"
+}

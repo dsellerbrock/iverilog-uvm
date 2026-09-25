@@ -66,6 +66,10 @@
 # include  "ivl_assert.h"
 # include "map_named_args.h"
 
+extern const netclass_t* resolve_nested_clocking_child_type(
+      const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
+      perm_string, const LineInfo*);
+
 /* In-line random variable control (IEEE 1800-2017 18.11). Defined in
  * elab_expr.cc next to the other randomize() lowering; shared here so
  * the statement form `void'(obj.randomize(b))' narrows the random set
@@ -1025,6 +1029,7 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 		  return nullptr;
 
 	    PEIdent*pfx = new PEIdent(prefix, lexical_pos);
+	    pfx->set_line(loc);
 	    obj = elab_and_eval(des, scope, pfx, -1);
 	    delete pfx;
 	    if (!obj)
@@ -1152,6 +1157,8 @@ resolve_scope_pform_clocking_event_(const PEIdent*id,
 }
 
 static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from_search_(
+					      const PEIdent*id, Design*des,
+					      NetScope*scope, const LineInfo*loc,
 					      const symbol_search_results&sr,
 					      size_t&base_path_components,
 					      const netclass_t**found_class = nullptr,
@@ -1170,6 +1177,7 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
       if (root_modport != verinum())
 	    active_modport = lex_strings.make(root_modport.as_string().c_str());
 
+      perm_string nested_child_name;
       size_t offset = 0;
       for (pform_name_t::const_iterator it = sr.path_tail.begin()
 		 ; it != sr.path_tail.end() ; ++it, ++offset) {
@@ -1215,9 +1223,24 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 		  }
 	    }
 
-	    int pidx = class_type->property_idx_from_name(it->name);
-	    if (pidx < 0)
-		  return nullptr;
+    int pidx = class_type->property_idx_from_name(it->name);
+    if (pidx < 0) {
+	  if (!nested_child_name.nil() && next == sr.path_tail.end()) {
+	    cerr << loc->get_fileline() << ": error: nested interface '"
+		 << nested_child_name << "' has no clocking block or member '"
+		 << it->name << "'." << endl;
+	    des->errors += 1;
+	    return nullptr;
+	  }
+	  size_t prefix_count = id->path().name.size()
+	    - sr.path_tail.size() + offset + 1;
+	  class_type = resolve_nested_clocking_child_type(
+	    id, des, scope, prefix_count, class_type, it->name, loc);
+	  if (!class_type) return nullptr;
+	  nested_child_name = it->name;
+	  active_modport = class_type->interface_modport();
+	  continue;
+    }
 
 	    ivl_type_t ptype = class_type->get_prop_type(pidx);
 	    perm_string next_modport =
@@ -20629,8 +20652,14 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 	    }
 
 	    size_t clocking_components = 0;
-	    if (resolve_interface_clocking_block_from_search_(
-		  sr, clocking_components)
+    const netclass_t::clocking_block_t*clocking =
+	  resolve_interface_clocking_block_from_search_(
+	    id, des, scope, &loc, sr, clocking_components);
+    if (des->errors != errors_before) {
+	  res.elaborated = true;
+	  return;
+    }
+    if (clocking
 		|| sr.is_scope() || !sr.is_found()) {
 		  res.preserve_pform = true;
 		  return;
@@ -21056,7 +21085,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
        * integral event-or list, collapse the already elaborated leaves into one
        * source-order concat and recurse through the established single-observer
        * lowering. This keeps all subscriptions in the original waiter frame. */
+      const unsigned errors_before_prepared = des->errors;
       bool split_event_list = prepare_event_list_(des, scope, *this, expr_, prepared);
+      if (des->errors != errors_before_prepared)
+	    return nullptr;
       if (unique_ptr<NetExpr>concat =
           prepare_class_property_event_list_concat_(expr_, prepared)) {
             unique_ptr<PECachedEventExpr>cached_expr(new PECachedEventExpr(
@@ -21251,12 +21283,16 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			}
 		  }
 
+		  const unsigned errors_before_clocking = des->errors;
 		  const netclass_t*clocking_class = nullptr;
 		  perm_string clocking_modport;
 		  const netclass_t::clocking_block_t*clocking =
-			resolve_interface_clocking_block_from_search_(sr, base_path_components,
+			resolve_interface_clocking_block_from_search_(id, des, scope, this,
+							      sr, base_path_components,
 							      &clocking_class,
 							      &clocking_modport);
+		  if (des->errors != errors_before_clocking)
+			return nullptr;
 		  /* resolve_interface_clocking_block_from_search_ sets
 		     base_path_components = offset (0-based index into
 		     sr.path_tail where the clocking block was found).
@@ -21713,6 +21749,45 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		       << *expr_[idx]->expr() << "'." << endl;
 		  des->errors += 1;
 		  continue;
+	    }
+
+	    /* A nested child is selected by an expression, not by a chain of
+	     * class property indices. Keep that exact receiver on the probe so
+	     * the VIF wait selects the child's public clocking tick at arm time. */
+	    if (gn_system_verilog()
+		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
+	      const NetEProperty*prop = dynamic_cast<const NetEProperty*>(tmp);
+	      const NetESFunc*child = prop
+		? dynamic_cast<const NetESFunc*>(prop->get_base()) : nullptr;
+	      const netclass_t*child_type = child
+		? dynamic_cast<const netclass_t*>(child->net_type()) : nullptr;
+	      const char*member_name = child_type
+		? child_type->get_prop_name(prop->property_idx()) : nullptr;
+	      if (child && strcmp(child->name(), "$ivl_vif_nested_value") == 0
+		  && child_type && child_type->is_interface()
+		  && member_name && strncmp(member_name, "_ivl_cbtick$", 12) == 0) {
+		NexusSet*roots = child->nex_input();
+		if (!roots || roots->size() != 1) {
+		  cerr << get_fileline() << ": error: nested virtual-interface "
+		       << "clocking event has no unique receiver root." << endl;
+		  des->errors += 1;
+		  delete roots;
+		  delete tmp;
+		  continue;
+		}
+		NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(),
+						 ev, NetEvProbe::ANYEDGE, 1);
+		connect(roots->at(0).lnk, probe->pin(0));
+		probe->set_vif_anyedge_path(std::vector<unsigned>(),
+					    prop->property_idx());
+		probe->set_vif_root_pin(0);
+		probe->set_vif_object_expr(child);
+		des->add_node(probe);
+		expr_count += 1;
+		delete roots;
+		delete tmp;
+		continue;
+	      }
 	    }
 
             /* A compound automatic event may read one or more members of a
@@ -23104,6 +23179,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
           && expr_[0]->expr()) {
 	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
 		  unsigned slot = 0;
+		  const unsigned errors_before_class_event = des->errors;
 		  if (NetExpr*obj = elaborate_class_event_target_(des, scope,
 				*this, id->path().name, id->lexical_pos(), slot)) {
 			NetProc*body = 0;
@@ -23116,6 +23192,8 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 			wa->set_statement(body);
 			return wa;
 		  }
+		  if (des->errors != errors_before_class_event)
+			return nullptr;
 	    }
       }
 
@@ -27244,6 +27322,108 @@ string pexpr_to_rooted_class_constraint_ir(
       return out;
 }
 
+static bool constraint_is_narrow_const_ir_(const string&ir);
+
+/* A package parameter array is expanded into constant element parameters.
+ * Keep a rand index symbolic by passing the selected packed member as a
+ * typed constant table to the solver. Only the one-dimensional, integral
+ * member form is represented here; other forms retain their diagnostics. */
+static string constraint_parameter_member_select_ir_(
+      const PEIdent*id, const NetScope*scope, const netclass_t*cls)
+{
+      Design*des = constraint_ir_design_ctx_;
+      if (!des || !scope || !id) return "";
+      symbol_search_results found;
+      if (!symbol_search(id, des, const_cast<NetScope*>(scope), id->path(),
+			 id->lexical_pos(), &found)
+	  || !found.par_val || !found.scope || found.path_head.empty()
+	  || found.path_tail.size() != 1) return "";
+
+      const name_component_t&root = found.path_head.back();
+      const name_component_t&field = found.path_tail.front();
+      if (!found.scope->is_array_parameter(root.name)
+	  || root.index.size() != 1 || !field.index.empty()
+	  || field.local_scope) return "";
+      const index_component_t&select = root.index.front();
+      if (select.sel != index_component_t::SEL_BIT
+	  || !select.msb || select.lsb) return "";
+      string index_ir = pexpr_to_constraint_ir(select.msb, cls, nullptr, scope);
+      if (index_ir.empty() || index_ir.compare(0, 2, "c:") == 0)
+	return "";
+
+      auto fail = [&](const string&reason) -> string {
+	    cerr << id->get_fileline() << ": error: " << reason << endl;
+	    des->errors += 1;
+	    return "";
+      };
+      auto pit = found.scope->parameters.find(root.name);
+      if (pit == found.scope->parameters.end()
+	  || !pit->second.array_bounds_known
+	  || pit->second.array_dims.size() != 1)
+	return fail("Rand-indexed parameter member requires one known unpacked dimension.");
+      const netrange_t&dim = pit->second.array_dims.front();
+      unsigned long span = dim.width();
+      long low = std::min(dim.get_msb(), dim.get_lsb());
+      if (!span || span > LONG_MAX)
+	return fail("Rand-indexed parameter member array range is not representable.");
+
+      auto element = [&](long index, ivl_type_t&elem_type) -> const NetEConst* {
+	    string name = string(root.name.str()) + "[" + to_string(index) + "]";
+	    perm_string key = lex_strings.make(name.c_str());
+	    return dynamic_cast<const NetEConst*>(
+		  const_cast<NetScope*>(found.scope)->get_parameter(des, key,
+							       elem_type));
+      };
+      ivl_type_t first_type = nullptr;
+      if (!element(low, first_type))
+	return fail("Rand-indexed parameter member has no integral constant element.");
+      // The expanded element parameters can have a flat inferred type;
+      // symbol_search retains the declared packed-struct element type.
+      const netstruct_t*st = dynamic_cast<const netstruct_t*>(found.type);
+      if (!st || !st->packed())
+	return fail("Rand-indexed parameter member requires a packed struct element.");
+      unsigned long member_off = 0;
+      const netstruct_t::member_t*member =
+	st->packed_member(field.name, member_off);
+      if (!member)
+	return fail("Struct parameter `" + string(root.name.str())
+		    + "' has no member `" + string(field.name.str()) + "'.");
+      ivl_type_t member_type = member->net_type;
+      long member_width = member_type ? member_type->packed_width() : 0;
+      if (member_width <= 0 || member_width > 64
+	  || (member_type->base_type() != IVL_VT_BOOL
+	      && member_type->base_type() != IVL_VT_LOGIC))
+	return fail("Rand-indexed parameter member requires a 1..64-bit integral field.");
+      bool two_state = member_type->base_type() == IVL_VT_BOOL;
+      string result = "(psel " + to_string(member_width)
+	  + (member_type->get_signed() ? ":s" : "")
+	  + " c:" + (two_state ? "1" : "0") + " "
+	  + to_string(low) + ":" + to_string(span) + " " + index_ir;
+      for (unsigned long pos = 0; pos < span; pos += 1) {
+	    ivl_type_t elem_type = nullptr;
+	    const NetEConst*value = element(low + (long)pos, elem_type);
+	    if (!value)
+		  return fail("Rand-indexed parameter member has incompatible table elements.");
+	    const verinum&bits = value->value();
+	    if (member_off > bits.len()
+		|| (unsigned long)member_width > bits.len() - member_off)
+		  return fail("Rand-indexed parameter member exceeds its packed element width.");
+	    uint64_t word = 0;
+	    bool defined = true;
+	    for (long bit = 0; bit < member_width; bit += 1) {
+		  verinum::V value_bit = bits.get(member_off + bit);
+		  if (value_bit == verinum::V1) word |= UINT64_C(1) << bit;
+		  else if (value_bit != verinum::V0) defined = false;
+	    }
+	    if (!defined && two_state)
+		  return fail("Two-state parameter member contains X/Z bits.");
+	    result += defined
+		  ? " c:" + to_string(word) + ":" + to_string(member_width)
+		  : " x";
+      }
+      return result + ")";
+}
+
 static string constraint_constant_ir_(const PEIdent*id,
 				       const NetScope*scope,
 				       const netclass_t*cls,
@@ -27293,8 +27473,36 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    // prefixes and accidentally binding an unrelated lexical constant.
 	    symbol_search_results found;
 	    if (symbol_search(id, des, const_cast<NetScope*>(scope), path,
-			      id->lexical_pos(), &found) && found.path_tail.empty())
-		  return const_ir(found.par_val);
+			      id->lexical_pos(), &found)) {
+		  if (found.path_tail.empty()) return const_ir(found.par_val);
+		  if (!found.par_val) return "";
+		  // A selected parameter member can be folded by ordinary expression
+		  // elaboration, but only after constraint lookup proves every index
+		  // constant. A rand index must not be frozen before solving.
+		  for (const name_component_t&component : path.name)
+		    for (const index_component_t&select : component.index) {
+			  if (select.sel != index_component_t::SEL_BIT
+			      || !select.msb || select.lsb) return "";
+			  string ir = pexpr_to_constraint_ir(
+				select.msb, cls, nullptr, scope);
+			  if (!constraint_is_narrow_const_ir_(ir)) return "";
+		    }
+		  unique_ptr<NetExpr> member(elab_and_eval(
+			des, const_cast<NetScope*>(scope),
+			const_cast<PEIdent*>(id), -1, true));
+		  if (const NetEConst*val =
+			dynamic_cast<const NetEConst*>(member.get())) {
+		    for (unsigned bit = 64 ; bit < val->value().len() ; bit += 1)
+		      if (val->value().get(bit) != verinum::V0) {
+			cerr << id->get_fileline() << ": error: Selected parameter "
+			     << "member has nonzero or unknown bits above bit 63, "
+			     << "which the constraint IR cannot represent." << endl;
+			des->errors += 1;
+			return "";
+		      }
+		  }
+		  return const_ir(member.get());
+	    }
 	    return "";
       }
       if (path.package)
@@ -29541,6 +29749,12 @@ static bool constraint_parse_const_ir_(const string&ir,
       return *end == 0;
 }
 
+static bool constraint_is_narrow_const_ir_(const string&ir)
+{
+      constraint_const_ir_t value;
+      return constraint_parse_const_ir_(ir, value) && value.width <= 64;
+}
+
 static string constraint_format_const_ir_(constraint_const_ir_t value)
 {
       if (value.width < 64)
@@ -31616,9 +31830,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	       * site (or rejected as currently unrepresentable in a declaration
 	       * constraint). Randc legality is diagnosed by the source prewalk. */
 	    if (id->path().package || id->has_scoped_type_prefix()) {
-		  bool direct_package_value = id->path().package
-			&& id->path().name.size() == 1;
-		  if (!id->path().package && id->path().name.size() == 2
+		  bool direct_package_value = id->path().package;
+		  if (!id->path().package && id->path().name.size() >= 2
 		      && constraint_ir_design_ctx_
 		      && constraint_ir_design_ctx_->find_package(
 			   id->path().name.front().name))
@@ -31627,6 +31840,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string constant = constraint_constant_ir_(id, scope, cls);
 			if (!constant.empty())
 			      return constant;
+			if (!value_slots) {
+			      string selected = constraint_parameter_member_select_ir_(
+				id, scope, cls);
+			      if (!selected.empty()) return selected;
+			}
 		  }
 		  if (value_slots)
 			return scope_randomize_value_slot_(
@@ -31638,6 +31856,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    pform_name_t::const_iterator target_component;
 	    bool target_path = constraint_target_path_begin_(
 		  id->path(), cls, target_owner, target_component);
+	    if (target_path && value_slots
+		&& !constraint_class_object_root_.nil()
+		&& id->path().name.front().name == constraint_class_object_root_
+		&& target_component != id->path().name.end()
+		&& target_owner
+		&& target_owner->property_idx_from_name(
+		     target_component->name) < 0) {
+		  cerr << id->get_fileline() << ": error: Inline constraint member `"
+		       << target_component->name
+		       << "' is not a property of the randomize() receiver."
+		       << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
 
 	      // A genuinely caller-qualified expression such as local::rw.addr
 	      // or top.rw.addr is captured at the call site. An unqualified root
@@ -32119,6 +32352,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string state_ir = constraint_class_state_path_ir_(names, cls);
 			if (!state_ir.empty()) return state_ir;
 		  }
+	    }
+
+	      // Resolve a proven lexical parameter root before considering the
+	      // final component as a class property. PartInfo[0].offset must not
+	      // bind an unrelated property named offset, even if folding fails.
+	    if (!target_path && !value_slots && id->path().size() > 1
+		&& constraint_ir_design_ctx_ && scope) {
+		  symbol_search_results found;
+		  if (symbol_search(id, constraint_ir_design_ctx_,
+			const_cast<NetScope*>(scope), id->path(),
+			id->lexical_pos(), &found) && found.par_val) {
+		      string constant = constraint_constant_ir_(id, scope, cls);
+		      if (!constant.empty()) return constant;
+		      return constraint_parameter_member_select_ir_(id, scope, cls);
+		    }
 	    }
 
 	    int idx = cls ? cls->property_idx_from_name(name) : -1;

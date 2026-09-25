@@ -1,0 +1,3 @@
+./ivltests/sv_vif_nested_clocking_event_hidden_child_fail.v:19: error: cannot access nested interface 'child' through modport 'monitor_mp' of interface 'nested_clocking_hidden_parent_if' — it is not listed in that modport (IEEE 1800-2017/2023 25.5).
+./ivltests/sv_vif_nested_clocking_event_hidden_child_fail.v:19: Unable to elaborate statement in task $unit.nested_clocking_hidden_cfg.watch_child at ./ivltests/sv_vif_nested_clocking_event_hidden_child_fail.v:18.
+1 error(s) during elaboration.

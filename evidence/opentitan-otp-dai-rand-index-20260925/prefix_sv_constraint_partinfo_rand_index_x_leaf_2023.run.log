@@ -1,0 +1,3 @@
+exit=1
+FATAL: ./ivltests/sv_constraint_partinfo_rand_index_x_leaf.v:27: defined secret leaf lost guard
+       Time: 0  Scope: test

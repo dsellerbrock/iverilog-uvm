@@ -1,0 +1,3 @@
+ivltests/sv_vif_nested_clocking_event_missing_fail.v:17: error: nested interface 'child' has no clocking block or member 'no_such_cb'.
+ivltests/sv_vif_nested_clocking_event_missing_fail.v:17: Unable to elaborate statement in task $unit.nested_clocking_missing_cfg.watch_child at ivltests/sv_vif_nested_clocking_event_missing_fail.v:16.
+1 error(s) during elaboration.

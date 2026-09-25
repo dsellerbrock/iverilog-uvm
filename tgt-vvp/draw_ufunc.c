@@ -1031,8 +1031,19 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
 		  draw_copy_out_load(port, "vec4");
-		  fprintf(vvp_out, "    %%store/prop/v %d, %u;\n", pidx,
-		          ivl_signal_width(port));
+		  {
+			ivl_type_t actual_type = property_expr_value_type_(actual);
+			unsigned actual_width = actual_type
+			      ? ivl_type_packed_width(actual_type)
+			      : ivl_signal_width(port);
+			if (actual_width != ivl_signal_width(port))
+			      fprintf(vvp_out, "    %%pad/%s %u;\n",
+				      ivl_signal_signed(port) ? "s" : "u", actual_width);
+			if (actual_type && ivl_type_base(actual_type) == IVL_VT_BOOL)
+			      fprintf(vvp_out, "    %%cast2;\n");
+			fprintf(vvp_out, "    %%store/prop/v %d, %u;\n", pidx,
+			      actual_width);
+		  }
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
 		case IVL_VT_REAL:
@@ -1088,6 +1099,8 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 				    ? "%pad/s" : "%pad/u";
 			      fprintf(vvp_out, "    %s %u;\n", pad, sig_wid);
 			}
+			if (udtype == IVL_VT_BOOL)
+			      fprintf(vvp_out, "    %%cast2;\n");
 			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
 				under_sig, sig_wid);
 			return;
@@ -1163,6 +1176,12 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
 		  draw_copy_out_load(port, "vec4");
+		  if (ivl_signal_width(sig) != ivl_signal_width(port))
+			fprintf(vvp_out, "    %%pad/%s %u;\n",
+				ivl_signal_signed(port) ? "s" : "u",
+				ivl_signal_width(sig));
+		  if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
 		  fprintf(vvp_out, "    %%store/vec4a v%p, %u, 0;\n", sig, ix);
 		  break;
 		case IVL_VT_REAL:
@@ -1199,6 +1218,12 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    draw_copy_out_load(port, "vec4");
+	    if (ivl_signal_width(sig) != ivl_signal_width(port))
+		  fprintf(vvp_out, "    %%pad/%s %u;\n",
+			  ivl_signal_signed(port) ? "s" : "u",
+			  ivl_signal_width(sig));
+	    if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
 	    if (signal_is_return_value(sig))
 		  fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n",
 			  ivl_signal_width(sig));

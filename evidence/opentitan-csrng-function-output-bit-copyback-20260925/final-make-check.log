@@ -1,0 +1,33 @@
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver check &&  true
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+./vvp -M../vpi /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-bit-copyback-20260925/vvp/examples/hello.vvp | grep 'Hello, World.'
+Hello, World.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+test -r check.conf || cp /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-bit-copyback-20260925/check.conf .
+driver/iverilog -B. -BMvpi -BPivlpp -tcheck -ocheck.vvp /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-bit-copyback-20260925/examples/hello.vl
+vvp/vvp -M- -M./vpi ./check.vvp | grep 'Hello, World'
+Hello, World

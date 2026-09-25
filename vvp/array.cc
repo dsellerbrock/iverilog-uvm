@@ -1388,11 +1388,62 @@ void __vpiArray::hist_snapshot_word_(unsigned address)
 /* The Preponed-region value of one word: if it changed during the current
    time step, the value it had when the step started; otherwise the current
    value. */
+void __vpiArray::enable_sample_hist()
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+	    owner->enable_sample_hist();
+	    return;
+      }
+      if (hist_enabled_) return;
+      hist_enabled_ = true;
+      if (!nets) return;
+
+      // Net-backed array words change through their signals, bypassing
+      // set_word(). Enable the signals' existing first-write history.
+      for (unsigned idx = 0; idx < get_size(); idx += 1) {
+	    __vpiSignal*word = dynamic_cast<__vpiSignal*>(nets[idx]);
+	    if (!word) continue;
+	    if (vvp_wire_vec4*sig =
+		  dynamic_cast<vvp_wire_vec4*>(word->node->fil))
+		  sig->enable_sample_hist();
+	    else if (vvp_wire_vec8*sig =
+		       dynamic_cast<vvp_wire_vec8*>(word->node->fil))
+		  sig->enable_sample_hist();
+      }
+}
+
 vvp_vector4_t __vpiArray::get_word_preponed(unsigned address)
 {
       __vpiArray*owner = canonical_value_owner_();
       if (owner != this)
             return owner->get_word_preponed(address);
+
+      if (nets && address < get_size()) {
+	    __vpiSignal*word = dynamic_cast<__vpiSignal*>(nets[address]);
+	    if (word) {
+		  vvp_vector4_t val;
+		  vvp_wire_base*wire =
+			dynamic_cast<vvp_wire_base*>(word->node->fil);
+		  if (vvp_wire_vec4*sig =
+			dynamic_cast<vvp_wire_vec4*>(wire))
+			sig->vec4_preponed_value(val);
+		  else if (vvp_wire_vec8*sig =
+			       dynamic_cast<vvp_wire_vec8*>(wire))
+			sig->vec4_preponed_value(val);
+		  else
+			return get_word(address);
+
+		  // Preserve a force held across this slot: its visible bits
+		  // override the history of the underlying driver.
+		  // ponytail: a force that changes within this slot needs
+		  // force-state history; extend the wire history if needed.
+		  for (unsigned bit = 0; bit < val.size(); bit += 1)
+			if (wire->is_forced(bit))
+			      val.set_bit(bit, wire->value(bit));
+		  return val;
+	    }
+      }
 
       if (hist_enabled_ && hist_valid_ && hist_time_ == schedule_simtime()) {
 	    std::map<unsigned, vvp_vector4_t>::const_iterator it =

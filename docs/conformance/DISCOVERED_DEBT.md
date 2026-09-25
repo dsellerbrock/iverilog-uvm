@@ -3438,3 +3438,53 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Paired 2017/2023 RED and bytecode probes](../../evidence/opentitan-otp-dd056-factory-registry-20260924/README.md) and [private pinned OTP replay](../../evidence/opentitan-joint-ordered-guard-candidate-20260924/otp-private-runtime.log).
 - **Reproducer status:** paired named/positional equal-value specialization casts fail in both editions; positional-only controls pass and unequal-value casts reject as expected.
 - **Triage status:** separate compiler canonicalization blocker, outside the selected vvp/vvp_z3.cc solver patch. No pinned-source or compiler fix has been applied.
+
+### DD-057 — scalar function output to associative class-property element is skipped
+
+- **Discovered while working:** OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
+- **Observation:** A function output `logic[1023:0]` actual `holder.entries["k"]` where `entries` is a class associative array of `bit[31:0]` compiles with `Skipping indexed property copy-out for data`; the element remains zero. This differs from the selected whole scalar `holder.value` copy-out.
+- **File/function:** `tgt-vvp/draw_ufunc.c`, indexed `IVL_EX_PROPERTY` function copy-out branch.
+- **Possible clause:** IEEE 1800-2017/2023 §13.5; indexed class-property lvalue typing also needs classification.
+- **Evidence:** [Diagnostic source and log](../../evidence/opentitan-csrng-function-output-bit-copyback-20260925/output-shapes-assoc.runtime.log) with separate compile log in the same directory.
+- **Reproducer status:** confirmed in a diagnostic copy; not a qualifying released DV run.
+- **Triage status:** untriaged, outside this blocker and its bit conversion fix.
+
+### DD-058 — mismatched two-state/four-state ref actual is accepted
+
+- **Discovered while working:** OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
+- **Observation:** Both strict editions accept a `ref logic[31:0]` formal bound to a `bit[31:0]` actual, even though a `ref` argument must have an equivalent type; this is distinct from an `output` argument's assignment conversion.
+- **File/function:** function ref-argument validation in elaboration; exact source symbol not traced.
+- **Clause:** IEEE 1800-2017/2023 §§13.5.2 and 6.22.2(c) require equivalent `ref` types, including the same two-state or four-state classification.
+- **Evidence:** [Paired diagnostic source and compile logs](../../evidence/opentitan-csrng-function-output-bit-copyback-20260925/ref-mismatch.sv).
+- **Reproducer status:** confirmed acceptance in both editions; no runtime semantics assessed.
+- **Triage status:** untriaged, outside this output copy-back blocker.
+
+### DD-059 — inline constraints capture an aliased active random variable as caller state
+
+- **Discovered while working:** OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT.
+- **Observation:** With `owner.alt` and `owner.req` pointing to the same item, `alt.randomize() with { req.clen == 12; }` returns zero and leaves `clen=0` in both strict editions. The direct `req.randomize() with { req.clen == 12; }` now succeeds, while a distinct object reference remains fixed caller state. A spelling-only receiver-root mapping cannot distinguish the two aliases.
+- **File/function:** `elab_expr.cc` receiver-root extraction and `elaborate.cc` inline constraint caller-value capture; a general fix needs active-object identity at solve time rather than lexical root matching alone.
+- **Clause:** IEEE 1800-2017 §18.5.9 and 2023 §18.5.8 select active random variables from the invoked object and treat other references as state; §18.7 governs inline name lookup.
+- **Evidence:** [Paired strict alias reducer and logs](../../evidence/opentitan-csrng-inline-receiver-20260925/alias_identity.sv) with `boundary_results.json` in the same directory.
+- **Reproducer status:** paired 2017/2023 compile exit zero; runtime exit one at the same-object alias after bare and direct-receiver controls pass.
+- **Triage status:** separate identity-aware blocker; the current PR qualifies only the stable direct receiver spelling and must not claim general inline alias conformance.
+
+### DD-060 — explicit `this` inline target lookup accepts a caller-only member
+
+- **Discovered while working:** OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT.
+- **Observation:** `this.no_such_member` in a target object's inline constraint is accepted when the caller class declares `no_such_member` but the randomized class does not. Both strict editions compile it without an error, although explicit `this` must bind in the randomized class.
+- **File/function:** `elaborate.cc` inline target-path lookup and expression elaboration; exact first fallback remains to be traced.
+- **Clause:** IEEE 1800-2017/2023 §18.7 requires `this`-qualified inline names to bind to the randomized object's class and makes an unresolved target name an error.
+- **Evidence:** [Paired strict reducer and compile logs](../../evidence/opentitan-csrng-inline-receiver-20260925/explicit_this_caller_shadow_illegal.sv) with `boundary_results.json` in the same directory.
+- **Reproducer status:** paired 2017/2023 compile exit zero; runtime not assessed.
+- **Triage status:** separate lookup blocker; the current PR's negative check covers only an absent member through the direct receiver spelling.
+
+### DD-061 — constant out-of-range parameter-array read may lose two-state default
+
+- **Discovered while working:** OT-OTP-DAI-RAND-INDEXED-PARTINFO-GUARD.
+- **Observation:** Source review found the pre-existing constant-index parameter-array elaboration path constructs an X value for an invalid selection without checking whether the selected integral type is two-state. This PR's solver-dependent selection handles the declared two-state/four-state distinction; the separate constant-folding path remains unqualified.
+- **File/function:** `elab_expr.cc` constant unpacked parameter-array selection; exact call chain needs triage.
+- **Clause:** IEEE 1800-2017 §7.4.6 and 2023 §7.4.5, Table 7-1 (invalid-index integral read default).
+- **Evidence:** Read-only source review during the paired dynamic-index reducer design; no constant-index runtime result is claimed.
+- **Reproducer status:** sketched; paired constant-index reducer still needed.
+- **Triage status:** untriaged, outside this solver-dependent selection blocker.

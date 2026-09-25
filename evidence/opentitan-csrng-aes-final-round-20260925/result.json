@@ -1,0 +1,124 @@
+{
+  "blocker": "OT-CSRNG-AES-FINAL-ROUND-STATE-ASSERTION",
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/367",
+  "base_commit": "3bc99d9310ec383011f761f6878c123a80dc0cc2",
+  "source_fix_commit": "8dc7bd712233d49b08ca4077e9015a650af9062d",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_clean": true,
+  "private_tool_sha256": {
+    "iverilog": "4e98b3a27b646486860199f176a71fa732c192b5abb6ca99aa48518b9ee2a0ca",
+    "ivl": "5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d",
+    "vvp": "e9c5a713c88c040fe4e941bd75a0f0e5c40995b273fcd17d1227325cdc4a038b",
+    "uvm_dpi": "12e5a02ec5ca8d4fd221569cb5f3dd591758f74211298749827316a35b9f598c"
+  },
+  "strict_ieee_2017_2023_net_array_preponed": {
+    "baseline_focus": {
+      "legacy_passed": 0,
+      "legacy_total": 1,
+      "json_passed": 0,
+      "json_total": 2
+    },
+    "final_focus": {
+      "legacy_passed": 1,
+      "legacy_total": 1,
+      "json_passed": 2,
+      "json_total": 2
+    },
+    "strength_resolved_standalone": {
+      "baseline_passed": 0,
+      "baseline_total": 2,
+      "final_passed": 2,
+      "final_total": 2,
+      "two_net8_array_words": true
+    },
+    "neighbor_preponed": {
+      "legacy_passed": 1,
+      "legacy_total": 1,
+      "json_passed": 1,
+      "json_total": 1
+    },
+    "controls": [
+      "AES-like positive state update and whole-array $past",
+      "deliberately invalid state update",
+      "independent scalar and procedural/NBA oracles",
+      "second unpacked-array word",
+      "held force over an underlying driver update",
+      "two strength-resolved net-array words"
+    ],
+    "unqualified": [
+      "other array kinds",
+      "force overlay transitions within the sampled slot"
+    ]
+  },
+  "promotion_gates": {
+    "make_check_exit": 0,
+    "legacy": {
+      "exit": 0,
+      "total": 6618,
+      "passed": 6613,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "json": {
+      "exit": 0,
+      "ran": 3658,
+      "failed": 0,
+      "initial_missing_optional_fpga_target_failures": 2,
+      "fpga_controls_after_private_install_passed": 2
+    },
+    "negative": {
+      "passed": 155,
+      "failed": 0
+    },
+    "sva_nfa": {
+      "passed": 62,
+      "failed": 0
+    },
+    "vpi_with_pli1": {
+      "passed": 140,
+      "failed": 0
+    },
+    "force_array_runtime": {
+      "passed": 2,
+      "failed": 0
+    },
+    "real_dpi_uvm": {
+      "exit": 0,
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "real_dpi_loaded": true,
+      "language_mode": "2012"
+    }
+  },
+  "released_csrng_nonstandard_compatibility": {
+    "flags": [
+      "-g2017",
+      "-gcommercial-unsafe"
+    ],
+    "pinned_aes_source_sha256": "febc6a30c5ea0d1dddbd2971fc7c7299a4365c94b814fbbc9e71d4979c31a37f",
+    "tb_overlay_sha256": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+    "filelist_sha256": "5801cea09e222556b2c1e6c202b2ce03c84b0398e2b3a06ee09505ed1971df7b",
+    "compiled_program_sha256": "86014298265750e11c85bd6c2a04382bac069929e943e9469b90f4610884a411",
+    "native_aes_dpi_sha256": "6aa61f92a4f1255f32d46b28569bf0bed82dbdbe5ff8ffbaa10bfad33bc2d997",
+    "compile_exit": 0,
+    "native_aes_dpi_build_exit": 0,
+    "vvp_exit": 0,
+    "runtime_completed": true,
+    "sim_time_ps": 77830086,
+    "sequence_finished_ps": 72830086,
+    "scoreboard_sw_app2_instantiate_ps": 15371293,
+    "scoreboard_sw_app2_generate_ps": 24704701,
+    "scoreboard_sw_app2_uninstantiate_ps": 46663210,
+    "uvm_error_count": 0,
+    "uvm_fatal_count": 0,
+    "assertion_error_count": 0,
+    "failed_checks_marker": false,
+    "intended_pass_marker": true,
+    "meaningful_test_traffic_for_pass": true,
+    "passed": 1,
+    "attempted": 1,
+    "ignored_constraint_separate": "int_state_read_enable_c"
+  }
+}

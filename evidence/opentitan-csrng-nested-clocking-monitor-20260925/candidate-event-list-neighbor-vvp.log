@@ -1,0 +1,9 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-csrng-clockmon-build-20260925/event-list-neighbor-vvp.list
+----------------------------------------------------------------------------
+    sv_class_event_list_invalid_member_2017: Passed - CE.
+    sv_class_event_list_invalid_member_2023: Passed - CE.
+     sv_event_list_prepare_single_diag_fail: Passed - CE.
+sv_event_list_prepare_single_diag_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 4, Failed 0.

@@ -1,0 +1,19 @@
+{
+  "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-otp-dai-rand-index-20260925/local-install/bin/vvp",
+    "-d",
+    "/tmp/ot-otp-class-identity-20260924/otp_final_native_dpi.dylib",
+    "-n",
+    "/tmp/ot-otp-rand-index-current-20260925/otp_exact.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_HIGH",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=otp_ctrl_base_test",
+    "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+  ],
+  "env_override": {
+    "IVL_SVA_NFA": "1"
+  }
+}

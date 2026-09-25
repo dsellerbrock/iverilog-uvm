@@ -1,0 +1,19 @@
+PASS: all 66 covergroup API functions exported
+PASS copy-out context malformed-bytecode checks (6/6)
+indexed dynamic-array slice: PASS 16/16
+=== ivtest sweep (vendored suite) ===
+============================================================================
+Test results:
+  Total=6601, Passed=6596, Failed=0, Not Implemented=2, Expected Fail=3
+ivtest name-diff gate: clean (       0 expected failures, 0 unexplained)
+
+=== stub type parameters ===
+
+=== bundled VPI suite ===
+Test results: Total=131, Passed=131, Failed=0, Not Implemented=0
+
+=== negative suite ===
+Negative tests: 155 passed, 0 failed
+
+=== VVP runtime invariants ===
+PASS state foreach runtime invariants (15/15)
