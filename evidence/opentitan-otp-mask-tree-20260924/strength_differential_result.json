@@ -1,0 +1,53 @@
+{
+  "source_sha256": "014daf26b21483d0478d2ea9efaf086cf432a470fae8630726409e8b056c0af8",
+  "cases": [
+    {
+      "name": "installed-pre-fix",
+      "compile_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "sv_packed_continuous_bit_strength",
+        "-o",
+        "/tmp/ot-otp-mask-tree-strength-20260924/installed-pre-fix.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_packed_continuous_bit_strength.v"
+      ],
+      "compile_exit": 0,
+      "image_sha256": "79e1945b6281999a9e0aed3ff51410d1a1176959a2aa38c50ac83201e878664f",
+      "runtime_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-strength-20260924/installed-pre-fix.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_output": "PASSED"
+    },
+    {
+      "name": "corrected-private",
+      "compile_argv": [
+        "/tmp/ot-joint-private-tools-20260924/iverilog",
+        "-g2017",
+        "-s",
+        "sv_packed_continuous_bit_strength",
+        "-o",
+        "/tmp/ot-otp-mask-tree-strength-20260924/corrected-private.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_packed_continuous_bit_strength.v"
+      ],
+      "compile_exit": 0,
+      "image_sha256": "85f567796e1097005a52c1ecb23c6d3539b522255c586c1c807833cafa2eb921",
+      "runtime_argv": [
+        "/tmp/ot-joint-private-tools-20260924/vvp",
+        "-n",
+        "/tmp/ot-otp-mask-tree-strength-20260924/corrected-private.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_output": "PASSED"
+    }
+  ],
+  "intermediate": {
+    "image_sha256": "5662d044a2e48128fa36c4f31f56f4c9ec7436e9b1f337a6fc1626d528f20604",
+    "compiler_sha256_from_build_record": "48b7c38933877ca7c5d63d31e8fc0d76a6da0918d7f3df44b62f0e36fd60c0d7",
+    "runtime_exit": 1,
+    "runtime_output": "FATAL: ./ivltests/sv_packed_continuous_bit_strength.v:14: weak driver was strengthened\n       Time: 1  Scope: sv_packed_continuous_bit_strength"
+  }
+}

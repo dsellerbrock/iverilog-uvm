@@ -1,0 +1,50 @@
+[
+  {
+    "edition": "2017",
+    "case": "dag",
+    "compile_exit": 0,
+    "runtime_exit": 0,
+    "gold_match": true,
+    "image_sha256": "557dc406bd6db07aa984262b2a8c10d69d272db22f3e07c291dcf26e8f5a25cd"
+  },
+  {
+    "edition": "2017",
+    "case": "strength",
+    "compile_exit": 0,
+    "runtime_exit": 0,
+    "gold_match": true,
+    "image_sha256": "abdcb992eac9d0a9b4ce73e6ebb736a72106f2f44b15c86c4d65df4c482450e8"
+  },
+  {
+    "edition": "2017",
+    "case": "overlap_fail",
+    "compile_exit": 1,
+    "runtime_exit": null,
+    "gold_match": true,
+    "image_sha256": null
+  },
+  {
+    "edition": "2023",
+    "case": "dag",
+    "compile_exit": 0,
+    "runtime_exit": 0,
+    "gold_match": true,
+    "image_sha256": "fcacae90a46166d9fff26b33a38dddbf16edc53dc09cbde0f07a453dc8b750bf"
+  },
+  {
+    "edition": "2023",
+    "case": "strength",
+    "compile_exit": 0,
+    "runtime_exit": 0,
+    "gold_match": true,
+    "image_sha256": "811e8561e47ffbb919a8268dc288d5bee3edffb28d2b760dc7ae6d34eb570a7d"
+  },
+  {
+    "edition": "2023",
+    "case": "overlap_fail",
+    "compile_exit": 1,
+    "runtime_exit": null,
+    "gold_match": true,
+    "image_sha256": null
+  }
+]

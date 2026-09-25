@@ -1,0 +1,2 @@
+FATAL: ./ivltests/sv_packed_continuous_bit_strength.v:14: weak driver was strengthened
+       Time: 1  Scope: sv_packed_continuous_bit_strength

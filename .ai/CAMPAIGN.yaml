@@ -77,19 +77,19 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-OTP-PACKED-MASK-TREE-CONTINUOUS-DRIVER
-  phase: ROOT_CAUSED_CANDIDATE_PENDING_PRIVATE_BUILD
-  owner: One delegated implementation lane may edit only the premature packed-vector selected continuous-driver collapse in elab_net.cc and its now-unused netmisc.cc/netmisc.h implementation, plus dedicated paired tests. Coordinator owns selection, private builds, required gates, pinned OTP replay, evidence, docs, review, and PR.
+  phase: FOCUS_PASS_BROAD_AND_RELEASE_REPLAY_RUNNING
+  owner: One delegated implementation lane may edit only the premature packed-vector selected continuous-driver collapse in elab_net.cc/netmisc.cc/netmisc.h, the proven full-coverage strength choice in cprop.cc, and dedicated paired tests. Coordinator owns private builds, required gates, pinned OTP replay, evidence, docs, review, and PR.
   reproducer: evidence/opentitan-otp-mask-tree-20260924/three.sv is a strict 2017/2023 legal disjoint packed-bit DAG that compiles but evaluates to zzz rather than 100; scalar controls pass and overlapping-driver controls reject. Pinned OTP u_otp_arb fails GrantKnown_A at 1559061 ps with mask_tree all Z; 0/1 released DV.
   expected: Selected continuous assignments to different packed bits preserve their acyclic dependencies and four-state values. Real same-bit variable driver overlap still rejects; true cycles retain genuine four-state/diagnostic behavior. Keep pinned source and all assertions/checks intact.
-  root_cause_hypothesis: Pre-fix netlist stage probe proves the eager collapse_partselect_pv_to_concat in netmisc.cc, called from PEIdent::elaborate_lnet_common_ before all selected RHS edges exist, creates false whole-vector feedback. The later cprop blend has the complete graph and a combinational-dependency guard.
-  source_scope: Remove only the premature call and now-unused function/declaration in elab_net.cc, netmisc.cc, and netmisc.h, plus dedicated paired 2017/2023 legal/illegal/four-state/boundary/reversed-order tests and manifests. No unrelated source, vvp/vvp_z3.cc, installed Caliptra tool, pinned applications, Caliptra code/evidence, Verilator/GPU, or CI polling.
-  validation: Pre-fix private ivl SHA-256 57eec3fc and VVP bbe72e9d give legal RED 2/2 wrong-runtime, scalar control 2/2 pass, and illegal overlap 2/2 correct rejection. Diagnostic no-collapse preserves PV nodes and passes tree=100 while default NetConcat8 fails tree=zzz. Pinned OTP remains 0/1 released DV; copied-image probe isolates u_otp_arb req_i known, ready_i=1, mask_tree 31 Z, gnt_o partly X. PR360 class-identity gates pass separately. See evidence/opentitan-otp-mask-tree-20260924/stage_probe_result.json.
-  next: Build the source candidate privately, run paired focus and required broad gates, replay pinned OTP, and publish one separate PR. CSRNG nested-VIF remains parked at 0/1 released DV.
+  root_cause_hypothesis: Eager collapse before all RHS edges creates false whole-vector feedback. Deleting it fixes the DAG but lets later cprop create a nontransparent full-coverage concat that drops weak-driver strength through a tran. The old eager helper used transparent NetConcat8; use the existing late dependency guard and retain transparent behavior only for fully covered eligible blends.
+  source_scope: Remove the premature call/helper in elab_net.cc/netmisc.cc/netmisc.h and correct only the full-coverage transparent-concat choice in cprop.cc, plus paired 2017/2023 legal/illegal/strength-tran/four-state/boundary/reversed-order tests and manifests. The cprop expansion is justified by a reproduced strength regression. No unrelated source, vvp/vvp_z3.cc, installed Caliptra tool, pinned applications, Caliptra code/evidence, Verilator/GPU, or CI polling.
+  validation: Corrected private ivl 5164a40b and VVP bbe72e9d pass paired DAG/strength/overlap focus 6/6 and four neighboring runs; pre-fix and corrected weak/tran control pass, intermediate nontransparent blend fails. Final pinned OTP compiles with same filelist and native DPI exports; completed released verdict remains pending. First candidate timed out at 54.99 us with no pass marker, so OTP stays 0/1 released DV. Independent review has no remaining source/test finding. See evidence/opentitan-otp-mask-tree-20260924/README.md.
+  next: Finish running broad legacy/JSON/real-DPI gates and completed pinned OTP replay, then publish one separate PR. CSRNG nested-VIF remains parked at 0/1 released DV.
 published_ot_class_identity:
   id: OT-OTP-CLASS-SPECIALIZATION-IDENTITY
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/360
   source_commit: bb92498ad
-  state: Paired focus and broad legacy/JSON/real-DPI UVM gates passed; pinned OTP clears DCLPSQ and remains 0/1 released DV at the separate GrantKnown_A failure.
+  state: Merged into main at e8ba46282396f75ebfe878a3f87eb17db551c0ac. Paired focus and broad legacy/JSON/real-DPI UVM gates passed; pinned OTP cleared DCLPSQ and remained 0/1 released DV at the separate GrantKnown_A failure.
 completed_ot_joint_guard:
   id: OT-CSRNG-CFG-JOINT-DIST
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/358

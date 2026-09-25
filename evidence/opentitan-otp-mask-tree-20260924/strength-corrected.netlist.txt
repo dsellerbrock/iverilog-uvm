@@ -1,0 +1,77 @@
+DESIGN TIME PRECISION: 10e0
+PACKAGES:
+$unit package $unit 0 children, 0 classes
+    timescale = 10e0 / 10e0
+    enum sets {
+    }
+    enum names {
+    }
+SCOPES:
+sv_packed_continuous_bit_strength module <sv_packed_continuous_bit_strength> instance 0 children, 0 classes
+    in compilation unit $unit
+    timescale = 10e0 / 10e0
+    enum sets {
+    }
+    enum names {
+    }
+    wire /*implicit*/: _ivl_2 unpacked dims=0 pin_count=1 (local) netvector_t:bool unsigned[0:0] (eref=0, lref=0) scope=sv_packed_continuous_bit_strength #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x100ff7300 sv_packed_continuous_bit_strength._ivl_2
+    wire /*implicit*/: _ivl_6 unpacked dims=0 pin_count=1 (local) netvector_t:bool unsigned[0:0] (eref=0, lref=0) scope=sv_packed_continuous_bit_strength #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x100ff7120 sv_packed_continuous_bit_strength._ivl_6
+    wire: _ivl_8 unpacked dims=0 pin_count=1 (local) netvector_t:logic unsigned[0:0] (eref=0, lref=0) scope=sv_packed_continuous_bit_strength #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x100ff7af0 sv_packed_continuous_bit_strength._ivl_8
+    wire: bus unpacked dims=0 pin_count=1 netvector_t:logic unsigned[1:0] (eref=4, lref=0) scope=sv_packed_continuous_bit_strength #(0,0,0) vector_width=2 pin_count=1
+        [0]: 0x100ff72a0 sv_packed_continuous_bit_strength.bus
+    wire: peer unpacked dims=0 pin_count=1 netvector_t:logic unsigned (eref=4, lref=0) scope=sv_packed_continuous_bit_strength #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x100ff7c60 sv_packed_continuous_bit_strength.peer
+    reg: strong_value unpacked dims=0 pin_count=1 netvector_t:logic unsigned (eref=1, lref=4) scope=sv_packed_continuous_bit_strength #(0,0,0) vector_width=1 pin_count=1
+        [0]: 0x100ff7f70 sv_packed_continuous_bit_strength.strong_value
+ELABORATED NODES:
+constant 1'd1: _ivl_3 #(.,.,.)
+    0 pin0 O (weak0 weak1): 0x100ff7300 sv_packed_continuous_bit_strength._ivl_2
+constant 1'd1: _ivl_7 #(.,.,.)
+    0 pin0 O (weak0 weak1): 0x100ff7120 sv_packed_continuous_bit_strength._ivl_6
+tran(VP) _ivl_9 island 0x100ff1510 width=2 part=1 offset=0 delay=(0,0,0)
+    0 pin0 p (strong0 strong1): 0x100ff72a0 sv_packed_continuous_bit_strength.bus
+    1 pin1 p (strong0 strong1): 0x100ff7af0 sv_packed_continuous_bit_strength._ivl_8
+tran t0<0.0> island 0x100ff1510 delay=(0,0,0)
+    0 pin0 p (strong0 strong1): 0x100ff7af0 sv_packed_continuous_bit_strength._ivl_8
+    1 pin1 p (strong0 strong1): 0x100ff7c60 sv_packed_continuous_bit_strength.peer
+NetBUFZ: _ivl_10 scope=sv_packed_continuous_bit_strength delay=(0,0,0) width=1 non-transparent
+    0 pin0 O (strong0 strong1): 0x100ff7c60 sv_packed_continuous_bit_strength.peer
+    1 pin1 I (strong0 strong1): 0x100ff7f70 sv_packed_continuous_bit_strength.strong_value
+NetConcat8: _ivl_12 #(0,0,0) scope=sv_packed_continuous_bit_strength width=2
+    0 pin0 O (strong0 strong1): 0x100ff72a0 sv_packed_continuous_bit_strength.bus
+    1 pin1 I (strong0 strong1): 0x100ff7300 sv_packed_continuous_bit_strength._ivl_2
+    2 pin2 I (strong0 strong1): 0x100ff7120 sv_packed_continuous_bit_strength._ivl_6
+ELABORATED BRANCHES:
+ELABORATED PROCESSES:
+initial  /* ./ivltests/sv_packed_continuous_bit_strength.v:10 in sv_packed_continuous_bit_strength */
+  begin
+      {strong_value} = 1'sd0;
+      #1
+        begin
+        end
+      if (((bus[1:0])!==(2'd2))||((peer)!==(1'd0)))
+          $fatal(32'sd1, "weak driver was strengthened");
+      {strong_value} = 1'sd-1;
+      #1
+        begin
+        end
+      if (((bus[1:0])!==(2'd3))||((peer)!==(1'd1)))
+          $fatal(32'sd1, "strong value changed incorrectly");
+      {strong_value} = 1'bx;
+      #1
+        begin
+        end
+      if (((bus[1:0])!==(2'b1x))||((peer)!==(1'bx)))
+          $fatal(32'sd1, "strong X changed incorrectly");
+      {strong_value} = 1'bz;
+      #1
+        begin
+        end
+      if (((bus[1:0])!==(2'd3))||((peer)!==(1'd1)))
+          $fatal(32'sd1, "weak driver did not resolve through tran");
+      $display("PASSED");
+      $finish(32'sd0);
+  end
