@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-otp-vif-fixed-input-20260924
-checkpoint_head: a42dadb86
+branch: agent/ot-otp-backdoor-path-overlay-20260924
+checkpoint_head: bfa722ad7
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -72,16 +72,20 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
+  id: OT-OTP-BACKDOOR-PATH-COMPAT
+  phase: OVERLAY_READY_NEXT_JOINT_DIST_RUNTIME_RED
+  owner: Coordinator owns a named hash-checked disposable OTP source overlay, paired macro controls, exact pinned replay, evidence, and review; no installed tool or pinned source edit while Caliptra VVP runs.
+  reproducer: evidence/opentitan-otp-vif-fixed-input-20260924/otp-smoke.log has a time-zero UVM_FATAL at mem_bkdr_util.sv:76. The RAM exists, but evidence/opentitan-otp-vif-fixed-input-20260924/otp-path-provenance.txt shows 18 leading spaces in the VVP path string from two indented continued MEM_* macros.
+  expected: Keep uvm_hdl_check_path fatal, $size/$bits, ECC parameter, and released OTP test/sequence checks intact; remove only path-string padding through a selected disposable-source copy and require meaningful checked runtime for a pass.
+  root_cause: Nested DV_STRINGIFY receives whitespace preserved from the two source macro continuation lines; VPI lookup uses exact first-scope matching. Paired 2017/2023 reducers reproduce the whitespace behavior; IEEE classification remains unassessed pending spec review.
+  source_scope: A named opt-in OTP release overlay and the smallest existing-runner selection needed for reproducibility, plus focused tests/evidence. No pinned checkout, shared installation, Caliptra runner, or checker edits.
+  validation: PR356 published at bfa722ad7; private ivl 302d7094 passes paired 22/22, registered JSON 13/13, legacy 4/4, VIF neighbors 44/44, negatives 155/155, REAL DPI UVM 358/358. Named OTP overlay output SHA a7bd1964 eliminates the RAM path fatal. Compile exits zero with no hard errors but 46 nonfatal sorry diagnostics; smoke is 0/1 DV at time zero on a separate unresolved cfg.randomize joint-dist guard (one UVM_FATAL, 512 follow-on assertions, no pass marker). Paired macro controls 6/6 and nested cfg reducers expose the next solver blocker; see evidence/opentitan-otp-backdoor-path-overlay-20260924/result.json. Pinned chip remains compile-blocked. Caliptra copied-source unsafe diagnostic remains one pass and five ERR_HWIF_IN failures of six completed selected cases, 46 unstarted, no full-52 aggregate; source-sampling VVP PID 32124 remains live.
+  next: Review and publish the focused OTP path overlay with exact failed-smoke evidence. Then select existing OT-CSRNG-CFG-JOINT-DIST for a sound variable-guard joint sampler fix shared by OTP and CSRNG. Do not poll CI or run GPU/Verilator.
+completed_ot_fixed_input:
   id: OT-OTP-VIF-FIXED-INPUT
-  phase: PR_PUBLISHED_PINNED_COMPILE_CLEAN_RUNTIME_BLOCKED
+  phase: PR_PUBLISHED_PINNED_COMPILE_EXIT0_RUNTIME_BLOCKED
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/356
-  owner: Delegated implementation agent owns implicated elaborate.cc code and dedicated paired 2017/2023 tests; coordinator owns shared lists, builds, private image, pinned release replay, broader gates, docs, and PR.
-  reproducer: evidence/opentitan-otp-vif-fixed-input-20260924/baseline-red.json has 20 paired cases on private Icarus a0233c24; legal class-held fixed-array input dispatch fails with sorry, while four direct/scalar controls pass runtime. Size/type/scalar negatives are masked by the same guard.
-  expected: Copy compatible one-dimensional packed-integral whole-array input actual into the selected interface task, preserving declared order and caller copy isolation; reject mismatches explicitly and keep output/inout/ref arrays and fixed-array functions unsupported.
-  root_cause: elaborate.cc interface_method_dynamic_signature_ rejects every fixed unpacked formal before candidate-specific argument elaboration and VVP input marshalling.
-  source_scope: Implicated elaborate.cc and dedicated paired tests only; no installed compiler, pinned source, Caliptra unsafe logic, or live runner edits.
-  validation: Final private ivl SHA-256 302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890 passes paired 22/22, dedicated gold 12/12, registered JSON 13/13, legacy 4/4, neighboring VIF JSON 44/44, negatives 155/155, and REAL DPI UVM 358/358 with zero failed/skipped. Pinned OTP compile exits 0 with zero errors/sorries/assertions. Its first released smoke is a DV failure at time zero on a padded OTP RAM hierarchy path with one UVM_FATAL, no pass marker/traffic, and 512 follow-on assertions. Pinned chip remains compile-blocked with 48 errors and a sensitivity assertion. Evidence is evidence/opentitan-otp-vif-fixed-input-20260924/result.json. Caliptra copied-source unsafe diagnostic remains one pass and five ERR_HWIF_IN failures of six completed selected cases, 46 unstarted, no full-52 aggregate; source-sampling companion remains active outside the numerator.
-  next: Review and publish the focused compiler checkpoint, then separately select DD-054 for a checked disposable OTP macro overlay and rerun the released smoke without weakening its backdoor fatal. Keep installed Caliptra tools unchanged while VVP PID 32124 runs; do not poll CI or run GPU/Verilator.
+  validation: Private ivl SHA-256 302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890 passes paired 22/22, dedicated gold 12/12, registered JSON 13/13, legacy 4/4, VIF neighbors 44/44, negatives 155/155, and REAL DPI UVM 358/358. Pinned OTP compile exits zero with no hard errors or assertions but 46 nonfatal sorry diagnostics; first smoke fails at time zero on the separate padded RAM path. See evidence/opentitan-otp-vif-fixed-input-20260924/result.json.
 completed_ot_alert_clocking_output_alias:
   id: OT-ALERT-ESC-CLOCKING-OUTPUT-ALIAS
   phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_RUNTIME

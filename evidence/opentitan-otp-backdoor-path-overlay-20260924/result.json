@@ -1,0 +1,81 @@
+{
+  "blocker": "OT-OTP-BACKDOOR-PATH-COMPAT",
+  "classification": "OpenTitan pinned-release source-compatibility diagnostic; not IEEE conformance or DV pass",
+  "pinned_source": {
+    "head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "tb_sha256": "9ae010405678fbaad44c83143793345af6e5aa1e0152bd2e06a9c838f3d63f1a",
+    "generated_tb_sha256": "9ae010405678fbaad44c83143793345af6e5aa1e0152bd2e06a9c838f3d63f1a",
+    "checkout_clean": true
+  },
+  "overlay": {
+    "helper": "docs/conformance/release_overlays/opentitan/otp_mem_path_overlay.py",
+    "tb_sha256": "a7bd1964e2c7e626d5a25a04597129417a7c47f89c95069da6af86dd094689c6",
+    "changed_only": "two MEM_MODULE_PATH/MEM_ARRAY_PATH continued macro definitions",
+    "raw_memory_depth_width_ecc_and_backdoor_check_preserved": true,
+    "path_leading_spaces": 0
+  },
+  "compile": {
+    "returncode": 0,
+    "hard_errors": 0,
+    "nonfatal_sorry": 46,
+    "dropped_covergroup_bins": 6,
+    "procedural_continuous_assignment_sorry": 40,
+    "ignored_constraint_item_warning_present": true,
+    "image_sha256": "7c17498f720d6cfd721d772d57f82bb3bf08010cbdc95bd5a8553fbfa9731e54",
+    "private_ivl_sha256": "302d709432e386f59a1c849d91c2fbe496b858dfde870641496888e7290db890"
+  },
+  "released_otp_smoke": {
+    "test": "otp_ctrl_smoke_vseq",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed_seconds": 4.757,
+    "dv_pass": false,
+    "simulation_time_at_failure": "0 ps",
+    "original_ram_path_fatal": false,
+    "new_failure": "otp_ctrl_env_cfg.randomize(): joint distribution has an unresolved random guard",
+    "uvm_fatals": 1,
+    "follow_on_assertion_errors": 512,
+    "pass_markers": 0,
+    "meaningful_checked_traffic": false,
+    "vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6"
+  },
+  "paired_macro_controls": {
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "total_compile_and_runtime_success": 6,
+    "continued_leading_spaces": 18,
+    "flattened_leading_spaces": 0,
+    "literal_spaces_control": 18,
+    "ieee_whitespace_classification": "unassessed"
+  },
+  "paired_cfg_reducer": {
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "standalone_randomize_pass": 2,
+    "nested_one_or_two_randomize_fail": 4,
+    "runtime_process_exit_is_not_pass": true
+  },
+  "next_blocker": "OT-CSRNG-CFG-JOINT-DIST",
+  "files_sha256": {
+    "compile_result.json": "3a4b3eb267d76c7eda400e803b381d848809362aa0c813839af757f1b6ffaeb6",
+    "compile.log": "2bcadfd5ca7f72c3e75b439c590c27c9f3cbecebbbf98000927d2a353fc45a7c",
+    "smoke_result.json": "d66c7d125bcc40d683b63f6ff0db13b25e117046e783bba5ace08c16c10d39f8",
+    "smoke.log": "d206bde52e8483147e2c37bdd780ac2daee12627aac3180ad17125498efc400c",
+    "smoke_trace.log": "11532b6d18672bd472d671e8b5a6ee24e843ac0d05c994b57007733f3d39bee5",
+    "reducers/continued.sv": "823161696eb549360fdafd96ccef7a9be8d80852a75f1d3130010ab44791c646",
+    "reducers/flattened.sv": "69a439cc37b539cfc3e68f8b67c508fdf413bfdaef58019853a25b47ef5b06bb",
+    "reducers/literal_spaces.sv": "5fdd4de8fa8a8129c335af96c4a7f77900972de83bda2e7d38300fe6116f7a04",
+    "reducers/results.json": "fea788efde613c0ded97704f4bb4785e951149dc8d8ff5c1143b2e38b610fa01",
+    "cfg_reducers/standalone.sv": "fe86803febf432906eb03010a78f20d923707a16a97e7834342dbb4b4b3ae811",
+    "cfg_reducers/nested_one.sv": "46172b88df235583f694d750af3770dab55b14232fc83163bd0c24bdba5a0cb1",
+    "cfg_reducers/nested_two.sv": "0bc24c84aabbeb054977c1962a4ef70992839f5362b95ef2577578b854794d69",
+    "cfg_reducers/result.json": "2ab3f81242e6113238d6fc9f6136cb7d85e67b0fcf5348f3291378db7dd75f83",
+    "source-list.scr": "84bd023f7da4b5f5fba5992d7a717c42fc44901c88b2804f92d51436704b3d98",
+    "matrix-iverilog.scr": "d2615a3449ace5d84bb16ce224eed5db25d47438de712b78157dd90957d0a5be",
+    "otp-path-provenance.txt": "be746c8aab66bf3aa0db52c53b9ce33bfad15aa98991b203d157ddc3211de8d4"
+  }
+}

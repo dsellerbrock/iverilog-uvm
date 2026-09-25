@@ -1,0 +1,69 @@
+sorry: covergroup bin 'unbuffered_digests' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'hw_digests' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'secret_digests' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'direct_access_rdata' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'status' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'error_code' has a runtime range expression that cannot be represented; the bin is dropped.
+../src/lowrisc_dv_otp_ctrl_env_0.1/seq_lib/otp_ctrl_smoke_vseq.sv:34: warning: Constraint item in 'dai_wr_legal_addr_c' of class otp_ctrl_smoke_vseq is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+/tmp/ot-otp-backdoor-path-overlay-20260924/tb.sv:69: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:102: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:103: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:104: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:105: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:106: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:107: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:108: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:110: warning: A non-blocking assignment should not be used in an always_comb process.
+Warning: unsupported covergroup constructor property type 7 at index 0; leaving default value
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:270: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:271: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:274: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:275: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:271: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:272: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:275: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:276: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:272: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:273: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:276: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:277: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:273: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:274: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:277: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:278: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:274: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:275: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:278: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:279: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:275: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:276: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:279: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:280: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:276: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:277: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:280: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:281: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:277: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:278: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:281: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:282: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:278: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:279: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:282: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:283: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:279: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:280: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:283: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv:284: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+iverilog: note: wrote DPI export C stubs to /tmp/ot-otp-backdoor-path-overlay-20260924/otp-overlay.dpiexport.c (compile it into your DPI object).

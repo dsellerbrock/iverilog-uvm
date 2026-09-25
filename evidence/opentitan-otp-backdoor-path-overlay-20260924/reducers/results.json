@@ -1,0 +1,172 @@
+{
+  "records": [
+    {
+      "name": "continued",
+      "edition": "2017",
+      "source": "/tmp/ot-otp-macro-reducer-20260924/continued.sv",
+      "source_sha256": "823161696eb549360fdafd96ccef7a9be8d80852a75f1d3130010ab44791c646",
+      "compile_command": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2017",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-otp-macro-reducer-20260924/continued-2017.vvp",
+        "/tmp/ot-otp-macro-reducer-20260924/continued.sv"
+      ],
+      "compile_returncode": 0,
+      "compile_output": "",
+      "image_sha256": "54db6a82408fb99b497c8e90283299ace53c67657c4dc2951b814895733e004a",
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/ot-otp-macro-reducer-20260924/continued-2017.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PATH=<                  tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem> LEN=112 FIRST=32\n/tmp/ot-otp-macro-reducer-20260924/continued.sv:13: $finish called at 0 (1s)\n",
+        "stdout_sha256": "a0c2396828006cc1795691f4ccfba70ae5b8ad6c94f4e2087489efe132321fa3"
+      }
+    },
+    {
+      "name": "flattened",
+      "edition": "2017",
+      "source": "/tmp/ot-otp-macro-reducer-20260924/flattened.sv",
+      "source_sha256": "69a439cc37b539cfc3e68f8b67c508fdf413bfdaef58019853a25b47ef5b06bb",
+      "compile_command": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2017",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-otp-macro-reducer-20260924/flattened-2017.vvp",
+        "/tmp/ot-otp-macro-reducer-20260924/flattened.sv"
+      ],
+      "compile_returncode": 0,
+      "compile_output": "",
+      "image_sha256": "364edd96ca12cad21450f25cfd8336941886aeddc14aa28b8970a90fbaeb5b98",
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/ot-otp-macro-reducer-20260924/flattened-2017.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PATH=<tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem> LEN=94 FIRST=116\n/tmp/ot-otp-macro-reducer-20260924/flattened.sv:9: $finish called at 0 (1s)\n",
+        "stdout_sha256": "036113a51b6fe762a16871d4934054e1539ccacc84b2813bfdef7c653a58f6bd"
+      }
+    },
+    {
+      "name": "literal_spaces",
+      "edition": "2017",
+      "source": "/tmp/ot-otp-macro-reducer-20260924/literal_spaces.sv",
+      "source_sha256": "5fdd4de8fa8a8129c335af96c4a7f77900972de83bda2e7d38300fe6116f7a04",
+      "compile_command": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2017",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-otp-macro-reducer-20260924/literal_spaces-2017.vvp",
+        "/tmp/ot-otp-macro-reducer-20260924/literal_spaces.sv"
+      ],
+      "compile_returncode": 0,
+      "compile_output": "",
+      "image_sha256": "293f3709099251af39cd9a0851254981ae37784e6efe6426acbb8d955c57b0d9",
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/ot-otp-macro-reducer-20260924/literal_spaces-2017.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PATH=<                  tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem> LEN=112 FIRST=32\n/tmp/ot-otp-macro-reducer-20260924/literal_spaces.sv:6: $finish called at 0 (1s)\n",
+        "stdout_sha256": "dfebe8a79ee1ce3b2c72b9f6f289e99959ac9faccecd4fa03c655b68c403f6db"
+      }
+    },
+    {
+      "name": "continued",
+      "edition": "2023",
+      "source": "/tmp/ot-otp-macro-reducer-20260924/continued.sv",
+      "source_sha256": "823161696eb549360fdafd96ccef7a9be8d80852a75f1d3130010ab44791c646",
+      "compile_command": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2023",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-otp-macro-reducer-20260924/continued-2023.vvp",
+        "/tmp/ot-otp-macro-reducer-20260924/continued.sv"
+      ],
+      "compile_returncode": 0,
+      "compile_output": "",
+      "image_sha256": "2243b6d72b59a7a55bde5c5c0fcb48aecf72556b80ebc95c5ac3eadf59cbf314",
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/ot-otp-macro-reducer-20260924/continued-2023.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PATH=<                  tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem> LEN=112 FIRST=32\n/tmp/ot-otp-macro-reducer-20260924/continued.sv:13: $finish called at 0 (1s)\n",
+        "stdout_sha256": "a0c2396828006cc1795691f4ccfba70ae5b8ad6c94f4e2087489efe132321fa3"
+      }
+    },
+    {
+      "name": "flattened",
+      "edition": "2023",
+      "source": "/tmp/ot-otp-macro-reducer-20260924/flattened.sv",
+      "source_sha256": "69a439cc37b539cfc3e68f8b67c508fdf413bfdaef58019853a25b47ef5b06bb",
+      "compile_command": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2023",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-otp-macro-reducer-20260924/flattened-2023.vvp",
+        "/tmp/ot-otp-macro-reducer-20260924/flattened.sv"
+      ],
+      "compile_returncode": 0,
+      "compile_output": "",
+      "image_sha256": "7bab90fd83927cdf99fb81e9dc9c5efb07005e94d04a6514c2cf2c131d229aa7",
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/ot-otp-macro-reducer-20260924/flattened-2023.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PATH=<tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem> LEN=94 FIRST=116\n/tmp/ot-otp-macro-reducer-20260924/flattened.sv:9: $finish called at 0 (1s)\n",
+        "stdout_sha256": "036113a51b6fe762a16871d4934054e1539ccacc84b2813bfdef7c653a58f6bd"
+      }
+    },
+    {
+      "name": "literal_spaces",
+      "edition": "2023",
+      "source": "/tmp/ot-otp-macro-reducer-20260924/literal_spaces.sv",
+      "source_sha256": "5fdd4de8fa8a8129c335af96c4a7f77900972de83bda2e7d38300fe6116f7a04",
+      "compile_command": [
+        "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+        "-g2023",
+        "-s",
+        "tb",
+        "-o",
+        "/tmp/ot-otp-macro-reducer-20260924/literal_spaces-2023.vvp",
+        "/tmp/ot-otp-macro-reducer-20260924/literal_spaces.sv"
+      ],
+      "compile_returncode": 0,
+      "compile_output": "",
+      "image_sha256": "1f29340b60669238833c7fd8990464a506cab2cfc1f084e0c9348d25a158b012",
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/ot-otp-macro-reducer-20260924/literal_spaces-2023.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PATH=<                  tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv.u_mem.gen_generic.u_impl_generic.mem> LEN=112 FIRST=32\n/tmp/ot-otp-macro-reducer-20260924/literal_spaces.sv:6: $finish called at 0 (1s)\n",
+        "stdout_sha256": "dfebe8a79ee1ce3b2c72b9f6f289e99959ac9faccecd4fa03c655b68c403f6db"
+      }
+    }
+  ]
+}

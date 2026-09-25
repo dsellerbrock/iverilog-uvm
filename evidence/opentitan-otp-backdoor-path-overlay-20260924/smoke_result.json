@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/tmp/ot-otp-backdoor-path-overlay-20260924/otp-overlay.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=otp_ctrl_base_test",
+    "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+  ],
+  "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "env": {
+    "IVL_SVA_NFA": "1"
+  },
+  "timeout_seconds": 900,
+  "returncode": 0,
+  "timed_out": false,
+  "duration_seconds": 4.757,
+  "image_sha256": "7c17498f720d6cfd721d772d57f82bb3bf08010cbdc95bd5a8553fbfa9731e54",
+  "vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "log_sha256": "d206bde52e8483147e2c37bdd780ac2daee12627aac3180ad17125498efc400c"
+}
