@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-otp-backdoor-path-overlay-20260924
-checkpoint_head: bfa722ad7
+branch: agent/ot-joint-dist-ordered-guards-20260924
+checkpoint_head: b7537a171
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -72,15 +72,20 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
+  id: OT-CSRNG-CFG-JOINT-DIST
+  phase: SELECTED_PAIRED_2017_2023_RED
+  owner: Delegated implementation agent owns only vvp/vvp_z3.cc and dedicated paired constraint fixtures/manifests. Coordinator owns private build, gates, pinned replays with named overlays, evidence, docs, and PR.
+  reproducer: Paired nested guarded-dist REDs in evidence/opentitan-csrng-cfg-joint-dist-20260923/ and evidence/opentitan-otp-backdoor-path-overlay-20260924/cfg_reducers/ fail with an unresolved random guard, while standalone controls pass. Pinned CSRNG and OTP both fail cfg.randomize at time zero with no DV pass.
+  expected: Preflight each feasible earlier-stage prefix without RNG, prove due guards active/inactive against hard constraints, validate exact active weights, and sample inactive subjects through ordinary exact stage sampling. Same-stage or unproved guards, UNKNOWN, caps, unsupported weights, and randc conflicts stay loud; preserve transaction rollback.
+  root_cause: vvp/vvp_z3.cc globally tests a joint dist guard before staged solve-before variables are pinned and rejects a globally variable guard even when each earlier-stage fiber can prove it. A global unconditional preference or silently dropped inactive dist would bias sampling.
+  source_scope: vvp/vvp_z3.cc and dedicated paired 2017/2023 tests/manifests only. No pinned source, installed tools, Caliptra runner/checker, shared build, Verilator/GPU, or CI polling while live Caliptra VVP runs.
+  validation: Existing proven-guard focus passes 22/22, but pinned CSRNG and OTP dynamic nested guards remain RED. OTP path overlay PR357 published at b7537a171; OTP smoke is 0/1 DV with one UVM_FATAL and 512 follow-on assertions. OTP compile retains 46 nonfatal sorry diagnostics and an ignored constraint item. Caliptra selected-52 copied-source diagnostic remains one separate pass, five failures, and 46 unstarted, without an aggregate verdict.
+  next: Reduce stage-resolved conditional fiber behavior with paired positive, negative, weighted, boundary, coupled-child, and rollback cases; implement the smallest exact sound fix and test private image. Replay pinned CSRNG and OTP without modifying pinned checkouts or the live installed tools.
+completed_ot_path_overlay:
   id: OT-OTP-BACKDOOR-PATH-COMPAT
-  phase: OVERLAY_READY_NEXT_JOINT_DIST_RUNTIME_RED
-  owner: Coordinator owns a named hash-checked disposable OTP source overlay, paired macro controls, exact pinned replay, evidence, and review; no installed tool or pinned source edit while Caliptra VVP runs.
-  reproducer: evidence/opentitan-otp-vif-fixed-input-20260924/otp-smoke.log has a time-zero UVM_FATAL at mem_bkdr_util.sv:76. The RAM exists, but evidence/opentitan-otp-vif-fixed-input-20260924/otp-path-provenance.txt shows 18 leading spaces in the VVP path string from two indented continued MEM_* macros.
-  expected: Keep uvm_hdl_check_path fatal, $size/$bits, ECC parameter, and released OTP test/sequence checks intact; remove only path-string padding through a selected disposable-source copy and require meaningful checked runtime for a pass.
-  root_cause: Nested DV_STRINGIFY receives whitespace preserved from the two source macro continuation lines; VPI lookup uses exact first-scope matching. Paired 2017/2023 reducers reproduce the whitespace behavior; IEEE classification remains unassessed pending spec review.
-  source_scope: A named opt-in OTP release overlay and the smallest existing-runner selection needed for reproducibility, plus focused tests/evidence. No pinned checkout, shared installation, Caliptra runner, or checker edits.
-  validation: PR356 published at bfa722ad7; private ivl 302d7094 passes paired 22/22, registered JSON 13/13, legacy 4/4, VIF neighbors 44/44, negatives 155/155, REAL DPI UVM 358/358. Named OTP overlay output SHA a7bd1964 eliminates the RAM path fatal. Compile exits zero with no hard errors but 46 nonfatal sorry diagnostics; smoke is 0/1 DV at time zero on a separate unresolved cfg.randomize joint-dist guard (one UVM_FATAL, 512 follow-on assertions, no pass marker). Paired macro controls 6/6 and nested cfg reducers expose the next solver blocker; see evidence/opentitan-otp-backdoor-path-overlay-20260924/result.json. Pinned chip remains compile-blocked. Caliptra copied-source unsafe diagnostic remains one pass and five ERR_HWIF_IN failures of six completed selected cases, 46 unstarted, no full-52 aggregate; source-sampling VVP PID 32124 remains live.
-  next: Review and publish the focused OTP path overlay with exact failed-smoke evidence. Then select existing OT-CSRNG-CFG-JOINT-DIST for a sound variable-guard joint sampler fix shared by OTP and CSRNG. Do not poll CI or run GPU/Verilator.
+  phase: PR_PUBLISHED_NEXT_JOINT_DIST_RUNTIME_RED
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/357
+  validation: Hash-checked OTP disposable-source overlay changes two macros and clears the RAM-path fatal. Paired macro controls pass 6/6; released smoke remains 0/1 DV at time zero on the joint-dist guard, with one UVM_FATAL, 512 follow-on assertions, no pass marker or traffic despite VVP exit zero. Pinned compile exits zero with 46 nonfatal sorry diagnostics and an ignored constraint item. See evidence/opentitan-otp-backdoor-path-overlay-20260924/result.json.
 completed_ot_fixed_input:
   id: OT-OTP-VIF-FIXED-INPUT
   phase: PR_PUBLISHED_PINNED_COMPILE_EXIT0_RUNTIME_BLOCKED
