@@ -1,0 +1,40 @@
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -Wall -Wextra -Wshadow   -g0 -O2 -std=c++11 -MD -c pform_package.cc -o pform_package.o
+mv pform_package.d dep/pform_package.d
+g++ -Wl,-all_load  -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o ivl main.o async.o design_dump.o discipline.o dup_expr.o elaborate.o sv_edition.o elab_expr.o elaborate_analog.o elab_lval.o elab_net.o elab_scope.o elab_sig.o elab_sig_analog.o elab_type.o emit.o eval_attrib.o eval_tree.o expr_synth.o functor.o lexor.o lexor_keyword.o link_const.o load_module.o netlist.o netmisc.o nettypes.o net_analog.o net_assign.o net_design.o netclass.o netdarray.o netenum.o netparray.o netqueue.o netscalar.o netstruct.o netvector.o net_event.o net_expr.o net_func.o net_func_eval.o net_link.o net_modulo.o net_nex_input.o net_nex_output.o net_proc.o net_scope.o net_tran.o net_udp.o map_named_args.o pad_to_width.o parse.o parse_misc.o pform.o pform_sva_nfa.o pform_analog.o pform_disciplines.o pform_dump.o pform_package.o pform_pclass.o pform_types.o symbol_search.o sync.o sys_funcs.o verinum.o verireal.o vpi_modules.o target.o Attrib.o HName.o Module.o PClass.o PDelays.o PEvent.o PExpr.o PFunction.o PGate.o PGenerate.o PModport.o PNamedItem.o PPackage.o PScope.o PSpec.o PTimingCheck.o PTask.o PUdp.o PWire.o Statement.o AStatement.o LineInfo.o StringHeap.o cprop.o exposenodes.o nodangle.o synth.o synth2.o syn-rules.o t-dll.o t-dll-api.o t-dll-expr.o t-dll-proc.o t-dll-analog.o -ldl
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C libveriuser all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C cadpli all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C libveriuser check &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C cadpli check &&  true
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+./vvp -M../vpi ./examples/hello.vvp | grep 'Hello, World.'
+Hello, World.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+make[1]: Nothing to be done for `check'.
+test -r check.conf || cp ./check.conf .
+driver/iverilog -B. -BMvpi -BPivlpp -tcheck -ocheck.vvp ./examples/hello.vl
+vvp/vvp -M- -M./vpi ./check.vvp | grep 'Hello, World'
+Hello, World

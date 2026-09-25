@@ -1,0 +1,2 @@
+ivtest/ivltests/sv_package_self_typedef_missing_fail.v:4: syntax error
+ivtest/ivltests/sv_package_self_typedef_missing_fail.v:4: error: self_missing_pkg doesn't name a type.

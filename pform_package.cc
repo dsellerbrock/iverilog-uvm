@@ -300,10 +300,37 @@ typedef_t* pform_test_type_identifier(PPackage*pkg, const char*txt)
 PPackage* pform_test_package_identifier(const char*pkg_name)
 {
       perm_string use_name = lex_strings.make(pkg_name);
+
       map<perm_string,PPackage*>::const_iterator pcur = packages_by_name.find(use_name);
       if (pcur == packages_by_name.end())
 	    return 0;
 
       assert(pcur->second);
       return pcur->second;
+}
+
+/* Only a scoped prefix may name the package currently being parsed. It is
+ * not in packages_by_name until endpackage, and nearer lexical symbols must
+ * retain their ordinary identifier/type classification. */
+PPackage* pform_test_active_package_identifier(const char*pkg_name)
+{
+      if (!pform_cur_package) return 0;
+      perm_string use_name = lex_strings.make(pkg_name);
+      if (pform_cur_package->pscope_name() != use_name) return 0;
+
+      for (LexicalScope*scope = pform_peek_scope(); scope;
+	   scope = scope->parent_scope()) {
+	    if (scope->typedefs.count(use_name) || scope->wires.count(use_name) ||
+		scope->explicit_imports.count(use_name) ||
+		scope->local_symbols.count(use_name))
+		  return 0;
+	    if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope))
+		  if (scopex->classes.count(use_name)) return 0;
+	    if (PClass*cls = dynamic_cast<PClass*>(scope))
+		  if (cls->type && cls->type->properties.count(use_name)) return 0;
+	    for (PPackage*import_pkg : scope->potential_imports)
+		  if (pform_package_importable(import_pkg, use_name)) return 0;
+	    if (scope == pform_cur_package) return pform_cur_package;
+      }
+      return 0;
 }

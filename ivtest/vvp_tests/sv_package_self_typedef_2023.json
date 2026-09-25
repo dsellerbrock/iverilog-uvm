@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_package_self_typedef_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-Iivltests"
+    ],
+    "gold": "sv_package_self_typedef_2023"
+}

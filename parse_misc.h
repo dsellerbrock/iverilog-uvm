@@ -375,6 +375,7 @@ extern typedef_t* pform_test_type_identifier(PPackage*pkg, const char*txt);
  * the lexor here because the parser detects packages and saves them.
  */
 extern PPackage* pform_test_package_identifier(const char*txt);
+extern PPackage* pform_test_active_package_identifier(const char*txt);
 
 /*
  * Export these functions because we have to generate PENumber class

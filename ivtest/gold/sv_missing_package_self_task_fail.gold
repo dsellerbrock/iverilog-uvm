@@ -1,3 +1,3 @@
-./ivltests/sv_missing_package_self_task_fail.v:3: error: Enable of unknown task ``existing_pkg.missing''.
+./ivltests/sv_missing_package_self_task_fail.v:3: error: Enable of unknown task ``missing''.
 ./ivltests/sv_missing_package_self_task_fail.v:3: Unable to elaborate statement in task existing_pkg.caller at ./ivltests/sv_missing_package_self_task_fail.v:2.
 1 error(s) during elaboration.

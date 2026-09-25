@@ -1,0 +1,2894 @@
+{
+  "metadata": {
+    "generated_at": "2026-09-25T19:06:34.057906+00:00",
+    "opentitan_root": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34",
+    "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "opentitan_dirty": false,
+    "iverilog": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/bin/iverilog",
+    "iverilog_sha256": "74f5bf23612420c32da0c99929cd875e198c53f7e19177b183b62702c1022a53",
+    "iverilog_version": "Icarus Verilog version 13.0 (devel) ()",
+    "compiler_fingerprint": {
+      "components": {
+        "driver": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/bin/iverilog",
+          "sha256": "74f5bf23612420c32da0c99929cd875e198c53f7e19177b183b62702c1022a53"
+        },
+        "compiler_engine": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/lib/ivl/ivl",
+          "sha256": "f045786db709fa604990b8de166cfc78c84896acff8850ccbdac3d8eef0978d0"
+        },
+        "vvp_target": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/lib/ivl/vvp.tgt",
+          "sha256": "f11cf34cb958c9c490fd709783bdd1fef7734729d86042de970909a30e6d2090"
+        },
+        "vvp_runtime": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/bin/vvp",
+          "sha256": "c2373153da12a3992ae2a89b20a0f7c62173c33fc87a03b90065ae347f740665"
+        },
+        "normal_config": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/lib/ivl/vvp.conf",
+          "sha256": "c6b5e518fb5744db93572dae17cfd786a6e60ab91cbb66e2904c064cd228e380"
+        },
+        "synthesis_config": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/lib/ivl/vvp-s.conf",
+          "sha256": "b543f29c47272a7afc2bfc386163f434e3d9e03559c4f6c83b3b1904cbaeb5f2"
+        },
+        "uvm_dpi": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/lib/ivl/uvm_dpi.vpi",
+          "sha256": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0"
+        }
+      },
+      "uvm_sources": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+      }
+    },
+    "fusesoc": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc",
+    "fusesoc_real_executable": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc",
+    "fusesoc_sha256": "b47cc98c6613f59ab3ba41c432c1556711c4fa7049214cb438fda7c5f51cc469",
+    "fusesoc_version": "0.5.dev0",
+    "fusesoc_python": {
+      "executable": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python",
+      "fusesoc_version": "0.5.dev0",
+      "hjson_version": "3.1.0",
+      "python_version": "3.13.15",
+      "command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python",
+      "real_executable": "/opt/homebrew/Cellar/python@3.13/3.13.15/Frameworks/Python.framework/Versions/3.13/bin/python3.13",
+      "sha256": "1988a0dd685f91bbaf20b5267046e13cb78859dbb3b5f030e89b448c1fbfe8d4"
+    },
+    "top_mapping": "auto",
+    "uvm_runtime_compile_profile": "commercial-unsafe",
+    "matrix_provider_core_root": "/private/tmp/ot-otbn-package-self-qual-20260925/work/matrix-provider-cores",
+    "englishbreakfast_mapping_sha256": "fa57b7aeb0386b430d644fbaae1c2a9e1a9095487105a05769fb84abaef06bfc",
+    "prim_generic_mapping_sha256": "090b0fd417fb367ac2a23bd06e3b052d1db2597237575b963c1fce5cbad55dd4",
+    "fusesoc_sim_target_count": 59,
+    "fusesoc_sim_category_counts": {
+      "uvm": 35,
+      "directed": 14,
+      "verilator": 7,
+      "elaboration": 3
+    },
+    "fusesoc_sim_targets_sha256": "d80408d71a133ba618d03674447c3ddcaa9f4b68568cbabc1072beafd30654fa",
+    "fusesoc_sim_targets": [
+      {
+        "vlnv": "lowrisc:dv:adc_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/adc_ctrl/dv/adc_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=adc_ctrl_base_test",
+          "+UVM_TEST_SEQ=adc_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/adc_ctrl/dv/adc_ctrl_sim_cfg.hjson",
+        "dvsim_test": "adc_ctrl_smoke",
+        "uvm_test": "adc_ctrl_base_test",
+        "uvm_test_seq": "adc_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:aes_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/aes/dv/aes_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+uvm_set_verbosity=uvm_test_top.env.scoreboard,_ALL_,UVM_MEDIUM,run",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=aes_smoke_test",
+          "+UVM_TEST_SEQ=aes_stress_vseq"
+        ],
+        "dvsim_config": "hw/ip/aes/dv/aes_base_sim_cfg.hjson",
+        "dvsim_test": "aes_smoke",
+        "uvm_test": "aes_smoke_test",
+        "uvm_test_seq": "aes_stress_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:aon_timer_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/aon_timer/dv/aon_timer_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=aon_timer_base_test",
+          "+UVM_TEST_SEQ=aon_timer_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/aon_timer/dv/aon_timer_sim_cfg.hjson",
+        "dvsim_test": "aon_timer_smoke",
+        "uvm_test": "aon_timer_base_test",
+        "uvm_test_seq": "aon_timer_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:chip_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/dv/chip_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/dv/chip_sim_cfg.hjson",
+        "dvsim_test": "xbar_smoke",
+        "uvm_test": "xbar_base_test",
+        "uvm_test_seq": "xbar_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": "xbar_build_mode",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+TOP_LEVEL_DV"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:gpiodpi:0.1",
+          "lowrisc:dv_dpi_sv:uartdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:model:aes:1.0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes",
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:chip_verilator_sim:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "chip_sim_tb"
+        ],
+        "core_file": "hw/top_earlgrey/dv/verilator/chip_sim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:chip_verilator_sim:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:chip_verilator_sim:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:dmidpi:0.1",
+          "lowrisc:dv_dpi_sv:gpiodpi:0.1",
+          "lowrisc:dv_dpi_sv:jtagdpi:0.1",
+          "lowrisc:dv_dpi_sv:spidpi:0.1",
+          "lowrisc:dv_dpi_sv:uartdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:clkmgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/clkmgr/dv/clkmgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+do_clear_all_interrupts=0",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=clkmgr_base_test",
+          "+UVM_TEST_SEQ=clkmgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/clkmgr/dv/clkmgr_sim_cfg.hjson",
+        "dvsim_test": "clkmgr_smoke",
+        "uvm_test": "clkmgr_base_test",
+        "uvm_test_seq": "clkmgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:csrng_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/csrng/dv/csrng_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=csrng_smoke_test",
+          "+UVM_TEST_SEQ=csrng_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/csrng/dv/csrng_sim_cfg.hjson",
+        "dvsim_test": "csrng_smoke",
+        "uvm_test": "csrng_smoke_test",
+        "uvm_test_seq": "csrng_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:edn_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/edn/dv/edn_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=edn_smoke_test",
+          "+UVM_TEST_SEQ=edn_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/edn/dv/edn_sim_cfg.hjson",
+        "dvsim_test": "edn_smoke",
+        "uvm_test": "edn_smoke_test",
+        "uvm_test_seq": "edn_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:entropy_src_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/entropy_src/dv/entropy_src_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=entropy_src_smoke_test",
+          "+UVM_TEST_SEQ=entropy_src_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/entropy_src/dv/entropy_src_sim_cfg.hjson",
+        "dvsim_test": "entropy_src_smoke",
+        "uvm_test": "entropy_src_smoke_test",
+        "uvm_test_seq": "entropy_src_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:flash_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/flash_ctrl/dv/flash_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=flash_ctrl_base_test",
+          "+UVM_TEST_SEQ=flash_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/flash_ctrl/dv/flash_ctrl_base_sim_cfg.hjson",
+        "dvsim_test": "flash_ctrl_smoke",
+        "uvm_test": "flash_ctrl_base_test",
+        "uvm_test_seq": "flash_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:gpio_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/gpio/dv/gpio_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=gpio_base_test",
+          "+UVM_TEST_SEQ=gpio_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/gpio/dv/gpio_sim_cfg.hjson",
+        "dvsim_test": "gpio_smoke",
+        "uvm_test": "gpio_base_test",
+        "uvm_test_seq": "gpio_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:hmac_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/hmac/dv/hmac_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=hmac_base_test",
+          "+UVM_TEST_SEQ=hmac_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/hmac/dv/hmac_sim_cfg.hjson",
+        "dvsim_test": "hmac_smoke",
+        "uvm_test": "hmac_base_test",
+        "uvm_test_seq": "hmac_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:cryptoc_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:cryptoc_dpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:i2c_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/i2c/dv/i2c_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=i2c_base_test",
+          "+UVM_TEST_SEQ=i2c_host_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/i2c/dv/i2c_sim_cfg.hjson",
+        "dvsim_test": "i2c_host_smoke",
+        "uvm_test": "i2c_base_test",
+        "uvm_test_seq": "i2c_host_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:ibex_icache_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/ibex_icache_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+test_timeout_ns=1000000000",
+          "+enable_icache_fcov=1",
+          "+UVM_TESTNAME=ibex_icache_base_test",
+          "+UVM_TEST_SEQ=ibex_icache_base_vseq"
+        ],
+        "dvsim_config": "hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/ibex_icache_sim_cfg.hjson",
+        "dvsim_test": "ibex_icache_smoke",
+        "uvm_test": "ibex_icache_base_test",
+        "uvm_test_seq": "ibex_icache_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:keymgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/keymgr/dv/keymgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=keymgr_base_test",
+          "+UVM_TEST_SEQ=keymgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/keymgr/dv/keymgr_sim_cfg.hjson",
+        "dvsim_test": "keymgr_smoke",
+        "uvm_test": "keymgr_base_test",
+        "uvm_test_seq": "keymgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:kmac_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/kmac/dv/kmac_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=kmac_base_test",
+          "+UVM_TEST_SEQ=kmac_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/kmac/dv/kmac_base_sim_cfg.hjson",
+        "dvsim_test": "{name}_smoke",
+        "uvm_test": "kmac_base_test",
+        "uvm_test_seq": "kmac_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:kmac_env:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:lc_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/lc_ctrl/dv/lc_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=lc_ctrl_base_test",
+          "+UVM_TEST_SEQ=lc_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/lc_ctrl/dv/lc_ctrl_base_sim_cfg.hjson",
+        "dvsim_test": "lc_ctrl_smoke",
+        "uvm_test": "lc_ctrl_base_test",
+        "uvm_test_seq": "lc_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:otbn_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/otbn/dv/uvm/otbn_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=0",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=otbn_base_test",
+          "+UVM_TEST_SEQ=otbn_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/otbn/dv/uvm/otbn_sim_cfg.hjson",
+        "dvsim_test": "otbn_smoke",
+        "uvm_test": "otbn_base_test",
+        "uvm_test_seq": "otbn_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:otbn_env:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ip:otbn_tracer:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:otbn_env:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:otbn_model_agent:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ip:otbn_tracer:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes",
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [
+          "+otbn_elf_dir={scratch_root}/{branch}/otbn-sim-xcelium/{index}.{test}/latest/otbn-binaries"
+        ],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:otp_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/otp_ctrl/dv/otp_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=otp_ctrl_base_test",
+          "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/otp_ctrl/dv/otp_ctrl_sim_cfg.hjson",
+        "dvsim_test": "otp_ctrl_smoke",
+        "uvm_test": "otp_ctrl_base_test",
+        "uvm_test_seq": "otp_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:pattgen_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/pattgen/dv/pattgen_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pattgen_base_test",
+          "+UVM_TEST_SEQ=pattgen_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/pattgen/dv/pattgen_sim_cfg.hjson",
+        "dvsim_test": "pattgen_smoke",
+        "uvm_test": "pattgen_base_test",
+        "uvm_test_seq": "pattgen_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_alert_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_alert_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_alert/prim_alert_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_alert/prim_alert_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_alert_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_esc_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_esc_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_esc/prim_esc_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_esc/prim_esc_sim_cfg.hjson",
+        "dvsim_test": "prim_esc_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_esc_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_flop_2sync_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/prim/pre_dv/prim_flop_2sync/prim_flop_2sync_sim.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/pre_dv/prim_flop_2sync/prim_flop_2sync_sim_cfg.hjson",
+        "dvsim_test": "unit_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_lfsr_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_lfsr_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_lfsr/prim_lfsr_sim.core",
+        "runtime_args": [
+          "+prim_lfsr_use_default_seed=0",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_lfsr/prim_lfsr_sim_cfg.hjson",
+        "dvsim_test": "prim_lfsr_gal_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": "prim_lfsr_dw_8_gal",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_lfsr_tb.dut",
+          "+define+MAX_LFSR_DW=8"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_present_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_present_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_present/prim_present_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_present/prim_present_sim_cfg.hjson",
+        "dvsim_test": "prim_present_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_present_tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_prince_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_prince_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_prince/prim_prince_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_prince/prim_prince_sim_cfg.hjson",
+        "dvsim_test": "prim_prince_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_prince_tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:pwm_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/pwm/dv/pwm_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+uvm_set_verbosity=uvm_test_top.env.scoreboard,_ALL_,UVM_HIGH,run",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwm_base_test",
+          "+UVM_TEST_SEQ=pwm_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/pwm/dv/pwm_sim_cfg.hjson",
+        "dvsim_test": "pwm_smoke",
+        "uvm_test": "pwm_base_test",
+        "uvm_test_seq": "pwm_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:pwrmgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/pwrmgr/dv/pwrmgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/pwrmgr/dv/pwrmgr_sim_cfg.hjson",
+        "dvsim_test": "pwrmgr_smoke",
+        "uvm_test": "pwrmgr_base_test",
+        "uvm_test_seq": "pwrmgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:rom_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/rom_ctrl/dv/rom_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rom_ctrl_base_test",
+          "+UVM_TEST_SEQ=rom_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/rom_ctrl/dv/rom_ctrl_32kB_sim_cfg.hjson",
+        "dvsim_test": "rom_ctrl_smoke",
+        "uvm_test": "rom_ctrl_base_test",
+        "uvm_test_seq": "rom_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+ROM_BYTE_ADDR_WIDTH=15"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:rstmgr_cnsty_chk_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/rstmgr/dv/rstmgr_cnsty_chk/rstmgr_cnsty_chk_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip_templates/rstmgr/dv/rstmgr_cnsty_chk/rstmgr_cnsty_chk_sim_cfg.hjson",
+        "dvsim_test": "rstmgr_cnsty_chk_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:rstmgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/rstmgr/dv/rstmgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rstmgr_base_test",
+          "+UVM_TEST_SEQ=rstmgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/rstmgr/dv/rstmgr_sim_cfg.hjson",
+        "dvsim_test": "rstmgr_smoke",
+        "uvm_test": "rstmgr_base_test",
+        "uvm_test_seq": "rstmgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:rv_dm_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/rv_dm/dv/rv_dm_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rv_dm_base_test",
+          "+UVM_TEST_SEQ=rv_dm_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/rv_dm/dv/rv_dm_sim_cfg.hjson",
+        "dvsim_test": "rv_dm_smoke",
+        "uvm_test": "rv_dm_base_test",
+        "uvm_test_seq": "rv_dm_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:rv_timer_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/rv_timer/dv/rv_timer_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rv_timer_base_test",
+          "+UVM_TEST_SEQ=rv_timer_base_vseq"
+        ],
+        "dvsim_config": "hw/ip/rv_timer/dv/rv_timer_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": "rv_timer_base_test",
+        "uvm_test_seq": "rv_timer_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spi_device_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_device/dv/spi_device_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=spi_device_base_test",
+          "+UVM_TEST_SEQ=spi_device_base_vseq"
+        ],
+        "dvsim_config": "hw/ip/spi_device/dv/base_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": "spi_device_base_test",
+        "uvm_test_seq": "spi_device_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spi_host_sim:1.0",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_host/dv/spi_host_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=spi_host_base_test",
+          "+UVM_TEST_SEQ=spi_host_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/spi_host/dv/spi_host_sim_cfg.hjson",
+        "dvsim_test": "spi_host_smoke",
+        "uvm_test": "spi_host_base_test",
+        "uvm_test_seq": "spi_host_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spi_tpm_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spi_tpm_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spi_tpm_sim.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spi_tpm_sim_cfg.hjson",
+        "dvsim_test": "spi_tpm_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spi_tpm_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_jedec_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spid_jedec_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_jedec.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_jedec_sim_cfg.hjson",
+        "dvsim_test": "spid_jedec_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spid_jedec_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_passthrough_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_passthrough.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_passthrough_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_readcmd_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_readcmd.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_readcmd_sim_cfg.hjson",
+        "dvsim_test": "spid_readcmd_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_status_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spid_status_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_status.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_status_sim_cfg.hjson",
+        "dvsim_test": "spid_status_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spid_status_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_upload_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spid_upload_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_upload.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_upload_sim_cfg.hjson",
+        "dvsim_test": "spid_upload_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spid_upload_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:sram_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/sram_ctrl/dv/sram_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+test_timeout_ns=1000000000",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=sram_ctrl_base_test",
+          "+UVM_TEST_SEQ=sram_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/sram_ctrl/dv/sram_ctrl_base_sim_cfg.hjson",
+        "dvsim_test": "{name}_smoke",
+        "uvm_test": "sram_ctrl_base_test",
+        "uvm_test_seq": "sram_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [
+          "en_build_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:sysrst_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/sysrst_ctrl/dv/sysrst_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=sysrst_ctrl_base_test",
+          "+UVM_TEST_SEQ=sysrst_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/sysrst_ctrl/dv/sysrst_ctrl_sim_cfg.hjson",
+        "dvsim_test": "sysrst_ctrl_smoke",
+        "uvm_test": "sysrst_ctrl_base_test",
+        "uvm_test_seq": "sysrst_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:tl_agent_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/dv/sv/tl_agent/dv/tl_agent_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=tl_agent_base_test",
+          "+UVM_TEST_SEQ=tl_agent_base_vseq"
+        ],
+        "dvsim_config": "hw/dv/sv/tl_agent/dv/tl_agent_sim_cfg.hjson",
+        "dvsim_test": "tl_agent_smoke",
+        "uvm_test": "tl_agent_base_test",
+        "uvm_test_seq": "tl_agent_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [
+          "-covg_disable_cg"
+        ],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:top_earlgrey_xbar_main_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "xbar_tb_top"
+        ],
+        "core_file": "hw/top_earlgrey/ip/xbar_main/dv/autogen/xbar_main_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/ip/xbar_main/dv/autogen/xbar_main_sim_cfg.hjson",
+        "dvsim_test": "xbar_smoke",
+        "uvm_test": "xbar_base_test",
+        "uvm_test_seq": "xbar_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": "xbar_build_mode",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "xbar_tb_top"
+        ],
+        "core_file": "hw/top_earlgrey/ip/xbar_peri/dv/autogen/xbar_peri_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/ip/xbar_peri/dv/autogen/xbar_peri_sim_cfg.hjson",
+        "dvsim_test": "xbar_smoke",
+        "uvm_test": "xbar_base_test",
+        "uvm_test_seq": "xbar_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": "xbar_build_mode",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:uart_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/uart/dv/uart_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=uart_base_test",
+          "+UVM_TEST_SEQ=uart_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/uart/dv/uart_sim_cfg.hjson",
+        "dvsim_test": "uart_smoke",
+        "uvm_test": "uart_base_test",
+        "uvm_test_seq": "uart_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:dv:usbdev_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/usbdev/dv/usbdev_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=usbdev_base_test",
+          "+UVM_TEST_SEQ=usbdev_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/usbdev/dv/usbdev_sim_cfg.hjson",
+        "dvsim_test": "usbdev_smoke",
+        "uvm_test": "usbdev_base_test",
+        "uvm_test_seq": "usbdev_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv_dpi_c:usbdpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:ibex:ibex_riscv_compliance:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "ibex_riscv_compliance"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/riscv_compliance/ibex_riscv_compliance.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_riscv_compliance:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:ibex:ibex_riscv_compliance:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": false
+      },
+      {
+        "vlnv": "lowrisc:ibex:ibex_simple_system_cosim:0",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "ibex_simple_system"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/verilator/simple_system_cosim/ibex_simple_system_cosim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:cosim:0",
+          "lowrisc:dv:cosim_dpi:0",
+          "lowrisc:ibex:ibex_simple_system_cosim:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:cosim:0",
+          "lowrisc:dv:cosim_dpi:0",
+          "lowrisc:ibex:ibex_simple_system_cosim:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": false
+      },
+      {
+        "vlnv": "lowrisc:ibex:tb_cs_registers:0",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "tb_cs_registers"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/cs_registers/tb_cs_registers.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:tb_cs_registers:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:ibex:tb_cs_registers:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": false
+      },
+      {
+        "vlnv": "lowrisc:ip:otbn_top_sim:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "otbn_top_sim"
+        ],
+        "core_file": "hw/ip/otbn/dv/verilator/otbn_top_sim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ip:otbn_top_sim:0.1",
+          "lowrisc:ip:otbn_tracer:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ip:otbn_top_sim:0.1",
+          "lowrisc:ip:otbn_tracer:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:ip:trial1_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/trial1/dv/trial1_sim.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/trial1/dv/trial1_sim_cfg.hjson",
+        "dvsim_test": "trial1_smoke",
+        "uvm_test": "trial1_smoke",
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "dvsim declares UVM test metadata but the FuseSoC source closure contains no run_test()"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/alert_handler/dv/alert_handler_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=alert_handler_base_test",
+          "+UVM_TEST_SEQ=alert_handler_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/ip_autogen/alert_handler/dv/alert_handler_sim_cfg.hjson",
+        "dvsim_test": "alert_handler_smoke",
+        "uvm_test": "alert_handler_base_test",
+        "uvm_test_seq": "alert_handler_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:prim:crc32_sim:0",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "prim_crc32_sim"
+        ],
+        "core_file": "hw/ip/prim/pre_dv/prim_crc32/prim_crc32_sim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:prim:crc32_sim:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:prim:crc32_sim:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": false
+      },
+      {
+        "vlnv": "lowrisc:systems:ast:0.1",
+        "category": "elaboration",
+        "default_tool": "vcs",
+        "toplevels": [
+          "ast"
+        ],
+        "core_file": "hw/top_earlgrey/ip/ast/ast.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:systems:chip_englishbreakfast_verilator:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "chip_englishbreakfast_verilator"
+        ],
+        "core_file": "hw/top_englishbreakfast/chip_englishbreakfast_verilator.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:systems:chip_englishbreakfast_verilator:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:dmidpi:0.1",
+          "lowrisc:dv_dpi_sv:gpiodpi:0.1",
+          "lowrisc:dv_dpi_sv:jtagdpi:0.1",
+          "lowrisc:dv_dpi_sv:spidpi:0.1",
+          "lowrisc:dv_dpi_sv:uartdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0",
+          "lowrisc:systems:chip_englishbreakfast_verilator:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:systems:top_earlgrey:0.1",
+        "category": "elaboration",
+        "default_tool": "icarus",
+        "toplevels": [
+          "top_earlgrey"
+        ],
+        "core_file": "hw/top_earlgrey/top_earlgrey.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": true
+      },
+      {
+        "vlnv": "lowrisc:systems:top_englishbreakfast:0.1",
+        "category": "elaboration",
+        "default_tool": "icarus",
+        "toplevels": [
+          "top_englishbreakfast"
+        ],
+        "core_file": "hw/top_englishbreakfast/top_englishbreakfast.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+        ],
+        "timescale": null,
+        "requires_uvm_library": true
+      }
+    ],
+    "uvm_runtime_configured_target_count": 35
+  },
+  "results": [
+    {
+      "lane": "uvm",
+      "core": "lowrisc:dv:otbn_sim:0.1",
+      "description": "",
+      "target": "sim",
+      "work_root": "/private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1",
+      "provider_mappings": [
+        "local:matrix:prim_generic_all:0.1",
+        "lowrisc:systems:top_earlgrey:0.1"
+      ],
+      "status": "FAIL",
+      "simulation_category": "uvm",
+      "simulation_default_tool": "vcs",
+      "simulation_toplevels": [
+        "tb"
+      ],
+      "simulation_core_file": "hw/ip/otbn/dv/uvm/otbn_sim.core",
+      "dvsim_config": "hw/ip/otbn/dv/uvm/otbn_sim_cfg.hjson",
+      "dvsim_test": "otbn_smoke",
+      "uvm_test": "otbn_base_test",
+      "uvm_test_seq": "otbn_smoke_vseq",
+      "dvsim_regression": "smoke",
+      "dvsim_runtime_args": [
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=0",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=otbn_base_test",
+        "+UVM_TEST_SEQ=otbn_smoke_vseq"
+      ],
+      "dvsim_build_mode": null,
+      "dvsim_build_options": [
+        "+define+UVM",
+        "+define+UVM_NO_DEPRECATED",
+        "+define+UVM_REGEX_NO_DPI",
+        "+define+UVM_REG_ADDR_WIDTH=32",
+        "+define+UVM_REG_DATA_WIDTH=32",
+        "+define+UVM_REG_BYTENABLE_WIDTH=4",
+        "+define+SIMULATION",
+        "+define+DUT_HIER=tb.dut"
+      ],
+      "dvsim_timescale": "1ns/1ps",
+      "native_dependencies": [
+        "lowrisc:dv:crypto_dpi_present:0.1",
+        "lowrisc:dv:crypto_dpi_prince:0.1",
+        "lowrisc:dv:crypto_prince_ref:0.1",
+        "lowrisc:dv:digestpp_dpi:0.1",
+        "lowrisc:dv:otbn_env:0.1",
+        "lowrisc:dv:otbn_memutil:0",
+        "lowrisc:dv:otbn_model:0.1",
+        "lowrisc:dv:scramble_model:0",
+        "lowrisc:dv:secded_enc:0",
+        "lowrisc:dv_verilator:memutil_dpi:0",
+        "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+        "lowrisc:ip:otbn_tracer:0"
+      ],
+      "dpi_dependencies": [
+        "lowrisc:dv:crypto_dpi_present:0.1",
+        "lowrisc:dv:crypto_dpi_prince:0.1",
+        "lowrisc:dv:crypto_prince_ref:0.1",
+        "lowrisc:dv:digestpp_dpi:0.1",
+        "lowrisc:dv:otbn_env:0.1",
+        "lowrisc:dv:otbn_memutil:0",
+        "lowrisc:dv:otbn_model:0.1",
+        "lowrisc:dv:otbn_model_agent:0.1",
+        "lowrisc:dv:scramble_model:0",
+        "lowrisc:dv:secded_enc:0",
+        "lowrisc:dv_verilator:memutil_dpi:0",
+        "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+        "lowrisc:ip:otbn_tracer:0",
+        "lowrisc:prim:util_get_scramble_params:0"
+      ],
+      "orchestration_requirements": [
+        "en_build_modes",
+        "en_run_modes"
+      ],
+      "unresolved_runtime_options": [
+        "+otbn_elf_dir={scratch_root}/{branch}/otbn-sim-xcelium/{index}.{test}/latest/otbn-binaries"
+      ],
+      "simulation_metadata_warnings": [
+        "native C/C++ dependencies require a DPI/VPI build outside the Edalize Icarus source-list backend"
+      ],
+      "setup_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34 --cores-root=/private/tmp/ot-otbn-package-self-qual-20260925/work/matrix-provider-cores run --target=sim --tool=icarus --setup --build-root=/private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1 --flag=fileset_ip lowrisc:dv:otbn_sim:0.1",
+      "setup_returncode": 0,
+      "setup_duration_seconds": 3.293,
+      "setup_timed_out": false,
+      "setup_log": "/private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1/matrix-setup.log",
+      "setup_warnings": [
+        "WARNING: Unknown item mapping in section Root",
+        "WARNING: Unknown item mapping in section Root",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_secded_enc_0/secded_enc.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_dv_scramble_model_0/scramble_model.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/dpi_memutil.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/sv_scoped.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_scrambled_0/cpp/scrambled_ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_memutil_0/otbn_memutil.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_ip_otbn_tracer_0/cpp/otbn_trace_source.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_ip_otbn_tracer_0/cpp/log_trace_listener.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_model.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/iss_wrapper.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_trace_checker.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_trace_entry.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_env_0.1/otbn_test_helpers.cc has unknown file type 'cppSource'"
+      ],
+      "top_selection_notes": [
+        "also rooted bind-carrying module(s) ['otbn_bind', 'sec_cm_prim_count_bind', 'sec_cm_prim_double_lfsr_bind', 'sec_cm_prim_onehot_check_bind', 'sec_cm_prim_sparse_fsm_flop_bind']: nothing instantiates them, so an explicit root would drop their bind directives"
+      ],
+      "source_list": "/private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1/sim-icarus/lowrisc_dv_otbn_sim_0.1.scr",
+      "compiler_source_list": "/private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1/matrix-iverilog.scr",
+      "top_options": [
+        "-stb",
+        "-sotbn_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind"
+      ],
+      "compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-package-self-qual-20260925/local-install/bin/iverilog -g2012 -stb -sotbn_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1/matrix-uvm.vvp -c /private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1/matrix-iverilog.scr",
+      "compile_returncode": 208,
+      "compile_duration_seconds": 6.095,
+      "compile_timed_out": false,
+      "compile_log": "/private/tmp/ot-otbn-package-self-qual-20260925/work/uvm/lowrisc_dv_otbn_sim_0.1/matrix-compile.log",
+      "hard_error_count": 233,
+      "hard_errors": [
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:565: error: covergroup bin `csr_load_checksum' range expression references mutable enclosing-class property `csr_load_checksum'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:566: error: covergroup bin `csr_ctrl' range expression references mutable enclosing-class property `csr_ctrl'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:723: error: covergroup bin `mnem_add' range expression references mutable enclosing-class property `mnem_add'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:723: error: covergroup bin `mnem_addi' range expression references mutable enclosing-class property `mnem_addi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:724: error: covergroup bin `mnem_lui' range expression references mutable enclosing-class property `mnem_lui'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:724: error: covergroup bin `mnem_sub' range expression references mutable enclosing-class property `mnem_sub'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:725: error: covergroup bin `mnem_sll' range expression references mutable enclosing-class property `mnem_sll'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:725: error: covergroup bin `mnem_slli' range expression references mutable enclosing-class property `mnem_slli'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:726: error: covergroup bin `mnem_srl' range expression references mutable enclosing-class property `mnem_srl'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:726: error: covergroup bin `mnem_srli' range expression references mutable enclosing-class property `mnem_srli'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:727: error: covergroup bin `mnem_sra' range expression references mutable enclosing-class property `mnem_sra'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:727: error: covergroup bin `mnem_srai' range expression references mutable enclosing-class property `mnem_srai'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:728: error: covergroup bin `mnem_and' range expression references mutable enclosing-class property `mnem_and'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:728: error: covergroup bin `mnem_andi' range expression references mutable enclosing-class property `mnem_andi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:729: error: covergroup bin `mnem_or' range expression references mutable enclosing-class property `mnem_or'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:729: error: covergroup bin `mnem_ori' range expression references mutable enclosing-class property `mnem_ori'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:730: error: covergroup bin `mnem_xor' range expression references mutable enclosing-class property `mnem_xor'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:730: error: covergroup bin `mnem_xori' range expression references mutable enclosing-class property `mnem_xori'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:731: error: covergroup bin `mnem_lw' range expression references mutable enclosing-class property `mnem_lw'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:731: error: covergroup bin `mnem_sw' range expression references mutable enclosing-class property `mnem_sw'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:732: error: covergroup bin `mnem_beq' range expression references mutable enclosing-class property `mnem_beq'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:732: error: covergroup bin `mnem_bne' range expression references mutable enclosing-class property `mnem_bne'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:733: error: covergroup bin `mnem_jal' range expression references mutable enclosing-class property `mnem_jal'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:733: error: covergroup bin `mnem_jalr' range expression references mutable enclosing-class property `mnem_jalr'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:734: error: covergroup bin `mnem_csrrs' range expression references mutable enclosing-class property `mnem_csrrs'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:734: error: covergroup bin `mnem_csrrw' range expression references mutable enclosing-class property `mnem_csrrw'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:735: error: covergroup bin `mnem_loop' range expression references mutable enclosing-class property `mnem_loop'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:735: error: covergroup bin `mnem_loopi' range expression references mutable enclosing-class property `mnem_loopi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:736: error: covergroup bin `mnem_bn_add' range expression references mutable enclosing-class property `mnem_bn_add'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:736: error: covergroup bin `mnem_bn_addc' range expression references mutable enclosing-class property `mnem_bn_addc'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:737: error: covergroup bin `mnem_bn_addi' range expression references mutable enclosing-class property `mnem_bn_addi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:737: error: covergroup bin `mnem_bn_addm' range expression references mutable enclosing-class property `mnem_bn_addm'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:738: error: covergroup bin `mnem_bn_mulqacc' range expression references mutable enclosing-class property `mnem_bn_mulqacc'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:738: error: covergroup bin `mnem_bn_mulqacc_wo' range expression references mutable enclosing-class property `mnem_bn_mulqacc_wo'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:739: error: covergroup bin `mnem_bn_mulqacc_so' range expression references mutable enclosing-class property `mnem_bn_mulqacc_so'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:740: error: covergroup bin `mnem_bn_sub' range expression references mutable enclosing-class property `mnem_bn_sub'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:740: error: covergroup bin `mnem_bn_subb' range expression references mutable enclosing-class property `mnem_bn_subb'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:741: error: covergroup bin `mnem_bn_subi' range expression references mutable enclosing-class property `mnem_bn_subi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:741: error: covergroup bin `mnem_bn_subm' range expression references mutable enclosing-class property `mnem_bn_subm'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:742: error: covergroup bin `mnem_bn_and' range expression references mutable enclosing-class property `mnem_bn_and'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:742: error: covergroup bin `mnem_bn_or' range expression references mutable enclosing-class property `mnem_bn_or'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:743: error: covergroup bin `mnem_bn_not' range expression references mutable enclosing-class property `mnem_bn_not'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:743: error: covergroup bin `mnem_bn_xor' range expression references mutable enclosing-class property `mnem_bn_xor'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:744: error: covergroup bin `mnem_bn_rshi' range expression references mutable enclosing-class property `mnem_bn_rshi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:745: error: covergroup bin `mnem_bn_sel' range expression references mutable enclosing-class property `mnem_bn_sel'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:746: error: covergroup bin `mnem_bn_cmp' range expression references mutable enclosing-class property `mnem_bn_cmp'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:746: error: covergroup bin `mnem_bn_cmpb' range expression references mutable enclosing-class property `mnem_bn_cmpb'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:747: error: covergroup bin `mnem_bn_lid' range expression references mutable enclosing-class property `mnem_bn_lid'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:747: error: covergroup bin `mnem_bn_sid' range expression references mutable enclosing-class property `mnem_bn_sid'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:748: error: covergroup bin `mnem_bn_mov' range expression references mutable enclosing-class property `mnem_bn_mov'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:748: error: covergroup bin `mnem_bn_movr' range expression references mutable enclosing-class property `mnem_bn_movr'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:749: error: covergroup bin `mnem_bn_wsrr' range expression references mutable enclosing-class property `mnem_bn_wsrr'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:749: error: covergroup bin `mnem_bn_wsrw' range expression references mutable enclosing-class property `mnem_bn_wsrw'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:724: error: covergroup bin `mnem_add' range expression references mutable enclosing-class property `mnem_add'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:724: error: covergroup bin `mnem_addi' range expression references mutable enclosing-class property `mnem_addi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:725: error: covergroup bin `mnem_lui' range expression references mutable enclosing-class property `mnem_lui'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:725: error: covergroup bin `mnem_sub' range expression references mutable enclosing-class property `mnem_sub'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:726: error: covergroup bin `mnem_sll' range expression references mutable enclosing-class property `mnem_sll'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:726: error: covergroup bin `mnem_slli' range expression references mutable enclosing-class property `mnem_slli'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:727: error: covergroup bin `mnem_srl' range expression references mutable enclosing-class property `mnem_srl'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:727: error: covergroup bin `mnem_srli' range expression references mutable enclosing-class property `mnem_srli'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:728: error: covergroup bin `mnem_sra' range expression references mutable enclosing-class property `mnem_sra'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:728: error: covergroup bin `mnem_srai' range expression references mutable enclosing-class property `mnem_srai'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:729: error: covergroup bin `mnem_and' range expression references mutable enclosing-class property `mnem_and'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:729: error: covergroup bin `mnem_andi' range expression references mutable enclosing-class property `mnem_andi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:730: error: covergroup bin `mnem_or' range expression references mutable enclosing-class property `mnem_or'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:730: error: covergroup bin `mnem_ori' range expression references mutable enclosing-class property `mnem_ori'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:731: error: covergroup bin `mnem_xor' range expression references mutable enclosing-class property `mnem_xor'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:731: error: covergroup bin `mnem_xori' range expression references mutable enclosing-class property `mnem_xori'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:732: error: covergroup bin `mnem_lw' range expression references mutable enclosing-class property `mnem_lw'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:732: error: covergroup bin `mnem_sw' range expression references mutable enclosing-class property `mnem_sw'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:733: error: covergroup bin `mnem_beq' range expression references mutable enclosing-class property `mnem_beq'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:733: error: covergroup bin `mnem_bne' range expression references mutable enclosing-class property `mnem_bne'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:734: error: covergroup bin `mnem_jal' range expression references mutable enclosing-class property `mnem_jal'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:734: error: covergroup bin `mnem_jalr' range expression references mutable enclosing-class property `mnem_jalr'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:735: error: covergroup bin `mnem_csrrs' range expression references mutable enclosing-class property `mnem_csrrs'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:735: error: covergroup bin `mnem_csrrw' range expression references mutable enclosing-class property `mnem_csrrw'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:736: error: covergroup bin `mnem_loop' range expression references mutable enclosing-class property `mnem_loop'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:736: error: covergroup bin `mnem_loopi' range expression references mutable enclosing-class property `mnem_loopi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:737: error: covergroup bin `mnem_bn_add' range expression references mutable enclosing-class property `mnem_bn_add'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:737: error: covergroup bin `mnem_bn_addc' range expression references mutable enclosing-class property `mnem_bn_addc'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:738: error: covergroup bin `mnem_bn_addi' range expression references mutable enclosing-class property `mnem_bn_addi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:738: error: covergroup bin `mnem_bn_addm' range expression references mutable enclosing-class property `mnem_bn_addm'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:739: error: covergroup bin `mnem_bn_mulqacc' range expression references mutable enclosing-class property `mnem_bn_mulqacc'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:739: error: covergroup bin `mnem_bn_mulqacc_wo' range expression references mutable enclosing-class property `mnem_bn_mulqacc_wo'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:740: error: covergroup bin `mnem_bn_mulqacc_so' range expression references mutable enclosing-class property `mnem_bn_mulqacc_so'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:741: error: covergroup bin `mnem_bn_sub' range expression references mutable enclosing-class property `mnem_bn_sub'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:741: error: covergroup bin `mnem_bn_subb' range expression references mutable enclosing-class property `mnem_bn_subb'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:742: error: covergroup bin `mnem_bn_subi' range expression references mutable enclosing-class property `mnem_bn_subi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:742: error: covergroup bin `mnem_bn_subm' range expression references mutable enclosing-class property `mnem_bn_subm'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:743: error: covergroup bin `mnem_bn_and' range expression references mutable enclosing-class property `mnem_bn_and'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:743: error: covergroup bin `mnem_bn_or' range expression references mutable enclosing-class property `mnem_bn_or'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:744: error: covergroup bin `mnem_bn_not' range expression references mutable enclosing-class property `mnem_bn_not'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:744: error: covergroup bin `mnem_bn_xor' range expression references mutable enclosing-class property `mnem_bn_xor'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:745: error: covergroup bin `mnem_bn_rshi' range expression references mutable enclosing-class property `mnem_bn_rshi'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:746: error: covergroup bin `mnem_bn_sel' range expression references mutable enclosing-class property `mnem_bn_sel'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:747: error: covergroup bin `mnem_bn_cmp' range expression references mutable enclosing-class property `mnem_bn_cmp'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:747: error: covergroup bin `mnem_bn_cmpb' range expression references mutable enclosing-class property `mnem_bn_cmpb'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:748: error: covergroup bin `mnem_bn_lid' range expression references mutable enclosing-class property `mnem_bn_lid'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:748: error: covergroup bin `mnem_bn_sid' range expression references mutable enclosing-class property `mnem_bn_sid'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments."
+      ],
+      "semantic_debt_count": 33,
+      "semantic_debt": [
+        "sorry: covergroup bin 'extremes' has a runtime range expression that cannot be represented; the bin is dropped.",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:772: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:775: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:777: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:816: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:818: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:821: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:823: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:846: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:848: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:851: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:853: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:898: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:901: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:903: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:954: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:957: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:959: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:988: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:991: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:993: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:1025: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:1027: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:1030: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:1032: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_env_0.1/otbn_env_cov.sv:1109: warning: Array index expressions must be constant here (compile-progress fallback, using 0).",
+        "../src/lowrisc_dv_otbn_sim_0.1/tb.sv:87: warning: input port rst_n is coerced to inout.",
+        "../src/lowrisc_ip_otbn_tracer_0/rtl/otbn_trace_if.sv:375: error: Unable to bind wire/reg/memory `controller_bad_int_i.loop_hw_intg_err' in `tb.dut.u_otbn_core.i_otbn_trace_if'",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process."
+      ],
+      "output_sha256": "f6e0818e0b091d141e45551876bb725aed637b84fb4ee1937b1038958e26ad5c"
+    }
+  ]
+}

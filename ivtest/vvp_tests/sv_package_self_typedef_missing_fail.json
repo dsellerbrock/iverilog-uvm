@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_package_self_typedef_missing_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_package_self_typedef_missing_fail"
+}

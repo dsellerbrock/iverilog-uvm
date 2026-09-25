@@ -1,0 +1,4 @@
+ivtest/ivltests/sv_package_self_typedef.v:6: syntax error
+ivtest/ivltests/sv_package_self_typedef.v:6: error: self_type_pkg doesn't name a type.
+ivtest/ivltests/sv_package_self_typedef.v:8: syntax error
+ivtest/ivltests/sv_package_self_typedef.v:8: error: Syntax error defining function.
