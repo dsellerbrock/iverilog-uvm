@@ -1,0 +1,83 @@
+UVM_INFO @ 0 ps: reporter [RNTST] Running test csrng_smoke_test...
+UVM_INFO @         0 ps: (csrng_smoke_test.sv:18) uvm_test_top [uvm_test_top]
+
+	 |**************** csrng_env_cfg *************************|
+	 |***** otp_en_cs_sw_app_read           :       'h96 *****|
+	 |***** lc_hw_debug_en                  :       'h05 *****|
+	 |***** enable                          :  MuBi4True *****|
+	 |***** sw_app_enable                   : MuBi4False *****|
+	 |***** read_int_state                  :  MuBi4True *****|
+	 |***** regwen                          :          1 *****|
+	 |***** check_int_state                 :          1 *****|
+	 |***** int_state_read_enable           :        'h7 *****|
+	 |***** int_state_read_enable_regwen    :          0 *****|
+	 |***** fips_force_enable               :          9 *****|
+	 |---------------- knobs ---------------------------------|
+	 |***** otp_en_cs_sw_app_read_pct       :         80 *****|
+	 |***** otp_en_cs_sw_app_read_inval_pct :         80 *****|
+	 |***** lc_hw_debug_en_pct              :         50 *****|
+	 |***** enable_pct                      :        100 *****|
+	 |***** sw_app_enable_pct               :         90 *****|
+	 |***** read_int_state_pct              :         95 *****|
+	 |***** regwen_pct                      :        100 *****|
+	 |***** check_int_state_pct             :        100 *****|
+	 |***** int_state_read_enable_pct       :         95 *****|
+	 |***** int_state_read_enable_regwen_pct:         50 *****|
+	 |***** fips_force_enable_pct           :         50 *****|
+	 |***** num_cmds_min                    :          0 *****|
+	 |***** num_cmds_max                    :          0 *****|
+	 |***** min_aes_halt_clks               :          0 *****|
+	 |***** max_aes_halt_clks               :          0 *****|
+	 |********************************************************|
+
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:551) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_sfifo_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:552) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_cfg_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:553) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_cmds_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:554) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_sts_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:555) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_err_code_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:556) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_err_code_test_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:557) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_recov_alert_sts_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:558) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_otp_en_sw_app_read_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:559) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_genbits_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:560) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_state_db_cg
+1000 ps: (../src/lowrisc_dv_csrng_cov_0/csrng_cov_if.sv:561) [tb.dut.u_csrng_cov_if] Creating covergroup csrng_es_sample_cg
+UVM_INFO @   4329538 ps: (dv_base_reg.sv:329) [csrng_reg_block.regwen] lock_lockable_flds          1 val
+UVM_INFO @   5371213 ps: (dv_base_reg.sv:329) [csrng_reg_block.int_state_read_enable_regwen] lock_lockable_flds          0 val
+UVM_FATAL @   5537881 ps: (csrng_smoke_vseq.sv:21) [uvm_test_top.env.virtual_sequencer.csrng_smoke_vseq] Check failed (cs_item.randomize() with {cs_item.acmd == csrng_pkg::INS; cs_item.flags == MuBi4True; cs_item.clen == 4'hc;}) Randomization failed!
+UVM_INFO @   5537881 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER]
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @   5537881 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER]
+--- UVM Report Summary ---
+
+Quit count :     0 of     1
+** Report counts by severity
+UVM_INFO :    5
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    1
+** Report counts by id
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[csrng_reg_block.int_state_read_enable_regwen]     1
+[csrng_reg_block.regwen]     1
+[uvm_test_top]     1
+[uvm_test_top.env.virtual_sequencer.csrng_smoke_vseq]     1
+
+
+TEST FAILED CHECKS
+ _____         _      __       _ _          _ _
+|_   _|__  ___| |_   / _| __ _(_) | ___  __| | |
+  | |/ _ \/ __| __| | |_ / _` | | |/ _ \/ _` | |
+  | |  __/\__ \ |_  |  _| (_| | | |  __/ (_| |_|
+  |_|\___||___/\__| |_|  \__,_|_|_|\___|\__,_(_)
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:135: $finish called at 5537881 (1ps)

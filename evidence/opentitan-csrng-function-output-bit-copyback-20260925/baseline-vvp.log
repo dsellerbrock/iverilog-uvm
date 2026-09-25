@@ -1,0 +1,9 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-csrng-backdoor-probe-20260925/focus-vvp.list
+----------------------------------------------------------------------------
+       sv_function_output_bit_copyback: Failed - vvp error, but expected to succeed
+  sv_function_output_bit_copyback_2023: Failed - vvp error, but expected to succeed
+     sv_function_output_nonlvalue_fail: Passed - CE.
+sv_function_output_nonlvalue_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 4, Failed 2.

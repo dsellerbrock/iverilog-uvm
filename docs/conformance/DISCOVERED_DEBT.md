@@ -3438,3 +3438,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Paired 2017/2023 RED and bytecode probes](../../evidence/opentitan-otp-dd056-factory-registry-20260924/README.md) and [private pinned OTP replay](../../evidence/opentitan-joint-ordered-guard-candidate-20260924/otp-private-runtime.log).
 - **Reproducer status:** paired named/positional equal-value specialization casts fail in both editions; positional-only controls pass and unequal-value casts reject as expected.
 - **Triage status:** separate compiler canonicalization blocker, outside the selected vvp/vvp_z3.cc solver patch. No pinned-source or compiler fix has been applied.
+
+### DD-057 — scalar function output to associative class-property element is skipped
+
+- **Discovered while working:** OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
+- **Observation:** A function output `logic[1023:0]` actual `holder.entries["k"]` where `entries` is a class associative array of `bit[31:0]` compiles with `Skipping indexed property copy-out for data`; the element remains zero. This differs from the selected whole scalar `holder.value` copy-out.
+- **File/function:** `tgt-vvp/draw_ufunc.c`, indexed `IVL_EX_PROPERTY` function copy-out branch.
+- **Possible clause:** IEEE 1800-2017/2023 §13.5; indexed class-property lvalue typing also needs classification.
+- **Evidence:** [Diagnostic source and log](../../evidence/opentitan-csrng-function-output-bit-copyback-20260925/output-shapes-assoc.runtime.log) with separate compile log in the same directory.
+- **Reproducer status:** confirmed in a diagnostic copy; not a qualifying released DV run.
+- **Triage status:** untriaged, outside this blocker and its bit conversion fix.
+
+### DD-058 — mismatched two-state/four-state ref actual is accepted
+
+- **Discovered while working:** OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
+- **Observation:** Both strict editions accept a `ref logic[31:0]` formal bound to a `bit[31:0]` actual, even though a `ref` argument must have an equivalent type; this is distinct from an `output` argument's assignment conversion.
+- **File/function:** function ref-argument validation in elaboration; exact source symbol not traced.
+- **Clause:** IEEE 1800-2017/2023 §§13.5.2 and 6.22.2(c) require equivalent `ref` types, including the same two-state or four-state classification.
+- **Evidence:** [Paired diagnostic source and compile logs](../../evidence/opentitan-csrng-function-output-bit-copyback-20260925/ref-mismatch.sv).
+- **Reproducer status:** confirmed acceptance in both editions; no runtime semantics assessed.
+- **Triage status:** untriaged, outside this output copy-back blocker.

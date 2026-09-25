@@ -1,22 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-csrng-nested-clocking-monitor-20260925
-checkpoint_head: c3d637ac9899be595e7c679a46f289b14d95c1a5
+branch: agent/ot-csrng-function-output-bit-copyback-20260925
+checkpoint_head: dbb4f851f872529731e62603d98447fb678a735d
 active_open_titan_lane:
-  blocker: OT-CSRNG-NESTED-CLOCKING-MONITOR
-  phase: PR364_PUBLISHED_RELEASED_DV_0_OF_1; stacked on open PR363.
-  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-clockmon-20260925
-  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/363
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/364
-  baseline_private_ivl_sha256: a2470636e85fced3aacc6df62f790e32615e339f8dca012f18191d60eaa708bd
-  baseline_private_vvp_sha256: 8539543ccbebf61dd942dd0714b2dc6da894106619e394e1b7f83b3ea80ca014
-  baseline: PR363's final pinned CSRNG compile skips cfg.vif.cmd_push_if.mon_cb event and assumes its sampled valid/ready condition false; it also ignores int_state_read_enable_c. Runtime is 0/1 at 1000 ps on a separate unknown CSR backdoor field. No command traffic or scoreboard comparison is claimed.
-  standards: IEEE 1800-2017/2023 §§14.10, 14.13, 25.9/25.9.1; nested class-held access is inferred from combined rules, not an exact worked example.
-  private_final_ivl_sha256: af9af369147ce1e5fadaaef7dea6e4a035e63cca737342a90ffed3f70bccf84b
-  private_final_vvp_sha256: f3c47526cf38fdb1b8ee05a406308c50d56b06218d18df9512ddb7f843a01bab
-  validation: Paired strict nested clocking event, sampled member, rebind, null, hidden, and missing-clock focus 22/22 legacy and 22/22 JSON; neighboring event-list negatives 4/4 in each; make check passes. Broad legacy 6609 total zero failed, VPI 131/131, negatives 155/155, invariants 15/15; full JSON 3648/3648; real-DPI UVM 358/358 zero failed/skipped.
-  released_dv: Named-overlay pinned CSRNG compile retains monitor event and sampled condition with explicit -g2017 -gcommercial-unsafe, but ignores int_state_read_enable_c. Native-DPI smoke exits 1 at 1000 ps on the prior unknown CSR backdoor field, TEST FAILED CHECKS, and TL end-of-simulation assertion; 0/1 released nonstandard compatibility DV without meaningful checked command traffic.
-  next_command: PR364 is published and locally validated; keep the unknown CSR backdoor field and ignored constraint as distinct future blockers and separate PRs. Do not poll CI.
+  blocker: OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
+  phase: LOCALLY_QUALIFIED_PR_PENDING_RELEASED_DV_0_OF_1
+  worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-bit-copyback-20260925
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/364
+  pr: pending
+  baseline_private_ivl_sha256: af9af369147ce1e5fadaaef7dea6e4a035e63cca737342a90ffed3f70bccf84b
+  baseline_private_vvp_sha256: f3c47526cf38fdb1b8ee05a406308c50d56b06218d18df9512ddb7f843a01bab
+  baseline: PR364 pinned CSRNG runtime fails 0/1 at 1000 ps because X from the physical pre-reset CSR is retained in two-state uvm_reg_data_t after function output copy-back.
+  standards: IEEE 1800-2017/2023 §§6.11.2 and 13.5 for two-state conversion on output argument copy-back; strict paired reducers are separate from unsafe released DV.
+  private_final_ivl_sha256: b4e5dec66b067e2e74526dbe1b0086de4a4152dc5cfc5126db6920a535a1f408
+  private_final_vvp_sha256: c6fd0821d294d548f41fbab33792db2d7e582c98cd01dab5d432ee199e929483
+  validation: Paired strict 2017/2023 legal bit and four-state controls plus nonlvalue negatives pass 4/4 in each focused runner; make check passes. Broad legacy passes 6613 total with zero failures, full JSON 3652/3652 after private optional FPGA target installation, and real-DPI UVM 358/358 zero failed/skipped. Independent review found no actionable copy-back defect.
+  released_dv: Named-overlay pinned CSRNG compile exits zero with native DPI and explicit -g2017 -gcommercial-unsafe, but still ignores int_state_read_enable_c. Runtime reaches 5537881 ps, then UVM_FATAL at the first cs_item.randomize() and TEST FAILED CHECKS before command traffic; VVP exit zero does not change 0/1 released nonstandard compatibility DV.
+  next_command: Publish one PR stacked on PR364; keep receiver-qualified inline randomize and ignored constraint as distinct future blockers. Do not poll CI.
   boundary: OpenTitan private tool only; pinned application sources, installed Caliptra tool, and user-owned campaign AGENTS.md unchanged. Caliptra jobs remain stopped; no Verilator, GPU, or CI polling.
 active_icarus_runs:
   selected_52:
@@ -92,15 +92,15 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-CSRNG-NESTED-CLOCKING-MONITOR
-  phase: PR364_PUBLISHED_RELEASED_DV_0_OF_1
-  owner: Coordinator owns selection, standards, builds, release replay, integration, review, and one separate PR; delegated read-only triage identified the warning sites.
-  reproducer: PR363 pinned CSRNG compile skips a class-held nested child clocking event and assumes its sampled handshake false at csrng_monitor.sv:115-116. Paired strict reducers wake at 0 and 8 ns instead of 5 and 21 ns and read sampled 000; a separate missing-clock path previously compiled with an event-skipped warning.
-  expected: Dynamic class-held parent VIF selects the named child clocking block of its bound instance; its event wakes after sampled inputs update, and handshake checks follow sampled valid/ready without fabricated fallbacks. Invalid/null and hidden-modport paths reject.
-  root_cause_hypothesis: Confirmed class-property traversal stops at a nested interface instance; the sampled child member and tick were omitted, and the first frontend-only repair waited on the parent object instead of the selected child. The candidate carries the child expression through the existing dynamic VIF event descriptor and evaluates it at wait-arm time. No new runtime opcode.
-  source_scope: Proven expression/event elaboration in elab_expr.cc elaborate.cc netmisc.cc, existing NetEvProbe and DLL event descriptor/export, and VVP target wait emission; dedicated paired tests and evidence. No vvp runtime, solver, Caliptra, or pinned source edits.
-  validation: Final private tool passes strict focus 22/22 in each legacy and JSON runner, neighboring negatives 4/4 each, make check, broad legacy 6609 total zero failed, VPI 131/131, negatives 155/155, invariants 15/15, full JSON 3648/3648, and real-DPI UVM 358/358. Pinned CSRNG with named overlay and unsafe flag compiles without the skipped monitor event or assumed-false condition; native-DPI runtime remains 0/1 released DV at 1000 ps on a separate unknown CSR field and follow-on TL assertion. Ignored int_state_read_enable_c remains separate.
-  next: PR364 https://github.com/dsellerbrock/iverilog-uvm/pull/364 is published; pursue the unknown CSR field in another blocker and PR, and keep the ignored constraint separate. Do not poll CI.
+  id: OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
+  phase: LOCALLY_QUALIFIED_PR_PENDING_RELEASED_DV_0_OF_1
+  owner: Coordinator owns the private build, strict reducers, pinned native-DPI replay, broad gates, evidence, review, and one stacked PR.
+  reproducer: Paired strict 2017/2023 function output logic[1023:0] containing X/Z copies into bit[31:0] retaining unknowns, while direct assignment and native task copy-out convert them to zero. Pinned CSRNG at 1000 ps copies the physical pre-reset X through uvm_hdl_read into two-state uvm_reg_data_t and fails $isunknown(field_val).
+  expected: Resize the returned formal value to each actual receiver's width, then cast to two-state only for bit actuals; preserve X/Z in four-state actuals and reject nonlvalue output actuals. Ref-type mismatch acceptance is separate DD-058.
+  root_cause_hypothesis: Confirmed tgt-vvp/draw_ufunc.c function output copy-back omitted the two-state cast; narrower formal outputs also needed padding before direct, array-element, and scalar-property stores.
+  source_scope: tgt-vvp/draw_ufunc.c plus dedicated paired 2017/2023 tests, focused evidence, and owning OpenTitan trackers only; no VVP runtime, pinned source, Caliptra, or installed Caliptra tool edits.
+  validation: Focused legacy and JSON 4/4 each, make check, broad legacy 6613 total zero failed, full JSON 3652/3652, and real-DPI UVM 358/358 zero failed/skipped. Independent review found no actionable defect. Pinned native-DPI CSRNG progresses to 5537881 ps but fails 0/1 at a separate receiver-qualified inline randomize blocker before command traffic; ignored int_state_read_enable_c is separate.
+  next: Publish the copy-back PR stacked on PR364, then select the distinct inline randomize blocker in another PR. Do not poll CI.
 completed_ot_joint_guard:
   id: OT-CSRNG-CFG-JOINT-DIST
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/358

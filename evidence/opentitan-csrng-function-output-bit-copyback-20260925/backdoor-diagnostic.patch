@@ -1,0 +1,24 @@
+--- pinned-overlay/csr_utils_pkg.sv
++++ diagnostic-copy/csr_utils_pkg.sv
+@@ -409,6 +409,7 @@
+                       $sformatf("Failed to read %s, slice %d, at path %s",
+                                 csr.get_full_name(), i, paths[0].slices[i].path),
+                       msg_id)
++      $display("CSR_PROBE time=%0t csr=%0s path=%0s slice_size=%0d offset=%0d data=%h unknown=%0d", $time, csr.get_full_name(), paths[0].slices[i].path, paths[0].slices[i].size, paths[0].slices[i].offset, field_val, $isunknown(field_val));
+       if (check == UVM_CHECK) `DV_CHECK_EQ($isunknown(field_val), 0, "", error, msg_id)
+ 
+       value |= field_val << paths[0].slices[i].offset;
+--- pinned-overlay/tb.sv
++++ diagnostic-copy/tb.sv
+@@ -168,4 +168,11 @@
+   `DV_ASSERT_CTRL("EntropySrcIf_AckAssertedOnlyWhenReqAsserted_A_CTRL",
+                   entropy_src_if.AckAssertedOnlyWhenReqAsserted_A)
+ 
++  initial begin
++    $display("RESET_PROBE t=%0t phase=start clk=%b rst_n=%b o_rst_n=%b q=%h", $time, clk, rst_n, clk_rst_if.o_rst_n, dut.u_reg.u_ctrl_enable.q);
++    #1ns;
++    $display("RESET_PROBE t=%0t phase=1ns-active clk=%b rst_n=%b o_rst_n=%b q=%h", $time, clk, rst_n, clk_rst_if.o_rst_n, dut.u_reg.u_ctrl_enable.q);
++    $strobe("RESET_PROBE t=%0t phase=1ns-postponed clk=%b rst_n=%b o_rst_n=%b q=%h", $time, clk, rst_n, clk_rst_if.o_rst_n, dut.u_reg.u_ctrl_enable.q);
++  end
++  always @(rst_n or clk) $display("RESET_PROBE t=%0t phase=edge clk=%b rst_n=%b o_rst_n=%b q=%h", $time, clk, rst_n, clk_rst_if.o_rst_n, dut.u_reg.u_ctrl_enable.q);
+ endmodule

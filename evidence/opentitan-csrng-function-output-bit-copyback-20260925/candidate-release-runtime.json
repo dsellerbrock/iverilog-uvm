@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-csrng-bit-copyback-20260925/local-install/bin/vvp",
+    "-d",
+    "/tmp/ot-csrng-backdoor-probe-20260925/csrng-candidate.dylib",
+    "-n",
+    "/tmp/ot-csrng-backdoor-probe-20260925/csrng-candidate.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "exit": 0,
+  "timeout": false,
+  "seconds": 9.090332624968141,
+  "stdout_lines": 83,
+  "stderr_lines": 2
+}
