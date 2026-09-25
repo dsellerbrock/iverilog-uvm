@@ -3498,3 +3498,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Paired illegal reducer](../../evidence/opentitan-system-return-20260925/system_extra_arg_fail.v) compiles exit zero under both editions before and after the selected function-result fix.
 - **Reproducer status:** paired illegal source accepted; runtime behavior was not assessed.
 - **Triage status:** untriaged, outside the function-result blocker.
+
+### DD-063 — covergroup sampling loses X/Z before ordinary-bin matching
+
+- **Discovered while working:** OT-LC-PACKED-COVERPOINT-SHAPE.
+- **Observation:** In both strict 2017 and 2023 modes, a five-bit X-valued class property and its bitwise expression evaluate as `xxxxx`, but the first `sample()` raises ordinary zero/negative-bin coverage from 0% to 50%. A direct-property coverpoint fails alongside the bitwise expression, so this is independent of the selected declaration-time shape fix. An explicit X/Z-bin diagnostic also remains unsupported; simply skipping all unknown samples would be incomplete.
+- **File/function:** `vvp/vthread.cc` `of_COVGRP_SAMPLE` computes `cp_has_xz` but passes only zero-coerced `uint64_t` values to `covgrp_sample_core_` / `covgrp_rec_match_`, which then matches the numeric zero bin.
+- **Possible clause:** IEEE 1800-2017/2023 §19.5, including the explicit X/Z-bin rules in §19.5.4; review the exact matching rule before implementation.
+- **Evidence:** [Paired X/Z value and direct-property reducer](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_sample_red.sv), [2017 log](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_sample_2017.log), [2023 log](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_sample_2023.log), and [explicit-bin probe](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_explicit_bin.sv).
+- **Reproducer status:** paired compile exit zero, runtime exit one at the first X sample; source and expression both print `xxxxx` before coverage rises to 50%. Z behavior is not yet isolated beyond the same earlier boundary fixture failing at X first.
+- **Triage status:** separate VVP four-state coverage representation blocker; no fix, no DV credit, and no implementation scope in the current elaborate.cc ticket.

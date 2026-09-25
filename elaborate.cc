@@ -36967,7 +36967,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  return nullptr;
 		    };
-		    auto coverpoint_effective_shape = [&](PExpr*expr,
+		    std::function<bool(PExpr*, unsigned&, bool&)>
+			coverpoint_effective_shape;
+		    coverpoint_effective_shape = [&](PExpr*expr,
 						     unsigned&width,
 						     bool&is_signed) -> bool {
 			  width = 0;
@@ -36986,12 +36988,44 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				width = expr->test_width(des, class_scope_, mode);
 				is_signed = expr->has_sign();
 			  }
+			  // A coverpoint is self-determined. test_width() may not
+			  // resolve class properties beneath bitwise operators in the
+			  // covergroup declaration scope; their declared packed types
+			  // still determine the expression's width and signedness.
+			  if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+				if (unary->get_op() == '~') {
+				      unsigned operand_width = 0;
+				      bool operand_signed = false;
+				      if (!coverpoint_effective_shape(unary->get_expr(),
+						operand_width, operand_signed)) {
+					    width = 0;
+					    return false;
+				      }
+				      width = operand_width;
+				      is_signed = operand_signed;
+				}
+			  } else if (const PEBinary*binary =
+				     dynamic_cast<const PEBinary*>(expr)) {
+				char op = binary->get_op();
+				if (op == '&' || op == '|' || op == '^'
+				    || op == 'A' || op == 'O' || op == 'X') {
+				      unsigned left_width = 0, right_width = 0;
+				      bool left_signed = false, right_signed = false;
+				      if (!coverpoint_effective_shape(binary->get_left(),
+						left_width, left_signed)
+				  || !coverpoint_effective_shape(binary->get_right(),
+						right_width, right_signed)) {
+					    width = 0;
+					    return false;
+				      }
+				      width = std::max(left_width, right_width);
+				      is_signed = left_signed && right_signed;
+				}
+			  }
 			  ivl_variable_type_t base = type
 				? type->base_type() : expr->expr_type();
 			  bool integral = base == IVL_VT_BOOL || base == IVL_VT_LOGIC
 				|| (type && dynamic_cast<const netenum_t*>(type));
-			  if (width == 0 && type && type->packed())
-				width = type->packed_width();
 			  return integral && width > 0 && width <= 64;
 		    };
 		    for (auto& cp : cgdef->coverpoints) {

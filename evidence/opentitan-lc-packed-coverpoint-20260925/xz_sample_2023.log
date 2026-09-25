@@ -1,0 +1,4 @@
+source=xxxxx expression=xxxxx before=0.000000/0.000000
+after=50.000000/50.000000
+FATAL: /private/tmp/ot-lc-xz-triage-20260925/repro_red.sv:49: X sample incorrectly hit ordinary numeric bin
+       Time: 0  Scope: test

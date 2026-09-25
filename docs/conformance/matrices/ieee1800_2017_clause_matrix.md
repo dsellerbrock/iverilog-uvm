@@ -2114,3 +2114,18 @@ under explicit `-gcommercial-unsafe`, which warns and skips the purity proof;
 its 1/1 released smoke result is nonstandard compatibility evidence, not
 §19.5 conformance or proof of a functional coverage hit. See the
 [revision-scoped record](../../../evidence/opentitan-otp-cover-bin-method-20260925/README.md).
+
+### September 25 packed bitwise coverpoint expression shape
+
+The PARTIAL IEEE 1800-2017/2023 §§11.6–11.8 and 19.5 subset now recovers
+the self-determined width and signedness of a packed class-property bitwise
+coverpoint expression at declaration time. Paired strict reducers retain
+explicit zero and nonzero bins, distinguish masked-only and high-bit samples,
+and check mixed operand widths and signedness; invalid `[$:$]` rejects and
+over-64-bit bins remain loudly unsupported. [Revision-scoped
+evidence](../../../evidence/opentitan-lc-packed-coverpoint-20260925/README.md)
+records the tests and the pinned LC_CTRL unsafe replay. The pinned target still
+has four independent hard compile errors, so this is not released DV progress
+in the 49-row numerator. X/Z samples hitting ordinary bins are separate
+unresolved debt (DD-063); no complete functional-coverage qualification is
+claimed.

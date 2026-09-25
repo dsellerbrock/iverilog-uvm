@@ -1,0 +1,2 @@
+/private/tmp/ot-lc-xz-triage-20260925/explicit.sv:6: warning: covergroup bin 'x_value' has an X/Z endpoint; the affected range is excluded.
+/private/tmp/ot-lc-xz-triage-20260925/explicit.sv:7: warning: covergroup bin 'z_value' has an X/Z endpoint; the affected range is excluded.
