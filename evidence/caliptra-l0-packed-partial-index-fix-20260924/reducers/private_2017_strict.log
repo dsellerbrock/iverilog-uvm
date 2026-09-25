@@ -1,0 +1,7 @@
+loc.a=800e0028006000 ext.a=800e0028006000
+direct ext.a[3]=2003 loc.a[3]=2003
+port ADR[0]=2000 expected=2000
+port ADR[1]=2001 expected=2001
+port ADR[2]=2002 expected=2002
+port ADR[3]=2003 expected=2003
+RESULT GREEN
