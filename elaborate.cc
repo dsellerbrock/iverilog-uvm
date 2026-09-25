@@ -2293,6 +2293,9 @@ static vector<pending_unsafe_interface_driver_t>
       pending_unsafe_interface_drivers_;
 static vector<pending_unsafe_interface_driver_t>
       pending_direct_interface_members_;
+/* A clocking-output declaration creates an apply process even if nothing
+ * drives the clockvar. Record only source drives that were elaborated. */
+static set<const NetNet*>static_clocking_output_writers_;
 
 struct pending_interface_ref_actual_t {
       NetNet*handle;
@@ -2515,6 +2518,80 @@ static bool interface_member_static_binding_(const NetAssign_*lval,
       return true;
 }
 
+/* A virtual clocking-output drive writes generated buffer, pending-mask and
+ * kick properties. The buffer and pending mask belong to one raw clockvar;
+ * the kick alone is only an event trigger. Match the defining clocking
+ * declaration instead of treating a virtual receiver as every member.
+ * Return -2 for an ordinary property, -1 for an uncertain clocking target,
+ * 0 for a disjoint target, and 1 for an overlapping target. */
+static int clocking_output_property_writes_member_(
+		const netclass_t*owner_type, size_t property_idx,
+		const NetNet*member)
+{
+      perm_string property = lex_strings.make(
+	    owner_type->get_prop_name(property_idx));
+      if (property == member->name())
+	    return 1;
+      string property_name(property.str());
+      if (property_name.compare(0, 6, "_ivl_o") != 0)
+	    return -2;
+
+      auto module = pform_modules.find(owner_type->get_name());
+      if (module == pform_modules.end() || !module->second)
+	    return -1;
+      for (const auto&entry : module->second->clocking_blocks) {
+	const Module::PClocking*cb = entry.second;
+	if (!cb)
+	  continue;
+	bool has_output = false;
+	for (perm_string signal : cb->signals) {
+	  NetNet::PortType dir = cb->signal_direction(signal);
+	  if (dir != NetNet::POUTPUT && dir != NetNet::PINOUT)
+	    continue;
+	  has_output = true;
+	  string pending = string("_ivl_opend$") + cb->name.str()
+		+ "$" + signal.str();
+	  string buffer = string("_ivl_obuf$") + cb->name.str()
+		+ "$" + signal.str();
+	  if (property != lex_strings.make(buffer.c_str())
+	      && property != lex_strings.make(pending.c_str()))
+	    continue;
+	  /* A declaration colliding with generated storage makes its identity
+	   * uncertain, so do not apply the ordinary name-disjoint shortcut. */
+	  if (module->second->wires.find(property)
+		!= module->second->wires.end())
+	    return -1;
+
+	  perm_string raw_name = signal;
+	  auto alias = cb->decl_assigns.find(signal);
+	  if (alias != cb->decl_assigns.end()) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(alias->second);
+	    if (!id || id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty())
+	      return -1;
+	    raw_name = id->path().name.front().name;
+	  }
+	  /* A clockvar can only be proved disjoint from an ordinary member when
+	   * its raw target is a declared member of this interface. */
+	  if (module->second->wires.find(raw_name)
+		== module->second->wires.end())
+	    return -1;
+	  return raw_name == member->name() ? 1 : 0;
+	}
+	string kick = string("_ivl_odkick$") + cb->name.str();
+	if (has_output && property == lex_strings.make(kick.c_str())) {
+	  if (module->second->wires.find(property)
+		!= module->second->wires.end())
+	    return -1;
+	  return 0;
+	}
+      }
+      /* An unmatched generated-looking property is ordinary only when it
+       * has an actual interface declaration; otherwise keep it uncertain. */
+      return module->second->wires.find(property) != module->second->wires.end()
+	    ? -2 : -1;
+}
+
 static bool interface_member_has_property_writer_(
 		const NetNet*member, const netclass_t*interface_type)
 {
@@ -2548,6 +2625,17 @@ static bool interface_member_has_property_writer_(
 		     && owner_type->get_name()
 			 == member->scope()->module_name())))
 	  continue;
+	if (lval->get_property_idx() >= 0
+	    && static_cast<size_t>(lval->get_property_idx())
+		 < owner_type->get_properties()) {
+	  int clocking_write = clocking_output_property_writes_member_(
+		owner_type, static_cast<size_t>(lval->get_property_idx()),
+		member);
+	  if (clocking_write == 0)
+	    continue;
+	  if (clocking_write >= -1)
+	    return true;
+	}
 
 	if (owner_type->interface_modport().nil()
 	    && (!interface_type || interface_type->interface_modport().nil())
@@ -2729,6 +2817,7 @@ static void finalize_interface_continuous_drivers_(Design*des)
 
       for (const auto&pending : pending_direct_interface_members_) {
 	if (pending.signal->has_unsafe_ref_actual_write()
+	    || static_clocking_output_writers_.count(pending.signal)
 	    || interface_member_has_property_writer_(pending.signal, nullptr)) {
 	  cerr << pending.location->get_fileline()
 	       << ": error: Variable '" << pending.signal->name()
@@ -2738,6 +2827,7 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	}
       }
       pending_direct_interface_members_.clear();
+      static_clocking_output_writers_.clear();
 
       for (const pending_string_variable_continuous_driver_t&pending :
 	   pending_string_variable_continuous_drivers_) {
@@ -11118,6 +11208,7 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       cond->set_line(loc);
       blk->append(cond);
 
+      static_clocking_output_writers_.insert(raw);
       return blk;
 }
 
@@ -39287,6 +39378,7 @@ Design* elaborate(list<perm_string>roots)
       pending_string_variable_continuous_drivers_.clear();
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
+      static_clocking_output_writers_.clear();
       pending_interface_ref_actuals_.clear();
       unresolved_interface_ref_types_.clear();
       unsafe_task_calls_.clear();

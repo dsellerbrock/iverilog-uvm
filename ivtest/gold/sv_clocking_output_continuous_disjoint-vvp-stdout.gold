@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_output_continuous_disjoint.v:73: $finish called at 6000 (1ps)

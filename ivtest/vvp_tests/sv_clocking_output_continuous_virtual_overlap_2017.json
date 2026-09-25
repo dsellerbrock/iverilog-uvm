@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_clocking_output_continuous_virtual_overlap.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_clocking_output_continuous_virtual_overlap"
+  ],
+  "gold": "sv_clocking_output_continuous_virtual_overlap"
+}

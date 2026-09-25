@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_clocking_output_continuous_same_scope_overlap.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_clocking_output_continuous_same_scope_overlap"
+  ],
+  "gold": "sv_clocking_output_continuous_same_scope_overlap"
+}

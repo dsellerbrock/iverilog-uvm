@@ -1,0 +1,136 @@
+{
+  "blocker": "OT-ALERT-ESC-CLOCKING-OUTPUT-ALIAS",
+  "generated_at_utc": "2026-09-24T23:52:50.035437+00:00",
+  "base_commit": "c132d39f8758dd37e6b6a19daf9e2ad41409bb96",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "qualification": "private-compiler paired conformance; pinned OpenTitan compiles remain blocked and no DV runtime started",
+  "compiler": {
+    "private_ivl_sha256": "a0233c248d419513e1eaa7dee9d8b9164479287d4bc0a7a4ff468ae4e03c89c9",
+    "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+    "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+    "installed_binaries_modified": false
+  },
+  "red": {
+    "cases": 36,
+    "wrong_verdicts": 16,
+    "matrix": "red-matrix.json",
+    "sha256": "5a69258d6467d24ba16d466b2d9960795569447cc09d5319b2e77ea2c0333a45"
+  },
+  "final_matrix": {
+    "matched": 36,
+    "total": 36,
+    "matrix": "final-matrix.json",
+    "sha256": "a81d7c2817e661018f539a6bc4b13bc4a2a2fbfa03134a24fd46d0d2cd436a40"
+  },
+  "checks": {
+    "dedicated_json": {
+      "passed": 20,
+      "total": 20,
+      "log": "dedicated-json.log",
+      "sha256": "0bab57f57217405882522809da58c03a71bd3a311ac18548c09844fdbc3dab27"
+    },
+    "dedicated_legacy": {
+      "passed": 7,
+      "total": 7,
+      "log": "dedicated-legacy.log",
+      "sha256": "fba45630df192ab0f178bb40c619fc678a1f795dabc250621cc8e2baea1984e7"
+    },
+    "neighboring_clocking_json": {
+      "passed": 36,
+      "total": 36,
+      "log": "neighbor-json.log",
+      "sha256": "77d2b3ae6e8e165e735745332e146c28fca1d57a96b64c87ed6e6d14b7209b80"
+    },
+    "negative": {
+      "passed": 155,
+      "total": 155,
+      "log": "negative.log",
+      "sha256": "f9635f3fdf2c910a23e5a14f42d962c882b5565383afe429aa655a328f0e2587"
+    },
+    "broad_json": {
+      "final_image": "stopped_intentionally_during_long_constraint_section",
+      "final_image_pass_claim": false,
+      "previous_private_ivl_sha256": "d1897f3208f329535c1834f34a9d698728a28463323d6f0fcb5fe15aa865a30f",
+      "previous_private_passed": 3572,
+      "previous_private_total": 3572
+    }
+  },
+  "pinned_compile": {
+    "otp_ctrl_sim": {
+      "prior_explicit_errors": 10,
+      "explicit_errors": 0,
+      "compile_exit": 1,
+      "fatal_sorry_count": 1,
+      "remaining_blocker": "otp_ctrl_base_vseq.sv:411 fixed unpacked-array virtual-interface method input",
+      "dv_runtime_started": false,
+      "log": "otp-compile.log",
+      "log_sha256": "505917a35a079823bdc6a8f1674fa8eac68d1b87ba5bf89326ea7fcd88cf03f3",
+      "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+      "command": [
+        "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-sotp_ctrl_bind",
+        "-sotp_ctrl_cov_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/tmp/ot-alert-clock-output-driver-20260924/pinned-otp/matrix-uvm.vvp",
+        "-c",
+        "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/matrix-iverilog.scr"
+      ]
+    },
+    "chip_sim": {
+      "explicit_errors": 48,
+      "compile_exit": 134,
+      "remaining_blocker": "entropy_src_core.sv:3324 sensitivity assertion",
+      "dv_runtime_started": false,
+      "log": "chip-compile.log",
+      "log_sha256": "58f0c5d800da4a3464fafaf038df01fa4eb3a4f77308867c8c0aca996f26201f",
+      "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/chip/work/uvm/lowrisc_dv_chip_sim_0.1/sim-icarus",
+      "command": [
+        "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-sclkmgr_bind",
+        "-spwrmgr_bind",
+        "-srstmgr_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-sspi_host_bind",
+        "-stop_earlgrey_bind",
+        "-stop_earlgrey_error_injection_ifs_bind",
+        "-sxbar_main_bind",
+        "-sxbar_peri_bind",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/tmp/ot-alert-clock-output-driver-20260924/pinned-chip/matrix-uvm.vvp",
+        "-c",
+        "/private/tmp/ot-indexed-slice-replay-20260924/chip/work/uvm/lowrisc_dv_chip_sim_0.1/matrix-iverilog.scr"
+      ]
+    }
+  }
+}

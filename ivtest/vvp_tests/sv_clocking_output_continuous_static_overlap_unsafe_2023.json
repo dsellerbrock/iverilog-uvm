@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sv_clocking_output_continuous_static_overlap.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gcommercial-unsafe",
+    "-s",
+    "sv_clocking_output_continuous_static_overlap"
+  ],
+  "gold": "sv_clocking_output_continuous_static_overlap"
+}
