@@ -1,0 +1,28 @@
+{
+  "command": [
+    "bash",
+    ".github/ivtest_gate.sh"
+  ],
+  "returncode": 0,
+  "duration_seconds": 813.214687041007,
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "5053e2f40951b919587319ff0fac920099d113dd20ea933fbb9c22a112d5cb07",
+  "log_sha256": "114c2fe9442e25a29dfe70189eb48da86e4ddc65a397474ff99e2cccab483bc7",
+  "timed_out": false,
+  "archived_log_path": "integrated-legacy_gate.log",
+  "archived_log_sha256": "114c2fe9442e25a29dfe70189eb48da86e4ddc65a397474ff99e2cccab483bc7",
+  "archived_log_note": "final VVP gate log byte-for-byte identical to pre-SDF integrated gate; archived log reused",
+  "summary": {
+    "legacy_total": 6593,
+    "legacy_passed": 6588,
+    "legacy_failed": 0,
+    "not_implemented": 2,
+    "expected_fail": 3,
+    "vpi_passed": 131,
+    "vpi_failed": 0,
+    "negative_passed": 155,
+    "negative_failed": 0,
+    "runtime_invariants_passed": 15,
+    "runtime_invariants_failed": 0
+  }
+}

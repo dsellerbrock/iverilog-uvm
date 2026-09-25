@@ -1,0 +1,21 @@
+{
+  "command": [
+    "bash",
+    ".github/uvm_test.sh"
+  ],
+  "returncode": 0,
+  "duration_seconds": 889.167748292035,
+  "private_ivl_sha256": "0f770dc5dbe7e7be9853d27eebc365dc7b3dd65808ac87671494c86b6e638b81",
+  "private_vvp_sha256": "5053e2f40951b919587319ff0fac920099d113dd20ea933fbb9c22a112d5cb07",
+  "log_sha256": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12",
+  "timed_out": false,
+  "archived_log_path": "integrated-real_dpi_uvm_gate.log",
+  "archived_log_sha256": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12",
+  "archived_log_note": "final VVP gate log byte-for-byte identical to pre-SDF integrated gate; archived log reused",
+  "real_dpi_loaded": true,
+  "summary": {
+    "passed": 358,
+    "failed": 0,
+    "skipped": 0
+  }
+}

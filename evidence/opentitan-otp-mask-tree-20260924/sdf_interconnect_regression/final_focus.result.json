@@ -5,19 +5,21 @@
   "command": [
     "python3",
     "vvp_reg.py",
-    "/tmp/ot-otp-mask-tree-integrated-20260924/sdf-provenance-focus.list"
+    "/tmp/ot-otp-mask-tree-sdf-final-20260924/sdf-nine-focus.list"
   ],
   "tests": [
     "br_gh1248",
     "sdf_selected_resolver_bit_2017",
     "sdf_selected_resolver_bit_2023",
+    "sdf_selected_resolver_extend_bit_2017",
+    "sdf_selected_resolver_extend_bit_2023",
     "sdf_selected_resolver_wrong_bit_2017",
     "sdf_selected_resolver_wrong_bit_2023",
     "sdf_selected_resolver_overlap_bit_2017",
     "sdf_selected_resolver_overlap_bit_2023"
   ],
-  "passed": 7,
+  "passed": 9,
   "failed": 0,
-  "log_sha256": "a4c7b4f6a7cf93bf8a70669e026b93d0942ab8957928db3e68104797b3ce5684",
-  "scope": "2017/2023 matching-bit delay; wrong-bit and same-bit overlapping-driver annotations rejected with undelayed runtime"
+  "log_sha256": "d1fc58856c6735cb4495c8e45b0201ac8f7c314ea2695c2bdc921eb6809b88e5",
+  "scope": "2017/2023 matching-bit and six-input extension-port delay; wrong-bit and same-bit overlapping-driver annotations rejected with undelayed runtime"
 }
