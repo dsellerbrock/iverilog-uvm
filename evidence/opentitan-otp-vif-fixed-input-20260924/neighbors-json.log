@@ -1,0 +1,49 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-vif-function-focus-vvp.list, regress-vif-event-focus-vvp.list, /tmp/ot-vif-fixed-input-coordinator-20260924/task-neighbors.list
+----------------------------------------------------------------------------
+                 sv_inherited_class_parameter_vif_task: Passed.
+            sv_inherited_class_parameter_vif_task_2023: Passed.
+          sv_interface_port_array_function_sensitivity: Passed.
+     sv_interface_port_array_function_sensitivity_2012: Passed.
+     sv_interface_port_array_function_sensitivity_2023: Passed.
+                              sv_vif_event_initialized: Passed.
+                     sv_vif_function_copyback_arg_fail: Passed - CE.
+                sv_vif_function_copyback_arg_fail_2023: Passed - CE.
+                              sv_vif_function_dispatch: Passed.
+                         sv_vif_function_dispatch_2023: Passed.
+                        sv_vif_function_fixed_arg_fail: Passed - CE.
+                   sv_vif_function_fixed_arg_fail_2023: Passed - CE.
+                     sv_vif_function_fixed_return_fail: Passed - CE.
+                sv_vif_function_fixed_return_fail_2023: Passed - CE.
+            sv_vif_function_named_then_positional_fail: Passed - CE.
+       sv_vif_function_named_then_positional_fail_2023: Passed - CE.
+        sv_vif_function_parameterized_candidate_filter: Passed.
+   sv_vif_function_parameterized_candidate_filter_2023: Passed.
+                    sv_vif_function_recursive_dispatch: Passed.
+               sv_vif_function_recursive_dispatch_2023: Passed.
+                     sv_vif_function_statement_discard: Passed.
+                sv_vif_function_statement_discard_2023: Passed.
+               sv_vif_function_static_formal_semantics: Passed.
+          sv_vif_function_static_formal_semantics_2023: Passed.
+            sv_vif_function_static_object_stack_growth: Passed.
+       sv_vif_function_static_object_stack_growth_2023: Passed.
+                        sv_vif_input_array_method_fail: Passed - CE.
+                              sv_vif_null_anyedge_fail: Passed - EF.
+                             sv_vif_null_function_fail: Passed.
+                        sv_vif_null_function_fail_2023: Passed.
+                 sv_vif_null_function_no_instance_fail: Passed.
+            sv_vif_null_function_no_instance_fail_2023: Passed.
+     sv_vif_null_function_no_instance_missing_arg_fail: Passed - CE.
+sv_vif_null_function_no_instance_missing_arg_fail_2023: Passed - CE.
+                               sv_vif_null_method_fail: Passed - EF.
+                   sv_vif_null_method_no_instance_fail: Passed - EF.
+                                sv_vif_null_multi_fail: Passed - EF.
+                              sv_vif_null_negedge_fail: Passed - EF.
+                              sv_vif_null_posedge_fail: Passed - EF.
+                        sv_vif_task_from_function_fail: Passed - CE.
+                           sv_vif_task_scalar_copyback: Passed.
+                      sv_vif_task_scalar_copyback_2023: Passed.
+                      sv_vif_task_scalar_copyback_fail: Passed - CE.
+                 sv_vif_task_scalar_copyback_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 44, Failed 0.

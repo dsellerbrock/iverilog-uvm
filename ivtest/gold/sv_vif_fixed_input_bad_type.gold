@@ -1,0 +1,4 @@
+./ivltests/sv_vif_fixed_input_negative.v:14: error: the type of the variable 'actual' doesn't match the context type.
+./ivltests/sv_vif_fixed_input_negative.v:14:      : variable type=netvector_t:bool signed[31:0]
+./ivltests/sv_vif_fixed_input_negative.v:14:      : context type=11netuarray_t
+1 error(s) during elaboration.

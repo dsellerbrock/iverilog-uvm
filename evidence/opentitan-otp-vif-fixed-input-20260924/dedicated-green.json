@@ -1,0 +1,200 @@
+[
+  {
+    "edition": "2017",
+    "case": "sv_vif_fixed_input_task",
+    "compile_exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_vif_fixed_input_task",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_task.2017.vvp",
+      "ivltests/sv_vif_fixed_input_task.v"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "edition": "2017",
+    "case": "sv_vif_fixed_input_bad_size",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:7: error: the type of the variable 'actual' doesn't match the context type.\nivltests/sv_vif_fixed_input_negative.v:7:      : variable type=11netstruct_t\nivltests/sv_vif_fixed_input_negative.v:7:      : context type=11netuarray_t\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_vif_fixed_input_bad_size",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_bad_size.2017.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2017",
+    "case": "sv_vif_fixed_input_bad_type",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:14: error: the type of the variable 'actual' doesn't match the context type.\nivltests/sv_vif_fixed_input_negative.v:14:      : variable type=netvector_t:bool signed[31:0]\nivltests/sv_vif_fixed_input_negative.v:14:      : context type=11netuarray_t\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_vif_fixed_input_bad_type",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_bad_type.2017.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2017",
+    "case": "sv_vif_fixed_input_bad_scalar",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:21: error: the type of the variable 'actual' doesn't match the context type.\nivltests/sv_vif_fixed_input_negative.v:21:      : variable type=11netstruct_t\nivltests/sv_vif_fixed_input_negative.v:21:      : context type=11netuarray_t\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_vif_fixed_input_bad_scalar",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_bad_scalar.2017.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2017",
+    "case": "sv_vif_fixed_input_unsupported_directions",
+    "compile_exit": 3,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:30: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\nivltests/sv_vif_fixed_input_negative.v:31: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\nivltests/sv_vif_fixed_input_negative.v:32: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n3 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_vif_fixed_input_unsupported_directions",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_unsupported_directions.2017.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2017",
+    "case": "sv_vif_fixed_input_unsupported_default",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:44: sorry: virtual-interface fixed-array task input argument 1 requires an explicit whole-array signal actual; omitted/default arrays are not yet supported.\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_vif_fixed_input_unsupported_default",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_unsupported_default.2017.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2023",
+    "case": "sv_vif_fixed_input_task",
+    "compile_exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2023",
+      "-s",
+      "sv_vif_fixed_input_task",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_task.2023.vvp",
+      "ivltests/sv_vif_fixed_input_task.v"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "edition": "2023",
+    "case": "sv_vif_fixed_input_bad_size",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:7: error: the type of the variable 'actual' doesn't match the context type.\nivltests/sv_vif_fixed_input_negative.v:7:      : variable type=11netstruct_t\nivltests/sv_vif_fixed_input_negative.v:7:      : context type=11netuarray_t\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2023",
+      "-s",
+      "sv_vif_fixed_input_bad_size",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_bad_size.2023.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2023",
+    "case": "sv_vif_fixed_input_bad_type",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:14: error: the type of the variable 'actual' doesn't match the context type.\nivltests/sv_vif_fixed_input_negative.v:14:      : variable type=netvector_t:bool signed[31:0]\nivltests/sv_vif_fixed_input_negative.v:14:      : context type=11netuarray_t\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2023",
+      "-s",
+      "sv_vif_fixed_input_bad_type",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_bad_type.2023.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2023",
+    "case": "sv_vif_fixed_input_bad_scalar",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:21: error: the type of the variable 'actual' doesn't match the context type.\nivltests/sv_vif_fixed_input_negative.v:21:      : variable type=11netstruct_t\nivltests/sv_vif_fixed_input_negative.v:21:      : context type=11netuarray_t\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2023",
+      "-s",
+      "sv_vif_fixed_input_bad_scalar",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_bad_scalar.2023.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2023",
+    "case": "sv_vif_fixed_input_unsupported_directions",
+    "compile_exit": 3,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:30: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\nivltests/sv_vif_fixed_input_negative.v:31: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\nivltests/sv_vif_fixed_input_negative.v:32: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n3 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2023",
+      "-s",
+      "sv_vif_fixed_input_unsupported_directions",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_unsupported_directions.2023.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  },
+  {
+    "edition": "2023",
+    "case": "sv_vif_fixed_input_unsupported_default",
+    "compile_exit": 1,
+    "stdout": "",
+    "stderr": "ivltests/sv_vif_fixed_input_negative.v:44: sorry: virtual-interface fixed-array task input argument 1 requires an explicit whole-array signal actual; omitted/default arrays are not yet supported.\n1 error(s) during elaboration.\n",
+    "command": [
+      "/tmp/ot-vif-fixed-input-coordinator-20260924/bin/iverilog",
+      "-g2023",
+      "-s",
+      "sv_vif_fixed_input_unsupported_default",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-302d-dedicated/sv_vif_fixed_input_unsupported_default.2023.vvp",
+      "ivltests/sv_vif_fixed_input_negative.v"
+    ]
+  }
+]

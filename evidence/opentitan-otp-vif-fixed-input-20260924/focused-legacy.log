@@ -1,0 +1,9 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+     sv_vif_input_array_method_fail: Passed - CE.
+            sv_vif_fixed_input_task: Passed.
+     sv_vif_function_fixed_arg_fail: Passed - CE.
+sv_vif_function_fixed_arg_fail_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=4, Passed=4, Failed=0, Not Implemented=0, Expected Fail=0

@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_vif_fixed_input_negative.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_vif_fixed_input_bad_type"
+  ],
+  "gold": "sv_vif_fixed_input_bad_type"
+}

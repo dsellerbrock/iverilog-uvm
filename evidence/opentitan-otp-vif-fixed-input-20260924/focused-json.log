@@ -1,0 +1,18 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-vif-fixed-input-coordinator-20260924/focus-json.list
+----------------------------------------------------------------------------
+            sv_vif_fixed_input_bad_scalar_2017: Passed - CE.
+            sv_vif_fixed_input_bad_scalar_2023: Passed - CE.
+              sv_vif_fixed_input_bad_size_2017: Passed - CE.
+              sv_vif_fixed_input_bad_size_2023: Passed - CE.
+              sv_vif_fixed_input_bad_type_2017: Passed - CE.
+              sv_vif_fixed_input_bad_type_2023: Passed - CE.
+                  sv_vif_fixed_input_task_2017: Passed.
+                  sv_vif_fixed_input_task_2023: Passed.
+   sv_vif_fixed_input_unsupported_default_2017: Passed - CE.
+   sv_vif_fixed_input_unsupported_default_2023: Passed - CE.
+sv_vif_fixed_input_unsupported_directions_2017: Passed - CE.
+sv_vif_fixed_input_unsupported_directions_2023: Passed - CE.
+                sv_vif_input_array_method_fail: Passed - CE.
+============================================================================
+Test results: Ran 13, Failed 0.

@@ -1,0 +1,370 @@
+[
+  {
+    "edition": "2017",
+    "case": "legal_dispatch",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "legal_dispatch",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/legal_dispatch.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/legal_dispatch.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/legal_dispatch.sv:12: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "bad_size",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "bad_size",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/bad_size.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/bad_size.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/bad_size.sv:6: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "bad_type",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "bad_type",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/bad_type.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/bad_type.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/bad_type.sv:6: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "bad_scalar",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "bad_scalar",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/bad_scalar.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/bad_scalar.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/bad_scalar.sv:6: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "unsupported_output",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_output",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_output.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_output.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/unsupported_output.sv:6: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "unsupported_inout",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_inout",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_inout.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_inout.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/unsupported_inout.sv:6: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "unsupported_ref",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_ref",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_ref.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_ref.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/unsupported_ref.sv:6: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "unsupported_function",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_function",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_function.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_function.sv"
+    ],
+    "compile_exit": 2,
+    "compile_stderr": "./common.svh:29: sorry: virtual-interface function input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n./common.svh:29: sorry: virtual-interface function input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n2 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2017",
+    "case": "direct_fixed_control",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "direct_fixed_control",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/direct_fixed_control.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/direct_fixed_control.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/direct_fixed_control.2017.vvp"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "edition": "2017",
+    "case": "scalar_vif_control",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "scalar_vif_control",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/scalar_vif_control.2017.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/scalar_vif_control.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/scalar_vif_control.2017.vvp"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "edition": "2023",
+    "case": "legal_dispatch",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "legal_dispatch",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/legal_dispatch.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/legal_dispatch.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/legal_dispatch.sv:12: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "bad_size",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "bad_size",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/bad_size.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/bad_size.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/bad_size.sv:6: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "bad_type",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "bad_type",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/bad_type.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/bad_type.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/bad_type.sv:6: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "bad_scalar",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "bad_scalar",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/bad_scalar.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/bad_scalar.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/bad_scalar.sv:6: sorry: virtual-interface method input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "unsupported_output",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_output",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_output.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_output.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/unsupported_output.sv:6: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "unsupported_inout",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_inout",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_inout.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_inout.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/unsupported_inout.sv:6: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "unsupported_ref",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_ref",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_ref.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_ref.sv"
+    ],
+    "compile_exit": 1,
+    "compile_stderr": "/private/tmp/ot-vif-fixed-input-20260924/unsupported_ref.sv:6: sorry: virtual-interface method argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "unsupported_function",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "unsupported_function",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/unsupported_function.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/unsupported_function.sv"
+    ],
+    "compile_exit": 2,
+    "compile_stderr": "./common.svh:29: sorry: virtual-interface function input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n./common.svh:29: sorry: virtual-interface function input argument 1 ('value') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.\n2 error(s) during elaboration.\n"
+  },
+  {
+    "edition": "2023",
+    "case": "direct_fixed_control",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "direct_fixed_control",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/direct_fixed_control.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/direct_fixed_control.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/direct_fixed_control.2023.vvp"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "edition": "2023",
+    "case": "scalar_vif_control",
+    "compile_command": [
+      "/tmp/ot-alert-clock-output-driver-20260924/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/private/tmp/ot-vif-fixed-input-20260924",
+      "-s",
+      "scalar_vif_control",
+      "-o",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/scalar_vif_control.2023.vvp",
+      "/private/tmp/ot-vif-fixed-input-20260924/scalar_vif_control.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "/tmp/ot-vif-fixed-input-20260924/final-baseline/scalar_vif_control.2023.vvp"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  }
+]

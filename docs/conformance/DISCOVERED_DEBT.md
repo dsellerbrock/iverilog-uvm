@@ -3408,3 +3408,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Read-only source review during the no-candidate virtual-interface call regression.
 - **Reproducer status:** none
 - **Triage status:** untriaged
+
+### DD-054 — OTP backdoor memory path is padded before VPI lookup
+
+- **Discovered while working:** OT-OTP-VIF-FIXED-INPUT
+- **Observation:** The first released OTP smoke reaches `mem_bkdr_util.sv:76` at time zero and fails `uvm_hdl_check_path` for an existing memory because its generated path string begins with 18 spaces. VVP exits zero after a UVM fatal and end-of-simulation assertions; there is no DV pass.
+- **File/function:** pinned generated `otp_ctrl_sim` `tb.sv:182-191` nested `MEM_*` macros and `DV_STRINGIFY`; `uvm_dpi/uvm_dpi_iverilog.cc` `uvm_hdl_check_path`; `ivlpp/lexor.lex` continued-macro expansion.
+- **Possible clause:** Macro stringification/whitespace semantics require edition-specific review before labeling this an IEEE compiler defect.
+- **Evidence:** [Pinned compile and smoke](../../evidence/opentitan-otp-vif-fixed-input-20260924/README.md); the generated VVP has the padded string and the target `mem` array.
+- **Reproducer status:** confirmed in the released OTP runtime; paired minimal 2017/2023 reducer pending.
+- **Triage status:** untriaged; a disposable-source overlay that flattens only the two `MEM_*` macro bodies is a candidate while preserving the backdoor fatal and width/depth checks.

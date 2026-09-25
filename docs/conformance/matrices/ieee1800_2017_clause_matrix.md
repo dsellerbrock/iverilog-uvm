@@ -2055,3 +2055,15 @@ awaits publication. The SPI flash
 smoke advances past its former JEDEC 1024-tuple cap but fails later on a
 separate large-range exact-`dist` call; arbitrary uniform sampling and full
 clause or OpenTitan DV qualification remain open.
+
+### September 24 fixed-array virtual-interface task inputs
+
+The PARTIAL §§7.6, 13.5.1, and 25.9 subset copies a compatible whole
+one-dimensional packed-integral fixed unpacked array into the selected
+virtual-interface input task. [Paired 2017/2023 evidence](../../../evidence/opentitan-otp-vif-fixed-input-20260924/README.md)
+checks automatic and static tasks, instance selection, declared element order,
+four-state values, caller isolation, mismatched actuals, and loud unsupported
+directions/defaults/multidimensional forms. The pinned OTP top now compiles,
+but its first released smoke fails a separate time-zero padded memory-path
+check. This is neither OTP DV success nor full subroutine/interface
+qualification.
