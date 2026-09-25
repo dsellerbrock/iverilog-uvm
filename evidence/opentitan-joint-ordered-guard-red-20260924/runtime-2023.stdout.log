@@ -1,0 +1,2 @@
+FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-joint-ordered-guard-red-20260924/sv_joint_ordered_guard_fiber.v:32: ordered guard fiber failed
+       Time: 0  Scope: sv_joint_ordered_guard_fiber

@@ -1,0 +1,63 @@
+{
+  "blocker": "OT-CSRNG-CFG-JOINT-DIST",
+  "installed_ivl_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "files_sha256": {
+    "sv_joint_ordered_guard_fiber.v": "787610955c26dc6619ba7aef6740f572b90c9b1f9338352940774eac078541b4",
+    "sv_joint_ordered_guard_fiber_2023.v": "71d86182bd8a38d71e05779d1f027f1b3037f2446d27903c9cae99f0781f384f",
+    "compile-2017.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile-2017.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile-2023.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile-2023.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runtime-2017.stdout.log": "10af7452193152047c11b3c14aabcc7a5a64730085cef3d0405fc4c37202a653",
+    "runtime-2017.stderr.log": "33a9a4d90b8f383de5c7798c78aa445264c46d1a56c562f36750ca07c06b855f",
+    "runtime-2023.stdout.log": "e5008879df7bf03cb79eb5799dd786ec888c9269a9ce300e913956821100f207",
+    "runtime-2023.stderr.log": "33a9a4d90b8f383de5c7798c78aa445264c46d1a56c562f36750ca07c06b855f"
+  },
+  "editions": {
+    "2017": {
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "sv_joint_ordered_guard_fiber",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-joint-ordered-guard-red-20260924",
+        "-o",
+        "/tmp/ot-joint-ordered-guard-red-20260924/fiber-2017.vvp",
+        "evidence/opentitan-joint-ordered-guard-red-20260924/sv_joint_ordered_guard_fiber.v"
+      ],
+      "compile_exit": 0,
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "/tmp/ot-joint-ordered-guard-red-20260924/fiber-2017.vvp"
+      ],
+      "runtime_exit": 1,
+      "source_sha256": "787610955c26dc6619ba7aef6740f572b90c9b1f9338352940774eac078541b4",
+      "image_sha256": "514d583bf6405c3880f638a594bf138b653652d4fa3223e8d7ed9370591d239e",
+      "diagnostic": "a joint distribution has an unresolved random guard",
+      "semantic_verdict": "RED; unsupported, not a DV pass"
+    },
+    "2023": {
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "sv_joint_ordered_guard_fiber",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-joint-ordered-guard-red-20260924",
+        "-o",
+        "/tmp/ot-joint-ordered-guard-red-20260924/fiber-2023.vvp",
+        "evidence/opentitan-joint-ordered-guard-red-20260924/sv_joint_ordered_guard_fiber_2023.v"
+      ],
+      "compile_exit": 0,
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "/tmp/ot-joint-ordered-guard-red-20260924/fiber-2023.vvp"
+      ],
+      "runtime_exit": 1,
+      "source_sha256": "71d86182bd8a38d71e05779d1f027f1b3037f2446d27903c9cae99f0781f384f",
+      "image_sha256": "4243c6a580694fb08690cabfbbc1edf79e3fb2884662097d429ac4d09b2f6cda",
+      "diagnostic": "a joint distribution has an unresolved random guard",
+      "semantic_verdict": "RED; unsupported, not a DV pass"
+    }
+  }
+}
