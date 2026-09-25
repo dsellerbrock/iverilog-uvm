@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-joint-dist-ordered-guards-20260924
-checkpoint_head: b7537a171
+checkpoint_head: b3b3c02d9
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -73,14 +73,14 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-CSRNG-CFG-JOINT-DIST
-  phase: SELECTED_PAIRED_2017_2023_RED
+  phase: PAIRED_2017_2023_RED_PRESERVED_FACTOR_PROOF_REVIEWED
   owner: Delegated implementation agent owns only vvp/vvp_z3.cc and dedicated paired constraint fixtures/manifests. Coordinator owns private build, gates, pinned replays with named overlays, evidence, docs, and PR.
-  reproducer: Paired nested guarded-dist REDs in evidence/opentitan-csrng-cfg-joint-dist-20260923/ and evidence/opentitan-otp-backdoor-path-overlay-20260924/cfg_reducers/ fail with an unresolved random guard, while standalone controls pass. Pinned CSRNG and OTP both fail cfg.randomize at time zero with no DV pass.
+  reproducer: Paired nested guarded-dist REDs in evidence/opentitan-csrng-cfg-joint-dist-20260923/ and evidence/opentitan-otp-backdoor-path-overlay-20260924/cfg_reducers/ fail with an unresolved random guard, while standalone controls pass. The new coupled-child RED in evidence/opentitan-joint-ordered-guard-red-20260924/ compiles in 2017/2023 but exits 1 on its first randomize in each edition. Pinned CSRNG and OTP both fail cfg.randomize at time zero with no DV pass.
   expected: Preflight each feasible earlier-stage prefix without RNG, prove due guards active/inactive against hard constraints, validate exact active weights, and sample inactive subjects through ordinary exact stage sampling. Same-stage or unproved guards, UNKNOWN, caps, unsupported weights, and randc conflicts stay loud; preserve transaction rollback.
   root_cause: vvp/vvp_z3.cc globally tests a joint dist guard before staged solve-before variables are pinned and rejects a globally variable guard even when each earlier-stage fiber can prove it. A global unconditional preference or silently dropped inactive dist would bias sampling.
   source_scope: vvp/vvp_z3.cc and dedicated paired 2017/2023 tests/manifests only. No pinned source, installed tools, Caliptra runner/checker, shared build, Verilator/GPU, or CI polling while live Caliptra VVP runs.
-  validation: Existing proven-guard focus passes 22/22, but pinned CSRNG and OTP dynamic nested guards remain RED. OTP path overlay PR357 published at b7537a171; OTP smoke is 0/1 DV with one UVM_FATAL and 512 follow-on assertions. OTP compile retains 46 nonfatal sorry diagnostics and an ignored constraint item. Caliptra selected-52 copied-source diagnostic remains one separate pass, five failures, and 46 unstarted, without an aggregate verdict.
-  next: Reduce stage-resolved conditional fiber behavior with paired positive, negative, weighted, boundary, coupled-child, and rollback cases; implement the smallest exact sound fix and test private image. Replay pinned CSRNG and OTP without modifying pinned checkouts or the live installed tools.
+  validation: Existing proven-guard focus passes 22/22, but pinned CSRNG and OTP dynamic nested guards remain RED. The ordered coupled-child RED and its tool/source hashes are preserved at b3b3c02d9; downstream weight and rollback assertions have not run. Read-only proof review requires complete-hard residual factoring and pre-draw checks across every feasible prefix; prefix-only guard checks are insufficient. OTP path overlay PR357 published at b7537a171; OTP smoke is 0/1 DV with one UVM_FATAL and 512 follow-on assertions. OTP compile retains 46 nonfatal sorry diagnostics and an ignored constraint item. Caliptra selected-52 copied-source diagnostic remains one separate pass, five failures, and 46 unstarted, without an aggregate verdict.
+  next: Implementation agent attempts a bounded exact prefix/factor sampler in vvp/vvp_z3.cc with paired positive, negative, weighted, boundary, coupled-child, and rollback tests. Reject any unproved coupled fiber before RNG. Coordinator builds a private VVP and replays pinned CSRNG and OTP without modifying pinned checkouts or the live installed tools.
 completed_ot_path_overlay:
   id: OT-OTP-BACKDOOR-PATH-COMPAT
   phase: PR_PUBLISHED_NEXT_JOINT_DIST_RUNTIME_RED
