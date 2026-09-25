@@ -1,9 +1,9 @@
-status: opentitan_csrng_aes_net_array_preponed_release_pass_local_gates_pass_pr_pending
+status: opentitan_csrng_aes_net_array_preponed_release_pass_pr367_published
 branch: agent/ot-csrng-aes-clear-20260925
 baseline: This branch starts at validated open PR366 3bc99d9310ec383011f761f6878c123a80dc0cc2, stacked on open PR365/PR364/PR363. Pinned OpenTitan sources, installed Caliptra tool, and user-owned dirty campaign AGENTS.md remain unchanged. No Caliptra job is running. Worktrees were audited against refreshed origin/main and none qualifies for automatic retirement.
 blocker: OT-CSRNG-AES-FINAL-ROUND-STATE-ASSERTION
 prior_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
-pr: pending
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/367
 goal: Finish one scoped VVP net-array Preponed history fix and publish a separate reviewed PR after final broad gates; preserve the original released AES assertion and all CSRNG checks.
 standards: IEEE 1800-2017 section 7.4.3 and 2023 section 7.4.6 permit whole fixed unpacked-array equality; both editions sections 16.5.1, 16.6, 16.9.3, and 16.12.7 govern Preponed sampling, assertion Boolean values, past samples, and next-tick nonoverlapped implication. Section 11.4.5 governs ambiguous logical equality. The released CSRNG replay uses explicit nonstandard -gcommercial-unsafe for unrelated compatibility gaps.
 failing_reproducer: Pinned CSRNG with the hash-checked disposable BlkLen testbench overlay and native AES DPI compiles, observes one SW-app instantiate command at 15371293 ps, then reports one AesSecCmDataRegKeySca UVM_ERROR at 16454635 ps and TEST FAILED CHECKS. VVP exits zero, but released DV is 0/1 with no completed generate/genbits check or pass marker. A diagnostic-only full-design copy preserves the original assertion and shows a parallel whole-array property failing once while the share-zero scalar property passes twice on overlapping attempts at the same edge. Strict isolated one-share clearing reducers still pass positive and deliberate negative controls in both 2017 and 2023.

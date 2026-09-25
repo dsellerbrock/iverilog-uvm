@@ -1,6 +1,7 @@
 # OpenTitan CSRNG AES whole-array Preponed sampling
 
-This worktree starts at open [PR #366](https://github.com/dsellerbrock/iverilog-uvm/pull/366)
+This fix is published in [PR #367](https://github.com/dsellerbrock/iverilog-uvm/pull/367),
+stacked on open [PR #366](https://github.com/dsellerbrock/iverilog-uvm/pull/366)
 (`3bc99d9310ec383011f761f6878c123a80dc0cc2`). The pinned OpenTitan
 checkout remains clean at `a78922f14a8cc20c7ee569f322a04626f2ac6127`.
 The CSRNG BlkLen compatibility overlay is present only in a disposable

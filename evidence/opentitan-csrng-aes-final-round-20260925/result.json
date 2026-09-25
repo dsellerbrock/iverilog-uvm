@@ -1,5 +1,6 @@
 {
   "blocker": "OT-CSRNG-AES-FINAL-ROUND-STATE-ASSERTION",
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/367",
   "base_commit": "3bc99d9310ec383011f761f6878c123a80dc0cc2",
   "source_fix_commit": "8dc7bd712233d49b08ca4077e9015a650af9062d",
   "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
