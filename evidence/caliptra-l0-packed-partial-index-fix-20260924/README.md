@@ -102,4 +102,12 @@ detached worktree at `c5679aa31` built the same way (ivl `37f1af94…`).
     "Hello World from VeeR EL2 !!"; the installed-tool PASS retired only 633
     instructions because its `hw_data` read hit a wrong DCCM index and returned
     0, so it printed nothing.
-  - `smoke_test_mbox`: MBOX_RESULT_PLACEHOLDER
+  - `smoke_test_mbox`: no completed result. Two attempts were killed externally before
+    `summary.json` (not by the runner's 14,400 s timeout). Something on the host
+    kills processes whose command lines match this lane, which also took the
+    observer waiters. The first attempt reached trace commit #20,425, past the
+    old ERR_HWIF_IN point (#18,187), with zero fatal, error or ERR_HWIF_IN
+    lines and the SoC mailbox read in progress
+    (`results/smoke_test_mbox_partial_reaped/`). The second was killed at
+    commit #59. This is not counted as a pass; a coordinator-scheduled rerun
+    is requested in `tracker_proposal.md`.
