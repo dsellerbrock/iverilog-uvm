@@ -2083,3 +2083,18 @@ explicit-`this` caller fallback still fail separate strict reducers (DD-059/60),
 so neither edition's full inline lookup semantics are QUALIFIED. The pinned
 CSRNG smoke remains 0/1 released nonstandard compatibility DV at a later AES
 assertion.
+
+### September 25 net-array Preponed history for whole-array assertions
+
+The PARTIAL 2017 §§7.4.3, 16.5.1, 16.9.3, and 16.12.7 correction gives
+net-backed integral fixed unpacked-array words their underlying wire's
+first-write history when a concurrent assertion samples a whole array.
+The paired 2023 boundary uses §7.4.6 and the same assertion clauses.
+An input changing after the antecedent's Preponed sample no longer changes
+its `$past` value; a scalar share, a second array word, a deliberate bad
+update, a held force, and two strength-resolved net words are independent
+controls. [Strict RED and final
+evidence](../../../evidence/opentitan-csrng-aes-final-round-20260925/README.md)
+also show the unchanged pinned CSRNG smoke reaching one checked nonstandard
+compatibility pass. Other array kinds and a force transition within the
+sampled slot are not qualified by this focused fix.

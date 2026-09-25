@@ -936,8 +936,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// cleared at the first write of each new step, so it costs one
 	// entry per word actually written per step and nothing when the
 	// history is off.
-      void enable_sample_hist()
-      { canonical_value_owner_()->hist_enabled_ = true; }
+      void enable_sample_hist();
       vvp_vector4_t get_word_preponed(unsigned address);
     private:
       struct force_word_state_t {

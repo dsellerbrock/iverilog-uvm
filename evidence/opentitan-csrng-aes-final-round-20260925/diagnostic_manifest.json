@@ -1,0 +1,11 @@
+{
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_aes_source_sha256": "febc6a30c5ea0d1dddbd2971fc7c7299a4365c94b814fbbc9e71d4979c31a37f",
+  "disposable_aes_diagnostic_sha256": "5e6ac3c70d589529bbbdd397add2fa4c3f1655aa46c5c3b92ea36a44914850e7",
+  "disposable_tb_overlay_sha256": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+  "baseline_iverilog_sha256": "b93f73000e75159c4064a487d4137aac2624c617cbdbc19ee845a4e95fe0f957",
+  "baseline_ivl_sha256": "5a9cc2b3f3fe5912640f508e2d72e4206fb4362993f255f1fe01675e23da398d",
+  "baseline_vvp_sha256": "fbd1a91179518a3e56f9b20832058b27abdc813744f383d9ff093225c1e1b757",
+  "released_dv": "0/1; original AES assertion and parallel whole-array property fail at 16454635 ps; scalar share-zero property passes",
+  "diagnostic_is_nonstandard": true
+}
