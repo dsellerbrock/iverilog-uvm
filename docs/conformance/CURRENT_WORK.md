@@ -21,6 +21,18 @@ smokes each pass **1/1 named nonstandard compatibility DV** on that same
 private tool, with checked traffic and their compile-warning limits recorded
 separately from the base-source matrix and IEEE conformance.
 
+The [new `$system` return-value candidate](../../evidence/opentitan-system-return-20260925/README.md)
+passes paired 2017/2023 direct reducers on a private active-worktree VVP.
+The pinned released `prim_prince_sim` compiles with `-gcommercial-unsafe` and,
+after loading its native DPI model, completes **1/1 named checked nonstandard
+compatibility replay**: five golden and one random vector, reference-model
+encryption/decryption checks, one `TEST PASSED CHECKS`, and zero runtime
+errors or assertions. Its base matrix row remains `DEBT` because three
+runner-tracked FuseSoC setup warnings remain, with a separate raw
+backend-deprecation warning, so the merged baseline's **0/49 clean runtime
+matrix rate is unchanged**. Extra-argument `$system` acceptance is tracked
+separately as DD-062; no full chapter-20 conformance claim follows.
+
 On the final private OpenTitan Icarus image recorded in the [OTP cover-bin
 endpoint replay](../../evidence/opentitan-otp-cover-bin-method-20260925/README.md),
 the pinned `otp_ctrl_smoke_vseq` completes **1/1 released nonstandard

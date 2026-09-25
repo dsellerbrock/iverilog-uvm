@@ -56,27 +56,28 @@ static PLI_INT32 task_not_implemented_compiletf(ICARUS_VPI_CONST PLI_BYTE8* name
 }
 
 /*
- * Implement $system(cmd) — execute a shell command and return its exit status.
- * This matches the behavior expected by OpenTitan DV testbenches.
+ * Implement $system(cmd) — execute a shell command and return its status.
  */
 static PLI_INT32 system_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
 {
       (void)name;
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
-      int ret = 0;
+      const char *cmd = NULL;
+      int ret;
       if (argv) {
 	    vpiHandle arg = vpi_scan(argv);
 	    if (arg) {
 		  s_vpi_value val;
 		  val.format = vpiStringVal;
 		  vpi_get_value(arg, &val);
-		  if (val.value.str)
-			ret = system(val.value.str);
+		  cmd = val.value.str;
 	    }
-	    vpi_free_object(argv);
       }
-      vpip_set_return_value(ret);
+      /* A missing argument passes NULL to C system(), per IEEE 1800. */
+      ret = system(cmd);
+      if (argv) vpi_free_object(argv);
+      put_integer_value(callh, ret);
       return 0;
 }
 
