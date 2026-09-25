@@ -61,5 +61,7 @@
     "qualified_released_dv": "0/1",
     "reason_unqualified": "Six intended covergroup bins are dropped at compilation, changing the test's check/coverage denominator."
   },
-  "separate_results": "Strict paired IEEE reducers, real-DPI UVM regression, and pinned released OTP DV have separate denominators. No Caliptra, Verilator, GPU, or CI run is included."
+  "separate_results": "Strict paired IEEE reducers, real-DPI UVM regression, and pinned released OTP DV have separate denominators. No Caliptra, Verilator, GPU, or CI run is included.",
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/370",
+  "source_commit": "b2879c6d7d77ade0a2e67f101cdc403905f4e4f9"
 }
