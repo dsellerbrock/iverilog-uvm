@@ -9443,6 +9443,224 @@ static NetExpr* elaborate_direct_darray_slice_rval_(
       return result;
 }
 
+/* A fixed unpacked-array slice assigned to a queue contributes its selected
+ * elements in declared left-to-right order (IEEE 1800-2017/2023 7.4.6,
+ * 7.6). Build a queue-typed pattern so the ordinary container object path
+ * materializes the complete RHS before the queue is replaced. Only a plain
+ * array signal or a property of one unindexed class-handle signal is accepted:
+ * evaluating a more complex receiver once needs a separate value snapshot. */
+static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
+      Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pexpr,
+      ivl_type_t target_type, bool&handled, NetProc*&prelude)
+{
+      handled = false;
+      prelude = nullptr;
+      const netqueue_t*target_queue =
+	    dynamic_cast<const netqueue_t*>(target_type);
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(pexpr);
+      if (!target_queue || !ident || ident->path().name.empty())
+	return nullptr;
+
+      const list<index_component_t>&indices =
+	    ident->path().name.back().index;
+      if (indices.size() != 1)
+	return nullptr;
+      const index_component_t&select = indices.front();
+      if (select.sel != index_component_t::SEL_PART
+	  && select.sel != index_component_t::SEL_IDX_UP
+	  && select.sel != index_component_t::SEL_IDX_DO)
+	return nullptr;
+
+      fixed_uarray_slice_t slice;
+      int rc = decode_fixed_uarray_slice(
+	    des, scope, loc, pexpr, false, slice);
+      if (rc < 0) {
+	handled = true;
+	return nullptr;
+      }
+
+      NetNet*property_receiver = nullptr;
+      int property_index = -1;
+      if (rc == 0) {
+	symbol_search_results sr;
+	if (!symbol_search(&loc, des, scope, ident->path(),
+			   ident->lexical_pos(), &sr) || !sr.net)
+	    return nullptr;
+
+	if (sr.path_tail.empty()) {
+	    /* A packed part-select is a scalar value, not an unpacked
+	     * collection. Context elaboration must not turn it into a queue. */
+	    if (sr.net->unpacked_dimensions() == 0
+		&& dynamic_cast<const netvector_t*>(sr.net->net_type())) {
+		cerr << loc.get_fileline() << ": error: packed part-select "
+		     << "cannot be assigned to a queue." << endl;
+		des->errors += 1;
+		handled = true;
+	    }
+	    return nullptr;
+	}
+	if (sr.path_tail.size() != 1)
+	    return nullptr;
+	const netclass_t*class_type =
+	    dynamic_cast<const netclass_t*>(sr.net->net_type());
+	if (!class_type)
+	    return nullptr;
+	const name_component_t&member = sr.path_tail.front();
+	property_index = class_type->property_idx_from_name(member.name);
+	if (property_index < 0)
+	    return nullptr;
+	const netuarray_t*array_type = dynamic_cast<const netuarray_t*>(
+	    class_type->get_prop_type(property_index));
+	if (!array_type) {
+	    if (dynamic_cast<const netvector_t*>(
+		  class_type->get_prop_type(property_index))) {
+		cerr << loc.get_fileline() << ": error: packed part-select "
+		     << "cannot be assigned to a queue." << endl;
+		des->errors += 1;
+		handled = true;
+	    }
+	    return nullptr;
+	}
+	handled = true;
+	if ((!sr.path_head.empty()
+	     && !sr.path_head.back().index.empty())
+	    || class_type->get_prop_qual(property_index).test_static()) {
+	    cerr << loc.get_fileline() << ": sorry: fixed unpacked-array "
+		 << "slice queue assignment needs an unindexed instance "
+		 << "property receiver." << endl;
+	    des->errors += 1;
+	    return nullptr;
+	}
+	property_qualifier_t qual =
+	    class_type->get_prop_qual(property_index);
+	if (qual.test_local() || qual.test_protected()) {
+	    const netclass_t*owner =
+		class_type->get_prop_declaring_class(property_index);
+	    const NetScope*enclosing = scope->get_class_scope();
+	    const netclass_t*access = enclosing
+		? enclosing->class_def() : nullptr;
+	    bool visible = false;
+	    for (; owner && access;
+		 access = qual.test_protected() ? access->get_super() : nullptr) {
+		if (access == owner) {
+		    visible = true;
+		    break;
+		}
+	    }
+	    if (!visible) {
+		cerr << loc.get_fileline() << ": error: "
+		     << (qual.test_local() ? "Local" : "Protected")
+		     << " property " << class_type->get_prop_name(property_index)
+		     << " is not accessible in this context." << endl;
+		des->errors += 1;
+		return nullptr;
+	    }
+	}
+	if (class_type->is_interface()) {
+	    verinum mp_attr = sr.net->attribute(
+		  perm_string::literal("ivl_modport"));
+	    if (mp_attr != verinum()) {
+		perm_string mp_name = lex_strings.make(
+		    mp_attr.as_string().c_str());
+		if (!validate_interface_modport_access(
+		      des, ident, class_type, mp_name, member.name,
+		      ident->clocking_access(), false))
+		    return nullptr;
+	    }
+	}
+	rc = decode_fixed_uarray_slice_select(
+	    des, scope, loc, member.index, array_type, slice);
+	if (rc <= 0)
+	    return nullptr;
+	property_receiver = sr.net;
+      } else {
+	handled = true;
+      }
+
+      netranges_t dimensions;
+      dimensions.push_back(slice.selected_range);
+      netuarray_t source_type(dimensions, slice.element_type);
+      if (!uarray_element_matches_container_(&source_type, target_queue)) {
+	cerr << loc.get_fileline() << ": error: fixed unpacked-array "
+	     << "slice element type is not assignment compatible with "
+	     << "the queue element type." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+      ivl_variable_type_t source_base = slice.element_type->base_type();
+      ivl_variable_type_t target_base =
+	    target_queue->element_type()->base_type();
+      if ((source_base != IVL_VT_BOOL && source_base != IVL_VT_LOGIC)
+	  || (target_base != IVL_VT_BOOL && target_base != IVL_VT_LOGIC)) {
+	cerr << loc.get_fileline() << ": sorry: fixed unpacked-array "
+	     << "slice queue assignment currently supports packed integral "
+	     << "elements only." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+      if (slice.canonical_base < 0 || slice.count == 0
+	  || slice.count > UINT_MAX
+	  || static_cast<uint64_t>(slice.canonical_base)
+	       + slice.count - 1 > UINT_MAX) {
+	cerr << loc.get_fileline() << ": sorry: fixed unpacked-array "
+	     << "slice exceeds the 32-bit queue element-index limit."
+	     << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+      /* ponytail: keep eager lowering bounded; use a runtime aggregate slice
+       * operation if workloads need more than 65536 elements. */
+      if (slice.count > 65536) {
+	cerr << loc.get_fileline() << ": sorry: fixed unpacked-array "
+	     << "slice exceeds the 65536-element lowering limit." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+
+      NetNet*receiver_snapshot = nullptr;
+      if (property_receiver) {
+	receiver_snapshot = new NetNet(scope, scope->local_symbol(),
+				       NetNet::REG,
+				       property_receiver->net_type());
+	receiver_snapshot->local_flag(true);
+	receiver_snapshot->set_line(loc);
+	if (scope->is_auto())
+	    receiver_snapshot->lifetime_override(IVL_VLT_AUTOMATIC);
+	NetESignal*receiver_value = new NetESignal(property_receiver);
+	receiver_value->set_line(loc);
+	NetAssign*save = new NetAssign(
+	    new NetAssign_(receiver_snapshot), receiver_value);
+	save->set_line(loc);
+	save->synth_generated_snapshot();
+	prelude = save;
+      }
+
+      vector<NetExpr*>items(slice.count);
+      bool descending = slice.selected_range.get_msb()
+	    > slice.selected_range.get_lsb();
+      for (unsigned i = 0; i < slice.count; i += 1) {
+	uint64_t canonical = static_cast<uint64_t>(slice.canonical_base)
+	    + (descending ? slice.count - 1 - i : i);
+	NetEConst*word = new NetEConst(verinum(canonical, 32u));
+	word->set_line(loc);
+	if (receiver_snapshot) {
+	    NetESignal*base = new NetESignal(receiver_snapshot);
+	    base->set_line(loc);
+	    NetEProperty*element =
+		new NetEProperty(base, property_index, word);
+	    element->set_line(loc);
+	    items[i] = element;
+	} else {
+	    NetESignal*element = new NetESignal(slice.signal, word);
+	    element->set_line(loc);
+	    items[i] = element;
+	}
+      }
+      NetEArrayPattern*result = new NetEArrayPattern(target_type, items);
+      result->set_line(loc);
+      return result;
+}
+
 /* Lower a direct indexed dynamic-array slice store through ordinary typed
  * element operations. A complete destination-typed RHS snapshot and its
  * live size check precede every store; each selected index is then guarded
@@ -9892,6 +10110,17 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  des, scope, lv_net_type, specialized_handled);
 
 	    bool slice_handled = false;
+	    bool plain_queue_target = delay_ == 0 && event_ == 0
+	      && count_ == 0 && !lv->word() && !lv->nest()
+	      && lv->get_property_idx() < 0 && lv->sig()
+	      && dynamic_cast<const netqueue_t*>(target_darray);
+	    if (!specialized_handled && plain_queue_target) {
+		rv = elaborate_fixed_uarray_slice_queue_rval_(
+		    des, scope, *this, rval(), lv_net_type,
+		    slice_handled, indexed_slice_prelude);
+		specialized_handled = slice_handled;
+	    }
+	    slice_handled = false;
 	    bool direct_plain_target = delay_ == 0 && event_ == 0 && count_ == 0
 		  && !lv->word() && !lv->nest() && lv->get_property_idx() < 0
 		  && lv->sig()

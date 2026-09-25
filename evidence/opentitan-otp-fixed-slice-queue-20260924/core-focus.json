@@ -1,0 +1,187 @@
+{
+  "private_ivl_sha256": "8b3a0c4058efb6fbee73d0f9c56d6da94f4c0818a9b87e8374b4166267286d00",
+  "passed": 18,
+  "total": 18,
+  "rows": [
+    {
+      "edition": "2017",
+      "name": "class_desc",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED descending property slice to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "class_asc",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED ascending property slice to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "signal_desc",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED descending signal slice to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "class_reverse_illegal",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "stderr": "/tmp/ot-otp-slice-queue-20260924/class_reverse_illegal.sv:5: error: unpacked-array slice [4:6] has the opposite direction from declared range [8:1].\n1 error(s) during elaboration.\n",
+      "stdout": null,
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "class_type_illegal",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "stderr": "/tmp/ot-otp-slice-queue-20260924/class_type_illegal.sv:5: error: fixed unpacked-array slice element type is not assignment compatible with the queue element type.\n1 error(s) during elaboration.\n",
+      "stdout": null,
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "scalar_illegal",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "stderr": "/tmp/ot-otp-slice-queue-20260924/scalar_illegal.sv:5: error: packed part-select cannot be assigned to a queue.\n1 error(s) during elaboration.\n",
+      "stdout": null,
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "class_whole",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED whole property to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "signal_whole",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED whole signal to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2017",
+      "name": "pattern_to_queue",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED pattern to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "class_desc",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED descending property slice to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "class_asc",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED ascending property slice to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "signal_desc",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED descending signal slice to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "class_reverse_illegal",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "stderr": "/tmp/ot-otp-slice-queue-20260924/class_reverse_illegal.sv:5: error: unpacked-array slice [4:6] has the opposite direction from declared range [8:1].\n1 error(s) during elaboration.\n",
+      "stdout": null,
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "class_type_illegal",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "stderr": "/tmp/ot-otp-slice-queue-20260924/class_type_illegal.sv:5: error: fixed unpacked-array slice element type is not assignment compatible with the queue element type.\n1 error(s) during elaboration.\n",
+      "stdout": null,
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "scalar_illegal",
+      "expected_legal": false,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "stderr": "/tmp/ot-otp-slice-queue-20260924/scalar_illegal.sv:5: error: packed part-select cannot be assigned to a queue.\n1 error(s) during elaboration.\n",
+      "stdout": null,
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "class_whole",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED whole property to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "signal_whole",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED whole signal to queue\n",
+      "ok": true
+    },
+    {
+      "edition": "2023",
+      "name": "pattern_to_queue",
+      "expected_legal": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "stderr": "",
+      "stdout": "PASSED pattern to queue\n",
+      "ok": true
+    }
+  ]
+}

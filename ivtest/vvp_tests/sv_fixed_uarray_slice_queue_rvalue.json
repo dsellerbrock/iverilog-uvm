@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_fixed_uarray_slice_queue_rvalue.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_fixed_uarray_slice_queue_rvalue"
+}

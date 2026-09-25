@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-otp-packed-param-foreach-20260924
-checkpoint_head: 3c4481783
+branch: agent/ot-otp-fixed-slice-queue-20260924
+checkpoint_head: d53ff8992
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -72,15 +72,21 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
+  id: OT-OTP-FIXED-SLICE-TO-QUEUE
+  phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_RUNTIME
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/354
+  owner: Delegated implementation agent owns implicated elaboration source and dedicated paired 2017/2023 tests; coordinator owns shared lists, builds, private compiler image, pinned release replay, broad gates, docs, and PR.
+  reproducer: Pinned otp_ctrl_scoreboard.sv:1373-1377 assigns five fixed class-property slices to a queue. Paired class/direct fixed-slice REDs and a packed scalar part-select false acceptance are in /tmp/ot-otp-slice-queue-20260924/result.json; whole-array and pattern controls pass.
+  expected: Queue receives the selected fixed unpacked elements in declared order as an independent copy. Preserve bounds, direction, type, receiver, and scalar-source legality.
+  root_cause: Fixed unpacked range RHS reaches scalar property/direct indexing rather than a fixed-slice-to-container path; existing decoders can validate a selected range before typed queue assignment conversion.
+  source_scope: Implicated elaboration source and dedicated paired tests only for implementation; no installed compiler, pinned source, Caliptra unsafe logic, or live runner edit.
+  validation: Independently re-reviewed private ivl SHA-256 8b3a0c4058efb6fbee73d0f9c56d6da94f4c0818a9b87e8374b4166267286d00 closes the new-path visibility false acceptance and passes paired core 18/18, dedicated JSON 10/10, neighboring JSON 37/37, and negatives 155/155. Pinned OTP explicit errors fall 15 to 10 and exit 16 to 11; chip remains at 48 errors and its sensitivity assertion. Neither reaches DV runtime. See evidence/opentitan-otp-fixed-slice-queue-20260924/result.json.
+  next: Reduce the remaining alert_esc_if clocking-input mixed-driver diagnostics with paired 2017/2023 proof. Do not install over live Caliptra tools, poll CI, or run GPU/Verilator.
+completed_ot_packed_param_foreach:
   id: OT-OTP-PACKED-PARAM-FOREACH
   phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_RUNTIME
-  owner: Delegated implementation agent owns elaborate.cc and dedicated paired 2017/2023 tests; coordinator owns shared lists, builds, private compiler image, pinned release replay, broad gates, docs, and PR.
-  reproducer: Pinned otp_ctrl_env_pkg.sv:72 declares packed parameter FATAL_EXP_STATUS, iterated in otp_ctrl_scoreboard.sv:294. Installed and previous private Icarus reject paired legal class/package controls with Foreach target FATAL_EXP_STATUS is not an unpacked array parameter. Scalar negative still rejects; packed-variable control passes. Reducers are in /tmp/ot-otp-packed-param-foreach-20260924/.
-  expected: Iterate packed parameter bits in declared left-to-right order, including ascending, nonzero, and one-element ranges; keep scalar targets illegal and unpacked parameter traversal unchanged.
-  root_cause: PForeach::elaborate handles parameter names without a NetNet only through is_array_param/unpacked bounds. The evaluated parameter ivl_type carries packed dimensions, and elaborate_static_array_ already builds the matching loop.
-  source_scope: elaborate.cc and dedicated paired tests only for implementation; no installed compiler, pinned source, Caliptra unsafe logic, or live runner edit.
-  validation: Final private ivl SHA-256 390ba9430dcbe1ee9584e89f89de1f58ff49f405a27c436eee70f1f6985995df passes paired direct 10/10, independent review probes 50/50, registered foreach JSON 37/37, and negative 155/155. Pinned OTP explicit errors fall 16 to 15 and exit 17 to 16; chip retains 48 errors and its sensitivity assertion. Neither has DV runtime. See evidence/opentitan-otp-packed-param-foreach-20260924/result.json.
-  next: PR353 is published at https://github.com/dsellerbrock/iverilog-uvm/pull/353 stacked on PR352. Reduce the fixed class-property slice-to-queue blocker next. Do not install over live Caliptra tools, poll CI, or run GPU/Verilator.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/353
+  validation: Private ivl SHA-256 390ba9430dcbe1ee9584e89f89de1f58ff49f405a27c436eee70f1f6985995df passes paired direct 10/10, independent probes 50/50, registered foreach JSON 37/37, and negative 155/155. Pinned OTP explicit errors fall 16 to 15; pinned chip remains blocked. See evidence/opentitan-otp-packed-param-foreach-20260924/result.json.
 completed_ot_stream_slice:
   id: OT-OTP-STREAM-FIXED-UARRAY-SLICE
   phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_PASS
@@ -278,4 +284,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "PR353 is published stacked on PR352. Reduce the fixed class-property slice-to-queue blocker while the selected-52 Caliptra wrapper remains stopped after four completed diagnostic cases (one pass, three ERR_HWIF_IN failures); two child cases and sampled-HWIF probe VVP PID 98013 remain active outside any aggregate. Identify the sampled unknown field before another release run. Keep installed tools, pinned sources, and L0 checks intact; report compatibility and IEEE results separately, and do not run Verilator/GPU or poll CI."
+next_command: "PR354 is published stacked on PR353. Reduce the remaining alert_esc_if clocking-input mixed-driver diagnostics using paired 2017/2023 proof. The selected-52 Caliptra wrapper remains stopped after four completed diagnostic cases (one pass, three ERR_HWIF_IN failures); two child cases and sampled-HWIF probe VVP PID 98013 remain active outside any aggregate. Identify the sampled unknown field before another release run. Keep installed tools, pinned sources, and L0 checks intact; report compatibility and IEEE results separately, and do not run Verilator/GPU or poll CI."

@@ -1,0 +1,4 @@
+./ivltests/sv_fixed_uarray_slice_queue_visibility_fail.v:11: error: Local property secret is not accessible in this context.
+./ivltests/sv_fixed_uarray_slice_queue_visibility_fail.v:11: Unable to elaborate statement in task $unit.child_t.bad_inherited_local at ./ivltests/sv_fixed_uarray_slice_queue_visibility_fail.v:9.
+./ivltests/sv_fixed_uarray_slice_queue_visibility_fail.v:20: error: Protected property shared is not accessible in this context.
+2 error(s) during elaboration.

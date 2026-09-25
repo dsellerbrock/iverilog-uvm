@@ -1,0 +1,15 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/ot-fixed-slice-queue-20260924/focus.list
+----------------------------------------------------------------------------
+              sv_fixed_uarray_slice_queue_rvalue: Passed.
+         sv_fixed_uarray_slice_queue_rvalue_2023: Passed.
+         sv_fixed_uarray_slice_queue_rvalue_fail: Passed - CE.
+    sv_fixed_uarray_slice_queue_rvalue_fail_2023: Passed - CE.
+         sv_fixed_uarray_slice_queue_unsupported: Passed - CE.
+    sv_fixed_uarray_slice_queue_unsupported_2023: Passed - CE.
+          sv_fixed_uarray_slice_queue_visibility: Passed.
+     sv_fixed_uarray_slice_queue_visibility_2023: Passed.
+     sv_fixed_uarray_slice_queue_visibility_fail: Passed - CE.
+sv_fixed_uarray_slice_queue_visibility_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 10, Failed 0.
