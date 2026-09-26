@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_vif_modport_lvalue_bad.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"   : "sv_vif_modport_lvalue_bad"
+}
