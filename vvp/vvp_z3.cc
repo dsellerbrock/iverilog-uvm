@@ -5537,12 +5537,12 @@ bool vvp_z3_substitute_wide_value_slots(const string&ir,
  * true, while retaining its declared type for context sizing. */
 static string substitute_scope_object_slots(
       const string&ir, const vector<vector<uint64_t> >&object_vals,
-      const vector<vector<bool> >&object_known)
+      const vector<vector<bool> >&object_known, bool expand_qfield = true)
 {
       string result;
       const char*p = ir.c_str();
       while (*p) {
-	    if (strncmp(p, "(qfield qf:", 11) == 0) {
+	    if (expand_qfield && strncmp(p, "(qfield qf:", 11) == 0) {
 		  const char*q = p + 11;
 		  unsigned slot = (unsigned)strtoul(q,
 						 const_cast<char**>(&q), 10);
@@ -11634,6 +11634,14 @@ bool vvp_z3_randomize_scope(const string&ir,
       Z3_optimize_dec_ref(ctx, opt);
       Z3_del_context(ctx);
       return true;
+}
+
+string vvp_z3_substitute_object_value_slots(const string&ir,
+      const vector<vector<uint64_t> >&object_vals,
+      const vector<vector<bool> >&object_known)
+{
+      return substitute_scope_object_slots(ir, object_vals, object_known,
+					   false);
 }
 
 bool vvp_z3_randomize_scope_queue(const string&ir,
