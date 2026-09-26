@@ -19591,6 +19591,12 @@ NetProc* PDisable::elaborate(Design*des, NetScope*scope) const
       list<hname_t> spath = eval_scope_path(des, scope, scope_);
 
       NetScope*target = des->find_scope(scope, spath);
+	// A task named from a class method may be inherited: resolve it
+	// through the class hierarchy like any other member name.
+      if (target == 0 && spath.size() == 1 && scope->get_class_scope()) {
+	    if (const netclass_t*cls = scope->get_class_scope()->class_def())
+		  target = cls->method_from_name(spath.front().peek_name());
+      }
       if (target == 0) {
 	    cerr << get_fileline() << ": error: Cannot find scope "
 		 << scope_ << " in " << scope_path(scope) << endl;

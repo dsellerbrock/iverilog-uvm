@@ -102,4 +102,12 @@ detached worktree at `c5679aa31` built the same way (ivl `37f1af94…`).
     "Hello World from VeeR EL2 !!"; the installed-tool PASS retired only 633
     instructions because its `hw_data` read hit a wrong DCCM index and returned
     0, so it printed nothing.
-  - `smoke_test_mbox`: MBOX_RESULT_PLACEHOLDER
+  - `smoke_test_mbox` (the representative long ERR_HWIF_IN case): **PASS**
+    (`results/smoke_test_mbox/`). Firmware and simulation exit 0, one pass
+    marker, zero fail markers, zero bad diagnostics, 23813 retired
+    instructions, 23814 trace commits, no ERR_HWIF_IN. Source and tool
+    fingerprints were unchanged before and after. The installed tool fails
+    this case at commit #18187. Two earlier attempts were killed externally by
+    a job reaper on the host before completing (one partial log kept in
+    `results/smoke_test_mbox_partial_reaped/`); the reaper was paused for this
+    run.

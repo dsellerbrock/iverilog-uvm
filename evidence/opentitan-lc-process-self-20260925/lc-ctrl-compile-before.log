@@ -1,0 +1,27 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-lc-coverpoint-20260925/local-install/bin/iverilog -g2012 -stb -slc_ctrl_bind -slc_ctrl_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut -DSEC_VOLATILE_RAW_UNLOCK_EN=0 --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/ot-lc-packed-coverpoint-20260925/matrix-final/runtime/lowrisc_dv_lc_ctrl_sim_0.1/matrix-runtime.vvp -c /private/tmp/ot-lc-packed-coverpoint-20260925/matrix-final/runtime/lowrisc_dv_lc_ctrl_sim_0.1/matrix-iverilog.scr
+returncode: 4
+duration_seconds: 2.081
+
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:151: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:152: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:305: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:395: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:402: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:407: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:410: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:243: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_jtag_agent_0.1/jtag_driver.sv:170: warning: Class jtag_if does not have a property host_mp (compile-progress fallback, ignoring l-value).
+../src/lowrisc_dv_lc_ctrl_env_0.1/seq_lib/lc_ctrl_smoke_vseq.sv:34: error: Cannot find scope run_clk_byp_rsp in lc_ctrl_env_pkg.lc_ctrl_smoke_vseq.post_start
+../src/lowrisc_dv_lc_ctrl_env_0.1/seq_lib/lc_ctrl_smoke_vseq.sv:35: error: Cannot find scope run_flash_rma_rsp in lc_ctrl_env_pkg.lc_ctrl_smoke_vseq.post_start
+../src/lowrisc_dv_lc_ctrl_env_0.1/seq_lib/lc_ctrl_errors_vseq.sv:92: warning: Constraint item in 'invalid_states_bin_c' of class lc_ctrl_errors_vseq is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+../src/lowrisc_dv_lc_ctrl_env_0.1/seq_lib/lc_ctrl_errors_vseq.sv:552: error: Array tokens_a needs an array index here.
+../src/lowrisc_dv_lc_ctrl_env_0.1/seq_lib/lc_ctrl_errors_vseq.sv:795: error: Unable to bind variable `process.self' in `lc_ctrl_env_pkg.lc_ctrl_errors_vseq.handle_alerts'
+../src/lowrisc_dv_lc_ctrl_sim_0.1/tb.sv:65: warning: input port rst_n is coerced to inout.
+../src/lowrisc_dv_lc_ctrl_sim_0.1/tb.sv:69: warning: input port rst_n is coerced to inout.
+../src/lowrisc_dv_lc_ctrl_sim_0.1/tb.sv:94: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+4 error(s) during elaboration.

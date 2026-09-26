@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_disable_inherited_task_bad.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"   : "sv_disable_inherited_task_bad"
+}
