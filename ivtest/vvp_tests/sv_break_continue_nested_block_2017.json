@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_break_continue_nested_block.v",
+    "iverilog-args" : [ "-g2017" ]
+}
