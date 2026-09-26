@@ -15524,17 +15524,43 @@ module_item
        rejected -- with a clear, specific diagnostic instead of a raw
        `syntax error' -- not accepted as valid. */
   | K_static task_declaration
-      { cerr << @1 << ": error: A `static' qualifier is not allowed "
-	        "on an ordinary module-scope task declaration (only on "
-	        "a class method)." << endl;
-	error_count += 1;
+      { /* Commercial simulators accept a leading `static' here and
+	   read it as the task/function's lifetime. Under
+	   -gcommercial-unsafe accept it where static is already the
+	   enclosing default; an automatic enclosing scope would need
+	   the qualifier to override the lifetime, which is not done. */
+	if (!gn_commercial_unsafe_flag) {
+	      cerr << @1 << ": error: A `static' qualifier is not allowed "
+		      "on an ordinary module-scope task declaration (only on "
+		      "a class method)." << endl;
+	      error_count += 1;
+	} else if (pform_peek_scope()->default_lifetime
+		   == LexicalScope::AUTOMATIC) {
+	      cerr << @1 << ": sorry: A leading `static' qualifier on a "
+		      "task in an automatic scope is not supported; write "
+		      "`task static' instead." << endl;
+	      error_count += 1;
+	}
       }
 
   | K_static function_declaration
-      { cerr << @1 << ": error: A `static' qualifier is not allowed "
-	        "on an ordinary module-scope function declaration (only "
-	        "on a class method)." << endl;
-	error_count += 1;
+      { /* Commercial simulators accept a leading `static' here and
+	   read it as the task/function's lifetime. Under
+	   -gcommercial-unsafe accept it where static is already the
+	   enclosing default; an automatic enclosing scope would need
+	   the qualifier to override the lifetime, which is not done. */
+	if (!gn_commercial_unsafe_flag) {
+	      cerr << @1 << ": error: A `static' qualifier is not allowed "
+		      "on an ordinary module-scope function declaration (only on "
+		      "a class method)." << endl;
+	      error_count += 1;
+	} else if (pform_peek_scope()->default_lifetime
+		   == LexicalScope::AUTOMATIC) {
+	      cerr << @1 << ": sorry: A leading `static' qualifier on a "
+		      "function in an automatic scope is not supported; write "
+		      "`function static' instead." << endl;
+	      error_count += 1;
+	}
       }
 
   | K_automatic task_declaration
