@@ -1184,6 +1184,20 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 		<< ":owner=";
 	    append_cache_class_owner_key_(out, class_type);
 	    const NetScope*class_scope = class_type->class_scope();
+	      /* A specialization made from a forwarded type parameter (inside a
+	       * generic seed, e.g. seqr#(T) while elaborating agent#(T)) is kept
+	       * apart from the concrete one with the same current values. Its
+	       * printed values would equal the concrete class's, so a class that
+	       * takes it as a type argument (dv_agent#(seqr#(T))) collided with
+	       * dv_agent#(seqr#(int)) and bound the wrong seqr: $cast between the
+	       * two failed (OpenTitan kmac, dv_base_seq p_sequencer). Name it by
+	       * its own identity instead. */
+	    if (class_scope && class_scope->type_owner_identity().find(
+		  "<forwarded-type-param@") != std::string::npos) {
+		  out << ":forwarded@" << (const void*)class_type << ">";
+		  active.erase(type);
+		  return;
+	    }
 	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
 	    if (class_scope && pclass && !pclass->parameter_order.empty()) {
 		  out << "(";
