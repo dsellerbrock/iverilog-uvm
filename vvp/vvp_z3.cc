@@ -1403,6 +1403,19 @@ static bool vec4_to_bv_const_(Z3_context ctx, const vvp_vector4_t&value,
       return true;
 }
 
+/* A diversity target of the variable's full width. A 64-bit target zero-
+ * extended to a wider variable steers the XOR objective to the feasible value
+ * with the smallest upper bits, so a wide variable would never vary. */
+static Z3_ast z3_diversity_target_(Z3_context ctx, unsigned width,
+				   uint64_t low_bits,
+				   const vvp_vector4_t&full = vvp_vector4_t())
+{
+      Z3_ast target;
+      if (width > 64 && vec4_to_bv_const_(ctx, full, width, target))
+	    return target;
+      return Z3_mk_unsigned_int64(ctx, low_bits, Z3_mk_bv_sort(ctx, width));
+}
+
 /* Object reads must retain identity, not property_object::get_vec4's
  * intentional nullness view (IEEE 1800-2017/2023 8.4, 11.4.5, 18.4).
  * A null final handle is a value; a null owner or invalid index is an error. */
@@ -5537,12 +5550,12 @@ bool vvp_z3_substitute_wide_value_slots(const string&ir,
  * true, while retaining its declared type for context sizing. */
 static string substitute_scope_object_slots(
       const string&ir, const vector<vector<uint64_t> >&object_vals,
-      const vector<vector<bool> >&object_known, bool expand_qfield = true)
+      const vector<vector<bool> >&object_known)
 {
       string result;
       const char*p = ir.c_str();
       while (*p) {
-	    if (expand_qfield && strncmp(p, "(qfield qf:", 11) == 0) {
+	    if (strncmp(p, "(qfield qf:", 11) == 0) {
 		  const char*q = p + 11;
 		  unsigned slot = (unsigned)strtoul(q,
 						 const_cast<char**>(&q), 10);
@@ -9018,8 +9031,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 
 	    uint64_t rand_bits = cobj_prop_bits(builder.object(pv.idx), builder.local_index(pv.idx));
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
+	    vvp_vector4_t prefill;
+	    if (pv.width > 64)
+		  builder.object(pv.idx)->get_vec4(builder.local_index(pv.idx), prefill);
+	    Z3_ast rv = z3_diversity_target_(ctx, pv.width, rand_bits, prefill);
 	    Z3_ast xor_expr = Z3_mk_bvxor(ctx, pv.var, rv);
 	    Z3_optimize_minimize(ctx, opt, xor_expr);
       }
@@ -9128,10 +9143,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    uint64_t rand_bits = 0;
-	    for (unsigned b = 0; b < ev.width && b < 64; ++b)
-		  if (property_rng(ev.idx).next() & 1) rand_bits |= (1ULL << b);
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
+	    vvp_vector4_t target_bits(ev.width > 64 ? ev.width : 0, BIT4_0);
+	    for (unsigned b = 0; b < ev.width; ++b) {
+		  bool one = property_rng(ev.idx).next() & 1;
+		  if (one && b < 64) rand_bits |= (1ULL << b);
+		  if (ev.width > 64) target_bits.set_bit(b, one ? BIT4_1 : BIT4_0);
+		  if (ev.width <= 64 && b + 1 >= 64) break;
+	    }
+	    Z3_ast rv = z3_diversity_target_(ctx, ev.width, rand_bits, target_bits);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, ev.var, rv));
       }
       };
@@ -10270,8 +10289,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    uint64_t rand_bits = cobj_member_bits(builder.object(mv.outer), builder.local_index(mv.outer), mv.member);
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, mv.width);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
+	    vvp_vector4_t prefill;
+	    if (mv.width > 64)
+		  if (vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
+					     builder.local_index(mv.outer)))
+			owner->get_vec4(mv.member, prefill);
+	    Z3_ast rv = z3_diversity_target_(ctx, mv.width, rand_bits, prefill);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, mv.var, rv));
       }
       sample_member_elements(false);
@@ -11636,12 +11659,46 @@ bool vvp_z3_randomize_scope(const string&ir,
       return true;
 }
 
+/* Expand each qv:N:W[:s] membership operand to the current elements of
+ * container slot N at their full width (IEEE 1800-2017/2023 11.4.13). An
+ * X/Z element becomes qbad (a guard-aware 18.3 error); an empty container
+ * stays qempty, which is false rather than vacuously true. */
 string vvp_z3_substitute_object_value_slots(const string&ir,
-      const vector<vector<uint64_t> >&object_vals,
-      const vector<vector<bool> >&object_known)
+      const vector<vector<vvp_vector4_t> >&object_words)
 {
-      return substitute_scope_object_slots(ir, object_vals, object_known,
-					   false);
+      string result;
+      const char*p = ir.c_str();
+      while (*p) {
+	    bool at_token = p[0] == 'q' && p[1] == 'v' && p[2] == ':'
+		  && (p == ir.c_str() || !isalnum((unsigned char)p[-1]));
+	    if (!at_token) {
+		  result += *p++;
+		  continue;
+	    }
+	    const char*q = p + 3;
+	    unsigned slot = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+	    unsigned width = 32;
+	    bool is_signed = false;
+	    if (*q == ':') {
+		  q++;
+		  width = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+		  if (*q == ':' && q[1] == 's') { is_signed = true; q += 2; }
+	    }
+	    string suffix = is_signed ? ":s" : "";
+	    if (slot >= object_words.size() || object_words[slot].empty()) {
+		  result += "qempty:" + to_string(width) + suffix;
+	    } else {
+		  const vector<vvp_vector4_t>&words = object_words[slot];
+		  for (size_t i = 0 ; i < words.size() ; i += 1) {
+			if (i) result += " ";
+			result += words[i].size() && vec4_is_two_state_(words[i])
+			      ? vec4_ir_constant_(words[i], width, is_signed)
+			      : "qbad:" + to_string(width) + suffix;
+		  }
+	    }
+	    p = q;
+      }
+      return result;
 }
 
 bool vvp_z3_randomize_scope_queue(const string&ir,

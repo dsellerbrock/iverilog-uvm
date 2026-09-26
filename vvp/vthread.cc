@@ -6023,7 +6023,8 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 static void object_slot_values_(const vector<vvp_object_t>&objects,
 				const char*ir,
 				vector<vector<uint64_t> >&object_vals,
-				vector<vector<bool> >&object_known);
+				vector<vector<bool> >&object_known,
+				vector<vector<vvp_vector4_t> >*object_words = nullptr);
 
 static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 {
@@ -6089,9 +6090,11 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
       if (object_form && strstr(ir_text, "qv:")) {
 	    vector<vector<uint64_t> > object_vals;
 	    vector<vector<bool> > object_known;
-	    object_slot_values_(objects, ir_text, object_vals, object_known);
-	    object_ir = vvp_z3_substitute_object_value_slots(
-		  ir_text, object_vals, object_known);
+	    vector<vector<vvp_vector4_t> > object_words;
+	    object_slot_values_(objects, ir_text, object_vals, object_known,
+				&object_words);
+	    object_ir = vvp_z3_substitute_object_value_slots(ir_text,
+							     object_words);
 	    ir_text = object_ir.c_str();
       }
 
@@ -6175,10 +6178,13 @@ bool of_RANDOMIZE_WITH_OBJECTS(vthread_t thr, vvp_code_t code)
 static void object_slot_values_(const vector<vvp_object_t>&objects,
 				const char*ir,
 				vector<vector<uint64_t> >&object_vals,
-				vector<vector<bool> >&object_known)
+				vector<vector<bool> >&object_known,
+				vector<vector<vvp_vector4_t> >*object_words)
 {
       object_vals.assign(objects.size(), vector<uint64_t>());
       object_known.assign(objects.size(), vector<bool>());
+      if (object_words)
+	    object_words->assign(objects.size(), vector<vvp_vector4_t>());
       for (unsigned i = (unsigned)objects.size() ; i > 0 ; i -= 1) {
 	    vvp_darray*da = objects[i - 1].peek<vvp_darray>();
 	    if (!da) continue;
@@ -6225,6 +6231,8 @@ static void object_slot_values_(const vector<vvp_object_t>&objects,
 		  }
 		  object_vals[i - 1].push_back(bits);
 		  object_known[i - 1].push_back(known);
+		  if (object_words)
+			(*object_words)[i - 1].push_back(word);
 	    }
       }
 }
@@ -6251,7 +6259,9 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    thr->pop_object(objects[i - 1]);
       vector<vector<uint64_t> > object_vals;
       vector<vector<bool> > object_known;
-      object_slot_values_(objects, code->text, object_vals, object_known);
+      vector<vector<vvp_vector4_t> > object_words;
+      object_slot_values_(objects, code->text, object_vals, object_known,
+			  &object_words);
       vector<uint64_t> slot_vals(n_vals);
       vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> slot_unknown(n_vals, false);
@@ -6290,6 +6300,9 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 
       vector<string> model;
 	  string scope_ir = code->text ? code->text : "";
+	  if (n_objs)
+		scope_ir = vvp_z3_substitute_object_value_slots(scope_ir,
+							       object_words);
 	  if (any_unknown)
 		scope_ir = vvp_z3_mark_unknown_slots(scope_ir, slot_unknown);
 	  string wide_ir, wide_error;

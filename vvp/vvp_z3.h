@@ -135,11 +135,10 @@ bool vvp_z3_randomize_scope(const std::string&ir,
 			    const std::vector<std::vector<bool> >&object_known,
 			    std::vector<std::string>&values);
 
-/* Expand qv: membership operands against container element values. The
- * class solver resolves qfield operands itself. */
+/* Expand qv: membership operands against the containers' current elements
+ * at full width. The class solver resolves qfield operands itself. */
 std::string vvp_z3_substitute_object_value_slots(const std::string&ir,
-      const std::vector<std::vector<uint64_t> >&object_vals,
-      const std::vector<std::vector<bool> >&object_known);
+      const std::vector<std::vector<vvp_vector4_t> >&object_words);
 bool vvp_z3_randomize_scope_queue(const std::string&ir,
 			    unsigned element_width, uint64_t declared_max,
 			    const std::vector<uint64_t>&slot_vals,

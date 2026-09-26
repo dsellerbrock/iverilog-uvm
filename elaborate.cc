@@ -13402,6 +13402,18 @@ static NetProc* elaborate_scope_randomize_task_(
 		  des, scope, call);
 	    if (!fun) return nullptr;
 
+	      /* A class property argument lowers to a receiver-based class
+	       * randomize call, which has no task form: evaluate it into a
+	       * discarded temporary, as a void-cast randomize() does. */
+	    if (strncmp(fun->name(), "$ivl_class_method$", 18) == 0) {
+		  NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+					  NetNet::REG, &netvector_t::atom2u32);
+		  tmp->set_line(*call);
+		  NetAssign*assign = new NetAssign(new NetAssign_(tmp), fun);
+		  assign->set_line(*call);
+		  return assign;
+	    }
+
 	    vector<NetExpr*> argv(fun->nparms());
 	    for (unsigned idx = 0 ; idx < fun->nparms() ; idx += 1)
 		  argv[idx] = fun->parm(idx)->dup_expr();
@@ -35092,9 +35104,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    if (et && (eb == IVL_VT_BOOL
 					       || eb == IVL_VT_LOGIC)) {
 					  unsigned ew = et->packed_width();
-					  if (ew == 0 || ew > 64) {
+					  if (ew == 0 || ew > 65536) {
                                                 cerr << r.hi->get_fileline()
-                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 64 bits."
+                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 65536 bits."
                                                      << endl;
                                                 odes->errors += 1;
                                                 return "";
