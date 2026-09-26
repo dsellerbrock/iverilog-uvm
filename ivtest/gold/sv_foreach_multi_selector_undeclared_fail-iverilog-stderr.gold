@@ -1,0 +1,1 @@
+ivltests/sv_foreach_multi_selector_undeclared_fail.v:8: error: 'typo' is not a declared variable in any enclosing scope; a foreach selector prefix (`array[typo][...]') must name one, not introduce a new loop variable here.

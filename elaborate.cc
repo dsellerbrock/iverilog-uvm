@@ -23817,10 +23817,11 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 
 	    if (const netvector_t*vec = dynamic_cast<const netvector_t*>(ptype)) {
 		  // foreach over packed vector: iterate over bits/dims
-		  delete array_expr;
 		  const netranges_t&dims = vec->packed_dims();
-		  if (!dims.empty())
+		  if (!dims.empty()) {
+			delete array_expr;
 			return elaborate_static_array_(des, scope, dims);
+		  }
 	    }
 
 	    delete array_expr;

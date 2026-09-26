@@ -1268,10 +1268,22 @@ PWire*pform_get_wire_in_scope(perm_string name)
    name a variable declared in any ENCLOSING scope (e.g. the
    function/task body, not just the implicit block the foreach header
    itself is nested in), so this walks the parent chain. */
-bool pform_wire_visible_in_enclosing_scope(perm_string name)
+bool pform_name_visible_in_enclosing_scope(const struct vlltype&loc,
+					   perm_string name)
 {
+	/* A foreach selector may be any visible value: a variable, a
+	   parameter, an enum constant, a class property, or an imported
+	   one (foreach (tgt_pre[FlashPartData][i]) in OpenTitan). */
       for (LexicalScope*scope = lexical_scope ; scope ; scope = scope->parent_scope()) {
-	    if (scope->wires_find(name))
+	    if (scope->wires_find(name)
+		|| scope->local_symbols.count(name)
+		|| scope->explicit_imports.count(name))
+		  return true;
+	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
+		  if (class_scope->type && class_scope->type->properties.count(name))
+			return true;
+	    }
+	    if (pform_find_potential_import(loc, scope, name, false, true))
 		  return true;
       }
       return false;
