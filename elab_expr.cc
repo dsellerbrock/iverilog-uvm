@@ -379,7 +379,9 @@ NetESFunc* make_randomize_with_expr(
  * model values back through the ordinary signal-store opcode. */
 /* A scope-randomize argument of enum type must stay within its declared
  * literals (IEEE 1800-2017/2023 18.4, 18.12), so it needs the solver-backed
- * lowering rather than $ivl_std_randomize's raw bits. */
+ * lowering rather than $ivl_std_randomize's raw bits. So does a function's
+ * implicit return variable (13.4.1): a system task receives it by value,
+ * and only the solver lowering stores its result to the return value. */
 bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 				    Design*des, NetScope*scope)
 {
@@ -388,8 +390,13 @@ bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 	    NetExpr*ne = elab_and_eval(des, scope, parm.parm, -1, false);
 	    bool is_enum = ne && (ne->enumeration()
 			|| dynamic_cast<const netenum_t*>(ne->net_type()));
+	    const NetESignal*sig = dynamic_cast<const NetESignal*>(ne);
+	    const NetScope*owner = sig ? sig->sig()->scope() : nullptr;
+	    bool is_return = owner && owner->type() == NetScope::FUNC
+		  && owner->func_def()
+		  && owner->func_def()->return_sig() == sig->sig();
 	    delete ne;
-	    if (is_enum) return true;
+	    if (is_enum || is_return) return true;
       }
       return false;
 }
