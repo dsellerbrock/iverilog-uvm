@@ -2591,6 +2591,17 @@ void compile_extend_signed(char*label, long wid, struct symb_s arg)
       input_connect(ptr, 0, arg.text);
 }
 
+void compile_sample(char*label, struct symb_s arg)
+{
+      vvp_net_t*ptr = new vvp_net_t;
+      ptr->fun = new vvp_fun_sample(ptr);
+
+      define_functor_symbol(label, ptr);
+      free(label);
+
+      input_connect(ptr, 0, arg.text);
+}
+
 struct __vpiModPath* compile_modpath(char*label, unsigned width,
                                      struct symb_s drv, struct symb_s dest)
 {

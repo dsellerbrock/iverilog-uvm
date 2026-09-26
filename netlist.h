@@ -962,6 +962,10 @@ class NetNet  : public NetObj, public PortType {
 
       bool local_flag() const { return local_flag_; }
       void local_flag(bool f) { local_flag_ = f; }
+	// True when an always_comb or always_latch process assigns this
+	// variable; continuous assignments from it deliver settled values.
+      bool comb_written() const { return comb_written_; }
+      void comb_written(bool f) { comb_written_ = f; }
       ivl_lifetime_t lifetime_override() const
       {
             return static_cast<ivl_lifetime_t>(lifetime_override_);
@@ -1075,6 +1079,7 @@ class NetNet  : public NetObj, public PortType {
       PortType port_type_ : 3;
       bool coerced_to_uwire_: 1;
       bool local_flag_: 1;
+      bool comb_written_: 1 = false;
       unsigned lifetime_override_ : 2;
       unsigned lexical_pos_;
       ivl_type_t net_type_;

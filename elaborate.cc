@@ -39339,6 +39339,23 @@ bool Design::check_proc_delay() const
 		  }
 	    }
 
+	      // Mark the variables an always_comb/always_latch process assigns
+	      // (see NetNet::comb_written).
+	    if (pr->type() == IVL_PR_ALWAYS_COMB
+		|| pr->type() == IVL_PR_ALWAYS_LATCH) {
+		  NexusSet written;
+		  const_cast<NetProc*>(pr->statement())->nex_output(written);
+		  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
+			Nexus*nex = written[idx].lnk.nexus();
+			for (Link*cur = nex ? nex->first_nlink() : nullptr ;
+			     cur ; cur = cur->next_nlink()) {
+			      NetNet*sig = dynamic_cast<NetNet*>(cur->get_obj());
+			      if (sig && sig->type() == NetNet::REG)
+				    sig->comb_written(true);
+			}
+		  }
+	    }
+
 	      // The always_comb/ff/latch processes have special delay rules
 	      // that need to be checked.
 	    if ((pr->type() == IVL_PR_ALWAYS_COMB) ||
