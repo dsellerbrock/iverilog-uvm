@@ -3,6 +3,37 @@
 // and 12.7.3 (an associative-array foreach binds its loop variable to keys).
 typedef struct { rand logic [127:0] k; rand logic [127:0] ks [2]; } key_rec_t;
 
+package wide_dist_pkg;
+  localparam bit [127:0] BIG = 128'h0000000000000001_0000000000000000;
+endpackage
+
+// A 64-bit subject cannot equal a value with bits above 63, so these dist
+// constraints have no feasible item and randomize() must fail.
+class dist_out_of_range_literal;
+  rand bit [63:0] value;
+  constraint c { value dist {128'h0000000000000001_0000000000000000 := 1}; }
+endclass
+
+class dist_out_of_range_parameter;
+  rand bit [63:0] value;
+  constraint c { value dist {wide_dist_pkg::BIG :/ 1}; }
+endclass
+
+class dist_wide_storage;
+  rand bit [127:0] value;
+  constraint c { value dist {128'd1 :/ 1}; }
+endclass
+
+class dist_state_cfg;
+  bit [127:0] endpoint = 128'd1;
+endclass
+
+class dist_wide_nested_state;
+  rand bit value;
+  dist_state_cfg cfg = new;
+  constraint c { value dist {cfg.endpoint :/ 1, 0 :/ 1}; }
+endclass
+
 class wide_dist;
   localparam logic [127:0] K1 = {64'hDEAD_BEEF_0000_0001, 64'h5};
   localparam logic [127:0] K2 = {64'hCAFE_F00D_0000_0002, 64'h7};
@@ -79,6 +110,33 @@ class entry_keys;
   constraint c_sdir  { sa["beta"] == 16'h15; }
 endclass
 
+// A string-key foreach body may use dist on the visited element
+// (OpenTitan dv_base_env_cfg.sv:62, DV_COMMON_CLK_CONSTRAINT).
+class string_key_dist;
+  rand int unsigned freqs [string];
+  function new(); freqs["a"] = 0; freqs["b"] = 0; endfunction
+  constraint c { foreach (freqs[i]) { freqs[i] dist { [5:23] :/ 2, 96 :/ 1 }; } }
+endclass
+
+// inside over a fixed caller-scope array denotes its elements (11.4.13),
+// at their full width (OpenTitan lc_ctrl_errors_vseq.sv:548).
+class token_picker;
+  function automatic bit pick(output logic [127:0] out, input bit member);
+    logic [127:0] tokens_a [3];
+    logic [127:0] token;
+    tokens_a[0] = {64'hDEAD_BEEF_0000_0001, 64'h5};
+    tokens_a[1] = {64'hCAFE_F00D_0000_0002, 64'h7};
+    tokens_a[2] = 128'h9;
+    if (member) begin
+      if (!std::randomize(token) with { token inside {tokens_a}; }) return 0;
+    end else begin
+      if (!std::randomize(token) with { !(token inside {tokens_a}); }) return 0;
+    end
+    out = token;
+    return member == (token inside {tokens_a});
+  endfunction
+endclass
+
 class missing_string_key;
   rand logic [15:0] sa [string];
   function new(); sa["a"] = 0; endfunction
@@ -97,6 +155,17 @@ module test;
   wide_storage ws = new;
   assoc_keys ak = new;
   missing_key mk = new;
+  string_key_dist skd = new;
+  token_picker tp = new;
+  logic [127:0] picked;
+  int in_lo = 0, in_hi = 0, tok0 = 0;
+  dist_out_of_range_literal oor_lit = new;
+  dist_out_of_range_parameter oor_par = new;
+  dist_wide_storage dws = new;
+  dist_wide_nested_state dns = new;
+  bit scope_value;
+  bit [127:0] caller_wide = 128'h0000000000000001_0000000000000000;
+  int ones = 0, zeros = 0;
   entry_keys ek = new;
   missing_string_key msk = new;
   logic [127:0] x;
@@ -136,6 +205,17 @@ module test;
       else check("sparse dist member", 0);
     end
     check("sparse dist spread", a > 20 && b > 20);
+    check("dist item beyond 64-bit subject fails", !oor_lit.randomize());
+    check("dist parameter beyond 64-bit subject fails", !oor_par.randomize());
+    check("wide dist storage", dws.randomize() && dws.value === 128'd1);
+    repeat (100) begin
+      check("wide nested state dist", dns.randomize());
+      if (dns.value) ones++; else zeros++;
+    end
+    check("wide nested state dist spread", ones > 20 && zeros > 20);
+    repeat (20) check("wide caller value dist",
+      std::randomize(scope_value) with { scope_value dist {caller_wide :/ 1, 0 :/ 1}; }
+      && scope_value == 0);
 
     check("storage randomize", ws.randomize());
     check("fixed array element", ws.arr[2] === wide_storage::K1 + 2);
@@ -158,6 +238,21 @@ module test;
     check("string key foreach", ek.sa["alpha"] >= 16'h10 && ek.sa["alpha"] <= 16'h20);
     check("constant string key", ek.sa["beta"] === 16'h15);
     check("missing string key fails", !msk.randomize());
+    repeat (100) begin
+      check("string-key dist randomize", skd.randomize());
+      foreach (skd.freqs[k]) begin
+        if (skd.freqs[k] inside {[5:23]}) in_lo++;
+        else if (skd.freqs[k] == 96) in_hi++;
+        else check("string-key dist member", 0);
+      end
+    end
+    check("string-key dist spread", in_lo > in_hi && in_hi > 20);
+    repeat (40) begin
+      check("inside fixed caller array", tp.pick(picked, 1));
+      if (picked === {64'hDEAD_BEEF_0000_0001, 64'h5}) tok0++;
+    end
+    check("inside fixed caller array spread", tok0 > 3);
+    repeat (40) check("not inside fixed caller array", tp.pick(picked, 0));
     if (!failed) $display("PASSED");
   end
 endmodule

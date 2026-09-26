@@ -26729,7 +26729,10 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    bool delem_header = !tok.empty()
 		  && isdigit((unsigned char)tok[0]) && tok.find(':') != string::npos;
 	    bool loop_header = tok == "L";
-	    out.parsed = typed_terminal || delem_header || loop_header;
+	      // skelem's constant string key: x followed by its hex bytes.
+	    bool key_hex = !tok.empty() && tok[0] == 'x'
+		  && tok.find_first_not_of("0123456789abcdef", 1) == string::npos;
+	    out.parsed = typed_terminal || delem_header || loop_header || key_hex;
 	    out.self_safe = out.parsed;
 	    out.terminal = typed_terminal;
 	    out.solver_storage = tok.compare(0, 2, "p:") == 0
@@ -26861,7 +26864,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.terminal = terminal;
 	    return out;
       }
-      if (out.op == "delem") {
+      if (out.op == "delem" || out.op == "qkeyelem" || out.op == "skelem") {
 	    out.width = out.args.empty() ? 1 : out.args.front().width;
 	    out.is_signed = !out.args.empty() && out.args.front().is_signed;
 	    out.self_safe = true;
@@ -35118,6 +35121,48 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    range_ir = "q:" + to_string(cpi)
 					  + ":" + to_string(ewid)
 					  + (et->get_signed() ? ":s" : "");
+			      }
+			}
+			  /* A fixed unpacked caller-state array denotes its elements
+			   * (IEEE 1800-2017/2023 11.4.13, 18.3): read each element at
+			   * the call as a value slot of the element's full width. */
+			const PEIdent*uid = dynamic_cast<const PEIdent*>(r.hi);
+			Design*udes = scope_randomize_design_ctx_
+			      ? scope_randomize_design_ctx_ : constraint_ir_design_ctx_;
+			if (!array_param_membership && range_ir.empty() && !is_dist
+			    && value_slots && uid && udes && scope
+			    && !uid->path().name.empty()
+			    && uid->path().name.back().index.empty()
+			    && !(cls && uid->path().size() == 1
+				 && cls->property_idx_from_name(
+				       uid->path().name.back().name) >= 0)) {
+			      const netuarray_t*ua = dynamic_cast<const netuarray_t*>(
+				    uid->test_type_of_ident(udes, const_cast<NetScope*>(scope)));
+			      ivl_type_t et = ua ? ua->element_type() : nullptr;
+			      ivl_variable_type_t eb = et ? et->base_type() : IVL_VT_NO_TYPE;
+			      if (ua && ua->static_dimensions().size() == 1 && et
+				  && et->packed() && et->packed_width() > 0
+				  && (eb == IVL_VT_BOOL || eb == IVL_VT_LOGIC)) {
+				    const netrange_t&dim = ua->static_dimensions().front();
+				    long step = dim.get_msb() <= dim.get_lsb() ? 1 : -1;
+				    for (long k = dim.get_msb();; k += step) {
+					  pform_name_t elem_name = uid->path().name;
+					  index_component_t ic;
+					  ic.sel = index_component_t::SEL_BIT;
+					  ic.msb = new PENumber(new verinum((int64_t)k));
+					  ic.lsb = 0;
+					  elem_name.back().index.push_back(ic);
+					  PEIdent*elem = new PEIdent(uid->path().package,
+						elem_name, uid->lexical_pos());
+					  elem->set_file(uid->get_file());
+					  elem->set_lineno(uid->get_lineno());
+					  string slot = scope_randomize_value_slot_(elem, nullptr,
+						value_slots, et->packed_width());
+					  if (slot.empty()) return "";
+					  if (!range_ir.empty()) range_ir += " ";
+					  range_ir += slot;
+					  if (k == dim.get_lsb()) break;
+				    }
 			      }
 			}
 			if (!array_param_membership && range_ir.empty()) {
