@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_process_self_parenless.v",
+    "iverilog-args" : [ "-g2017" ]
+}
