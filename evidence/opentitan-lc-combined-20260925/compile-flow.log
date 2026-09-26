@@ -1,0 +1,15 @@
+../src/lowrisc_dv_lc_ctrl_env_0.1/seq_lib/lc_ctrl_errors_vseq.sv:92: warning: Constraint item in 'invalid_states_bin_c' of class lc_ctrl_errors_vseq is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+../src/lowrisc_dv_lc_ctrl_sim_0.1/tb.sv:65: warning: input port rst_n is coerced to inout.
+../src/lowrisc_dv_lc_ctrl_sim_0.1/tb.sv:69: warning: input port rst_n is coerced to inout.
+../src/lowrisc_dv_lc_ctrl_sim_0.1/tb.sv:94: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_lc_ctrl_csr_assert_0/lc_ctrl_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_prim_onehot_check_0/rtl/prim_onehot_check.sv:60: vvp.tgt warning: uwire "and_tree" has 127 drivers (compile-progress: treated as wire).
+../src/lowrisc_prim_onehot_check_0/rtl/prim_onehot_check.sv:61: vvp.tgt warning: uwire "err_tree" has 127 drivers (compile-progress: treated as wire).
+../src/lowrisc_prim_onehot_check_0/rtl/prim_onehot_check.sv:59: vvp.tgt warning: uwire "or_tree" has 127 drivers (compile-progress: treated as wire).
+../src/lowrisc_prim_onehot_check_0/rtl/prim_onehot_check.sv:60: vvp.tgt warning: uwire "and_tree" has 127 drivers (compile-progress: treated as wire).
+../src/lowrisc_prim_onehot_check_0/rtl/prim_onehot_check.sv:61: vvp.tgt warning: uwire "err_tree" has 127 drivers (compile-progress: treated as wire).
+../src/lowrisc_prim_onehot_check_0/rtl/prim_onehot_check.sv:59: vvp.tgt warning: uwire "or_tree" has 127 drivers (compile-progress: treated as wire).
+iverilog: note: wrote DPI export C stubs to /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-ot-lc-combined-20260925/evidence/opentitan-lc-combined-20260925/lc_ctrl_flow.dpiexport.c (compile it into your DPI object).
