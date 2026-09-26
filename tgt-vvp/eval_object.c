@@ -3231,9 +3231,24 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
       unsigned nparm = ivl_expr_parms(expr);
       ivl_type_t etype = ivl_type_element(agg_type);
       int is_darray = ivl_type_base(agg_type) == IVL_VT_DARRAY;
+      int darray_via_queue = 0;
       char enc[32];
       int errors = 0;
       unsigned idx;
+
+	/* A darray literal is pre-sized, so a runtime-sized collection operand
+	 * ({x, arr} inside a conditional arm, for instance) cannot splice into
+	 * it. Build such a literal as a queue and convert it, exactly as the
+	 * direct-assignment darray concat builder does (IEEE 1800-2017/2023
+	 * 10.10). OpenTitan kmac_scoreboard builds its message this way. */
+      if (is_darray)
+	    for (idx = 0; idx < nparm; idx += 1)
+		  if (container_pattern_operand_is_collection_(
+			ivl_expr_parm(expr, idx), etype)) {
+			is_darray = 0;
+			darray_via_queue = 1;
+			break;
+		  }
 
       container_element_enc_(etype, enc, sizeof enc);
       if (is_darray) {
@@ -3297,20 +3312,6 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		  }
 		  continue;
 	    }
-	    if (is_darray
-		&& container_pattern_operand_is_collection_(parm, etype)) {
-		  static int warned_darray_splice = 0;
-		  if (!warned_darray_splice) {
-			fprintf(stderr, "Warning: draw_eval_object: a"
-				" runtime-sized collection operand in a"
-				" dynamic-array literal at %s:%u is not"
-				" supported; the operand contributes one"
-				" default element (further similar warnings"
-				" suppressed)\n",
-				ivl_expr_file(parm), ivl_expr_lineno(parm));
-			warned_darray_splice = 1;
-		  }
-	    }
 	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
 	    switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {
 		case IVL_VT_REAL:
@@ -3372,6 +3373,20 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		                           queue_live_max_operand_(0), wid);
 		  break;
 		}
+	    }
+      }
+
+      if (darray_via_queue) {
+	    char darray_enc[32];
+	    stream_elem_type_text(etype, darray_enc, sizeof darray_enc);
+	    fprintf(vvp_out, "    %%queue/to/darray \"%s\";\n", darray_enc);
+	    if (etype && ivl_type_base(etype) == IVL_VT_NO_TYPE
+		&& ivl_type_properties(etype) > 0) {
+		  ensure_class_type_emitted(etype);
+		  fprintf(vvp_out,
+			  "    %%new/cobj C%p; darray concat element prototype\n",
+			  etype);
+		  fprintf(vvp_out, "    %%dar/elem/proto;\n");
 	    }
       }
 
