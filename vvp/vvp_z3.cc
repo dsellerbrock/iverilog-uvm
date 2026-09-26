@@ -570,6 +570,11 @@ static bool infer_constraint_integral_type_(IRParser&par,
       if (op == "neg" || op == "bnot") {
             return infer_constraint_integral_type_(par, out) && par.expect(')');
       }
+      if (op == "unsupported") {
+            par.skip_ws(); (void)par.read_token();
+            out.width = 1; out.sign = false;
+            return par.expect(')');
+      }
       if (op == "not" || op == "redand" || op == "redor"
           || op == "redxor" || op == "onehot" || op == "onehot0"
           || op == "countones") {
@@ -4048,6 +4053,33 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			: Z3_mk_bvxor(b.ctx, bit, next);
 	    }
 	    return bit;
+      }
+
+      /* A class constraint item the compiler could not represent. It is
+       * never satisfied silently: every solve that includes it fails with a
+       * diagnostic naming its source (percent-encoded file:line). */
+      if (op == "unsupported") {
+	    par.skip_ws();
+	    string site = par.read_token();
+	    string decoded;
+	    for (size_t i = 0; i < site.size(); ++i) {
+		  if (site[i] == '%' && i + 2 < site.size()) {
+			decoded += (char)strtol(site.substr(i + 1, 2).c_str(),
+						nullptr, 16);
+			i += 2;
+		  } else decoded += site[i];
+	    }
+	    par.skip_ws(); par.expect(')');
+	    if (b.collect_preferences && !b.collect_refs_only) {
+		  Z3Builder::StateCheck check = {
+			b.mk_true(),
+			"the constraint item at " + decoded + " is not supported "
+			"by the constraint solver; randomize() fails rather than "
+			"ignore it"
+		  };
+		  b.state_checks.push_back(check);
+	    }
+	    return Z3_mk_unsigned_int64(b.ctx, 1, Z3_mk_bv_sort(b.ctx, 1));
       }
 
       if (op == "not") {

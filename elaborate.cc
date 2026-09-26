@@ -31022,6 +31022,120 @@ static string constraint_state_expression_slot_(
 	    + (desc.is_signed ? ":s" : "");
 }
 
+/* A declared class constraint may read state outside the class: a package
+ * or compilation-unit variable (IEEE 1800-2017/2023 18.3). Resolve an
+ * index-free name that denotes such a variable. The class scope is searched
+ * first, so a property or class parameter never reaches here. */
+static NetNet*constraint_outside_variable_(const PEIdent*id,
+					    const netclass_t*cls,
+					    const NetScope*scope)
+{
+      if (!id || !cls || !scope || !constraint_ir_design_ctx_
+	  || !constraint_ir_state_calls_ctx_ || id->path().name.empty())
+	    return nullptr;
+      for (const name_component_t&component : id->path().name)
+	    if (!component.index.empty()) return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, constraint_ir_design_ctx_,
+			 const_cast<NetScope*>(scope), id->path(),
+			 id->lexical_pos(), &sr)
+	  || !sr.net || !sr.path_tail.empty() || sr.par_val)
+	    return nullptr;
+      for (const NetScope*owner = sr.net->scope(); owner; owner = owner->parent())
+	    if (owner->type() == NetScope::CLASS
+		|| owner->type() == NetScope::FUNC
+		|| owner->type() == NetScope::TASK)
+		  return nullptr;
+      return sr.net;
+}
+
+/* A scalar integral outside variable is read when randomize() is called,
+ * through the same state-slot wrapper as a constraint function call. */
+static string constraint_outside_scalar_ir_(const PEIdent*id,
+					     const netclass_t*cls,
+					     const NetScope*scope)
+{
+      NetNet*net = constraint_outside_variable_(id, cls, scope);
+      if (!net || net->unpacked_dimensions() != 0) return "";
+      ivl_type_t type = net->net_type();
+      if (!type || !type->packed() || type->packed_width() == 0
+	  || (type->base_type() != IVL_VT_BOOL
+	      && type->base_type() != IVL_VT_LOGIC))
+	    return "";
+      PEIdent*copy = id->path().package
+	    ? new PEIdent(id->path().package, id->path().name, id->lexical_pos())
+	    : new PEIdent(id->path().name, id->lexical_pos());
+      copy->set_line(*id);
+      return constraint_state_expression_slot_(id, copy, type, cls, false);
+}
+
+/* The element count of a const outside array is fixed: by its unpacked
+ * dimension, or for a dynamic array or queue by its positional initializer
+ * (IEEE 1800-2017/2023 6.20.6). Each element is then an ordinary state
+ * value, so an inside operand denotes exactly those values (11.4.13). */
+static bool constraint_outside_const_array_ir_(const PEIdent*id,
+					       const netclass_t*cls,
+					       const NetScope*scope,
+					       string&items)
+{
+      NetNet*net = constraint_outside_variable_(id, cls, scope);
+      if (!net || !net->get_const()) return false;
+      ivl_type_t element = nullptr;
+      size_t count = 0;
+      if (const netdarray_t*da = dynamic_cast<const netdarray_t*>(net->net_type())) {
+	    element = da->element_type();
+	    const PPackage*owner = nullptr;
+	    for (const PPackage*package : pform_packages)
+		  if (package->pscope_name() == net->scope()->basename())
+			owner = package;
+	    if (!owner) return false;
+	    for (const Statement*init : owner->var_inits) {
+		  const PAssign*assign = dynamic_cast<const PAssign*>(init);
+		  const PEIdent*target = assign
+			? dynamic_cast<const PEIdent*>(assign->lval()) : nullptr;
+		  const PEAssignPattern*pattern = assign
+			? dynamic_cast<const PEAssignPattern*>(assign->rval()) : nullptr;
+		  if (!target || target->path().size() != 1
+		      || peek_tail_name(target->path()) != net->name())
+			continue;
+		  if (!pattern || pattern->replication() || pattern->parms().empty())
+			return false;
+		  count = pattern->parms().size();
+	    }
+      } else if (net->unpacked_dimensions() == 1) {
+	    element = net->net_type();
+	    count = net->unpacked_count();
+      }
+      if (!element || count == 0 || !element->packed()
+	  || (element->base_type() != IVL_VT_BOOL
+	      && element->base_type() != IVL_VT_LOGIC))
+	    return false;
+      long base = 0;
+      if (net->unpacked_dimensions() == 1)
+	    base = net->unpacked_dims().front().get_lsb()
+		  < net->unpacked_dims().front().get_msb()
+		  ? net->unpacked_dims().front().get_lsb()
+		  : net->unpacked_dims().front().get_msb();
+      items.clear();
+      for (size_t k = 0; k < count; ++k) {
+	    pform_name_t path = id->path().name;
+	    index_component_t ic;
+	    ic.sel = index_component_t::SEL_BIT;
+	    ic.msb = new PENumber(new verinum((int64_t)(base + (long)k)));
+	    ic.lsb = nullptr;
+	    path.back().index.push_back(ic);
+	    PEIdent*elem = id->path().package
+		  ? new PEIdent(id->path().package, path, id->lexical_pos())
+		  : new PEIdent(path, id->lexical_pos());
+	    elem->set_line(*id);
+	    string slot = constraint_state_expression_slot_(id, elem, element,
+							    cls, false);
+	    if (slot.empty()) return false;
+	    items += (items.empty() ? "" : " ") + slot;
+      }
+      return true;
+}
+
 /* Solver-native terminal count for a fixed integral locator:
  *   (a.find(i) with (predicate)).size()
  * Each fixed element remains an `e:' leaf, so an active rand array is solved
@@ -31697,6 +31811,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                       && !constraint_array_iter_ctx_find_(loop))
                         return "";
             }
+	    if (cls && !stateforeach_emit_ctx_) {
+		  string outside = constraint_outside_scalar_ir_(id, cls, scope);
+		  if (!outside.empty()) return outside;
+	    }
 	      /* One scalar PROPERTY of an element of the OBJECT array iterated
 	         by an enclosing dynamic foreach:
 	             foreach (in_use[i]) { ... in_use[i].lo ... }
@@ -34972,7 +35090,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			   * Materialize and recursively flatten its pattern here; the
 			   * solver receives one sized scalar member per leaf. */
 			  bool array_param_membership = false;
-			  if (!is_dist) {
+			  if (!is_dist && cls) {
+				string const_items;
+				if (constraint_outside_const_array_ir_(
+				      dynamic_cast<const PEIdent*>(r.hi), cls, scope,
+				      const_items)) {
+				      array_param_membership = true;
+				      range_ir = const_items;
+				}
+			  }
+			  if (!is_dist && !array_param_membership) {
 				const PEIdent*aid =
 				      dynamic_cast<const PEIdent*>(r.hi);
 				if (aid && constraint_ir_design_ctx_) {
@@ -35619,18 +35746,32 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 			if (!ir.empty()) ir += " ";
 			ir += s;
 		  } else if (des->errors == errors_before) {
-			/* Manifesto principle 4: a dropped item silently weakens
-			 * the constraint, so diagnose the first unsupported shape. */
-			static bool warned_unconvertible_constraint = false;
-			if (!warned_unconvertible_constraint) {
-			      cerr << item->get_fileline() << ": warning: "
-				   << "Constraint item in '" << cit.first
-				   << "' of class " << get_name()
-				   << " is not representable in the constraint "
-				   << "solver and is ignored (further similar "
-				   << "warnings suppressed)." << endl;
-			      warned_unconvertible_constraint = true;
+			/* Manifesto principle 4: an item must never be dropped
+			 * silently. Keep a marker in its place, so randomize() of
+			 * this class fails with a diagnostic naming the item rather
+			 * than solving a weaker constraint. */
+			cerr << item->get_fileline() << ": warning: "
+			     << "Constraint item in '" << cit.first
+			     << "' of class " << get_name()
+			     << " is not representable in the constraint "
+			     << "solver; randomize() of this class will fail."
+			     << endl;
+			string where = item->get_fileline();
+			while (!where.empty()
+			       && (where.back() == ' ' || where.back() == ':'))
+			      where.pop_back();
+			string site;
+			for (char ch : where) {
+			      if (ch == ' ' || ch == '(' || ch == ')' || ch == '%'
+				  || ch == '"') {
+				    char hex[4];
+				    snprintf(hex, sizeof hex, "%%%02X",
+					     (unsigned char)ch);
+				    site += hex;
+			      } else site += ch;
 			}
+			if (!ir.empty()) ir += " ";
+			ir += "(unsupported " + site + ")";
 		  }
 	    }
 	    constraint_ir_state_calls_ctx_ = save_state_calls;
