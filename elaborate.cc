@@ -89,6 +89,8 @@ extern NetESFunc* make_randomize_with_expr(
       perm_string object_root = perm_string(),
       bool scope_form = false,
       bool force_all_properties = false);
+extern bool std_randomize_args_need_solver(
+      const std::vector<named_pexpr_t>&parms, Design*des, NetScope*scope);
 extern NetESFunc* make_std_randomize_with_expr(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,
@@ -13392,7 +13394,8 @@ static NetProc* elaborate_scope_randomize_task_(
       const vector<PExpr*>&constraints = call->with_constraints();
 
       if (!constraints.empty()
-	  || call->has_randomize_with_identifier_list()) {
+	  || call->has_randomize_with_identifier_list()
+	  || std_randomize_args_need_solver(parms, des, scope)) {
 	    NetESFunc*fun = make_std_randomize_with_expr(
 		  parms, constraints, call->randomize_with_identifiers(),
 		  call->has_randomize_with_identifier_list(),
@@ -27415,6 +27418,19 @@ static string constraint_const_bits_ir_(const verinum&v, unsigned width,
       return ir;
 }
 
+/* IEEE 1800-2017/2023 18.4: a random enum takes only its declared
+ * literals, at the enum's full width. */
+string constraint_enum_domain_ir(const netenum_t*etype, const string&subject)
+{
+      unsigned wid = (unsigned)etype->packed_width();
+      if (wid == 0) wid = 32;
+      string ir = "(inside " + subject;
+      for (size_t val = 0; val < etype->size(); ++val)
+	    ir += " " + constraint_const_bits_ir_(etype->value_at(val), wid,
+						 false);
+      return ir + ")";
+}
+
 static string constraint_constant_ir_(const PEIdent*id,
 				       const NetScope*scope,
 				       const netclass_t*cls,
@@ -35613,14 +35629,10 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  continue;
 	    unsigned wid = (unsigned)etype->packed_width();
 	    if (wid == 0) wid = 32;
-	    std::ostringstream ir;
-	    ir << "(inside p:" << pid << ":" << wid;
-	    for (size_t val = 0; val < etype->size(); ++val)
-		  ir << " c:" << etype->value_at(val).as_unsigned();
-	    ir << ")";
 	    std::ostringstream name;
 	    name << "_enum_" << get_prop_name(pid);
-	    add_constraint_ir(name.str(), ir.str());
+	    add_constraint_ir(name.str(), constraint_enum_domain_ir(
+		  etype, "p:" + to_string(pid) + ":" + to_string(wid)));
       }
 
       constraints_elaborating_ = false;
