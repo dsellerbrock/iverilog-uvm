@@ -1,0 +1,5 @@
+ivltests/sv_disable_inherited_task_bad.v:7: error: Cannot disable functions.
+ivltests/sv_disable_inherited_task_bad.v:7: Unable to elaborate statement in task $unit.derived_seq.stop_function at ivltests/sv_disable_inherited_task_bad.v:7.
+ivltests/sv_disable_inherited_task_bad.v:6: error: Cannot find scope no_such_task in $unit.derived_seq.stop_missing
+ivltests/sv_disable_inherited_task_bad.v:6: Unable to elaborate statement in task $unit.derived_seq.stop_missing at ivltests/sv_disable_inherited_task_bad.v:6.
+2 error(s) during elaboration.

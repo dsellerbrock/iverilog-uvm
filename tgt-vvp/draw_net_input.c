@@ -19,6 +19,7 @@
 
 # include  "vvp_priv.h"
 # include  <stdlib.h>
+# include  <stdint.h>
 # include  <math.h>
 # include  <string.h>
 # include  <inttypes.h>
@@ -312,6 +313,43 @@ static char* draw_net_pull(ivl_net_logic_t lptr, ivl_drive_t drive, const char*l
  * to this nexus.
  */
 
+/*
+ * A transparent BUFZ is a continuous assignment: a module port connection
+ * or `assign net = var'. When its only input driver is a scalar or vector
+ * variable assigned by an always_comb or always_latch process, the
+ * assignment is a process that runs after the
+ * writing process suspends (IEEE 1800-2017/2023 10.3, 23.3.3). Eliding the
+ * BUFZ would forward every intermediate blocking assignment instead, so
+ * deliver through a .sample functor. Processes that wait on the variable
+ * itself keep seeing each change.
+ */
+int bufz_input_is_var(ivl_net_logic_t bufz)
+{
+      ivl_nexus_t in_n = ivl_logic_pin(bufz, 1);
+      ivl_signal_t var = 0;
+      unsigned drivers = 0;
+      unsigned idx;
+      for (idx = 0 ; idx < ivl_nexus_ptrs(in_n) ; idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(in_n, idx);
+	    if (ivl_nexus_ptr_log(ptr) == bufz) continue;
+	    if (ivl_nexus_ptr_drive0(ptr) == IVL_DR_HiZ
+		&& ivl_nexus_ptr_drive1(ptr) == IVL_DR_HiZ)
+		  continue;
+	    drivers += 1;
+	    var = ivl_nexus_ptr_sig(ptr);
+      }
+      if (drivers != 1 || !var || ivl_signal_type(var) != IVL_SIT_REG
+	  || ivl_signal_dimensions(var) > 0 || !ivl_signal_comb_driven(var))
+	    return 0;
+      switch (ivl_signal_data_type(var)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    return 1;
+	  default:
+	    return 0;
+      }
+}
+
 static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 {
       unsigned nptr_pin = ivl_nexus_ptr_pin(nptr);
@@ -328,6 +366,13 @@ static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 		  if (! can_elide_bufz(lptr, nptr))
 			break;
 
+		  if (bufz_input_is_var(lptr)) {
+			char label[64];
+			snprintf(label, sizeof label, "S_%p", lptr);
+			fprintf(vvp_out, "%s .sample %s;\n", label,
+				draw_net_input(ivl_logic_pin(lptr, 1)));
+			return strdup(label);
+		  }
 		  return strdup(draw_net_input(ivl_logic_pin(lptr, 1)));
 	    } while(0);
 

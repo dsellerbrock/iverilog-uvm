@@ -89,6 +89,8 @@ extern NetESFunc* make_randomize_with_expr(
       perm_string object_root = perm_string(),
       bool scope_form = false,
       bool force_all_properties = false);
+extern bool std_randomize_args_need_solver(
+      const std::vector<named_pexpr_t>&parms, Design*des, NetScope*scope);
 extern NetESFunc* make_std_randomize_with_expr(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,
@@ -13392,12 +13394,25 @@ static NetProc* elaborate_scope_randomize_task_(
       const vector<PExpr*>&constraints = call->with_constraints();
 
       if (!constraints.empty()
-	  || call->has_randomize_with_identifier_list()) {
+	  || call->has_randomize_with_identifier_list()
+	  || std_randomize_args_need_solver(parms, des, scope)) {
 	    NetESFunc*fun = make_std_randomize_with_expr(
 		  parms, constraints, call->randomize_with_identifiers(),
 		  call->has_randomize_with_identifier_list(),
 		  des, scope, call);
 	    if (!fun) return nullptr;
+
+	      /* A class property argument lowers to a receiver-based class
+	       * randomize call, which has no task form: evaluate it into a
+	       * discarded temporary, as a void-cast randomize() does. */
+	    if (strncmp(fun->name(), "$ivl_class_method$", 18) == 0) {
+		  NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+					  NetNet::REG, &netvector_t::atom2u32);
+		  tmp->set_line(*call);
+		  NetAssign*assign = new NetAssign(new NetAssign_(tmp), fun);
+		  assign->set_line(*call);
+		  return assign;
+	    }
 
 	    vector<NetExpr*> argv(fun->nparms());
 	    for (unsigned idx = 0 ; idx < fun->nparms() ; idx += 1)
@@ -19591,6 +19606,12 @@ NetProc* PDisable::elaborate(Design*des, NetScope*scope) const
       list<hname_t> spath = eval_scope_path(des, scope, scope_);
 
       NetScope*target = des->find_scope(scope, spath);
+	// A task named from a class method may be inherited: resolve it
+	// through the class hierarchy like any other member name.
+      if (target == 0 && spath.size() == 1 && scope->get_class_scope()) {
+	    if (const netclass_t*cls = scope->get_class_scope()->class_def())
+		  target = cls->method_from_name(spath.front().peek_name());
+      }
       if (target == 0) {
 	    cerr << get_fileline() << ": error: Cannot find scope "
 		 << scope_ << " in " << scope_path(scope) << endl;
@@ -25961,6 +25982,36 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!obuf || !opend || !raw)
 			continue;
+		    /* A clocking output to a net is an additional driver of the
+		       net (IEEE 1800-2017/2023 14.16), resolved with its other
+		       drivers; a procedural write into the net would instead
+		       overwrite, or corrupt, the net's existing driver. Drive the
+		       net from a hidden variable through a continuous buffer. The
+		       variable holds 'z until the first clocking drive. A
+		       variable, including one with a continuous assignment
+		       (UNRESOLVED_WIRE), keeps the procedural clocking write. */
+		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
+		      && raw->type() != NetNet::UNRESOLVED_WIRE) {
+			string vname = string("_ivl_odrv$") + cb->name.str()
+			      + "$" + sig_it->str();
+			NetNet*drive = new NetNet(scope, lex_strings.make(vname.c_str()),
+						  NetNet::REG, raw->net_type());
+			drive->set_line(*cb);
+			drive->local_flag(true);
+			NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
+						     raw->vector_width(), false);
+			buffer->set_line(*cb);
+			des->add_node(buffer);
+			connect(drive->pin(0), buffer->pin(1));
+			connect(raw->pin(0), buffer->pin(0));
+			verinum z_v (verinum::Vz, raw->vector_width());
+			NetEConst*z = new NetEConst(z_v);
+			z->set_line(*cb);
+			NetAssign*init = new NetAssign(new NetAssign_(drive), z);
+			init->set_line(*cb);
+			prologue->append(init);
+			raw = drive;
+		  }
 		  out_raws.push_back(raw);
 		  out_bufs.push_back(obuf);
 		  out_pends.push_back(opend);
@@ -26339,8 +26390,12 @@ struct dynforeach_emit_ctx_t {
       unsigned elem_wid;
       bool elem_signed;
       const netclass_t*assoc_key_type = nullptr;
+	// Class- or string-key associative array: the runtime iterates its
+	// entries, and the loop variable may only index this array.
+      bool entry_key = false;
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
+
 
 /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: a selected
  * caller-state queue is captured once, then iterated at randomize time. */
@@ -26587,6 +26642,17 @@ static bool constraint_flatten_member_path_(const PExpr*expr,
  * alongside the recursive translation so those names can use the same
  * elaborated scope/import tables as normal expressions. */
 static Design*constraint_ir_design_ctx_ = nullptr;
+
+static string constraint_entry_key_error_(const PExpr*site)
+{
+      cerr << site->get_fileline() << ": sorry: in a constraint foreach over "
+	   << "an associative array with class or string keys, the loop "
+	   << "variable may only index that array or select a key member."
+	   << endl;
+      if (constraint_ir_design_ctx_)
+	    constraint_ir_design_ctx_->errors += 1;
+      return "";
+}
 static vector<netclass_t::constraint_state_call_t>*constraint_ir_state_calls_ctx_ = nullptr;
 
 /* A class-embedded covergroup has two property roots while its immutable
@@ -26608,30 +26674,6 @@ struct constraint_dist_payload_scope_t {
       ~constraint_dist_payload_scope_t() { constraint_dist_payload_depth_ -= 1; }
 };
 
-static bool constraint_dist_reject_wide_value_(const PExpr*site,
-						 const verinum&value)
-{
-      if (!constraint_dist_payload_depth_)
-	    return false;
-      bool meaningful_high_bit = false;
-      for (unsigned i = 64 ; i < value.len() ; i += 1) {
-	    if (value.get(i) != verinum::V0) {
-		  meaningful_high_bit = true;
-		  break;
-	    }
-      }
-      if (!meaningful_high_bit)
-	    return false;
-      if (constraint_ir_design_ctx_ && site
-	  && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(site)) {
-	    cerr << site->get_fileline() << ": error: dist subject, item, "
-		 << "range endpoint, or weight value has nonzero or unknown "
-		 << "bits above bit 63, which the constraint IR cannot "
-		 << "represent without changing its value." << endl;
-	    constraint_ir_design_ctx_->errors += 1;
-      }
-      return true;
-}
 
 /* IEEE 11.8.2 propagates comparison width/signedness down through
  * context-determined expressions. The compact solver IR is not yet a typed
@@ -26738,7 +26780,10 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    bool delem_header = !tok.empty()
 		  && isdigit((unsigned char)tok[0]) && tok.find(':') != string::npos;
 	    bool loop_header = tok == "L";
-	    out.parsed = typed_terminal || delem_header || loop_header;
+	      // skelem's constant string key: x followed by its hex bytes.
+	    bool key_hex = !tok.empty() && tok[0] == 'x'
+		  && tok.find_first_not_of("0123456789abcdef", 1) == string::npos;
+	    out.parsed = typed_terminal || delem_header || loop_header || key_hex;
 	    out.self_safe = out.parsed;
 	    out.terminal = typed_terminal;
 	    out.solver_storage = tok.compare(0, 2, "p:") == 0
@@ -26870,7 +26915,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.terminal = terminal;
 	    return out;
       }
-      if (out.op == "delem") {
+      if (out.op == "delem" || out.op == "qkeyelem" || out.op == "skelem") {
 	    out.width = out.args.empty() ? 1 : out.args.front().width;
 	    out.is_signed = !out.args.empty() && out.args.front().is_signed;
 	    out.self_safe = true;
@@ -26915,29 +26960,6 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_(
       while (pos < ir.size() && isspace((unsigned char)ir[pos])) pos += 1;
       if (pos != ir.size()) shape.parsed = false;
       return shape;
-}
-
-/* The current runtime exchanges class-property/member/element values through
- * uint64_t. A wider Z3 storage variable cannot be read, pinned, or committed
- * without losing its high bits. Keep dist's newly widened expression support
- * from exposing that pre-existing backend boundary; arbitrary-width model
- * transfer must land before these storage leaves can be accepted. */
-static bool constraint_dist_reject_wide_storage_(
-      const PExpr*site, const constraint_dist_ir_shape_t&shape)
-{
-      bool wide = shape.solver_storage && shape.width > 64;
-      for (const auto&arg : shape.args)
-	    wide = constraint_dist_reject_wide_storage_(nullptr, arg) || wide;
-      if (!wide) return false;
-      if (site && constraint_ir_design_ctx_
-	  && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(site)) {
-	    cerr << site->get_fileline() << ": error: dist references a "
-		 << "runtime storage value wider than 64 bits, which the "
-		 << "constraint runtime cannot transfer without losing high bits; "
-		 << "use a <=64-bit typed intermediate expression." << endl;
-	    constraint_ir_design_ctx_->errors += 1;
-      }
-      return true;
 }
 
 static bool constraint_dist_ir_terminal_(const constraint_dist_ir_shape_t&shape)
@@ -27138,7 +27160,6 @@ static string constraint_ir_shape_value_slots_(
 	    return ir;
 
       string out;
-      bool contains_dist = ir.find("(dist ") != string::npos;
       const char*begin = ir.c_str();
       const char*p = begin;
       while (*p) {
@@ -27180,18 +27201,9 @@ static string constraint_ir_shape_value_slots_(
 		  continue;
 	    }
 	    unsigned width = actual.width;
-	    if (contains_dist && width > 64) {
-		  if (des->mark_constraint_dist_diagnostic(actual.expr)) {
-			cerr << actual.expr->get_fileline() << ": error: dist "
-			     << "references a runtime storage value wider than 64 "
-			     << "bits, which the constraint runtime cannot transfer "
-			     << "without losing high bits; use a <=64-bit typed "
-			     << "intermediate expression." << endl;
-			des->errors += 1;
-		  }
-		  return "";
-	    }
-	    if (width == 0 || width > 64) width = 32;
+	      // A slot wider than 64 bits keeps its width: the runtime
+	      // substitutes it from its complete value, not the 64-bit word.
+	    if (width == 0) width = 32;
 	    out += function_slot ? "fv:" : "v:";
 	    out += to_string(slot) + ":" + to_string(width);
 	    if (actual.is_signed) out += ":s";
@@ -27424,6 +27436,49 @@ static string constraint_parameter_member_select_ir_(
       return result + ")";
 }
 
+/* A constraint constant of any width. Up to 64 bits it is one c: atom;
+ * wider values are 64-bit chunks joined by concat (most significant first),
+ * the form the runtime also uses for wide captured values. Only V1 bits are
+ * set, as in the 64-bit atom. */
+static string constraint_const_bits_ir_(const verinum&v, unsigned width,
+					bool is_signed)
+{
+      auto chunk = [&](unsigned low, unsigned chunk_width) {
+	    uint64_t bits = 0;
+	    for (unsigned i = 0 ; i < chunk_width ; i += 1)
+		  if (low + i < v.len() && v.get(low + i) == verinum::V1)
+			bits |= (uint64_t)1 << i;
+	    return to_string(bits);
+      };
+      if (width <= 64)
+	    return "c:" + chunk(0, width) + ":" + to_string(width)
+		  + (is_signed ? ":s" : "");
+      string parts;
+      for (unsigned high = width ; high > 0 ; ) {
+	    unsigned low = high > 64 ? high - 64 : 0;
+	    parts += " c:" + chunk(low, high - low) + ":"
+		  + to_string(high - low);
+	    high = low;
+      }
+      string ir = "(concat" + parts + ")";
+      if (is_signed)
+	    ir = "(trunc:" + to_string(width) + ":s " + ir + ")";
+      return ir;
+}
+
+/* IEEE 1800-2017/2023 18.4: a random enum takes only its declared
+ * literals, at the enum's full width. */
+string constraint_enum_domain_ir(const netenum_t*etype, const string&subject)
+{
+      unsigned wid = (unsigned)etype->packed_width();
+      if (wid == 0) wid = 32;
+      string ir = "(inside " + subject;
+      for (size_t val = 0; val < etype->size(); ++val)
+	    ir += " " + constraint_const_bits_ir_(etype->value_at(val), wid,
+						 false);
+      return ir + ")";
+}
+
 static string constraint_constant_ir_(const PEIdent*id,
 				       const NetScope*scope,
 				       const netclass_t*cls,
@@ -27439,9 +27494,8 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    if (full_value) {
 		  if (val->expr_type() == IVL_VT_STRING) return "";
 		  *full_value = v;
-	    } else if (constraint_dist_reject_wide_value_(id, v)) return "";
-	    return "c:" + to_string(v.as_ulong64()) + ":"
-		  + to_string(v.len()) + (v.has_sign() ? ":s" : "");
+	    }
+	    return constraint_const_bits_ir_(v, v.len(), v.has_sign());
       };
       bool declared = false;
       auto in_scope = [&](NetScope*sc, perm_string name) -> string {
@@ -27615,7 +27669,7 @@ static string constraint_class_state_path_ir_(
 
       if (!constraint_state_prop_ok_(cur_type, false)) return "";
       unsigned wid = cur_type ? cur_type->packed_width() : 0;
-      if (wid == 0 || (wid > 64 && !constraint_dist_payload_depth_)) wid = 32;
+      if (wid == 0) wid = 32;
       return "r:" + path + ":" + to_string(wid)
 	   + ((cur_type && cur_type->get_signed()) ? ":s" : "");
 }
@@ -29674,7 +29728,9 @@ static string scope_randomize_value_slot_(const PExpr*expr,
 	    constraint_inline_prebuilt_value_slots_->push_back(nullptr);
       if (scope_randomize_signal_slots_)
 	    scope_randomize_signal_slots_->push_back(direct_signal);
-      if (width == 0 || (width > 64 && !constraint_dist_payload_depth_))
+	// Slots wider than 64 bits keep their width; the runtime substitutes
+	// them from their complete value instead of the 64-bit slot word.
+      if (width == 0)
 	    width = 32;
       return string(function_result ? "fv:" : "v:")
 	    + to_string(slot) + ":" + to_string(width);
@@ -31002,6 +31058,120 @@ static string constraint_state_expression_slot_(
 	    + (desc.is_signed ? ":s" : "");
 }
 
+/* A declared class constraint may read state outside the class: a package
+ * or compilation-unit variable (IEEE 1800-2017/2023 18.3). Resolve an
+ * index-free name that denotes such a variable. The class scope is searched
+ * first, so a property or class parameter never reaches here. */
+static NetNet*constraint_outside_variable_(const PEIdent*id,
+					    const netclass_t*cls,
+					    const NetScope*scope)
+{
+      if (!id || !cls || !scope || !constraint_ir_design_ctx_
+	  || !constraint_ir_state_calls_ctx_ || id->path().name.empty())
+	    return nullptr;
+      for (const name_component_t&component : id->path().name)
+	    if (!component.index.empty()) return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, constraint_ir_design_ctx_,
+			 const_cast<NetScope*>(scope), id->path(),
+			 id->lexical_pos(), &sr)
+	  || !sr.net || !sr.path_tail.empty() || sr.par_val)
+	    return nullptr;
+      for (const NetScope*owner = sr.net->scope(); owner; owner = owner->parent())
+	    if (owner->type() == NetScope::CLASS
+		|| owner->type() == NetScope::FUNC
+		|| owner->type() == NetScope::TASK)
+		  return nullptr;
+      return sr.net;
+}
+
+/* A scalar integral outside variable is read when randomize() is called,
+ * through the same state-slot wrapper as a constraint function call. */
+static string constraint_outside_scalar_ir_(const PEIdent*id,
+					     const netclass_t*cls,
+					     const NetScope*scope)
+{
+      NetNet*net = constraint_outside_variable_(id, cls, scope);
+      if (!net || net->unpacked_dimensions() != 0) return "";
+      ivl_type_t type = net->net_type();
+      if (!type || !type->packed() || type->packed_width() == 0
+	  || (type->base_type() != IVL_VT_BOOL
+	      && type->base_type() != IVL_VT_LOGIC))
+	    return "";
+      PEIdent*copy = id->path().package
+	    ? new PEIdent(id->path().package, id->path().name, id->lexical_pos())
+	    : new PEIdent(id->path().name, id->lexical_pos());
+      copy->set_line(*id);
+      return constraint_state_expression_slot_(id, copy, type, cls, false);
+}
+
+/* The element count of a const outside array is fixed: by its unpacked
+ * dimension, or for a dynamic array or queue by its positional initializer
+ * (IEEE 1800-2017/2023 6.20.6). Each element is then an ordinary state
+ * value, so an inside operand denotes exactly those values (11.4.13). */
+static bool constraint_outside_const_array_ir_(const PEIdent*id,
+					       const netclass_t*cls,
+					       const NetScope*scope,
+					       string&items)
+{
+      NetNet*net = constraint_outside_variable_(id, cls, scope);
+      if (!net || !net->get_const()) return false;
+      ivl_type_t element = nullptr;
+      size_t count = 0;
+      if (const netdarray_t*da = dynamic_cast<const netdarray_t*>(net->net_type())) {
+	    element = da->element_type();
+	    const PPackage*owner = nullptr;
+	    for (const PPackage*package : pform_packages)
+		  if (package->pscope_name() == net->scope()->basename())
+			owner = package;
+	    if (!owner) return false;
+	    for (const Statement*init : owner->var_inits) {
+		  const PAssign*assign = dynamic_cast<const PAssign*>(init);
+		  const PEIdent*target = assign
+			? dynamic_cast<const PEIdent*>(assign->lval()) : nullptr;
+		  const PEAssignPattern*pattern = assign
+			? dynamic_cast<const PEAssignPattern*>(assign->rval()) : nullptr;
+		  if (!target || target->path().size() != 1
+		      || peek_tail_name(target->path()) != net->name())
+			continue;
+		  if (!pattern || pattern->replication() || pattern->parms().empty())
+			return false;
+		  count = pattern->parms().size();
+	    }
+      } else if (net->unpacked_dimensions() == 1) {
+	    element = net->net_type();
+	    count = net->unpacked_count();
+      }
+      if (!element || count == 0 || !element->packed()
+	  || (element->base_type() != IVL_VT_BOOL
+	      && element->base_type() != IVL_VT_LOGIC))
+	    return false;
+      long base = 0;
+      if (net->unpacked_dimensions() == 1)
+	    base = net->unpacked_dims().front().get_lsb()
+		  < net->unpacked_dims().front().get_msb()
+		  ? net->unpacked_dims().front().get_lsb()
+		  : net->unpacked_dims().front().get_msb();
+      items.clear();
+      for (size_t k = 0; k < count; ++k) {
+	    pform_name_t path = id->path().name;
+	    index_component_t ic;
+	    ic.sel = index_component_t::SEL_BIT;
+	    ic.msb = new PENumber(new verinum((int64_t)(base + (long)k)));
+	    ic.lsb = nullptr;
+	    path.back().index.push_back(ic);
+	    PEIdent*elem = id->path().package
+		  ? new PEIdent(id->path().package, path, id->lexical_pos())
+		  : new PEIdent(path, id->lexical_pos());
+	    elem->set_line(*id);
+	    string slot = constraint_state_expression_slot_(id, elem, element,
+							    cls, false);
+	    if (slot.empty()) return false;
+	    items += (items.empty() ? "" : " ") + slot;
+      }
+      return true;
+}
+
 /* Solver-native terminal count for a fixed integral locator:
  *   (a.find(i) with (predicate)).size()
  * Each fixed element remains an `e:' leaf, so an active rand array is solved
@@ -31568,8 +31738,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    const verinum&v = num->value();
-	    if (constraint_dist_reject_wide_value_(num, v)) return "";
-	    uint64_t val = 0;
 	    unsigned bits = v.len();
 	      // An unsized integer literal has at least the implementation's
 	      // integer width (IEEE 1800-2017 5.7.1).  Using only its trimmed
@@ -31578,11 +31746,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // is 32 bits when evaluated by the language runtime.
 	    if (!v.has_len() && !v.is_single() && bits < integer_width)
 		  bits = integer_width;
-	    for (unsigned i = 0 ; i < v.len() && i < 64 ; i += 1)
-		  if (v.get(i) == verinum::V1)
-			val |= (uint64_t)1 << i;
-	    return "c:" + to_string(val) + ":" + to_string(bits)
-		  + (v.has_sign() ? ":s" : "");
+	    return constraint_const_bits_ir_(v, bits, v.has_sign());
       }
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
@@ -31683,6 +31847,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                       && !constraint_array_iter_ctx_find_(loop))
                         return "";
             }
+	    if (cls && !stateforeach_emit_ctx_) {
+		  string outside = constraint_outside_scalar_ir_(id, cls, scope);
+		  if (!outside.empty()) return outside;
+	    }
 	      /* One scalar PROPERTY of an element of the OBJECT array iterated
 	         by an enclosing dynamic foreach:
 	             foreach (in_use[i]) { ... in_use[i].lo ... }
@@ -31982,14 +32150,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			key, member, scope, expr)) return "";
 		  ivl_type_t type = key->get_prop_type(member);
 		  unsigned width = type && type->packed() ? type->packed_width() : 0;
-		  if (!width || width > 64) return "";
+		  if (!width) return "";
 		  return "(qkeymember " + to_string(member) + ":"
 			+ to_string(width) + (type->get_signed() ? ":s" : "") + ")";
 	    }
 	    if (dynforeach_emit_ctx_ && id->path().size() == 1
 		&& !id->path().name.front().local_scope
 		&& name == dynforeach_emit_ctx_->loop_var) {
-		  if (dynforeach_emit_ctx_->assoc_key_type) return "";
+		  if (dynforeach_emit_ctx_->entry_key)
+			return constraint_entry_key_error_(expr);
 		  const list<index_component_t>&indices =
 			id->path().name.front().index;
 		  if (indices.empty()) return "L";
@@ -32075,7 +32244,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  ? std::min(dims[0].get_msb(),
 						     dims[0].get_lsb()) : 0;
 				    if (dims.size() == 1 && integral
-					  && ewidth > 0 && ewidth <= 64
+					  && ewidth > 0
 					  && constraint_parse_const_ir_(index_ir, index)
 					  && index.width <= 64
 					  && constraint_fixed_index_offset_(index,
@@ -32096,7 +32265,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    && (mbase == IVL_VT_BOOL || mbase == IVL_VT_LOGIC
 					|| dynamic_cast<const netenum_t*>(mtype));
 			      if (one_level && mem && member->index.empty() && integral
-				  && mwidth > 0 && mwidth <= 64) {
+				  && mwidth > 0) {
 				    string token = "m:" + to_string(pidx) + ":"
 					  + to_string(midx) + ":"
 					  + to_string(mwidth);
@@ -32111,8 +32280,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      cerr << "' selects an unsupported unpacked-struct "
 				   << "constraint path; only one-level scalar integral "
 				   << "or enum members and selected elements of one-"
-				   << "dimensional fixed integral member arrays up to 64 "
-				   << "bits are supported."
+				   << "dimensional fixed integral member arrays are "
+				   << "supported."
 				   << endl;
 			      if (constraint_ir_design_ctx_)
 				    constraint_ir_design_ctx_->errors += 1;
@@ -32497,11 +32666,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      if (!dic.msb || dic.lsb
 				  || dic.sel != index_component_t::SEL_BIT)
 				    return "";
+			      const dynforeach_emit_ctx_t*c = dynforeach_emit_ctx_;
+			      if (c->entry_key) {
+				    const PEIdent*key_id =
+					  dynamic_cast<const PEIdent*>(dic.msb);
+				    if (!key_id || key_id->path().size() != 1
+					|| key_id->path().package
+					|| !key_id->path().name.front().index.empty()
+					|| key_id->path().name.front().name != c->loop_var)
+					  return constraint_entry_key_error_(dic.msb);
+				    return "(qkeyelem " + to_string(c->prop_idx)
+					  + ":" + to_string(c->elem_wid)
+					  + (c->elem_signed ? ":s" : "") + ")";
+			      }
 			      string idx_ir = pexpr_to_constraint_ir(dic.msb,
 					    cls, value_slots, scope, loop_env);
 			      if (idx_ir.empty())
 				    return "";
-			      const dynforeach_emit_ctx_t*c = dynforeach_emit_ctx_;
 			      return "(delem " + to_string(c->prop_idx)
 				    + ":" + to_string(c->elem_wid)
 				    + (c->elem_signed ? ":s" : "")
@@ -32509,7 +32690,48 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			}
 			const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
 			const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype);
-			if (da && (!qq || !qq->assoc_compat())
+			  // An integral-key associative element is addressed by its
+			  // key; the runtime maps the constant key to its entry.
+			ivl_type_t assoc_key = qq && qq->assoc_compat()
+			      ? qq->assoc_index_type() : nullptr;
+			bool integral_assoc = assoc_key && assoc_key->packed()
+			      && assoc_key->packed_width() > 0
+			      && (assoc_key->base_type() == IVL_VT_BOOL
+				  || assoc_key->base_type() == IVL_VT_LOGIC);
+			if (da && assoc_key && assoc_key->base_type() == IVL_VT_STRING
+			    && id->path().back().index.size() == 1) {
+				// A constant string key names one existing entry.
+			      const index_component_t&sic = id->path().back().index.front();
+			      Design*sdes = constraint_ir_design_ctx_;
+			      NetScope*sscope = const_cast<NetScope*>(scope
+				    ? scope : cls->class_scope());
+			      NetExpr*key_expr = (sdes && sscope && sic.msb && !sic.lsb
+				    && sic.sel == index_component_t::SEL_BIT)
+				    ? elab_and_eval(sdes, sscope, sic.msb, -1) : nullptr;
+			      NetEConst*key_const = dynamic_cast<NetEConst*>(key_expr);
+			      ivl_type_t etype = da->element_type();
+			      unsigned ewid = etype ? etype->packed_width() : 0;
+			      if (!key_const || ewid == 0) {
+				    delete key_expr;
+				    cerr << id->get_fileline() << ": sorry: a string-key "
+					 << "associative array element in a constraint "
+					 << "needs a constant key." << endl;
+				    if (sdes) sdes->errors += 1;
+				    return "";
+			      }
+			      string key = key_const->value().as_string();
+			      delete key_expr;
+			      static const char hex[] = "0123456789abcdef";
+			      string key_hex;
+			      for (unsigned char ch : key) {
+				    key_hex += hex[ch >> 4];
+				    key_hex += hex[ch & 15];
+			      }
+			      return "(skelem " + to_string(idx) + ":" + to_string(ewid)
+				    + (etype->get_signed() ? ":s" : "") + " x"
+				    + key_hex + ")";
+			}
+			if (da && (!qq || !qq->assoc_compat() || integral_assoc)
 			    && id->path().back().index.size() == 1) {
 			      const index_component_t&dic = id->path().back().index.front();
 			      if (!dic.msb || dic.lsb || dic.sel != index_component_t::SEL_BIT)
@@ -34348,15 +34570,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					|| dynamic_cast<const netenum_t*>(etype));
 			      if (dims.size() != 1 || cfe->loop_vars().size() != 1
 				  || cfe->loop_vars()[0].nil() || !integral
-				  || !etype->packed_width()
-				  || etype->packed_width() > 64) {
+				  || !etype->packed_width()) {
 				    cerr << cfe->get_fileline() << ": sorry: constraint "
 					 << "foreach over unpacked-struct member '"
 					 << cfe->array_name() << "."
 					 << cfe->member_name()
 					 << "' supports one-dimensional fixed integral "
-					 << "arrays with one iterator and elements up to "
-					 << "64 bits." << endl;
+					 << "arrays with one iterator." << endl;
 				    if (constraint_ir_design_ctx_)
 					  constraint_ir_design_ctx_->errors += 1;
 				    return "";
@@ -34567,9 +34787,31 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  dctx.elem_wid = ewid;
 		  dctx.elem_signed = esig;
 		  const netqueue_t*queue = dynamic_cast<const netqueue_t*>(da);
+		    // IEEE 1800-2017/2023 12.7.3: an associative-array foreach
+		    // binds its loop variable to each key, typed as the index.
+		  string key_suffix;
 		  if (queue && queue->assoc_compat()) {
-			dctx.assoc_key_type = dynamic_cast<const netclass_t*>(
-			      queue->assoc_index_type());
+			ivl_type_t key_type = queue->assoc_index_type();
+			dctx.assoc_key_type = dynamic_cast<const netclass_t*>(key_type);
+			dctx.entry_key = dctx.assoc_key_type
+			      || (key_type && key_type->base_type() == IVL_VT_STRING);
+			if (!dctx.entry_key) {
+			      ivl_variable_type_t kbase = key_type
+				    ? key_type->base_type() : IVL_VT_NO_TYPE;
+			      if (!key_type || !key_type->packed()
+				  || key_type->packed_width() == 0
+				  || (kbase != IVL_VT_BOOL && kbase != IVL_VT_LOGIC)) {
+				    cerr << cfe->get_fileline() << ": sorry: constraint "
+					 << "foreach over associative array '"
+					 << cfe->array_name() << "' requires an integral, "
+					 << "string, or class index type." << endl;
+				    if (constraint_ir_design_ctx_)
+					  constraint_ir_design_ctx_->errors += 1;
+				    return "";
+			      }
+			      key_suffix = "/" + to_string(key_type->packed_width())
+				    + (key_type->get_signed() ? ":s" : "");
+			}
 		  }
 		  dynforeach_emit_ctx_ = &dctx;
 		  string body;
@@ -34586,11 +34828,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  dynforeach_emit_ctx_ = nullptr;
 		  if (body.empty())
 			return "";
-		  if (dctx.assoc_key_type)
+		  if (dctx.entry_key)
 			return "(assocforeach " + to_string(idx) + " " + body + ")";
 		  return "(dynforeach " + to_string(idx)
 			+ ":" + to_string(ewid) + (esig ? ":s" : "")
-			+ " " + body + ")";
+			+ key_suffix + " " + body + ")";
 	    }
 	    const netranges_t&dims = ua->static_dimensions();
 	      /* DD-043: a selected-prefix target (has_hierarchical_target()
@@ -34763,9 +35005,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    constraint_dist_ir_shape_t dist_subject_shape;
 	    if (is_dist) dist_subject_shape = constraint_dist_ir_shape_(
 		  s, value_slots, constraint_ir_design_ctx_, scope);
-	    if (is_dist && constraint_dist_reject_wide_storage_(
-		  ins->get_expr(), dist_subject_shape))
-		  return "";
 	    bool dist_subject_signed = is_dist && dist_subject_shape.is_signed;
 	    if (is_dist && !constraint_dist_compared_shape_supported_(
 		  dist_subject_shape, dist_subject_shape.width)) {
@@ -34810,8 +35049,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  constraint_dist_ir_shape_t payload_shape =
 			constraint_dist_ir_shape_(
 			      ir, value_slots, constraint_ir_design_ctx_, scope);
-		  if (constraint_dist_reject_wide_storage_(payload, payload_shape))
-			return "";
 		  bool supported = compared_to_subject
 			? constraint_dist_compared_shape_supported_(
 				payload_shape, dist_subject_shape.width)
@@ -34889,7 +35126,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			   * Materialize and recursively flatten its pattern here; the
 			   * solver receives one sized scalar member per leaf. */
 			  bool array_param_membership = false;
-			  if (!is_dist) {
+			  if (!is_dist && cls) {
+				string const_items;
+				if (constraint_outside_const_array_ir_(
+				      dynamic_cast<const PEIdent*>(r.hi), cls, scope,
+				      const_items)) {
+				      array_param_membership = true;
+				      range_ir = const_items;
+				}
+			  }
+			  if (!is_dist && !array_param_membership) {
 				const PEIdent*aid =
 				      dynamic_cast<const PEIdent*>(r.hi);
 				if (aid && constraint_ir_design_ctx_) {
@@ -34997,13 +35243,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			     dynamic array. Carry the container object to the
 			     runtime as qv:N:W; it is expanded into the exact set
 			     of current element values before the Z3 parse. */
-			if (!array_param_membership && !cls && scope_randomize_design_ctx_
-			    && scope_randomize_object_slots_) {
-			      const PEIdent*sid =
-				    dynamic_cast<const PEIdent*>(r.hi);
+			  /* The same holds for an inline class constraint, and for a
+			     queue-valued expression such as an associative-array
+			     entry (OpenTitan lc_ctrl VALID_NEXT_STATES[state]). A
+			     class property keeps the q: form below. */
+			Design*odes = scope_randomize_design_ctx_
+			      ? scope_randomize_design_ctx_ : constraint_ir_design_ctx_;
+			const PEIdent*sid = dynamic_cast<const PEIdent*>(r.hi);
+			bool class_property_item = cls && sid
+			      && sid->path().size() == 1
+			      && cls->property_idx_from_name(
+				    sid->path().back().name) >= 0;
+			if (!array_param_membership && !is_dist && odes
+			    && scope_randomize_object_slots_ && !class_property_item) {
 			      ivl_type_t st = sid ? sid->test_type_of_ident(
-				    scope_randomize_design_ctx_,
-				    const_cast<NetScope*>(scope)) : nullptr;
+				    odes, const_cast<NetScope*>(scope)) : nullptr;
 			      const netdarray_t*da =
 				    dynamic_cast<const netdarray_t*>(st);
 			      if (da && sid->path().size() > 0) {
@@ -35013,15 +35267,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    if (et && (eb == IVL_VT_BOOL
 					       || eb == IVL_VT_LOGIC)) {
 					  unsigned ew = et->packed_width();
-					  if (ew == 0 || ew > 64) {
+					  if (ew == 0 || ew > 65536) {
                                                 cerr << r.hi->get_fileline()
-                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 64 bits."
+                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 65536 bits."
                                                      << endl;
-                                                if (scope_randomize_design_ctx_) scope_randomize_design_ctx_->errors += 1;
+                                                odes->errors += 1;
                                                 return "";
                                           }
 					  NetExpr*object_expr = elab_and_eval(
-						scope_randomize_design_ctx_,
+						odes,
 						const_cast<NetScope*>(scope),
 						const_cast<PExpr*>(r.hi),
 						-1, false);
@@ -35066,6 +35320,48 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    range_ir = "q:" + to_string(cpi)
 					  + ":" + to_string(ewid)
 					  + (et->get_signed() ? ":s" : "");
+			      }
+			}
+			  /* A fixed unpacked caller-state array denotes its elements
+			   * (IEEE 1800-2017/2023 11.4.13, 18.3): read each element at
+			   * the call as a value slot of the element's full width. */
+			const PEIdent*uid = dynamic_cast<const PEIdent*>(r.hi);
+			Design*udes = scope_randomize_design_ctx_
+			      ? scope_randomize_design_ctx_ : constraint_ir_design_ctx_;
+			if (!array_param_membership && range_ir.empty() && !is_dist
+			    && value_slots && uid && udes && scope
+			    && !uid->path().name.empty()
+			    && uid->path().name.back().index.empty()
+			    && !(cls && uid->path().size() == 1
+				 && cls->property_idx_from_name(
+				       uid->path().name.back().name) >= 0)) {
+			      const netuarray_t*ua = dynamic_cast<const netuarray_t*>(
+				    uid->test_type_of_ident(udes, const_cast<NetScope*>(scope)));
+			      ivl_type_t et = ua ? ua->element_type() : nullptr;
+			      ivl_variable_type_t eb = et ? et->base_type() : IVL_VT_NO_TYPE;
+			      if (ua && ua->static_dimensions().size() == 1 && et
+				  && et->packed() && et->packed_width() > 0
+				  && (eb == IVL_VT_BOOL || eb == IVL_VT_LOGIC)) {
+				    const netrange_t&dim = ua->static_dimensions().front();
+				    long step = dim.get_msb() <= dim.get_lsb() ? 1 : -1;
+				    for (long k = dim.get_msb();; k += step) {
+					  pform_name_t elem_name = uid->path().name;
+					  index_component_t ic;
+					  ic.sel = index_component_t::SEL_BIT;
+					  ic.msb = new PENumber(new verinum((int64_t)k));
+					  ic.lsb = 0;
+					  elem_name.back().index.push_back(ic);
+					  PEIdent*elem = new PEIdent(uid->path().package,
+						elem_name, uid->lexical_pos());
+					  elem->set_file(uid->get_file());
+					  elem->set_lineno(uid->get_lineno());
+					  string slot = scope_randomize_value_slot_(elem, nullptr,
+						value_slots, et->packed_width());
+					  if (slot.empty()) return "";
+					  if (!range_ir.empty()) range_ir += " ";
+					  range_ir += slot;
+					  if (k == dim.get_lsb()) break;
+				    }
 			      }
 			}
 			if (!array_param_membership && range_ir.empty()) {
@@ -35486,18 +35782,32 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 			if (!ir.empty()) ir += " ";
 			ir += s;
 		  } else if (des->errors == errors_before) {
-			/* Manifesto principle 4: a dropped item silently weakens
-			 * the constraint, so diagnose the first unsupported shape. */
-			static bool warned_unconvertible_constraint = false;
-			if (!warned_unconvertible_constraint) {
-			      cerr << item->get_fileline() << ": warning: "
-				   << "Constraint item in '" << cit.first
-				   << "' of class " << get_name()
-				   << " is not representable in the constraint "
-				   << "solver and is ignored (further similar "
-				   << "warnings suppressed)." << endl;
-			      warned_unconvertible_constraint = true;
+			/* Manifesto principle 4: an item must never be dropped
+			 * silently. Keep a marker in its place, so randomize() of
+			 * this class fails with a diagnostic naming the item rather
+			 * than solving a weaker constraint. */
+			cerr << item->get_fileline() << ": warning: "
+			     << "Constraint item in '" << cit.first
+			     << "' of class " << get_name()
+			     << " is not representable in the constraint "
+			     << "solver; randomize() of this class will fail."
+			     << endl;
+			string where = item->get_fileline();
+			while (!where.empty()
+			       && (where.back() == ' ' || where.back() == ':'))
+			      where.pop_back();
+			string site;
+			for (char ch : where) {
+			      if (ch == ' ' || ch == '(' || ch == ')' || ch == '%'
+				  || ch == '"') {
+				    char hex[4];
+				    snprintf(hex, sizeof hex, "%%%02X",
+					     (unsigned char)ch);
+				    site += hex;
+			      } else site += ch;
 			}
+			if (!ir.empty()) ir += " ";
+			ir += "(unsupported " + site + ")";
 		  }
 	    }
 	    constraint_ir_state_calls_ctx_ = save_state_calls;
@@ -35516,14 +35826,10 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  continue;
 	    unsigned wid = (unsigned)etype->packed_width();
 	    if (wid == 0) wid = 32;
-	    std::ostringstream ir;
-	    ir << "(inside p:" << pid << ":" << wid;
-	    for (size_t val = 0; val < etype->size(); ++val)
-		  ir << " c:" << etype->value_at(val).as_unsigned();
-	    ir << ")";
 	    std::ostringstream name;
 	    name << "_enum_" << get_prop_name(pid);
-	    add_constraint_ir(name.str(), ir.str());
+	    add_constraint_ir(name.str(), constraint_enum_domain_ir(
+		  etype, "p:" + to_string(pid) + ":" + to_string(wid)));
       }
 
       constraints_elaborating_ = false;
@@ -39370,6 +39676,23 @@ bool Design::check_proc_delay() const
 			        "process may not have any delay." << endl;
 			cerr << pr->get_fileline() << ":        : A runtime "
 			     << "infinite loop may be possible." << endl;
+		  }
+	    }
+
+	      // Mark the variables an always_comb/always_latch process assigns
+	      // (see NetNet::comb_written).
+	    if (pr->type() == IVL_PR_ALWAYS_COMB
+		|| pr->type() == IVL_PR_ALWAYS_LATCH) {
+		  NexusSet written;
+		  const_cast<NetProc*>(pr->statement())->nex_output(written);
+		  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
+			Nexus*nex = written[idx].lnk.nexus();
+			for (Link*cur = nex ? nex->first_nlink() : nullptr ;
+			     cur ; cur = cur->next_nlink()) {
+			      NetNet*sig = dynamic_cast<NetNet*>(cur->get_obj());
+			      if (sig && sig->type() == NetNet::REG)
+				    sig->comb_written(true);
+			}
 		  }
 	    }
 

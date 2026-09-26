@@ -50,5 +50,12 @@ caliptra_l0_hwif_in_failure:
   a log byte-identical to evidence/caliptra-icarus-l0-strict-p1-20260924.
 - Copied-source diagnostic profile, private fixed compiler (outside the
   installed-tool 52 numerator): smoke_test_veer PASS (qualified, see above);
-  smoke_test_mbox: see README "Results".
+  smoke_test_mbox PASS (23813 retired, zero bad diagnostics; see README).
 - Private gates: see README "Gates".
+
+## Representative long case: done
+
+smoke_test_mbox passed on the private fixed compiler (same diagnostic profile,
+--timeout 14400). Next decision for the coordinator: whether to install the
+fixed compiler before restarting the 52-case sweep. Do not restart it on the
+installed ivl 6ec92c48, which reproduces ERR_HWIF_IN.

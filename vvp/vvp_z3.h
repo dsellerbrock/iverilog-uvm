@@ -76,6 +76,9 @@ struct vvp_z3_function_plan_s {
 bool vvp_z3_plan_function_stages(const std::vector<vvp_z3_object_s>&objects,
                                  vvp_z3_function_plan_s&plan);
 
+bool vvp_z3_substitute_wide_value_slots(const std::string&ir,
+      const std::vector<vvp_vector4_t>&slot_words, std::string&result,
+      std::string&error);
 std::string vvp_z3_mark_unknown_slots(const std::string&ir,
 				      const std::vector<bool>&unknown);
 
@@ -132,6 +135,10 @@ bool vvp_z3_randomize_scope(const std::string&ir,
 			    const std::vector<std::vector<bool> >&object_known,
 			    std::vector<std::string>&values);
 
+/* Expand qv: membership operands against the containers' current elements
+ * at full width. The class solver resolves qfield operands itself. */
+std::string vvp_z3_substitute_object_value_slots(const std::string&ir,
+      const std::vector<std::vector<vvp_vector4_t> >&object_words);
 bool vvp_z3_randomize_scope_queue(const std::string&ir,
 			    unsigned element_width, uint64_t declared_max,
 			    const std::vector<uint64_t>&slot_vals,

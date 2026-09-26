@@ -1462,6 +1462,15 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 		if (can_elide_bufz(lptr, nptr))
 		      return;
 
+		  /* A variable port connection is a continuous assignment
+		     that delivers the settled value (see bufz_input_is_var). */
+		if (ivl_logic_port_buffer(lptr) && ivl_logic_delay(lptr, 0) == 0
+		    && bufz_input_is_var(lptr)) {
+		      fprintf(vvp_out, "L_%p .sample %s;\n", lptr,
+			      draw_net_input(ivl_logic_pin(lptr, 1)));
+		      return;
+		}
+
 		break;
 	  }
 

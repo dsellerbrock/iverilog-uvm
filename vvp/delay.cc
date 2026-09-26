@@ -1737,3 +1737,53 @@ void intermodpath_delete()
       imp_count = 0;
 }
 #endif
+
+vvp_fun_sample::vvp_fun_sample(vvp_net_t*net)
+: net_(net), scheduled_(false), sent_valid_(false)
+{
+}
+
+vvp_fun_sample::~vvp_fun_sample()
+{
+}
+
+void vvp_fun_sample::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
+                               vvp_context_t)
+{
+      value_ = bit;
+        // Initialization values propagate as they always have; only
+        // procedural writes during simulation are settled.
+      if (!schedule_simulation_started()) {
+            sent_ = value_;
+            sent_valid_ = true;
+            net_->send_vec4(sent_, 0);
+            return;
+      }
+      if (!scheduled_) {
+            scheduled_ = true;
+            schedule_functor(this);
+      }
+}
+
+void vvp_fun_sample::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+                                  unsigned base, unsigned vwid, vvp_context_t)
+{
+      if (value_.size() != vwid) {
+            vvp_vector4_t full (vwid, BIT4_X);
+            if (sent_valid_ && sent_.size() == vwid)
+                  full = sent_;
+            value_ = full;
+      }
+      value_.set_vec(base, bit);
+      recv_vec4(port, value_, 0);
+}
+
+void vvp_fun_sample::run_run()
+{
+      scheduled_ = false;
+      if (sent_valid_ && value_.eeq(sent_))
+            return;
+      sent_ = value_;
+      sent_valid_ = true;
+      net_->send_vec4(sent_, 0);
+}
