@@ -25987,8 +25987,11 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		       drivers; a procedural write into the net would instead
 		       overwrite, or corrupt, the net's existing driver. Drive the
 		       net from a hidden variable through a continuous buffer. The
-		       variable holds 'z until the first clocking drive. */
-		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG) {
+		       variable holds 'z until the first clocking drive. A
+		       variable, including one with a continuous assignment
+		       (UNRESOLVED_WIRE), keeps the procedural clocking write. */
+		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
+		      && raw->type() != NetNet::UNRESOLVED_WIRE) {
 			string vname = string("_ivl_odrv$") + cb->name.str()
 			      + "$" + sig_it->str();
 			NetNet*drive = new NetNet(scope, lex_strings.make(vname.c_str()),
