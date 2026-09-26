@@ -1,0 +1,4 @@
+ivltests/sv_vif_modport_lvalue_bad.v:13: error: cannot write to 'ack' through modport 'host_mp' of interface 'view_if' — it is an input in that modport (IEEE 1800-2017 25.5).
+ivltests/sv_vif_modport_lvalue_bad.v:14: error: cannot access clocking block 'dev_cb' through modport 'host_mp' of interface 'view_if' — that clocking block is not exported by the modport (IEEE 1800-2017 25.5).
+ivltests/sv_vif_modport_lvalue_bad.v:15: error: Class view_if does not have a property no_such_member.
+3 error(s) during elaboration.
