@@ -219,6 +219,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".event/or"     { return K_EVENT_OR; }
 ".export"       { return K_EXPORT; }
 ".extend/s"     { return K_EXTEND_S; }
+".sample"       { return K_SAMPLE; }
 ".functor"      { return K_FUNCTOR; }
 ".vifproxy"     { return K_VIF_PROXY; }
 ".eventvalid"   { return K_EVENT_VALID; }

@@ -5645,6 +5645,13 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 			unsigned wid = val.size();
 			if (wid == 0)
 			      break;
+			if (defn->property_is_enum(pid)) {
+			      if (!randomize_enum_member_(cobj, defn, pid,
+					(size_t)adr, val, next_random))
+				    solve_ok = false;
+			      cobj->set_vec4(pid, val, adr);
+			      continue;
+			}
 			if (defn->property_is_randc(pid)
 			    && randomize_randc_leaf_(cobj, pid, (size_t)adr,
 						     val, next_random)) {
@@ -5706,6 +5713,16 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	    unsigned wid = val.size();
 	    if (wid == 0)
 		  continue;
+	    // IEEE 1800-2017/2023 18.4: an enum takes only its declared
+	    // literals. The solve below may still replace this value; without
+	    // constraints (scope form, a non-rand argument) it is the result.
+	    if (defn->property_is_enum(pid)) {
+		  if (!randomize_enum_member_(cobj, defn, pid, 0, val,
+					      next_random))
+			solve_ok = false;
+		  cobj->set_vec4(pid, val);
+		  continue;
+	    }
 	    // Pick an unused value from committed history. randc_mark only
 	    // stages it; success commits the actual post-solve value.
 	    if (defn->property_is_randc(pid)
@@ -6007,6 +6024,12 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+static void object_slot_values_(const vector<vvp_object_t>&objects,
+				const char*ir,
+				vector<vector<uint64_t> >&object_vals,
+				vector<vector<bool> >&object_known,
+				vector<vector<vvp_vector4_t> >*object_words = nullptr);
+
 static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 {
 	// code->text      = IR string (with possible "v:N:W" or "fv:N:W"
@@ -6057,6 +6080,27 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 	    marked_ir = vvp_z3_mark_unknown_slots(ir_text, slot_unknown);
 	    ir_text = marked_ir.c_str();
       }
+      string wide_ir, wide_error;
+      bool wide_slots_ok = vvp_z3_substitute_wide_value_slots(
+	    ir_text, slot_words, wide_ir, wide_error);
+      if (wide_slots_ok)
+	    ir_text = wide_ir.c_str();
+      else
+	    fprintf(stderr, "VVP error: randomize() with: %s.\n",
+		    wide_error.c_str());
+	/* Membership in a caller queue/darray (qv:) is expanded to the
+	 * container's current elements, as for scope randomize. */
+      string object_ir;
+      if (object_form && strstr(ir_text, "qv:")) {
+	    vector<vector<uint64_t> > object_vals;
+	    vector<vector<bool> > object_known;
+	    vector<vector<vvp_vector4_t> > object_words;
+	    object_slot_values_(objects, ir_text, object_vals, object_known,
+				&object_words);
+	    object_ir = vvp_z3_substitute_object_value_slots(ir_text,
+							     object_words);
+	    ir_text = object_ir.c_str();
+      }
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
@@ -6099,9 +6143,10 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 
       if (!scope_form && !thr->randomize_calls.empty()
           && thr->randomize_calls.back().needs_function_stages)
-            return randomize_staged_begin_(thr, cobj, sel, &options, expansion_ok);
+            return randomize_staged_begin_(thr, cobj, sel, &options,
+					   expansion_ok && wide_slots_ok);
       randomize_graph_session_t session(!scope_form);
-      bool solve_ok = expansion_ok;
+      bool solve_ok = expansion_ok && wide_slots_ok;
       if (!scope_form && !thr->randomize_calls.empty())
 	    solve_ok = solve_ok && thr->randomize_calls.back().state_calls_ok;
       if (solve_ok) solve_ok = randomize_solve_(session, cobj, sel, &options);
@@ -6131,29 +6176,21 @@ bool of_RANDOMIZE_WITH_OBJECTS(vthread_t thr, vvp_code_t code)
       return randomize_with_(thr, code, true);
 }
 
-/*
- * %std/randomize/with "IR", <N-random>, <packed-slots>
- *
- * packed-slots carries scalar-slot count in bits 15:0 and queue/darray
- * object-slot count in bits 31:16. Stack input (deepest first): N current
- * destination values, then scalar slots; object slots use the independent
- * object stack. The current values provide exact widths; fresh random
- * diversity targets are generated here. On SAT, model values are saved in
- * the thread and 1 is pushed. On UNSAT, no values are saved and 0 is pushed,
- * so the target skips every copy-back store.
- */
-bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+/* Read queue/darray object slots as the solver's element values. Elements
+ * wider than 64 bits or holding X/Z are marked unknown. qfield slots carry
+ * containers of unpacked structs and read the member named in the IR. */
+static void object_slot_values_(const vector<vvp_object_t>&objects,
+				const char*ir,
+				vector<vector<uint64_t> >&object_vals,
+				vector<vector<bool> >&object_known,
+				vector<vector<vvp_vector4_t> >*object_words)
 {
-      const unsigned n_rand = code->bit_idx[0];
-      const unsigned n_vals = code->bit_idx[1] & 0xffffu;
-      const unsigned n_objs = code->bit_idx[1] >> 16;
-
-      vector<vector<uint64_t> > object_vals(n_objs);
-      vector<vector<bool> > object_known(n_objs);
-      for (unsigned i = n_objs ; i > 0 ; i -= 1) {
-	    vvp_object_t obj;
-	    thr->pop_object(obj);
-	    vvp_darray*da = obj.peek<vvp_darray>();
+      object_vals.assign(objects.size(), vector<uint64_t>());
+      object_known.assign(objects.size(), vector<bool>());
+      if (object_words)
+	    object_words->assign(objects.size(), vector<vvp_vector4_t>());
+      for (unsigned i = (unsigned)objects.size() ; i > 0 ; i -= 1) {
+	    vvp_darray*da = objects[i - 1].peek<vvp_darray>();
 	    if (!da) continue;
 	      /* qfield object slots carry queues/darrays of unpacked
 	       * structs. Find the requested runtime member id from the IR;
@@ -6161,7 +6198,7 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	       * is sufficient. Ordinary qv membership slots retain the
 	       * vector-element path below. */
 	    int field_pid = -1;
-	    const char*scan = code->text ? code->text : "";
+	    const char*scan = ir ? ir : "";
 	    while ((scan = strstr(scan, "qf:")) != nullptr) {
 		  const char*q = scan + 3;
 		  unsigned slot = (unsigned)strtoul(q,
@@ -6198,13 +6235,44 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  }
 		  object_vals[i - 1].push_back(bits);
 		  object_known[i - 1].push_back(known);
+		  if (object_words)
+			(*object_words)[i - 1].push_back(word);
 	    }
       }
+}
+
+/*
+ * %std/randomize/with "IR", <N-random>, <packed-slots>
+ *
+ * packed-slots carries scalar-slot count in bits 15:0 and queue/darray
+ * object-slot count in bits 31:16. Stack input (deepest first): N current
+ * destination values, then scalar slots; object slots use the independent
+ * object stack. The current values provide exact widths; fresh random
+ * diversity targets are generated here. On SAT, model values are saved in
+ * the thread and 1 is pushed. On UNSAT, no values are saved and 0 is pushed,
+ * so the target skips every copy-back store.
+ */
+bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+{
+      const unsigned n_rand = code->bit_idx[0];
+      const unsigned n_vals = code->bit_idx[1] & 0xffffu;
+      const unsigned n_objs = code->bit_idx[1] >> 16;
+
+      vector<vvp_object_t> objects(n_objs);
+      for (unsigned i = n_objs ; i > 0 ; i -= 1)
+	    thr->pop_object(objects[i - 1]);
+      vector<vector<uint64_t> > object_vals;
+      vector<vector<bool> > object_known;
+      vector<vector<vvp_vector4_t> > object_words;
+      object_slot_values_(objects, code->text, object_vals, object_known,
+			  &object_words);
       vector<uint64_t> slot_vals(n_vals);
+      vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> slot_unknown(n_vals, false);
       bool any_unknown = false;
       for (unsigned i = n_vals ; i > 0 ; i -= 1) {
 	    vvp_vector4_t v = thr->pop_vec4();
+	    slot_words[i - 1] = v;
 	    uint64_t bits = 0;
 	    for (unsigned b = 0 ; b < v.size() ; b += 1) {
 		  if (v.value(b) == BIT4_1) {
@@ -6236,9 +6304,20 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 
       vector<string> model;
 	  string scope_ir = code->text ? code->text : "";
+	  if (n_objs)
+		scope_ir = vvp_z3_substitute_object_value_slots(scope_ir,
+							       object_words);
 	  if (any_unknown)
 		scope_ir = vvp_z3_mark_unknown_slots(scope_ir, slot_unknown);
-	  bool ok = vvp_z3_randomize_scope(scope_ir,
+	  string wide_ir, wide_error;
+	  bool ok = vvp_z3_substitute_wide_value_slots(scope_ir, slot_words,
+						      wide_ir, wide_error);
+	  if (ok)
+		scope_ir = wide_ir;
+	  else
+		fprintf(stderr, "VVP error: std::randomize() with: %s.\n",
+			wide_error.c_str());
+	  ok = ok && vvp_z3_randomize_scope(scope_ir,
 				       targets, widths, slot_vals, object_vals,
 				       object_known,
 				       model);
@@ -6273,14 +6352,16 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 	    thr->pop_object(ignored);
       }
       vector<uint64_t> slot_vals(n_vals);
+      vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> unknown(n_vals, false);
       for (unsigned i = n_vals; i > 0; --i) {
 	    vvp_vector4_t word = thr->pop_vec4();
+	    slot_words[i - 1] = word;
 	    uint64_t bits = 0;
 	    for (unsigned b = 0; b < word.size(); ++b) {
-		  if (word.value(b) == BIT4_1 && b < 64)
-			bits |= UINT64_C(1) << b;
-		  else if (word.value(b) != BIT4_0)
+		  if (word.value(b) == BIT4_1) {
+			if (b < 64) bits |= UINT64_C(1) << b;
+		  } else if (word.value(b) != BIT4_0)
 			unknown[i - 1] = true;
 	    }
 	    slot_vals[i - 1] = bits;
@@ -6298,6 +6379,14 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
       meta_ok = meta_ok && end != max_text && *end == '|';
       string ir = meta_ok ? end + 1 : "";
       if (meta_ok) ir = vvp_z3_mark_unknown_slots(ir, unknown);
+      string wide_ir, wide_error;
+      bool wide_slots_ok = !meta_ok || vvp_z3_substitute_wide_value_slots(
+	    ir, slot_words, wide_ir, wide_error);
+      if (meta_ok && wide_slots_ok)
+	    ir = wide_ir;
+      else if (!wide_slots_ok)
+	    fprintf(stderr, "VVP error: std::randomize() with: %s.\n",
+		    wide_error.c_str());
       vector<string> elements;
       vthread_t rng_owner = logical_process_thread_(thr);
       string rng_state = thread_rng_get_state_(rng_owner);
@@ -6305,7 +6394,8 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 	    | thread_rng_next_(rng_owner);
       static const vector<vector<uint64_t> > no_objects;
       static const vector<vector<bool> > no_known;
-      bool ok = meta_ok && width > 0 && width <= 65536 && n_objs == 0
+      bool ok = meta_ok && wide_slots_ok && width > 0 && width <= 65536
+	    && n_objs == 0
 	    && vvp_z3_randomize_scope_queue(ir, (unsigned)width, max_size,
 		  slot_vals, no_objects, no_known, seed, elements);
       if (!meta_ok || width == 0 || width > 65536 || n_objs != 0)

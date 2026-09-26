@@ -1427,10 +1427,19 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
         "proj_root": str(root),
         "self_dir": str(config_path.parent),
     }
+    # dvsim applies `overrides` over the merged configuration. lc_ctrl and
+    # rv_dm override tl_dw/tl_dbw to 64/8, which common_sim_cfg turns into
+    # the UVM_REG_DATA_WIDTH/UVM_REG_BYTENABLE_WIDTH defines.
     override_core = None
     for override in config.get("overrides", []) or []:
-        if isinstance(override, dict) and override.get("name") == "fusesoc_core":
+        if not isinstance(override, dict):
+            continue
+        if override.get("name") == "fusesoc_core":
             override_core = override.get("value")
+        elif isinstance(override.get("name"), str) and isinstance(
+            override.get("value"), (str, int, float, bool)
+        ):
+            context[override["name"]] = override["value"]
     core_value = override_core or config.get("fi_core") or config.get("fusesoc_core")
     if not isinstance(core_value, str):
         continue
@@ -2121,16 +2130,24 @@ def compile_command(
             job.simulation.category == "uvm"
             or job.simulation.requires_uvm_library
         ):
-            command.extend(
-                [
-                    "-uvm",
-                    "-DUVM",
-                    "-DUVM_NO_DEPRECATED",
-                    "-DUVM_REG_ADDR_WIDTH=32",
-                    "-DUVM_REG_DATA_WIDTH=32",
-                    "-DUVM_REG_BYTENABLE_WIDTH=4",
-                ]
-            )
+            command.extend(["-uvm", "-DUVM", "-DUVM_NO_DEPRECATED"])
+            # The register-model widths come from dvsim's tl_aw/tl_dw/tl_dbw
+            # (common_sim_cfg.hjson); a core's overrides may widen them.
+            for name, default in (
+                ("ADDR", 32),
+                ("DATA", 32),
+                ("BYTENABLE", 4),
+            ):
+                prefix = f"+define+UVM_REG_{name}_WIDTH="
+                value = next(
+                    (
+                        option[len(prefix):]
+                        for option in job.simulation.build_options
+                        if option.startswith(prefix) and option[len(prefix):].isdigit()
+                    ),
+                    str(default),
+                )
+                command.append(f"-DUVM_REG_{name}_WIDTH={value}")
             # Earlgrey-PROD-M6's common dvsim configuration selects UVM 1.2's
             # documented SV glob matcher with this define. Forward only this
             # known option when discovery retained it; other tool-specific

@@ -198,16 +198,13 @@ static void show_prop_type_vector(ivl_type_t ptype, const char*rand_prefix)
  * the storage implementation, while randomize() uses the retained values so
  * a sparse enum never receives an unnamed encoding. ivl_enum_bits is LSB
  * first, matching vvp_vector4_t bit indexes directly. */
-static void show_prop_type_enum(ivl_enumtype_t enumtype,
-				const char*rand_prefix)
+/* Emit the e{LSB-first-values}: literal set of an enum. */
+static void show_enum_domain_(ivl_enumtype_t enumtype)
 {
       unsigned idx;
       unsigned emitted = 0;
-      const char*rp = rand_prefix ? rand_prefix : "";
-      const char*signed_flag = ivl_enum_signed(enumtype) ? "s" : "";
-      char code = ivl_enum_type(enumtype) == IVL_VT_BOOL ? 'b' : 'L';
 
-      fprintf(vvp_out, "\"%se{", rp);
+      fputs("e{", vvp_out);
       for (idx = 0 ; idx < ivl_enum_names(enumtype) ; idx += 1) {
 	    const char*bits = ivl_enum_bits(enumtype, idx);
 	    if (!bits)
@@ -217,14 +214,33 @@ static void show_prop_type_enum(ivl_enumtype_t enumtype,
 	    fputs(bits, vvp_out);
 	    emitted += 1;
       }
-      fprintf(vvp_out, "}:%s%c%u\"", signed_flag, code,
+      fputs("}:", vvp_out);
+}
+
+static void show_prop_type_enum(ivl_enumtype_t enumtype,
+				const char*rand_prefix)
+{
+      const char*rp = rand_prefix ? rand_prefix : "";
+      const char*signed_flag = ivl_enum_signed(enumtype) ? "s" : "";
+      char code = ivl_enum_type(enumtype) == IVL_VT_BOOL ? 'b' : 'L';
+
+      fprintf(vvp_out, "\"%s", rp);
+      show_enum_domain_(enumtype);
+      fprintf(vvp_out, "%s%c%u\"", signed_flag, code,
 	      ivl_enum_width(enumtype));
 }
 
 static void show_queue_type_(const char*rand_prefix,
 			     const char*code, ivl_type_t type)
 {
-      fprintf(vvp_out, "\"%s%s", rand_prefix ? rand_prefix : "", code);
+      ivl_type_t element = ivl_type_element(type);
+      ivl_enumtype_t element_enum = element ? ivl_type_enum(element) : 0;
+      fprintf(vvp_out, "\"%s", rand_prefix ? rand_prefix : "");
+	/* A container of enums keeps its elements' literal set so that
+	 * randomize() chooses only declared values (IEEE 1800-2017 18.4). */
+      if (element_enum)
+	    show_enum_domain_(element_enum);
+      fputs(code, vvp_out);
       emit_container_layout_suffix_(type);
       fputc('"', vvp_out);
 }
@@ -300,9 +316,7 @@ static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
 	    snprintf(dynamic_code, sizeof dynamic_code, "D%sv%u",
 		     ivl_type_signed(element_type) ? "s" : "",
 		     ivl_type_packed_width(element_type));
-	    fprintf(vvp_out, "\"%s%s", rp, dynamic_code);
-	    emit_container_layout_suffix_(ptype);
-	    fputc('"', vvp_out);
+	    show_queue_type_(rp, dynamic_code, ptype);
 	    return;
 	  }
 	  default:
