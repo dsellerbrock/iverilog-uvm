@@ -76,6 +76,9 @@ struct vvp_z3_function_plan_s {
 bool vvp_z3_plan_function_stages(const std::vector<vvp_z3_object_s>&objects,
                                  vvp_z3_function_plan_s&plan);
 
+bool vvp_z3_substitute_wide_value_slots(const std::string&ir,
+      const std::vector<vvp_vector4_t>&slot_words, std::string&result,
+      std::string&error);
 std::string vvp_z3_mark_unknown_slots(const std::string&ir,
 				      const std::vector<bool>&unknown);
 

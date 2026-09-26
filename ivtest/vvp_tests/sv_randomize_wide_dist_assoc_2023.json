@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_randomize_wide_dist_assoc.v",
+    "iverilog-args" : [ "-g2023" ]
+}
