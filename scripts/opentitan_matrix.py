@@ -203,6 +203,9 @@ COMPILE_DEBT_ALLOWLIST = (
     # Port coercion of an input driven from both sides (IEEE 1800 23.3.3);
     # the net resolves exactly as declared inout.
     re.compile(r"warning: input port \S+ is coerced to inout\.", re.I),
+    # IEEE 1800 13.4.1: a function may be called as a statement; its
+    # return value is discarded.
+    re.compile(r"warning: User function '\S+' is being called as a task\.", re.I),
 )
 SETUP_ALLOWLIST = (
     re.compile(r"No trustfile configured .* signatures will not be checked", re.I),
@@ -2967,6 +2970,8 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
                    "used in an always_comb process.")
     assert matching_lines(nba_warning, DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
     assert matching_lines("x.sv:3: warning: input port rst_n is coerced to inout.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:5: warning: User function 'f' is being called as a task.",
                           DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
     assert matching_lines("x.sv:4: warning: something degraded.",
                           DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) != []
