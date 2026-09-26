@@ -184,6 +184,7 @@ OPENTITAN_RUNTIME_FAIL_PATTERNS = (
     re.compile(r"^\s*Offending '.*'", re.I),
     re.compile(r"^TEST FAILED (?:UVM_)?CHECKS$", re.I),
     re.compile(r"^Error:.*$", re.I),
+    re.compile(r"^DPI error:.*$", re.I),
 )
 RUNTIME_DEBT_ALLOWLIST = (
     # IEEE 1800 permits a function call as a statement with its return value
@@ -772,6 +773,8 @@ class SimulationTarget:
     metadata_warnings: tuple[str, ...] = ()
     timescale: str | None = None
     requires_uvm_library: bool = False
+    native_sources: tuple[str, ...] = ()
+    native_include_dirs: tuple[str, ...] = ()
 
     @property
     def uvm_runtime_configured(self) -> bool:
@@ -1270,6 +1273,8 @@ for name, core in cores.items():
             if resolved:
                 dependencies.add(resolved)
         default_type = str(fileset.file_type or "")
+        native_sources = []
+        include_dirs = set()
         for entry in fileset.files or []:
             source_name = normalize_reference(entry.name)
             source = Path(core.core_root) / source_name
@@ -1283,6 +1288,10 @@ for name, core in cores.items():
                 or suffix in {".c", ".cc", ".cpp", ".cxx"}
             )
             has_native = has_native or native
+            if native and suffix in {".c", ".cc", ".cpp", ".cxx"}:
+                native_sources.append(str(source))
+            if suffix in {".h", ".hh", ".hpp", ".hxx", ".inc"} or native:
+                include_dirs.add(str(source.parent))
             if suffix in {".v", ".vh", ".sv", ".svh"}:
                 text = source.read_text(errors="replace")
                 hdl_text.append(text)
@@ -1292,6 +1301,8 @@ for name, core in cores.items():
             "text": "\n".join(hdl_text),
             "native": has_native,
             "dpi": has_dpi,
+            "native_sources": native_sources,
+            "include_dirs": sorted(include_dirs),
         }
     core_metadata[name] = {"filesets": fileset_metadata}
 
@@ -1320,6 +1331,8 @@ def source_closure(root_name):
     hdl_text = []
     native_cores = set()
     dpi_cores = set()
+    native_sources = []
+    include_dirs = set()
     while pending:
         name, target_name = pending.pop()
         node = (name, target_name)
@@ -1332,13 +1345,16 @@ def source_closure(root_name):
             hdl_text.append(metadata["text"])
             if metadata["native"]:
                 native_cores.add(name)
+            native_sources.extend(metadata["native_sources"])
+            include_dirs.update(metadata["include_dirs"])
             if metadata["dpi"]:
                 dpi_cores.add(name)
             pending.extend(
                 (dependency, "default")
                 for dependency in metadata["dependencies"]
             )
-    return seen_cores, "\n".join(hdl_text), native_cores, dpi_cores
+    return (seen_cores, "\n".join(hdl_text), native_cores, dpi_cores,
+            list(dict.fromkeys(native_sources)), sorted(include_dirs))
 
 
 def substitute(value, context):
@@ -1587,7 +1603,8 @@ for name, core in cores.items():
     target = core.targets.get("sim")
     if target is None:
         continue
-    closure, closure_text, native_cores, dpi_cores = source_closure(name)
+    (closure, closure_text, native_cores, dpi_cores, native_sources,
+     native_include_dirs) = source_closure(name)
     requires_uvm_library = bool(
         re.search(r"\bimport\s+uvm_pkg\s*::", closure_text)
         or re.search(r"[`\"]uvm_macros\.svh", closure_text)
@@ -1637,11 +1654,6 @@ for name, core in cores.items():
             "UVM source closure has no authoritative dvsim test/sequence pair"
         )
     native_dependencies = sorted(native_cores)
-    if native_dependencies:
-        metadata_warnings.append(
-            "native C/C++ dependencies require a DPI/VPI build outside the "
-            "Edalize Icarus source-list backend"
-        )
 
     simulation_targets.append({
         "vlnv": name,
@@ -1666,6 +1678,8 @@ for name, core in cores.items():
         "unresolved_runtime_options": config.get("unresolved_runtime_options", []),
         "metadata_warnings": metadata_warnings,
         "requires_uvm_library": requires_uvm_library,
+        "native_sources": native_sources,
+        "native_include_dirs": native_include_dirs,
     })
 
 print("FUSESOC_SIM_TARGETS_JSON=" + json.dumps(sorted(
@@ -1703,6 +1717,8 @@ print("FUSESOC_SIM_TARGETS_JSON=" + json.dumps(sorted(
         "orchestration_requirements",
         "unresolved_runtime_options",
         "metadata_warnings",
+        "native_sources",
+        "native_include_dirs",
     }
     for item in payload:
         normalized = dict(item)
@@ -2202,6 +2218,44 @@ def compile_command(
     return command
 
 
+NATIVE_CXX_SUFFIXES = {".cc", ".cpp", ".cxx"}
+
+
+def native_dpi_commands(
+    sources: Sequence[str],
+    include_dirs: Sequence[str],
+    iverilog: Path,
+    output: Path,
+    export_stubs: Path | None,
+    platform: str = sys.platform,
+) -> list[list[str]]:
+    """Commands that build a job's native DPI sources into one library.
+
+    `svdpi.h` comes from the Icarus install beside `iverilog`. The vvp
+    symbols it declares resolve when `vvp -d` loads the library.
+    """
+    includes = [f"-I{iverilog.resolve().parent.parent / 'include' / 'iverilog'}"]
+    includes += [f"-I{directory}" for directory in include_dirs]
+    objects: list[str] = []
+    commands: list[list[str]] = []
+    all_sources = list(sources) + ([str(export_stubs)] if export_stubs else [])
+    for index, source in enumerate(all_sources):
+        obj = output.parent / f"matrix-dpi-{index}.o"
+        objects.append(str(obj))
+        if Path(source).suffix.casefold() in NATIVE_CXX_SUFFIXES:
+            compiler = ["c++", "-std=c++17"]
+        else:
+            compiler = ["cc"]
+        commands.append(
+            [*compiler, "-O1", "-fPIC", *includes, "-c", source, "-o", str(obj)]
+        )
+    link = ["c++", "-shared", "-o", str(output), *objects]
+    if platform == "darwin":
+        link[2:2] = ["-undefined", "dynamic_lookup"]
+    commands.append(link)
+    return commands
+
+
 # Defines the command builder sets itself, from the job's lane and category.
 HARNESS_MANAGED_DEFINES = {
     "UVM",
@@ -2488,9 +2542,42 @@ def run_job(
     runtime_arguments = merge_runtime_arguments(
         configured_arguments, args.runtime_arg
     )
+    dpi_libraries = list(args.dpi_library)
+    native_sources = job.simulation.native_sources if job.simulation else ()
+    if native_sources:
+        library = work_root / "matrix-dpi.so"
+        stubs = executable.with_suffix(".dpiexport.c")
+        build_log = work_root / "matrix-dpi-build.log"
+        build_output = []
+        build_failed = False
+        for build_command in native_dpi_commands(
+            native_sources,
+            job.simulation.native_include_dirs,
+            iverilog,
+            library,
+            stubs if stubs.is_file() else None,
+        ):
+            build_result = command_result(
+                build_command, cwd=work_root, env=env, timeout=args.compile_timeout
+            )
+            build_output.append(
+                "$ " + " ".join(build_command) + "\n" + build_result.output
+            )
+            if build_result.timed_out or build_result.returncode != 0:
+                build_failed = True
+                break
+        build_log.write_text("\n".join(build_output))
+        record["dpi_build_log"] = str(build_log)
+        if build_failed:
+            record["status"] = "DPI_BUILD_FAIL"
+            record["runtime_blockers"] = [
+                "native DPI sources did not build; see matrix-dpi-build.log"
+            ]
+            return record
+        dpi_libraries.append(library)
     dpi_options = [
         option
-        for library in args.dpi_library
+        for library in dpi_libraries
         for option in ("-d", str(library))
     ]
     runtime_command = [
@@ -2522,7 +2609,7 @@ def run_job(
     record.update(
         {
             "runtime_command": short_command(runtime_command),
-            "runtime_dpi_libraries": [str(path) for path in args.dpi_library],
+            "runtime_dpi_libraries": [str(path) for path in dpi_libraries],
             "runtime_returncode": runtime_result.returncode,
             "runtime_duration_seconds": round(runtime_result.duration_seconds, 3),
             "runtime_timed_out": runtime_result.timed_out,
@@ -2839,6 +2926,18 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             "+define+EN_MASKING=0",
         )
     ) == ["-DEN_MASKING=1", "-DA=1", "-DB"]
+    dpi_build = native_dpi_commands(
+        ("/src/a.cc", "/src/b.c"),
+        ("/src",),
+        Path("/opt/ivl/bin/iverilog"),
+        Path("/work/matrix-dpi.so"),
+        Path("/work/matrix-runtime.dpiexport.c"),
+        platform="darwin",
+    )
+    assert dpi_build[0][:2] == ["c++", "-std=c++17"]
+    assert dpi_build[1][0] == "cc" and dpi_build[2][0] == "cc"
+    assert "-I/opt/ivl/include/iverilog" in dpi_build[0]
+    assert dpi_build[-1][:4] == ["c++", "-shared", "-undefined", "dynamic_lookup"]
     regex_uvm_target = dataclasses.replace(
         uvm_target,
         build_options=(
