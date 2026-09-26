@@ -2570,13 +2570,20 @@ def run_job(
         build_log = work_root / "matrix-dpi-build.log"
         build_output = []
         build_failed = False
-        for build_command in native_dpi_commands(
+        skipped_sources = []
+        commands = native_dpi_commands(
             native_sources,
             job.simulation.native_include_dirs,
             iverilog,
             library,
             stubs if stubs.is_file() else None,
-        ):
+        )
+        # A closure can carry native sources for other tools (Verilator's
+        # ELF loader needs libelf). Build what compiles; if the testbench
+        # imports a symbol from a skipped file, vvp reports "DPI error:",
+        # which fails the run.
+        link = commands[-1]
+        for build_command in commands[:-1]:
             build_result = command_result(
                 build_command, cwd=work_root, env=env, timeout=args.compile_timeout
             )
@@ -2584,10 +2591,20 @@ def run_job(
                 "$ " + " ".join(build_command) + "\n" + build_result.output
             )
             if build_result.timed_out or build_result.returncode != 0:
-                build_failed = True
-                break
+                obj = build_command[build_command.index("-o") + 1]
+                skipped_sources.append(build_command[build_command.index("-c") + 1])
+                link = [part for part in link if part != obj]
+        if not any(part.endswith(".o") for part in link):
+            build_failed = True
+        else:
+            build_result = command_result(
+                link, cwd=work_root, env=env, timeout=args.compile_timeout
+            )
+            build_output.append("$ " + " ".join(link) + "\n" + build_result.output)
+            build_failed = build_result.timed_out or build_result.returncode != 0
         build_log.write_text("\n".join(build_output))
         record["dpi_build_log"] = str(build_log)
+        record["dpi_skipped_sources"] = skipped_sources
         if build_failed:
             record["status"] = "DPI_BUILD_FAIL"
             record["runtime_blockers"] = [
