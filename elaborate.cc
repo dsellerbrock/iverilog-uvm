@@ -31111,8 +31111,8 @@ static string constraint_outside_scalar_ir_(const PEIdent*id,
  * cfg.m_edn_pull_agent_cfgs[0].device_delay_max (OpenTitan kmac). The
  * index-free chain has an `r:' token; this one is read at each randomize()
  * call through the state-slot wrapper, like any other state value (IEEE
- * 1800-2017/2023 18.3). A rand step, a non-literal index, or a non-integral
- * result is left to the callers' existing paths. */
+ * 1800-2017/2023 18.3). A chain rand at every step, a non-literal index, or
+ * a non-integral result is left to the callers' existing paths. */
 static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 						       const netclass_t*cls)
 {
@@ -31121,6 +31121,7 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
       const netclass_t*cur_cls = cls;
       ivl_type_t cur_type = nullptr;
       bool indexed = false;
+      bool all_rand = true;
       pform_name_t prefix;
       PExpr*non_null = nullptr;
       for (pform_name_t::const_iterator it = id->path().name.begin()
@@ -31135,12 +31136,15 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 	    prefix.push_back(*it);
 	    if (!cur_cls || it->local_scope) { delete non_null; return ""; }
 	    int idx = cur_cls->property_idx_from_name(it->name);
-	    property_qualifier_t qual = idx < 0 ? property_qualifier_t()
-		  : cur_cls->get_prop_qual((size_t)idx);
-	    if (idx < 0 || qual.test_rand() || qual.test_randc()) {
+	    if (idx < 0) {
 		  delete non_null;
 		  return "";
 	    }
+	      /* Only a chain rand at every step reaches a random variable
+		 (IEEE 1800-2017/2023 18.4); below a non-rand handle, even a
+		 rand member is state. */
+	    property_qualifier_t qual = cur_cls->get_prop_qual((size_t)idx);
+	    all_rand = all_rand && (qual.test_rand() || qual.test_randc());
 	    cur_type = cur_cls->get_prop_type((size_t)idx);
 	    for (const index_component_t&index : it->index) {
 		  const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur_type);
@@ -31156,7 +31160,7 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 	    }
 	    cur_cls = dynamic_cast<const netclass_t*>(cur_type);
       }
-      if (!indexed || !cur_type || !cur_type->packed()
+      if (!indexed || all_rand || !cur_type || !cur_type->packed()
 	  || cur_type->packed_width() <= 0
 	  || (cur_type->base_type() != IVL_VT_BOOL
 	      && cur_type->base_type() != IVL_VT_LOGIC)) {

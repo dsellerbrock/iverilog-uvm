@@ -7,7 +7,7 @@
 module test;
   typedef enum bit { ModeSw, ModeEdn } mode_e;
   class agent_cfg;
-    int unsigned device_delay_max = 3;
+    rand int unsigned device_delay_max = 3;
   endclass
   class env_cfg;
     bit enable_masking = 1;
