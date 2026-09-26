@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_constraint_vacuous_absent_element.v",
+    "iverilog-args" : [ "-g2017" ]
+}

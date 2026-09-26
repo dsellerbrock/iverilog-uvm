@@ -10765,11 +10765,66 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
       }
 
+	/* An element past its container's solved size does not exist. That is
+	 * legal when every constraint naming it is vacuous in this solution,
+	 * e.g. `if (kmac_en) fname_arr[0] == 75;' with kmac_en == 0 and
+	 * fname_arr.size() == 0 (OpenTitan kmac_smoke_vseq). Prove it: with
+	 * each such element replaced by a fresh unknown, the hard constraints
+	 * must hold under this model for every value. Otherwise the solution
+	 * needs a missing element, and randomize() fails as before. */
+      set<size_t> vacuous_elems;
+      if (!defer_joint) {
+	    vector<size_t> outside;
+	    for (size_t k = 0 ; k < builder.elem_vars.size() ; k += 1) {
+		  const auto&ev = builder.elem_vars[k];
+		  if (!rand_elem_active_(builder, prop_active, ev.idx, ev.elem))
+			continue;
+		  const string&type_text = builder.type(ev.idx)->property_base_type(
+			builder.local_index(ev.idx));
+		  if (!type_text.empty()
+		      && (type_text[0] == 'D' || type_text[0] == 'Q')
+		      && ev.elem >= cobj_darray_size(builder.object(ev.idx),
+						     builder.local_index(ev.idx)))
+			outside.push_back(k);
+	    }
+	    if (!outside.empty()) {
+		  Z3_ast_vector hard = Z3_optimize_get_assertions(ctx, opt);
+		  Z3_ast_vector_inc_ref(ctx, hard);
+		  vector<Z3_ast> parts;
+		  for (unsigned k = 0 ; k < Z3_ast_vector_size(ctx, hard) ; k += 1)
+			parts.push_back(Z3_ast_vector_get(ctx, hard, k));
+		  Z3_ast all = parts.empty() ? Z3_mk_true(ctx)
+			: Z3_mk_and(ctx, (unsigned)parts.size(), parts.data());
+		  vector<Z3_ast> from, to;
+		  for (size_t k : outside) {
+			Z3_ast var = builder.elem_vars[k].var;
+			from.push_back(var);
+			to.push_back(Z3_mk_fresh_const(ctx, "absent",
+			      Z3_get_sort(ctx, var)));
+		  }
+		  Z3_ast free_form = Z3_substitute(ctx, all, (unsigned)from.size(),
+			from.data(), to.data());
+		  Z3_ast under_model = nullptr;
+		  if (Z3_model_eval(ctx, model, free_form, false, &under_model)
+		      && under_model) {
+			Z3_solver probe = Z3_mk_simple_solver(ctx);
+			Z3_solver_inc_ref(ctx, probe);
+			Z3_solver_assert(ctx, probe, Z3_mk_not(ctx, under_model));
+			if (Z3_solver_check(ctx, probe) == Z3_L_FALSE)
+			      vacuous_elems.insert(outside.begin(), outside.end());
+			Z3_solver_dec_ref(ctx, probe);
+		  }
+		  Z3_ast_vector_dec_ref(ctx, hard);
+	    }
+      }
+
       // Apply solved array-element values.
-      for (auto& ev : builder.elem_vars) {
+      for (size_t ev_pos = 0 ; ev_pos < builder.elem_vars.size() ; ev_pos += 1) {
+	    auto&ev = builder.elem_vars[ev_pos];
             if (defer_joint) continue;
 	    if (!rand_elem_active_(builder, prop_active, ev.idx, ev.elem))
 		  continue;
+	    if (vacuous_elems.count(ev_pos)) continue;
 	    uint64_t count = cobj_darray_size(builder.object(ev.idx),
 	                                      builder.local_index(ev.idx));
 	    const string&type_text = builder.type(ev.idx)->property_base_type(
