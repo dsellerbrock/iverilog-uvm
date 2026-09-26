@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_packed_bitwise_shape_illegal.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "sv_covergroup_packed_bitwise_shape_illegal"
+}
