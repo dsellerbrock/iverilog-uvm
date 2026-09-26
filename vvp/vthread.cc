@@ -15025,6 +15025,86 @@ bool of_CMPOBJ(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* Element-wise equality of two dynamic arrays or queues (IEEE
+ * 1800-2017/2023 11.4.5). Sizes must match; elements compare with the
+ * element type's own equality, recursively for nested containers. `logical'
+ * is the == result (X when an element comparison is unknown and none is
+ * false), `exact' the === result. A nil handle is an empty container. */
+static void container_equality_(const vvp_object_t&lobj, const vvp_object_t&robj,
+				vvp_bit4_t&logical, vvp_bit4_t&exact)
+{
+      vvp_darray*left = lobj.peek<vvp_darray>();
+      vvp_darray*right = robj.peek<vvp_darray>();
+      size_t lsize = left ? left->get_size() : 0;
+      size_t rsize = right ? right->get_size() : 0;
+      logical = BIT4_1;
+      exact = BIT4_1;
+      if (lsize != rsize) {
+	    logical = exact = BIT4_0;
+	    return;
+      }
+      for (size_t idx = 0 ; idx < lsize ; idx += 1) {
+	    unsigned adr = (unsigned)idx;
+	    if (dynamic_cast<vvp_darray_real*>(left)
+		|| dynamic_cast<vvp_queue_real*>(left)) {
+		  double lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (lv != rv) { logical = exact = BIT4_0; return; }
+	    } else if (dynamic_cast<vvp_darray_string*>(left)
+		       || dynamic_cast<vvp_queue_string*>(left)) {
+		  std::string lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (lv != rv) { logical = exact = BIT4_0; return; }
+	    } else if (dynamic_cast<vvp_darray_object*>(left)
+		       || dynamic_cast<vvp_queue_object*>(left)) {
+		  vvp_object_t lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (lv.peek<vvp_darray>() || rv.peek<vvp_darray>()) {
+			vvp_bit4_t sub_logical, sub_exact;
+			container_equality_(lv, rv, sub_logical, sub_exact);
+			if (sub_logical == BIT4_0) { logical = exact = BIT4_0; return; }
+			if (sub_logical != BIT4_1) logical = BIT4_X;
+			if (sub_exact != BIT4_1) exact = BIT4_0;
+		  } else if (!(lv == rv)) {
+			logical = exact = BIT4_0;
+			return;
+		  }
+	    } else {
+		  vvp_vector4_t lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (lv.size() != rv.size()) { logical = exact = BIT4_0; return; }
+		  for (unsigned bit = 0 ; bit < lv.size() ; bit += 1) {
+			vvp_bit4_t lb = lv.value(bit), rb = rv.value(bit);
+			if (lb != rb) exact = BIT4_0;
+			bool lknown = lb == BIT4_0 || lb == BIT4_1;
+			bool rknown = rb == BIT4_0 || rb == BIT4_1;
+			if (lknown && rknown) {
+			      if (lb != rb) { logical = exact = BIT4_0; return; }
+			} else {
+			      logical = BIT4_X;
+			}
+		  }
+	    }
+      }
+}
+
+bool of_CMPCONT(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t re;
+      thr->pop_object(re);
+      vvp_object_t le;
+      thr->pop_object(le);
+      vvp_bit4_t logical, exact;
+      container_equality_(le, re, logical, exact);
+      thr->flags[4] = logical;
+      thr->flags[6] = exact;
+      return true;
+}
+
 bool of_CMPSTR(vthread_t thr, vvp_code_t)
 {
       string re = thr->pop_str();

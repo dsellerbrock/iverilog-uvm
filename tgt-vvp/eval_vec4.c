@@ -403,6 +403,28 @@ general_object_compare:
       fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
 }
 
+static int container_value_(ivl_expr_t expr)
+{
+      return ivl_expr_value(expr) == IVL_VT_DARRAY
+	  || ivl_expr_value(expr) == IVL_VT_QUEUE;
+}
+
+static int container_is_assoc_(ivl_expr_t expr)
+{
+      ivl_type_t type = ivl_expr_net_type(expr);
+      return type && ivl_type_base(type) == IVL_VT_QUEUE
+	  && ivl_type_queue_assoc_compat(type);
+}
+
+/* Both sides are dynamic arrays or queues; a `null' side keeps the legacy
+ * handle comparison. */
+static int container_equality_operands_(ivl_expr_t le, ivl_expr_t re)
+{
+      return (container_value_(le) || container_value_(re))
+	  && ivl_expr_type(le) != IVL_EX_NULL
+	  && ivl_expr_type(re) != IVL_EX_NULL;
+}
+
 static void draw_binary_vec4_compare(ivl_expr_t expr)
 {
       ivl_expr_t le = ivl_expr_oper1(expr);
@@ -435,6 +457,38 @@ static void draw_binary_vec4_compare(ivl_expr_t expr)
       if ((ivl_expr_value(le)==IVL_VT_CLASS)
 	  && (ivl_expr_value(re)==IVL_VT_CLASS)) {
 	    draw_binary_vec4_compare_class(expr);
+	    return;
+      }
+
+	/* Dynamic arrays and queues compare element-wise (IEEE 1800-2017/2023
+	 * 11.4.5). The generic path below would cast each operand to
+	 * "handle is non-null", so a == b was true for any two non-empty
+	 * arrays. */
+      if (container_equality_operands_(le, re)) {
+	    char op = ivl_expr_opcode(expr);
+	    if (op != 'e' && op != 'n' && op != 'E' && op != 'N') {
+		  fprintf(stderr, "%s:%u: error: operator is not defined for "
+			  "unpacked array operands.\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  vvp_errors += 1;
+		  fprintf(vvp_out, "    %%pushi/vec4 1, 1, 1;\n");
+		  return;
+	    }
+	    if (container_is_assoc_(le) || container_is_assoc_(re)) {
+		  fprintf(stderr, "%s:%u: sorry: equality of associative "
+			  "arrays is not yet supported.\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  vvp_errors += 1;
+		  fprintf(vvp_out, "    %%pushi/vec4 1, 1, 1;\n");
+		  return;
+	    }
+	    draw_eval_object(le);
+	    draw_eval_object(re);
+	    fprintf(vvp_out, "    %%cmp/cont;\n");
+	    unsigned flag = (op == 'E' || op == 'N') ? 6 : 4;
+	    if (op == 'n' || op == 'N')
+		  fprintf(vvp_out, "    %%flag_inv %u;\n", flag);
+	    fprintf(vvp_out, "    %%flag_get/vec4 %u;\n", flag);
 	    return;
       }
 
