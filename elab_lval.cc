@@ -3343,13 +3343,12 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 					cerr << "<null>";
 				  cerr << endl;
 			    }
-			    // Compile-progress: assoc-array element property assignment
-			    // such as assoc[key].prop = val is not yet fully supported
-			    // as an l-value. Downgrade to warning and ignore.
-			    cerr << get_fileline() << ": warning: "
-			         << "Nested member path is not a class/struct l-value in this context"
-			         << " (compile-progress: assignment ignored)."
+			    // Dropping the assignment would silently lose the write.
+			    cerr << get_fileline() << ": sorry: "
+			         << "Nested member path `" << member_path.front().name
+			         << "' is not a supported class/struct l-value in this context."
 			         << endl;
+			    des->errors += 1;
 			    return 0;
 		      }
 
@@ -3358,6 +3357,30 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	      // need to know if there are more members to be worked on.
 	    name_component_t member_cur = member_path.front();
 	    member_path.pop_front();
+	      // vif.mp.member: a modport selects a view of the interface
+	      // (IEEE 1800-2017 25.5); the next component names an item of
+	      // that view, validated against it below.
+	    if (owner_class && owner_class->is_interface()
+		&& member_cur.index.empty() && !member_path.empty()
+		&& owner_class->property_idx_from_name(member_cur.name) < 0
+		&& interface_modport_view(owner_class, member_cur.name)) {
+		  active_modport = member_cur.name;
+		  member_cur = member_path.front();
+		  member_path.pop_front();
+		  const PModport*view =
+			interface_modport_view(owner_class, active_modport);
+		  if (owner_class->find_clocking_block(member_cur.name)
+		      && !view->clocking_ports.count(member_cur.name)) {
+			cerr << get_fileline() << ": error: cannot access clocking "
+			     << "block '" << member_cur.name << "' through modport '"
+			     << active_modport << "' of interface '"
+			     << owner_class->get_name() << "' — that clocking block "
+			     << "is not exported by the modport (IEEE 1800-2017 25.5)."
+			     << endl;
+			des->errors += 1;
+			return 0;
+		  }
+	    }
 	    if (owner_class && owner_class->is_interface()
 		&& !validate_interface_modport_access(
 		      des, this, owner_class, active_modport,
@@ -3431,16 +3454,6 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	    if (owner_class) {
 		  pidx = const_cast<netclass_t*>(owner_class)->ensure_property_decl(des, method_name);
 		  if (pidx < 0) {
-			if (gn_system_verilog()) {
-			      /* Compile-progress fallback: tolerate unknown members
-			         (including UVM iteration helpers). Ignore the l-value. */
-			      if (method_name != perm_string::literal("for_each_idx")) {
-				    cerr << get_fileline() << ": warning: Class " << owner_class->get_name()
-					 << " does not have a property " << method_name
-					 << " (compile-progress fallback, ignoring l-value)." << endl;
-			      }
-			      return 0;
-			}
 			cerr << get_fileline() << ": error: Class " << owner_class->get_name()
 			     << " does not have a property " << method_name << "." << endl;
 			des->errors += 1;
