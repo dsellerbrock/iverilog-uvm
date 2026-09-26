@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_constraint_outside_state.v",
+    "iverilog-args" : [ "-g2017" ]
+}
