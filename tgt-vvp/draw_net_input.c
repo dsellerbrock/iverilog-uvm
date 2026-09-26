@@ -19,6 +19,7 @@
 
 # include  "vvp_priv.h"
 # include  <stdlib.h>
+# include  <stdint.h>
 # include  <math.h>
 # include  <string.h>
 # include  <inttypes.h>
@@ -313,36 +314,40 @@ static char* draw_net_pull(ivl_net_logic_t lptr, ivl_drive_t drive, const char*l
  */
 
 /*
- * True when the only driver of this nexus is a scalar or vector procedural
- * variable and the nexus also carries a net: a variable port connection or
- * `assign net = var'. That continuous assignment runs after the writing
- * process suspends (IEEE 1800-2017/2023 10.3, 23.3.3), so it is routed
- * through a .sample functor that delivers only the settled value.
+ * A transparent BUFZ is a continuous assignment: a module port connection
+ * or `assign net = var'. When its only input driver is a scalar or vector
+ * variable assigned by an always_comb or always_latch process, the
+ * assignment is a process that runs after the
+ * writing process suspends (IEEE 1800-2017/2023 10.3, 23.3.3). Eliding the
+ * BUFZ would forward every intermediate blocking assignment instead, so
+ * deliver through a .sample functor. Processes that wait on the variable
+ * itself keep seeing each change.
  */
-static int var_drives_net_(ivl_nexus_t nex, ivl_nexus_ptr_t driver,
-			   const struct vvp_nexus_data*nex_data)
+int bufz_input_is_var(ivl_net_logic_t bufz)
 {
-      ivl_signal_t var = ivl_nexus_ptr_sig(driver);
+      ivl_nexus_t in_n = ivl_logic_pin(bufz, 1);
+      ivl_signal_t var = 0;
+      unsigned drivers = 0;
       unsigned idx;
-      if (!var || ivl_signal_type(var) != IVL_SIT_REG
-	  || ivl_signal_dimensions(var) > 0
-	  || (nex_data->flags & VVP_NEXUS_DATA_STR))
+      for (idx = 0 ; idx < ivl_nexus_ptrs(in_n) ; idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(in_n, idx);
+	    if (ivl_nexus_ptr_log(ptr) == bufz) continue;
+	    if (ivl_nexus_ptr_drive0(ptr) == IVL_DR_HiZ
+		&& ivl_nexus_ptr_drive1(ptr) == IVL_DR_HiZ)
+		  continue;
+	    drivers += 1;
+	    var = ivl_nexus_ptr_sig(ptr);
+      }
+      if (drivers != 1 || !var || ivl_signal_type(var) != IVL_SIT_REG
+	  || ivl_signal_dimensions(var) > 0 || !ivl_signal_comb_driven(var))
 	    return 0;
       switch (ivl_signal_data_type(var)) {
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
-	    break;
+	    return 1;
 	  default:
 	    return 0;
       }
-      for (idx = 0 ; idx < ivl_nexus_ptrs(nex) ; idx += 1) {
-	    ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nex, idx));
-	    if (sig && sig != var && ivl_signal_type(sig) != IVL_SIT_REG
-		&& ivl_signal_dimensions(sig) == 0
-		&& ivl_signal_port(sig) != IVL_SIP_INOUT)
-		  return 1;
-      }
-      return 0;
 }
 
 static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
@@ -361,6 +366,13 @@ static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 		  if (! can_elide_bufz(lptr, nptr))
 			break;
 
+		  if (bufz_input_is_var(lptr)) {
+			char label[64];
+			snprintf(label, sizeof label, "S_%p", lptr);
+			fprintf(vvp_out, "%s .sample %s;\n", label,
+				draw_net_input(ivl_logic_pin(lptr, 1)));
+			return strdup(label);
+		  }
 		  return strdup(draw_net_input(ivl_logic_pin(lptr, 1)));
 	    } while(0);
 
@@ -932,13 +944,6 @@ static void draw_net_input_x(ivl_nexus_t nex,
 
 	    } else {
 		  nex_private = draw_net_input_drive(nex, drivers[0]);
-		  if (!island && var_drives_net_(nex, drivers[0], nex_data)) {
-			char label[64];
-			snprintf(label, sizeof label, "S_%p", nex);
-			fprintf(vvp_out, "%s .sample %s;\n", label, nex_private);
-			free(nex_private);
-			nex_private = strdup(label);
-		  }
 	    }
 	    if (island) {
 		  char*tmp = draw_island_port(island, island_input_flag, nex, nex_data, nex_private);

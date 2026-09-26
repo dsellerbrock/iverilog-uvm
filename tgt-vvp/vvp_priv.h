@@ -75,6 +75,9 @@ extern unsigned width_of_nexus(ivl_nexus_t nex);
 extern ivl_variable_type_t data_type_of_nexus(ivl_nexus_t nex);
 
 extern int can_elide_bufz(ivl_net_logic_t net, ivl_nexus_ptr_t nptr);
+/* True when a BUFZ continuous assignment is driven only by a procedural
+ * variable; it is then drawn as a .sample functor. */
+extern int bufz_input_is_var(ivl_net_logic_t bufz);
 
 /*
  * This function draws a process (initial or always) into the output

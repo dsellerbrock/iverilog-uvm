@@ -1751,6 +1751,14 @@ void vvp_fun_sample::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
                                vvp_context_t)
 {
       value_ = bit;
+        // Initialization values propagate as they always have; only
+        // procedural writes during simulation are settled.
+      if (!schedule_simulation_started()) {
+            sent_ = value_;
+            sent_valid_ = true;
+            net_->send_vec4(sent_, 0);
+            return;
+      }
       if (!scheduled_) {
             scheduled_ = true;
             schedule_functor(this);
