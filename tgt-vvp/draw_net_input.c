@@ -312,6 +312,39 @@ static char* draw_net_pull(ivl_net_logic_t lptr, ivl_drive_t drive, const char*l
  * to this nexus.
  */
 
+/*
+ * True when the only driver of this nexus is a scalar or vector procedural
+ * variable and the nexus also carries a net: a variable port connection or
+ * `assign net = var'. That continuous assignment runs after the writing
+ * process suspends (IEEE 1800-2017/2023 10.3, 23.3.3), so it is routed
+ * through a .sample functor that delivers only the settled value.
+ */
+static int var_drives_net_(ivl_nexus_t nex, ivl_nexus_ptr_t driver,
+			   const struct vvp_nexus_data*nex_data)
+{
+      ivl_signal_t var = ivl_nexus_ptr_sig(driver);
+      unsigned idx;
+      if (!var || ivl_signal_type(var) != IVL_SIT_REG
+	  || ivl_signal_dimensions(var) > 0
+	  || (nex_data->flags & VVP_NEXUS_DATA_STR))
+	    return 0;
+      switch (ivl_signal_data_type(var)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    break;
+	  default:
+	    return 0;
+      }
+      for (idx = 0 ; idx < ivl_nexus_ptrs(nex) ; idx += 1) {
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nex, idx));
+	    if (sig && sig != var && ivl_signal_type(sig) != IVL_SIT_REG
+		&& ivl_signal_dimensions(sig) == 0
+		&& ivl_signal_port(sig) != IVL_SIP_INOUT)
+		  return 1;
+      }
+      return 0;
+}
+
 static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 {
       unsigned nptr_pin = ivl_nexus_ptr_pin(nptr);
@@ -899,6 +932,13 @@ static void draw_net_input_x(ivl_nexus_t nex,
 
 	    } else {
 		  nex_private = draw_net_input_drive(nex, drivers[0]);
+		  if (!island && var_drives_net_(nex, drivers[0], nex_data)) {
+			char label[64];
+			snprintf(label, sizeof label, "S_%p", nex);
+			fprintf(vvp_out, "%s .sample %s;\n", label, nex_private);
+			free(nex_private);
+			nex_private = strdup(label);
+		  }
 	    }
 	    if (island) {
 		  char*tmp = draw_island_port(island, island_input_flag, nex, nex_data, nex_private);
