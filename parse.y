@@ -17965,6 +17965,24 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete[] $3;
 	$$ = nullptr;
       }
+    /* `automatic pkg::cls x;' in a block (IEEE 1800-2017/2023 6.21). The
+       member token is read before package scope is entered, so a class not
+       otherwise visible arrives as IDENTIFIER, as in the rule above. */
+  | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($2, $4);
+	if (!type) {
+	      pform_forward_typedef(@4, lex_strings.make($4), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@4, $4);
+	}
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $2);
+	      FILE_NAME(dtype, @4);
+	      pform_make_var(@4, $5, dtype, nullptr, false);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $4;
+	$$ = nullptr;
+      }
   | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($4.type, $2);
 	FILE_NAME(dtype, @4);
