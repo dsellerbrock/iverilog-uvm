@@ -17570,6 +17570,23 @@ subroutine_call
 	delete $4;
 	$$ = tmp;
       }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens '.' IDENTIFIER
+    argument_list_parens_opt
+      { /* Method-call statement on a package function's result:
+	   pkg::f(args).method(args); (IEEE 1800-2017/2023 8.10). OpenTitan's
+	   sec_cm_pkg::find_sec_cm_if_proxy(.path(p), .is_regex(1)).disable_fi(). */
+	pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PECallFunction*rcv = new PECallFunction($1, hident, *$4);
+	FILE_NAME(rcv, @3);
+	PCallTask*tmp = new PCallTask(rcv, lex_strings.make($6), *$7);
+	FILE_NAME(tmp, @5);
+	delete[]$3;
+	delete $4;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
   | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($3)));
