@@ -409,13 +409,6 @@ static int container_value_(ivl_expr_t expr)
 	  || ivl_expr_value(expr) == IVL_VT_QUEUE;
 }
 
-static int container_is_assoc_(ivl_expr_t expr)
-{
-      ivl_type_t type = ivl_expr_net_type(expr);
-      return type && ivl_type_base(type) == IVL_VT_QUEUE
-	  && ivl_type_queue_assoc_compat(type);
-}
-
 /* Both sides are dynamic arrays or queues; a `null' side keeps the legacy
  * handle comparison. */
 static int container_equality_operands_(ivl_expr_t le, ivl_expr_t re)
@@ -469,14 +462,6 @@ static void draw_binary_vec4_compare(ivl_expr_t expr)
 	    if (op != 'e' && op != 'n' && op != 'E' && op != 'N') {
 		  fprintf(stderr, "%s:%u: error: operator is not defined for "
 			  "unpacked array operands.\n",
-			  ivl_expr_file(expr), ivl_expr_lineno(expr));
-		  vvp_errors += 1;
-		  fprintf(vvp_out, "    %%pushi/vec4 1, 1, 1;\n");
-		  return;
-	    }
-	    if (container_is_assoc_(le) || container_is_assoc_(re)) {
-		  fprintf(stderr, "%s:%u: sorry: equality of associative "
-			  "arrays is not yet supported.\n",
 			  ivl_expr_file(expr), ivl_expr_lineno(expr));
 		  vvp_errors += 1;
 		  fprintf(vvp_out, "    %%pushi/vec4 1, 1, 1;\n");

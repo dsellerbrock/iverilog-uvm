@@ -151,6 +151,16 @@ class vvp_assoc_base : public vvp_object {
 			      vvp_vector4_t&val_vec, double&val_real,
 			      std::string&val_str, int&val_kind) const =0;
 
+	// Positional exact identity for equality (IEEE 1800-2017/2023
+	// 11.4.5): key_kind is 0 string / 1 object / 2 vector, and the key
+	// itself is returned exactly (an object key as its handle). When the
+	// map holds objects, obj_val receives the value.
+      virtual bool peek_entry_identity(size_t pos, int&key_kind,
+				       std::string&str_key,
+				       const vvp_object*&obj_key,
+				       vvp_vector4_t&vec_key,
+				       vvp_object_t&obj_val) const =0;
+
 	// M12-4 VPI: positional element WRITE, the mirror of
 	// peek_entry (same key order, same val_kind tags). The entry
 	// keeps its key; only the value changes, and only when
@@ -710,6 +720,44 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    return false;
       }
 
+      bool peek_entry_identity(size_t pos, int&key_kind,
+			       std::string&str_key,
+			       const vvp_object*&obj_key,
+			       vvp_vector4_t&vec_key,
+			       vvp_object_t&obj_val) const override
+      {
+	    if (pos < str_map_.size()) {
+		  typename std::map<std::string, TYPE>::const_iterator cur
+			= str_map_.begin();
+		  std::advance(cur, pos);
+		  key_kind = 0;
+		  str_key = cur->first;
+		  assign_object_val_(cur->second, obj_val);
+		  return true;
+	    }
+	    pos -= str_map_.size();
+	    if (pos < obj_map_.size()) {
+		  typename std::map<const vvp_object*, TYPE>::const_iterator cur
+			= obj_map_.begin();
+		  std::advance(cur, pos);
+		  key_kind = 1;
+		  obj_key = cur->first;
+		  assign_object_val_(cur->second, obj_val);
+		  return true;
+	    }
+	    pos -= obj_map_.size();
+	    if (pos < vec_map_.size()) {
+		  typename std::map<std::string, vec_entry_t>::const_iterator cur
+			= vec_map_.begin();
+		  std::advance(cur, pos);
+		  key_kind = 2;
+		  vec_key = cur->second.key;
+		  assign_object_val_(cur->second.value, obj_val);
+		  return true;
+	    }
+	    return false;
+      }
+
       bool poke_entry(size_t pos, const vvp_vector4_t&val_vec,
 		      double val_real, const std::string&val_str,
 		      int val_kind) override
@@ -755,6 +803,10 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       static int assign_entry_val_(const vvp_object_t&, vvp_vector4_t&,
 				   double&, std::string&)
       { return 3; }
+      template <class VALUE>
+      static void assign_object_val_(const VALUE&, vvp_object_t&) { }
+      static void assign_object_val_(const vvp_object_t&src, vvp_object_t&dst)
+      { dst = src; }
 
 	// M12-4: overload set routing a VPI put into the stored value
 	// (mirrors assign_entry_val_). A vec4 store is resized to the
