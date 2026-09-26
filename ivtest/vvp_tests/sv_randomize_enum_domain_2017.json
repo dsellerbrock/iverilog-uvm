@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_randomize_enum_domain.v",
+    "iverilog-args" : [ "-g2017" ]
+}

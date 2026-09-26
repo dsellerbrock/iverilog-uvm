@@ -107,6 +107,8 @@ NetExpr* PEStreamWith::elaborate_expr(Design*des, NetScope*, unsigned,
 /* Forward declaration from elaborate.cc — converts a constraint PExpr to
  * Z3 IR string.  value_slots collects caller-scope identifiers that must
  * be evaluated at the call site and substituted as v:N:W at runtime. */
+extern string constraint_enum_domain_ir(const netenum_t*etype,
+				       const string&subject);
 extern string pexpr_to_constraint_ir(const PExpr*expr,
 				     const netclass_t*cls,
 				     vector<const PExpr*>*value_slots,
@@ -375,6 +377,30 @@ NetESFunc* make_randomize_with_expr(
  * caller-scope state values referenced by the constraint. The mangled name
  * carries the two counts and the common Z3 IR; tgt-vvp writes successful
  * model values back through the ordinary signal-store opcode. */
+/* A scope-randomize argument of enum type must stay within its declared
+ * literals (IEEE 1800-2017/2023 18.4, 18.12), so it needs the solver-backed
+ * lowering rather than $ivl_std_randomize's raw bits. So does a function's
+ * implicit return variable (13.4.1): a system task receives it by value,
+ * and only the solver lowering stores its result to the return value. */
+bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
+				    Design*des, NetScope*scope)
+{
+      for (const named_pexpr_t&parm : parms) {
+	    if (!parm.parm) continue;
+	    NetExpr*ne = elab_and_eval(des, scope, parm.parm, -1, false);
+	    bool is_enum = ne && (ne->enumeration()
+			|| dynamic_cast<const netenum_t*>(ne->net_type()));
+	    const NetESignal*sig = dynamic_cast<const NetESignal*>(ne);
+	    const NetScope*owner = sig ? sig->sig()->scope() : nullptr;
+	    bool is_return = owner && owner->type() == NetScope::FUNC
+		  && owner->func_def()
+		  && owner->func_def()->return_sig() == sig->sig();
+	    delete ne;
+	    if (is_enum || is_return) return true;
+      }
+      return false;
+}
+
 NetESFunc* make_std_randomize_with_expr(
       const vector<named_pexpr_t>&parms,
       const vector<PExpr*>&with_constraints,
@@ -461,6 +487,7 @@ NetESFunc* make_std_randomize_with_expr(
       vector<NetExpr*> random_vars;
       map<perm_string,string> random_tokens;
       map<perm_string,ivl_type_t> random_types;
+      vector<string> enum_domains;
 
       for (size_t idx = 0 ; idx < parms.size() ; idx += 1) {
 	    PExpr*pe = parms[idx].parm;
@@ -497,6 +524,13 @@ NetESFunc* make_std_randomize_with_expr(
 			    "s:0:Q" + to_string(max_size) + ":" + etype;
 			random_types[id->path().back().name] = se->sig()->net_type();
 			random_vars.push_back(ne);
+			if (const netenum_t*eenum =
+				  dynamic_cast<const netenum_t*>(elem)) {
+			      string w = to_string(ewid);
+			      enum_domains.push_back("(dynforeach 0:" + w + " "
+				    + constraint_enum_domain_ir(eenum,
+					  "(delem 0:" + w + " L)") + ")");
+			}
 			continue;
 		  }
 	    }
@@ -529,9 +563,14 @@ NetESFunc* make_std_randomize_with_expr(
 	    random_tokens[id->path().back().name] = token;
 	    random_types[id->path().back().name] = se->sig()->net_type();
 	    random_vars.push_back(ne);
+	    if (const netenum_t*etype =
+		      dynamic_cast<const netenum_t*>(se->sig()->net_type()))
+		  enum_domains.push_back(constraint_enum_domain_ir(etype, token));
       }
 
       string combined_ir;
+      for (const string&domain : enum_domains)
+	    combined_ir += (combined_ir.empty() ? "" : " ") + domain;
       vector<const PExpr*> value_slots;
       vector<NetNet*> signal_slots;
       vector<NetExpr*> object_slots;
@@ -15873,7 +15912,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		&& (explicit_std_randomize || unqualified_scope_randomize)
 		&& !parms_.empty()) {
 		  if (!with_constraints().empty()
-		      || has_randomize_with_identifier_list()) {
+		      || has_randomize_with_identifier_list()
+		      || std_randomize_args_need_solver(parms_, des, scope)) {
 				return make_std_randomize_with_expr(
 				      parms_, with_constraints(),
 				      randomize_with_identifiers(),
