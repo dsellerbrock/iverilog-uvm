@@ -8405,10 +8405,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             if (!type || !type->property_is_enum(pid)) return;
             vector<Z3_ast> literals;
             for (const auto&value : type->property_enum_values(pid)) {
-                  uint64_t bits = 0;
-                  if (!vec4_to_uint64_(value, bits)) continue;
-                  Z3_ast literal = Z3_mk_unsigned_int64(ctx, bits,
-                        Z3_mk_bv_sort(ctx, width));
+                  Z3_ast literal;
+                  if (!vec4_to_bv_const_(ctx, value, width, literal)) continue;
                   literals.push_back(Z3_mk_eq(ctx, variable, literal));
             }
             Z3_ast domain = literals.empty() ? Z3_mk_false(ctx)
@@ -8418,11 +8416,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             Z3_optimize_assert(ctx, opt, domain);
             Z3_solver_assert(ctx, base, domain);
       };
-      if (graph)
-            for (const auto&pv : builder.prop_vars)
-                  if (rand_scalar_active_(builder, prop_active, pv.idx))
-                        add_enum_domain(builder.type(pv.idx), builder.local_index(pv.idx),
-                                        pv.width, pv.var);
+      // This includes a non-rand enum made random by an argument list or by
+      // scope randomization (IEEE 18.11, 18.12).
+      for (const auto&pv : builder.prop_vars)
+            if (rand_scalar_active_(builder, prop_active, pv.idx))
+                  add_enum_domain(builder.type(pv.idx), builder.local_index(pv.idx),
+                                  pv.width, pv.var);
+      for (const auto&ev : builder.elem_vars)
+            if (rand_elem_active_(builder, prop_active, ev.idx, ev.elem))
+                  add_enum_domain(builder.type(ev.idx), builder.local_index(ev.idx),
+                                  ev.width, ev.var);
       for (const auto&mv : builder.member_vars) {
             if (!rand_member_active_(builder, prop_active, mv.outer, mv.member)) continue;
             vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
@@ -10532,6 +10535,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
 		  : make_random_container_(desc, (size_t)new_size);
 	    bool is_randc = builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx));
+	    // New enum elements take a declared literal (IEEE 18.4); modeled
+	    // elements are re-solved under the same domain below.
+	    const vector<vvp_vector4_t>&enum_domain =
+		  builder.type(sv.idx)->property_enum_values(builder.local_index(sv.idx));
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
 		  const uint64_t queue_max = desc.max_size;
@@ -10541,6 +10548,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						 sv.idx, (unsigned)adr);
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
+			else if (!is_randc && !enum_domain.empty())
+			      nv = enum_domain[property_rng(sv.idx).next()
+					       % enum_domain.size()];
 			else if (is_randc && desc.elem_width > 0
 				 && desc.elem_width <= 20) {
 			      const std::vector<bool>*history = old_array
@@ -10577,6 +10587,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						 sv.idx, (unsigned)adr);
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
+			else if (!is_randc && !enum_domain.empty())
+			      nv = enum_domain[property_rng(sv.idx).next()
+					       % enum_domain.size()];
 			else if (is_randc && wid <= 20) {
 			      const std::vector<bool>*history = old_array
 				    && adr < old_array->get_size()

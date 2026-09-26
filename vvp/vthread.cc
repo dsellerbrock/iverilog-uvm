@@ -5641,6 +5641,13 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 			unsigned wid = val.size();
 			if (wid == 0)
 			      break;
+			if (defn->property_is_enum(pid)) {
+			      if (!randomize_enum_member_(cobj, defn, pid,
+					(size_t)adr, val, next_random))
+				    solve_ok = false;
+			      cobj->set_vec4(pid, val, adr);
+			      continue;
+			}
 			if (defn->property_is_randc(pid)
 			    && randomize_randc_leaf_(cobj, pid, (size_t)adr,
 						     val, next_random)) {
@@ -5702,6 +5709,16 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	    unsigned wid = val.size();
 	    if (wid == 0)
 		  continue;
+	    // IEEE 1800-2017/2023 18.4: an enum takes only its declared
+	    // literals. The solve below may still replace this value; without
+	    // constraints (scope form, a non-rand argument) it is the result.
+	    if (defn->property_is_enum(pid)) {
+		  if (!randomize_enum_member_(cobj, defn, pid, 0, val,
+					      next_random))
+			solve_ok = false;
+		  cobj->set_vec4(pid, val);
+		  continue;
+	    }
 	    // Pick an unused value from committed history. randc_mark only
 	    // stages it; success commits the actual post-solve value.
 	    if (defn->property_is_randc(pid)
