@@ -35950,8 +35950,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // Analyze generic initializers for const-initialization checks,
 		    // but generic masters and unresolved type forwarding are not
 		    // concrete runtime types (IEEE 1800 8.25).
-		    bool deferred_init = pclass->has_parameter_port_list
-			  && !specialized_instance();
+		    bool deferred_init = (pclass->has_parameter_port_list
+			  && !specialized_instance()) || generic_body_only();
 		    for (perm_string name : pclass->parameter_order) {
 			  if (class_type_parameter_is_deferred(des, class_scope_, name)) {
 				deferred_init = true;

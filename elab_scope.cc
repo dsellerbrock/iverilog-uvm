@@ -1781,27 +1781,8 @@ static bool class_type_parameter_is_deferred_(
       const NetScope*source_scope = normalize_class_scope_(source_use_scope);
       perm_string source_name;
       if (!find_class_type_parameter_reference(
-		    des, source_use_scope, parameter->second.val_expr, source_name)) {
-	      /* A class-typed actual is symbolic when it is a generic master, or
-	       * a specialization whose own type parameters are symbolic: UVM's
-	       * uvm_component_registry#(a#(K)) made inside a's template body is
-	       * not a runtime type (IEEE 1800 8.25), so its static registration
-	       * must not run. */
-	    const netclass_t*actual = dynamic_cast<const netclass_t*>(
-		  parameter->second.ivl_type);
-	    const NetScope*actual_scope = actual ? actual->class_scope() : 0;
-	    const PClass*actual_pclass = actual_scope
-		  ? actual_scope->class_pform() : 0;
-	    if (!actual_pclass || !actual_pclass->has_parameter_port_list)
-		  return false;
-	    if (!actual->specialized_instance())
-		  return true;
-	    for (perm_string actual_name : actual_pclass->parameter_order)
-		  if (class_type_parameter_is_deferred_(
-			des, actual_scope, actual_name, seen))
-			return true;
+		    des, source_use_scope, parameter->second.val_expr, source_name))
 	    return false;
-      }
 
       return class_type_parameter_is_deferred_(
 	    des, source_scope, source_name, seen);
@@ -4152,6 +4133,22 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    }
       }
 
+	/* A specialization first requested from inside a generic master's own
+	 * body (UVM's uvm_component_registry#(a#(K)) from a's `uvm_*_utils)
+	 * exists only for that body until some concrete context asks for it
+	 * too; see netclass_t::generic_body_only(). */
+      bool caller_is_generic_body = false;
+      if (call_scope) {
+	    const NetScope*caller_class_scope = call_scope->get_class_scope();
+	    const netclass_t*caller_class = caller_class_scope
+		  ? caller_class_scope->class_def() : 0;
+	    const PClass*caller_pclass = caller_class_scope
+		  ? caller_class_scope->class_pform() : 0;
+	    caller_is_generic_body = caller_class && caller_pclass
+		  && caller_pclass->has_parameter_port_list
+		  && !caller_class->specialized_instance();
+      }
+
       std::ostringstream key_prefix;
 	/* Use the pclass (parse-tree) pointer as the stable declaration prefix.
 	 * The netclass_t (base_class) pointer is NOT stable -- the same parsed
@@ -4201,6 +4198,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	      if (cached_result) {
 		    note_specialization_cache_hit_();
 		    netclass_t*cached_class = const_cast<netclass_t*>(cached_result);
+		    if (!caller_is_generic_body)
+			  cached_class->set_generic_body_only(false);
 		    if (!fully_elaborate) {
 			  enqueue_pending_specialized_method_seed_(cached_class);
 			  return cached_result;
@@ -4253,6 +4252,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       if (!use_type->covergroups.empty())
 	    use_class->set_has_embedded_covergroups(true);
       use_class->set_specialized_instance(true);
+      use_class->set_generic_body_only(caller_is_generic_body);
 
 	/* Propagate seed-ness. A specialization materialised WHILE the caller
 	   is elaborating a template seed comes from that seed's own default
