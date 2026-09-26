@@ -1369,6 +1369,11 @@ def merge_configs(base, addition):
     return merged
 
 
+# Every cfg some other cfg imports: a base (kmac_base_sim_cfg) that dvsim
+# never runs by itself, only through the variants that import it.
+imported_configs = set()
+
+
 def load_config(config_path, inherited=None, stack=()):
     config_path = Path(config_path).resolve()
     if config_path in stack or not config_path.is_file():
@@ -1400,6 +1405,7 @@ def load_config(config_path, inherited=None, stack=()):
         imported_path = Path(imported_path)
         if not imported_path.is_absolute():
             imported_path = config_path.parent / imported_path
+        imported_configs.add(imported_path.resolve())
         merged = merge_configs(
             merged,
             load_config(
@@ -1416,8 +1422,11 @@ def unique(values):
 
 
 configs = {}
-for config_path in sorted(root.rglob("*sim_cfg.hjson")):
-    config = load_config(config_path)
+loaded_configs = [
+    (config_path, load_config(config_path))
+    for config_path in sorted(root.rglob("*sim_cfg.hjson"))
+]
+for config_path, config in loaded_configs:
     context = {
         **{
             key: value
@@ -1488,19 +1497,39 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
     build_options = [
         substitute(option, context) for option in config.get("build_opts", []) or []
     ]
-    if build_mode:
-        for mode in config.get("build_modes", []) or []:
-            if isinstance(mode, dict) and mode.get("name") == build_mode:
-                build_options.extend(
-                    substitute(option, context)
-                    for option in mode.get("build_opts", []) or []
-                )
-                runtime_options.extend(
-                    substitute(option, context)
-                    for option in mode.get("run_opts", []) or []
-                    if str(option).startswith("+") and "{" not in str(option)
-                )
-                break
+    # dvsim applies the test's build mode plus every mode named in
+    # en_build_modes (of the cfg, the test, or an applied mode). kmac's
+    # masked cfg only gets EN_MASKING=1 this way. `{tool}_...` modes hold
+    # VCS/Xcelium flags and stay unresolved.
+    modes = {
+        mode.get("name"): mode
+        for mode in config.get("build_modes", []) or []
+        if isinstance(mode, dict)
+    }
+    pending = [build_mode] if build_mode else []
+    for source in (config, selected):
+        pending.extend(source.get("en_build_modes", []) or [])
+    applied_modes = []
+    unresolved_build_modes = []
+    while pending:
+        mode_name = substitute(pending.pop(0), context)
+        if mode_name in applied_modes or mode_name in unresolved_build_modes:
+            continue
+        mode = modes.get(mode_name)
+        if mode is None:
+            unresolved_build_modes.append(mode_name)
+            continue
+        applied_modes.append(mode_name)
+        build_options.extend(
+            substitute(option, context)
+            for option in mode.get("build_opts", []) or []
+        )
+        runtime_options.extend(
+            substitute(option, context)
+            for option in mode.get("run_opts", []) or []
+            if str(option).startswith("+") and "{" not in str(option)
+        )
+        pending.extend(mode.get("en_build_modes", []) or [])
     build_options.extend(
         substitute(option, context) for option in selected.get("build_opts", []) or []
     )
@@ -1512,7 +1541,6 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
         "pre_run_cmds",
         "post_run_cmds",
         "sw_images",
-        "en_build_modes",
         "en_run_modes",
     ):
         if (
@@ -1521,6 +1549,8 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
             or any(regression.get(key) for regression in smoke_regressions)
         ):
             orchestration_requirements.append(key)
+    if unresolved_build_modes:
+        orchestration_requirements.append("en_build_modes")
     candidate = {
         "dvsim_config": relative(config_path),
         "dvsim_test": selected.get("name"),
@@ -1535,15 +1565,18 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
         "orchestration_requirements": orchestration_requirements,
     }
     previous = configs.get(core_name)
+    candidate["runnable_config"] = config_path.resolve() not in imported_configs
     candidate_score = (
         bool(uvm_test and uvm_test_seq),
         bool(selected),
         -len(candidate["unresolved_runtime_options"]),
+        candidate["runnable_config"],
     )
     previous_score = (
         bool(previous and previous.get("uvm_test") and previous.get("uvm_test_seq")),
         bool(previous and previous.get("dvsim_test")),
         -len(previous.get("unresolved_runtime_options", [])) if previous else 0,
+        bool(previous and previous.get("runnable_config")),
     )
     if previous is None or candidate_score > previous_score:
         configs[core_name] = candidate
@@ -2155,11 +2188,51 @@ def compile_command(
             if UVM_REGEX_NO_DPI_BUILD_OPTION in job.simulation.build_options:
                 command.append("-DUVM_REGEX_NO_DPI")
         command.extend(["-DSIMULATION", "-DDUT_HIER=tb.dut"])
-        command.extend(UVM_EXTRA_DEFINES.get(job.core.vlnv, ()))
+        if job.simulation is not None:
+            command.extend(dvsim_define_arguments(job.simulation.build_options))
+        defined = {arg[2:].split("=", 1)[0] for arg in command if arg.startswith("-D")}
+        command.extend(
+            define
+            for define in UVM_EXTRA_DEFINES.get(job.core.vlnv, ())
+            if define[2:].split("=", 1)[0] not in defined
+        )
     if uvm_home is not None and "-uvm" in command:
         command.append(f"--uvm-home={uvm_home}")
     command.extend(["-o", str(output), "-c", str(source_list)])
     return command
+
+
+# Defines the command builder sets itself, from the job's lane and category.
+HARNESS_MANAGED_DEFINES = {
+    "UVM",
+    "UVM_NO_DEPRECATED",
+    "UVM_REGEX_NO_DPI",
+    "UVM_REG_ADDR_WIDTH",
+    "UVM_REG_DATA_WIDTH",
+    "UVM_REG_BYTENABLE_WIDTH",
+    "SIMULATION",
+    "DUT_HIER",
+}
+
+
+def dvsim_define_arguments(build_options: Sequence[str]) -> list[str]:
+    """Translate dvsim `+define+A=1+B` build options to iverilog -D flags.
+
+    `+define+` is simulator-independent; everything else in build_opts is a
+    VCS/Xcelium flag. An option still holding a `{...}` placeholder is skipped.
+    """
+    result = []
+    seen = set()
+    for option in build_options:
+        if not option.startswith("+define+") or "{" in option:
+            continue
+        for item in option[len("+define+"):].split("+"):
+            name = item.split("=", 1)[0]
+            if not name or name in HARNESS_MANAGED_DEFINES or name in seen:
+                continue
+            seen.add(name)
+            result.append("-D" + item)
+    return result
 
 
 TIMESCALE_RE = re.compile(
@@ -2756,6 +2829,16 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             Path("iverilog"), Path("uvm.scr"), [], Path("uvm.vvp"),
             commercial_unsafe=True,
         )
+    assert dvsim_define_arguments(
+        (
+            "+define+EN_MASKING=1",
+            "+define+A=1+B",
+            "+define+UVM",
+            "+define+BUILD_SEED={seed}",
+            "-CFLAGS -O2",
+            "+define+EN_MASKING=0",
+        )
+    ) == ["-DEN_MASKING=1", "-DA=1", "-DB"]
     regex_uvm_target = dataclasses.replace(
         uvm_target,
         build_options=(
