@@ -3271,6 +3271,12 @@ extern "C" int ivl_signal_local(ivl_signal_t net)
       return net->net_->local_flag()? 1 : 0;
 }
 
+extern "C" int ivl_signal_comb_driven(ivl_signal_t net)
+{
+      assert(net);
+      return net->net_ && net->net_->comb_written()? 1 : 0;
+}
+
 extern "C" ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net)
 {
       assert(net);

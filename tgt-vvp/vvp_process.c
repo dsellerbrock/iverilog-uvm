@@ -1626,6 +1626,9 @@ static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
       fprintf(vvp_out, "    .scope S_%p;\n", scope);
 
       fprintf(vvp_out, "t_%u %%join;\n", out_id);
+	/* An automatic block dispatches after its %free instead. */
+      if (!ivl_scope_is_auto(subscope))
+	    draw_nested_flow_dispatch(scope);
 
       return rc;
 }
@@ -3017,11 +3020,14 @@ static int show_stmt_fork(ivl_statement_t net, ivl_scope_t sscope)
       return rc;
 }
 
-static int show_stmt_free(ivl_statement_t net)
+static int show_stmt_free(ivl_statement_t net, ivl_scope_t sscope)
 {
       ivl_scope_t scope = ivl_stmt_call(net);
 
       fprintf(vvp_out, "    %%free S_%p;\n", scope);
+      if (ivl_scope_type(scope) == IVL_SCT_BEGIN
+	  || ivl_scope_type(scope) == IVL_SCT_FORK)
+	    draw_nested_flow_dispatch(sscope);
       return 0;
 }
 
@@ -7664,7 +7670,7 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 	    break;
 
 	  case IVL_ST_FREE:
-	    rc += show_stmt_free(net);
+	    rc += show_stmt_free(net, sscope);
 	    break;
 
 	  case IVL_ST_NOOP:

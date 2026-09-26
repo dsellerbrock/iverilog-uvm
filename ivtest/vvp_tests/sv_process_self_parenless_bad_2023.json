@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_process_self_parenless_bad.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"   : "sv_process_self_parenless_bad"
+}

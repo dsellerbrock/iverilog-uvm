@@ -100,7 +100,7 @@ int show_stmt_break(ivl_statement_t net, ivl_scope_t sscope)
       }
 
       if (sscope && break_scope && sscope != break_scope)
-	    fprintf(vvp_out, "    %%disable/flow S_%p; break\n", break_scope);
+	    fprintf(vvp_out, "    %%flow/pending/break S_%p;\n", break_scope);
       else
 	    fprintf(vvp_out, "    %%jmp T_%u.%u; break\n", thread_count, break_label);
       return 0;
@@ -114,7 +114,7 @@ int show_stmt_continue(ivl_statement_t net, ivl_scope_t sscope)
       }
 
       if (sscope && continue_scope && sscope != continue_scope)
-	    fprintf(vvp_out, "    %%disable/flow/child S_%p; continue\n",
+	    fprintf(vvp_out, "    %%flow/pending/continue S_%p;\n",
 		    continue_scope);
       else
 	    fprintf(vvp_out, "    %%jmp T_%u.%u; continue\n",
@@ -122,6 +122,20 @@ int show_stmt_continue(ivl_statement_t net, ivl_scope_t sscope)
       return 0;
 }
 #pragma GCC diagnostic pop
+
+/*
+ * After a forked block drawn in the thread of an enclosing loop joins,
+ * dispatch a break or continue the block left pending (%flow/pending/...).
+ */
+void draw_nested_flow_dispatch(ivl_scope_t sscope)
+{
+      if (break_label != BRK_CONT_LABEL_NONE && sscope == break_scope)
+	    fprintf(vvp_out, "    %%jmp/flowbrk T_%u.%u;\n",
+		    thread_count, break_label);
+      if (continue_label != BRK_CONT_LABEL_NONE && sscope == continue_scope)
+	    fprintf(vvp_out, "    %%jmp/flowcont T_%u.%u;\n",
+		    thread_count, continue_label);
+}
 
 int show_stmt_forever(ivl_statement_t net, ivl_scope_t sscope)
 {

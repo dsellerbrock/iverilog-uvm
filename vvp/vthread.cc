@@ -859,6 +859,10 @@ struct vthread_s {
 	   mailbox, semaphore, or process object. */
       unsigned waiting_for_resource :1;
       unsigned is_scheduled      :1;
+	/* A break (1) or continue (2) executed in a forked block nested in
+	   this thread's loop, pending until the block's join (see
+	   %flow/pending/break). */
+      unsigned flow_pending      :2;
       unsigned delay_delete      :1;
       unsigned delete_pending    :1;
       unsigned reap_pending      :1;
@@ -9898,6 +9902,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->i_am_waiting  = 0;
       thr->i_am_in_function = 0;
       thr->is_scheduled  = 0;
+      thr->flow_pending  = 0;
       thr->i_have_ended  = 0;
       thr->i_was_disabled = 0;
       thr->delay_delete  = 0;
@@ -16995,6 +17000,64 @@ bool of_DISABLE_FLOW_CHILD(vthread_t thr, vvp_code_t cp)
       }
 
       return !do_disable(child, thr);
+}
+
+/*
+ * %flow/pending/break <scope> and %flow/pending/continue <scope>
+ *
+ * A break or continue inside a block that runs as a forked child (a block
+ * with its own automatic variables) must leave that block and then act on
+ * the loop in <scope>'s thread. Record the action on the thread that owns
+ * the loop, then disable its child that contains this thread. The loop
+ * owner resumes at the block's join and dispatches the pending action with
+ * %jmp/flowbrk or %jmp/flowcont. Disabling the loop owner itself, as
+ * %disable/flow does, would end the whole enclosing task or process.
+ */
+static bool flow_pending_(vthread_t thr, vvp_code_t cp, unsigned action)
+{
+      const __vpiScope*scope = static_cast<__vpiScope*>(cp->handle);
+      vthread_t cur = thr;
+      vthread_t child = 0;
+      while (cur && cur->parent_scope != scope) {
+            child = cur;
+            cur = cur->parent;
+      }
+      if (!cur || !child) {
+            fprintf(stderr, "vvp error: %s has no enclosing loop thread; "
+                    "ending the current thread.\n",
+                    action == 1 ? "break" : "continue");
+            return !do_disable(thr, thr);
+      }
+      cur->flow_pending = action;
+      return !do_disable(child, thr);
+}
+
+bool of_FLOW_PENDING_BREAK(vthread_t thr, vvp_code_t cp)
+{
+      return flow_pending_(thr, cp, 1);
+}
+
+bool of_FLOW_PENDING_CONTINUE(vthread_t thr, vvp_code_t cp)
+{
+      return flow_pending_(thr, cp, 2);
+}
+
+bool of_JMP_FLOWBRK(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->flow_pending == 1) {
+            thr->flow_pending = 0;
+            thr->pc = cp->cptr;
+      }
+      return true;
+}
+
+bool of_JMP_FLOWCONT(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->flow_pending == 2) {
+            thr->flow_pending = 0;
+            thr->pc = cp->cptr;
+      }
+      return true;
 }
 
 /*

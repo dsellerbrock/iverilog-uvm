@@ -397,6 +397,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%flag_or",       of_FLAG_OR,       2, {OA_BIT1,   OA_BIT2, OA_NONE} },
       { "%flag_set/imm",  of_FLAG_SET_IMM,  2, {OA_NUMBER, OA_BIT1, OA_NONE} },
       { "%flag_set/vec4", of_FLAG_SET_VEC4, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%flow/pending/break", of_FLOW_PENDING_BREAK, 1, {OA_VPI_PTR, OA_NONE, OA_NONE} },
+      { "%flow/pending/continue", of_FLOW_PENDING_CONTINUE, 1, {OA_VPI_PTR, OA_NONE, OA_NONE} },
       { "%force/link",    of_FORCE_LINK,2,{OA_FUNC_PTR, OA_FUNC_PTR2, OA_NONE} },
       { "%force/link/a",  of_FORCE_LINK_A,2,{OA_ARR_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%force/link/off",of_FORCE_LINK_OFF,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
@@ -431,6 +433,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%jmp/0xz",of_JMP0XZ, 2,  {OA_CODE_PTR, OA_BIT1,     OA_NONE} },
       { "%jmp/1",  of_JMP1,   2,  {OA_CODE_PTR, OA_BIT1,     OA_NONE} },
       { "%jmp/1xz",of_JMP1XZ, 2,  {OA_CODE_PTR, OA_BIT1,     OA_NONE} },
+      { "%jmp/flowbrk", of_JMP_FLOWBRK, 1, {OA_CODE_PTR, OA_NONE, OA_NONE} },
+      { "%jmp/flowcont", of_JMP_FLOWCONT, 1, {OA_CODE_PTR, OA_NONE, OA_NONE} },
       { "%jmp/vif",of_JMP_VIF,2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%jmp/wr/e",of_JMP_WR_EQ,3,{OA_CODE_PTR, OA_BIT1,     OA_BIT2} },
       { "%join",   of_JOIN,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
@@ -2584,6 +2588,17 @@ void compile_extend_signed(char*label, long wid, struct symb_s arg)
       vvp_fun_extend_signed*fun = new vvp_fun_extend_signed(wid);
       vvp_net_t*ptr = new vvp_net_t;
       ptr->fun = fun;
+
+      define_functor_symbol(label, ptr);
+      free(label);
+
+      input_connect(ptr, 0, arg.text);
+}
+
+void compile_sample(char*label, struct symb_s arg)
+{
+      vvp_net_t*ptr = new vvp_net_t;
+      ptr->fun = new vvp_fun_sample(ptr);
 
       define_functor_symbol(label, ptr);
       free(label);
