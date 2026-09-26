@@ -37,6 +37,7 @@
 # include  <cctype>
 # include  <cstdlib>
 # include  <cstring>
+# include  <memory>
 # include  <sstream>
 # include  <map>
 # include  <set>
@@ -643,7 +644,8 @@ static bool infer_constraint_integral_type_(IRParser&par,
             return out.width && par.expect(')');
       }
       if (op == "fsel" || op == "psel" || op == "delem" || op == "qmelem"
-          || op == "qfield" || op == "qkeymember" || op == "hselectfield") {
+          || op == "qfield" || op == "qkeymember" || op == "hselectfield"
+          || op == "qkeyelem" || op == "skelem") {
             string header = par.read_token();
             vector<string> fields;
             string field;
@@ -981,6 +983,8 @@ struct Z3Builder {
 	      // A range stores order-preserving coordinates at value_width;
 	      // a scalar stores its coerced bit pattern in lo (lo==hi).
 	    uint64_t lo, hi;
+	      // Ordered-coordinate numerals when value_width exceeds 64.
+	    Z3_ast wide_lo, wide_hi;
       };
       struct DistSpec {
             vvp_cobject*rng_owner = nullptr;
@@ -1012,6 +1016,9 @@ struct Z3Builder {
       bool collect_refs_only = false;
       bool allow_planner_value_slots = false;
       vvp_cobject*assoc_foreach_key = nullptr;
+	// Current entry of an associative foreach over class or string keys.
+      size_t assoc_foreach_pos = SIZE_MAX;
+      unsigned assoc_foreach_prop = UINT_MAX;
       bool soft_ref_disabled(const VarRef&ref, size_t priority) const {
 	    for (const auto&entry : disabled_soft_refs) {
                   if (entry.second <= priority) continue;
@@ -1368,8 +1375,6 @@ static uint64_t cobj_member_elem_bits(vvp_cobject*cobj, unsigned outer,
 static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem);
 static bool cobj_elem_vec4_(vvp_cobject*cobj, unsigned idx, unsigned elem,
                             vvp_vector4_t&value);
-static void cobj_set_elem_bits(vvp_cobject*cobj, unsigned idx, unsigned elem,
-			       unsigned width, uint64_t bits);
 static uint64_t cobj_qelem_member_bits(vvp_cobject* cobj, unsigned qprop,
 				       unsigned elem, unsigned member);
 static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx);
@@ -1381,6 +1386,45 @@ static bool vec4_is_two_state_(const vvp_vector4_t&value)
             if (value.value(bit) != BIT4_0 && value.value(bit) != BIT4_1)
                   return false;
       return true;
+}
+
+/* Ground a two-state state value as a constant of the given bit-vector
+ * width, zero-extended or truncated like Z3_mk_unsigned_int64, at any width
+ * (IEEE 1800-2017/2023 18.3). X/Z still fails. */
+static bool vec4_to_bv_const_(Z3_context ctx, const vvp_vector4_t&value,
+			      unsigned width, Z3_ast&out)
+{
+      if (value.size() == 0 || width == 0 || !vec4_is_two_state_(value))
+	    return false;
+      std::unique_ptr<bool[]> bits(new bool[width]);
+      for (unsigned bit = 0; bit < width; ++bit)
+	    bits[bit] = bit < value.size() && value.value(bit) == BIT4_1;
+      out = Z3_mk_bv_numeral(ctx, width, bits.get());
+      return true;
+}
+
+/* Add the XOR-distance diversity objective for one variable. A 64-bit
+ * target zero-extended to a wider variable steers the objective to the
+ * feasible value with the smallest upper bits, so a wide variable would never
+ * vary; a full-width objective is correct but makes the optimizer very slow.
+ * Wider variables therefore minimize the distance of their top and bottom
+ * 64-bit slices to a random full-width target. */
+static void z3_minimize_diversity_(Z3_context ctx, Z3_optimize opt,
+				   Z3_ast var, unsigned width,
+				   uint64_t low_bits,
+				   const vvp_vector4_t&full = vvp_vector4_t())
+{
+      Z3_ast target;
+      if (width <= 64 || !vec4_to_bv_const_(ctx, full, width, target)) {
+	    target = Z3_mk_unsigned_int64(ctx, low_bits, Z3_mk_bv_sort(ctx, width));
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, var, target));
+	    return;
+      }
+      Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+	    Z3_mk_extract(ctx, width - 1, width - 64, var),
+	    Z3_mk_extract(ctx, width - 1, width - 64, target)));
+      Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+	    Z3_mk_extract(ctx, 63, 0, var), Z3_mk_extract(ctx, 63, 0, target)));
 }
 
 /* Object reads must retain identity, not property_object::get_vec4's
@@ -1469,12 +1513,11 @@ static Z3_ast scalar_property_ref_(Z3Builder&b, unsigned idx,
       if (b.graph && idx < b.graph->properties.size() && !b.graph->active(idx)) {
             vvp_vector4_t data;
             b.object(idx)->get_vec4(b.local_index(idx), data);
-            uint64_t bits = 0;
-            if (!vec4_to_uint64_(data, bits)) {
-                  b.state_errors.push_back("unsupported width or X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
-                  bits = 0;
+            Z3_ast value;
+            if (!vec4_to_bv_const_(b.ctx, data, width, value)) {
+                  b.state_errors.push_back("X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
+                  value = Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
             }
-            Z3_ast value = Z3_mk_unsigned_int64(b.ctx, bits, Z3_mk_bv_sort(b.ctx, width));
             return sflag ? b.tag_signed_constant(value) : value;
       }
       Z3_ast var = b.get_prop_var(idx, width);
@@ -1619,16 +1662,15 @@ static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
 	    if (!b.graph->element_active(idx, elem)) {
 		  vvp_vector4_t data;
 		  owner->get_vec4(member, data, elem);
-		  uint64_t bits = 0;
-		  if (!vec4_to_uint64_(data, bits)) {
+		  Z3_ast ground;
+		  if (!vec4_to_bv_const_(b.ctx, data, width, ground)) {
 			b.state_errors.push_back(
-			      "unsupported width or X/Z value in constraint guard "
+			      "X/Z value in constraint guard "
 			      "(IEEE 1800-2017/2023 18.3)");
-			bits = 0;
+			ground = Z3_mk_unsigned_int64(
+			      b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
 		  }
-		  Z3_ast value = Z3_mk_unsigned_int64(
-			b.ctx, bits, Z3_mk_bv_sort(b.ctx, width));
-		  return sflag ? b.tag_signed_constant(value) : value;
+		  return sflag ? b.tag_signed_constant(ground) : ground;
 	    }
 	    Z3_ast var = b.get_elem_var(idx, width, elem);
 	    if (sflag) b.signed_vars.insert(var);
@@ -1670,12 +1712,12 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       if (*p == ':') {
 	    char*end = nullptr;
 	    width = (unsigned)strtoul(p + 1, &end, 10);
-	    if (width == 0 || width > 64) width = 32;
+	    if (width == 0) width = 32;
 	    p = end;
 	    sflag = (*p == ':' && p[1] == 's');
       }
 
-      uint64_t bits = 0;
+      vvp_vector4_t state_value;
       vvp_cobject*cur = b.cobj;
       string path_error;
       if (!path.empty()) {
@@ -1688,12 +1730,7 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 	    if (!cur || path.back() >= cur->get_defn()->property_count())
                   path_error = "null/invalid constraint object path";
 	    if (path_error.empty()) {
-		  vvp_vector4_t vec;
-		  cur->get_vec4(path.back(), vec);
-		  unsigned nbits = vec.size();
-		  if (nbits > 64) nbits = 64;
-		  for (unsigned bit = 0 ; bit < nbits ; bit += 1)
-			if (vec.value(bit) == BIT4_1) bits |= (1ULL << bit);
+		  cur->get_vec4(path.back(), state_value);
 	    }
       }
 
@@ -1705,8 +1742,11 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       if (b.graph && cur && !path.empty())
             return scalar_property_ref_(b, b.graph->intern(cur, path.back()),
                                         width, sflag);
-      Z3_sort sort = Z3_mk_bv_sort(b.ctx, width);
-      Z3_ast val = Z3_mk_unsigned_int64(b.ctx, bits, sort);
+      Z3_ast val;
+      if (!vec4_to_bv_const_(b.ctx, state_value, width, val)) {
+            b.state_errors.push_back("X/Z value in constraint state (IEEE 1800-2017/2023 18.3)");
+            return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+      }
 	if (sflag) val = b.tag_signed_constant(val);
       return val;
 }
@@ -1736,6 +1776,54 @@ static string capture_balanced_form(IRParser& par)
  * indices are signed int. Substitute `L` with "c:<i>:32:s" (token
  * boundaries only — L may not appear inside other tokens, but guard
  * anyway). */
+static string subst_loop_token_text(const string& body, const string& text)
+{
+      string out;
+      const char* p = body.c_str();
+      auto is_delim = [](char c) {
+	    return c == ' ' || c == '\t' || c == '\n' || c == '('
+		|| c == ')' || c == '[' || c == ']' || c == ',' || c == 0;
+      };
+      char prev = ' ';
+      while (*p) {
+	    if (*p == 'L' && is_delim(prev) && is_delim(p[1])) {
+		  out += text;
+		  prev = 'L';
+		  p++;
+		  continue;
+	    }
+	    prev = *p;
+	    out += *p++;
+      }
+      return out;
+}
+
+/* A known two-state value as a constraint IR constant of the given width:
+ * one c: atom up to 64 bits, otherwise 64-bit chunks joined by concat. */
+static string vec4_ir_constant_(const vvp_vector4_t&value, unsigned width,
+				bool is_signed)
+{
+      auto chunk = [&](unsigned low, unsigned chunk_width) {
+	    uint64_t bits = 0;
+	    for (unsigned bit = 0; bit < chunk_width; ++bit)
+		  if (low + bit < value.size() && value.value(low + bit) == BIT4_1)
+			bits |= UINT64_C(1) << bit;
+	    return to_string(bits);
+      };
+      if (width <= 64)
+	    return "c:" + chunk(0, width) + ":" + to_string(width)
+		  + (is_signed ? ":s" : "");
+      string parts;
+      for (unsigned high = width; high > 0;) {
+	    unsigned low = high > 64 ? high - 64 : 0;
+	    parts += " c:" + chunk(low, high - low) + ":" + to_string(high - low);
+	    high = low;
+      }
+      string ir = "(concat" + parts + ")";
+      if (is_signed) ir = "(trunc:" + to_string(width) + ":s " + ir + ")";
+      return ir;
+}
+
 static string subst_loop_token(const string& body, uint64_t i,
                                unsigned width = 32, bool sign = true)
 {
@@ -2543,6 +2631,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	 * bound to each index and conjoin the instances. */
       if (op == "dynforeach") {
 	    string hdr = par.read_token();
+	      // An integral-key associative array appends /KW[:s], its index type.
+	    string key_hdr;
+	    string::size_type slash = hdr.find('/');
+	    if (slash != string::npos) {
+		  key_hdr = hdr.substr(slash + 1);
+		  hdr.erase(slash);
+	    }
 	    unsigned pidx, ewid; bool esig;
 	    parse_pws_header(hdr, pidx, ewid, esig);
             pidx = b.property_index(pidx);
@@ -2558,6 +2653,34 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			b.dyn_foreach.push_back(rec);
 		  }
 		  return b.mk_true();
+	    }
+	    if (!key_hdr.empty()) {
+		    // IEEE 1800-2017/2023 12.7.3: bind L to every existing key.
+		  unsigned key_width = (unsigned)strtoul(key_hdr.c_str(), nullptr, 10);
+		  bool key_signed = key_hdr.find(":s") != string::npos;
+		  vvp_object_t object;
+		  b.object(pidx)->get_object(b.local_index(pidx), object, 0);
+		  vvp_assoc_base*assoc = object.peek<vvp_assoc_base>();
+		  if (!assoc || key_width == 0) {
+			b.state_errors.push_back("associative foreach property is not a live integral-key associative array");
+			return b.mk_true();
+		  }
+		  Z3_ast conj = b.mk_true();
+		  vvp_vector4_t key;
+		  for (bool ok = assoc->first_key(key, key_signed); ok;
+		       ok = assoc->next_key(key, key_signed)) {
+			if (!vec4_is_two_state_(key)) {
+			      b.state_errors.push_back("X/Z associative foreach key");
+			      return b.mk_true();
+			}
+			string inst_text = subst_loop_token_text(body,
+			      vec4_ir_constant_(key, key_width, key_signed));
+			IRParser sub(inst_text);
+			Z3_ast inst = bv_to_bool(b.ctx, build_z3_atom(sub, b));
+			Z3_ast args[2] = { conj, inst };
+			conj = Z3_mk_and(b.ctx, 2, args);
+		  }
+		  return conj;
 	    }
 	    uint64_t count = 0;
 	    {
@@ -2603,24 +2726,45 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  return b.mk_true();
 	    }
 	    Z3_ast conjunction = b.mk_true();
-	    vvp_object_t key;
-	    for (bool ok = assoc->first_key(key); ok; ok = assoc->next_key(key)) {
-		  vvp_cobject*key_object = key.peek<vvp_cobject>();
-		  if (!key_object) {
-			b.state_errors.push_back("associative foreach key is not a class object");
-			return b.mk_true();
-		  }
+	    vvp_cobject*saved_key = b.assoc_foreach_key;
+	    size_t saved_pos = b.assoc_foreach_pos;
+	    unsigned saved_prop = b.assoc_foreach_prop;
+	    auto instance_term = [&](vvp_cobject*key_object, size_t position) -> bool {
 		  IRParser instance(body);
-		  vvp_cobject*saved = b.assoc_foreach_key;
 		  b.assoc_foreach_key = key_object;
+		  b.assoc_foreach_pos = position;
+		  b.assoc_foreach_prop = pidx;
 		  Z3_ast term = bv_to_bool(b.ctx, build_z3_atom(instance, b));
-		  b.assoc_foreach_key = saved;
+		  b.assoc_foreach_key = saved_key;
+		  b.assoc_foreach_pos = saved_pos;
+		  b.assoc_foreach_prop = saved_prop;
+		  instance.skip_ws();
 		  if (!instance.at_end()) {
 			b.state_errors.push_back("malformed associative foreach body");
-			return b.mk_true();
+			return false;
 		  }
 		  Z3_ast args[2] = {conjunction, term};
 		  conjunction = Z3_mk_and(b.ctx, 2, args);
+		  return true;
+	    };
+	      // Entries are visited in key order; the position addresses the
+	      // entry for qkeyelem, and a class key also serves qkeymember.
+	    vvp_object_t key;
+	    std::string string_key;
+	    size_t position = 0;
+	    if (assoc->first_key(key)) {
+		  do {
+			vvp_cobject*key_object = key.peek<vvp_cobject>();
+			if (!key_object) {
+			      b.state_errors.push_back("associative foreach key is not a class object");
+			      return b.mk_true();
+			}
+			if (!instance_term(key_object, position++)) return b.mk_true();
+		  } while (assoc->next_key(key));
+	    } else if (assoc->first_key(string_key)) {
+		  do {
+			if (!instance_term(nullptr, position++)) return b.mk_true();
+		  } while (assoc->next_key(string_key));
 	    }
 	    return conjunction;
       }
@@ -2645,19 +2789,66 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  b.state_errors.push_back("associative foreach key member width mismatch");
 		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
 	    }
-	    uint64_t bits = 0;
-	    for (unsigned bit = 0; bit < width; ++bit) {
-		  if (value.value(bit) != BIT4_0 && value.value(bit) != BIT4_1) {
-			b.state_errors.push_back("X/Z associative foreach key member state");
-			return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
-		  }
-		  if (value.value(bit) == BIT4_1 && bit < 64) bits |= UINT64_C(1) << bit;
+	    Z3_ast result;
+	    if (!vec4_to_bv_const_(b.ctx, value, width, result)) {
+		  b.state_errors.push_back("X/Z associative foreach key member state");
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
 	    }
-	    Z3_ast result = Z3_mk_unsigned_int64(b.ctx, bits,
-		  Z3_mk_bv_sort(b.ctx, width));
 	    b.set_sv(result, width);
 	    if (sign) result = b.tag_signed_constant(result);
 	    return result;
+      }
+
+	/* (qkeyelem P:W[:s]) -- the element of the entry visited by the
+	 * enclosing class- or string-key associative foreach (12.7.3).
+	 * (skelem P:W[:s] x<hex>) -- the element stored under a constant
+	 * string key. Both address the entry position used by e: leaves. */
+      if (op == "qkeyelem" || op == "skelem") {
+	    string header = par.read_token();
+	    unsigned pidx = 0, width = 32; bool sign = false;
+	    parse_pws_header(header, pidx, width, sign);
+	    pidx = b.property_index(pidx);
+	    string key_hex;
+	    if (op == "skelem") key_hex = par.read_token();
+	    par.skip_ws(); par.expect(')');
+	    size_t position = SIZE_MAX;
+	    if (op == "qkeyelem") {
+		  if (b.assoc_foreach_prop == pidx)
+			position = b.assoc_foreach_pos;
+	    } else if (b.cobj && key_hex.size() % 2 == 1 && key_hex[0] == 'x') {
+		  string wanted;
+		  for (size_t i = 1; i + 1 < key_hex.size(); i += 2)
+			wanted += (char)strtoul(key_hex.substr(i, 2).c_str(), nullptr, 16);
+		  vvp_object_t object;
+		  b.object(pidx)->get_object(b.local_index(pidx), object, 0);
+		  vvp_assoc_base*assoc = object.peek<vvp_assoc_base>();
+		  std::string key;
+		  size_t index = 0;
+		  for (bool more = assoc && assoc->first_key(key); more;
+		       more = assoc->next_key(key), ++index)
+			if (key == wanted) {
+			      position = index;
+			      break;
+			}
+	    }
+	    if (position == SIZE_MAX || position > UINT_MAX) {
+		  b.state_errors.push_back(op == "qkeyelem"
+			? "associative foreach element outside its foreach"
+			: "associative array constraint string key does not exist "
+			  "(IEEE 1800-2017/2023 7.8.6)");
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    }
+	    if (b.collect_refs) {
+		  Z3Builder::VarRef ref = {
+			Z3Builder::VarRef::ELEM, pidx, (unsigned)position
+		  };
+		  b.collect_refs->insert(ref);
+	    }
+	    if (b.collect_refs_only)
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    Z3_ast var = b.get_elem_var(pidx, width, (unsigned)position);
+	    if (sign) b.signed_vars.insert(var);
+	    return var;
       }
 
 	/* Element reference within an expanded dynforeach body:
@@ -2992,9 +3183,52 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    unsigned pidx, ewid; bool esig;
 	    parse_pws_header(hdr, pidx, ewid, esig);
             pidx = b.property_index(pidx);
+	    vvp_assoc_base*assoc = nullptr;
+	    if (b.cobj) {
+		  vvp_object_t object;
+		  b.object(pidx)->get_object(b.local_index(pidx), object, 0);
+		  assoc = object.peek<vvp_assoc_base>();
+	    }
 	    uint64_t idx64 = 0;
-	    bool ok = eval_const_ir(par, idx64);
-	    par.skip_ws(); par.expect(')');
+	    bool ok;
+	    if (assoc) {
+		    // The index is a key (12.7.3): evaluate it exactly, cast it to
+		    // the key width, and address that key's entry position.
+		  Z3Builder scratch(b.ctx, b.defn, b.cobj);
+		  Z3_ast index = build_z3_atom(par, scratch);
+		  par.skip_ws(); par.expect(')');
+		  ok = false;
+		  vvp_vector4_t key;
+		  size_t position = 0;
+		  for (bool more = assoc->first_key(key); more && index;
+		       more = assoc->next_key(key), ++position) {
+			unsigned kw = key.size();
+			unsigned iw = bv_width(b.ctx, index);
+			Z3_ast cast = index;
+			if (iw > kw) cast = Z3_mk_extract(b.ctx, kw - 1, 0, index);
+			else if (iw < kw)
+			      cast = scratch.is_signed(index)
+				    ? Z3_mk_sign_ext(b.ctx, kw - iw, index)
+				    : Z3_mk_zero_ext(b.ctx, kw - iw, index);
+			Z3_ast key_value;
+			if (!vec4_to_bv_const_(b.ctx, key, kw, key_value)) continue;
+			Z3_ast same = Z3_simplify(b.ctx, Z3_mk_eq(b.ctx,
+			      scratch.resolve_signed_constants(cast), key_value));
+			if (Z3_get_bool_value(b.ctx, same) == Z3_L_TRUE) {
+			      idx64 = position;
+			      ok = true;
+			      break;
+			}
+		  }
+		  if (!ok) {
+			b.state_errors.push_back("associative array constraint "
+			      "key does not exist or is not constant (IEEE 1800-2017/2023 7.8.6)");
+			return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
+		  }
+	    } else {
+		  ok = eval_const_ir(par, idx64);
+		  par.skip_ws(); par.expect(')');
+	    }
 	    /* Element identities are represented by an unsigned leaf index.  Do
 	     * not truncate a wider constant into a different live element.  Keep
 	     * the full value in the parse error so every caller rejects the form
@@ -4378,6 +4612,44 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			bits |= width_mask(width) & ~width_mask(sw);
 		  return true;
 	    };
+	      // Items wider than 64 bits keep ground ordered coordinates as
+	      // exact bit-vector numerals (see z3_resolve_dist_exact_wide).
+	    auto wide_bit = [&](unsigned width, unsigned pos) -> Z3_ast {
+		  std::unique_ptr<bool[]> bits(new bool[width]);
+		  for (unsigned i = 0; i < width; ++i) bits[i] = i == pos;
+		  return Z3_mk_bv_numeral(b.ctx, width, bits.get());
+	    };
+	    auto ground_wide = [&](Z3_ast value, unsigned width,
+				   bool use_signed, Z3_ast& out) -> bool {
+		  if (!value || width == 0) return false;
+		  value = coerce_for_compare(value, width, use_signed);
+		  value = b.resolve_signed_constants(value);
+		  value = Z3_simplify(b.ctx, value);
+		  if (!Z3_is_numeral_ast(b.ctx, value)) return false;
+		  out = value;
+		  return true;
+	    };
+	    auto ordered_wide = [&](Z3_ast bits, unsigned width,
+				    bool is_signed) -> Z3_ast {
+		  if (!is_signed) return bits;
+		  return Z3_simplify(b.ctx, Z3_mk_bvxor(b.ctx, bits,
+					wide_bit(width, width - 1)));
+	    };
+	    auto subject_domain_wide = [&](unsigned width, bool high,
+					   Z3_ast& out) -> bool {
+		  if (sw == 0 || width < sw) return false;
+		  std::unique_ptr<bool[]> bits(new bool[width]);
+		  for (unsigned i = 0; i < width; ++i) {
+			if (!subject_signed)
+			      bits[i] = high && i < sw;
+			else if (high)
+			      bits[i] = i + 1 < sw;
+			else
+			      bits[i] = i + 1 >= sw;
+		  }
+		  out = Z3_mk_bv_numeral(b.ctx, width, bits.get());
+		  return true;
+	    };
 	    bool saw_branch = false;
 	    par.skip_ws();
 	    while (par.peek() != ')' && !par.at_end()) {
@@ -4526,6 +4798,31 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      clause = b.mk_true();
 			}
 
+			if (rw > 64) {
+			      Z3_ast lo_wide = 0, hi_wide = 0;
+			      bool wide_ok = lo_order_signed == hi_order_signed
+				    && lo_valid && hi_valid
+				    && (lo_open ? subject_domain_wide(rw, false, lo_wide)
+					: ground_wide(lo_raw, rw, lo_order_signed, lo_wide))
+				    && (hi_open ? subject_domain_wide(rw, true, hi_wide)
+					: ground_wide(hi_raw, rw, hi_order_signed, hi_wide));
+			      if (!wide_ok) {
+				    exact_supported = false;
+				    warn_exact_item_boundary();
+			      }
+			      if (range_weight_per_value && weight != 0)
+				    soft_weight = UINT_MAX;
+			      if (weight != 0 && wide_ok) {
+				    dspec.requires_large_exact = true;
+				    Z3Builder::DistBranch db = {
+					  weight, true, range_weight_per_value,
+					  rw, lo_order_signed, 0, 0,
+					  ordered_wide(lo_wide, rw, lo_order_signed),
+					  ordered_wide(hi_wide, rw, hi_order_signed)
+				    };
+				    dspec.branches.push_back(db);
+			      }
+			} else {
 			uint64_t lo_bits = 0, hi_bits = 0;
 			bool common_order = lo_order_signed == hi_order_signed;
 			bool bounds_ok = common_order && lo_valid && hi_valid && (lo_open
@@ -4562,9 +4859,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      }
 			      Z3Builder::DistBranch db = {
 				    weight, true, range_weight_per_value,
-				    rw, lo_order_signed, lo_coord, hi_coord
+				    rw, lo_order_signed, lo_coord, hi_coord,
+				    nullptr, nullptr
 			      };
 			      dspec.branches.push_back(db);
+			}
 			}
 		  } else {
 			bool value_valid = false;
@@ -4582,18 +4881,30 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 				    coerce_for_compare(subject, vw,
 						       value_compare_signed), value);
 			uint64_t value_bits = 0;
-			bool value_ok = value_valid
-			      && ground_at_width(value_raw, vw,
-					 value_compare_signed, value_bits);
+			Z3_ast value_wide = 0;
+			bool value_ok = value_valid && (vw > 64
+			      ? ground_wide(value_raw, vw, value_compare_signed,
+					    value_wide)
+			      : ground_at_width(value_raw, vw,
+					 value_compare_signed, value_bits));
 			if (!value_ok) {
 			      exact_supported = false;
 			      warn_exact_item_boundary();
 			}
-			if (weight != 0 && value_ok) {
+			if (weight != 0 && value_ok && vw > 64) {
+			      dspec.requires_large_exact = true;
+			      Z3_ast coord = ordered_wide(value_wide, vw,
+							  value_compare_signed);
+			      Z3Builder::DistBranch db = {
+				    weight, true, false, vw,
+				    value_compare_signed, 0, 0, coord, coord
+			      };
+			      dspec.branches.push_back(db);
+			} else if (weight != 0 && value_ok) {
 			      Z3Builder::DistBranch db = {
 				    weight, false, false, vw,
 				    value_compare_signed,
-				    value_bits, value_bits
+				    value_bits, value_bits, nullptr, nullptr
 			      };
 			      dspec.branches.push_back(db);
 			}
@@ -4729,24 +5040,6 @@ static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx)
       return bits;
 }
 
-/* Set vvp_cobject property from uint64 bits. */
-static void cobj_set_prop_bits(vvp_cobject* cobj, unsigned idx, uint64_t bits)
-{
-      vvp_vector4_t vec;
-      cobj->get_vec4(idx, vec);
-      unsigned wid = vec.size();
-      if (wid == 0) return;
-	/* Shifting a uint64_t by 64 or more is undefined C++. The constraint
-	 * model interface is intentionally bounded to uint64_t, so a successfully
-	 * extracted value has zero high bits. */
-      unsigned low_wid = wid < 64 ? wid : 64;
-      for (unsigned b = 0; b < low_wid; ++b)
-	    vec.set_bit(b, ((bits >> b) & 1) ? BIT4_1 : BIT4_0);
-      for (unsigned b = low_wid; b < wid; ++b)
-	    vec.set_bit(b, BIT4_0);
-      cobj->set_vec4(idx, vec);
-}
-
 static bool cobj_set_prop_vec4_(vvp_cobject*cobj, unsigned idx,
                                 const vvp_vector4_t&value)
 {
@@ -4778,13 +5071,6 @@ static uint64_t cobj_member_bits(vvp_cobject*cobj, unsigned outer,
       return owner ? cobj_prop_bits(owner, member) : 0;
 }
 
-static void cobj_set_member_bits(vvp_cobject*cobj, unsigned outer,
-				 unsigned member, uint64_t bits)
-{
-      if (vvp_cobject*owner = cobj_struct_prop(cobj, outer))
-	    cobj_set_prop_bits(owner, member, bits);
-}
-
 static uint64_t cobj_member_elem_bits(vvp_cobject*cobj, unsigned outer,
 				      unsigned member, unsigned elem)
 {
@@ -4798,14 +5084,6 @@ static bool cobj_member_elem_vec4_(vvp_cobject*cobj, unsigned outer,
 {
       vvp_cobject*owner = cobj_struct_prop(cobj, outer);
       return owner && cobj_elem_vec4_(owner, member, elem, value);
-}
-
-static void cobj_set_member_elem_bits(vvp_cobject*cobj, unsigned outer,
-				      unsigned member, unsigned elem,
-				      unsigned width, uint64_t bits)
-{
-      if (vvp_cobject*owner = cobj_struct_prop(cobj, outer))
-	    cobj_set_elem_bits(owner, member, elem, width, bits);
 }
 
 static bool vec4_to_uint64_(const vvp_vector4_t&value, uint64_t&bits)
@@ -5002,27 +5280,24 @@ static Z3_ast z3_vec4_constant_(Z3_context ctx,
 }
 
 /* Write bits into an array-property element. */
-static void cobj_set_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem,
-			       unsigned width, uint64_t bits)
+/* Write a complete value into an array-property element. A fixed array
+ * element keeps its declared width; the value is truncated or zero-extended
+ * to it. */
+static void cobj_set_elem_vec4_(vvp_cobject* cobj, unsigned idx, unsigned elem,
+				const vvp_vector4_t&value)
 {
       vvp_object_t propobj;
       cobj->get_object(idx, propobj, 0);
       if (vvp_darray*da = propobj.peek<vvp_darray>()) {
 	    if (elem >= da->get_size()) return;
-	    vvp_vector4_t vec(width ? width : 32, BIT4_0);
-	    for (unsigned b = 0; b < vec.size() && b < 64; ++b)
-		  vec.set_bit(b, ((bits >> b) & 1) ? BIT4_1 : BIT4_0);
-	    da->set_word(elem, vec);
+	    da->set_word(elem, value);
 	    const class_type*defn = cobj->get_defn();
 	    if (defn->property_is_static(idx))
 		  defn->static_randomize_transaction_mark_dirty(idx, 0);
 	    return;
       }
       if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>()) {
-	    vvp_vector4_t vec(width ? width : 32, BIT4_0);
-	    for (unsigned bit = 0 ; bit < vec.size() && bit < 64 ; bit += 1)
-		  vec.set_bit(bit, ((bits >> bit) & 1) ? BIT4_1 : BIT4_0);
-	    (void) assoc->poke_entry(elem, vec, 0.0, string(), 0);
+	    (void) assoc->poke_entry(elem, value, 0.0, string(), 0);
 	    const class_type*defn = cobj->get_defn();
 	    if (defn->property_is_static(idx))
 		  defn->static_randomize_transaction_mark_dirty(idx, 0);
@@ -5033,7 +5308,7 @@ static void cobj_set_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem,
       unsigned wid = vec.size();
       if (wid == 0) return;
       for (unsigned b = 0; b < wid; ++b)
-	    vec.set_bit(b, (b < 64 && ((bits >> b) & 1)) ? BIT4_1 : BIT4_0);
+	    vec.set_bit(b, b < value.size() ? value.value(b) : BIT4_0);
       cobj->set_vec4(idx, vec, elem);
 }
 
@@ -5193,7 +5468,8 @@ static bool substitute_function_slots_(const string&ir,
  * Build wide constants from existing concat/trunc IR instead of narrowing the
  * runtime value through uint64_t. */
 static bool substitute_class_slots_(const string&ir,
-      const vector<vvp_vector4_t>&slot_vals, string&result, string&error)
+      const vector<vvp_vector4_t>&slot_vals, string&result, string&error,
+      unsigned min_width = 0)
 {
       result.clear();
       const char*begin = ir.c_str();
@@ -5221,6 +5497,11 @@ static bool substitute_class_slots_(const string&ir,
             q = end;
             bool is_signed = q[0] == ':' && q[1] == 's';
             if (is_signed) q += 2;
+            if (width <= min_width) {
+                  result.append(p, q - p);
+                  p = q;
+                  continue;
+            }
             if (slot > UINT_MAX || slot >= slot_vals.size()
                 || slot_vals[(size_t)slot].size() == 0) {
                   error = "missing class constraint function capture slot "
@@ -5262,6 +5543,15 @@ static bool substitute_class_slots_(const string&ir,
             p = q;
       }
       return true;
+}
+
+/* Value slots wider than 64 bits cannot pass through the uint64_t slot
+ * vectors. Substitute them from their complete runtime values first, leaving
+ * narrower slots for the ordinary path. */
+bool vvp_z3_substitute_wide_value_slots(const string&ir,
+      const vector<vvp_vector4_t>&slot_words, string&result, string&error)
+{
+      return substitute_class_slots_(ir, slot_words, result, error, 64);
 }
 
 /* Scope std::randomize may also carry queue/darray membership operands.
@@ -6230,12 +6520,15 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
             to.push_back(Z3_mk_unsigned_int64(b.ctx, number, Z3_get_sort(b.ctx, var)));
       };
       auto word = [&](Z3_ast var, const vvp_vector4_t&data) {
-            uint64_t number = 0;
-            if (!vec4_to_uint64_(data, number)) {
-                  b.state_errors.push_back("unsupported width or X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
+            Z3_ast value;
+            if (!vec4_to_bv_const_(b.ctx, data,
+                        Z3_get_bv_sort_size(b.ctx, Z3_get_sort(b.ctx, var)),
+                        value)) {
+                  b.state_errors.push_back("X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
                   return false;
             }
-            bits(var, number);
+            from.push_back(var);
+            to.push_back(value);
             return true;
       };
       for (const auto&ref : state_refs) {
@@ -6412,6 +6705,42 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
       }
       Z3_solver_pop(ctx, base, 1);
 
+      if (!exhausted || out.empty()) {
+	    out.clear();
+	    return false;
+      }
+      return true;
+}
+
+/* The same bounded probe for a variable wider than 64 bits, keeping each
+ * feasible value as a model numeral. A wide variable is typically an enum or
+ * an inside set with a handful of values; choosing uniformly among the proven
+ * complete set avoids an expensive wide optimizer objective. */
+static bool z3_enumerate_wide_values_(Z3_context ctx, Z3_solver base,
+                                      Z3_ast var, vector<Z3_ast>& out)
+{
+      static const size_t WIDE_DOMAIN_CAP = 64;
+      out.clear();
+      bool exhausted = false;
+      Z3_solver_push(ctx, base);
+      while (out.size() <= WIDE_DOMAIN_CAP) {
+	    Z3_lbool r = Z3_solver_check(ctx, base);
+	    if (r == Z3_L_FALSE) {
+		  exhausted = true;
+		  break;
+	    }
+	    if (r != Z3_L_TRUE) break;
+	    Z3_model m = Z3_solver_get_model(ctx, base);
+	    Z3_model_inc_ref(ctx, m);
+	    Z3_ast value = nullptr;
+	    bool ok = Z3_model_eval(ctx, m, var, true, &value) && value
+		  && Z3_is_numeral_ast(ctx, value);
+	    Z3_model_dec_ref(ctx, m);
+	    if (!ok) break;
+	    out.push_back(value);
+	    Z3_solver_assert(ctx, base, Z3_mk_not(ctx, Z3_mk_eq(ctx, var, value)));
+      }
+      Z3_solver_pop(ctx, base, 1);
       if (!exhausted || out.empty()) {
 	    out.clear();
 	    return false;
@@ -6689,6 +7018,314 @@ static bool z3_isolated_subject_factor_(Z3_context ctx, Z3_solver base,
  * shapes fail explicitly instead of silently using the probability-inexact
  * weighted-soft fallback. On success the winning value is pinned as a hard
  * equality into both `base` and `opt`. */
+/* Unsigned integer of any width for dist items wider than 64 bits:
+ * little-endian 32-bit limbs, normalized without leading zero limbs. */
+struct dist_wide_uint_t {
+      vector<uint32_t> limb;
+
+      static dist_wide_uint_t from_u64(uint64_t v)
+      {
+	    dist_wide_uint_t r;
+	    if (v) r.limb.push_back((uint32_t)v);
+	    if (v >> 32) r.limb.push_back((uint32_t)(v >> 32));
+	    return r;
+      }
+      void trim() { while (!limb.empty() && !limb.back()) limb.pop_back(); }
+      bool zero() const { return limb.empty(); }
+      bool bit(unsigned i) const
+      {
+	    return i / 32 < limb.size() && ((limb[i / 32] >> (i % 32)) & 1);
+      }
+      void set_bit(unsigned i)
+      {
+	    if (limb.size() <= i / 32) limb.resize(i / 32 + 1, 0);
+	    limb[i / 32] |= (uint32_t)1 << (i % 32);
+      }
+      unsigned bit_length() const
+      {
+	    if (limb.empty()) return 0;
+	    unsigned n = (unsigned)(limb.size() - 1) * 32;
+	    for (uint32_t top = limb.back(); top; top >>= 1) ++n;
+	    return n;
+      }
+      uint64_t low64() const
+      {
+	    uint64_t v = 0;
+	    if (limb.size() > 0) v |= limb[0];
+	    if (limb.size() > 1) v |= (uint64_t)limb[1] << 32;
+	    return v;
+      }
+      static int cmp(const dist_wide_uint_t&a, const dist_wide_uint_t&b)
+      {
+	    if (a.limb.size() != b.limb.size())
+		  return a.limb.size() < b.limb.size() ? -1 : 1;
+	    for (size_t i = a.limb.size(); i > 0; --i)
+		  if (a.limb[i - 1] != b.limb[i - 1])
+			return a.limb[i - 1] < b.limb[i - 1] ? -1 : 1;
+	    return 0;
+      }
+      static dist_wide_uint_t add(const dist_wide_uint_t&a,
+				  const dist_wide_uint_t&b)
+      {
+	    dist_wide_uint_t r;
+	    uint64_t carry = 0;
+	    for (size_t i = 0; i < max(a.limb.size(), b.limb.size()) || carry; ++i) {
+		  uint64_t sum = carry;
+		  if (i < a.limb.size()) sum += a.limb[i];
+		  if (i < b.limb.size()) sum += b.limb[i];
+		  r.limb.push_back((uint32_t)sum);
+		  carry = sum >> 32;
+	    }
+	    r.trim();
+	    return r;
+      }
+	// Requires a >= b.
+      static dist_wide_uint_t sub(const dist_wide_uint_t&a,
+				  const dist_wide_uint_t&b)
+      {
+	    dist_wide_uint_t r = a;
+	    int64_t borrow = 0;
+	    for (size_t i = 0; i < r.limb.size(); ++i) {
+		  int64_t diff = (int64_t)r.limb[i] - borrow
+			- (i < b.limb.size() ? (int64_t)b.limb[i] : 0);
+		  borrow = diff < 0;
+		  r.limb[i] = (uint32_t)(diff + (borrow ? ((int64_t)1 << 32) : 0));
+	    }
+	    r.trim();
+	    return r;
+      }
+      static dist_wide_uint_t mul_small(const dist_wide_uint_t&a, uint32_t m)
+      {
+	    dist_wide_uint_t r;
+	    uint64_t carry = 0;
+	    for (size_t i = 0; i < a.limb.size() || carry; ++i) {
+		  uint64_t prod = carry
+			+ (i < a.limb.size() ? (uint64_t)a.limb[i] * m : 0);
+		  r.limb.push_back((uint32_t)prod);
+		  carry = prod >> 32;
+	    }
+	    r.trim();
+	    return r;
+      }
+	// Exact uniform draw in [0, bound) by rejection over bit_length bits.
+      static dist_wide_uint_t uniform_below(z3_rng_stream_t&rng,
+					    const dist_wide_uint_t&bound)
+      {
+	    unsigned bits = bound.bit_length();
+	    for (;;) {
+		  dist_wide_uint_t r;
+		  r.limb.resize((bits + 31) / 32, 0);
+		  for (size_t i = 0; i < r.limb.size(); ++i)
+			r.limb[i] = rng.next();
+		  if (bits % 32 && !r.limb.empty())
+			r.limb.back() &= ((uint32_t)1 << (bits % 32)) - 1;
+		  r.trim();
+		  if (cmp(r, bound) < 0) return r;
+	    }
+      }
+      static bool from_numeral(Z3_context ctx, Z3_ast value,
+			       dist_wide_uint_t&out)
+      {
+	    if (!value || !Z3_is_numeral_ast(ctx, value)) return false;
+	    Z3_string text = Z3_get_numeral_string(ctx, value);
+	    if (!text || !*text) return false;
+	    out.limb.clear();
+	    for (const char*p = text; *p; ++p) {
+		  if (*p < '0' || *p > '9') return false;
+		  out = add(mul_small(out, 10), from_u64((uint64_t)(*p - '0')));
+	    }
+	    return true;
+      }
+      Z3_ast numeral(Z3_context ctx, unsigned width) const
+      {
+	    std::unique_ptr<bool[]> bits(new bool[width]);
+	    for (unsigned i = 0; i < width; ++i) bits[i] = bit(i);
+	    return Z3_mk_bv_numeral(ctx, width, bits.get());
+      }
+};
+
+/* Exact dist sampling for items wider than 64 bits (IEEE 1800-2017 18.5.4,
+ * 1800-2023 18.5.3), with the same semantics as the <=64-bit path: choose a
+ * feasible item in proportion to its aggregate weight (w per value for :=,
+ * w for :/), then a value uniformly among the item's feasible values. A value
+ * is drawn uniformly over the item range and kept when feasible; after
+ * bounded misses the item's feasible values are enumerated with blocking
+ * clauses and one is drawn uniformly, which preserves the item ticket and the
+ * exact distribution. A feasible set too large to enumerate is reported as
+ * indeterminate; the caller then fails loudly instead of approximating. */
+static bool z3_resolve_dist_exact_wide(Z3_context ctx, Z3_solver base,
+				       Z3_optimize opt,
+				       const Z3Builder::DistSpec&spec,
+				       z3_rng_stream_t&rng, uint64_t&chosen,
+				       bool require_complete_ranges,
+				       bool validate_only,
+				       bool*indeterminate)
+{
+      typedef dist_wide_uint_t big;
+      auto unsupported = [&]() -> bool {
+	    if (indeterminate) *indeterminate = true;
+	    return false;
+      };
+	// The joint-distribution tuple paths carry 64-bit subject values.
+      if (require_complete_ranges) return unsupported();
+      Z3_lbool full = Z3_solver_check(ctx, base);
+      if (full == Z3_L_UNDEF) return unsupported();
+      if (full == Z3_L_FALSE) return false;
+
+      Z3_sort subject_sort = Z3_get_sort(ctx, spec.subject);
+      if (Z3_get_sort_kind(ctx, subject_sort) != Z3_BV_SORT)
+	    return unsupported();
+      unsigned physical_width = Z3_get_bv_sort_size(ctx, subject_sort);
+
+      auto power2 = [](unsigned n) { big r; r.set_bit(n); return r; };
+      auto subject_coordinate = [&](const Z3Builder::DistBranch&br) -> Z3_ast {
+	    Z3_ast sx = spec.subject;
+	    if (physical_width < br.value_width)
+		  sx = br.comparison_signed
+			? Z3_mk_sign_ext(ctx, br.value_width - physical_width, sx)
+			: Z3_mk_zero_ext(ctx, br.value_width - physical_width, sx);
+	    if (br.comparison_signed)
+		  sx = Z3_mk_bvxor(ctx, sx,
+			power2(br.value_width - 1).numeral(ctx, br.value_width));
+	    return sx;
+      };
+      auto range_ast = [&](const Z3Builder::DistBranch&br, const big&lo,
+			   const big&hi) -> Z3_ast {
+	    Z3_ast sx = subject_coordinate(br);
+	    Z3_ast bounds[2] = {
+		  Z3_mk_bvuge(ctx, sx, lo.numeral(ctx, br.value_width)),
+		  Z3_mk_bvule(ctx, sx, hi.numeral(ctx, br.value_width))};
+	    return Z3_mk_and(ctx, 2, bounds);
+      };
+      auto pin_ast = [&](const Z3Builder::DistBranch&br, const big&coord) {
+	    return Z3_mk_eq(ctx, subject_coordinate(br),
+			    coord.numeral(ctx, br.value_width));
+      };
+      auto commit = [&](const Z3Builder::DistBranch&br, const big&coord) {
+	    Z3_ast pin = pin_ast(br, coord);
+	    Z3_solver_assert(ctx, base, pin);
+	    Z3_optimize_assert(ctx, opt, pin);
+	    big value = coord;
+	    if (br.comparison_signed) {
+		  big sign = power2(br.value_width - 1);
+		  value = big::cmp(coord, sign) >= 0 ? big::sub(coord, sign)
+			: big::add(coord, sign);
+	    }
+	    chosen = value.low64();
+	    return true;
+      };
+
+      struct item_t {
+	    const Z3Builder::DistBranch*br;
+	    big first, last, weight;
+      };
+      vector<item_t> items;
+      for (const auto&br : spec.branches) {
+	    if (!br.weight) continue;
+	    if (br.value_width == 0 || physical_width > br.value_width)
+		  return unsupported();
+	    big first, last;
+	    if (br.value_width > 64) {
+		  if (!big::from_numeral(ctx, br.wide_lo, first)
+		      || !big::from_numeral(ctx, br.wide_hi, last))
+			return unsupported();
+	    } else {
+		  uint64_t lo = br.lo, hi = br.is_range ? br.hi : br.lo;
+		  if (!br.is_range && br.comparison_signed)
+			lo = hi = lo ^ ((uint64_t)1 << (br.value_width - 1));
+		  first = big::from_u64(lo);
+		  last = big::from_u64(hi);
+	    }
+	    if (big::cmp(last, first) < 0) continue;
+	    big declared_span = big::add(big::sub(last, first), big::from_u64(1));
+	      // Clip to the subject's representable image, as the narrow path does.
+	    big image_lo, image_hi;
+	    if (br.comparison_signed) {
+		  big center = power2(br.value_width - 1);
+		  big half = power2(physical_width - 1);
+		  image_lo = big::sub(center, half);
+		  image_hi = big::sub(big::add(center, half), big::from_u64(1));
+	    } else {
+		  image_hi = big::sub(power2(physical_width), big::from_u64(1));
+	    }
+	    if (big::cmp(first, image_lo) < 0) first = image_lo;
+	    if (big::cmp(last, image_hi) > 0) last = image_hi;
+	    if (big::cmp(first, last) > 0) continue;
+	    big weight = big::from_u64(br.weight);
+	    if (br.is_range && br.range_weight_per_value)
+		  weight = big::mul_small(declared_span, br.weight);
+
+	    Z3_solver_push(ctx, base);
+	    Z3_solver_assert(ctx, base, range_ast(br, first, last));
+	    Z3_lbool any = Z3_solver_check(ctx, base);
+	    Z3_solver_pop(ctx, base, 1);
+	    if (any == Z3_L_UNDEF) return unsupported();
+	    if (any == Z3_L_FALSE) continue;
+	    items.push_back({&br, first, last, weight});
+      }
+      if (items.empty()) return false;
+      if (validate_only) return true;
+
+      static const size_t WIDE_DIST_ENUM_CAP = 16384;
+      while (!items.empty()) {
+	    big total;
+	    for (const auto&item : items) total = big::add(total, item.weight);
+	    big ticket = big::uniform_below(rng, total);
+	    size_t selected = items.size() - 1;
+	    for (size_t i = 0; i < items.size(); ++i) {
+		  if (big::cmp(ticket, items[i].weight) < 0) {
+			selected = i;
+			break;
+		  }
+		  ticket = big::sub(ticket, items[i].weight);
+	    }
+	    const item_t&item = items[selected];
+	    const Z3Builder::DistBranch&br = *item.br;
+	    big span = big::add(big::sub(item.last, item.first), big::from_u64(1));
+	    for (unsigned attempt = 0; attempt < 64; ++attempt) {
+		  big coord = big::add(item.first, big::uniform_below(rng, span));
+		  Z3_ast pin = pin_ast(br, coord);
+		  Z3_lbool feasible = Z3_solver_check_assumptions(ctx, base, 1, &pin);
+		  if (feasible == Z3_L_UNDEF) return unsupported();
+		  if (feasible == Z3_L_TRUE) return commit(br, coord);
+	    }
+	      // Same item ticket: enumerate its feasible values exactly.
+	    vector<big> values;
+	    Z3_solver_push(ctx, base);
+	    Z3_solver_assert(ctx, base, range_ast(br, item.first, item.last));
+	    Z3_ast coordinate = subject_coordinate(br);
+	    for (;;) {
+		  Z3_lbool more = Z3_solver_check(ctx, base);
+		  if (more == Z3_L_UNDEF || values.size() == WIDE_DIST_ENUM_CAP) {
+			Z3_solver_pop(ctx, base, 1);
+			return unsupported();
+		  }
+		  if (more == Z3_L_FALSE) break;
+		  Z3_model model = Z3_solver_get_model(ctx, base);
+		  Z3_model_inc_ref(ctx, model);
+		  Z3_ast value = nullptr;
+		  bool ok = Z3_model_eval(ctx, model, coordinate, true, &value);
+		  big found;
+		  ok = ok && big::from_numeral(ctx, value, found);
+		  Z3_model_dec_ref(ctx, model);
+		  if (!ok) {
+			Z3_solver_pop(ctx, base, 1);
+			return unsupported();
+		  }
+		  values.push_back(found);
+		  Z3_solver_assert(ctx, base, Z3_mk_not(ctx, pin_ast(br, found)));
+	    }
+	    Z3_solver_pop(ctx, base, 1);
+	    if (values.empty()) {
+		  items.erase(items.begin() + selected);
+		  continue;
+	    }
+	    return commit(br, values.size() == 1 ? values.front()
+			  : values[rng.uniform_index(values.size())]);
+      }
+      return false;
+}
+
 static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    Z3_optimize opt,
                                    const Z3Builder::DistSpec& spec,
@@ -6699,6 +7336,11 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    bool*indeterminate = nullptr)
 {
       if (indeterminate) *indeterminate = false;
+      for (const auto&br : spec.branches)
+	    if (br.weight && br.value_width > 64)
+		  return z3_resolve_dist_exact_wide(ctx, base, opt, spec, rng,
+						    chosen, require_complete_ranges,
+						    validate_only, indeterminate);
       static const uint64_t RANGE_EXPAND_CAP = 256;
       auto candidate_pin = [&](uint64_t v, unsigned vw,
 			       bool comparison_signed) -> Z3_ast {
@@ -7823,10 +8465,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             if (!type || !type->property_is_enum(pid)) return;
             vector<Z3_ast> literals;
             for (const auto&value : type->property_enum_values(pid)) {
-                  uint64_t bits = 0;
-                  if (!vec4_to_uint64_(value, bits)) continue;
-                  Z3_ast literal = Z3_mk_unsigned_int64(ctx, bits,
-                        Z3_mk_bv_sort(ctx, width));
+                  Z3_ast literal;
+                  if (!vec4_to_bv_const_(ctx, value, width, literal)) continue;
                   literals.push_back(Z3_mk_eq(ctx, variable, literal));
             }
             Z3_ast domain = literals.empty() ? Z3_mk_false(ctx)
@@ -7836,11 +8476,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             Z3_optimize_assert(ctx, opt, domain);
             Z3_solver_assert(ctx, base, domain);
       };
-      if (graph)
-            for (const auto&pv : builder.prop_vars)
-                  if (rand_scalar_active_(builder, prop_active, pv.idx))
-                        add_enum_domain(builder.type(pv.idx), builder.local_index(pv.idx),
-                                        pv.width, pv.var);
+      // This includes a non-rand enum made random by an argument list or by
+      // scope randomization (IEEE 18.11, 18.12).
+      for (const auto&pv : builder.prop_vars)
+            if (rand_scalar_active_(builder, prop_active, pv.idx))
+                  add_enum_domain(builder.type(pv.idx), builder.local_index(pv.idx),
+                                  pv.width, pv.var);
+      for (const auto&ev : builder.elem_vars)
+            if (rand_elem_active_(builder, prop_active, ev.idx, ev.elem))
+                  add_enum_domain(builder.type(ev.idx), builder.local_index(ev.idx),
+                                  ev.width, ev.var);
       for (const auto&mv : builder.member_vars) {
             if (!rand_member_active_(builder, prop_active, mv.outer, mv.member)) continue;
             vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
@@ -8418,6 +9063,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   joint_randc_failed = true;
                   return;
             }
+	    if (!fallback_managed && pv.width > 64
+		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
+		  vector<Z3_ast> values;
+		  if (z3_enumerate_wide_values_(ctx, base, pv.var, values)) {
+			Z3_ast eq = Z3_mk_eq(ctx, pv.var,
+			      values[property_rng(pv.idx).uniform_index(values.size())]);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
+	    }
 	    if (!fallback_managed && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))
                 && Z3_solver_check(ctx, base) == Z3_L_TRUE) {
 		  static bool warned_randc_wide = false;
@@ -8433,10 +9089,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 
 	    uint64_t rand_bits = cobj_prop_bits(builder.object(pv.idx), builder.local_index(pv.idx));
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
-	    Z3_ast xor_expr = Z3_mk_bvxor(ctx, pv.var, rv);
-	    Z3_optimize_minimize(ctx, opt, xor_expr);
+	    vvp_vector4_t prefill;
+	    if (pv.width > 64)
+		  builder.object(pv.idx)->get_vec4(builder.local_index(pv.idx), prefill);
+	    z3_minimize_diversity_(ctx, opt, pv.var, pv.width, rand_bits, prefill);
       }
 
 	// Unpacked-struct scalar leaves use the same exact feasible-domain
@@ -8542,12 +9198,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			}
 		  }
 	    }
+	    if (!element_randc && !fallback_managed && ev.width > 64) {
+		  vector<Z3_ast> values;
+		  if (z3_enumerate_wide_values_(ctx, base, ev.var, values)) {
+			Z3_ast eq = Z3_mk_eq(ctx, ev.var,
+			      values[property_rng(ev.idx).uniform_index(values.size())]);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
+	    }
 	    uint64_t rand_bits = 0;
-	    for (unsigned b = 0; b < ev.width && b < 64; ++b)
-		  if (property_rng(ev.idx).next() & 1) rand_bits |= (1ULL << b);
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
-	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, ev.var, rv));
+	    vvp_vector4_t target_bits(ev.width > 64 ? ev.width : 0, BIT4_0);
+	    for (unsigned b = 0; b < ev.width; ++b) {
+		  bool one = property_rng(ev.idx).next() & 1;
+		  if (one && b < 64) rand_bits |= (1ULL << b);
+		  if (ev.width > 64) target_bits.set_bit(b, one ? BIT4_1 : BIT4_0);
+		  if (ev.width <= 64 && b + 1 >= 64) break;
+	    }
+	    z3_minimize_diversity_(ctx, opt, ev.var, ev.width, rand_bits, target_bits);
       }
       };
 
@@ -9685,9 +10354,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    uint64_t rand_bits = cobj_member_bits(builder.object(mv.outer), builder.local_index(mv.outer), mv.member);
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, mv.width);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
-	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, mv.var, rv));
+	    vvp_vector4_t prefill;
+	    if (mv.width > 64)
+		  if (vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
+					     builder.local_index(mv.outer)))
+			owner->get_vec4(mv.member, prefill);
+	    z3_minimize_diversity_(ctx, opt, mv.var, mv.width, rand_bits, prefill);
       }
       sample_member_elements(false);
       for (auto& sv : builder.size_vars) {
@@ -9810,7 +10482,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    unsigned outer;
 	    unsigned member;
 	    unsigned width;
-	    uint64_t bits;
+	    vvp_vector4_t value;
       };
       vector<member_write_t> member_writes;
       for (auto& mv : builder.member_vars) {
@@ -9818,28 +10490,28 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!rand_member_active_(builder, prop_active,
 				     mv.outer, mv.member))
 		  continue;
-	    uint64_t bits = 0;
-	    if (!z3_eval_uint64(ctx, model, mv.var, bits)) {
+	    vvp_vector4_t value;
+	    if (!z3_eval_vec4_(ctx, model, mv.var, value)) {
 		  Z3_model_dec_ref(ctx, model);
 		  Z3_solver_dec_ref(ctx, base);
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
-	    member_write_t write = {mv.outer, mv.member, mv.width, bits};
+	    member_write_t write = {mv.outer, mv.member, mv.width, value};
 	    member_writes.push_back(write);
       }
       struct member_elem_write_t {
 	    unsigned outer, member, elem, width;
-	    uint64_t bits;
+	    vvp_vector4_t value;
       };
       vector<member_elem_write_t> member_elem_writes;
       for (auto&av : builder.member_elem_vars) {
 	    if (defer_joint || !rand_member_elem_active_(builder, prop_active,
 						  av.outer, av.member, av.elem))
 		  continue;
-	    uint64_t bits = 0;
-	    if (!z3_eval_uint64(ctx, model, av.var, bits)) {
+	    vvp_vector4_t value;
+	    if (!z3_eval_vec4_(ctx, model, av.var, value)) {
 		  Z3_model_dec_ref(ctx, model);
 		  Z3_solver_dec_ref(ctx, base);
 		  Z3_optimize_dec_ref(ctx, opt);
@@ -9847,7 +10519,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  return Z3PASS_FAILED;
 	    }
 	    member_elem_writes.push_back(
-		  {av.outer, av.member, av.elem, av.width, bits});
+		  {av.outer, av.member, av.elem, av.width, value});
       }
 
       for (auto& pv : builder.prop_vars) {
@@ -9876,22 +10548,29 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			  pv.idx, pv.width);
       }
       for (const member_write_t&write : member_writes) {
-	    cobj_set_member_bits(builder.object(write.outer), builder.local_index(write.outer), write.member, write.bits);
+	    vvp_cobject*owner = cobj_struct_prop(builder.object(write.outer),
+				  builder.local_index(write.outer));
+	    if (owner && !cobj_set_prop_vec4_(owner, write.member, write.value)) {
+		  fprintf(stderr, "ERROR: constraint model width %u does not match "
+			  "struct member width.\n", write.value.size());
+		  Z3_model_dec_ref(ctx, model);
+		  Z3_solver_dec_ref(ctx, base);
+		  Z3_optimize_dec_ref(ctx, opt);
+		  Z3_del_context(ctx);
+		  return Z3PASS_FAILED;
+	    }
 	    if (z3_dyndbg())
 		  fprintf(stderr, "[z3dyn] member outer=%u member=%u "
-			  "width=%u bits=%llu\n", write.outer,
-			  write.member, write.width,
-			  (unsigned long long)write.bits);
+			  "width=%u\n", write.outer, write.member, write.width);
       }
       for (const member_elem_write_t&write : member_elem_writes) {
-	    cobj_set_member_elem_bits(builder.object(write.outer),
-		  builder.local_index(write.outer), write.member, write.elem,
-		  write.width, write.bits);
+	    if (vvp_cobject*owner = cobj_struct_prop(builder.object(write.outer),
+				  builder.local_index(write.outer)))
+		  cobj_set_elem_vec4_(owner, write.member, write.elem, write.value);
 	    if (z3_dyndbg())
 		  fprintf(stderr, "[z3dyn] member-element outer=%u member=%u "
-			  "elem=%u width=%u bits=%llu\n", write.outer,
-			  write.member, write.elem, write.width,
-			  (unsigned long long)write.bits);
+			  "elem=%u width=%u\n", write.outer,
+			  write.member, write.elem, write.width);
       }
 
 	// Apply solved dynamic-array/queue sizes: create (or replace) the
@@ -9943,6 +10622,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
 		  : make_random_container_(desc, (size_t)new_size);
 	    bool is_randc = builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx));
+	    // New enum elements take a declared literal (IEEE 18.4); modeled
+	    // elements are re-solved under the same domain below.
+	    const vector<vvp_vector4_t>&enum_domain =
+		  builder.type(sv.idx)->property_enum_values(builder.local_index(sv.idx));
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
 		  const uint64_t queue_max = desc.max_size;
@@ -9952,6 +10635,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						 sv.idx, (unsigned)adr);
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
+			else if (!is_randc && !enum_domain.empty())
+			      nv = enum_domain[property_rng(sv.idx).next()
+					       % enum_domain.size()];
 			else if (is_randc && desc.elem_width > 0
 				 && desc.elem_width <= 20) {
 			      const std::vector<bool>*history = old_array
@@ -9988,6 +10674,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						 sv.idx, (unsigned)adr);
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
+			else if (!is_randc && !enum_domain.empty())
+			      nv = enum_domain[property_rng(sv.idx).next()
+					       % enum_domain.size()];
 			else if (is_randc && wid <= 20) {
 			      const std::vector<bool>*history = old_array
 				    && adr < old_array->get_size()
@@ -10065,15 +10754,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
-	    uint64_t bits = 0;
-	    bool ev_ok = z3_eval_uint64(ctx, model, ev.var, bits);
+	    vvp_vector4_t value;
+	    bool ev_ok = z3_eval_vec4_(ctx, model, ev.var, value);
 	    if (ev_ok)
-		  cobj_set_elem_bits(builder.object(ev.idx), builder.local_index(ev.idx), ev.elem, ev.width, bits);
+		  cobj_set_elem_vec4_(builder.object(ev.idx), builder.local_index(ev.idx), ev.elem, value);
 	    if (z3_dyndbg())
 		  fprintf(stderr, "[z3dyn] writeback prop=%u elem=%u width=%u "
-			  "eval_ok=%d bits=%llu (post-write da_size=%llu)\n",
+			  "eval_ok=%d (post-write da_size=%llu)\n",
 			  ev.idx, ev.elem, ev.width, ev_ok ? 1 : 0,
-			  (unsigned long long)bits,
 			  (unsigned long long)cobj_darray_size(builder.object(ev.idx), builder.local_index(ev.idx)));
       }
 
@@ -10543,6 +11231,10 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                               goto fail;
                         }
                         string header = parser.read_token();
+                        if (header.find('/') != string::npos) {
+                              plan.error = "function calls inside associative-array foreach priority are not yet supported";
+                              goto fail;
+                        }
                         unsigned local = 0, width = 0; bool is_signed = false;
                         parse_pws_header(header, local, width, is_signed);
                         unsigned canonical = graph.intern(
@@ -10960,7 +11652,16 @@ bool vvp_z3_randomize_scope(const string&ir,
 	    else if (target.size() > pv.width)
 		  target.erase(0, target.size() - pv.width);
 	    Z3_ast rv = binary_bv(target);
-	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, pv.var, rv));
+	    if (pv.width <= 64) {
+		  Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, pv.var, rv));
+		  continue;
+	    }
+	    // See z3_minimize_diversity_: a full-width objective is very slow.
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+		  Z3_mk_extract(ctx, pv.width - 1, pv.width - 64, pv.var),
+		  Z3_mk_extract(ctx, pv.width - 1, pv.width - 64, rv)));
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+		  Z3_mk_extract(ctx, 63, 0, pv.var), Z3_mk_extract(ctx, 63, 0, rv)));
       }
 
       Z3_lbool result = Z3_optimize_check(ctx, opt, 0, nullptr);
@@ -11029,6 +11730,48 @@ bool vvp_z3_randomize_scope(const string&ir,
       Z3_optimize_dec_ref(ctx, opt);
       Z3_del_context(ctx);
       return true;
+}
+
+/* Expand each qv:N:W[:s] membership operand to the current elements of
+ * container slot N at their full width (IEEE 1800-2017/2023 11.4.13). An
+ * X/Z element becomes qbad (a guard-aware 18.3 error); an empty container
+ * stays qempty, which is false rather than vacuously true. */
+string vvp_z3_substitute_object_value_slots(const string&ir,
+      const vector<vector<vvp_vector4_t> >&object_words)
+{
+      string result;
+      const char*p = ir.c_str();
+      while (*p) {
+	    bool at_token = p[0] == 'q' && p[1] == 'v' && p[2] == ':'
+		  && (p == ir.c_str() || !isalnum((unsigned char)p[-1]));
+	    if (!at_token) {
+		  result += *p++;
+		  continue;
+	    }
+	    const char*q = p + 3;
+	    unsigned slot = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+	    unsigned width = 32;
+	    bool is_signed = false;
+	    if (*q == ':') {
+		  q++;
+		  width = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+		  if (*q == ':' && q[1] == 's') { is_signed = true; q += 2; }
+	    }
+	    string suffix = is_signed ? ":s" : "";
+	    if (slot >= object_words.size() || object_words[slot].empty()) {
+		  result += "qempty:" + to_string(width) + suffix;
+	    } else {
+		  const vector<vvp_vector4_t>&words = object_words[slot];
+		  for (size_t i = 0 ; i < words.size() ; i += 1) {
+			if (i) result += " ";
+			result += words[i].size() && vec4_is_two_state_(words[i])
+			      ? vec4_ir_constant_(words[i], width, is_signed)
+			      : "qbad:" + to_string(width) + suffix;
+		  }
+	    }
+	    p = q;
+      }
+      return result;
 }
 
 bool vvp_z3_randomize_scope_queue(const string&ir,

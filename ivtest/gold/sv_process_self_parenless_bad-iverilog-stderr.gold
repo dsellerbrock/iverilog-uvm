@@ -1,0 +1,2 @@
+ivltests/sv_process_self_parenless_bad.v:4: error: Unable to bind variable `process.no_such_method' in `test'
+Elaboration failed

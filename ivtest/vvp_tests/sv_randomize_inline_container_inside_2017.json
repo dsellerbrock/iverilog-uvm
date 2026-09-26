@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_randomize_inline_container_inside.v",
+    "iverilog-args" : [ "-g2017" ]
+}
