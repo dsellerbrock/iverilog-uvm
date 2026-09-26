@@ -19606,6 +19606,12 @@ NetProc* PDisable::elaborate(Design*des, NetScope*scope) const
       list<hname_t> spath = eval_scope_path(des, scope, scope_);
 
       NetScope*target = des->find_scope(scope, spath);
+	// A task named from a class method may be inherited: resolve it
+	// through the class hierarchy like any other member name.
+      if (target == 0 && spath.size() == 1 && scope->get_class_scope()) {
+	    if (const netclass_t*cls = scope->get_class_scope()->class_def())
+		  target = cls->method_from_name(spath.front().peek_name());
+      }
       if (target == 0) {
 	    cerr << get_fileline() << ": error: Cannot find scope "
 		 << scope_ << " in " << scope_path(scope) << endl;
@@ -25976,6 +25982,36 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!obuf || !opend || !raw)
 			continue;
+		    /* A clocking output to a net is an additional driver of the
+		       net (IEEE 1800-2017/2023 14.16), resolved with its other
+		       drivers; a procedural write into the net would instead
+		       overwrite, or corrupt, the net's existing driver. Drive the
+		       net from a hidden variable through a continuous buffer. The
+		       variable holds 'z until the first clocking drive. A
+		       variable, including one with a continuous assignment
+		       (UNRESOLVED_WIRE), keeps the procedural clocking write. */
+		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
+		      && raw->type() != NetNet::UNRESOLVED_WIRE) {
+			string vname = string("_ivl_odrv$") + cb->name.str()
+			      + "$" + sig_it->str();
+			NetNet*drive = new NetNet(scope, lex_strings.make(vname.c_str()),
+						  NetNet::REG, raw->net_type());
+			drive->set_line(*cb);
+			drive->local_flag(true);
+			NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
+						     raw->vector_width(), false);
+			buffer->set_line(*cb);
+			des->add_node(buffer);
+			connect(drive->pin(0), buffer->pin(1));
+			connect(raw->pin(0), buffer->pin(0));
+			verinum z_v (verinum::Vz, raw->vector_width());
+			NetEConst*z = new NetEConst(z_v);
+			z->set_line(*cb);
+			NetAssign*init = new NetAssign(new NetAssign_(drive), z);
+			init->set_line(*cb);
+			prologue->append(init);
+			raw = drive;
+		  }
 		  out_raws.push_back(raw);
 		  out_bufs.push_back(obuf);
 		  out_pends.push_back(opend);

@@ -21552,7 +21552,13 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	       and fails when no signal is found. Try to resolve it as a
 	       static method call before erroring. */
 	    if (gn_system_verilog() && path_.size() >= 2) {
-		  if (resolve_scoped_class_method_func_(des, scope, path_,
+		    // The built-in process class has no class scope for the
+		    // resolver to find; process::self is its static method.
+		  const bool process_self = path_.size() == 2
+			&& peek_head_name(path_) == perm_string::literal("process")
+			&& peek_tail_name(path_) == perm_string::literal("self");
+		  if (process_self
+		      || resolve_scoped_class_method_func_(des, scope, path_,
 							  nullptr)) {
 			std::vector<named_pexpr_t> empty_parms;
 			PECallFunction*call = new PECallFunction(path_.name, empty_parms);

@@ -4526,6 +4526,36 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 		  if (!clocking_comp.index.empty())
 			return false;
 
+		    /* vif.mp.cb.member: a modport selects a view of the
+		       interface (IEEE 1800-2017 25.5). When it exports the
+		       clocking block that follows, drop the modport component
+		       and rewrite the remaining clocking path. An unexported
+		       block is left for ordinary lookup to reject. */
+		  if (next != sr.path_tail.end() && next->index.empty()
+		      && class_type->property_idx_from_name(clocking_comp.name) < 0) {
+			const PModport*view =
+			      interface_modport_view(class_type, clocking_comp.name);
+			if (view && view->clocking_ports.count(next->name)) {
+			      pform_name_t reduced = ident->path().name;
+			      size_t resolved_count = reduced.size() - sr.path_tail.size();
+			      pform_name_t::iterator mp_it = reduced.begin();
+			      advance(mp_it, resolved_count + offset);
+			      if (mp_it == reduced.end() || mp_it->name != clocking_comp.name)
+				    return false;
+			      reduced.erase(mp_it);
+			      PEIdent reduced_ident(ident->path().package, reduced,
+						    ident->lexical_pos());
+			      reduced_ident.set_line(*ident);
+			      symbol_search_results reduced_sr = sr;
+			      pform_name_t::iterator tail_it = reduced_sr.path_tail.begin();
+			      advance(tail_it, offset);
+			      reduced_sr.path_tail.erase(tail_it);
+			      return rewrite_class_clocking_member_path(&reduced_ident,
+				    reduced_sr, rewritten, as_lvalue, input_write,
+				    clocking_access);
+			}
+		  }
+
 		  const netclass_t::clocking_block_t*clocking =
 			class_type->find_clocking_block(clocking_comp.name);
 		  if (clocking && next != sr.path_tail.end()) {
@@ -4832,6 +4862,21 @@ bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 	    return true;
       }
       return false;
+}
+
+const PModport* interface_modport_view(const netclass_t*interface_type,
+				      perm_string modport)
+{
+      if (!interface_type || !interface_type->is_interface() || modport.nil())
+	    return nullptr;
+      map<perm_string,Module*>::const_iterator interface_it =
+	    pform_modules.find(interface_type->get_name());
+      if (interface_it == pform_modules.end())
+	    return nullptr;
+      map<perm_string,PModport*>::const_iterator modport_it =
+	    interface_it->second->modports.find(modport);
+      return modport_it == interface_it->second->modports.end()
+	    ? nullptr : modport_it->second;
 }
 
 bool validate_interface_modport_access(Design*des, const LineInfo*loc,
