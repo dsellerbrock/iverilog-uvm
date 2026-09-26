@@ -299,4 +299,37 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       vvp_fun_intermodpath& operator= (const vvp_fun_intermodpath&);
 };
 
+/*
+ * A continuous assignment from a procedural variable -- a variable port
+ * connection or `assign net = var' -- is a process of its own (IEEE
+ * 1800-2017/2023 10.3, 23.3.3). It runs after the writing process
+ * suspends, so it observes only the variable's value at that point, not
+ * the intermediate values of a default-then-override sequence of blocking
+ * assignments. Deliver at most one value per Active event, and only when it
+ * differs from the value last delivered. Without this, two always_comb
+ * blocks coupled through ports can trigger each other forever on those
+ * intermediate values (IEEE 4.7 permits either order; this is the one other
+ * simulators use).
+ */
+class vvp_fun_sample  : public vvp_net_fun_t, private vvp_gen_event_s {
+
+    public:
+      explicit vvp_fun_sample(vvp_net_t*net);
+      ~vvp_fun_sample() override;
+
+      void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+                     vvp_context_t) override;
+      void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+                        unsigned base, unsigned vwid, vvp_context_t) override;
+
+    private:
+      void run_run() override;
+
+      vvp_net_t*net_;
+      vvp_vector4_t value_;
+      vvp_vector4_t sent_;
+      bool scheduled_;
+      bool sent_valid_;
+};
+
 #endif /* IVL_delay_H */
