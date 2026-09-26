@@ -1403,17 +1403,28 @@ static bool vec4_to_bv_const_(Z3_context ctx, const vvp_vector4_t&value,
       return true;
 }
 
-/* A diversity target of the variable's full width. A 64-bit target zero-
- * extended to a wider variable steers the XOR objective to the feasible value
- * with the smallest upper bits, so a wide variable would never vary. */
-static Z3_ast z3_diversity_target_(Z3_context ctx, unsigned width,
+/* Add the XOR-distance diversity objective for one variable. A 64-bit
+ * target zero-extended to a wider variable steers the objective to the
+ * feasible value with the smallest upper bits, so a wide variable would never
+ * vary; a full-width objective is correct but makes the optimizer very slow.
+ * Wider variables therefore minimize the distance of their top and bottom
+ * 64-bit slices to a random full-width target. */
+static void z3_minimize_diversity_(Z3_context ctx, Z3_optimize opt,
+				   Z3_ast var, unsigned width,
 				   uint64_t low_bits,
 				   const vvp_vector4_t&full = vvp_vector4_t())
 {
       Z3_ast target;
-      if (width > 64 && vec4_to_bv_const_(ctx, full, width, target))
-	    return target;
-      return Z3_mk_unsigned_int64(ctx, low_bits, Z3_mk_bv_sort(ctx, width));
+      if (width <= 64 || !vec4_to_bv_const_(ctx, full, width, target)) {
+	    target = Z3_mk_unsigned_int64(ctx, low_bits, Z3_mk_bv_sort(ctx, width));
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, var, target));
+	    return;
+      }
+      Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+	    Z3_mk_extract(ctx, width - 1, width - 64, var),
+	    Z3_mk_extract(ctx, width - 1, width - 64, target)));
+      Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+	    Z3_mk_extract(ctx, 63, 0, var), Z3_mk_extract(ctx, 63, 0, target)));
 }
 
 /* Object reads must retain identity, not property_object::get_vec4's
@@ -6701,6 +6712,42 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
       return true;
 }
 
+/* The same bounded probe for a variable wider than 64 bits, keeping each
+ * feasible value as a model numeral. A wide variable is typically an enum or
+ * an inside set with a handful of values; choosing uniformly among the proven
+ * complete set avoids an expensive wide optimizer objective. */
+static bool z3_enumerate_wide_values_(Z3_context ctx, Z3_solver base,
+                                      Z3_ast var, vector<Z3_ast>& out)
+{
+      static const size_t WIDE_DOMAIN_CAP = 64;
+      out.clear();
+      bool exhausted = false;
+      Z3_solver_push(ctx, base);
+      while (out.size() <= WIDE_DOMAIN_CAP) {
+	    Z3_lbool r = Z3_solver_check(ctx, base);
+	    if (r == Z3_L_FALSE) {
+		  exhausted = true;
+		  break;
+	    }
+	    if (r != Z3_L_TRUE) break;
+	    Z3_model m = Z3_solver_get_model(ctx, base);
+	    Z3_model_inc_ref(ctx, m);
+	    Z3_ast value = nullptr;
+	    bool ok = Z3_model_eval(ctx, m, var, true, &value) && value
+		  && Z3_is_numeral_ast(ctx, value);
+	    Z3_model_dec_ref(ctx, m);
+	    if (!ok) break;
+	    out.push_back(value);
+	    Z3_solver_assert(ctx, base, Z3_mk_not(ctx, Z3_mk_eq(ctx, var, value)));
+      }
+      Z3_solver_pop(ctx, base, 1);
+      if (!exhausted || out.empty()) {
+	    out.clear();
+	    return false;
+      }
+      return true;
+}
+
 /* Performance note on z3_enumerate_domain above: it costs one cheap SAT
  * probe per value in the declared domain. That bounded exhaustive scan is
  * necessary when other free variables make `var == value` an existential
@@ -9016,6 +9063,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   joint_randc_failed = true;
                   return;
             }
+	    if (!fallback_managed && pv.width > 64
+		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
+		  vector<Z3_ast> values;
+		  if (z3_enumerate_wide_values_(ctx, base, pv.var, values)) {
+			Z3_ast eq = Z3_mk_eq(ctx, pv.var,
+			      values[property_rng(pv.idx).uniform_index(values.size())]);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
+	    }
 	    if (!fallback_managed && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))
                 && Z3_solver_check(ctx, base) == Z3_L_TRUE) {
 		  static bool warned_randc_wide = false;
@@ -9034,9 +9092,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    vvp_vector4_t prefill;
 	    if (pv.width > 64)
 		  builder.object(pv.idx)->get_vec4(builder.local_index(pv.idx), prefill);
-	    Z3_ast rv = z3_diversity_target_(ctx, pv.width, rand_bits, prefill);
-	    Z3_ast xor_expr = Z3_mk_bvxor(ctx, pv.var, rv);
-	    Z3_optimize_minimize(ctx, opt, xor_expr);
+	    z3_minimize_diversity_(ctx, opt, pv.var, pv.width, rand_bits, prefill);
       }
 
 	// Unpacked-struct scalar leaves use the same exact feasible-domain
@@ -9142,6 +9198,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			}
 		  }
 	    }
+	    if (!element_randc && !fallback_managed && ev.width > 64) {
+		  vector<Z3_ast> values;
+		  if (z3_enumerate_wide_values_(ctx, base, ev.var, values)) {
+			Z3_ast eq = Z3_mk_eq(ctx, ev.var,
+			      values[property_rng(ev.idx).uniform_index(values.size())]);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
+	    }
 	    uint64_t rand_bits = 0;
 	    vvp_vector4_t target_bits(ev.width > 64 ? ev.width : 0, BIT4_0);
 	    for (unsigned b = 0; b < ev.width; ++b) {
@@ -9150,8 +9216,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (ev.width > 64) target_bits.set_bit(b, one ? BIT4_1 : BIT4_0);
 		  if (ev.width <= 64 && b + 1 >= 64) break;
 	    }
-	    Z3_ast rv = z3_diversity_target_(ctx, ev.width, rand_bits, target_bits);
-	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, ev.var, rv));
+	    z3_minimize_diversity_(ctx, opt, ev.var, ev.width, rand_bits, target_bits);
       }
       };
 
@@ -10294,8 +10359,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
 					     builder.local_index(mv.outer)))
 			owner->get_vec4(mv.member, prefill);
-	    Z3_ast rv = z3_diversity_target_(ctx, mv.width, rand_bits, prefill);
-	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, mv.var, rv));
+	    z3_minimize_diversity_(ctx, opt, mv.var, mv.width, rand_bits, prefill);
       }
       sample_member_elements(false);
       for (auto& sv : builder.size_vars) {
@@ -11588,7 +11652,16 @@ bool vvp_z3_randomize_scope(const string&ir,
 	    else if (target.size() > pv.width)
 		  target.erase(0, target.size() - pv.width);
 	    Z3_ast rv = binary_bv(target);
-	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, pv.var, rv));
+	    if (pv.width <= 64) {
+		  Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, pv.var, rv));
+		  continue;
+	    }
+	    // See z3_minimize_diversity_: a full-width objective is very slow.
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+		  Z3_mk_extract(ctx, pv.width - 1, pv.width - 64, pv.var),
+		  Z3_mk_extract(ctx, pv.width - 1, pv.width - 64, rv)));
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+		  Z3_mk_extract(ctx, 63, 0, pv.var), Z3_mk_extract(ctx, 63, 0, rv)));
       }
 
       Z3_lbool result = Z3_optimize_check(ctx, opt, 0, nullptr);
