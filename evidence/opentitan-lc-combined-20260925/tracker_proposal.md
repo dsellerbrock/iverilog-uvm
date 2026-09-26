@@ -10,7 +10,7 @@ These are proposals only; no shared tracker, AGENTS.md or OpenTitan file was edi
 - **Evidence:** `evidence/opentitan-lc-combined-20260925/README.md`, which lists the tool SHA-256s.
 - **Scope:** this is not a full lc_ctrl DV qualification.
 
-## Open PRs that the pass depends on
+## PRs the pass depends on (all merged 2026-09-26 into main `4c45450a4`)
 
 | PR | Fix | Gated (legacy / JSON / UVM) |
 | --- | --- | --- |
@@ -38,6 +38,6 @@ These are proposals only; no shared tracker, AGENTS.md or OpenTitan file was edi
 - **Unsupported constraint items:** with #384, the remaining ones fail at `randomize()` instead of being dropped. The full-matrix census counts 16 such items in 8 cores. Only `adc_ctrl` of those compiles today, and its smoke already fails (nested dynamic-array constraints).
 - **Checkout drift:** the shared checkout `opentitan-upstream` sits at dev commit `7a3ad34b6d`, not the pin. The matrix build trees match the pin, so results stand, but read sources with `git show a78922f14:<path>`.
 
-## Suggested next step
+## Baseline after merging
 
-Re-run the full unsafe matrix on an image with all of the PRs above merged, then re-rank the compile-failure families. Before this work, the 49-core run had 7 runtime passes, 16 cores compiling and 33 failing to compile.
+The full unsafe matrix on main `4c45450a4` gives 9 runtime passes (DEBT), 6 runtime failures and 34 compile failures. Before this work it was 7 passes; lc_ctrl and tl_agent are new, and nothing regressed. The gates are legacy 0 failures, JSON 3783/0 and UVM 358/0. See `evidence/opentitan-main-census-4c45450a4/README.md`.
