@@ -632,6 +632,12 @@ extern NetExpr* elaborate_rval_expr(Design *des, NetScope *scope,
 				    bool force_unsigned = false,
 				    unsigned extra_flags = 0);
 
+/*
+ * True under -gcommercial-unsafe for a concatenation whose operands are all
+ * untyped assignment patterns; such a concatenation needs the target type.
+ */
+extern bool concat_of_assign_patterns_is_unsafe_typed(const PExpr*expr);
+
 extern bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
                            const pform_range_t&range,
                            long&index_l, long&index_r);
