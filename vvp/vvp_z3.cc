@@ -1075,6 +1075,14 @@ struct Z3Builder {
 	    Z3_ast var;
       };
       vector<ElemVar> elem_vars;
+	// Direct references to elements past a container's solved size. Each
+	// is a fresh unknown; the solve fails unless every constraint naming
+	// it is vacuous in the model (see z3_solve_pass_).
+      struct AbsentElem {
+	    Z3_ast var;
+	    string message;
+      };
+      vector<AbsentElem> absent_elems;
 
 	// One selected element of a fixed unpacked array member inside an
 	// unpacked-struct property ("a:OUTER:MEMBER:WIDTH:ELEM[:s]").
@@ -3306,6 +3314,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  else
 			msg << idx64 << " is outside property " << pidx
 			    << " size " << count;
+		  if (ok && !b.collect_refs_only) {
+			Z3Builder::AbsentElem absent = {
+			      Z3_mk_fresh_const(b.ctx, "absent",
+				    Z3_mk_bv_sort(b.ctx, ewid)),
+			      msg.str()
+			};
+			b.absent_elems.push_back(absent);
+			return absent.var;
+		  }
 		  b.state_errors.push_back(msg.str());
 		  return Z3_mk_unsigned_int64(
 			b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
@@ -10773,6 +10790,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	 * must hold under this model for every value. Otherwise the solution
 	 * needs a missing element, and randomize() fails as before. */
       set<size_t> vacuous_elems;
+      bool absent_vacuous = false;
       if (!defer_joint) {
 	    vector<size_t> outside;
 	    for (size_t k = 0 ; k < builder.elem_vars.size() ; k += 1) {
@@ -10787,7 +10805,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						     builder.local_index(ev.idx)))
 			outside.push_back(k);
 	    }
-	    if (!outside.empty()) {
+	    if (!outside.empty() || !builder.absent_elems.empty()) {
 		  Z3_ast_vector hard = Z3_optimize_get_assertions(ctx, opt);
 		  Z3_ast_vector_inc_ref(ctx, hard);
 		  vector<Z3_ast> parts;
@@ -10796,12 +10814,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_ast all = parts.empty() ? Z3_mk_true(ctx)
 			: Z3_mk_and(ctx, (unsigned)parts.size(), parts.data());
 		  vector<Z3_ast> from, to;
-		  for (size_t k : outside) {
-			Z3_ast var = builder.elem_vars[k].var;
-			from.push_back(var);
+		  for (size_t k : outside)
+			from.push_back(builder.elem_vars[k].var);
+		  for (const auto&absent : builder.absent_elems)
+			from.push_back(absent.var);
+		  for (Z3_ast var : from)
 			to.push_back(Z3_mk_fresh_const(ctx, "absent",
 			      Z3_get_sort(ctx, var)));
-		  }
 		  Z3_ast free_form = Z3_substitute(ctx, all, (unsigned)from.size(),
 			from.data(), to.data());
 		  Z3_ast under_model = nullptr;
@@ -10810,12 +10829,23 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			Z3_solver probe = Z3_mk_simple_solver(ctx);
 			Z3_solver_inc_ref(ctx, probe);
 			Z3_solver_assert(ctx, probe, Z3_mk_not(ctx, under_model));
-			if (Z3_solver_check(ctx, probe) == Z3_L_FALSE)
+			if (Z3_solver_check(ctx, probe) == Z3_L_FALSE) {
 			      vacuous_elems.insert(outside.begin(), outside.end());
+			      absent_vacuous = true;
+			}
 			Z3_solver_dec_ref(ctx, probe);
 		  }
 		  Z3_ast_vector_dec_ref(ctx, hard);
 	    }
+      }
+      if (!defer_joint && !builder.absent_elems.empty() && !absent_vacuous) {
+	    fprintf(stderr, "ERROR: constraint state read: %s.\n",
+		    builder.absent_elems.front().message.c_str());
+	    Z3_model_dec_ref(ctx, model);
+	    Z3_solver_dec_ref(ctx, base);
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return Z3PASS_FAILED;
       }
 
       // Apply solved array-element values.
@@ -11954,6 +11984,7 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
       final.dyn_sizes = &sizes;
       hard = parse_constraint_ir(sub, final);
       valid = final.state_errors.empty() && final.state_checks.empty()
+	    && final.absent_elems.empty()
 	    && final.pending_soft.empty()
 	    && final.prop_vars.empty();
       for (const auto&ev : final.elem_vars)
