@@ -193,6 +193,17 @@ RUNTIME_DEBT_ALLOWLIST = (
     re.compile(r"Warning: Calling system function \$system\(\) as a task\.", re.I),
     re.compile(r"The functions return value will be ignored\.", re.I),
 )
+# Compiler warnings that describe the source accurately and change nothing
+# about how it simulates. They stay in the record as benign diagnostics.
+COMPILE_DEBT_ALLOWLIST = (
+    # A lint notice: IEEE 1800 does not forbid nonblocking assignments in
+    # always_comb, and OpenTitan's generated CSR assertion modules use them.
+    re.compile(r"warning: A non-blocking assignment should not be used in an "
+               r"always_comb process\.", re.I),
+    # Port coercion of an input driven from both sides (IEEE 1800 23.3.3);
+    # the net resolves exactly as declared inout.
+    re.compile(r"warning: input port \S+ is coerced to inout\.", re.I),
+)
 SETUP_ALLOWLIST = (
     re.compile(r"No trustfile configured .* signatures will not be checked", re.I),
     # This is an Edalize API-lifecycle notice.  It does not change the selected
@@ -2472,7 +2483,12 @@ def run_job(
             f"{compile_result.returncode} without a recognized hard diagnostic; "
             "see the complete compile log"
         ]
-    semantic_debt = matching_lines(compile_result.output, DEBT_PATTERNS)
+    semantic_debt = matching_lines(
+        compile_result.output, DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST
+    )
+    compile_benign_diagnostics = matching_lines(
+        compile_result.output, COMPILE_DEBT_ALLOWLIST
+    )
     record.update(
         {
             "source_list": str(source_list),
@@ -2485,6 +2501,10 @@ def run_job(
             "compile_log": str(compile_log),
             "hard_error_count": len(hard_errors),
             "hard_errors": hard_errors[: args.diagnostic_limit],
+            "compile_benign_diagnostic_count": len(compile_benign_diagnostics),
+            "compile_benign_diagnostics": compile_benign_diagnostics[
+                : args.diagnostic_limit
+            ],
             "semantic_debt_count": len(semantic_debt),
             "semantic_debt": semantic_debt[: args.diagnostic_limit],
             "output_sha256": hashlib.sha256(
@@ -2926,6 +2946,13 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             "+define+EN_MASKING=0",
         )
     ) == ["-DEN_MASKING=1", "-DA=1", "-DB"]
+    nba_warning = ("x.sv:9: warning: A non-blocking assignment should not be "
+                   "used in an always_comb process.")
+    assert matching_lines(nba_warning, DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:3: warning: input port rst_n is coerced to inout.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:4: warning: something degraded.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) != []
     dpi_build = native_dpi_commands(
         ("/src/a.cc", "/src/b.c"),
         ("/src",),
