@@ -267,6 +267,11 @@ extern bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 /* Enforce the member surface and write directions of one modport-qualified
    interface handle. Compiler-generated clocking state is admitted only when
    its exact clocking block is exported by the selected modport. */
+/* The named modport of an interface type, or null (IEEE 1800-2017 25.5). */
+class PModport;
+extern const PModport* interface_modport_view(const netclass_t*interface_type,
+					      perm_string modport);
+
 extern bool validate_interface_modport_access(Design*des,
 					       const LineInfo*loc,
 					       const netclass_t*interface_type,
