@@ -1192,9 +1192,22 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 	       * dv_agent#(seqr#(int)) and bound the wrong seqr: $cast between the
 	       * two failed (OpenTitan kmac, dv_base_seq p_sequencer). Name it by
 	       * its own identity instead. */
-	    if (class_scope && class_scope->type_owner_identity().find(
-		  "<forwarded-type-param@") != std::string::npos) {
-		  out << ":forwarded@" << (const void*)class_type << ">";
+	    const PClass*described_pclass =
+		  class_scope ? class_scope->class_pform() : 0;
+	      /* The unspecialized generic master itself (what a#(K) names inside
+	       * a's own template body) prints its default values too, so
+	       * registry#(a#(K)) there collided with registry#(a#(int)) and made
+	       * the latter create instances of the master: UVM's
+	       * a#(int)::type_id::create() returned a class that $cast to a#(int)
+	       * rejected. */
+	    const bool generic_master = described_pclass
+		  && described_pclass->has_parameter_port_list
+		  && !class_type->specialized_instance();
+	    if (class_scope && (generic_master
+		|| class_scope->type_owner_identity().find(
+		  "<forwarded-type-param@") != std::string::npos)) {
+		  out << (generic_master ? ":master@" : ":forwarded@")
+		      << (const void*)class_type << ">";
 		  active.erase(type);
 		  return;
 	    }
@@ -1768,8 +1781,27 @@ static bool class_type_parameter_is_deferred_(
       const NetScope*source_scope = normalize_class_scope_(source_use_scope);
       perm_string source_name;
       if (!find_class_type_parameter_reference(
-		    des, source_use_scope, parameter->second.val_expr, source_name))
+		    des, source_use_scope, parameter->second.val_expr, source_name)) {
+	      /* A class-typed actual is symbolic when it is a generic master, or
+	       * a specialization whose own type parameters are symbolic: UVM's
+	       * uvm_component_registry#(a#(K)) made inside a's template body is
+	       * not a runtime type (IEEE 1800 8.25), so its static registration
+	       * must not run. */
+	    const netclass_t*actual = dynamic_cast<const netclass_t*>(
+		  parameter->second.ivl_type);
+	    const NetScope*actual_scope = actual ? actual->class_scope() : 0;
+	    const PClass*actual_pclass = actual_scope
+		  ? actual_scope->class_pform() : 0;
+	    if (!actual_pclass || !actual_pclass->has_parameter_port_list)
+		  return false;
+	    if (!actual->specialized_instance())
+		  return true;
+	    for (perm_string actual_name : actual_pclass->parameter_order)
+		  if (class_type_parameter_is_deferred_(
+			des, actual_scope, actual_name, seen))
+			return true;
 	    return false;
+      }
 
       return class_type_parameter_is_deferred_(
 	    des, source_scope, source_name, seen);
