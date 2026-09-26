@@ -38,6 +38,13 @@ static int number_trace_enabled_(void)
       return enabled;
 }
 
+/* Size an unsigned result of known pushed width to the expression width. */
+static void resize_vec4_wid_from_(unsigned pushed, unsigned wid)
+{
+      if (pushed != wid)
+	    fprintf(vvp_out, "    %%pad/u %u;\n", wid);
+}
+
 void resize_vec4_wid(ivl_expr_t expr, unsigned wid)
 {
       if (ivl_expr_width(expr) == wid)
@@ -1787,6 +1794,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%randomize/hook 1;\n");
 	    if (arg)
 		  fprintf(vvp_out, "    %%pop/obj 1, 0; randomize receiver\n");
+	      /* The opcode's result is 32 bits; size it to the expression. */
+	    resize_vec4_wid_from_(32, ivl_expr_width(expr));
 	    return;
       }
       if (strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize_with|",33)==0
@@ -1853,6 +1862,7 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%randomize/hook 1;\n");
 	    if (obj_arg)
 		  fprintf(vvp_out, "    %%pop/obj 1, 0; randomize/with receiver\n");
+	    resize_vec4_wid_from_(32, ivl_expr_width(expr));
 	    return;
       }
       if (strncmp(ivl_expr_name(expr), "$ivl_std_randomize_with|", 24) == 0) {

@@ -6020,6 +6020,11 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+static void object_slot_values_(const vector<vvp_object_t>&objects,
+				const char*ir,
+				vector<vector<uint64_t> >&object_vals,
+				vector<vector<bool> >&object_known);
+
 static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 {
 	// code->text      = IR string (with possible "v:N:W" or "fv:N:W"
@@ -6078,6 +6083,17 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
       else
 	    fprintf(stderr, "VVP error: randomize() with: %s.\n",
 		    wide_error.c_str());
+	/* Membership in a caller queue/darray (qv:) is expanded to the
+	 * container's current elements, as for scope randomize. */
+      string object_ir;
+      if (object_form && strstr(ir_text, "qv:")) {
+	    vector<vector<uint64_t> > object_vals;
+	    vector<vector<bool> > object_known;
+	    object_slot_values_(objects, ir_text, object_vals, object_known);
+	    object_ir = vvp_z3_substitute_object_value_slots(
+		  ir_text, object_vals, object_known);
+	    ir_text = object_ir.c_str();
+      }
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
@@ -6153,29 +6169,18 @@ bool of_RANDOMIZE_WITH_OBJECTS(vthread_t thr, vvp_code_t code)
       return randomize_with_(thr, code, true);
 }
 
-/*
- * %std/randomize/with "IR", <N-random>, <packed-slots>
- *
- * packed-slots carries scalar-slot count in bits 15:0 and queue/darray
- * object-slot count in bits 31:16. Stack input (deepest first): N current
- * destination values, then scalar slots; object slots use the independent
- * object stack. The current values provide exact widths; fresh random
- * diversity targets are generated here. On SAT, model values are saved in
- * the thread and 1 is pushed. On UNSAT, no values are saved and 0 is pushed,
- * so the target skips every copy-back store.
- */
-bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+/* Read queue/darray object slots as the solver's element values. Elements
+ * wider than 64 bits or holding X/Z are marked unknown. qfield slots carry
+ * containers of unpacked structs and read the member named in the IR. */
+static void object_slot_values_(const vector<vvp_object_t>&objects,
+				const char*ir,
+				vector<vector<uint64_t> >&object_vals,
+				vector<vector<bool> >&object_known)
 {
-      const unsigned n_rand = code->bit_idx[0];
-      const unsigned n_vals = code->bit_idx[1] & 0xffffu;
-      const unsigned n_objs = code->bit_idx[1] >> 16;
-
-      vector<vector<uint64_t> > object_vals(n_objs);
-      vector<vector<bool> > object_known(n_objs);
-      for (unsigned i = n_objs ; i > 0 ; i -= 1) {
-	    vvp_object_t obj;
-	    thr->pop_object(obj);
-	    vvp_darray*da = obj.peek<vvp_darray>();
+      object_vals.assign(objects.size(), vector<uint64_t>());
+      object_known.assign(objects.size(), vector<bool>());
+      for (unsigned i = (unsigned)objects.size() ; i > 0 ; i -= 1) {
+	    vvp_darray*da = objects[i - 1].peek<vvp_darray>();
 	    if (!da) continue;
 	      /* qfield object slots carry queues/darrays of unpacked
 	       * structs. Find the requested runtime member id from the IR;
@@ -6183,7 +6188,7 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	       * is sufficient. Ordinary qv membership slots retain the
 	       * vector-element path below. */
 	    int field_pid = -1;
-	    const char*scan = code->text ? code->text : "";
+	    const char*scan = ir ? ir : "";
 	    while ((scan = strstr(scan, "qf:")) != nullptr) {
 		  const char*q = scan + 3;
 		  unsigned slot = (unsigned)strtoul(q,
@@ -6222,6 +6227,31 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  object_known[i - 1].push_back(known);
 	    }
       }
+}
+
+/*
+ * %std/randomize/with "IR", <N-random>, <packed-slots>
+ *
+ * packed-slots carries scalar-slot count in bits 15:0 and queue/darray
+ * object-slot count in bits 31:16. Stack input (deepest first): N current
+ * destination values, then scalar slots; object slots use the independent
+ * object stack. The current values provide exact widths; fresh random
+ * diversity targets are generated here. On SAT, model values are saved in
+ * the thread and 1 is pushed. On UNSAT, no values are saved and 0 is pushed,
+ * so the target skips every copy-back store.
+ */
+bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+{
+      const unsigned n_rand = code->bit_idx[0];
+      const unsigned n_vals = code->bit_idx[1] & 0xffffu;
+      const unsigned n_objs = code->bit_idx[1] >> 16;
+
+      vector<vvp_object_t> objects(n_objs);
+      for (unsigned i = n_objs ; i > 0 ; i -= 1)
+	    thr->pop_object(objects[i - 1]);
+      vector<vector<uint64_t> > object_vals;
+      vector<vector<bool> > object_known;
+      object_slot_values_(objects, code->text, object_vals, object_known);
       vector<uint64_t> slot_vals(n_vals);
       vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> slot_unknown(n_vals, false);

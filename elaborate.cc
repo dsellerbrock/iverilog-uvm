@@ -35068,13 +35068,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			     dynamic array. Carry the container object to the
 			     runtime as qv:N:W; it is expanded into the exact set
 			     of current element values before the Z3 parse. */
-			if (!array_param_membership && !cls && scope_randomize_design_ctx_
-			    && scope_randomize_object_slots_) {
-			      const PEIdent*sid =
-				    dynamic_cast<const PEIdent*>(r.hi);
+			  /* The same holds for an inline class constraint, and for a
+			     queue-valued expression such as an associative-array
+			     entry (OpenTitan lc_ctrl VALID_NEXT_STATES[state]). A
+			     class property keeps the q: form below. */
+			Design*odes = scope_randomize_design_ctx_
+			      ? scope_randomize_design_ctx_ : constraint_ir_design_ctx_;
+			const PEIdent*sid = dynamic_cast<const PEIdent*>(r.hi);
+			bool class_property_item = cls && sid
+			      && sid->path().size() == 1
+			      && cls->property_idx_from_name(
+				    sid->path().back().name) >= 0;
+			if (!array_param_membership && !is_dist && odes
+			    && scope_randomize_object_slots_ && !class_property_item) {
 			      ivl_type_t st = sid ? sid->test_type_of_ident(
-				    scope_randomize_design_ctx_,
-				    const_cast<NetScope*>(scope)) : nullptr;
+				    odes, const_cast<NetScope*>(scope)) : nullptr;
 			      const netdarray_t*da =
 				    dynamic_cast<const netdarray_t*>(st);
 			      if (da && sid->path().size() > 0) {
@@ -35088,11 +35096,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                                                 cerr << r.hi->get_fileline()
                                                      << ": sorry: Constraint inside container elements must be integral values of 1 to 64 bits."
                                                      << endl;
-                                                if (scope_randomize_design_ctx_) scope_randomize_design_ctx_->errors += 1;
+                                                odes->errors += 1;
                                                 return "";
                                           }
 					  NetExpr*object_expr = elab_and_eval(
-						scope_randomize_design_ctx_,
+						odes,
 						const_cast<NetScope*>(scope),
 						const_cast<PExpr*>(r.hi),
 						-1, false);
