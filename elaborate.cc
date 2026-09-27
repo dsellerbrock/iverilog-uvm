@@ -33113,6 +33113,35 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    bool call_local_qualified = !cpath.empty()
 		  && cpath.front().local_scope;
 	    bool scoped_static_locator = false;
+	      /* num(), first() and last() of an enum variable are properties of
+	       * its type, not its value (IEEE 1800-2017 6.19.5), so they fold to
+	       * constants: `num_adv == state.num() + 1' (OpenTitan keymgr). */
+	    if (cls && scope && cpath.size() >= 2 && !call->receiver_expr()
+		&& call->get_parms().empty() && call->with_constraints().empty()) {
+		  perm_string method = cpath.back().name;
+		  if (method == perm_string::literal("num")
+		      || method == perm_string::literal("first")
+		      || method == perm_string::literal("last")) {
+			pform_name_t head(cpath.begin(), std::prev(cpath.end()));
+			PEIdent receiver(call->path().package, head, UINT_MAX);
+			receiver.set_line(*call);
+			constraint_source_type_t rtype = constraint_source_expr_type_(
+			      &receiver, cls, value_slots, scope);
+			const netenum_t*enum_type = rtype.unpacked_dimensions == 0
+			      ? dynamic_cast<const netenum_t*>(rtype.type) : nullptr;
+			if (enum_type && enum_type->size() > 0) {
+			      if (method == perm_string::literal("num"))
+				    return constraint_const_bits_ir_(
+					  verinum((uint64_t)enum_type->size(), 32), 32, true);
+			      size_t idx = method == perm_string::literal("first")
+				    ? 0 : enum_type->size() - 1;
+			      unsigned width = enum_type->packed_width();
+			      return constraint_const_bits_ir_(
+				    enum_type->value_at(idx), width,
+				    enum_type->get_signed());
+			}
+		  }
+	    }
 	    if (call->receiver_expr() && cpath.size() == 1
 		&& cpath.back().name == perm_string::literal("size")
 		&& call->get_parms().empty()
