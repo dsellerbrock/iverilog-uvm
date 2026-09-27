@@ -770,7 +770,8 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 					      const char*class_name,
 					      const char*member_name,
 					      PPackage*package_scope = nullptr,
-					      parmvalue_t*class_type_args = nullptr)
+					      parmvalue_t*class_type_args = nullptr,
+					      bool quiet = false)
 {
       perm_string class_key = lex_strings.make(class_name);
       perm_string member_key = lex_strings.make(member_name);
@@ -889,13 +890,15 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
       }
 
       if (class_scope == 0) {
-	    yyerror(class_loc, "error: %s doesn't name a visible class.", class_name);
+	    if (!quiet)
+		  yyerror(class_loc, "error: %s doesn't name a visible class.", class_name);
 	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
 
       if (type == 0) {
-	    yyerror(member_loc, "error: %s doesn't name a type.", member_name);
+	    if (!quiet)
+		  yyerror(member_loc, "error: %s doesn't name a type.", member_name);
 	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
@@ -908,8 +911,9 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 	    ? pform_test_type_identifier(package_scope, class_name)
 	    : pform_test_type_identifier(class_loc, class_name);
       if (!qualifier_type) {
-	    yyerror(class_loc, "error: %s doesn't name a class type.",
-		    class_name);
+	    if (!quiet)
+		  yyerror(class_loc, "error: %s doesn't name a class type.",
+			  class_name);
 	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
@@ -7233,6 +7237,19 @@ package_declaration /* IEEE1800-2005 A.1.2 */
       { check_end_label(@11, "package", $3, $11);
 	delete[]$3;
       }
+  /* A second declaration of an already-declared package name reaches the
+     parser as PACKAGE_IDENTIFIER. Parse it normally so that
+     pform_end_package_declaration reports the duplicate (IEEE 1800-2017
+     3.13) instead of a bare syntax error. */
+  | K_package lifetime_opt PACKAGE_IDENTIFIER ';'
+      { pform_start_package_declaration(@1, $3->pscope_name().str(), $2); }
+    timeunits_declaration_opt
+      { pform_set_scope_timescale(@1); }
+    package_item_list_opt
+    K_endpackage
+      { pform_end_package_declaration(@1); }
+    label_opt
+      { check_end_label(@11, "package", $3->pscope_name().str(), $11); }
   ;
 
 module_package_import_list_opt
@@ -9476,7 +9493,31 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	$$ = tmp;
       }
   | '[' expression ']'
-      { // SystemVerilog canonical range
+      { // An associative index type written `C::T` (IEEE 1800-2017 7.8)
+	// parses as the TYPE::member expression, which the grammar prefers
+	// in the reduce/reduce conflict with data_type. When the member
+	// names a typedef of class C, this is the '[' data_type ']' form.
+	data_type_t*index_type = nullptr;
+	if (PEIdent*id = dynamic_cast<PEIdent*>($2)) {
+	      const pform_scoped_name_t&path = id->path();
+	      if (id->has_scoped_type_prefix() && !id->leading_type_args()
+		  && path.name.size() == 2
+		  && path.name.front().index.empty()
+		  && path.name.back().index.empty()) {
+		    index_type = make_class_scoped_typeref(
+			  @2, @2, path.name.front().name.str(),
+			  path.name.back().name.str(), path.package, nullptr,
+			  true);
+	      }
+	}
+	if (index_type) {
+	      delete $2;
+	      list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	      tmp->push_back(pform_range_t(new PEAssocType(index_type), 0));
+	      pform_requires_sv(@$, "Associative array declaration");
+	      $$ = tmp;
+	} else {
+	// SystemVerilog canonical range
 	if (!gn_system_verilog()) {
 	      warn_count += 1;
 	      cerr << @2 << ": warning: Use of SystemVerilog [size] dimension. "
@@ -9486,6 +9527,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	pform_range_t index ($2,0);
 	tmp->push_back(index);
 	$$ = tmp;
+	}
       }
   | '[' ']'
       { std::list<pform_range_t> *tmp = new std::list<pform_range_t>;

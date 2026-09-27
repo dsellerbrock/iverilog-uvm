@@ -13721,6 +13721,15 @@ static NetExpr* elaborate_temporary_member_access_(const LineInfo*li,
 	    return sel;
       }
 
+	/* A zero-argument enumeration method may omit its parentheses
+	 * (IEEE 1800-2017 6.19.5, 13.4.2): `seq.get_state().name`. */
+      if (const netenum_t*netenum = dynamic_cast<const netenum_t*>(base_type)) {
+	    if (comp.index.empty())
+		  return check_for_enum_methods(li, des, scope, netenum,
+						pform_scoped_name_t(), comp.name,
+						base_expr, {});
+      }
+
       delete base_expr;
       cerr << li->get_fileline() << ": error: "
 	   << "Temporary expression member access requires a class or packed "

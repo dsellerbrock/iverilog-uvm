@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_enum_method_parenless_call_result.v",
+    "iverilog-args" : [ "-g2017" ]
+}
