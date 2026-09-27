@@ -2124,11 +2124,14 @@ def setup_command(
     # sva lanes this driver exercises. provider_mappings()/PRIM_MAPPING/
     # ENGLISHBREAKFAST_MAPPING are kept (and still self-tested) as the
     # mechanism a newer OpenTitan revision with the real fusesoc --mapping
-    # feature would need again, but are not applied to this command.
+    # feature would need again, but are not applied to this command. Their
+    # cores root is not scanned either: this fusesoc ignores `mapping` and
+    # warns "Unknown item mapping in section Root", which marked every
+    # otherwise clean run as debt.
+    del matrix_core_root
     command = [
         str(fusesoc),
         f"--cores-root={opentitan_root}",
-        f"--cores-root={matrix_core_root}",
         "run",
         f"--target={job.target}",
         "--tool=icarus",
