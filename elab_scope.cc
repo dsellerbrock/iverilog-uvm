@@ -4144,9 +4144,14 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		  ? caller_class_scope->class_def() : 0;
 	    const PClass*caller_pclass = caller_class_scope
 		  ? caller_class_scope->class_pform() : 0;
+	      /* The generic master itself, or a specialization made from one of
+	       * its forwarded type parameters: both are scaffolding for generic
+	       * elaboration (IEEE 1800 8.25). */
 	    caller_is_generic_body = caller_class && caller_pclass
 		  && caller_pclass->has_parameter_port_list
-		  && !caller_class->specialized_instance();
+		  && (!caller_class->specialized_instance()
+		      || caller_class_scope->type_owner_identity().find(
+			    "<forwarded-type-param@") != std::string::npos);
       }
 
       std::ostringstream key_prefix;
