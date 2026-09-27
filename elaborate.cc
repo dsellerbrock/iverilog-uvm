@@ -18797,8 +18797,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    } else {
 		  cerr << get_fileline() << ": error: "
-		       << "Missing argument " << (idx+1)
-		       << " of call to task." << endl;
+		       << "Missing argument " << (parms_idx+1)
+		       << " ('" << port->name() << "') of call to task." << endl;
 		  des->errors += 1;
 		  continue;
 	    }
@@ -18895,12 +18895,19 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			      des->errors += 1;
 		  }
 	    } else if (port->port_type() == NetNet::POUTPUT) {
-		    // Output ports were skipped earlier, so
-		    // report the error now.
-		  cerr << get_fileline() << ": error: "
-		       << "Missing argument " << (idx+1)
-		       << " of call to task." << endl;
-		  des->errors += 1;
+		    // Output ports were skipped earlier, so report the error
+		    // now. An omitted output with no default is illegal (IEEE
+		    // 1800-2017 13.5.3); commercial tools discard the result
+		    // (OpenTitan entropy_src: `csr_rd(.ptr(reg))'), so
+		    // -gcommercial-unsafe does too.
+		  if (!gn_commercial_unsafe_flag) {
+			cerr << get_fileline() << ": error: "
+			     << "Missing argument " << (parms_idx+1)
+			     << " ('" << port->name() << "') of call to task"
+			        " (an omitted output is accepted only under"
+			        " -gcommercial-unsafe)." << endl;
+			des->errors += 1;
+		  }
 	    }
 
 	    if (lv == 0)
