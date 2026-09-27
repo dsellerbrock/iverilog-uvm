@@ -1668,6 +1668,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 {
       int rc = 0;
       ivl_expr_t expr = ivl_stmt_cond_expr(net);
+      int string_case = ivl_expr_value(expr) == IVL_VT_STRING;
       unsigned count = ivl_stmt_case_count(net);
 
       unsigned idx, default_case;
@@ -1681,10 +1682,9 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
       show_stmt_file_line(net, "Case statement.");
 
-	/* Evaluate the case condition to the top of the vec4
-	   stack. This expression will be compared multiple times to
-	   each case guard. */
-      draw_eval_vec4(expr);
+	/* Keep a homogeneous string selector at its runtime length. */
+      if (string_case) draw_eval_string(expr);
+      else draw_eval_vec4(expr);
 
       fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", any_flag);
       fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", multi_flag);
@@ -1710,10 +1710,16 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	      /* Duplicate the case expression so that the cmp
 		 instructions below do not completely erase the
 		 value. Do this in front of each compare. */
-	    fprintf(vvp_out, "    %%dup/vec4;\n");
-	    draw_eval_vec4(cex);
+	    fprintf(vvp_out, string_case ? "    %%dup/str;\n"
+				       : "    %%dup/vec4;\n");
+	    if (string_case) {
+		  draw_eval_string(cex);
+		  fprintf(vvp_out, "    %%cmp/str;\n");
+		  result_flag = 4;
+	    } else {
+		  draw_eval_vec4(cex);
 
-	    switch (ivl_statement_type(net)) {
+	      switch (ivl_statement_type(net)) {
 
 		case IVL_ST_CASE:
 		    /* Plain case uses case-equality (===-like); flag 6
@@ -1738,6 +1744,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
 		default:
 		  assert(0);
+	      }
 	    }
 
 	      /* If this item did not match, skip the any/multi
@@ -1785,7 +1792,8 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	/* The dispatch below only reads first_match_word, so drop the
 	   case expression now. A branch body can then leave the case
 	   through break/continue/return/disable without leaking it. */
-      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+      fprintf(vvp_out, string_case ? "    %%pop/str 1;\n"
+				  : "    %%pop/vec4 1;\n");
 
       lab_out = local_count++;
 
@@ -1853,6 +1861,7 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
       ivl_case_quality_t qual = ivl_stmt_case_quality(net);
       int quality_if = ivl_stmt_case_is_quality_if(net);
       ivl_expr_t expr = ivl_stmt_cond_expr(net);
+      int string_case = ivl_expr_value(expr) == IVL_VT_STRING;
       unsigned count = ivl_stmt_case_count(net);
 
       unsigned local_base = local_count;
@@ -1870,10 +1879,9 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
       local_count += count + 1;
 
-	/* Evaluate the case condition to the top of the vec4
-	   stack. This expression will be compared multiple times to
-	   each case guard. */
-      draw_eval_vec4(expr);
+	/* Keep a homogeneous string selector at its runtime length. */
+      if (string_case) draw_eval_string(expr);
+      else draw_eval_vec4(expr);
 
 	/* First draw the branch table.  All the non-default cases
 	   generate a branch out of here, to the code that implements
@@ -1891,10 +1899,17 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 	      /* Duplicate the case expression so that the cmp
 		 instructions below do not completely erase the
 		 value. Do this in front of each compare. */
-	    fprintf(vvp_out, "    %%dup/vec4;\n");
-	    draw_eval_vec4(cex);
+	    fprintf(vvp_out, string_case ? "    %%dup/str;\n"
+				       : "    %%dup/vec4;\n");
+	    if (string_case) {
+		  draw_eval_string(cex);
+		  fprintf(vvp_out, "    %%cmp/str;\n");
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+			  thread_count, local_base+idx);
+	    } else {
+		  draw_eval_vec4(cex);
 
-	    switch (ivl_statement_type(net)) {
+	      switch (ivl_statement_type(net)) {
 
 		case IVL_ST_CASE:
 		  fprintf(vvp_out, "    %%cmp/u;\n");
@@ -1916,13 +1931,15 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
 		default:
 		  assert(0);
+	      }
 	    }
       }
 
 	/* Every path out of the branch table pops the case expression
 	   before running a body, so a body that leaves the case through
 	   break/continue/return/disable leaves nothing on the stack. */
-      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+      fprintf(vvp_out, string_case ? "    %%pop/str 1;\n"
+				  : "    %%pop/vec4 1;\n");
 
 	/* Emit code for the default case. */
       if (default_case < count) {
@@ -1960,7 +1977,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 		  continue;
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, local_base+idx);
-	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+	    fprintf(vvp_out, string_case ? "    %%pop/str 1;\n"
+				    : "    %%pop/vec4 1;\n");
 	    rc += show_statement(cst, sscope);
 
 	      /* Statement is done, jump to the out of the case. */

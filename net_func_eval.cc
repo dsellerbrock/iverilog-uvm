@@ -871,6 +871,14 @@ bool NetCase::evaluate_function_vect_(const LineInfo&loc,
             verinum item_val = item_const->value();
             delete item_expr;
 
+	    /* String values omit zero bytes (IEEE 1800-2017 6.16). Compare
+	       the normalized strings, including their runtime lengths. */
+	    if (expr_->expr_type() == IVL_VT_STRING) {
+		  if (item_val.as_raw_string() != case_val.as_raw_string())
+			continue;
+		  return item->statement->evaluate_function(loc, context_map);
+	    }
+
             ivl_assert(loc, item_val.len() == case_val.len());
 
             bool match = true;

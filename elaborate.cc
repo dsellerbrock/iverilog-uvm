@@ -11968,9 +11968,18 @@ static int test_case_width(Design*des, NetScope*scope, PExpr*pe,
 }
 
 static NetExpr*elab_and_eval_case(Design*des, NetScope*scope, PExpr*pe,
-				  bool context_is_real, bool context_unsigned,
+				  bool context_is_real, bool context_is_string,
+				  bool context_unsigned,
 				  unsigned context_width)
 {
+      if (context_is_string) {
+	    NetExpr*expr = pe->elaborate_expr(des, scope,
+					     &netstring_t::type_string,
+					     PExpr::NO_FLAGS);
+	    if (expr != 0) eval_expr(expr, -1);
+	    return expr;
+      }
+
       if (context_unsigned)
 	    pe->cast_signed(false);
 
@@ -11980,9 +11989,8 @@ static NetExpr*elab_and_eval_case(Design*des, NetScope*scope, PExpr*pe,
 
       if (context_is_real)
 	    expr = cast_to_real(expr);
-	/* A string-typed case expression compares as its packed bytes at the
-	   case context width (IEEE 1800-2017 6.16, 12.5), so `case (k)
-	   "write":' matches. Its own nominal width is not a value width. */
+	/* Mixed-type and wildcard cases still compare packed bytes at the case
+	   context width. Homogeneous plain string cases retain their full value. */
       else if (expr->expr_type() == IVL_VT_STRING)
 	    expr = cast_to_int4(expr, context_width);
 
@@ -12382,6 +12390,8 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
       PExpr::width_mode_t context_mode = PExpr::SIZED;
       unsigned context_width = test_case_width(des, scope, expr_, context_mode);
       bool context_is_real = (expr_->expr_type() == IVL_VT_REAL);
+      bool context_is_string = (type_ == NetCase::EQ
+				&& expr_->expr_type() == IVL_VT_STRING);
       bool context_unsigned = !expr_->has_sign();
 
       for (unsigned idx = 0; idx < items_->size(); idx += 1) {
@@ -12403,6 +12413,8 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 			context_width = cur_width;
 		  if (cur_expr->expr_type() == IVL_VT_REAL)
 			context_is_real = true;
+		  if (cur_expr->expr_type() != IVL_VT_STRING)
+		    context_is_string = false;
 		  if (!cur_expr->has_sign())
 			context_unsigned = true;
 	    }
@@ -12443,7 +12455,9 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: case context is ";
-	    if (context_is_real) {
+	    if (context_is_string) {
+		  cerr << "string" << endl;
+	    } else if (context_is_real) {
 		  cerr << "real" << endl;
 	    } else {
 		  cerr << (context_unsigned ? "unsigned" : "signed")
@@ -12452,6 +12466,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
       }
       NetExpr*expr = elab_and_eval_case(des, scope, expr_,
 					context_is_real,
+					context_is_string,
 					context_unsigned,
 					context_width);
       if (expr == 0) {
@@ -12507,6 +12522,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  ivl_assert(*this, cur_expr);
 		  NetExpr*gu = elab_and_eval_case(des, scope, cur_expr,
 						  context_is_real,
+						  context_is_string,
 						  context_unsigned,
 						  context_width);
 
