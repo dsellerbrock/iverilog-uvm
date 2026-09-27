@@ -29818,6 +29818,63 @@ static bool constraint_parse_const_ir_(const string&ir,
       return *end == 0;
 }
 
+/* Select from a 0-based packed value of TYPE. For `logic [1:0][15:0] s',
+ * s[1] is the 16-bit element at bits [31:16], not bit 1, and a declared
+ * range that does not end at 0 shifts every index. Only the plain [N:0]
+ * vector form maps an index directly to a bit; every other form needs a
+ * constant (e.g. foreach-unrolled) index, and returns empty -- a diagnosed
+ * unsupported item -- rather than a wrong constraint. */
+static string packed_typed_select_ir_(
+      const string&base, ivl_type_t type, const index_component_t&ic,
+      const netclass_t*cls, vector<const PExpr*>*value_slots,
+      const NetScope*scope, const map<perm_string,uint64_t>*loop_env)
+{
+      const netvector_t*vec = dynamic_cast<const netvector_t*>(type);
+      if (!vec || vec->packed_dims().empty())
+	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
+					      scope, loop_env);
+      const netranges_t&dims = vec->packed_dims();
+      const netrange_t&outer = dims.front();
+      if (!outer.defined() || outer.width() == 0) return "";
+      if (dims.size() == 1 && outer.get_lsb() == 0
+	  && outer.get_msb() >= outer.get_lsb())
+	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
+					      scope, loop_env);
+
+      unsigned elem_width = vec->packed_width() / outer.width();
+      auto offset_of = [&](const PExpr*index, long&offset) -> bool {
+	    string ir = pexpr_to_constraint_ir(index, cls, value_slots,
+					       scope, loop_env);
+	    constraint_const_ir_t value;
+	    if (ir.empty() || !constraint_parse_const_ir_(ir, value))
+		  return false;
+	    long idx = value.is_signed ? (long)(int64_t)value.value
+				       : (long)value.value;
+	    offset = outer.get_msb() >= outer.get_lsb()
+		  ? idx - outer.get_lsb() : outer.get_lsb() - idx;
+	    return offset >= 0 && (unsigned long)offset < outer.width();
+      };
+      if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
+	    long off = 0;
+	    if (!offset_of(ic.msb, off)) return "";
+	    unsigned long lo = (unsigned long)off * elem_width;
+	    if (elem_width == 1)
+		  return "(bit " + base + " c:" + to_string(lo) + ")";
+	    return "(part " + base + " c:" + to_string(lo + elem_width - 1)
+		  + " c:" + to_string(lo) + ")";
+      }
+      if (ic.sel == index_component_t::SEL_PART && ic.msb && ic.lsb) {
+	    long a = 0, b = 0;
+	    if (!offset_of(ic.msb, a) || !offset_of(ic.lsb, b)) return "";
+	    long lo = min(a, b), hi = max(a, b);
+	    return "(part " + base + " c:"
+		  + to_string((hi + 1) * (long)elem_width - 1)
+		  + " c:" + to_string(lo * (long)elem_width) + ")";
+      }
+      return "";
+}
+
+
 static bool constraint_is_narrow_const_ir_(const string&ir)
 {
       constraint_const_ir_t value;
@@ -32410,8 +32467,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						: "(part " + base + " c:"
 						    + to_string(offset + mw - 1)
 						    + " c:" + to_string(offset) + ")";
-					  return scope_randomize_select_ir_(
-						member_ir, comp->index.front(), cls,
+					  return packed_typed_select_ir_(
+						member_ir, cur, comp->index.front(), cls,
 						value_slots, scope, loop_env);
 				    }
 			      }
@@ -32464,8 +32521,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  : "(part " + tok->second + " c:"
 					      + to_string(offset + mw - 1) + " c:"
 					      + to_string(offset) + ")";
-				    return scope_randomize_select_ir_(
-					  member, comp->index.front(), cls,
+				    return packed_typed_select_ir_(
+					  member, cur, comp->index.front(), cls,
 					  value_slots, scope, loop_env);
 			      }
 			}
@@ -32602,9 +32659,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string base = scope_randomize_value_slot_(
 			      nullptr, sig, value_slots, wid);
 			if (base.empty()) return "";
-			return scope_randomize_select_ir_(
-			      base, id->path().back().index.front(), cls,
-			      value_slots, scope, loop_env);
+			return packed_typed_select_ir_(
+			      base, sig->net_type(), id->path().back().index.front(),
+			      cls, value_slots, scope, loop_env);
 		  }
 	    }
 
@@ -34570,6 +34627,68 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                                     constraint_ir_design_ctx_->errors += 1;
                               return "";
                         }
+                  }
+            }
+
+            /* A foreach over the packed dimensions of a packed value
+             * (IEEE 1800-2017 18.5.8), e.g. a struct member
+             * `logic [N-1:0][W-1:0] seeds': the domain is fixed, so unroll
+             * each loop variable over its dimension's declared indices.
+             * The body's selects then see constant indices (OpenTitan
+             * keymgr: foreach (local_flash.seeds[i])). */
+            if (cfe->prefix_names().empty() && scope) {
+                  pform_name_t target;
+                  if (!cfe->source_path().empty()) {
+                        for (perm_string name : cfe->source_path())
+                              target.push_back(name_component_t(name));
+                  } else {
+                        target.push_back(name_component_t(cfe->array_name()));
+                        if (!cfe->member_name().nil())
+                              target.push_back(name_component_t(cfe->member_name()));
+                  }
+                  PEIdent target_ident(target, UINT_MAX);
+                  target_ident.set_line(*cfe);
+                  constraint_source_type_t ttype = constraint_source_expr_type_(
+                        &target_ident, cls, value_slots, scope);
+                  const netvector_t*pvec = ttype.unpacked_dimensions == 0
+                        ? dynamic_cast<const netvector_t*>(ttype.type) : nullptr;
+                  const netranges_t*pdims = pvec ? &pvec->packed_dims() : nullptr;
+                  if (pdims && pdims->size() >= cfe->loop_vars().size()
+                      && (pdims->size() > 1 || cfe->loop_vars().size() == 1)) {
+                        string acc;
+                        bool ok = true;
+                        function<void(size_t, map<perm_string,uint64_t>&)> unroll =
+                              [&](size_t d, map<perm_string,uint64_t>&env) {
+                              if (!ok) return;
+                              if (d == cfe->loop_vars().size()) {
+                                    for (const PExpr*item : cfe->items()) {
+                                          if (!item) continue;
+                                          string part = pexpr_to_constraint_ir(
+                                                item, cls, value_slots, scope, &env);
+                                          if (part.empty()) { ok = false; return; }
+                                          acc = acc.empty() ? part
+                                                : "(and " + acc + " " + part + ")";
+                                    }
+                                    return;
+                              }
+                              const netrange_t&dim = (*pdims)[d];
+                              if (cfe->loop_vars()[d].nil() || !dim.defined()) {
+                                    unroll(d + 1, env);
+                                    return;
+                              }
+                              long lo = min(dim.get_msb(), dim.get_lsb());
+                              long hi = max(dim.get_msb(), dim.get_lsb());
+                              for (long idx = lo; idx <= hi && ok; idx += 1) {
+                                    env[cfe->loop_vars()[d]] = (uint64_t)idx;
+                                    unroll(d + 1, env);
+                              }
+                              env.erase(cfe->loop_vars()[d]);
+                        };
+                        map<perm_string,uint64_t> env;
+                        if (loop_env) env = *loop_env;
+                        unroll(0, env);
+                        if (ok) return acc.empty() ? "c:1:1" : acc;
+                        return "";
                   }
             }
 
