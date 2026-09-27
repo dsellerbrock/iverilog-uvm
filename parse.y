@@ -944,6 +944,24 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
       return tmp;
 }
 
+/* The TYPE::member expression form wins the grammar conflict with a
+   class-scoped type, so `C::T' in a type position can arrive as a scoped
+   PEIdent. Return the type when the member names a typedef of class C (or
+   of pkg::C), else null without a diagnostic. */
+static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(expr);
+      if (!id || !id->has_scoped_type_prefix() || id->leading_type_args())
+	    return 0;
+      const pform_scoped_name_t&path = id->path();
+      if (path.name.size() != 2 || !path.name.front().index.empty()
+	  || !path.name.back().index.empty())
+	    return 0;
+      return make_class_scoped_typeref(loc, loc, path.name.front().name.str(),
+				       path.name.back().name.str(),
+				       path.package, nullptr, true);
+}
+
 static char* dup_cstr(const char*txt)
 {
       return strcpy(new char[strlen(txt)+1], txt);
@@ -9514,19 +9532,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	// parses as the TYPE::member expression, which the grammar prefers
 	// in the reduce/reduce conflict with data_type. When the member
 	// names a typedef of class C, this is the '[' data_type ']' form.
-	data_type_t*index_type = nullptr;
-	if (PEIdent*id = dynamic_cast<PEIdent*>($2)) {
-	      const pform_scoped_name_t&path = id->path();
-	      if (id->has_scoped_type_prefix() && !id->leading_type_args()
-		  && path.name.size() == 2
-		  && path.name.front().index.empty()
-		  && path.name.back().index.empty()) {
-		    index_type = make_class_scoped_typeref(
-			  @2, @2, path.name.front().name.str(),
-			  path.name.back().name.str(), path.package, nullptr,
-			  true);
-	      }
-	}
+	data_type_t*index_type = class_scoped_type_of_ident(@2, $2);
 	if (index_type) {
 	      delete $2;
 	      list<pform_range_t> *tmp = new std::list<pform_range_t>;
@@ -13729,6 +13735,13 @@ expr_primary
       { PExpr*base = $4;
 	if (pform_requires_sv(@1, "Size cast")) {
 	      PExpr*tmp = pform_self_package_type_cast(@1, $1, base);
+	      data_type_t*cast_type = tmp ? 0 : class_scoped_type_of_ident(@1, $1);
+	      if (cast_type) {
+		    // `C::enum_t'(x)' names a class-scoped type (IEEE 6.24.1).
+		    delete $1;
+		    tmp = new PECastType(cast_type, base);
+		    FILE_NAME(tmp, @1);
+	      }
 	      if (tmp) {
 	            $$ = tmp;
 	      } else {
