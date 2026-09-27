@@ -17578,10 +17578,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   for loop-free automata (K = longest path), kept as a
 	   no-silent-drop backstop regardless. */
       {
-	    char msg[192];
+	    char msg[512];
 	    snprintf(msg, sizeof msg,
-		     "SVA NFA: attempt pool overflow (%ld slots) -- "
-		     "attempts are being dropped%s", K,
+		     "%s:%u: SVA NFA: attempt pool overflow (%ld slots) -- "
+		     "attempts are being dropped%s", loc.text ? loc.text : "?", (unsigned)loc.first_line, K,
 		     (cyclic || consequence_cyclic)
 			? "; raise IVL_SVA_NFA_SLOTS" : " (internal bug)");
 	    std::list<named_pexpr_t> dargs;

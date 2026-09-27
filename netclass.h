@@ -28,11 +28,13 @@
 # include  <map>
 # include  <set>
 # include  <string>
+# include  <vector>
 
 class Design;
 class netenum_t;
 class NetExpr;
 class NetNet;
+class NetProcTop;
 class NetScope;
 class Module;
 class PClass;
@@ -284,8 +286,17 @@ class netclass_t : public ivl_type_s {
 	   It is still a specialized_instance() for every other purpose. */
 	// Requested only by generic master bodies so far: not a runtime type
 	// (IEEE 1800 8.25), so its static initializers must not run.
-      void set_generic_body_only(bool flag) { generic_body_only_ = flag; }
+      // Clearing the mark also clears it on every class this one marked
+      // while it was generic-body-only: they are now reachable from a
+      // concrete type too.
+      void set_generic_body_only(bool flag);
       bool generic_body_only() const { return generic_body_only_; }
+      void add_generic_dependent(netclass_t*dep) { generic_dependents_.push_back(dep); }
+      // The static-initializer process held back while generic-body-only;
+      // released once elaboration knows whether the class is concrete.
+      void set_deferred_static_init(NetProcTop*top) { deferred_static_init_ = top; }
+      NetProcTop* take_deferred_static_init()
+      { NetProcTop*top = deferred_static_init_; deferred_static_init_ = 0; return top; }
       void set_seed_derived(bool flag) { seed_derived_ = flag; }
       bool seed_derived() const { return seed_derived_; }
 
@@ -363,6 +374,8 @@ class netclass_t : public ivl_type_s {
       bool specialized_instance_;
       bool seed_derived_ = false;
       bool generic_body_only_ = false;
+      std::vector<netclass_t*> generic_dependents_;
+      NetProcTop*deferred_static_init_ = 0;
       std::map<perm_string,size_t> clocking_blocks_;
       std::vector<clocking_block_t> clocking_table_;
 

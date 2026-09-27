@@ -112,6 +112,19 @@ netclass_t::~netclass_t()
 {
 }
 
+void netclass_t::set_generic_body_only(bool flag)
+{
+      if (generic_body_only_ == flag)
+	    return;
+      generic_body_only_ = flag;
+      if (flag)
+	    return;
+      std::vector<netclass_t*> deps;
+      deps.swap(generic_dependents_);
+      for (netclass_t*dep : deps)
+	    dep->set_generic_body_only(false);
+}
+
 void netclass_t::add_derived_type_(const netclass_t*derived)
 {
       if (!derived)

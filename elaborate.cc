@@ -35950,16 +35950,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // Analyze generic initializers for const-initialization checks,
 		    // but generic masters and unresolved type forwarding are not
 		    // concrete runtime types (IEEE 1800 8.25).
-		    bool deferred_init = (pclass->has_parameter_port_list
-			  && !specialized_instance()) || generic_body_only();
+		    bool deferred_init = pclass->has_parameter_port_list
+			  && !specialized_instance();
 		    for (perm_string name : pclass->parameter_order) {
 			  if (class_type_parameter_is_deferred(des, class_scope_, name)) {
 				deferred_init = true;
 				break;
 			  }
 		    }
+		    // A generic-body-only class can still be reached by a
+		    // concrete context later; release_deferred_static_inits
+		    // decides once elaboration is complete.
 		    if (deferred_init)
 			  delete top;
+		    else if (generic_body_only())
+			  set_deferred_static_init(top);
 		    else if (this->specialized_instance())
 			  des->add_process_at_tail(top);
 		    else
@@ -40730,6 +40735,7 @@ Design* elaborate(list<perm_string>roots)
 
       report_elaboration_perf_phase_("specialized-bodies-begin");
       finalize_pending_specialized_class_elaboration(des);
+      release_deferred_static_inits(des);
       report_elaboration_perf_phase_("specialized-bodies-end");
 
 	/* The repair and body-elaboration passes above can materialize lazy

@@ -3986,6 +3986,22 @@ void finalize_pending_specialized_class_elaboration(Design*des)
       pending_specialized_method_seed_set_.clear();
 }
 
+/* A generic-body-only class held its static initializers back. Now that
+ * every class body is elaborated, run them for each class that some concrete
+ * context reached after all (IEEE 1800 8.25), and drop the rest. */
+void release_deferred_static_inits(Design*des)
+{
+      for (netclass_t*cls : all_specialized_classes_) {
+	    NetProcTop*top = cls ? cls->take_deferred_static_init() : 0;
+	    if (!top)
+		  continue;
+	    if (cls->generic_body_only())
+		  delete top;
+	    else
+		  des->add_process_at_tail(top);
+      }
+}
+
 void repair_specialized_class_property_types(Design*des)
 {
       size_t idx = 0;
@@ -4138,15 +4154,26 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	 * exists only for that body until some concrete context asks for it
 	 * too; see netclass_t::generic_body_only(). */
       bool caller_is_generic_body = false;
+      netclass_t*generic_caller = 0;
       if (call_scope) {
 	    const NetScope*caller_class_scope = call_scope->get_class_scope();
 	    const netclass_t*caller_class = caller_class_scope
 		  ? caller_class_scope->class_def() : 0;
 	    const PClass*caller_pclass = caller_class_scope
 		  ? caller_class_scope->class_pform() : 0;
+	      /* The generic master itself, a specialization made from one of
+	       * its forwarded type parameters, or a class so far requested only
+	       * by such bodies: all are scaffolding for generic elaboration
+	       * (IEEE 1800 8.25). Only the last kind can later turn concrete;
+	       * remember what it marks so that clears propagate. */
 	    caller_is_generic_body = caller_class && caller_pclass
 		  && caller_pclass->has_parameter_port_list
-		  && !caller_class->specialized_instance();
+		  && (!caller_class->specialized_instance()
+		      || caller_class->generic_body_only()
+		      || caller_class_scope->type_owner_identity().find(
+			    "<forwarded-type-param@") != std::string::npos);
+	    if (caller_is_generic_body && caller_class->generic_body_only())
+		  generic_caller = const_cast<netclass_t*>(caller_class);
       }
 
       std::ostringstream key_prefix;
@@ -4200,6 +4227,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		    netclass_t*cached_class = const_cast<netclass_t*>(cached_result);
 		    if (!caller_is_generic_body)
 			  cached_class->set_generic_body_only(false);
+		    else if (generic_caller && cached_class->generic_body_only())
+			  generic_caller->add_generic_dependent(cached_class);
 		    if (!fully_elaborate) {
 			  enqueue_pending_specialized_method_seed_(cached_class);
 			  return cached_result;
@@ -4253,6 +4282,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    use_class->set_has_embedded_covergroups(true);
       use_class->set_specialized_instance(true);
       use_class->set_generic_body_only(caller_is_generic_body);
+      if (generic_caller)
+	    generic_caller->add_generic_dependent(use_class);
 
 	/* Propagate seed-ness. A specialization materialised WHILE the caller
 	   is elaborating a template seed comes from that seed's own default

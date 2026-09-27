@@ -2894,8 +2894,15 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
 	    return const_cast<netclass_t*>(self_class);
 
       ivl_type_t use_type = type->elaborate_type(des, s);
+	/* A bare parameterized class name is its default specialization
+	 * (IEEE 1800-2017/2023 8.25), not the generic master:
+	 * `key_sideload_set_seq sideload_seq;' in a concrete class must be
+	 * key_sideload_set_seq#(<defaults>), or its type_id and get_type()
+	 * reach the master's registry. Generic bodies keep the master. */
       if (!overrides)
-	    return use_type;
+	    return specialize_bare_class_at_concrete_use(
+		  des, s_type_elaborate_caller_scope_ ? s_type_elaborate_caller_scope_ : s,
+		  this, use_type, true);
 
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(use_type);
 	/* A #(...) suffix is class specialization syntax. Do not silently
