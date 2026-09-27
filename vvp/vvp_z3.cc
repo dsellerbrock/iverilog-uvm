@@ -11978,7 +11978,23 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 		  if (r == Z3_L_UNDEF) unknown = true;
 		  else beyond = r == Z3_L_TRUE;
 	    }
+	    /* A size fixed beyond the window (`size() == 65537', or above a
+	       declared maximum) is unique: keep it so the limit check below
+	       reports it exactly. */
+	    bool unique_beyond = false;
+	    if (!unknown && beyond && feasible.empty()) {
+		  Z3_ast other = Z3_mk_not(ctx, Z3_mk_eq(ctx,
+			first.size_vars[0].var,
+			Z3_mk_unsigned_int64(ctx, size, s32)));
+		  Z3_lbool r = Z3_solver_check_assumptions(ctx, probe, 1, &other);
+		  if (r == Z3_L_UNDEF) unknown = true;
+		  else unique_beyond = r == Z3_L_FALSE;
+	    }
 	    Z3_solver_dec_ref(ctx, probe);
+	    if (unique_beyond) {
+		  feasible.push_back(size);
+		  beyond = false;
+	    }
 	    if (unknown || beyond || feasible.empty()) {
 		  fprintf(stderr, "ERROR: scope queue size %s.\n",
 			  unknown ? "solver returned UNKNOWN"
