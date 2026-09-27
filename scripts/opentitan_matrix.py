@@ -184,6 +184,7 @@ OPENTITAN_RUNTIME_FAIL_PATTERNS = (
     re.compile(r"^\s*Offending '.*'", re.I),
     re.compile(r"^TEST FAILED (?:UVM_)?CHECKS$", re.I),
     re.compile(r"^Error:.*$", re.I),
+    re.compile(r"^DPI error:.*$", re.I),
 )
 RUNTIME_DEBT_ALLOWLIST = (
     # IEEE 1800 permits a function call as a statement with its return value
@@ -191,6 +192,20 @@ RUNTIME_DEBT_ALLOWLIST = (
     # VPI runtime; Slang and Verilator accept the same call without warning.
     re.compile(r"Warning: Calling system function \$system\(\) as a task\.", re.I),
     re.compile(r"The functions return value will be ignored\.", re.I),
+)
+# Compiler warnings that describe the source accurately and change nothing
+# about how it simulates. They stay in the record as benign diagnostics.
+COMPILE_DEBT_ALLOWLIST = (
+    # A lint notice: IEEE 1800 does not forbid nonblocking assignments in
+    # always_comb, and OpenTitan's generated CSR assertion modules use them.
+    re.compile(r"warning: A non-blocking assignment should not be used in an "
+               r"always_comb process\.", re.I),
+    # Port coercion of an input driven from both sides (IEEE 1800 23.3.3);
+    # the net resolves exactly as declared inout.
+    re.compile(r"warning: input port \S+ is coerced to inout\.", re.I),
+    # IEEE 1800 13.4.1: a function may be called as a statement; its
+    # return value is discarded.
+    re.compile(r"warning: User function '\S+' is being called as a task\.", re.I),
 )
 SETUP_ALLOWLIST = (
     re.compile(r"No trustfile configured .* signatures will not be checked", re.I),
@@ -772,6 +787,8 @@ class SimulationTarget:
     metadata_warnings: tuple[str, ...] = ()
     timescale: str | None = None
     requires_uvm_library: bool = False
+    native_sources: tuple[str, ...] = ()
+    native_include_dirs: tuple[str, ...] = ()
 
     @property
     def uvm_runtime_configured(self) -> bool:
@@ -1270,6 +1287,8 @@ for name, core in cores.items():
             if resolved:
                 dependencies.add(resolved)
         default_type = str(fileset.file_type or "")
+        native_sources = []
+        include_dirs = set()
         for entry in fileset.files or []:
             source_name = normalize_reference(entry.name)
             source = Path(core.core_root) / source_name
@@ -1283,6 +1302,10 @@ for name, core in cores.items():
                 or suffix in {".c", ".cc", ".cpp", ".cxx"}
             )
             has_native = has_native or native
+            if native and suffix in {".c", ".cc", ".cpp", ".cxx"}:
+                native_sources.append(str(source))
+            if suffix in {".h", ".hh", ".hpp", ".hxx", ".inc"} or native:
+                include_dirs.add(str(source.parent))
             if suffix in {".v", ".vh", ".sv", ".svh"}:
                 text = source.read_text(errors="replace")
                 hdl_text.append(text)
@@ -1292,6 +1315,8 @@ for name, core in cores.items():
             "text": "\n".join(hdl_text),
             "native": has_native,
             "dpi": has_dpi,
+            "native_sources": native_sources,
+            "include_dirs": sorted(include_dirs),
         }
     core_metadata[name] = {"filesets": fileset_metadata}
 
@@ -1320,6 +1345,8 @@ def source_closure(root_name):
     hdl_text = []
     native_cores = set()
     dpi_cores = set()
+    native_sources = []
+    include_dirs = set()
     while pending:
         name, target_name = pending.pop()
         node = (name, target_name)
@@ -1332,13 +1359,16 @@ def source_closure(root_name):
             hdl_text.append(metadata["text"])
             if metadata["native"]:
                 native_cores.add(name)
+            native_sources.extend(metadata["native_sources"])
+            include_dirs.update(metadata["include_dirs"])
             if metadata["dpi"]:
                 dpi_cores.add(name)
             pending.extend(
                 (dependency, "default")
                 for dependency in metadata["dependencies"]
             )
-    return seen_cores, "\n".join(hdl_text), native_cores, dpi_cores
+    return (seen_cores, "\n".join(hdl_text), native_cores, dpi_cores,
+            list(dict.fromkeys(native_sources)), sorted(include_dirs))
 
 
 def substitute(value, context):
@@ -1367,6 +1397,11 @@ def merge_configs(base, addition):
         else:
             merged[key] = value
     return merged
+
+
+# Every cfg some other cfg imports: a base (kmac_base_sim_cfg) that dvsim
+# never runs by itself, only through the variants that import it.
+imported_configs = set()
 
 
 def load_config(config_path, inherited=None, stack=()):
@@ -1400,6 +1435,7 @@ def load_config(config_path, inherited=None, stack=()):
         imported_path = Path(imported_path)
         if not imported_path.is_absolute():
             imported_path = config_path.parent / imported_path
+        imported_configs.add(imported_path.resolve())
         merged = merge_configs(
             merged,
             load_config(
@@ -1416,8 +1452,11 @@ def unique(values):
 
 
 configs = {}
-for config_path in sorted(root.rglob("*sim_cfg.hjson")):
-    config = load_config(config_path)
+loaded_configs = [
+    (config_path, load_config(config_path))
+    for config_path in sorted(root.rglob("*sim_cfg.hjson"))
+]
+for config_path, config in loaded_configs:
     context = {
         **{
             key: value
@@ -1488,19 +1527,39 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
     build_options = [
         substitute(option, context) for option in config.get("build_opts", []) or []
     ]
-    if build_mode:
-        for mode in config.get("build_modes", []) or []:
-            if isinstance(mode, dict) and mode.get("name") == build_mode:
-                build_options.extend(
-                    substitute(option, context)
-                    for option in mode.get("build_opts", []) or []
-                )
-                runtime_options.extend(
-                    substitute(option, context)
-                    for option in mode.get("run_opts", []) or []
-                    if str(option).startswith("+") and "{" not in str(option)
-                )
-                break
+    # dvsim applies the test's build mode plus every mode named in
+    # en_build_modes (of the cfg, the test, or an applied mode). kmac's
+    # masked cfg only gets EN_MASKING=1 this way. `{tool}_...` modes hold
+    # VCS/Xcelium flags and stay unresolved.
+    modes = {
+        mode.get("name"): mode
+        for mode in config.get("build_modes", []) or []
+        if isinstance(mode, dict)
+    }
+    pending = [build_mode] if build_mode else []
+    for source in (config, selected):
+        pending.extend(source.get("en_build_modes", []) or [])
+    applied_modes = []
+    unresolved_build_modes = []
+    while pending:
+        mode_name = substitute(pending.pop(0), context)
+        if mode_name in applied_modes or mode_name in unresolved_build_modes:
+            continue
+        mode = modes.get(mode_name)
+        if mode is None:
+            unresolved_build_modes.append(mode_name)
+            continue
+        applied_modes.append(mode_name)
+        build_options.extend(
+            substitute(option, context)
+            for option in mode.get("build_opts", []) or []
+        )
+        runtime_options.extend(
+            substitute(option, context)
+            for option in mode.get("run_opts", []) or []
+            if str(option).startswith("+") and "{" not in str(option)
+        )
+        pending.extend(mode.get("en_build_modes", []) or [])
     build_options.extend(
         substitute(option, context) for option in selected.get("build_opts", []) or []
     )
@@ -1512,7 +1571,6 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
         "pre_run_cmds",
         "post_run_cmds",
         "sw_images",
-        "en_build_modes",
         "en_run_modes",
     ):
         if (
@@ -1521,6 +1579,8 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
             or any(regression.get(key) for regression in smoke_regressions)
         ):
             orchestration_requirements.append(key)
+    if unresolved_build_modes:
+        orchestration_requirements.append("en_build_modes")
     candidate = {
         "dvsim_config": relative(config_path),
         "dvsim_test": selected.get("name"),
@@ -1535,15 +1595,18 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
         "orchestration_requirements": orchestration_requirements,
     }
     previous = configs.get(core_name)
+    candidate["runnable_config"] = config_path.resolve() not in imported_configs
     candidate_score = (
         bool(uvm_test and uvm_test_seq),
         bool(selected),
         -len(candidate["unresolved_runtime_options"]),
+        candidate["runnable_config"],
     )
     previous_score = (
         bool(previous and previous.get("uvm_test") and previous.get("uvm_test_seq")),
         bool(previous and previous.get("dvsim_test")),
         -len(previous.get("unresolved_runtime_options", [])) if previous else 0,
+        bool(previous and previous.get("runnable_config")),
     )
     if previous is None or candidate_score > previous_score:
         configs[core_name] = candidate
@@ -1554,7 +1617,8 @@ for name, core in cores.items():
     target = core.targets.get("sim")
     if target is None:
         continue
-    closure, closure_text, native_cores, dpi_cores = source_closure(name)
+    (closure, closure_text, native_cores, dpi_cores, native_sources,
+     native_include_dirs) = source_closure(name)
     requires_uvm_library = bool(
         re.search(r"\bimport\s+uvm_pkg\s*::", closure_text)
         or re.search(r"[`\"]uvm_macros\.svh", closure_text)
@@ -1604,11 +1668,6 @@ for name, core in cores.items():
             "UVM source closure has no authoritative dvsim test/sequence pair"
         )
     native_dependencies = sorted(native_cores)
-    if native_dependencies:
-        metadata_warnings.append(
-            "native C/C++ dependencies require a DPI/VPI build outside the "
-            "Edalize Icarus source-list backend"
-        )
 
     simulation_targets.append({
         "vlnv": name,
@@ -1633,6 +1692,8 @@ for name, core in cores.items():
         "unresolved_runtime_options": config.get("unresolved_runtime_options", []),
         "metadata_warnings": metadata_warnings,
         "requires_uvm_library": requires_uvm_library,
+        "native_sources": native_sources,
+        "native_include_dirs": native_include_dirs,
     })
 
 print("FUSESOC_SIM_TARGETS_JSON=" + json.dumps(sorted(
@@ -1670,6 +1731,8 @@ print("FUSESOC_SIM_TARGETS_JSON=" + json.dumps(sorted(
         "orchestration_requirements",
         "unresolved_runtime_options",
         "metadata_warnings",
+        "native_sources",
+        "native_include_dirs",
     }
     for item in payload:
         normalized = dict(item)
@@ -2061,11 +2124,14 @@ def setup_command(
     # sva lanes this driver exercises. provider_mappings()/PRIM_MAPPING/
     # ENGLISHBREAKFAST_MAPPING are kept (and still self-tested) as the
     # mechanism a newer OpenTitan revision with the real fusesoc --mapping
-    # feature would need again, but are not applied to this command.
+    # feature would need again, but are not applied to this command. Their
+    # cores root is not scanned either: this fusesoc ignores `mapping` and
+    # warns "Unknown item mapping in section Root", which marked every
+    # otherwise clean run as debt.
+    del matrix_core_root
     command = [
         str(fusesoc),
         f"--cores-root={opentitan_root}",
-        f"--cores-root={matrix_core_root}",
         "run",
         f"--target={job.target}",
         "--tool=icarus",
@@ -2155,11 +2221,89 @@ def compile_command(
             if UVM_REGEX_NO_DPI_BUILD_OPTION in job.simulation.build_options:
                 command.append("-DUVM_REGEX_NO_DPI")
         command.extend(["-DSIMULATION", "-DDUT_HIER=tb.dut"])
-        command.extend(UVM_EXTRA_DEFINES.get(job.core.vlnv, ()))
+        if job.simulation is not None:
+            command.extend(dvsim_define_arguments(job.simulation.build_options))
+        defined = {arg[2:].split("=", 1)[0] for arg in command if arg.startswith("-D")}
+        command.extend(
+            define
+            for define in UVM_EXTRA_DEFINES.get(job.core.vlnv, ())
+            if define[2:].split("=", 1)[0] not in defined
+        )
     if uvm_home is not None and "-uvm" in command:
         command.append(f"--uvm-home={uvm_home}")
     command.extend(["-o", str(output), "-c", str(source_list)])
     return command
+
+
+NATIVE_CXX_SUFFIXES = {".cc", ".cpp", ".cxx"}
+
+
+def native_dpi_commands(
+    sources: Sequence[str],
+    include_dirs: Sequence[str],
+    iverilog: Path,
+    output: Path,
+    export_stubs: Path | None,
+    platform: str = sys.platform,
+) -> list[list[str]]:
+    """Commands that build a job's native DPI sources into one library.
+
+    `svdpi.h` comes from the Icarus install beside `iverilog`. The vvp
+    symbols it declares resolve when `vvp -d` loads the library.
+    """
+    includes = [f"-I{iverilog.resolve().parent.parent / 'include' / 'iverilog'}"]
+    includes += [f"-I{directory}" for directory in include_dirs]
+    objects: list[str] = []
+    commands: list[list[str]] = []
+    all_sources = list(sources) + ([str(export_stubs)] if export_stubs else [])
+    for index, source in enumerate(all_sources):
+        obj = output.parent / f"matrix-dpi-{index}.o"
+        objects.append(str(obj))
+        if Path(source).suffix.casefold() in NATIVE_CXX_SUFFIXES:
+            compiler = ["c++", "-std=c++17"]
+        else:
+            compiler = ["cc"]
+        commands.append(
+            [*compiler, "-O1", "-fPIC", *includes, "-c", source, "-o", str(obj)]
+        )
+    link = ["c++", "-shared", "-o", str(output), *objects]
+    if platform == "darwin":
+        link[2:2] = ["-undefined", "dynamic_lookup"]
+    commands.append(link)
+    return commands
+
+
+# Defines the command builder sets itself, from the job's lane and category.
+HARNESS_MANAGED_DEFINES = {
+    "UVM",
+    "UVM_NO_DEPRECATED",
+    "UVM_REGEX_NO_DPI",
+    "UVM_REG_ADDR_WIDTH",
+    "UVM_REG_DATA_WIDTH",
+    "UVM_REG_BYTENABLE_WIDTH",
+    "SIMULATION",
+    "DUT_HIER",
+}
+
+
+def dvsim_define_arguments(build_options: Sequence[str]) -> list[str]:
+    """Translate dvsim `+define+A=1+B` build options to iverilog -D flags.
+
+    `+define+` is simulator-independent; everything else in build_opts is a
+    VCS/Xcelium flag. An option still holding a `{...}` placeholder is skipped.
+    """
+    result = []
+    seen = set()
+    for option in build_options:
+        if not option.startswith("+define+") or "{" in option:
+            continue
+        for item in option[len("+define+"):].split("+"):
+            name = item.split("=", 1)[0]
+            if not name or name in HARNESS_MANAGED_DEFINES or name in seen:
+                continue
+            seen.add(name)
+            result.append("-D" + item)
+    return result
 
 
 TIMESCALE_RE = re.compile(
@@ -2345,7 +2489,12 @@ def run_job(
             f"{compile_result.returncode} without a recognized hard diagnostic; "
             "see the complete compile log"
         ]
-    semantic_debt = matching_lines(compile_result.output, DEBT_PATTERNS)
+    semantic_debt = matching_lines(
+        compile_result.output, DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST
+    )
+    compile_benign_diagnostics = matching_lines(
+        compile_result.output, COMPILE_DEBT_ALLOWLIST
+    )
     record.update(
         {
             "source_list": str(source_list),
@@ -2358,6 +2507,10 @@ def run_job(
             "compile_log": str(compile_log),
             "hard_error_count": len(hard_errors),
             "hard_errors": hard_errors[: args.diagnostic_limit],
+            "compile_benign_diagnostic_count": len(compile_benign_diagnostics),
+            "compile_benign_diagnostics": compile_benign_diagnostics[
+                : args.diagnostic_limit
+            ],
             "semantic_debt_count": len(semantic_debt),
             "semantic_debt": semantic_debt[: args.diagnostic_limit],
             "output_sha256": hashlib.sha256(
@@ -2415,9 +2568,59 @@ def run_job(
     runtime_arguments = merge_runtime_arguments(
         configured_arguments, args.runtime_arg
     )
+    dpi_libraries = list(args.dpi_library)
+    native_sources = job.simulation.native_sources if job.simulation else ()
+    if native_sources:
+        library = work_root / "matrix-dpi.so"
+        stubs = executable.with_suffix(".dpiexport.c")
+        build_log = work_root / "matrix-dpi-build.log"
+        build_output = []
+        build_failed = False
+        skipped_sources = []
+        commands = native_dpi_commands(
+            native_sources,
+            job.simulation.native_include_dirs,
+            iverilog,
+            library,
+            stubs if stubs.is_file() else None,
+        )
+        # A closure can carry native sources for other tools (Verilator's
+        # ELF loader needs libelf). Build what compiles; if the testbench
+        # imports a symbol from a skipped file, vvp reports "DPI error:",
+        # which fails the run.
+        link = commands[-1]
+        for build_command in commands[:-1]:
+            build_result = command_result(
+                build_command, cwd=work_root, env=env, timeout=args.compile_timeout
+            )
+            build_output.append(
+                "$ " + " ".join(build_command) + "\n" + build_result.output
+            )
+            if build_result.timed_out or build_result.returncode != 0:
+                obj = build_command[build_command.index("-o") + 1]
+                skipped_sources.append(build_command[build_command.index("-c") + 1])
+                link = [part for part in link if part != obj]
+        if not any(part.endswith(".o") for part in link):
+            build_failed = True
+        else:
+            build_result = command_result(
+                link, cwd=work_root, env=env, timeout=args.compile_timeout
+            )
+            build_output.append("$ " + " ".join(link) + "\n" + build_result.output)
+            build_failed = build_result.timed_out or build_result.returncode != 0
+        build_log.write_text("\n".join(build_output))
+        record["dpi_build_log"] = str(build_log)
+        record["dpi_skipped_sources"] = skipped_sources
+        if build_failed:
+            record["status"] = "DPI_BUILD_FAIL"
+            record["runtime_blockers"] = [
+                "native DPI sources did not build; see matrix-dpi-build.log"
+            ]
+            return record
+        dpi_libraries.append(library)
     dpi_options = [
         option
-        for library in args.dpi_library
+        for library in dpi_libraries
         for option in ("-d", str(library))
     ]
     runtime_command = [
@@ -2449,7 +2652,7 @@ def run_job(
     record.update(
         {
             "runtime_command": short_command(runtime_command),
-            "runtime_dpi_libraries": [str(path) for path in args.dpi_library],
+            "runtime_dpi_libraries": [str(path) for path in dpi_libraries],
             "runtime_returncode": runtime_result.returncode,
             "runtime_duration_seconds": round(runtime_result.duration_seconds, 3),
             "runtime_timed_out": runtime_result.timed_out,
@@ -2756,6 +2959,37 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             Path("iverilog"), Path("uvm.scr"), [], Path("uvm.vvp"),
             commercial_unsafe=True,
         )
+    assert dvsim_define_arguments(
+        (
+            "+define+EN_MASKING=1",
+            "+define+A=1+B",
+            "+define+UVM",
+            "+define+BUILD_SEED={seed}",
+            "-CFLAGS -O2",
+            "+define+EN_MASKING=0",
+        )
+    ) == ["-DEN_MASKING=1", "-DA=1", "-DB"]
+    nba_warning = ("x.sv:9: warning: A non-blocking assignment should not be "
+                   "used in an always_comb process.")
+    assert matching_lines(nba_warning, DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:3: warning: input port rst_n is coerced to inout.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:5: warning: User function 'f' is being called as a task.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:4: warning: something degraded.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) != []
+    dpi_build = native_dpi_commands(
+        ("/src/a.cc", "/src/b.c"),
+        ("/src",),
+        Path("/opt/ivl/bin/iverilog"),
+        Path("/work/matrix-dpi.so"),
+        Path("/work/matrix-runtime.dpiexport.c"),
+        platform="darwin",
+    )
+    assert dpi_build[0][:2] == ["c++", "-std=c++17"]
+    assert dpi_build[1][0] == "cc" and dpi_build[2][0] == "cc"
+    assert "-I/opt/ivl/include/iverilog" in dpi_build[0]
+    assert dpi_build[-1][:4] == ["c++", "-shared", "-undefined", "dynamic_lookup"]
     regex_uvm_target = dataclasses.replace(
         uvm_target,
         build_options=(
