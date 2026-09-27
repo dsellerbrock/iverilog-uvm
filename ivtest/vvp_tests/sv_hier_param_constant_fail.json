@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_hier_param_constant_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"   : "sv_hier_param_constant_fail"
+}

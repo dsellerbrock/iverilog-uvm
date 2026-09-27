@@ -22595,7 +22595,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
             bool local_param_member = sr.par_val != 0
 		  && !sr.path_tail.empty() && sr.path_head.size() == 1;
             bool bind_parameter = bind_parameter_expr_ && sr.par_val != 0;
-            if (!pkg_param && !local_param_member && !bind_parameter) {
+	      // Commercial tools accept an instance-path parameter in a
+	      // constant expression (OpenTitan csrng tb:
+	      // `tb.dut.u_core.u_gen.BlkLen' as a part-select width).
+            bool unsafe_hier_param = gn_commercial_unsafe_flag && sr.par_val != 0;
+            if (!pkg_param && !local_param_member && !bind_parameter
+		&& !unsafe_hier_param) {
                   // Allow local struct/class member paths in constant functions.
                   // sr.net found in the current scope (e.g., struct variable
                   // declared in the same function) is not a hierarchical reference.
@@ -22605,7 +22610,10 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
                   if (NEED_CONST & flags) {
                         cerr << get_fileline() << ": error: A hierarchical reference"
                                 " (`" << path_ << "') is not allowed in a constant"
-                                " expression." << endl;
+                                " expression"
+			     << (sr.par_val ? " (a hierarchical parameter is accepted"
+					      " only under -gcommercial-unsafe)" : "")
+			     << "." << endl;
                         des->errors += 1;
                         return 0;
                   }
