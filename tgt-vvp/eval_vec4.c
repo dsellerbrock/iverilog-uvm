@@ -3381,7 +3381,11 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
             }
       }
       if (ivl_expr_value(expr) == IVL_VT_STRING) {
-            unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+              /* A string's compile-time width is nominal. Convert it at its
+                 natural (runtime) width -- operand 0 -- and let the
+                 consumer pad or select as its context requires. An explicit
+                 cast node carries a real width instead. */
+            unsigned wid = 0;
             switch (ivl_expr_type(expr)) {
                 case IVL_EX_STRING:
                 case IVL_EX_SIGNAL:

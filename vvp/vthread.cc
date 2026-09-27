@@ -14703,6 +14703,9 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       string str = thr->pop_str();
 
       const unsigned swid = 8 * str.length();
+	// Width 0 is an implicit conversion at the string's natural width
+	// (its compile-time width is nominal); never narrower than one bit.
+      if (wid == 0) wid = swid ? swid : 1;
 	// Pack the whole string, then keep the low `wid' bits: a narrower
 	// target truncates from the left exactly like a string literal (IEEE
 	// 1800-2017 5.9, 6.16). Returning a vector wider than `wid' broke
