@@ -6251,6 +6251,8 @@ struct elaborator_work_item_t {
  * This class contains an entire design. It includes processes and a
  * netlist, and can be passed around from function to function.
  */
+extern void reset_synth_checked_subroutines();
+
 class Design {
 
     public:

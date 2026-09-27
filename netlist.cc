@@ -4372,10 +4372,23 @@ bool NetBaseDef::check_synth(ivl_process_type_t pr_type,
       return result;
 }
 
+/* Called subroutine bodies are checked once per always_* process. Without
+ * this, a recursive method (UVM's component tree walks) recursed without
+ * bound and overflowed the stack, and a shared helper was re-walked, with
+ * its warnings repeated, at every call site. */
+static std::set<const NetScope*> synth_checked_subroutines_;
+
+void reset_synth_checked_subroutines()
+{
+      synth_checked_subroutines_.clear();
+}
+
 bool NetUTask::check_synth(ivl_process_type_t pr_type,
                            const NetScope* scope) const
 {
       const NetScope* task_scope = task();
+      if (!synth_checked_subroutines_.insert(task_scope).second)
+	    return false;
       if (task_scope->type() == NetScope::FUNC) {
 	    // This can happen if this a void function.
 	    return task_scope->func_def()->check_synth(pr_type, scope);

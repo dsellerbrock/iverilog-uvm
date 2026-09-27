@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_always_comb_func_string_arg_sens.v",
+    "iverilog-args" : [ "-g2023" ]
+}

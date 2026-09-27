@@ -489,15 +489,35 @@ static void func_always_sens(const NetFuncDef*func, NexusSet*result,
 	      return;
 
 	std::unique_ptr<NexusSet> tmp(func->proc()->nex_input(rem_out, true, true));
-	  // Remove the function inputs
-	std::unique_ptr<NexusSet> in(new NexusSet);
+	  /* IEEE 1800-2017 9.2.2.2.1: the implicit sensitivity excludes
+	     anything declared within a called function -- its arguments and
+	     locals. Drop every entry on such a signal whatever its range: a
+	     select of a string argument (uvm_re_match's `re') carries a range
+	     that a width-based removal cannot match. */
+	std::set<const Nexus*> own;
+	std::vector<const NetScope*> scopes (1, func->scope());
+	while (!scopes.empty()) {
+	      const NetScope*cur = scopes.back();
+	      scopes.pop_back();
+	      if (!cur)
+		    continue;
+	      for (const auto&sig : cur->signals_map())
+		    for (unsigned pin = 0; pin < sig.second->pin_count(); pin += 1)
+			  own.insert(sig.second->pin(pin).nexus());
+	      for (const auto&child : cur->children())
+		    scopes.push_back(child.second);
+	}
 	for (unsigned idx = 0; idx < func->port_count(); idx++) {
 	      NetNet *net = func->port(idx);
 	      assert(net->pin_count() == 1);
-	      in->add(net->pin(0).nexus(), 0, net->vector_width());
+	      own.insert(net->pin(0).nexus());
 	}
-	tmp->rem(*in);
-	result->add(*tmp);
+	for (size_t idx = 0; idx < tmp->size(); idx += 1) {
+	      NexusSet::elem_t&item = tmp->at(idx);
+	      Nexus*nex = item.lnk.nexus();
+	      if (!own.count(nex))
+		    result->add(nex, item.base, item.wid);
+	}
 }
 
 NexusSet* NetEUFunc::nex_input(bool rem_out, bool always_sens, bool nested_func) const

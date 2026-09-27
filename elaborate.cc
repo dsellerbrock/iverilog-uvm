@@ -39992,6 +39992,7 @@ bool Design::check_proc_synth() const
 	    if ((pr->type() == IVL_PR_ALWAYS_COMB) ||
 	        (pr->type() == IVL_PR_ALWAYS_FF) ||
 	        (pr->type() == IVL_PR_ALWAYS_LATCH)) {
+		  reset_synth_checked_subroutines();
 		  result |= pr->statement()->check_synth(pr->type(),
 		                                         pr->scope());
 		  if (pr->type() == IVL_PR_ALWAYS_FF) {
