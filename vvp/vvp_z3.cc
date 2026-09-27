@@ -11891,6 +11891,31 @@ string vvp_z3_substitute_object_value_slots(const string&ir,
       return result;
 }
 
+/* A guarded read beyond the candidate queue size is harmless only when the
+ * complete hard formula cannot observe its value at that size. Compare the
+ * formula with a copy using independent values for every missing element.
+ * UNSAT proves independence for all assignments, not just one Z3 model. */
+static Z3_lbool scope_queue_absent_dependency_(Z3_context ctx, Z3_ast hard,
+					       Z3_ast exact,
+					       const vector<Z3Builder::AbsentElem>& absent)
+{
+      if (absent.empty()) return Z3_L_FALSE;
+      vector<Z3_ast> from, to;
+      for (const auto&elem : absent) {
+	    from.push_back(elem.var);
+	    to.push_back(Z3_mk_fresh_const(ctx, "absent",
+			Z3_get_sort(ctx, elem.var)));
+      }
+      Z3_ast changed = Z3_substitute(ctx, hard, (unsigned)from.size(),
+					     from.data(), to.data());
+      Z3_solver proof = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, proof);
+      Z3_solver_assert(ctx, proof, Z3_mk_xor(ctx, hard, changed));
+      Z3_lbool result = Z3_solver_check_assumptions(ctx, proof, 1, &exact);
+      Z3_solver_dec_ref(ctx, proof);
+      return result;
+}
+
 bool vvp_z3_randomize_scope_queue(const string&ir,
 			    unsigned element_width, uint64_t declared_max,
 			    const vector<uint64_t>&slot_vals,
@@ -11955,34 +11980,118 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	 one uniformly. A feasible size beyond the enumeration window fails
 	 loudly instead of biasing the choice toward small sizes. */
       {
-	    Z3_solver probe = Z3_mk_solver(ctx);
+	    Z3_solver probe = Z3_mk_simple_solver(ctx);
 	    Z3_solver_inc_ref(ctx, probe);
 	    Z3_solver_assert(ctx, probe, hard);
+	    const bool full_candidates = !first.dyn_foreach.empty()
+		  || !first.elem_vars.empty();
+	    Z3_solver full_probe = nullptr;
+	    if (full_candidates) {
+		  full_probe = Z3_mk_simple_solver(ctx);
+		  Z3_solver_inc_ref(ctx, full_probe);
+	    }
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 	    uint64_t window = declared_max && declared_max < ENUM_DOMAIN_CAP
 		  ? declared_max : ENUM_DOMAIN_CAP;
 	    vector<uint64_t> feasible;
 	    bool unknown = false;
-	    for (uint64_t v = 0; v <= window && !unknown; ++v) {
+	    bool unsupported = false;
+	    auto check_candidate = [&](uint64_t v) -> Z3_lbool {
 		  Z3_ast eq = Z3_mk_eq(ctx, first.size_vars[0].var,
 				       Z3_mk_unsigned_int64(ctx, v, s32));
 		  Z3_lbool r = Z3_solver_check_assumptions(ctx, probe, 1, &eq);
+		  if (full_candidates) {
+			/* The size pass omits foreach bodies, but remains a cheap
+			   necessary condition for the fully expanded candidate. */
+			if (r != Z3_L_TRUE) return r;
+			map<unsigned,uint64_t> candidate_sizes;
+			candidate_sizes[0] = v;
+			Z3Builder candidate(ctx, nullptr, nullptr);
+			candidate.strict_ir = true;
+			candidate.dyn_sizes = &candidate_sizes;
+			Z3_ast candidate_hard = parse_constraint_ir(sub, candidate);
+			bool valid_candidate = candidate.state_errors.empty()
+			      && candidate.state_checks.empty()
+			      && candidate.pending_soft.empty()
+			      && candidate.size_vars.size() == 1
+			      && candidate.size_vars[0].idx == 0
+			      && candidate.prop_vars.empty();
+			for (const auto&ev : candidate.elem_vars)
+			      valid_candidate = valid_candidate && ev.idx == 0
+				&& ev.width == element_width && ev.elem < v;
+			if (!valid_candidate) {
+			      unsupported = true;
+			      return Z3_L_FALSE;
+			}
+			Z3_solver_push(ctx, full_probe);
+			Z3_solver_assert(ctx, full_probe, candidate_hard);
+			r = Z3_solver_check_assumptions(ctx, full_probe, 1, &eq);
+			Z3_solver_pop(ctx, full_probe, 1);
+			/* A missing direct element has a type-specific default value.
+			   Admit this size only when the formula provably ignores it. */
+			if (r == Z3_L_TRUE && !candidate.absent_elems.empty()) {
+			      Z3_lbool dependency = scope_queue_absent_dependency_(
+				ctx, candidate_hard, eq, candidate.absent_elems);
+			      if (dependency == Z3_L_TRUE) unsupported = true;
+			      else if (dependency == Z3_L_UNDEF) unknown = true;
+			}
+		  }
+		  return r;
+	    };
+	    for (uint64_t v = 0; v <= window && !unknown && !unsupported; ++v) {
+		  Z3_lbool r = check_candidate(v);
 		  if (r == Z3_L_TRUE) feasible.push_back(v);
 		  else if (r == Z3_L_UNDEF) unknown = true;
 	    }
 	    bool beyond = false;
-	    if (!unknown) {
+	    if (!unknown && !unsupported) {
 		  Z3_ast gt = Z3_mk_bvugt(ctx, first.size_vars[0].var,
 					  Z3_mk_unsigned_int64(ctx, window, s32));
+		  if (declared_max && declared_max < UINT32_MAX) {
+			Z3_ast le = Z3_mk_bvule(ctx, first.size_vars[0].var,
+				Z3_mk_unsigned_int64(ctx, declared_max, s32));
+			Z3_ast both[2] = { gt, le };
+			gt = Z3_mk_and(ctx, 2, both);
+		  }
 		  Z3_lbool r = Z3_solver_check_assumptions(ctx, probe, 1, &gt);
 		  if (r == Z3_L_UNDEF) unknown = true;
 		  else beyond = r == Z3_L_TRUE;
-	    }
+		  if (beyond && full_candidates) {
+			/* The preliminary size formula may admit a large value that
+			   its foreach body rejects. Exhaust a sparse wide domain before
+			   deciding that a feasible size lies beyond the window. */
+			vector<uint64_t> sparse;
+			Z3_solver_push(ctx, probe);
+			Z3_solver_assert(ctx, probe, gt);
+			bool complete = z3_enumerate_sparse_wide_domain_(ctx,
+				probe, first.size_vars[0].var, 32, sparse);
+			Z3_solver_pop(ctx, probe, 1);
+			if (complete) {
+			      beyond = false;
+			      uint64_t expansion = 0;
+			      for (uint64_t v : sparse) {
+				/* ponytail: The 16384-element expansion ceiling keeps
+				   sparse probing bounded. Lift it after replacing per-size
+				   foreach expansion with a symbolic feasibility proof. */
+				if (v > 65536 || expansion + v > 16384) {
+				      beyond = true;
+				      break;
+				}
+				expansion += v;
+				Z3_lbool candidate = check_candidate(v);
+				if (unsupported || unknown) break;
+				if (candidate == Z3_L_TRUE) feasible.push_back(v);
+				else if (candidate == Z3_L_UNDEF) unknown = true;
+			      }
+			}
+		  }
+		}
 	    /* A size fixed beyond the window (`size() == 65537', or above a
 	       declared maximum) is unique: keep it so the limit check below
 	       reports it exactly. */
 	    bool unique_beyond = false;
-	    if (!unknown && beyond && feasible.empty()) {
+	    if (!unknown && !unsupported && feasible.empty()
+		&& size > window) {
 		  Z3_ast other = Z3_mk_not(ctx, Z3_mk_eq(ctx,
 			first.size_vars[0].var,
 			Z3_mk_unsigned_int64(ctx, size, s32)));
@@ -11990,13 +12099,31 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 		  if (r == Z3_L_UNDEF) unknown = true;
 		  else unique_beyond = r == Z3_L_FALSE;
 	    }
-	    Z3_solver_dec_ref(ctx, probe);
 	    if (unique_beyond) {
-		  feasible.push_back(size);
+		  if (size > 65536 || (declared_max && size > declared_max))
+			feasible.push_back(size);
+		  else {
+			Z3_lbool r = check_candidate(size);
+			if (r == Z3_L_TRUE) feasible.push_back(size);
+			else if (r == Z3_L_UNDEF) unknown = true;
+		  }
 		  beyond = false;
 	    }
+	    if (full_probe) Z3_solver_dec_ref(ctx, full_probe);
+	    Z3_solver_dec_ref(ctx, probe);
+	    if (unsupported) {
+		  fprintf(stderr, "ERROR: scope queue element constraint is "
+			  "unsupported or outside the solved size.\n");
+		  Z3_optimize_dec_ref(ctx, opt);
+		  Z3_del_context(ctx);
+		  return false;
+	    }
 	    if (unknown || beyond || feasible.empty()) {
-		  fprintf(stderr, "ERROR: scope queue size %s.\n",
+		  if (beyond && full_candidates && !unknown)
+			fprintf(stderr, "ERROR: scope queue cannot prove whether "
+				"sizes beyond the enumerable range (1024) "
+				"satisfy element constraints.\n");
+		  else fprintf(stderr, "ERROR: scope queue size %s.\n",
 			  unknown ? "solver returned UNKNOWN"
 			  : beyond ? "may exceed the enumerable range (1024); "
 				     "bound it with a constraint"
@@ -12033,7 +12160,6 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
       final.dyn_sizes = &sizes;
       hard = parse_constraint_ir(sub, final);
       valid = final.state_errors.empty() && final.state_checks.empty()
-	    && final.absent_elems.empty()
 	    && final.pending_soft.empty()
 	    && final.prop_vars.empty();
       for (const auto&ev : final.elem_vars)
@@ -12050,6 +12176,17 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
       Z3_ast exact = Z3_mk_eq(ctx, final.get_size_var(0,
 				first.size_vars[0].container_type),
 		Z3_mk_unsigned_int64(ctx, size, Z3_mk_bv_sort(ctx, 32)));
+      Z3_lbool dependency = scope_queue_absent_dependency_(
+	    ctx, hard, exact, final.absent_elems);
+      if (dependency != Z3_L_FALSE) {
+	    fprintf(stderr, dependency == Z3_L_UNDEF
+		  ? "ERROR: scope queue missing-element proof returned UNKNOWN.\n"
+		  : "ERROR: scope queue element constraint is unsupported or "
+		    "outside the solved size.\n");
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
       Z3_optimize_assert(ctx, opt, exact);
       for (uint64_t i = 0; i < size; ++i) {
 	    Z3_ast var = final.get_elem_var(0, element_width, (unsigned)i);
