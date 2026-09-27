@@ -4190,6 +4190,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       class_scope->set_line(pclass);
       class_scope->set_class_def(use_class);
       class_scope->set_class_pform(pclass);
+	// A class-body import is accepted only under -gcommercial-unsafe.
+      class_scope->add_imports(&pclass->explicit_imports);
 	/* A parameterized class can declare nominal enum/struct types. Bind
 	 * those declarations to this canonical specialization rather than to an
 	 * allocation address or a hierarchy spelling that rootless interface
@@ -4498,6 +4500,8 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
       class_scope->set_line(pclass);
       class_scope->set_class_def(use_class);
       class_scope->set_class_pform(pclass);
+	// A class-body import is accepted only under -gcommercial-unsafe.
+      class_scope->add_imports(&pclass->explicit_imports);
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(scope);
       use_class->set_virtual(use_type->virtual_class);

@@ -1,0 +1,2 @@
+ivltests/sv_unsafe_concat_assign_pattern_member_fail.v:6: error: Named struct pattern has no value for member 'c'.
+1 error(s) during elaboration.

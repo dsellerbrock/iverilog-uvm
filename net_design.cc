@@ -1375,7 +1375,8 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 
       // Handle assignment patterns as a special case as they need the type to
       // be evaluated correctly.
-      if (param_type && dynamic_cast<PEAssignPattern*>(val_expr)) {
+      if (param_type && (dynamic_cast<PEAssignPattern*>(val_expr)
+			 || concat_of_assign_patterns_is_unsafe_typed(val_expr))) {
 	    expr = elab_and_eval(des, val_scope, val_expr, param_type, true);
       } else {
 	    unsigned extra_flags = PExpr::NO_FLAGS;

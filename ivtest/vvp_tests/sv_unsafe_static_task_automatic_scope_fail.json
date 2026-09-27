@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_unsafe_static_task_automatic_scope_fail.v",
+    "iverilog-args" : [ "-g2017", "-gcommercial-unsafe" ],
+    "gold"   : "sv_unsafe_static_task_automatic_scope_fail"
+}

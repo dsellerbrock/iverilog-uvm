@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_unsafe_concat_assign_pattern.v",
+    "iverilog-args" : [ "-g2023", "-gcommercial-unsafe" ]
+}

@@ -20,6 +20,7 @@
 
 # include  <cstdarg>
 # include  "pform.h"
+# include  "compiler.h"
 # include  "PPackage.h"
 # include  "PClass.h"
 # include  "parse_misc.h"
@@ -164,7 +165,9 @@ void pform_package_import(const struct vlltype&loc, PPackage*pkg, const char*ide
       // function body already fails with a plain syntax error,
       // independent of this change. Not investigated or fixed here; see
       // DISCOVERED_DEBT.md.
-      if (dynamic_cast<const PClass*>(scope)) {
+      // Commercial simulators accept such an import and make the package
+      // names visible in the class; -gcommercial-unsafe does the same.
+      if (dynamic_cast<const PClass*>(scope) && !gn_commercial_unsafe_flag) {
 	    cerr << loc.get_fileline() << ": error: An import statement is "
 		    "illegal directly within a class scope (IEEE "
 		    "1800-2017/2023 A.1.8/A.2.1.3)." << endl;

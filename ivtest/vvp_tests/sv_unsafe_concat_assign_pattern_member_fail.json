@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_unsafe_concat_assign_pattern_member_fail.v",
+    "iverilog-args" : [ "-g2017", "-gcommercial-unsafe" ],
+    "gold"   : "sv_unsafe_concat_assign_pattern_member_fail"
+}

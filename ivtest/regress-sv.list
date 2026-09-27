@@ -2912,6 +2912,7 @@ sv_automatic_boolean_nba_coalescing normal,-g2017 ivltests gold=sv_automatic_boo
 sv_automatic_boolean_nba_coalescing_2023 normal,-g2023 ivltests gold=sv_automatic_boolean_nba_coalescing.gold
 sv_automatic_boolean_recursive normal,-g2017 ivltests gold=sv_automatic_boolean_recursive.gold
 sv_automatic_boolean_recursive_2023 normal,-g2023 ivltests gold=sv_automatic_boolean_recursive.gold
+sv_automatic_pkg_class_decl normal,-g2012	ivltests
 sv_foreach_selected_member_string normal,-g2017 ivltests gold=sv_foreach_selected_member_string.gold
 sv_foreach_selected_member_string_2023 normal,-g2023 ivltests gold=sv_foreach_selected_member_string.gold
 sv_foreach_selected_member_keys normal,-g2017 ivltests gold=sv_foreach_selected_member_keys.gold
@@ -3148,6 +3149,7 @@ sv_assoc_compound_typing_2023 normal,-g2023,-I./ivltests,-stest ivltests gold=sv
 sv_class_handle_string_specialized_fail CE,-g2012	ivltests gold=sv_class_handle_string_specialized_fail.gold
 sv_class_handle_string_seed_ok normal,-g2012	ivltests gold=sv_class_handle_string_seed_ok.gold
 sv_class_body_import_fail CE,-g2012	ivltests gold=sv_class_body_import_fail.gold
+sv_concat_assign_pattern_fail CE,-g2012	ivltests gold=sv_concat_assign_pattern_fail.gold
 sv_class_property_string_conversion normal,-g2012	ivltests
 sv_procedural_package_import normal,-g2017	ivltests gold=sv_procedural_package_import.gold
 sv_procedural_package_import_late_fail CE,-g2017	ivltests

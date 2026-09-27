@@ -1,0 +1,3 @@
+./ivltests/sv_concat_assign_pattern_fail.v:6: error: An assignment pattern needs a context that gives it a type; there is none here.
+./ivltests/sv_concat_assign_pattern_fail.v:6: error: An assignment pattern needs a context that gives it a type; there is none here.
+2 error(s) during elaboration.
