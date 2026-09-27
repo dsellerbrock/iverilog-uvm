@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_param_class_generic_only_reached_later.v",
+    "iverilog-args" : [ "-g2023" ]
+}
