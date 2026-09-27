@@ -17292,6 +17292,21 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      // arg 0 = cg object expression
 			      argv.push_back(obj_expr);
 
+			      /* Coverpoint, guard and bin sources name signals and
+			         subroutines of the scope that declares the covergroup
+			         (IEEE 1800-2017 19.3), not of the sample() caller: a
+			         covergroup in an interface sampled as u.cg.sample(x)
+			         still resolves the interface's own functions. Class-
+			         embedded covergroups keep the caller (method) scope. */
+			      NetScope*cp_scope = scope;
+			      if (!parent_cls) {
+				    NetScope*def_scope = const_cast<netclass_t*>(
+					  cgtype)->definition_scope();
+				    if (def_scope && def_scope != scope
+					&& (def_scope->type() == NetScope::MODULE
+					    || def_scope->type() == NetScope::PACKAGE))
+					  cp_scope = def_scope;
+			      }
 			      vector<NetNet*> previous_ctor_bindings(nctor, nullptr);
 			      for (unsigned k = 0; k < nctor; k += 1) {
 				    ivl_type_t slot_type =
@@ -17309,7 +17324,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  new NetAssign_(slot), value);
 				    copy->set_line(*this);
 				    sample_block->append(copy);
-				    previous_ctor_bindings[k] = scope->set_signal_alias(
+				    previous_ctor_bindings[k] = cp_scope->set_signal_alias(
 					  cgtype->covgrp_ctor_formal_name(k), slot);
 			      }
 
@@ -17430,7 +17445,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						sample_block->append(copy);
 					  }
 					  previous_formal_bindings[k] =
-						scope->set_signal_alias(
+						cp_scope->set_signal_alias(
 						      cgtype->covgrp_sample_formal(k),
 						      formal_nets[k]);
 				    }
@@ -17457,7 +17472,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  }
 					  NetExpr*sval = nullptr;
 					  if (PExpr*sexpr = cgtype->covgrp_cp_expr(cpi)) {
-						sval = elab_and_eval(des, scope, sexpr, -1,
+						sval = elab_and_eval(des, cp_scope, sexpr, -1,
 								     false, false);
 					  }
 					  if (!sval) {
@@ -17482,7 +17497,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  PExpr*gexpr = cgtype->covgrp_cp_guard(cpi);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
-						gval = elab_and_eval(des, scope, gexpr, -1,
+						gval = elab_and_eval(des, cp_scope, gexpr, -1,
 								     false, false);
 						if (!gval)
 						if (const PEIdent*gid =
@@ -17500,7 +17515,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						      }
 						}
 						if (!gval)
-						      gval = elab_and_eval(des, scope,
+						      gval = elab_and_eval(des, cp_scope,
 									   gexpr, -1,
 									   false, false);
 						if (!gval)
@@ -17526,7 +17541,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  PExpr*gexpr = cgtype->covgrp_item_guard(item);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
-						gval = elab_and_eval(des, scope, gexpr, -1,
+						gval = elab_and_eval(des, cp_scope, gexpr, -1,
 							     false, false);
 						if (!gval)
 						if (const PEIdent*gid =
@@ -17565,7 +17580,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    for (unsigned gi = 0; gi < nbinguards; gi++) {
 					  PExpr*gexpr = cgtype->covgrp_bin_guard(gi);
 					  NetExpr*gval = gexpr
-						? elab_and_eval(des, scope, gexpr,
+						? elab_and_eval(des, cp_scope, gexpr,
 								-1, false, false)
 						: nullptr;
 					  if (!gval && gexpr)
@@ -17614,11 +17629,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    argv.push_back(nbin_arg);
 			      }
 			      for (unsigned k = 0; k < nformals; k += 1)
-				    scope->restore_signal_alias(
+				    cp_scope->restore_signal_alias(
 					  cgtype->covgrp_sample_formal(k),
 					  previous_formal_bindings[k]);
 			      for (unsigned k = 0; k < nctor; k += 1)
-				    scope->restore_signal_alias(
+				    cp_scope->restore_signal_alias(
 					  cgtype->covgrp_ctor_formal_name(k),
 					  previous_ctor_bindings[k]);
 			      NetSTask* sys = new NetSTask(

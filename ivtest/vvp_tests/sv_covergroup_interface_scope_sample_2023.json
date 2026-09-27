@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_covergroup_interface_scope_sample.v",
+    "iverilog-args" : [ "-g2023" ]
+}
