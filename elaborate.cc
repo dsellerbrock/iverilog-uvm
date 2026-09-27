@@ -33185,6 +33185,28 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    bool call_local_qualified = !cpath.empty()
 		  && cpath.front().local_scope;
 	    bool scoped_static_locator = false;
+	      /* Inside `h.randomize() with {...}', `h.data.size()' names the
+	       * target's own member through the handle being randomized (IEEE
+	       * 1800-2017 18.7), exactly like `data.size()'. Convert the call on
+	       * the path that follows the handle (OpenTitan usbdev:
+	       * m_data_pkt.data.size() == num_of_bytes). The rebuilt node stays
+	       * allocated: value slots may keep pointers into it. */
+	    if (cls && cpath.size() >= 2 && !call->receiver_expr()
+		&& !call->has_scoped_type_prefix()) {
+		  const netclass_t*target_owner = nullptr;
+		  pform_name_t::const_iterator rest;
+		  if (constraint_target_path_begin_(call->path(), cls,
+						    target_owner, rest)
+		      && target_owner == cls && rest != cpath.begin()
+		      && rest != cpath.end()) {
+			pform_name_t stripped(rest, cpath.end());
+			PECallFunction*member_call = new PECallFunction(
+			      stripped, call->get_parms());
+			member_call->set_line(*call);
+			return pexpr_to_constraint_ir(member_call, cls, value_slots,
+						      scope, loop_env);
+		  }
+	    }
 	      /* num(), first() and last() of an enum variable are properties of
 	       * its type, not its value (IEEE 1800-2017 6.19.5), so they fold to
 	       * constants: `num_adv == state.num() + 1' (OpenTitan keymgr). */
