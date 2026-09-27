@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_string_cast_width_and_case.v",
+    "iverilog-args" : [ "-g2023" ]
+}

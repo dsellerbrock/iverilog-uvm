@@ -18624,15 +18624,28 @@ unsigned PECastSize::test_width(Design*des, NetScope*scope, width_mode_t&)
 	// string-TYPED expression is a dynamic type, not a vector, and
 	// still gets the error below.
       bool string_literal_base = dynamic_cast<const PEString*>(base_) != nullptr;
+	// Commercial tools also size-cast a string-typed value as its packed
+	// bytes (OpenTitan prim_lfsr: `64'(LfsrType)' where the testbench
+	// passes a `localparam string'). IEEE 6.24.1 requires an integral
+	// operand; accept it, as the logic[N-1:0] type cast does, only under
+	// -gcommercial-unsafe.
+      bool unsafe_string_base = !string_literal_base && gn_commercial_unsafe_flag
+	    && base_->expr_type() == IVL_VT_STRING;
 
-      if (!string_literal_base && !type_is_vectorable(base_->expr_type())) {
+      if (!string_literal_base && !unsafe_string_base
+	  && !type_is_vectorable(base_->expr_type())) {
 	    cerr << get_fileline() << ": error: Cast base expression "
-		    "must be a vector type." << endl;
+		    "must be a vector type"
+		 << (base_->expr_type() == IVL_VT_STRING
+		     ? " (a string-typed operand is accepted only under"
+		       " -gcommercial-unsafe)" : "")
+		 << "." << endl;
 	    des->errors += 1;
 	    return 0;
       }
 
-      expr_type_   = string_literal_base ? IVL_VT_LOGIC : base_->expr_type();
+      expr_type_   = (string_literal_base || unsafe_string_base)
+		   ? IVL_VT_LOGIC : base_->expr_type();
       min_width_   = expr_width_;
       signed_flag_ = base_->has_sign();
 
@@ -18656,6 +18669,12 @@ NetExpr* PECastSize::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*sub = base_->elaborate_expr(des, scope, cast_width, flags);
       if (sub == 0)
 	    return 0;
+
+	// -gcommercial-unsafe string operand: convert as logic[N-1:0]'(s).
+      if (sub->expr_type() == IVL_VT_STRING && gn_commercial_unsafe_flag) {
+	    NetExpr*vec = cast_to_int4(sub, expr_width_);
+	    return pad_to_width(vec, expr_wid, signed_flag_, *this);
+      }
 
 	// Perform the cast. The extension method (zero/sign), if needed,
 	// depends on the type of the base expression.

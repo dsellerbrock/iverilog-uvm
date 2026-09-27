@@ -14703,12 +14703,11 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       string str = thr->pop_str();
 
       const unsigned swid = 8 * str.length();
-      // When the compile-time width is smaller than the actual string width
-      // (e.g. ivl_expr_width returned 1 for a string var in a case selector),
-      // use the runtime string width so case comparisons work correctly.
-      if (wid < swid) wid = swid;
-
-      vvp_vector4_t vec(wid, BIT4_0);
+	// Pack the whole string, then keep the low `wid' bits: a narrower
+	// target truncates from the left exactly like a string literal (IEEE
+	// 1800-2017 5.9, 6.16). Returning a vector wider than `wid' broke
+	// every consumer that trusts the expression width.
+      vvp_vector4_t vec(swid > wid ? swid : wid, BIT4_0);
       const unsigned use_wid = swid;
       const unsigned use_chars = (use_wid + 7) / 8;
 
@@ -14738,6 +14737,8 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
             }
       }
 
+      if (vec.size() > wid)
+	    vec = vvp_vector4_t(vec, 0, wid);
       thr->push_vec4(vec);
       return true;
 }

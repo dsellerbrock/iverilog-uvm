@@ -11980,6 +11980,11 @@ static NetExpr*elab_and_eval_case(Design*des, NetScope*scope, PExpr*pe,
 
       if (context_is_real)
 	    expr = cast_to_real(expr);
+	/* A string-typed case expression compares as its packed bytes at the
+	   case context width (IEEE 1800-2017 6.16, 12.5), so `case (k)
+	   "write":' matches. Its own nominal width is not a value width. */
+      else if (expr->expr_type() == IVL_VT_STRING)
+	    expr = cast_to_int4(expr, context_width);
 
       eval_expr(expr, context_width);
 
