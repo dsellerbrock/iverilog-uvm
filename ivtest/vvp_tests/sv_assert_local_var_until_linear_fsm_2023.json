@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_assert_local_var_until_linear_fsm.v",
+    "iverilog-args" : [ "-g2023" ]
+}
