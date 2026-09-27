@@ -1391,6 +1391,16 @@ static void do_define(void)
 
     define_continue_flag = 0;
 
+    /* Leading white space is not part of the macro text (IEEE 1800-2017
+     * 22.5.1), including indentation on a continuation line that starts
+     * the body:  `define HIER \  <newline>  tb.dut.mem  is "tb.dut.mem".
+     * OpenTitan stringifies such a body into a UVM HDL path. */
+    if (define_cnt == 0) {
+	char*first = yytext;
+	while (*first == ' ' || *first == '\t') first += 1;
+	if (first != yytext) memmove(yytext, first, strlen(first) + 1);
+    }
+
     /* Strip comments while preserving comment-looking text inside a string
      * literal or escaped identifier. Macro quote (`") and escaped macro
      * quote (`\`") are operators, not ordinary string delimiters. Token
@@ -1514,6 +1524,11 @@ static void do_define(void)
 
 	define_continue_flag = 1;
     }
+
+    /* A body that has only a continuation so far has no text yet: do not
+     * start it with the continuation's newline. */
+    if (define_cnt == 0 && cp - yytext == 1 && yytext[0] == '\n')
+	return;
 
     /* Accumulate this text into the define_text string. */
     define_text = realloc(define_text, define_cnt + (cp-yytext) + 1);

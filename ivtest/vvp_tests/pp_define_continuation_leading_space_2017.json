@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "pp_define_continuation_leading_space.v",
+    "iverilog-args" : [ "-g2017" ]
+}
