@@ -1,0 +1,1 @@
+ivltests/sv_unary_reduction_chain_fail.v:5: error: Operand of unary ! is not a primary expression (accepted only under -gcommercial-unsafe).

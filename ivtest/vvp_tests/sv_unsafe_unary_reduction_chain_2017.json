@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_unsafe_unary_reduction_chain.v",
+    "iverilog-args" : [ "-g2017", "-gcommercial-unsafe" ]
+}

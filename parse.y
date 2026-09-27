@@ -765,6 +765,23 @@ static PExpr* pform_self_package_type_cast(const struct vlltype&loc,
       return cast;
 }
 
+static PExpr* pform_unsafe_unary_chain(const YYLTYPE&loc, char outer,
+				       char inner, PExpr*operand)
+{
+      if (!gn_commercial_unsafe_flag) {
+	    yyerror(loc, "error: Operand of unary %c is not a primary "
+		    "expression (accepted only under -gcommercial-unsafe).",
+		    outer);
+	    delete operand;
+	    return 0;
+      }
+      PEUnary*tmp = new PEUnary(inner, operand);
+      FILE_NAME(tmp, loc);
+      PEUnary*res = new PEUnary(outer, tmp);
+      FILE_NAME(res, loc);
+      return res;
+}
+
 static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 					      const YYLTYPE&member_loc,
 					      const char*class_name,
@@ -11112,6 +11129,16 @@ expression
 	FILE_NAME(tmp, @3);
 	$$ = tmp;
       }
+  /* `!&{a, b}': IEEE 1800-2017 A.8.3 applies a unary operator only to a
+     primary, so a reduction operand needs parentheses. Commercial tools
+     accept the chain (OpenTitan keymgr scoreboard); accept it only under
+     -gcommercial-unsafe. */
+  | '!' attribute_list_opt '&' attribute_list_opt expr_primary %prec UNARY_PREC
+      { $$ = pform_unsafe_unary_chain(@1, '!', '&', $5); }
+  | '!' attribute_list_opt '|' attribute_list_opt expr_primary %prec UNARY_PREC
+      { $$ = pform_unsafe_unary_chain(@1, '!', '|', $5); }
+  | '!' attribute_list_opt '^' attribute_list_opt expr_primary %prec UNARY_PREC
+      { $$ = pform_unsafe_unary_chain(@1, '!', '^', $5); }
   | '!' error %prec UNARY_PREC
       { yyerror(@1, "error: Operand of unary ! "
 		"is not a primary expression.");
