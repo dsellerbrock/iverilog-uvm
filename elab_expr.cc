@@ -507,21 +507,32 @@ NetESFunc* make_std_randomize_with_expr(
 	    NetESignal*se = dynamic_cast<NetESignal*>(ne);
 	    const netqueue_t*queue = se
 		  ? dynamic_cast<const netqueue_t*>(se->sig()->net_type()) : nullptr;
-	    if (queue && parms.size() == 1 && !queue->assoc_compat()
+	      // A dynamic array (IEEE 1800-2017 18.12) uses the same container
+	      // solver; its token omits the queue's Q<max> prefix (OpenTitan
+	      // usbdev: std::randomize(tx_data) with { tx_data.size() <= N; }).
+	    const netdarray_t*darray = se && !queue
+		  ? dynamic_cast<const netdarray_t*>(se->sig()->net_type()) : nullptr;
+	    if ((queue || darray) && parms.size() == 1
+		&& !(queue && queue->assoc_compat())
 		&& !se->word_index()) {
-		  ivl_type_t elem = queue->element_type();
+		  const netdarray_t*container = queue ? queue : darray;
+		  ivl_type_t elem = container->element_type();
 		  unsigned ewid = elem ? elem->packed_width() : 0;
 		  ivl_variable_type_t base = elem
 			? elem->base_type() : IVL_VT_NO_TYPE;
 		  if (elem && elem->packed() && ewid && ewid <= 65536
 		      && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
 			  || dynamic_cast<const netenum_t*>(elem))) {
-			uint64_t max_size = queue->max_idx() < 0 ? 0
-			    : (uint64_t)queue->max_idx() + 1;
 			string etype = (elem->get_signed() ? "sv" : "v")
 			    + to_string(ewid);
-			random_tokens[id->path().back().name] =
-			    "s:0:Q" + to_string(max_size) + ":" + etype;
+			if (queue) {
+			      uint64_t max_size = queue->max_idx() < 0 ? 0
+				  : (uint64_t)queue->max_idx() + 1;
+			      random_tokens[id->path().back().name] =
+				  "s:0:Q" + to_string(max_size) + ":" + etype;
+			} else {
+			      random_tokens[id->path().back().name] = "s:0:" + etype;
+			}
 			random_types[id->path().back().name] = se->sig()->net_type();
 			random_vars.push_back(ne);
 			if (const netenum_t*eenum =

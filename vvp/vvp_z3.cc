@@ -11949,19 +11949,52 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	    Z3_del_context(ctx);
 	    return false;
       }
-      Z3_optimize_push(ctx, opt);
-      Z3_ast alternate = Z3_mk_not(ctx, Z3_mk_eq(ctx,
-	    first.size_vars[0].var,
-	    Z3_mk_unsigned_int64(ctx, size, Z3_mk_bv_sort(ctx, 32))));
-      Z3_optimize_assert(ctx, opt, alternate);
-      Z3_lbool unique = Z3_optimize_check(ctx, opt, 0, nullptr);
-      Z3_optimize_pop(ctx, opt);
-      if (unique != Z3_L_FALSE) {
-	    fprintf(stderr, "ERROR: scope queue size is not uniquely constrained%s.\n",
-		    unique == Z3_L_UNDEF ? " (solver UNKNOWN)" : "");
-	    Z3_optimize_dec_ref(ctx, opt);
-	    Z3_del_context(ctx);
-	    return false;
+      /* A ranged size (`tx_data.size() <= N') is a random choice among the
+	 feasible sizes (IEEE 1800-2017 18.12), not an error. Probe each
+	 candidate with an equality assumption -- no full models -- and pick
+	 one uniformly. A feasible size beyond the enumeration window fails
+	 loudly instead of biasing the choice toward small sizes. */
+      {
+	    Z3_solver probe = Z3_mk_solver(ctx);
+	    Z3_solver_inc_ref(ctx, probe);
+	    Z3_solver_assert(ctx, probe, hard);
+	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
+	    uint64_t window = declared_max && declared_max < ENUM_DOMAIN_CAP
+		  ? declared_max : ENUM_DOMAIN_CAP;
+	    vector<uint64_t> feasible;
+	    bool unknown = false;
+	    for (uint64_t v = 0; v <= window && !unknown; ++v) {
+		  Z3_ast eq = Z3_mk_eq(ctx, first.size_vars[0].var,
+				       Z3_mk_unsigned_int64(ctx, v, s32));
+		  Z3_lbool r = Z3_solver_check_assumptions(ctx, probe, 1, &eq);
+		  if (r == Z3_L_TRUE) feasible.push_back(v);
+		  else if (r == Z3_L_UNDEF) unknown = true;
+	    }
+	    bool beyond = false;
+	    if (!unknown) {
+		  Z3_ast gt = Z3_mk_bvugt(ctx, first.size_vars[0].var,
+					  Z3_mk_unsigned_int64(ctx, window, s32));
+		  Z3_lbool r = Z3_solver_check_assumptions(ctx, probe, 1, &gt);
+		  if (r == Z3_L_UNDEF) unknown = true;
+		  else beyond = r == Z3_L_TRUE;
+	    }
+	    Z3_solver_dec_ref(ctx, probe);
+	    if (unknown || beyond || feasible.empty()) {
+		  fprintf(stderr, "ERROR: scope queue size %s.\n",
+			  unknown ? "solver returned UNKNOWN"
+			  : beyond ? "may exceed the enumerable range (1024); "
+				     "bound it with a constraint"
+			  : "has no feasible value");
+		  Z3_optimize_dec_ref(ctx, opt);
+		  Z3_del_context(ctx);
+		  return false;
+	    }
+	    uint64_t mix = diversity_seed + UINT64_C(0x9e3779b97f4a7c15);
+	    mix = (mix ^ (mix >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+	    mix = (mix ^ (mix >> 27)) * UINT64_C(0x94d049bb133111eb);
+	    mix ^= mix >> 31;
+	    size = feasible[mix % feasible.size()];
+	    diversity_seed = mix ? mix : UINT64_C(0x9e3779b97f4a7c15);
       }
       /* An allocation ceiling is an explicit unsupported result, never a
 	 * constraint added to the solver or a clamp on a satisfied model. */

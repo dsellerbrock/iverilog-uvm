@@ -1925,9 +1925,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    ivl_type_t dest_type = first ? ivl_expr_net_type(first) : 0;
 	    if (!dest_type && first && ivl_expr_signal(first))
 		  dest_type = ivl_signal_net_type(ivl_expr_signal(first));
+	      /* A dynamic array uses the same container solver as a
+	       * queue, with no declared maximum (IEEE 1800-2017 18.12). */
 	    int queue_dest = dest_type
-		&& ivl_type_base(dest_type) == IVL_VT_QUEUE
-		&& !ivl_type_queue_assoc_compat(dest_type);
+		&& ((ivl_type_base(dest_type) == IVL_VT_QUEUE
+		     && !ivl_type_queue_assoc_compat(dest_type))
+		    || ivl_type_base(dest_type) == IVL_VT_DARRAY);
 	    ivl_type_t elem_type = queue_dest
 		? ivl_type_element(dest_type) : 0;
 
@@ -1949,7 +1952,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out,
 		    "    %%std/randomize/queue/with \"%u|%llu|%s\", %u, %u;\n",
 		    ivl_type_packed_width(elem_type),
-		    (unsigned long long)ivl_type_queue_max_size(dest_type),
+		    (unsigned long long)(ivl_type_base(dest_type) == IVL_VT_QUEUE
+					 ? ivl_type_queue_max_size(dest_type) : 0),
 		    ir, n_vals, n_objs);
 	    else
 		  fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
