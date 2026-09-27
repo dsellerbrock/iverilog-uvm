@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_pkg_call_result_method_stmt.v",
+    "iverilog-args" : [ "-g2017" ]
+}

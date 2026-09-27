@@ -15025,6 +15025,156 @@ bool of_CMPOBJ(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* Element-wise equality of two dynamic arrays or queues (IEEE
+ * 1800-2017/2023 11.4.5). Sizes must match; elements compare with the
+ * element type's own equality, recursively for nested containers. `logical'
+ * is the == result (X when an element comparison is unknown and none is
+ * false), `exact' the === result. A nil handle is an empty container. */
+/* Four-state equality of two same-width vectors, folded into the running
+ * == and === results. Returns false once the arrays are definitely unequal. */
+static bool vector_equality_step_(const vvp_vector4_t&lv, const vvp_vector4_t&rv,
+				  vvp_bit4_t&logical, vvp_bit4_t&exact)
+{
+      if (lv.size() != rv.size()) { logical = exact = BIT4_0; return false; }
+      for (unsigned bit = 0 ; bit < lv.size() ; bit += 1) {
+	    vvp_bit4_t lb = lv.value(bit), rb = rv.value(bit);
+	    if (lb != rb) exact = BIT4_0;
+	    bool lknown = lb == BIT4_0 || lb == BIT4_1;
+	    bool rknown = rb == BIT4_0 || rb == BIT4_1;
+	    if (lknown && rknown) {
+		  if (lb != rb) { logical = exact = BIT4_0; return false; }
+	    } else {
+		  logical = BIT4_X;
+	    }
+      }
+      return true;
+}
+
+static void container_equality_(const vvp_object_t&lobj, const vvp_object_t&robj,
+				vvp_bit4_t&logical, vvp_bit4_t&exact);
+
+/* Associative arrays are equal when they hold the same keys with equal
+ * values. peek_entry walks both in key order. */
+static void assoc_equality_(const vvp_assoc_base*left, const vvp_assoc_base*right,
+			    vvp_bit4_t&logical, vvp_bit4_t&exact)
+{
+      size_t lsize = left ? left->size() : 0;
+      size_t rsize = right ? right->size() : 0;
+      logical = exact = BIT4_1;
+      if (lsize != rsize) { logical = exact = BIT4_0; return; }
+      for (size_t pos = 0 ; pos < lsize ; pos += 1) {
+	    std::string lkey, rkey, lstr, rstr;
+	    vvp_vector4_t lvec, rvec;
+	    double lreal = 0, rreal = 0;
+	    int lkind = -1, rkind = -1;
+	    left->peek_entry(pos, lkey, lvec, lreal, lstr, lkind);
+	    right->peek_entry(pos, rkey, rvec, rreal, rstr, rkind);
+	    int lkk = -1, rkk = -1;
+	    std::string lskey, rskey;
+	    const vvp_object*lokey = 0, *rokey = 0;
+	    vvp_vector4_t lvkey, rvkey;
+	    vvp_object_t lobj, robj;
+	    left->peek_entry_identity(pos, lkk, lskey, lokey, lvkey, lobj);
+	    right->peek_entry_identity(pos, rkk, rskey, rokey, rvkey, robj);
+	    bool same_key = lkk == rkk
+		  && (lkk != 0 || lskey == rskey)
+		  && (lkk != 1 || lokey == rokey)
+		  && (lkk != 2 || lvkey.eeq(rvkey));
+	    if (!same_key || lkind != rkind) { logical = exact = BIT4_0; return; }
+	    if (lkind == 3) {
+		    // Class handles compare by identity; containers element-wise.
+		  if (lobj.peek<vvp_darray>() || robj.peek<vvp_darray>()
+		      || lobj.peek<vvp_assoc_base>() || robj.peek<vvp_assoc_base>()) {
+			vvp_bit4_t sub_logical, sub_exact;
+			container_equality_(lobj, robj, sub_logical, sub_exact);
+			if (sub_logical == BIT4_0) { logical = exact = BIT4_0; return; }
+			if (sub_logical != BIT4_1) logical = BIT4_X;
+			if (sub_exact != BIT4_1) exact = BIT4_0;
+		  } else if (!(lobj == robj)) {
+			logical = exact = BIT4_0;
+			return;
+		  }
+	    } else if (lkind == 0) {
+		  if (!vector_equality_step_(lvec, rvec, logical, exact)) return;
+	    } else if (lkind == 1) {
+		  if (lreal != rreal) { logical = exact = BIT4_0; return; }
+	    } else if (lkind == 2) {
+		  if (lstr != rstr) { logical = exact = BIT4_0; return; }
+	    }
+      }
+}
+
+static void container_equality_(const vvp_object_t&lobj, const vvp_object_t&robj,
+				vvp_bit4_t&logical, vvp_bit4_t&exact)
+{
+      const vvp_assoc_base*lassoc = lobj.peek<vvp_assoc_base>();
+      const vvp_assoc_base*rassoc = robj.peek<vvp_assoc_base>();
+      if (lassoc || rassoc) {
+	    assoc_equality_(lassoc, rassoc, logical, exact);
+	    return;
+      }
+      vvp_darray*left = lobj.peek<vvp_darray>();
+      vvp_darray*right = robj.peek<vvp_darray>();
+      size_t lsize = left ? left->get_size() : 0;
+      size_t rsize = right ? right->get_size() : 0;
+      logical = BIT4_1;
+      exact = BIT4_1;
+      if (lsize != rsize) {
+	    logical = exact = BIT4_0;
+	    return;
+      }
+      for (size_t idx = 0 ; idx < lsize ; idx += 1) {
+	    unsigned adr = (unsigned)idx;
+	    if (dynamic_cast<vvp_darray_real*>(left)
+		|| dynamic_cast<vvp_queue_real*>(left)) {
+		  double lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (lv != rv) { logical = exact = BIT4_0; return; }
+	    } else if (dynamic_cast<vvp_darray_string*>(left)
+		       || dynamic_cast<vvp_queue_string*>(left)) {
+		  std::string lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (lv != rv) { logical = exact = BIT4_0; return; }
+	    } else if (dynamic_cast<vvp_darray_object*>(left)
+		       || dynamic_cast<vvp_queue_object*>(left)) {
+		  vvp_object_t lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (lv.peek<vvp_darray>() || rv.peek<vvp_darray>()
+		      || lv.peek<vvp_assoc_base>() || rv.peek<vvp_assoc_base>()) {
+			vvp_bit4_t sub_logical, sub_exact;
+			container_equality_(lv, rv, sub_logical, sub_exact);
+			if (sub_logical == BIT4_0) { logical = exact = BIT4_0; return; }
+			if (sub_logical != BIT4_1) logical = BIT4_X;
+			if (sub_exact != BIT4_1) exact = BIT4_0;
+		  } else if (!(lv == rv)) {
+			logical = exact = BIT4_0;
+			return;
+		  }
+	    } else {
+		  vvp_vector4_t lv, rv;
+		  left->get_word(adr, lv);
+		  right->get_word(adr, rv);
+		  if (!vector_equality_step_(lv, rv, logical, exact)) return;
+	    }
+      }
+}
+
+bool of_CMPCONT(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t re;
+      thr->pop_object(re);
+      vvp_object_t le;
+      thr->pop_object(le);
+      vvp_bit4_t logical, exact;
+      container_equality_(le, re, logical, exact);
+      thr->flags[4] = logical;
+      thr->flags[6] = exact;
+      return true;
+}
+
 bool of_CMPSTR(vthread_t thr, vvp_code_t)
 {
       string re = thr->pop_str();

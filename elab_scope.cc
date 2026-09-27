@@ -1184,6 +1184,33 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 		<< ":owner=";
 	    append_cache_class_owner_key_(out, class_type);
 	    const NetScope*class_scope = class_type->class_scope();
+	      /* A specialization made from a forwarded type parameter (inside a
+	       * generic seed, e.g. seqr#(T) while elaborating agent#(T)) is kept
+	       * apart from the concrete one with the same current values. Its
+	       * printed values would equal the concrete class's, so a class that
+	       * takes it as a type argument (dv_agent#(seqr#(T))) collided with
+	       * dv_agent#(seqr#(int)) and bound the wrong seqr: $cast between the
+	       * two failed (OpenTitan kmac, dv_base_seq p_sequencer). Name it by
+	       * its own identity instead. */
+	    const PClass*described_pclass =
+		  class_scope ? class_scope->class_pform() : 0;
+	      /* The unspecialized generic master itself (what a#(K) names inside
+	       * a's own template body) prints its default values too, so
+	       * registry#(a#(K)) there collided with registry#(a#(int)) and made
+	       * the latter create instances of the master: UVM's
+	       * a#(int)::type_id::create() returned a class that $cast to a#(int)
+	       * rejected. */
+	    const bool generic_master = described_pclass
+		  && described_pclass->has_parameter_port_list
+		  && !class_type->specialized_instance();
+	    if (class_scope && (generic_master
+		|| class_scope->type_owner_identity().find(
+		  "<forwarded-type-param@") != std::string::npos)) {
+		  out << (generic_master ? ":master@" : ":forwarded@")
+		      << (const void*)class_type << ">";
+		  active.erase(type);
+		  return;
+	    }
 	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
 	    if (class_scope && pclass && !pclass->parameter_order.empty()) {
 		  out << "(";
@@ -4106,6 +4133,22 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    }
       }
 
+	/* A specialization first requested from inside a generic master's own
+	 * body (UVM's uvm_component_registry#(a#(K)) from a's `uvm_*_utils)
+	 * exists only for that body until some concrete context asks for it
+	 * too; see netclass_t::generic_body_only(). */
+      bool caller_is_generic_body = false;
+      if (call_scope) {
+	    const NetScope*caller_class_scope = call_scope->get_class_scope();
+	    const netclass_t*caller_class = caller_class_scope
+		  ? caller_class_scope->class_def() : 0;
+	    const PClass*caller_pclass = caller_class_scope
+		  ? caller_class_scope->class_pform() : 0;
+	    caller_is_generic_body = caller_class && caller_pclass
+		  && caller_pclass->has_parameter_port_list
+		  && !caller_class->specialized_instance();
+      }
+
       std::ostringstream key_prefix;
 	/* Use the pclass (parse-tree) pointer as the stable declaration prefix.
 	 * The netclass_t (base_class) pointer is NOT stable -- the same parsed
@@ -4155,6 +4198,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	      if (cached_result) {
 		    note_specialization_cache_hit_();
 		    netclass_t*cached_class = const_cast<netclass_t*>(cached_result);
+		    if (!caller_is_generic_body)
+			  cached_class->set_generic_body_only(false);
 		    if (!fully_elaborate) {
 			  enqueue_pending_specialized_method_seed_(cached_class);
 			  return cached_result;
@@ -4207,6 +4252,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       if (!use_type->covergroups.empty())
 	    use_class->set_has_embedded_covergroups(true);
       use_class->set_specialized_instance(true);
+      use_class->set_generic_body_only(caller_is_generic_body);
 
 	/* Propagate seed-ness. A specialization materialised WHILE the caller
 	   is elaborating a template seed comes from that seed's own default

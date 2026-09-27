@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_param_class_default_typeid_identity.v",
+    "iverilog-args" : [ "-g2017" ]
+}

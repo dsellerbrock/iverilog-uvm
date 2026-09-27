@@ -31106,6 +31106,83 @@ static string constraint_outside_scalar_ir_(const PEIdent*id,
       return constraint_state_expression_slot_(id, copy, type, cls, false);
 }
 
+/* A non-random integral value reached through an object-property chain
+ * whose steps select array elements with literal indices, e.g.
+ * cfg.m_edn_pull_agent_cfgs[0].device_delay_max (OpenTitan kmac). The
+ * index-free chain has an `r:' token; this one is read at each randomize()
+ * call through the state-slot wrapper, like any other state value (IEEE
+ * 1800-2017/2023 18.3). A chain rand at every step, a non-literal index, or
+ * a non-integral result is left to the callers' existing paths. */
+static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
+						       const netclass_t*cls)
+{
+      if (!id || !cls || id->path().package || id->path().size() < 2)
+	    return "";
+      const netclass_t*cur_cls = cls;
+      ivl_type_t cur_type = nullptr;
+      bool indexed = false;
+      bool all_rand = true;
+      pform_name_t prefix;
+      PExpr*non_null = nullptr;
+      for (pform_name_t::const_iterator it = id->path().name.begin()
+	   ; it != id->path().name.end() ; ++it) {
+	    if (cur_cls != cls && !prefix.empty()) {
+		  PEBComp*check = new PEBComp('N',
+			new PEIdent(prefix, id->lexical_pos()), new PENull);
+		  check->set_line(*id);
+		  non_null = non_null ? static_cast<PExpr*>(new PEBLogic('a', non_null, check))
+			: static_cast<PExpr*>(check);
+	    }
+	    prefix.push_back(*it);
+	    if (!cur_cls || it->local_scope) { delete non_null; return ""; }
+	    int idx = cur_cls->property_idx_from_name(it->name);
+	    if (idx < 0) {
+		  delete non_null;
+		  return "";
+	    }
+	      /* Only a chain rand at every step reaches a random variable
+		 (IEEE 1800-2017/2023 18.4); below a non-rand handle, even a
+		 rand member is state. */
+	    property_qualifier_t qual = cur_cls->get_prop_qual((size_t)idx);
+	    all_rand = all_rand && (qual.test_rand() || qual.test_randc());
+	    cur_type = cur_cls->get_prop_type((size_t)idx);
+	    for (const index_component_t&index : it->index) {
+		  const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur_type);
+		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(cur_type);
+		  if (index.sel != index_component_t::SEL_BIT
+		      || !dynamic_cast<const PENumber*>(index.msb)
+		      || (!da && (!ua || ua->static_dimensions().size() != 1))) {
+			delete non_null;
+			return "";
+		  }
+		  indexed = true;
+		  cur_type = ua ? ua->element_type() : da->element_type();
+	    }
+	    cur_cls = dynamic_cast<const netclass_t*>(cur_type);
+      }
+      if (!indexed || all_rand || !cur_type || !cur_type->packed()
+	  || cur_type->packed_width() <= 0
+	  || (cur_type->base_type() != IVL_VT_BOOL
+	      && cur_type->base_type() != IVL_VT_LOGIC)) {
+	    delete non_null;
+	    return "";
+      }
+	/* A null handle anywhere in the chain yields X, which fails the
+	   randomize() call with a diagnostic instead of reading 0. */
+      unsigned width = (unsigned)cur_type->packed_width();
+      PExpr*value = new PEIdent(id->path().name, id->lexical_pos());
+      value->set_line(*id);
+      if (non_null) {
+	    PENumber*unknown = new PENumber(new verinum(verinum::Vx, width));
+	    unknown->set_line(*id);
+	    value = new PETernary(non_null, value, unknown);
+	    value->set_line(*id);
+      }
+      ivl_type_t capture = new netvector_t(IVL_VT_LOGIC, width - 1, 0,
+					   cur_type->get_signed());
+      return constraint_state_expression_slot_(id, value, capture, cls, false);
+}
+
 /* The element count of a const outside array is fixed: by its unpacked
  * dimension, or for a dynamic array or queue by its positional initializer
  * (IEEE 1800-2017/2023 6.20.6). Each element is then an ordinary state
@@ -32586,6 +32663,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  if (simple_path) {
 			string state_ir = constraint_class_state_path_ir_(names, cls);
+			if (!state_ir.empty()) return state_ir;
+		  } else if (!value_slots) {
+			string state_ir =
+			      constraint_class_state_indexed_path_ir_(id, cls);
 			if (!state_ir.empty()) return state_ir;
 		  }
 	    }
@@ -35869,8 +35950,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // Analyze generic initializers for const-initialization checks,
 		    // but generic masters and unresolved type forwarding are not
 		    // concrete runtime types (IEEE 1800 8.25).
-		    bool deferred_init = pclass->has_parameter_port_list
-			  && !specialized_instance();
+		    bool deferred_init = (pclass->has_parameter_port_list
+			  && !specialized_instance()) || generic_body_only();
 		    for (perm_string name : pclass->parameter_order) {
 			  if (class_type_parameter_is_deferred(des, class_scope_, name)) {
 				deferred_init = true;

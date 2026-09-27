@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_darray_concat_in_conditional.v",
+    "iverilog-args" : [ "-g2017" ]
+}

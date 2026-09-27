@@ -892,6 +892,35 @@ const NetExpr* netclass_t::get_parameter(Design *des, perm_string name,
       return class_scope_->get_parameter(des, name, par_type);
 }
 
+/* A generic master, or a specialization whose identity depends on a
+ * forwarded type parameter, is not a runtime type (IEEE 1800 8.25): it
+ * stands for every specialization its template body will get. Such a class
+ * is kept distinct from concrete specializations in the specialization
+ * cache (elab_scope.cc), so a type check between two members of the same
+ * class family inside a generic body cannot be decided there; it is decided
+ * again in each concrete specialization. */
+static bool symbolic_class_(const netclass_t*cls)
+{
+      const NetScope*scope = cls ? cls->class_scope() : 0;
+      const PClass*pclass = scope ? scope->class_pform() : 0;
+      if (!pclass)
+	    return false;
+      if (pclass->has_parameter_port_list && !cls->specialized_instance())
+	    return true;
+      const std::string&key = scope->type_owner_identity();
+      return key.find("<forwarded-type-param@") != std::string::npos
+	  || key.find(":forwarded@") != std::string::npos
+	  || key.find(":master@") != std::string::npos;
+}
+
+static bool same_symbolic_family_(const netclass_t*a, const netclass_t*b)
+{
+      if (!a || !b || !a->class_scope() || !b->class_scope())
+	    return false;
+      return a->class_scope()->class_pform() == b->class_scope()->class_pform()
+	  && (symbolic_class_(a) || symbolic_class_(b));
+}
+
 bool netclass_t::test_compatibility(ivl_type_t that) const
 {
       if (is_interface()) {
@@ -902,7 +931,7 @@ bool netclass_t::test_compatibility(ivl_type_t that) const
 
       for (const netclass_t *class_type = dynamic_cast<const netclass_t *>(that);
 	    class_type; class_type = class_type->get_super()) {
-	    if (class_type == this)
+	    if (class_type == this || same_symbolic_family_(class_type, this))
 		  return true;
 	    if (is_interface_class() && class_type->implements_interface(this))
 		  return true;
@@ -917,7 +946,7 @@ bool netclass_t::test_equivalence(ivl_type_t that) const
       if (is_interface())
             return class_type && class_type->is_interface()
                   && same_interface_type(class_type);
-      return false;
+      return same_symbolic_family_(this, class_type);
 }
 
 void netclass_t::set_interface_identity(const Module*definition,

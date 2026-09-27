@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_constraint_state_indexed_path.v",
+    "iverilog-args" : [ "-g2017" ]
+}
