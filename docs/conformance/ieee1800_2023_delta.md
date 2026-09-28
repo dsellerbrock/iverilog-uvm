@@ -196,8 +196,16 @@ not establish complete clause or edition qualification.
 | 2026-09-02 clauses 6.22, 7.4-7.10, 13.5, 15.4.5-15.4.9, and 25.5/25.7/25.9 | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-02-clauses-622-74-710-135-1545-1549-and-255257259-refinement) |
 | 2026-09-04 clauses 5.6.1, 8.20, 18.6.2-18.6.3, and 18.11 — root randomize callbacks | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-04-dynamic-root-randomization-callbacks) |
 | 2026-09-04 clauses 18.6.2-18.6.3, 18.8 and 18.11 — enabled member callbacks | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-04-enabled-random-member-callback-increment) |
-| 2026-09-23 clause 18.12 — exact-or-bounded-size local integral queue scope randomization | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-exact-or-bounded-size-scope-queue-randomization) |
+| 2026-09-23 clause 18.12 — exact-size local integral queue scope randomization | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-exact-size-scope-queue-randomization) |
 | 2026-09-23 §§3.13/28.3.5 and 18.5.9/18.6.3 — CSRNG interface arrays and nested power-of-two sampling | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-csrng-interface-arrays-and-nested-power-of-two-constraint-sampling) |
+| 2026-09-27 §§6.16/12.5 — complete string case comparison | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-complete-string-case-comparison) |
+| 2026-09-27 §§7.10.1/18.5.7.1/18.12 — ranged local queue size feasibility | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-fully-feasible-ranged-scope-queue-sizes) |
+
+The September 27 string-case and local-queue corrections have separate
+strict `-g2023` regressions and use the same implementation as the 2017
+subsets. No edition difference or full-clause qualification is claimed;
+2023 §18.5.7.1 corresponds to 2017 §18.5.8.1 for the queue constraint
+`foreach` ordering considered here.
 
 For the CSRNG declaration/reference shape and isolated nested power-of-two
 solver domains, paired 2017/2023 runs found no edition-specific behavior in

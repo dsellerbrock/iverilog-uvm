@@ -3508,3 +3508,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Paired X/Z value and direct-property reducer](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_sample_red.sv), [2017 log](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_sample_2017.log), [2023 log](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_sample_2023.log), and [explicit-bin probe](../../evidence/opentitan-lc-packed-coverpoint-20260925/xz_explicit_bin.sv).
 - **Reproducer status:** paired compile exit zero, runtime exit one at the first X sample; source and expression both print `xxxxx` before coverage rises to 50%. Z behavior is not yet isolated beyond the same earlier boundary fixture failing at X first.
 - **Triage status:** separate VVP four-state coverage representation blocker; no fix, no DV credit, and no implementation scope in the current elaborate.cc ticket.
+
+### DD-064 — string conditions test only the low bit
+
+- **Discovered while working:** OT-STD-RANDOMIZE-RANGED-SIZE-EXACT.
+- **Observation:** In strict 2017 and 2023, `s = "AB"; if (s)` takes the false branch although the string's packed value is nonzero (`16'h4142`) and `!s` is false. `while`, `for`, `do while`, and ternary conditions also choose the false path.
+- **File/function:** `tgt-vvp/eval_condit.c` `draw_condition_fallback`; `tgt-vvp/eval_string.c` and `eval_real.c` duplicate the nominal-width test for ternary conditions.
+- **Possible clause:** IEEE 1800-2017/2023 12.4 (nonzero known `if` predicate); 11.4.7 (logical truth).
+- **Evidence:** `/private/tmp/str_truth_conditions_red.sv` passes `slang --quiet`; both strict runs print `failed=5 value=9 chosen=no real=2.500000` and exit at `$fatal`. The generated VVP casts the string at natural width, then tests bit 0 without reduction.
+- **Reproducer status:** confirmed in strict 2017 and 2023.
+- **Triage status:** untriaged; separate from the active Z3 size solver patch.
+
+### DD-065 — virtual-interface covergroup sampling silently has zero coverpoints
+
+- **Discovered while working:** OT-STD-RANDOMIZE-RANGED-SIZE-EXACT.
+- **Observation:** In strict 2017 and 2023, `vif.cg.sample()` compiles without a diagnostic but leaves two bound interface instances at 0% coverage. The same calls through physical `u0.cg` and `u1.cg` reach 50% each. A direct `coverpoint v` fails through `vif` too, so the loss precedes coverpoint expression lookup.
+- **File/function:** `elaborate.cc` `PCallTask::elaborate_method_` reads `covgrp_ncoverpoints()` from the virtual receiver's covergroup type; `elab_type.cc` `interface_layout_view_` supplies its interface layout type. The emitted virtual calls use `%covgrp/sample 0, 0`, whereas physical calls evaluate the coverpoint and use `%covgrp/sample 1, 1`.
+- **Possible clause:** IEEE 1800-2017/2023 §19.3 (covergroup sampling) and §25.9 (virtual-interface binding); confirm exact subclauses during selection.
+- **Evidence:** `/private/tmp/iverilog-vif-covergroup-scope-review.sv` and paired generated VVP files; both strict installed-tool runs print `COVERAGE 0.000000 0.000000` / `FAILED`, while the physical-call control prints `COVERAGE 50.000000 50.000000` / `PASSED`. Slang accepts the virtual source under both editions with zero errors or warnings.
+- **Reproducer status:** confirmed paired strict wrong-success; virtual receiver can rebind between two instances.
+- **Triage status:** separate elaboration/type-metadata blocker. A fixed concrete-instance lookup cannot cover a rebinding virtual handle; retain the selected receiver while making its covergroup metadata and sample expressions available, or reject unsupported sampling explicitly. No implementation in the active solver ticket.
