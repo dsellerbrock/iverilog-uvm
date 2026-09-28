@@ -1,0 +1,4 @@
+./ivltests/sv_foreach_package_param_atom_fail.v:11: error: Foreach target atom_foreach_pkg.COUNT is a scalar integral parameter.
+./ivltests/sv_foreach_package_param_atom_fail.v:12: error: Foreach target atom_foreach_pkg.IC is a scalar integral parameter.
+./ivltests/sv_foreach_package_param_atom_fail.v:13: error: Foreach target atom_foreach_pkg.B is a scalar integral parameter.
+3 error(s) during elaboration.

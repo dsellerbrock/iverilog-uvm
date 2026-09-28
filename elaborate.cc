@@ -23831,6 +23831,25 @@ static bool foreach_target_has_selector_prefix_(const pform_name_t&array_path)
       return !array_path.back().index.empty();
 }
 
+/* Built-in integral atoms carry implementation bit ranges but are scalar
+ * foreach targets. Use the same distinction for lexical and qualified
+ * parameter names. */
+static bool foreach_parameter_packed_vector_(const netvector_t*vec)
+{
+      return vec && !vec->get_isint()
+	&& vec != &netvector_t::time_signed
+	&& vec != &netvector_t::time_unsigned
+	&& vec != &netvector_t::chandle_type
+	&& vec != &netvector_t::atom2s64
+	&& vec != &netvector_t::atom2u64
+	&& vec != &netvector_t::atom2s32
+	&& vec != &netvector_t::atom2u32
+	&& vec != &netvector_t::atom2s16
+	&& vec != &netvector_t::atom2u16
+	&& vec != &netvector_t::atom2s8
+	&& vec != &netvector_t::atom2u8;
+}
+
 static NetExpr* elaborate_foreach_target_expr_(Design*des,
 					       const LineInfo&li,
 					       unsigned lexical_pos,
@@ -23977,6 +23996,13 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 			    && !param->second.is_array_param) {
 			  const netvector_t*vec = dynamic_cast<const netvector_t*>(
 				param->second.ivl_type);
+			  if (vec && !foreach_parameter_packed_vector_(vec)) {
+				cerr << get_fileline() << ": error: Foreach target "
+				     << array_path_ << " is a scalar integral parameter."
+				     << endl;
+				des->errors += 1;
+				return 0;
+			  }
 			  if (vec && !vec->packed_dims().empty())
 				return elaborate_static_array_(des, scope,
 						       vec->packed_dims());
@@ -24246,18 +24272,7 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 		    const netvector_t*vec = dynamic_cast<const netvector_t*>(
 			param->second.ivl_type);
 		    if (!param->second.is_array_param
-		        && vec && !vec->get_isint()
-		        && vec != &netvector_t::time_signed
-		        && vec != &netvector_t::time_unsigned
-		        && vec != &netvector_t::chandle_type
-		        && vec != &netvector_t::atom2s64
-		        && vec != &netvector_t::atom2u64
-		        && vec != &netvector_t::atom2s32
-		        && vec != &netvector_t::atom2u32
-		        && vec != &netvector_t::atom2s16
-		        && vec != &netvector_t::atom2u16
-		        && vec != &netvector_t::atom2s8
-		        && vec != &netvector_t::atom2u8) {
+		        && foreach_parameter_packed_vector_(vec)) {
 		      if (!vec->packed_dims().empty())
 			return elaborate_static_array_(des, scope,
 					       vec->packed_dims());
