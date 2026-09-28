@@ -1,8 +1,17 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-lc-packed-coverpoint-20260925
-checkpoint_head: 1891f0128627ff0b3124216f0040780087336f82
+branch: agent/ot-compile-blockers-20260927
+checkpoint_head: 2b2fff541887044eb30cb23a8994975e25d1ee04
 active_open_titan_lane:
+  blocker: "OT-AES-IMPLICATION-DIST-GRAMMAR"
+  phase: "REPRODUCED_SELECTING_PATCH"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "2b2fff541887044eb30cb23a8994975e25d1ee04"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-aes-dist-enum-red.sv"
+  pending_validation: "Packed-index checkpoint has focused 20/20 and 29/29 per edition but no post-commit install, broad gates, or fresh OpenTitan census. Address the current error corpus before another broad application run."
+  next_command: "/private/tmp/ivl_review_tools_20260928/iverilog -g2017 -s top -o /private/tmp/ot-aes-implication-before.vvp /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-aes-dist-enum-red.sv"
+  boundary: "Minimal reproducer and focused controls first; leave Caliptra selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies when an actual source defect requires one."
+prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-lc-coverpoint-20260925
@@ -17,7 +26,14 @@ active_open_titan_lane:
   validation: Final private ivl ab49a9f08784275c53a57ff177e6d7e68afb23718ff04198e473cbf2509fbcad passes paired 10/10 legacy and 10/10 JSON focus, make check, negatives 155/155, SVA dual 62/62, full legacy 6704 total with 6699 ordinary passes and zero failures, VPI 140/140, JSON/VVP 3753/3753, and real-DPI UVM 358/358. Exact pinned unsafe LC_CTRL replay drops neither target bin but retains four hard error sites and 18 debt diagnostics, so remains 0/1 released DV. Prior checked compatibility baseline remains 11/49; no full current-image matrix census.
   next_command: Respond if CI later reports an issue; do not poll CI or merge before required checks pass.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
-active_icarus_runs:
+current_caliptra_continuation:
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924"
+  selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3 selected 52-case copied-source diagnostic with unsafe mode, reset/checker source overlays, and ephemeral JTAG port. Pristine qualification is separate."
+  prior_completed: "29 of 52 completed: 16 selected-profile passes, 12 four-hour timeouts, and one genuine smoke_test_hmac assertion failure. No aggregate 52-case pass."
+  continuation: "23 remaining cases are running with three initial jobs smoke_test_kv_hmac_flow, smoke_test_kv_doe, and smoke_test_mlkem_locked_api; unified exec session 20675 was still active at 2026-09-28 02:43 UTC."
+  patches: "Completed smoke_test_hw_config used its named hash-checked C patch on a disposable copy. Pending smoke_test_hmac_errortrigger will receive its named C patch only when launched. No documented functional RTL patch is selected for the 23 cases. Pinned Caliptra and Adams Bridge checkouts remain clean."
+  next_command: "Poll unified exec session 20675 sparingly; do not restart the 52-case suite. Keep timeout, patched-source, pristine, and genuine assertion outcomes distinct."
+prior_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
     runner_pid: 86052
