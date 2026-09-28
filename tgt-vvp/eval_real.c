@@ -511,6 +511,36 @@ static void draw_sfunc_real(ivl_expr_t expr)
 	    return;
       }
 
+      /* Named coverpoint coverage uses the enclosing covergroup object
+       * and a compile-time item index. The method name distinguishes
+       * cumulative type coverage from this receiver's instance score. */
+      {
+	    const char*name = ivl_expr_name(expr);
+	    const char*type_prefix =
+		  "$ivl_class_method$covgrp_item_get_coverage|";
+	    const char*inst_prefix =
+		  "$ivl_class_method$covgrp_item_get_inst_coverage|";
+	    const char*index = 0;
+	    const char*opcode = 0;
+	    if (ivl_expr_value(expr) == IVL_VT_REAL && name) {
+		  if (strncmp(name, type_prefix, strlen(type_prefix)) == 0) {
+			index = name + strlen(type_prefix);
+			opcode = "%covgrp/item/get_coverage";
+		  } else if (strncmp(name, inst_prefix,
+				  strlen(inst_prefix)) == 0) {
+			index = name + strlen(inst_prefix);
+			opcode = "%covgrp/item/get_inst_coverage";
+		  }
+	    }
+	    if (opcode) {
+		  ivl_expr_t obj_arg = (ivl_expr_parms(expr) > 0)
+				  ? ivl_expr_parm(expr, 0) : 0;
+		  if (obj_arg) draw_eval_object(obj_arg);
+		  fprintf(vvp_out, "    %s %s;\n", opcode, index);
+		  return;
+	    }
+      }
+
       /* M11: $get_coverage — overall coverage over all covergroup
        * types (19.9). */
       if (ivl_expr_value(expr) == IVL_VT_REAL &&

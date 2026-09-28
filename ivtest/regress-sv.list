@@ -4947,3 +4947,11 @@ sv_constraint_indexed_part_unsupported_2017 CE,-g2017,-gno-icarus-misc,-gno-xtyp
 sv_constraint_indexed_part_inline_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_inline.gold
 sv_constraint_indexed_part_class_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_class.gold
 sv_constraint_indexed_part_unsupported_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_unsupported.gold
+
+# Named coverpoint and cross coverage methods through nested class properties.
+sv_covergroup_nested_item_method normal,-g2017 ivltests gold=sv_covergroup_nested_item_method.gold
+sv_covergroup_nested_item_method_2023 normal,-g2023 ivltests gold=sv_covergroup_nested_item_method.gold
+sv_covergroup_item_method_modes normal,-g2017 ivltests gold=sv_covergroup_item_method_modes.gold
+sv_covergroup_item_method_modes_2023 normal,-g2023 ivltests gold=sv_covergroup_item_method_modes.gold
+sv_covergroup_nested_item_method_fail CE,-g2017 ivltests gold=sv_covergroup_nested_item_method_fail.gold
+sv_covergroup_nested_item_method_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_nested_item_method_fail.gold

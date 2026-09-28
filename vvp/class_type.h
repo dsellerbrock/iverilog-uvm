@@ -490,7 +490,8 @@ class class_type : public __vpiHandle {
       unsigned covgrp_weight(vvp_cobject*obj) const;
       bool covgrp_get_inst_coverage(vvp_cobject*obj) const;
       double type_coverage(class vvp_cobject*context = 0,
-                           bool*contributes = nullptr) const;
+                           bool*contributes = nullptr,
+                           int selected_item = -1) const;
 
 	// M11: registry of covergroup types for $get_coverage and the
 	// end-of-simulation report.
@@ -543,6 +544,9 @@ class class_type : public __vpiHandle {
       unsigned covgrp_type_weight_ = 1;
       bool covgrp_options_present_ = false;
       mutable long double covgrp_retired_weight_ = 0, covgrp_retired_weighted_ = 0;
+      mutable std::vector<long double> covgrp_retired_item_weight_;
+      mutable std::vector<long double> covgrp_retired_item_weighted_;
+      mutable std::vector<bool> covgrp_retired_item_has_bins_;
       mutable std::vector<class vvp_cobject*> covgrp_live_;
       mutable std::vector<unsigned> covgrp_retired_at_least_;
       mutable bool covgrp_has_retired_options_ = false;

@@ -9374,7 +9374,8 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
  * Ignore records have no counter; illegal and default bins are
  * excluded from both numerator and denominator (19.11 option model).
  */
-double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
+double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
+				    int selected_item)
 {
       if (contributes) *contributes = false;
       double result = 0.0;
@@ -9459,6 +9460,9 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 
 	    double wsum = 0.0, wcov = 0.0;
 	    for (unsigned item : items) {
+		  if (selected_item >= 0
+		      && item != static_cast<unsigned>(selected_item))
+		    continue;
 		  unsigned at_least = 1, weight = 1;
 		  if (item < defn->covgrp_item_count()) {
 			at_least = defn->covgrp_item_at_least(cobj, item);
@@ -9476,10 +9480,19 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 		  }
 		  if (total == 0.0) continue;
 		  double icov = (double)(100.0L * (long double)hits / total);
+		  if (selected_item >= 0) {
+		    if (contributes) *contributes = true;
+		    return icov;
+		  }
 		  wsum += (double)weight;
 		  wcov += (double)weight * icov;
 	    }
-	    if (wsum > 0.0) {
+	    if (selected_item >= 0) {
+		  unsigned item = static_cast<unsigned>(selected_item);
+		  if (item < defn->covgrp_item_count()
+		      && defn->covgrp_item_weight(cobj, item) == 0)
+		    result = 100.0;
+	    } else if (wsum > 0.0) {
                   result = wcov / wsum;
                   if (contributes) *contributes = true;
             } else if (defn->covgrp_weight(cobj) == 0) {
@@ -9497,6 +9510,37 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
       thr->push_real(cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
             ? cobj->get_defn()->type_coverage(cobj)
             : vvp_covgrp_instance_coverage(cobj));
+      return true;
+}
+
+bool of_COVGRP_ITEM_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      double result = 0.0;
+      if (cobj && code->number <= INT_MAX
+	  && code->number < cobj->get_defn()->covgrp_item_count())
+	    result = cobj->get_defn()->type_coverage(
+		  cobj, nullptr, static_cast<int>(code->number));
+      thr->push_real(result);
+      return true;
+}
+
+bool of_COVGRP_ITEM_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      double result = 0.0;
+      if (cobj && code->number <= INT_MAX
+	  && code->number < cobj->get_defn()->covgrp_item_count()) {
+	    int item = static_cast<int>(code->number);
+	    result = cobj->get_defn()->covgrp_get_inst_coverage(cobj)
+		  ? vvp_covgrp_instance_coverage(cobj, nullptr, item)
+		  : cobj->get_defn()->type_coverage(cobj, nullptr, item);
+      }
+      thr->push_real(result);
       return true;
 }
 

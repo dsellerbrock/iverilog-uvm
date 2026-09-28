@@ -17489,6 +17489,53 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			  return 0;
 		    }
 
+		    // A named coverpoint or cross is covergroup metadata, not a class
+		    // property. Keep the elaborated covergroup object as the
+		    // receiver and select the named item before method dispatch.
+		    if (class_type->is_covergroup() && method_path.size() == 2
+			&& (method_path.back().name == "get_coverage"
+			    || method_path.back().name == "get_inst_coverage")) {
+		      if (!prop_comp.index.empty()) {
+			cerr << get_fileline() << ": error: A named coverage item "
+			     << "cannot be indexed." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		      }
+		      for (size_t item = 0; item < class_type->covgrp_item_count();
+			   item += 1) {
+			const netclass_t::covgrp_item_t&meta =
+			      class_type->covgrp_item(item);
+			if (meta.name != prop_comp.name)
+			      continue;
+			if (!parms_.empty()) {
+			      cerr << get_fileline() << ": sorry: named coverage item "
+				   << method_path.back().name
+				   << "() with ref arguments is not supported."
+				   << endl;
+			      des->errors += 1;
+			      delete sub_expr;
+			      return 0;
+			}
+			string name = "$ivl_class_method$covgrp_item_";
+			name += method_path.back().name.str();
+			name += "|" + to_string(item);
+			NetESFunc*sys = new NetESFunc(name.c_str(),
+						  &netreal_t::type_real, 1);
+			sys->set_line(*this);
+			sys->parm(0, sub_expr);
+			return sys;
+		      }
+		      if (class_type->property_idx_from_name(prop_comp.name) < 0) {
+			cerr << get_fileline() << ": error: Covergroup has no "
+			     << "named coverpoint or cross `" << prop_comp.name << "'."
+			     << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		      }
+		    }
+
 		    const data_type_t*prop_declared_type =
 			  method_receiver_property_declared_type_(
 				class_type, prop_comp.name);
