@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 66c972952
+checkpoint_head: ce52be1af
 active_open_titan_lane:
   blocker: "OT-SPID-VIRTUAL-MODPORT-MEMBER-WRITER"
-  phase: "REDUCED_IMPLEMENTING"
+  phase: "FOCUSED_CORE_GREEN"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "66c972952"
+  baseline_head: "ce52be1af"
   reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-spid-sdout-virtual-modport-mixed-red.sv; virtual task writes only csb while continuous assignment drives sd_out"
-  pending_validation: "Three stale JEDEC ports have a named hash-checked source patch 66c972952, statically matched against pinned RTL; no core replay used it yet. A 13-line strict 2017/2023 reducer and four-bit source-shaped control show the four sd_out errors are an Icarus false positive; Slang accepts disjoint drivers. The const-ref compiler fix 6e9283b59 and command-info source patch 782fb1529 previously reduced the selected core from 11 to seven errors. No SPID runtime, broad gate, install, or fresh census."
-  next_command: "Correct virtual-modport writer attribution in the compiler with paired strict disjoint and true-conflict controls, review the candidate, then run one patched-copy SPID JEDEC core with both named patches. No full five-core or 49-core run until the current corpus warrants it."
+  pending_validation: "Compiler fix ce52be1af passes six registered strict 2017/2023 cases, direct paired 16/16, and independent review. One patched-copy SPID JEDEC compile with command-info and port patches exits zero errors/warnings on frozen compiler SHA-256 3e2f5ecc69a4c77942273ca7ff86a24625a2820e7233b965ed0474d3675397e8. No SPID runtime, other four SPID cores, broad gate, install, or fresh census."
+  next_command: "Review remaining current error corpus and reduce the next independent blocker before another application compile; do not launch the full five-core SPID or 49-core OpenTitan suite from this compile-only result."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
