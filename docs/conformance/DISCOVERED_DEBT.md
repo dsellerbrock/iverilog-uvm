@@ -3629,3 +3629,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `work/flash-queue-triage-20260928/flash-review-nba.sv` in the projectless campaign workspace; strict 2017 compile exits nonzero with an explicit target diagnostic.
 - **Reproducer status:** focused explicit compile boundary.
 - **Triage status:** separate follow-on; no NBA behavior claimed by this blocker.
+
+### DD-076 — null class method calls can return without a diagnostic
+
+- **Discovered while working:** OT-FLASH-INDEXED-FIXED-HANDLE-METHOD.
+- **Observation:** A void function call through a null class handle returns normally without invoking the body or reporting an error. Both a direct scalar receiver and an associative-key/fixed-slot receiver behave alike in strict 2017/2023. An out-of-range fixed-slot read yields null and does not alias a valid neighbor.
+- **File/function:** Generated class-method call/body and property dereference paths in `tgt-vvp`/`vvp`; exact diagnostic owner needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4.6/7.4.5, 8.4; null access diagnostic behavior needs separate assessment.
+- **Evidence:** `work/flash-direct-null.sv`, `work/flash-indexed-null.sv`, and `work/flash-indexed-oob.sv` in the projectless campaign workspace; paired strict Icarus runs print `FAILED null method returned` for direct and selected null receivers.
+- **Reproducer status:** paired strict runtime observation; no change to this global behavior in the indexed receiver fix.
+- **Triage status:** record-only diagnostic-policy follow-on; do not count silent null calls as successful method execution.

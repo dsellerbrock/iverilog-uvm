@@ -1773,6 +1773,53 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
 	    out_type = prop_type;
 	    return prop_expr;
       }
+
+	/* An associative property can hold a fixed array of class handles.
+	 * Consume the key and the fixed slot before testing the method name:
+	 * the method belongs to the selected handle, not the outer map. */
+      if (const netqueue_t*assoc = dynamic_cast<const netqueue_t*>(prop_type)) {
+	  if (assoc->assoc_compat()) {
+	    const netuarray_t*fixed =
+	      dynamic_cast<const netuarray_t*>(assoc->element_type());
+	    if (fixed && fixed->static_dimensions().size() == 1
+		&& dynamic_cast<const netclass_t*>(fixed->element_type())
+		&& comp.index.size() == 2) {
+	      auto idx = comp.index.begin();
+	      if (idx->sel != index_component_t::SEL_BIT
+		  || !idx->msb || idx->lsb) {
+		cerr << li->get_fileline() << ": error: associative method "
+		     << "receiver requires a simple key index." << endl;
+		des->errors += 1;
+		delete base_expr;
+		return nullptr;
+	      }
+	      NetExpr*key = elab_assoc_index(des, scope, idx->msb,
+					     prop_type, false);
+	      if (!key) {
+		delete base_expr;
+		return nullptr;
+	      }
+	      ++idx;
+	      list<index_component_t>slot(1, *idx);
+	      NetExpr*canon = make_checked_canonical_property_index(
+					  des, scope, li, slot, fixed, false);
+	      if (!canon) {
+		delete key;
+		delete base_expr;
+		return nullptr;
+	      }
+	      NetEProperty*map = new NetEProperty(base_expr, pidx, nullptr);
+	      map->set_line(*li);
+	      NetESelect*fixed_value = new NetESelect(map, key, 1, fixed);
+	      fixed_value->set_line(*li);
+	      NetESelect*handle = new NetESelect(
+		fixed_value, canon, 1, fixed->element_type());
+	      handle->set_line(*li);
+	      out_type = fixed->element_type();
+	      return handle;
+	    }
+	  }
+      }
       if (!assoc_compat_supports_indexed_method_target_(prop_type, method_name)) {
 	    delete base_expr;
 	    return nullptr;
