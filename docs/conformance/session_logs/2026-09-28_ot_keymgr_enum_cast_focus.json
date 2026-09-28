@@ -1,0 +1,49 @@
+{
+  "case": "OpenTitan keymgr_base_test / keymgr_smoke_vseq",
+  "scope": "one selected FuseSoC-generated Keymgr DV target, using the unchanged pinned OpenTitan source tree; no 49-target corpus replay",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_checkout_edited": false,
+  "source_patch": null,
+  "new_unsafe_flag": null,
+  "prior_runtime_failure": "keymgr_scoreboard.sv:651, 9661224 ps: captured current_state was X after $cast into the get_next_state enum function return variable",
+  "minimal_reproducer": "/private/tmp/ot-keymgr-scope-reduce-20260928/enum_return_cast.sv",
+  "focused_compiler_change": [
+    "Materialize function return signal storage before a VPI $cast writes it.",
+    "Pass the enum typespec for task-form $cast and recognize an enum class-property destination.",
+    "Provide the writable VPI class-property handle as the $cast destination."
+  ],
+  "focused_tests": {
+    "sv_function_return_ref_2017": "PASSED",
+    "sv_function_return_ref_2023": "PASSED",
+    "m1_param_class_identity_test_2017": "PASS"
+  },
+  "selected_compile": {
+    "exit_code": 0,
+    "warnings": 41,
+    "hard_errors": 0,
+    "image_sha256": "0144fccf72fe7bbf3f1c7bd0fa5d35871fb7d74a896e3877330cdfc373d60828",
+    "log_sha256": "e49e26fbab09764a095982cf4325ac09e2d6ced04e92514ecfa9b1ecd7a01c86"
+  },
+  "selected_runtime": {
+    "command": [
+      "local-install/bin/vvp", "-i", "-n", "final-keymgr.vvp",
+      "+UVM_NO_RELNOTES", "+UVM_VERBOSITY=UVM_LOW",
+      "+cdc_instrumentation_enabled=1", "+smoke_test=1",
+      "+UVM_TESTNAME=keymgr_base_test", "+UVM_TEST_SEQ=keymgr_smoke_vseq"
+    ],
+    "exit_code": 0,
+    "timed_out": false,
+    "timeout_s": 300,
+    "wall_s": 266.96,
+    "finish_time_ps": 396423568,
+    "uvm_info": 26,
+    "uvm_warning": 0,
+    "uvm_error": 0,
+    "uvm_fatal": 0,
+    "test_passed_checks": true,
+    "log_sha256": "6a7dd67be98c1e1561f8665e23e8e2ca7f8b88f9135961e31a24cfcdf9d6409e"
+  },
+  "compiler_binary_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "vvp_binary_sha256": "08aea955de0800ce46cc843405a94098b80352eabe592e37e2dca11294646742",
+  "qualification": "Selected Keymgr UVM DV smoke passed on the fixed compiler. Other Keymgr tests and the full OpenTitan corpus were not run."
+}

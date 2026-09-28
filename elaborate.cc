@@ -13380,6 +13380,19 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    }
       }
 
+      if (name == "$cast" && parm_count == 2) {
+	if (const netenum_t*enum_type =
+	      dynamic_cast<const netenum_t*>(
+		  eparms[0] ? eparms[0]->net_type() : nullptr)) {
+	    NetENetenum*et = new NetENetenum(enum_type);
+	    et->set_line(*this);
+	    eparms.push_back(et);
+	}
+	if (NetESignal*dest = dynamic_cast<NetESignal*>(eparms[0])) {
+	    materialize_ref_return(dest->sig());
+	}
+      }
+
 	// Special case: Specify blocks and interconnects are turned off,
 	// and this is an $sdf_annotate system task. There will be nothing for
 	// $sdf to annotate, and the user is intending to turn the behavior

@@ -11632,9 +11632,16 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  symbol_search_results dsr;
 		  if (symbol_search(this, des, scope, did->path(),
 				    did->lexical_pos(), &dsr)
-		      && dsr.net && dsr.path_tail.empty())
+		      && dsr.net && dsr.path_tail.empty()) {
+			/* $cast writes its first argument through VPI. A function's
+			 * implicit return needs signal storage for that write. */
+			materialize_ref_return(dsr.net);
 			cast_enum_type =
 			      dynamic_cast<const netenum_t*>(dsr.net->net_type());
+		  }
+		  if (!cast_enum_type)
+			cast_enum_type = dynamic_cast<const netenum_t*>(
+			      did->test_type_of_ident(des, scope));
 	    }
       }
 
