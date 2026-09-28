@@ -3679,3 +3679,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Focused indexed-prefix negative and independent review in projectless `outputs/flash-omitted-assoc-foreach-focused-evidence-20260928.md`.
 - **Reproducer status:** Slang accepts strict 2017/2023; Icarus emits an explicit `sorry` in both editions.
 - **Triage status:** separate indexed-target evaluation ticket; no dropped side effects accepted.
+
+### DD-081 — ascending packed class-property indexed read selects wrong bits
+
+- **Discovered while working:** OT-FLASH-CONSTRAINT-CONSTANT-INDEXED-PART-SELECT.
+- **Observation:** A class property `bit [0:7] value = 8'hA6` reads `value[2+:3] == 3'b101` and `value[5-:3] == 3'b110`; copying it into a local `bit [0:7]` and selecting the same ranges gives the correct `3'b100` and `3'b001`. The whole property remains `8'hA6`. This predates the selected constraint change and occurs without randomization.
+- **File/function:** procedural class-property packed-select elaboration/code generation; exact owner needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 §11.5.1 indexed part-select orientation.
+- **Evidence:** Projectless `work/flash-constraint-indexed-impl-20260928/class-ascending-readback-debt.sv` reproduces in strict 2017 and 2023 using frozen installed ivl SHA-256 `56fe5718f2a7db3ea2075a588d1bbe82a49ecde8827536cde35897eebe6dfb6e` and VVP SHA-256 `0bc8c3b3e6a430dd0feec77d987c9ff78350206e8f386695f068131db5bcf862`.
+- **Reproducer status:** paired strict runtime observation; the selected solver test checks ascending bits through a copied local.
+- **Triage status:** separate procedural class-property selector repair; no claim that this constraint change repairs the read path.

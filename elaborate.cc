@@ -30095,6 +30095,9 @@ struct constraint_const_ir_t {
       bool is_signed = false;
 };
 
+static uint64_t constraint_resize_const_bits_(
+      const constraint_const_ir_t&value, unsigned width, bool sign_extend);
+
 static bool constraint_parse_const_ir_(const string&ir,
 					constraint_const_ir_t&out)
 {
@@ -30191,6 +30194,60 @@ static string packed_typed_select_ir_(
 		  ? digit : outer.width() - 1 - digit;
 	    return true;
       };
+      if ((ic.sel == index_component_t::SEL_IDX_UP
+	   || ic.sel == index_component_t::SEL_IDX_DO)
+	  && vec && packed_type->base_type() == IVL_VT_BOOL
+	  && dims.size() == 1
+	  && min(outer.get_msb(), outer.get_lsb()) == 0
+	  && ic.msb && ic.lsb && constraint_ir_design_ctx_ && scope) {
+	    // Fold bounds with ordinary elaboration. Constraint IR drops X/Z
+	    // bits and cannot fold every constant expression.
+	    auto constant_value = [&](const PExpr*expr,
+				      constraint_const_ir_t&out) -> bool {
+		  unique_ptr<NetExpr> value(elab_and_eval(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
+			const_cast<PExpr*>(expr), -1, false, false));
+		  const NetEConst*constant =
+			dynamic_cast<const NetEConst*>(value.get());
+		  if (!constant || !constant->value().is_defined()
+		      || (constant->expr_type() != IVL_VT_BOOL
+			  && constant->expr_type() != IVL_VT_LOGIC))
+			return false;
+		  const verinum&bits = constant->value();
+		  return bits.len() != 0 && bits.len() <= 64
+			&& constraint_parse_const_ir_(
+			      constraint_const_bits_ir_(
+				    bits, bits.len(), bits.has_sign()), out);
+	    };
+	    constraint_const_ir_t base_index, width;
+	    if (!constant_value(ic.msb, base_index)
+		|| !constant_value(ic.lsb, width))
+		  return "";
+	    uint64_t digit = 0;
+	    if (!constraint_fixed_index_offset_(
+		  base_index, 0, outer.width(), digit)) return "";
+	    uint64_t first = outer.get_msb() >= outer.get_lsb()
+		  ? digit : outer.width() - 1 - digit;
+	    uint64_t count = constraint_resize_const_bits_(
+		  width, 64, width.is_signed);
+	    if (count == 0 || count > outer.width()
+		|| (width.is_signed && (int64_t)count < 0)) return "";
+	    uint64_t delta = count - 1;
+	    bool toward_high = (ic.sel == index_component_t::SEL_IDX_UP)
+		  == (outer.get_msb() >= outer.get_lsb());
+	    uint64_t last = 0;
+	    if (toward_high) {
+		  if (delta > outer.width() - 1 - first) return "";
+		  last = first + delta;
+	    } else {
+		  if (delta > first) return "";
+		  last = first - delta;
+	    }
+	    uint64_t high = max(first, last), low = min(first, last);
+	    return "(part " + base + " c:"
+		  + to_string((high + 1) * elem_width - 1)
+		  + " c:" + to_string(low * elem_width) + ")";
+      }
       if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
 	    uint64_t off = 0;
 	    string index;

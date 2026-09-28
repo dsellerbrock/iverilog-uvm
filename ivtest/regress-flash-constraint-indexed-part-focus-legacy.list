@@ -1,0 +1,7 @@
+# Constant indexed part-selects in randomize constraints.
+sv_constraint_indexed_part_inline_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_inline.gold
+sv_constraint_indexed_part_class_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_class.gold
+sv_constraint_indexed_part_unsupported_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_unsupported.gold
+sv_constraint_indexed_part_inline_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_inline.gold
+sv_constraint_indexed_part_class_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_class.gold
+sv_constraint_indexed_part_unsupported_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_unsupported.gold

@@ -1,0 +1,7 @@
+ivltests/sv_constraint_indexed_part_unsupported.v:7: error: constraint `(data['sd7+:'sd2])==(2'd0)' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_indexed_part_unsupported.v:9: error: constraint `(data[3'bxxx+:'sd2])==(2'd0)' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_indexed_part_unsupported.v:11: error: constraint `(data[index+:'sd2])==(2'd0)' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_indexed_part_unsupported.v:13: error: constraint `(four_state['sd2+:'sd3])==(3'd1)' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_indexed_part_unsupported.v:15: error: constraint `(data['sd2+:'sd0])==(1'd0)' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_indexed_part_unsupported.v:17: error: constraint `(multi['sd0]['sd2+:'sd3])==(3'd1)' could not be translated and the randomize call cannot be compiled.
+6 error(s) during elaboration.
