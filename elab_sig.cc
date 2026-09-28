@@ -174,7 +174,7 @@ static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scop
       if (!prop_type)
 	    return 0;
 
-      if (const array_base_t*array_type = dynamic_cast<const array_base_t*>(prop_type)) {
+      if (const uarray_type_t*array_type = dynamic_cast<const uarray_type_t*>(prop_type)) {
 	    ivl_type_t base_use_type =
 		  elaborate_class_property_type_(des, class_scope,
 						 array_type->base_type.get(), seen,
