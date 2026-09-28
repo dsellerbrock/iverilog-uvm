@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: dc2dd1b69
+checkpoint_head: 7fdf53f16
 active_open_titan_lane:
-  blocker: "OT-FLASH-ASSOC-OF-FIXED-ARRAY"
-  phase: "SELECTED_ARCHITECTURE_AUDIT"
+  blocker: "OT-FLASH-INDEXED-FIXED-HANDLE-METHOD"
+  phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "dc2dd1b69"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-assoc-of-fixed-runtime-red.sv; enum-keyed fixed array storage/default/copy/delete"
-  pending_validation: "Saved patched-copy Flash compile has 114 associative-of-fixed type diagnostics within 231 hard errors. Small strict 2017/2023 declaration RED and read-only architecture audit show elab_type plus VVP layout/runtime/class-property work is required; guard removal alone is unsound. RSTMGR source patch af8ce9035 is safely suspended after a zero-error patched-copy compile with 21 warnings, pending DV runtime and integrated gates. SPID ce52be1af remains compile-only with pending gates/runtime."
-  next_command: "Build paired module and class-property semantic REDs, trace the complete container path, then implement the smallest sound associative-of-fixed representation. Do not rerun Flash core or broad suite before focused runtime behavior is proved."
+  baseline_head: "7fdf53f16"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-indexed-handle-method-red.sv; class-property map[key][slot].write/read"
+  pending_validation: "Prior fixed-child slice 7fdf53f16 passes strict JSON and legacy 16/16 each; one patched-copy Flash compile has 88 hard errors and 146 warnings, with indexed handle task dispatch first and nine such diagnostics. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. No Flash DV runtime, integrated gates, install, or fresh 49-core census."
+  next_command: "Verify the tiny method-call RED in strict 2017/2023 with Slang and current Icarus, trace the shared task/function selected-receiver path, and add a paired semantic regression before any new Flash core replay."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
