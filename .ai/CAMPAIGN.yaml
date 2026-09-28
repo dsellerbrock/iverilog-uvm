@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 2b2fff541887044eb30cb23a8994975e25d1ee04
+checkpoint_head: 8a35c584b09f1aa8998907e5d17efbeabd0fb140
 active_open_titan_lane:
-  blocker: "OT-AES-IMPLICATION-DIST-GRAMMAR"
-  phase: "LOCAL_PARSER_FOCUS_PASSED"
+  blocker: "OT-AES-CONSTRAINT-STATE-PACKED-SELECT"
+  phase: "REPRODUCED_SELECTING_PATCH"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "2b2fff541887044eb30cb23a8994975e25d1ee04"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-aes-dist-enum-red.sv"
-  pending_validation: "AES parser candidate passes paired strict direct/nested hard and soft fixture, saved reducer, and seven targeted JSON cases, including paired empty-dist compile errors, with no changed Bison conflict state. A single saved AES core compile clears the parser error, then stops on four separate source implicit-cast errors; it is not a compiler or DV pass. Broad gates, installation, and a fresh OpenTitan census remain pending. The prior packed-index checkpoint has focused 20/20 and 29/29 per edition but no post-commit broad gate or replay."
-  next_command: "Review the uncommitted parse.y and paired fixture against the saved AES RED, then continue the current error-corpus batch before any broad application run."
-  boundary: "Minimal reproducer and focused controls first; leave Caliptra selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies when an actual source defect requires one."
+  baseline_head: "8a35c584b09f1aa8998907e5d17efbeabd0fb140"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-aes-config-state-bit-select-red.sv and ot-aes-alert-state-slice-red.sv"
+  pending_validation: "The AES parser checkpoint passes final focused checks but no install, broad gate, or new census. A copied key-type-patched AES core compiles with two solver representability warnings and a function-copy-out warning. The two solver warnings have minimal Slang-positive reducers and are the current active blocker; copy-out, keymgr fill, and other corpus items remain separately recorded."
+  next_command: "Trace constraint_state_prop_ok_ and selected packed-property IR from the two 14-line AES REDs, then implement the smallest exact state-read fix and paired strict controls."
+  boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
