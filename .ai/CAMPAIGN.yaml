@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 8a35c584b09f1aa8998907e5d17efbeabd0fb140
+checkpoint_head: da9bc90ac
 active_open_titan_lane:
-  blocker: "OT-AES-CONSTRAINT-STATE-PACKED-SELECT"
-  phase: "REPRODUCED_SELECTING_PATCH"
+  blocker: "OT-AES-FUNCTION-COPY-OUT-SELECTED-PACKED"
+  phase: "REDUCED_SELECTING_PATCH"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "8a35c584b09f1aa8998907e5d17efbeabd0fb140"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-aes-config-state-bit-select-red.sv and ot-aes-alert-state-slice-red.sv"
-  pending_validation: "The AES parser checkpoint passes final focused checks but no install, broad gate, or new census. A copied key-type-patched AES core compiles with two solver representability warnings and a function-copy-out warning. The two solver warnings have minimal Slang-positive reducers and are the current active blocker; copy-out, keymgr fill, and other corpus items remain separately recorded."
-  next_command: "Trace constraint_state_prop_ok_ and selected packed-property IR from the two 14-line AES REDs, then implement the smallest exact state-read fix and paired strict controls."
+  baseline_head: "da9bc90ac"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-aes-readability-copy-out-red.sv"
+  pending_validation: "AES state-select fix 9dd71439e passes focused JSON 4/4 and removes both solver warnings in a patched-source AES compile. Named source patch da9bc90ac fixes the pinned testbench type mismatch only on disposable copies. That core still warns about skipped function copy-out, which the strict Slang-positive 24-line reducer proves loses data. Broad gates, install, runtime, and fresh census remain pending the current corpus batch."
+  next_command: "Implement the smallest exact SELECT(PROPERTY fixed slot, packed offset) function copy-out in tgt-vvp/draw_ufunc.c with paired minimal controls, then recompile only the patched AES core."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
