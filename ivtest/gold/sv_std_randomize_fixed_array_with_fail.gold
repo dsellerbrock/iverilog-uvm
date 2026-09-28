@@ -1,0 +1,2 @@
+./ivltests/sv_std_randomize_fixed_array_with_fail.v:4: sorry: std::randomize() with constraints on a fixed unpacked array is not yet supported; the call cannot be compiled.
+Elaboration failed
