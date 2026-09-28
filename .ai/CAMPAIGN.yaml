@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: da9bc90ac
+checkpoint_head: 32d8af20f
 active_open_titan_lane:
-  blocker: "OT-AES-FUNCTION-COPY-OUT-SELECTED-PACKED"
+  blocker: "OT-KEYMGR-CONSTRAINT-UNBASED-FILL"
   phase: "REDUCED_SELECTING_PATCH"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "da9bc90ac"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-aes-readability-copy-out-red.sv"
-  pending_validation: "AES state-select fix 9dd71439e passes focused JSON 4/4 and removes both solver warnings in a patched-source AES compile. Named source patch da9bc90ac fixes the pinned testbench type mismatch only on disposable copies. That core still warns about skipped function copy-out, which the strict Slang-positive 24-line reducer proves loses data. Broad gates, install, runtime, and fresh census remain pending the current corpus batch."
-  next_command: "Implement the smallest exact SELECT(PROPERTY fixed slot, packed offset) function copy-out in tgt-vvp/draw_ufunc.c with paired minimal controls, then recompile only the patched AES core."
+  baseline_head: "32d8af20f"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-keymgr-fill-literal-red.sv and ot-keymgr-fill-inside-red.sv"
+  pending_validation: "AES function copy-out commit 32d8af20f passes paired JSON and legacy focus plus neighbors; one disposable patched-source AES core compile has zero errors and four remaining warnings. Direct Keymgr '1 equality and forced-nonzero 256-bit inside are both RED, while sized 1'b1 control works. Broad gates, install, runtime, and fresh census remain pending the current corpus batch."
+  next_command: "Trace shared constraint literal width propagation and fix direct equality and inside with paired minimal controls; do not rerun the 49-core census."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
