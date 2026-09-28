@@ -1,0 +1,18 @@
+{
+  "case": "lowrisc:dv:clkmgr_sim:0.1",
+  "status": "selected patched-source compile PASS; no DV runtime verdict",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_revision": "3d50d0904",
+  "source_patch": "docs/conformance/release_overlays/opentitan/clkmgr_clk_status_idle_drive.patch",
+  "source_patch_sha256": "673047c5760e502170829f5797c8c32c490fb92eaf50e0b6a76ff807edadc407",
+  "pinned_generated_and_template_sha256": "7e29e62d58e1c936437e708b1344007e9a194c0baabd3912967cd4b5c0a52c81",
+  "patch_applies_to_pinned": true,
+  "returncode": 0,
+  "seconds": 4.888,
+  "hard_errors": 0,
+  "unsampled_clockvar_diagnostics": 0,
+  "warnings": 9,
+  "vvp_sha256": "53449b6cf368b56206ce251c858b9fd72dd03e9162a7938be56a4f798d0e2a09",
+  "semantic_basis": "The original idle='1 writes 16'hffff into a class property after clkmgr_if.init already copied idle to idle_i. The patch writes four MuBi4True nibbles (16'h6666) and calls update_idle.",
+  "scope": "One selected compile on disposable source copies; no 49-target corpus"
+}

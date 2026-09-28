@@ -1,0 +1,26 @@
+diff --git a/hw/top_earlgrey/ip_autogen/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv b/hw/top_earlgrey/ip_autogen/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
+--- a/hw/top_earlgrey/ip_autogen/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
+@@ -25,7 +25,8 @@
+       control_ip_clocks();
+ 
+       // If some units were not idle, make them so.
+-      idle = '1;
++      idle = {NUM_TRANS{MuBi4True}};
++      cfg.clkmgr_vif.update_idle(idle);
+       // Wait for idle to percolate.
+       cfg.clk_rst_vif.wait_clks(10);
+     end
+diff --git a/hw/ip_templates/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv b/hw/ip_templates/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
+--- a/hw/ip_templates/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
++++ b/hw/ip_templates/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
+@@ -25,7 +25,8 @@
+       control_ip_clocks();
+ 
+       // If some units were not idle, make them so.
+-      idle = '1;
++      idle = {NUM_TRANS{MuBi4True}};
++      cfg.clkmgr_vif.update_idle(idle);
+       // Wait for idle to percolate.
+       cfg.clk_rst_vif.wait_clks(10);
+     end
