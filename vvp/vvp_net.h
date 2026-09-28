@@ -377,6 +377,11 @@ class vvp_vector4_t {
 	// Return true if there is an X or Z anywhere in the vector.
       bool has_xz() const;
 
+	// If the vector fits in a single word and has no X or Z bits,
+	// store its bits in val (zero above size()) and return true.
+	// Otherwise return false and leave val alone.
+      bool small_2state_word(unsigned long&val) const;
+
 	// Change all Z bits to X bits.
       void change_z2x();
 
@@ -535,6 +540,18 @@ inline vvp_bit4_t vvp_vector4_t::value(unsigned idx) const
       int tmp = ((bbits&1) << 1) + (abits&1);
 	// This cast works since b==1,a==1 is X and b==1,a==0 is Z.
       return (vvp_bit4_t)tmp;
+}
+
+inline bool vvp_vector4_t::small_2state_word(unsigned long&val) const
+{
+      if (size_ > BITS_PER_WORD)
+	    return false;
+      unsigned long mask = size_ == BITS_PER_WORD
+	    ? ~0UL : ((1UL << size_) - 1UL);
+      if (bbits_val_ & mask)
+	    return false;
+      val = abits_val_ & mask;
+      return true;
 }
 
 inline vvp_vector4_t vvp_vector4_t::subvalue(unsigned adr, unsigned wid) const

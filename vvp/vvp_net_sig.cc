@@ -323,6 +323,14 @@ vvp_signal_value::~vvp_signal_value()
 {
 }
 
+void vvp_signal_value::vec4_part_value(vvp_vector4_t&val, unsigned base,
+                                       unsigned wid) const
+{
+      vvp_vector4_t tmp;
+      vec4_value(tmp);
+      val = tmp.subvalue(base, wid);
+}
+
 double vvp_signal_value::real_value() const
 {
       assert(0);
@@ -3031,6 +3039,18 @@ void vvp_wire_vec4::vec4_value(vvp_vector4_t&val) const
 
       for (unsigned idx = 0 ; idx < bits4_.size() ; idx += 1)
 	    val.set_bit(idx, filtered_value_(idx));
+}
+
+void vvp_wire_vec4::vec4_part_value(vvp_vector4_t&val, unsigned base,
+                                    unsigned wid) const
+{
+      assert(base + wid <= bits4_.size());
+      val = bits4_.subvalue(base, wid);
+      if (test_force_mask_is_zero())
+	    return;
+
+      for (unsigned idx = 0 ; idx < wid ; idx += 1)
+	    val.set_bit(idx, filtered_value_(base+idx));
 }
 
 vvp_bit4_t vvp_wire_vec4::driven_value(unsigned idx) const

@@ -114,6 +114,12 @@ class vvp_signal_value {
       virtual vvp_bit4_t value(unsigned idx) const =0;
       virtual vvp_scalar_t scalar_value(unsigned idx) const =0;
       virtual void vec4_value(vvp_vector4_t&) const =0;
+	// Get the wid bits starting at base, which the caller guarantees
+	// lie within value_size(). The result is exactly the subvalue of
+	// what vec4_value() would return; a signal that can produce it
+	// without materializing the whole vector overrides this.
+      virtual void vec4_part_value(vvp_vector4_t&val, unsigned base,
+                                   unsigned wid) const;
       virtual double real_value() const;
 
       virtual void get_signal_value(struct t_vpi_value*vp);
@@ -736,6 +742,8 @@ class vvp_wire_vec4 : public vvp_wire_base {
       vvp_bit4_t value(unsigned idx) const override;
       vvp_scalar_t scalar_value(unsigned idx) const override;
       void vec4_value(vvp_vector4_t&) const override;
+      void vec4_part_value(vvp_vector4_t&val, unsigned base,
+                           unsigned wid) const override;
 
         // Support for $countdrivers
       vvp_bit4_t driven_value(unsigned idx) const override;

@@ -14877,6 +14877,24 @@ bool of_CMPINE(vthread_t thr, vvp_code_t cp)
 
 
 
+/*
+ * Signed compare of two fully defined wid-bit values held in the low
+ * bits of single words, with the same flag results as do_CMPS.
+ */
+static void do_CMPS_words_(vthread_t thr, unsigned long lword,
+                           unsigned long rword, unsigned wid)
+{
+	// Flip the sign bits so an unsigned compare of the words orders
+	// the two's complement values.
+      unsigned long sign = 1UL << (wid-1);
+      lword ^= sign;
+      rword ^= sign;
+      bool eq = lword == rword;
+      thr->flags[4] = eq? BIT4_1 : BIT4_0; // eq
+      thr->flags[5] = lword < rword? BIT4_1 : BIT4_0; // lt
+      thr->flags[6] = eq? BIT4_1 : BIT4_0; // eeq
+}
+
 static void do_CMPS(vthread_t thr, const vvp_vector4_t&lval, const vvp_vector4_t&rval)
 {
       assert(rval.size() == lval.size());
@@ -14894,6 +14912,13 @@ static void do_CMPS(vthread_t thr, const vvp_vector4_t&lval, const vvp_vector4_t
 	// Past this point, we know we are dealing only with fully
 	// defined values.
       unsigned wid = lval.size();
+
+      unsigned long lword, rword;
+      if (wid > 0 && lval.small_2state_word(lword)
+	  && rval.small_2state_word(rword)) {
+	    do_CMPS_words_(thr, lword, rword, wid);
+	    return;
+      }
 
       const vvp_bit4_t sig1 = lval.value(wid-1);
       const vvp_bit4_t sig2 = rval.value(wid-1);
@@ -14976,6 +15001,20 @@ bool of_CMPIS(vthread_t thr, vvp_code_t cp)
       unsigned wid = cp->number;
 
       const vvp_vector4_t&lval = thr->peek_vec4();
+
+	// A defined immediate compared with a defined single-word value
+	// needs no immediate vector: get_immediate_rval would build the
+	// low wid bits of the 32-bit immediate.
+      unsigned long lword;
+      if (cp->bit_idx[1] == 0 && wid > 0 && lval.size() == wid
+	  && lval.small_2state_word(lword)) {
+	    unsigned long rword = cp->bit_idx[0];
+	    if (wid < 8*sizeof(unsigned long))
+		  rword &= (1UL << wid) - 1UL;
+	    do_CMPS_words_(thr, lword, rword, wid);
+	    thr->pop_vec4(1);
+	    return true;
+      }
 
 	// I expect that most of the bits of an immediate value are
 	// going to be zero, so start the result vector with all zero
@@ -23302,6 +23341,97 @@ bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
 	// target stack position.
       sig->vec4_value(sig_value);
 
+      return true;
+}
+
+static void part_select_value_(vvp_vector4_t&value, unsigned result_wid,
+                               int64_t base);
+
+/*
+ * Push the wid-bit part of the signal net that starts at base, with the
+ * result that %load/vec4 <net> followed by a part select at the same base
+ * would push. Only an in-range part is read without first copying the
+ * whole signal value; any other base goes through the ordinary
+ * part-select helper so the X fill of the out-of-range bits is shared.
+ */
+static void load_vec4_part_(vthread_t thr, vvp_net_t*net, unsigned wid,
+                            int64_t base)
+{
+      vvp_vector4_t staged;
+      if (thr->static_call_overlay_load_vec4(net, staged)
+          || thr->staged_static_overlay_load_vec4(net, staged)) {
+	    part_select_value_(staged, wid, base);
+	    thr->push_vec4(staged);
+	    return;
+      }
+
+      vvp_signal_value*sig = net->fil ? net->fil->as_signal_value() : 0;
+      if (sig == 0) {
+	    cerr << thr->get_fileline()
+	         << "%load/vec4/part error: Net arg not a signal? "
+		 << (net->fil ? typeid(*net->fil).name() :
+	                        typeid(*net->fun).name())
+	         << endl;
+	    assert(sig);
+	    return;
+      }
+
+      thr->push_vec4(vvp_vector4_t());
+      vvp_vector4_t&value = thr->peek_vec4();
+      if (base >= 0 && uint64_t(base) + wid <= sig->value_size()) {
+	    sig->vec4_part_value(value, unsigned(base), wid);
+	    return;
+      }
+
+      sig->vec4_value(value);
+      part_select_value_(value, wid, base);
+}
+
+/*
+ * %load/vec4/part/s <var-label>, <wid>
+ * %load/vec4/part/u <var-label>, <wid>
+ *
+ * Pop the part-select base from the vec4 stack, then push the wid-bit
+ * part of the variable that starts at that base. This is %load/vec4
+ * followed by %part/s or %part/u, with the base evaluated first; the code
+ * generator uses it only when evaluating the base cannot change the
+ * variable.
+ */
+static bool of_LOAD_VEC4_PART_base_(vthread_t thr, vvp_code_t cp,
+                                    bool signed_flag)
+{
+      unsigned wid = cp->bit_idx[0];
+      vvp_vector4_t base4 = thr->pop_vec4();
+
+      int64_t base;
+      if (!vpip_vec4_to_int64_saturated(base4, signed_flag, base)) {
+	    thr->push_vec4(vvp_vector4_t(wid, BIT4_X));
+	    return true;
+      }
+
+      load_vec4_part_(thr, cp->net, wid, base);
+      return true;
+}
+
+bool of_LOAD_VEC4_PART_S(vthread_t thr, vvp_code_t cp)
+{
+      return of_LOAD_VEC4_PART_base_(thr, cp, true);
+}
+
+bool of_LOAD_VEC4_PART_U(vthread_t thr, vvp_code_t cp)
+{
+      return of_LOAD_VEC4_PART_base_(thr, cp, false);
+}
+
+/*
+ * %load/vec4/parti <var-label>, <wid>, <base>
+ *
+ * Push the wid-bit part of the variable that starts at the non-negative
+ * constant base. This is %load/vec4 followed by %parti.
+ */
+bool of_LOAD_VEC4_PARTI(vthread_t thr, vvp_code_t cp)
+{
+      load_vec4_part_(thr, cp->net, cp->bit_idx[0], cp->bit_idx[1]);
       return true;
 }
 
