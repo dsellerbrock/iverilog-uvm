@@ -4,13 +4,13 @@ branch: agent/ot-compile-blockers-20260927
 checkpoint_head: f964fd17c
 active_open_titan_lane:
   blocker: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
-  phase: "SELECTED_MINIMAL_REPRODUCER"
+  phase: "PAUSED_PREREQUISITE_IDENTIFIED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "f964fd17c"
+  baseline_head: "f13b3c8a2"
   reproducer: "Projectless outputs/flash-solve-before-multidim-triage-20260928.md records tiny strict paired controls. The saved Flash corpus has only two whole-array solve-before hard errors at flash_ctrl_otf_base_vseq.sv:49 and patched-copy flash_ctrl_mp_regions_vseq.sv:43. Slang accepts these nonportable unpacked-array operands."
-  pending_validation: "The committed selected-child shuffle repair passes paired JSON and legacy focus 4/4 each, 18 adjacent controls in each runner, and independent review; one hash-guarded Flash compile removes line-208 shuffle, leaving 2 hard diagnostics and 135 warnings. Ten warnings state nested queue-element randomize will fail. No VVP image, Flash DV runtime, broad gate, installation, or fresh census exists."
-  next_command: "Revisit the tiny solve-before reducers and exact two Flash clauses. Find a legal integral-leaf ordering rewrite that preserves region/page randomization and ordering effects, including nonempty queues; test it in strict paired controls before one guarded Flash replay. If the solver cannot represent it without a broader change, record the precise prerequisite and safely suspend this blocker."
-  boundary: "One implementation blocker at a time. Do not delete solve ordering, silently skip queue constraints, edit pinned sources, add unsafe flags, install, run broad suites, or launch Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
+  pending_validation: "Committed selected-child shuffle f964fd17c passes paired JSON and legacy 4/4 each plus 18 adjacent checks in each runner. One hash-guarded Flash compile leaves 2 hard solve-before errors and 135 warnings; no VVP image. Read-only strict paired triage found selected queue-content constraints fail randomize(), and whole-queue order silently emits a scalar e: target. No new source patch or Flash replay followed. Integrated gates, install, Flash DV runtime, and fresh census remain open."
+  next_command: "Only after explicit resume: read docs/conformance/session_logs/2026-09-28_ot_flash_solve_before_prerequisite.json and projectless outputs/flash-solve-before-prerequisite-20260928.md; select OT-FLASH-CONSTRAINT-NESTED-QUEUE-CONTENT, then start with one strict 2017/2023 nonempty fixed-array-of-queue content reducer. Keep solve-before suspended until that solver prerequisite is proved."
+  boundary: "User requested pause. Do not run new implementation, Flash source-list, broad suite, installation, or DV while paused. Preserve pinned sources and unsafe flags. Existing Caliptra processes are preserved but monitoring is stopped."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
@@ -29,11 +29,12 @@ prior_open_titan_lane:
 current_caliptra_continuation:
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924"
   selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3 selected 52-case copied-source diagnostic with unsafe mode, reset/checker source overlays, and ephemeral JTAG port. Pristine qualification is separate."
-  prior_completed: "Last read-only status at 2026-09-28 12:18 UTC: 39 of 52 finalized, 18 selected-profile passes and 21 failures; no aggregate 52-case pass."
-  continuation: "At that status, smoke_test_doe_rand, smoke_test_doe_scan, and smoke_test_zeroize_crypto had active fresh logs; ten cases had not started. Unified exec session 20675 remains a live continuation unless its result file later says otherwise."
+  prior_completed: "Final read-only monitor snapshot at 2026-09-28 13:21 UTC: 39 of 52 finalized, 18 selected-profile passes and 21 failures; no aggregate 52-case pass. Monitoring is paused at user request."
+  continuation: "At that snapshot, smoke_test_doe_rand, smoke_test_doe_scan, and smoke_test_zeroize_crypto had active fresh logs; ten cases had not started. Unified exec session 20675 was preserved, not terminated. Resume evidence: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924/evidence/caliptra-icarus-l0-main-52-resume-20260927/."
   observed_failure: "pv_hash_zeroize exited on ERR_SHA_BLOCK_NOT_STABLE at 597595 ns; a one-line SHA512 patch remains a candidate pending full validation. smoke_test_pcr_zeroize exited on ERR_ECC_PRIVKEY_NOT_STABLE at 632545 ns just after its second PCR_SIGN command; the first busy-edge key-load/checker boundary is under read-only triage, not a proven RTL key mutation or patched case."
   patches: "Completed smoke_test_hw_config used its named hash-checked C patch on a disposable copy. Pending smoke_test_hmac_errortrigger will receive its named C patch only when launched. A one-line SHA512 assertion source patch is a dry-run-validated candidate for pv_hash_zeroize, not yet used in a full case. Pinned Caliptra and Adams Bridge checkouts remain clean."
-  next_command: "Poll unified exec session 20675 sparingly, and separately check the HMAC candidate single-case replay result; do not restart either. Keep timeout, patched-source, pristine, and genuine assertion outcomes distinct."
+  hmac_candidate_replay: "At 2026-09-28 13:21 UTC the named patched-copy single-case HMAC replay remained running, process PID 96605, unified exec session 94598, without a verdict. Result: projectless work/caliptra-hmac-sampled-busy-single-20260928/root-replay-result.json; log: sibling run-root-replay/exec.log. It was preserved, not terminated."
+  next_command: "Only after explicit resume: inspect result files for preserved selected-run session 20675 and HMAC replay session 94598 before polling or restarting anything. Keep timeout, patched-source, pristine, and assertion outcomes distinct."
 prior_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/

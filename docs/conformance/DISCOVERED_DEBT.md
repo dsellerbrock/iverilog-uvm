@@ -3719,3 +3719,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Projectless `work/flash-shuffle-c56988df8-20260928/shuffle_min.sv`; Slang accepts the source in both editions, and current build-tree Icarus emits the skip warning and fails the direct-property reverse self-check.
 - **Reproducer status:** confirmed.
 - **Triage status:** untriaged; explicitly outside the selected associative child shuffle fix.
+
+### DD-085 — whole selected queue masquerades as a scalar solve-order target
+
+- **Discovered while working:** OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY.
+- **Observation:** `solve first before values[0][0]` for a fixed-array-of-queue class property compiles without warning and `randomize()` reports success, but the emitted order target is `e:1:1:0`, a scalar fixed-element slot. It is neither the queue size nor its contents. A strict 2017/2023 control with selected queue contents warns and fails instead.
+- **File/function:** `elaborate.cc` selected fixed-element constraint reference at 33630–33635; `vvp/vvp_z3.cc` `ElemVar` and scalar element read/writeback.
+- **Possible clause:** IEEE 1800-2017/2023 §18.5.10 integral solve-before operands and class constraint representation.
+- **Evidence:** Projectless `work/flash-solve-solver-review-20260928/EVIDENCE.md` and `result.json`, build-tree `ivl` SHA-256 `512c79d3f4830012397def1142bf5325fee9004bb0e86e44847497380bcf283c`.
+- **Reproducer status:** confirmed in strict 2017 and 2023; no Flash source-list replay followed.
+- **Triage status:** reject whole-queue order until a typed nested queue-content representation exists; a simple dimension-guard removal is unsound.
