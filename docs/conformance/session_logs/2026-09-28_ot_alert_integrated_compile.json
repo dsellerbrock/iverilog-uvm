@@ -1,0 +1,15 @@
+{
+  "core": "lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1",
+  "compiler_commit": "c4650f70f",
+  "source_list": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_opentitan_top_earlgrey_alert_handler_sim_0.1/matrix-iverilog.scr",
+  "compile_options": "-g2012 -stb -gcommercial-unsafe -uvm with the saved six bind tops and UVM 1.2 source",
+  "hard_diagnostics": {
+    "saved_baseline": 18,
+    "integrated": 0
+  },
+  "compile_exit": 0,
+  "warnings": 82,
+  "vvp_sha256": "69f6b5f5be39f5f69b056b00317e63632b79cada8c6e0fd0abe95b71b8d0cf89",
+  "focused_regressions": "New fixed-array min/max and 65-bit dist reducers each passed under strict 2017 and 2023 (4/4).",
+  "qualification": "One selected compile, not a DV runtime pass or 49-case corpus replay. Pinned OpenTitan sources unchanged."
+}
