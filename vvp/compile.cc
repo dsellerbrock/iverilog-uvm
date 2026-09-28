@@ -259,6 +259,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%assign/vec4/e",    of_ASSIGN_VEC4E,      1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%assign/vec4/off/d",of_ASSIGN_VEC4_OFF_D, 3, {OA_FUNC_PTR, OA_BIT1, OA_BIT2} },
       { "%assign/vec4/off/e",of_ASSIGN_VEC4_OFF_E, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
+      { "%assign/vec4/off/s2",of_ASSIGN_VEC4_OFF_S2,3,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NUMBER} },
       { "%assign/wr",  of_ASSIGN_WR, 2,{OA_VPI_PTR, OA_BIT1, OA_NONE} },
       { "%assign/wr/d",of_ASSIGN_WRD,2,{OA_VPI_PTR, OA_BIT1, OA_NONE} },
       { "%assign/wr/e",of_ASSIGN_WRE,1,{OA_VPI_PTR, OA_NONE, OA_NONE} },
@@ -2889,6 +2890,25 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 	    yyerror("operand count");
 	    compile_errors += 1;
 	    return;
+      }
+
+      if (op->opcode == of_ASSIGN_VEC4_OFF_S2) {
+            if (opa->argv[0].ltype != L_SYMB
+                || opa->argv[1].ltype != L_SYMB
+                || opa->argv[2].ltype != L_NUMB
+                || opa->argv[2].numb > UINT32_MAX) {
+                  yyerror("operand format");
+                  compile_errors += 1;
+                  free(opa);
+                  return;
+            }
+            vvp_assign_s2_data_s*data = new vvp_assign_s2_data_s();
+            code->assign_s2_data = data;
+            functor_ref_lookup(&data->target, opa->argv[0].symb.text);
+            functor_ref_lookup(&data->index, opa->argv[1].symb.text);
+            data->base = opa->argv[2].numb;
+            free(opa);
+            return;
       }
 
 	/* Pull the operands that the instruction expects from the

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_signed_two_bit_offset_nba.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_signed_two_bit_offset_nba"
+}

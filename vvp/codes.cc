@@ -118,6 +118,8 @@ void codespace_delete(void)
 			exec_ufunc_delete((cur+idx));
 		  } else if ((cur+idx)->opcode == &of_FILE_LINE) {
 			delete((cur+idx)->handle);
+		  } else if ((cur+idx)->opcode == &of_ASSIGN_VEC4_OFF_S2) {
+			delete (cur+idx)->assign_s2_data;
 		  } else if (((cur+idx)->opcode == &of_APPEND_QO_OBJ_DARRAY_PROTO) ||
 		             ((cur+idx)->opcode == &of_APPEND_QO_OBJ_QUEUE) ||
 		             ((cur+idx)->opcode == &of_APPEND_QO_OBJ_QUEUE_PROTO) ||

@@ -12562,6 +12562,44 @@ bool of_ASSIGN_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Assign a two-bit slice at twice the current signed 32-bit scalar index.
+ * Each execution still schedules one partial NBA in the original order. */
+bool of_ASSIGN_VEC4_OFF_S2(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      assert(val.size() == 2);
+
+      const vvp_assign_s2_data_s*data = cp->assign_s2_data;
+      assert(data && data->target && data->index);
+
+      vvp_vector4_t index_value;
+      if (!thr->static_call_overlay_load_vec4(data->index, index_value)
+          && !thr->staged_static_overlay_load_vec4(data->index, index_value)) {
+            assert(data->index->fil);
+            vvp_signal_value*index_signal = data->index->fil->as_signal_value();
+            assert(index_signal);
+            index_signal->vec4_value(index_value);
+      }
+
+      int64_t index;
+      if (!vpip_vec4_to_int64_saturated(index_value, true, index)) {
+            thr->flags[4] = BIT4_1;
+            return true;
+      }
+      thr->flags[4] = BIT4_0;
+
+      int64_t off = index * 2 + data->base;
+      vvp_signal_value*sig = data->target->fil->as_signal_value();
+      assert(sig);
+      if (!resize_rval_vec(val, off, sig->value_size()))
+            return true;
+
+      schedule_assign_vector(vvp_net_ptr_t(data->target, 0), off,
+                             sig->value_size(), val, 0,
+                             schedule_assign_is_reactive_(thr));
+      return true;
+}
+
 /*
  * %assign/vec4/off/e <var>, <off>
  */

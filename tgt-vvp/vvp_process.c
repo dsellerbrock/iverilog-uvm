@@ -1063,6 +1063,65 @@ static void assign_to_array_word(ivl_lval_t lval, ivl_signal_t lsig,
  * width is top of the vec4 stack. Arrange for it to be popped and
  * assigned to the given l-value.
  */
+/* Recognize 2*index + constant without replacing the visible index variable.
+ * The 33-bit multiply and 34-bit add cannot overflow for a signed 32-bit
+ * index and a nonnegative 32-bit constant. */
+static ivl_signal_t signed_two_bit_offset_index_(ivl_expr_t offset,
+                                                  uint32_t*base_out)
+{
+      unsigned long base = 0;
+      if (offset && ivl_expr_type(offset) == IVL_EX_BINARY
+          && ivl_expr_opcode(offset) == '+'
+          && ivl_expr_width(offset) == 34 && ivl_expr_signed(offset)) {
+            ivl_expr_t padded = ivl_expr_oper1(offset);
+            ivl_expr_t constant = ivl_expr_oper2(offset);
+            if (!padded || ivl_expr_type(padded) != IVL_EX_SELECT
+                || ivl_expr_oper2(padded) != 0
+                || ivl_expr_width(padded) != 34 || !ivl_expr_signed(padded)
+                || !constant || ivl_expr_type(constant) != IVL_EX_NUMBER
+                || !number_is_immediate(constant, 34, 0)
+                || number_is_unknown(constant))
+                  return 0;
+            base = get_number_immediate(constant);
+            if (base > UINT32_MAX)
+                  return 0;
+            offset = ivl_expr_oper1(padded);
+      }
+
+      if (!offset || ivl_expr_type(offset) != IVL_EX_BINARY
+          || ivl_expr_opcode(offset) != '*'
+          || ivl_expr_width(offset) != 33 || !ivl_expr_signed(offset))
+            return 0;
+
+      ivl_expr_t padded = ivl_expr_oper1(offset);
+      ivl_expr_t factor = ivl_expr_oper2(offset);
+      if (!padded || ivl_expr_type(padded) != IVL_EX_SELECT
+          || ivl_expr_oper2(padded) != 0
+          || ivl_expr_width(padded) != 33 || !ivl_expr_signed(padded)
+          || !factor || ivl_expr_type(factor) != IVL_EX_NUMBER
+          || !number_is_immediate(factor, 33, 0)
+          || number_is_unknown(factor)
+          || get_number_immediate(factor) != 2)
+            return 0;
+
+      ivl_expr_t index = ivl_expr_oper1(padded);
+      if (!index || ivl_expr_type(index) != IVL_EX_SIGNAL
+          || ivl_expr_oper1(index) != 0
+          || ivl_expr_width(index) != 32 || !ivl_expr_signed(index))
+            return 0;
+
+      ivl_signal_t signal = ivl_expr_signal(index);
+      if (!signal || ivl_signal_width(signal) != 32
+          || !ivl_signal_signed(signal)
+          || ivl_signal_dimensions(signal) != 0
+          || ivl_signal_type(signal) != IVL_SIT_REG
+          || (ivl_signal_data_type(signal) != IVL_VT_LOGIC
+              && ivl_signal_data_type(signal) != IVL_VT_BOOL))
+            return 0;
+      *base_out = base;
+      return signal;
+}
+
 static void assign_to_lvector(ivl_lval_t lval,
 			      uint64_t delay, ivl_expr_t dexp,
 			      unsigned nevents)
@@ -1101,6 +1160,18 @@ static void assign_to_lvector(ivl_lval_t lval,
       unsigned long low_d = delay % UINT64_C(0x100000000);
       unsigned long hig_d = delay / UINT64_C(0x100000000);
       unsigned carrier_wid = ivl_lval_part_carrier_width(lval);
+
+      uint32_t index_base = 0;
+      ivl_signal_t index_signal = signed_two_bit_offset_index_(part_off_ex,
+                                                               &index_base);
+      if (index_signal && ivl_lval_width(lval) == 2
+          && carrier_wid == 0 && !dynamic_carrier
+          && ivl_signal_type(sig) == IVL_SIT_REG
+          && delay == 0 && dexp == 0 && nevents == 0) {
+            fprintf(vvp_out, "    %%assign/vec4/off/s2 v%p_%lu, v%p_0, %u;\n",
+                    sig, use_word, index_signal, index_base);
+            return;
+      }
 
       if (part_off_ex && dynamic_carrier) {
 	    int offset_index = allocate_word();

@@ -1,2 +1,4 @@
 sv_short_packed_slice_load normal,-g2017 ivltests gold=sv_short_packed_slice_load.gold
 sv_short_packed_slice_load_2023 normal,-g2023 ivltests gold=sv_short_packed_slice_load.gold
+sv_signed_two_bit_offset_nba normal,-g2017 ivltests gold=sv_signed_two_bit_offset_nba.gold
+sv_signed_two_bit_offset_nba_2023 normal,-g2023 ivltests gold=sv_signed_two_bit_offset_nba.gold

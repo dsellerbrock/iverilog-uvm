@@ -168,6 +168,7 @@ extern bool of_ASSIGN_VEC4E(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_VEC4_A_D(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_VEC4_A_E(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_VEC4_OFF_D(vthread_t thr, vvp_code_t code);
+extern bool of_ASSIGN_VEC4_OFF_S2(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_VEC4_OFF_E(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_WR(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_WRD(vthread_t thr, vvp_code_t code);
@@ -722,13 +723,19 @@ extern bool of_REAP_UFUNC(vthread_t thr, vvp_code_t code);
 
 extern bool of_CHUNK_LINK(vthread_t thr, vvp_code_t code);
 
-/* Only the destination-typed object splice opcodes need all three of these
- * operands at once. Keep them out of vvp_code_s so the common instruction
- * remains three machine words; the descriptor is owned by code space. */
+/* Keep uncommon operand bundles out of the three-word vvp_code_s. These
+ * descriptors are owned by code space. */
 struct vvp_container_opcode_data_s {
       const char*element_encoding;
       uint64_t max_size;
       class __vpiHandle*prototype;
+};
+
+/* A signed scalar index and constant base for an ordered two-bit NBA. */
+struct vvp_assign_s2_data_s {
+      vvp_net_t*target;
+      vvp_net_t*index;
+      uint32_t base;
 };
 
 /*
@@ -746,6 +753,7 @@ struct vvp_code_s {
 	    __vpiScope*scope;
 	    const char*text;
 	    struct vvp_container_opcode_data_s*container_data;
+	    struct vvp_assign_s2_data_s*assign_s2_data;
       };
 
       union {
