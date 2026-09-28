@@ -1130,6 +1130,39 @@ static void draw_property_vec4(ivl_expr_t expr)
 	    clr_flag(idx_in_range_flag);
 }
 
+/* Reading an index before the selected signal is safe only when that index
+ * cannot call user code, mutate state, or consume an array selector. */
+static int pure_scalar_index_expr_(ivl_expr_t expr)
+{
+      if (!expr || event_expr_capture_active(expr))
+	    return 0;
+      switch (ivl_expr_type(expr)) {
+	  case IVL_EX_NUMBER:
+	  case IVL_EX_ULONG:
+	    return 1;
+	  case IVL_EX_SIGNAL: {
+	    ivl_signal_t sig = ivl_expr_signal(expr);
+	    return ivl_expr_oper1(expr) == 0
+		&& ivl_signal_dimensions(sig) == 0
+		&& (ivl_signal_data_type(sig) == IVL_VT_LOGIC
+		    || ivl_signal_data_type(sig) == IVL_VT_BOOL);
+	  }
+	  case IVL_EX_SELECT:
+	    return ivl_expr_oper2(expr) == 0
+		&& pure_scalar_index_expr_(ivl_expr_oper1(expr));
+	  case IVL_EX_BINARY:
+	    switch (ivl_expr_opcode(expr)) {
+		case '+': case '-': case '*':
+		  return pure_scalar_index_expr_(ivl_expr_oper1(expr))
+		      && pure_scalar_index_expr_(ivl_expr_oper2(expr));
+		default:
+		  return 0;
+	    }
+	  default:
+	    return 0;
+      }
+}
+
 static void draw_select_vec4(ivl_expr_t expr)
 {
 	// This is the sub-expression to part-select.
@@ -1290,6 +1323,21 @@ static void draw_select_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%cast2;\n");
 
 	    return;
+      }
+
+      if (wid > 0 && wid <= 8 && ivl_expr_value(expr) == IVL_VT_LOGIC
+	  && ivl_expr_type(subexpr) == IVL_EX_SIGNAL
+	  && ivl_expr_oper1(subexpr) == 0
+	  && !event_expr_capture_active(subexpr)
+	  && ivl_expr_signed(base) && pure_scalar_index_expr_(base)) {
+	    ivl_signal_t sig = ivl_expr_signal(subexpr);
+	    if (ivl_signal_dimensions(sig) == 0
+		&& ivl_signal_type(sig) == IVL_SIT_REG
+		&& ivl_signal_data_type(sig) == IVL_VT_LOGIC) {
+		  draw_eval_vec4(base);
+		  fprintf(vvp_out, "    %%load/vec4/part/s v%p_0, %u;\n", sig, wid);
+		  return;
+	    }
       }
 
       if (test_immediate_vec4_ok(base)) {

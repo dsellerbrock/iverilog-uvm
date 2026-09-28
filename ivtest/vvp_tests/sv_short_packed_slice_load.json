@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_short_packed_slice_load.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_short_packed_slice_load"
+}

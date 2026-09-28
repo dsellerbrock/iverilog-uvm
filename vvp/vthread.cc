@@ -12551,7 +12551,7 @@ bool of_ASSIGN_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       if (thr->flags[4] != BIT4_0)
 	    return true;
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
+      vvp_signal_value*sig = cp->net->fil->as_signal_value();
       assert(sig);
 
       if (!resize_rval_vec(val, off, sig->value_size()))
@@ -23672,6 +23672,57 @@ static void part_select_value_(vvp_vector4_t&value, unsigned result_wid,
             copy_wid = value.size() - source_base;
       res.set_vec(result_base, value.subvalue(source_base, copy_wid));
       value = res;
+}
+
+/* Read a short packed slice directly from the signal filter. This uses the
+ * same signed-index conversion and out-of-range X fill as %load/vec4 plus
+ * %part/s, while avoiding a copy of the entire packed signal on each read. */
+bool of_LOAD_VEC4_PART_S(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wid = cp->bit_idx[0];
+      vvp_vector4_t base4 = thr->pop_vec4();
+      int64_t base;
+      if (!vpip_vec4_to_int64_saturated(base4, true, base)) {
+	    thr->push_vec4(vvp_vector4_t(wid, BIT4_X));
+	    return true;
+      }
+
+      vvp_vector4_t staged;
+      if (thr->static_call_overlay_load_vec4(cp->net, staged)
+	  || thr->staged_static_overlay_load_vec4(cp->net, staged)) {
+	    part_select_value_(staged, wid, base);
+	    thr->push_vec4(staged);
+	    return true;
+      }
+
+      assert(cp->net && cp->net->fil);
+      vvp_signal_value*sig = cp->net->fil->as_signal_value();
+      assert(sig);
+      vvp_vector4_t res(wid, BIT4_X);
+      unsigned sig_wid = sig->value_size();
+      uint64_t source_base = 0;
+      uint64_t result_base = 0;
+      if (base < 0) {
+	    uint64_t before = uint64_t(-(base+1)) + 1;
+	    if (before >= wid) {
+		  thr->push_vec4(res);
+		  return true;
+	    }
+	    result_base = before;
+      } else {
+	    source_base = static_cast<uint64_t>(base);
+	    if (source_base >= sig_wid) {
+		  thr->push_vec4(res);
+		  return true;
+	    }
+      }
+      uint64_t copy_wid = wid - result_base;
+      if (copy_wid > sig_wid - source_base)
+	    copy_wid = sig_wid - source_base;
+      for (uint64_t idx = 0; idx < copy_wid; idx += 1)
+	    res.set_bit(result_base + idx, sig->value(source_base + idx));
+      thr->push_vec4(res);
+      return true;
 }
 
 static bool of_PART_base(vthread_t thr, vvp_code_t cp, bool signed_flag)
