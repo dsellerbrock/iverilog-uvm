@@ -1,0 +1,17 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_passthrough_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_passthrough_tb.sv
+@@ -157,14 +157,6 @@
+     .passthrough_i (passthrough_d2h),
+ 
+     // Interrupts
+-    // INTR: Generic mode : Not Testing here
+-    .intr_generic_rx_full_o     (intr.generic_rx_full),
+-    .intr_generic_rx_watermark_o(intr.generic_rx_watermark),
+-    .intr_generic_tx_watermark_o(intr.generic_tx_watermark),
+-    .intr_generic_rx_error_o    (intr.generic_rx_error),
+-    .intr_generic_rx_overflow_o (intr.generic_rx_overflow),
+-    .intr_generic_tx_underflow_o(intr.generic_tx_underflow),
+-
+     // INTR: Flash mode : Not testing here
+     .intr_upload_cmdfifo_not_empty_o(intr.upload_cmdfifo_not_empty),
+     .intr_upload_payload_not_empty_o(intr.upload_payload_not_empty),
