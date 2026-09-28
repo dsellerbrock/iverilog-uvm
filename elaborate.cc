@@ -30023,6 +30023,46 @@ static bool constraint_dist_contains_fill_literal_(const PExpr*expr)
       return false;
 }
 
+/* A direct unbased '1 needs the width of the comparison that contains it.
+ * Keep the original one-bit PENumber unchanged for self-determined uses and
+ * materialize a fresh, fully sized value only after that width is known. */
+static bool constraint_context_fill_ir_(const PExpr*expr, unsigned width,
+					 string&ir)
+{
+      const PENumber*num = dynamic_cast<const PENumber*>(expr);
+      if (!num || !num->value().is_single() || width == 0)
+	    return false;
+      verinum::V bit = num->value().get(0);
+      if (bit != verinum::V0 && bit != verinum::V1)
+	    return false;
+      verinum filled(bit, width, true);
+      ir = constraint_const_bits_ir_(filled, width, false);
+      return true;
+}
+
+/* A bare '0 survives generic zero extension. Composite expressions with
+ * any fill may change width, so diagnose them rather than accept a folded
+ * one-bit value; bare '1 and X/Z also need an explicit context. */
+static bool constraint_context_sensitive_fill_(const PExpr*expr)
+{
+      if (const PENumber*num = dynamic_cast<const PENumber*>(expr))
+	    return num->value().is_single()
+		  && num->value().get(0) != verinum::V0;
+      return constraint_dist_contains_fill_literal_(expr);
+}
+
+static string constraint_unsupported_fill_context_(const PExpr*expr,
+					    const char*kind)
+{
+      if (constraint_ir_design_ctx_) {
+	    cerr << expr->get_fileline() << ": error: unbased fill literal in "
+		 << kind << " constraint requires an unsupported expression "
+		 << "context; use a typed intermediate expression." << endl;
+	    constraint_ir_design_ctx_->errors += 1;
+      }
+      return "";
+}
+
 static bool constraint_dist_number_const_(const PENumber*num,
 					    unsigned fill_width,
 					    constraint_const_ir_t&out)
@@ -35336,6 +35376,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  return "";
 	    }
+	    if (!is_dist
+		&& constraint_context_sensitive_fill_(ins->get_expr()))
+		  return constraint_unsupported_fill_context_(
+			ins->get_expr(), "inside subject");
 	    string s;
 	    if (is_dist) {
 		  constraint_dist_payload_scope_t subject_scope;
@@ -35349,6 +35393,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    constraint_dist_ir_shape_t dist_subject_shape;
 	    if (is_dist) dist_subject_shape = constraint_dist_ir_shape_(
 		  s, value_slots, constraint_ir_design_ctx_, scope);
+	    constraint_dist_ir_shape_t inside_subject_shape;
+	    if (!is_dist) inside_subject_shape = constraint_dist_ir_shape_(
+		  s, value_slots, constraint_ir_design_ctx_, scope);
+	    if (!is_dist)
+		  for (const auto&range : ins->get_ranges())
+			if (range.is_range
+			    && (constraint_context_sensitive_fill_(range.lo)
+				|| constraint_context_sensitive_fill_(range.hi)))
+			      return constraint_unsupported_fill_context_(
+				ins, "inside range endpoint");
 	    bool dist_subject_signed = is_dist && dist_subject_shape.is_signed;
 	    if (is_dist && !constraint_dist_compared_shape_supported_(
 		  dist_subject_shape, dist_subject_shape.width)) {
@@ -35372,8 +35426,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				 bool compared_to_subject) -> string {
 		  string ir;
 		  if (!is_dist) {
-			ir = pexpr_to_constraint_ir(payload, cls, value_slots,
-					      scope, loop_env);
+			if (compared_to_subject
+			    && constraint_context_sensitive_fill_(payload)) {
+			      if (!constraint_dist_ir_terminal_(inside_subject_shape)
+				  || !constraint_context_fill_ir_(
+					payload, inside_subject_shape.width, ir))
+				    return constraint_unsupported_fill_context_(
+					payload, "inside item");
+			} else {
+			      ir = pexpr_to_constraint_ir(payload, cls, value_slots,
+						  scope, loop_env);
+			}
 		  } else {
 			/* Compared fill literals receive their width from the dist
 			 * subject. Materialize the bounded constant forms before the
@@ -35771,8 +35834,40 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (constraint_handle_comparison_ir_(bin, cls, value_slots, scope,
 	                                         loop_env, handle_ir))
 		  return handle_ir;
-	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots, scope, loop_env);
-	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots, scope, loop_env);
+	    string left, right;
+	    bool equal = bin->get_op() == 'e' || bin->get_op() == 'n';
+	    bool left_fill = equal && constraint_context_sensitive_fill_(
+		  bin->get_left());
+	    bool right_fill = equal && constraint_context_sensitive_fill_(
+		  bin->get_right());
+	    if (left_fill && right_fill) {
+		  if (!constraint_context_fill_ir_(bin->get_left(), 1, left)
+		      || !constraint_context_fill_ir_(bin->get_right(), 1, right))
+			return constraint_unsupported_fill_context_(
+			      bin, "equality");
+	    } else if (left_fill || right_fill) {
+		  const PExpr*other = left_fill
+			? bin->get_right() : bin->get_left();
+		  string value = pexpr_to_constraint_ir(
+			other, cls, value_slots, scope, loop_env);
+		  if (value.empty()) return "";
+		  constraint_dist_ir_shape_t shape = constraint_dist_ir_shape_(
+			value, value_slots, constraint_ir_design_ctx_, scope);
+		  string fill;
+		  if (!constraint_dist_ir_terminal_(shape)
+		      || !constraint_context_fill_ir_(
+			left_fill ? bin->get_left() : bin->get_right(),
+			shape.width, fill))
+			return constraint_unsupported_fill_context_(
+			      bin, "equality");
+		  left = left_fill ? fill : value;
+		  right = right_fill ? fill : value;
+	    } else {
+		  left = pexpr_to_constraint_ir(bin->get_left(), cls,
+			value_slots, scope, loop_env);
+		  right = pexpr_to_constraint_ir(bin->get_right(), cls,
+			value_slots, scope, loop_env);
+	    }
 	    if (left.empty() || right.empty()) return "";
 	    string op;
 	    switch (bin->get_op()) {
