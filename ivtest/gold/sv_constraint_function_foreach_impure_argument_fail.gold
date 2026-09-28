@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_function_foreach_impure_argument_fail.v:10: error: Function 'impure' used in a constraint is not pure: writes static or external state.
+1 error(s) during elaboration.

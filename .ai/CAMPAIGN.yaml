@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 180ab833e
+checkpoint_head: a7f5288a0
 active_open_titan_lane:
   blocker: "OT-FLASH-CONSTRAINT-FOREACH-FUNCTION-ARGUMENT"
-  phase: "SELECTED_MINIMAL_REPRODUCER"
+  phase: "FOCUSED_CHECKPOINT_COMPLETE_PENDING_INTEGRATION"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "180ab833e"
+  baseline_head: "a7f5288a0"
   reproducer: "Projectless work/flash-packed-select-triage-20260928/constraint-iterator-packed-bit-red.sv fails strict 2017/2023 with unresolved foreach i then packed-property select sorry; constant-index control passes, and Slang accepts iterator form. Five saved Flash hard errors share en_mp_regions[i] inside a function call."
-  pending_validation: "The committed indexed-select checkpoint passes paired strict JSON and legacy 6/6 each on ivl SHA-256 07b0df527ff7cbea1ba2ef1a7a63b79b6708017fe8a1096e65d076f0c093633c. One patched-copy Flash compile remains at 19 hard diagnostics and 134 warnings with no VVP image. Five packed-property foreach function-argument errors and paired unbound-i warnings are selected next; integrated gates, installation, and current-image 49-core census remain pending."
-  next_command: "Trace the foreach loop_env into the pure user-function argument capture path with the tiny strict reducer, preserve the selected rand bit in each unrolled iteration, then run paired runtime checks before one controlled patched-copy Flash compile. Keep solve-before source candidates separate."
+  pending_validation: "Pure function-argument iterator repair passes paired strict 2017/2023 JSON and legacy focus 10/10 each on ivl SHA-256 8181490bae115633e56b18166158a35d222e10159a6f8b0babc66e3d4dd96886. One patched-copy Flash compile drops 19 to 14 hard errors with no new hard errors; five unbound-i warnings clear and five independently reduced packed-struct-member solver warnings become visible, leaving 134 warnings. No VVP image, Flash DV runtime, integrated gates, installation, or current-image 49-core census exists."
+  next_command: "Commit the focused foreach function-argument checkpoint, then select the independently reduced fixed-array packed-struct-member LHS gap. Keep solve-before source candidates separate."
   boundary: "One implementation blocker at a time. No dropped constraint, pinned-source edit, unsafe flag, unrelated solver change, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE

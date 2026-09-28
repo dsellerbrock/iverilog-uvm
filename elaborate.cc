@@ -34666,8 +34666,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      if (!arguments_ok) return "";
 
 			      NetScope*class_scope = const_cast<NetScope*>(cls->class_scope());
+			      perm_string wrapper_name = class_scope->local_symbol();
+			      while (class_scope->child(hname_t(wrapper_name))
+				 || (loop_env && loop_env->count(wrapper_name)))
+				wrapper_name = class_scope->local_symbol();
 			      NetScope*wrapper = new NetScope(class_scope,
-				    hname_t(class_scope->local_symbol()), NetScope::FUNC);
+				    hname_t(wrapper_name), NetScope::FUNC);
 			      wrapper->is_auto(true);
 			      wrapper->set_line(call);
 			      wrapper->set_elab_stage(3);
@@ -34690,6 +34694,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      NetFuncDef*wrapper_def = new NetFuncDef(wrapper,
 				    wrapper_result, wrapper_ports, wrapper_defaults);
 			      wrapper->set_func_def(wrapper_def);
+			      /* Foreach unrolling has already fixed each iterator to its
+			       * declared index. Bind it in the synthesized call scope so
+			       * ordinary argument elaboration keeps that lexical value. */
+			      if (loop_env) for (const auto&binding : *loop_env) {
+				verinum index((int64_t)binding.second, integer_width);
+				index.has_sign(true);
+				wrapper->set_parameter(binding.first,
+				  new NetEConstParam(wrapper, binding.first, index),
+				  *call);
+			      }
 			      NetExpr*wrapped_call = elaborate_rval_expr(
 				    constraint_ir_design_ctx_, wrapper, result_type,
 				    const_cast<PECallFunction*>(call), false);
