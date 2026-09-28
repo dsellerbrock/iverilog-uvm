@@ -27670,6 +27670,11 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 	    return nv->packed_width() > 0;
       if (const netenum_t*ne = dynamic_cast<const netenum_t*>(ptype))
 	    return ne->packed_width() > 0;
+      if (!indexed)
+	if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(ptype))
+	    return st->packed() && st->base_type() == IVL_VT_BOOL
+	      && st->packed_width() > 0
+	      && st->packed_width() <= 64;
 	/* An INDEXED queue/dynamic array of class handles is readable state:
 	   the element is not integral, but its scalar PROPERTIES are, and
 	   that is what the body reads. The member is validated at the
@@ -32838,6 +32843,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+		  const netvector_t*pvec = dynamic_cast<const netvector_t*>(ptype);
+		  const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
+		  const netstruct_t*pstruct = dynamic_cast<const netstruct_t*>(ptype);
+		  bool packed_scalar = pvec || penum
+		    || (pstruct && constraint_state_prop_ok_(ptype, false));
+		  bool packed_select = packed_scalar
+		    && id->path().back().index.size() == 1;
 		    // A property that is not `rand` is a STATE VARIABLE
 		    // (IEEE 1800-2017 18.3): it takes part in the
 		    // constraint at the value it holds when randomize()
@@ -32853,7 +32865,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    // The pin needs a real value, so a state variable
 		    // whose type has no bitvector image is still dropped
 		    // by the representability check below.
-		  if (!q.test_rand()
+		  if (!q.test_rand() && !packed_select
 		      && !constraint_state_prop_ok_(ptype,
 						    !id->path().back().index.empty()))
 			return "";
@@ -32868,12 +32880,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // property was treated as an unpacked array, so ordinary
 			  // protocol constraints such as req.mask[0] == 1 were
 			  // silently discarded.
-			const netvector_t*pvec =
-			      dynamic_cast<const netvector_t*>(ptype);
-			const netenum_t*penum =
-			      dynamic_cast<const netenum_t*>(ptype);
-			if ((pvec || penum)
-			    && id->path().back().index.size() == 1) {
+			if (packed_select) {
 			      unsigned pwid = ptype ? ptype->packed_width() : 0;
 			      if (pwid == 0) pwid = 32;
 			      string psfx = (ptype && ptype->get_signed())
@@ -33022,14 +33029,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      etype && etype->base_type() == IVL_VT_BOOL, dims, index_irs);
 		  }
 
-		  unsigned wid = 0;
-		  if (ptype) {
-			const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
-			if (nvec) wid = nvec->packed_width();
-			else if (const netenum_t*nenum =
-				 dynamic_cast<const netenum_t*>(ptype))
-			      wid = nenum->packed_width();
-		  }
+		  unsigned wid = packed_scalar ? ptype->packed_width() : 0;
 		  if (wid == 0) wid = 32;
 		    // Signed properties are marked so the solver uses
 		    // signed comparison semantics (IEEE 1800-2017 11.8.1).
