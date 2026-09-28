@@ -23950,6 +23950,29 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 			return elaborate_signal_array_(des, scope, hier_sig);
 	    }
 
+	    /* Elaborating a package parameter as an expression preserves its
+	       value but loses the declared packed dimensions. Use the
+	       parameter's type when iterating the whole packed array. */
+	    if (array_path_.size() == 2
+	        && array_path_.front().index.empty()
+	        && array_path_.back().index.empty()
+	        && des->find_package(array_path_.front().name)) {
+		  symbol_search_results sr;
+		  if (symbol_search(this, des, scope, array_path_, lexical_pos_, &sr)
+		      && sr.par_val && sr.scope && sr.path_tail.empty()
+		      && !sr.path_head.empty()) {
+			auto param = sr.scope->parameters.find(sr.path_head.back().name);
+			if (param != sr.scope->parameters.end()
+			    && !param->second.is_array_param) {
+			  const netvector_t*vec = dynamic_cast<const netvector_t*>(
+				param->second.ivl_type);
+			  if (vec && !vec->packed_dims().empty())
+				return elaborate_static_array_(des, scope,
+						       vec->packed_dims());
+			}
+		  }
+	    }
+
 	    ivl_type_t ptype = 0;
 	    NetExpr*array_expr = elaborate_foreach_target_expr_(
 		  des, *this, lexical_pos_, scope, array_path_, ptype);
@@ -28947,10 +28970,13 @@ static constraint_source_type_t constraint_source_expr_type_(
 		  result.qualifier_relevant = true;
 		  return result;
 	    }
-	    result = constraint_symbol_path_type_(id, scope);
-	    if (!result.type)
-		  result = constraint_source_type_from_raw_(id->test_type_of_ident(
-			constraint_ir_design_ctx_, const_cast<NetScope*>(scope)));
+	    bool target_precedence = constraint_target_root_precedence_(id, cls);
+	    if (!target_precedence) {
+		  result = constraint_symbol_path_type_(id, scope);
+		  if (!result.type)
+			result = constraint_source_type_from_raw_(id->test_type_of_ident(
+			    constraint_ir_design_ctx_, const_cast<NetScope*>(scope)));
+	    }
 	    if (id->path().name.empty())
 		  return result;
 
@@ -28972,10 +28998,9 @@ static constraint_source_type_t constraint_source_expr_type_(
 	    }
 	    if (id->path().package)
 		  return result;
-	    bool resolved_external =
-		  constraint_symbol_path_references_randc_(id, scope).external;
-	    bool forced_external = resolved_external
-		  && !constraint_target_root_precedence_(id, cls);
+	    bool resolved_external = !target_precedence
+		  && constraint_symbol_path_references_randc_(id, scope).external;
+	    bool forced_external = resolved_external;
 
 	    const netclass_t*target_owner = nullptr;
 	    pform_name_t::const_iterator target_component;
