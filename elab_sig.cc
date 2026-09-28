@@ -2671,6 +2671,7 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
 
       elaborate_sig_funcs(des, scope, funcs);
       elaborate_sig_tasks(des, scope, tasks);
+      elaborate_sig_classes(des, scope, classes);
       scope->elaborate_nettypes(des);
 
       typedef list<PGenerate*>::const_iterator generate_it_t;

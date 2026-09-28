@@ -5697,6 +5697,8 @@ void PGenerate::elaborate_subscope_(Design*des, NetScope*scope)
 
       collect_scope_signals(scope, wires);
 
+      elaborate_scope_classes(des, scope, classes_lexical);
+
 	// Run through the defparams for this scope and save the result
 	// in a table for later final override.
 

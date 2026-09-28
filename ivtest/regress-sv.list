@@ -1453,6 +1453,7 @@ sv_assert_repeat_parameter_direct normal,-g2012 ivltests
 sv_task_localparam_untyped normal,-g2012 ivltests gold=sv_task_localparam_untyped.gold
 sv_based_literal_leading_underscore normal,-g2012 ivltests gold=sv_based_literal_leading_underscore.gold
 sv_covergroup_bin_iff normal,-g2012 ivltests gold=sv_covergroup_bin_iff.gold
+sv_generate_class_covergroup normal,-g2017 ivltests gold=sv_generate_class_covergroup.gold
 sv_covergroup_constructor_scope normal,-g2012 ivltests gold=sv_covergroup_constructor_scope.gold
 sv_covergroup_ctor_bin_ranges normal,-g2017 ivltests gold=sv_covergroup_ctor_bin_ranges.gold
 sv_covergroup_ctor_bin_ranges_2023 normal,-g2023 ivltests gold=sv_covergroup_ctor_bin_ranges.gold
