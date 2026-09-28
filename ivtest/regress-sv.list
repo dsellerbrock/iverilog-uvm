@@ -4761,6 +4761,14 @@ sv_interface_task_mixed_driver_ref_class_strict_2023 CE,-g2023,-ssv_interface_ta
 sv_interface_task_mixed_driver_ref_class_unsafe CE,-g2017,-gcommercial-unsafe,-ssv_interface_task_mixed_driver_ref_class ivltests gold=sv_interface_task_mixed_driver_ref_class.gold
 sv_interface_task_mixed_driver_ref_class_unsafe_2023 CE,-g2023,-gcommercial-unsafe,-ssv_interface_task_mixed_driver_ref_class ivltests gold=sv_interface_task_mixed_driver_ref_class.gold
 
+# A nested virtual-interface ref actual writes only its selected member.
+sv_vif_nested_ref_member_alias_no_ref_2017 normal,-g2017,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_call_2017 normal,-g2017,-DREF_CALL,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_conflict_2017 CE,-g2017,-DREF_CONFLICT,-stop ivltests gold=sv_vif_nested_ref_member_alias_conflict.gold
+sv_vif_nested_ref_member_alias_no_ref_2023 normal,-g2023,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_call_2023 normal,-g2023,-DREF_CALL,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_conflict_2023 CE,-g2023,-DREF_CONFLICT,-stop ivltests gold=sv_vif_nested_ref_member_alias_conflict.gold
+
 # IEEE 1800-2017/2023 20.10 requires a numeric $fatal finish argument.
 # The string-first spelling is accepted only by nonstandard -gcommercial-unsafe.
 sv_fatal_string_first_strict RE,-g2017,-ssv_fatal_string_first ivltests gold=sv_fatal_string_first_strict.gold

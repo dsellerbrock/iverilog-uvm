@@ -1,0 +1,2 @@
+./ivltests/sv_vif_nested_ref_member_alias.v:54: error: Variable 'observed' cannot have continuous and procedural drivers on the same bits.
+1 error(s) during elaboration.

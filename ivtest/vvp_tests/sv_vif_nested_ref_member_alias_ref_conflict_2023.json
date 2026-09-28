@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_vif_nested_ref_member_alias.v",
+  "iverilog-args": ["-g2023", "-DREF_CONFLICT", "-s", "top"],
+  "gold": "sv_vif_nested_ref_member_alias_conflict"
+}

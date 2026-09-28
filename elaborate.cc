@@ -2376,7 +2376,10 @@ struct pending_interface_ref_actual_t {
 };
 static vector<pending_interface_ref_actual_t>
       pending_interface_ref_actuals_;
-static set<const netclass_t*>unresolved_interface_ref_types_;
+/* A run-time-selected virtual interface can alias any compatible instance,
+ * but its writable ref actual still names one particular property. */
+static set<pair<const netclass_t*,size_t> >
+      unresolved_interface_ref_properties_;
 
 const NetScope* ivl_unsafe_current_task_body()
 {
@@ -2667,11 +2670,39 @@ static int clocking_output_property_writes_member_(
 static bool interface_member_has_property_writer_(
 		const NetNet*member, const netclass_t*interface_type)
 {
-      for (const netclass_t*type : unresolved_interface_ref_types_)
-	if ((interface_type && type->same_interface_layout(interface_type))
-	    || (!interface_type && member->scope()
-		&& type->get_name() == member->scope()->module_name()))
+      for (const auto&ref : unresolved_interface_ref_properties_) {
+	const netclass_t*type = ref.first;
+	if (!type || !((interface_type
+		     && type->same_interface_layout(interface_type))
+		    || (!interface_type && member->scope()
+			&& type->get_name() == member->scope()->module_name())))
+	  continue;
+	if (ref.second >= type->get_properties()
+	    || !type->interface_modport().nil()
+	    || (interface_type && !interface_type->interface_modport().nil()))
 	  return true;
+
+	int clocking_write = clocking_output_property_writes_member_(
+	      type, ref.second, member);
+	if (clocking_write == 0)
+	  continue;
+	if (clocking_write >= -1)
+	  return true;
+
+	/* Both names must be declared wires of this interface before a
+	 * run-time-selected handle can prove that they are disjoint. */
+	auto module = pform_modules.find(type->get_name());
+	if (module == pform_modules.end() || !module->second)
+	  return true;
+	perm_string written = lex_strings.make(type->get_prop_name(ref.second));
+	auto source = module->second->wires.find(written);
+	auto target = module->second->wires.find(member->name());
+	if (source == module->second->wires.end() || !source->second
+	    || target == module->second->wires.end() || !target->second)
+	  return true;
+	if (written == member->name())
+	  return true;
+      }
 
       for (const NetAssign_*lval : NetAssign_::interface_member_lvals()) {
 	if (lval->is_force_lval())
@@ -2750,7 +2781,8 @@ static void finalize_interface_ref_actuals_()
 	if (member)
 	  member->note_unsafe_ref_actual_write();
 	else
-	  unresolved_interface_ref_types_.insert(pending.interface_type);
+	  unresolved_interface_ref_properties_.insert({
+	      pending.interface_type, pending.property_idx});
       }
       pending_interface_ref_actuals_.clear();
 }
@@ -40935,7 +40967,7 @@ Design* elaborate(list<perm_string>roots)
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();
       pending_interface_ref_actuals_.clear();
-      unresolved_interface_ref_types_.clear();
+      unresolved_interface_ref_properties_.clear();
       unsafe_task_calls_.clear();
       unsafe_virtual_task_calls_.clear();
       unsafe_unknown_callers_.clear();
