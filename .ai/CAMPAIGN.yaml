@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: ab117f5b4
+checkpoint_head: 180ab833e
 active_open_titan_lane:
-  blocker: "OT-FLASH-CONSTRAINT-CONSTANT-INDEXED-PART-SELECT"
-  phase: "FOCUSED_CHECKPOINT_COMPLETE_AWAIT_NEXT_SELECTION"
+  blocker: "OT-FLASH-CONSTRAINT-FOREACH-FUNCTION-ARGUMENT"
+  phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "c30c6e444"
-  reproducer: "Projectless work/flash-erase-inline-select-triage-20260928/flat-indexed-red.sv and indexed-only-red.sv were strict 2017/2023 translation REDs; both now compile and run. The related +: packed-struct class warning RED also clears. Paired permanent class/inline and unsupported fixtures are registered under ivtest/."
-  pending_validation: "The constant indexed constraint select repair passes paired strict 2017/2023 JSON and legacy focus 6/6 each on ivl SHA-256 07b0df527ff7cbea1ba2ef1a7a63b79b6708017fe8a1096e65d076f0c093633c. One patched-copy Flash compile removes exactly one hard error and 12 warnings: 20→19 hard, 146→134 warnings, no additions. No VVP image or Flash DV runtime exists; integrated gates, installation, and current-image 49-core census remain pending."
-  next_command: "After committing this scoped checkpoint, select the five packed-property foreach constraint errors from the saved 19-error Flash corpus for tiny-reproducer triage. Keep whole-array solve-before and non-rand struct-field ordering clauses on a separate named OpenTitan source-correction track."
+  baseline_head: "180ab833e"
+  reproducer: "Projectless work/flash-packed-select-triage-20260928/constraint-iterator-packed-bit-red.sv fails strict 2017/2023 with unresolved foreach i then packed-property select sorry; constant-index control passes, and Slang accepts iterator form. Five saved Flash hard errors share en_mp_regions[i] inside a function call."
+  pending_validation: "The committed indexed-select checkpoint passes paired strict JSON and legacy 6/6 each on ivl SHA-256 07b0df527ff7cbea1ba2ef1a7a63b79b6708017fe8a1096e65d076f0c093633c. One patched-copy Flash compile remains at 19 hard diagnostics and 134 warnings with no VVP image. Five packed-property foreach function-argument errors and paired unbound-i warnings are selected next; integrated gates, installation, and current-image 49-core census remain pending."
+  next_command: "Trace the foreach loop_env into the pure user-function argument capture path with the tiny strict reducer, preserve the selected rand bit in each unrolled iteration, then run paired runtime checks before one controlled patched-copy Flash compile. Keep solve-before source candidates separate."
   boundary: "One implementation blocker at a time. No dropped constraint, pinned-source edit, unsafe flag, unrelated solver change, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
