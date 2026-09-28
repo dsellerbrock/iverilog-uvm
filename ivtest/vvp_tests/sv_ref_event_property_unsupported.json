@@ -1,0 +1,1 @@
+{"type":"RE","source":"sv_ref_event_indirect_unsupported.v","iverilog-args":["-g2017","-s","sv_ref_event_property_unsupported"],"gold":"sv_ref_event_property_unsupported"}

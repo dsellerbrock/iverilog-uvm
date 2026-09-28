@@ -29,6 +29,7 @@
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
 # include  <vector>
+# include  <set>
 # include  <cassert>
 #ifdef CHECK_WITH_VALGRIND
 # include  <valgrind/memcheck.h>
@@ -754,6 +755,103 @@ void vvp_fun_signal4_aa::operator delete(void*)
  * A `ref' formal (IEEE 1800-2017 13.5.2). See vvp_net_sig.h.
  */
 namespace {
+/* A ref formal has no storage to notify its event probes. Subscribe once
+ * per activation to its bound whole variable and deliver that variable's
+ * changes to the formal's existing automatic event probes. */
+class ref_event_relay_s : public vvp_net_fun_t {
+    public:
+      ref_event_relay_s(vvp_net_t*formal, vvp_context_t frame,
+                        vvp_context_t caller, bool automatic_source,
+                        const vvp_vector4_t&initial)
+      : formal_(formal), frame_(frame), generation_(vthread_context_generation(frame)),
+        automatic_source_(automatic_source), value_(initial)
+      {
+            std::set<vvp_context_t> seen;
+            for (vvp_context_t cur = caller; cur && seen.insert(cur).second;
+                 cur = vvp_get_stacked_context(cur))
+                  source_frames_.push_back(std::make_pair(
+                        cur, vthread_context_generation(cur)));
+      }
+
+      static void* operator new(std::size_t size) { return ::operator new(size); }
+      static void operator delete(void*ptr) { ::operator delete(ptr); }
+
+      void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
+                     vvp_context_t context) override
+      {
+            if (!accept_(context)) return;
+            value_ = bit;
+            formal_->send_vec4(value_, frame_);
+      }
+
+      void recv_vec4_pv(vvp_net_ptr_t, const vvp_vector4_t&bit,
+                        unsigned base, unsigned vwid,
+                        vvp_context_t context) override
+      {
+            if (!accept_(context)) return;
+            if (value_.size() != vwid)
+                  value_.resize(vwid, BIT4_X);
+            for (unsigned idx = 0; idx < bit.size()
+                 && base + idx < value_.size(); ++idx)
+                  value_.set_bit(base + idx, bit.value(idx));
+            formal_->send_vec4(value_, frame_);
+      }
+
+    private:
+      bool accept_(vvp_context_t source) const
+      {
+            if (!generation_
+                || vthread_context_generation(frame_) != generation_)
+                  return false;
+            if (!automatic_source_) return true;
+            if (!source) return false;
+            for (const auto&candidate : source_frames_)
+                  if (candidate.first == source && candidate.second
+                      && vthread_context_generation(source) == candidate.second)
+                        return true;
+            return false;
+      }
+
+      vvp_net_t*formal_;
+      vvp_context_t frame_;
+      uint64_t generation_;
+      bool automatic_source_;
+      vvp_vector4_t value_;
+      std::vector<std::pair<vvp_context_t,uint64_t> > source_frames_;
+};
+
+class ref_event_relay_reap_s : public vvp_gen_event_s {
+    public:
+      ref_event_relay_reap_s(vvp_net_t*relay, vvp_net_fun_t*fun)
+      : relay_(relay), fun_(fun) { }
+      void run_run() override
+      {
+            delete fun_;
+            relay_->~vvp_net_t();
+            ::operator delete(relay_);
+      }
+      void single_step_display() override { }
+    private:
+      vvp_net_t*relay_;
+      vvp_net_fun_t*fun_;
+};
+
+static void detach_ref_event_relay_(vvp_net_t*&source, vvp_net_t*&relay)
+{
+      if (!relay) return;
+      vvp_net_ptr_t successor = relay->port[0];
+      if (source) source->unlink(vvp_net_ptr_t(relay, 0));
+      /* An in-flight fanout may have cached this link. Keep it inert and
+         preserve its successor until the current scheduler slot drains. */
+      relay->port[0] = successor;
+      vvp_net_fun_t*fun = relay->fun;
+      relay->fun = 0;
+      schedule_generic(new ref_event_relay_reap_s(relay, fun),
+                       0, false, false, true);
+      source = 0;
+      relay = 0;
+}
+
 struct ref_aa_slot {
       static const unsigned MAGIC = 0x52454621u; // "REF!"
 	/* What this frame's formal is bound to. REF_NET is the ordinary
@@ -769,11 +867,16 @@ struct ref_aa_slot {
       unsigned prop_id;        // REF_PROP
       int64_t index;           // REF_ELEM / REF_WORD
       struct __vpiArray*arr;   // REF_WORD
+      vvp_net_t*relay_source;
+      vvp_net_t*relay;
 
       ref_aa_slot() : magic(MAGIC), kind(REF_NET), target(0), caller_ctx(0),
-                      prop_id(0), index(0), arr(0) { }
+                      prop_id(0), index(0), arr(0), relay_source(0),
+                      relay(0) { }
+      ~ref_aa_slot() { clear(); }
       void clear()
       {
+            detach_ref_event_relay_(relay_source, relay);
             kind = REF_NET;
             target = 0;
             caller_ctx = 0;
@@ -801,6 +904,53 @@ static ref_aa_slot* ref_slot_(unsigned context_idx, __vpiScope*scope)
 {
       return ref_aa_slot_from_raw(
             vthread_get_rd_context_item_scoped(context_idx, scope));
+}
+
+static void unsupported_ref_event_binding_(vvp_net_t*formal,
+                                           const char*actual_kind)
+{
+      if (!formal || formal->out_.nil()) return;
+      fprintf(stderr, "runtime error: event-sensitive ref binding to %s"
+              " is not supported.\n", actual_kind);
+      vpip_set_return_value(1);
+      schedule_finish(0);
+}
+
+static void attach_ref_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
+                                    vvp_context_t frame)
+{
+      if (!slot || slot->kind != ref_aa_slot::REF_NET || !slot->target
+          || !formal || formal->out_.nil())
+            return;
+
+      vvp_signal_value*source_value = slot->target->fil
+            ? slot->target->fil->as_signal_value() : 0;
+      if (!source_value
+          || !(dynamic_cast<vvp_fun_signal_vec*>(slot->target->fun)
+               || dynamic_cast<vvp_wire_vec4*>(slot->target->fil))) {
+            fprintf(stderr, "runtime error: event-sensitive ref binding"
+                    " has an unsupported non-integral whole-variable actual.\n");
+            vpip_set_return_value(1);
+            schedule_finish(0);
+            return;
+      }
+
+      vvp_vector4_t initial;
+      vthread_ref_ctx_save save;
+      vthread_push_ref_context(slot->caller_ctx, &save);
+      source_value->vec4_value(initial);
+      vthread_pop_ref_context(&save);
+
+      void*storage = ::operator new(sizeof(vvp_net_t));
+      vvp_net_t*relay = ::new (storage) vvp_net_t;
+      bool automatic_source =
+            dynamic_cast<automatic_signal_base*>(slot->target->fil) != 0;
+      relay->fun = new ref_event_relay_s(formal, frame, slot->caller_ctx,
+                                         automatic_source, initial);
+      slot->target->link(vvp_net_ptr_t(relay, 0));
+      slot->relay_source = slot->target;
+      slot->relay = relay;
+      formal->send_vec4(initial, frame);
 }
 
 vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid)
@@ -847,7 +997,7 @@ void vvp_ref_signal_aa::free_instance(vvp_context_t context)
 }
 #endif
 
-void vvp_ref_signal_aa::bind(vvp_net_t*net, bool in_frame)
+void vvp_ref_signal_aa::bind(vvp_net_t*formal, vvp_net_t*net, bool in_frame)
 {
       vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
@@ -867,13 +1017,15 @@ void vvp_ref_signal_aa::bind(vvp_net_t*net, bool in_frame)
       if (chain) {
             ref_aa_slot*outer = ref_slot_(chain->context_idx_, chain->context_scope_);
             if (outer) {
-                  slot->kind = outer->kind;
-                  slot->target = outer->target;
-                  slot->caller_ctx = outer->caller_ctx;
-                  slot->obj = outer->obj;
-                  slot->prop_id = outer->prop_id;
-                  slot->index = outer->index;
-                  slot->arr = outer->arr;
+                  binding_t source;
+                  source.kind = outer->kind;
+                  source.target = outer->target;
+                  source.caller_ctx = outer->caller_ctx;
+                  source.obj = outer->obj;
+                  source.prop_id = outer->prop_id;
+                  source.index = outer->index;
+                  source.arr = outer->arr;
+                  write_binding(formal, frame, source);
                   return;
             }
       }
@@ -881,9 +1033,11 @@ void vvp_ref_signal_aa::bind(vvp_net_t*net, bool in_frame)
       slot->clear();
       slot->target = net;
       slot->caller_ctx = in_frame ? frame : vthread_get_rd_context();
+      attach_ref_event_relay_(slot, formal, frame);
 }
 
-void vvp_ref_signal_aa::bind_prop(const vvp_object_t&obj, unsigned pid)
+void vvp_ref_signal_aa::bind_prop(vvp_net_t*formal,
+                                  const vvp_object_t&obj, unsigned pid)
 {
       vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
@@ -898,9 +1052,11 @@ void vvp_ref_signal_aa::bind_prop(const vvp_object_t&obj, unsigned pid)
       slot->kind = ref_aa_slot::REF_PROP;
       slot->obj = obj;
       slot->prop_id = pid;
+      unsupported_ref_event_binding_(formal, "a class property");
 }
 
-void vvp_ref_signal_aa::bind_elem(const vvp_object_t&container, int64_t index)
+void vvp_ref_signal_aa::bind_elem(vvp_net_t*formal,
+                                  const vvp_object_t&container, int64_t index)
 {
       vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
@@ -918,9 +1074,11 @@ void vvp_ref_signal_aa::bind_elem(const vvp_object_t&container, int64_t index)
             if (vvp_darray*darray = container.peek<vvp_darray>())
                   slot->obj = darray->capture_element_ref((size_t)index, size_);
       }
+      unsupported_ref_event_binding_(formal, "an array or queue element");
 }
 
-void vvp_ref_signal_aa::bind_word(struct __vpiArray*arr, unsigned index)
+void vvp_ref_signal_aa::bind_word(vvp_net_t*formal,
+                                  struct __vpiArray*arr, unsigned index)
 {
       vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
@@ -935,6 +1093,7 @@ void vvp_ref_signal_aa::bind_word(struct __vpiArray*arr, unsigned index)
       slot->kind = ref_aa_slot::REF_WORD;
       slot->arr = arr;
       slot->index = index;
+      unsupported_ref_event_binding_(formal, "a fixed-array word");
 }
 
   /* One delegated access: put the caller's frame back for the duration
@@ -1278,7 +1437,8 @@ bool vvp_ref_signal_aa::read_binding(binding_t&out) const
       return true;
 }
 
-void vvp_ref_signal_aa::write_binding(vvp_context_t frame, const binding_t&in)
+void vvp_ref_signal_aa::write_binding(vvp_net_t*formal, vvp_context_t frame,
+                                      const binding_t&in)
 {
       if (!frame) return;
 
@@ -1288,6 +1448,7 @@ void vvp_ref_signal_aa::write_binding(vvp_context_t frame, const binding_t&in)
             slot = new ref_aa_slot;
             vvp_set_context_item(frame, context_idx_, slot);
       }
+      slot->clear();
       slot->kind = static_cast<ref_aa_slot::kind_t>(in.kind);
       slot->target = in.target;
       slot->caller_ctx = in.caller_ctx;
@@ -1295,6 +1456,17 @@ void vvp_ref_signal_aa::write_binding(vvp_context_t frame, const binding_t&in)
       slot->prop_id = in.prop_id;
       slot->index = in.index;
       slot->arr = in.arr;
+      if (slot->kind == ref_aa_slot::REF_NET)
+            attach_ref_event_relay_(slot, formal, frame);
+      else
+            unsupported_ref_event_binding_(formal, "an indirect actual");
+}
+
+void vvp_ref_signal_aa::release_binding(vvp_context_t frame)
+{
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(frame, context_idx_));
+      if (slot) slot->clear();
 }
 
 vvp_net_t*vvp_ref_signal_aa::target() const

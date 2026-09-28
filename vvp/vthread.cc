@@ -2743,7 +2743,7 @@ static bool copy_ref_binding_to_context_(vpiHandle src_item, vthread_t src_thr,
       if (!have)
             return false;
 
-      dst_ref->write_binding(dst_context, binding);
+      dst_ref->write_binding(dst_net, dst_context, binding);
       return true;
 }
 
@@ -9916,6 +9916,9 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             if (vvp_fun_signal_object_aa*obj =
                     dynamic_cast<vvp_fun_signal_object_aa*>(scope->item[idx]))
                   obj->clear_current_alias(context);
+            if (vvp_ref_signal_aa*ref =
+                    dynamic_cast<vvp_ref_signal_aa*>(scope->item[idx]))
+                  ref->release_binding(context);
       }
 
       vvp_set_stacked_context(context, 0);
@@ -27884,7 +27887,7 @@ bool of_REF_BIND(vthread_t, vvp_code_t cp)
 	    return true;
       }
 
-      formal->bind(cp->net2, false);
+      formal->bind(cp->net, cp->net2, false);
       return true;
 }
 
@@ -27905,7 +27908,7 @@ bool of_REF_BIND_F(vthread_t, vvp_code_t cp)
 	    return true;
       }
 
-      formal->bind(cp->net2, true);
+      formal->bind(cp->net, cp->net2, true);
       return true;
 }
 
@@ -27929,7 +27932,7 @@ bool of_REF_BIND_PR(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
-      formal->bind_prop(recv, cp->bit_idx[0]);
+      formal->bind_prop(cp->net, recv, cp->bit_idx[0]);
       return true;
 }
 
@@ -27957,7 +27960,7 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
       vvp_object_t container;
       if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net2))
             container = fun->peek_object();
-      formal->bind_elem(container, use_index);
+      formal->bind_elem(cp->net, container, use_index);
       return true;
 }
 
@@ -27981,9 +27984,9 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
       if (!defined || use_index < 0)
-	    formal->bind_word(0, 0);
+        formal->bind_word(cp->net2, 0, 0);
       else
-	    formal->bind_word(cp->array, (unsigned)use_index);
+        formal->bind_word(cp->net2, cp->array, (unsigned)use_index);
       return true;
 }
 
