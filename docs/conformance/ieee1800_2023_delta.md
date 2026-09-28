@@ -200,12 +200,20 @@ not establish complete clause or edition qualification.
 | 2026-09-23 §§3.13/28.3.5 and 18.5.9/18.6.3 — CSRNG interface arrays and nested power-of-two sampling | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-csrng-interface-arrays-and-nested-power-of-two-constraint-sampling) |
 | 2026-09-27 §§6.16/12.5 — complete string case comparison | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-complete-string-case-comparison) |
 | 2026-09-27 §§7.10.1/18.5.7.1/18.12 — ranged local queue size feasibility | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-fully-feasible-ranged-scope-queue-sizes) |
+| 2026-09-27 §§7.4.1/7.4.5/18.3/18.5 — exact packed constraint indices and invalid reads | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-exact-packed-indices-in-constraints) |
 
 The September 27 string-case and local-queue corrections have separate
 strict `-g2023` regressions and use the same implementation as the 2017
 subsets. No edition difference or full-clause qualification is claimed;
 2023 §18.5.7.1 corresponds to 2017 §18.5.8.1 for the queue constraint
 `foreach` ordering considered here.
+
+The packed-index repair has paired strict `-g2023` positive and negative
+controls with the same implementation as 2017. The build-tree 29-case
+scratch corpus passes 29/29 in each edition, and the expanded paired
+runtime and compile-error fixtures plus nearby controls pass 20/20 focused
+JSON tests. These cover only the subset above; broad gates and application
+replay remain pending for this repair.
 
 For the CSRNG declaration/reference shape and isolated nested power-of-two
 solver domains, paired 2017/2023 runs found no edition-specific behavior in

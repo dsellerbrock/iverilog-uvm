@@ -26433,6 +26433,7 @@ struct dynforeach_emit_ctx_t {
       int prop_idx;
       unsigned elem_wid;
       bool elem_signed;
+      ivl_type_t index_type = nullptr;
       const netclass_t*assoc_key_type = nullptr;
 	// Class- or string-key associative array: the runtime iterates its
 	// entries, and the loop variable may only index this array.
@@ -26921,7 +26922,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.self_safe = args_self_safe();
 	    return out;
       }
-      if (out.op == "bit") {
+      if (out.op == "bit" || out.op == "bit4") {
 	    out.width = 1;
 	    out.self_safe = args_self_safe();
 	    out.is_signed = false;
@@ -29849,58 +29850,95 @@ static bool constraint_parse_const_ir_(const string&ir,
       return *end == 0;
 }
 
+static bool constraint_fixed_index_offset_(
+      const constraint_const_ir_t&value, int64_t low, uint64_t span,
+      uint64_t&offset);
+
 /* Select from a 0-based packed value of TYPE. For `logic [1:0][15:0] s',
  * s[1] is the 16-bit element at bits [31:16], not bit 1, and a declared
- * range that does not end at 0 shifts every index. Only the plain [N:0]
- * vector form maps an index directly to a bit; every other form needs a
- * constant (e.g. foreach-unrolled) index, and returns empty -- a diagnosed
- * unsupported item -- rather than a wrong constraint. */
+ * range that does not end at 0 shifts every index. A single 0-based packed
+ * dimension, including a scalar or packed struct, maps a symbolic index to
+ * a bit. Multidimensional and shifted ranges need a constant (e.g.
+ * foreach-unrolled) index and return a diagnosed unsupported item rather
+ * than a wrong constraint when it is unavailable. */
 static string packed_typed_select_ir_(
       const string&base, ivl_type_t type, const index_component_t&ic,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
       const NetScope*scope, const map<perm_string,uint64_t>*loop_env)
 {
-      const netvector_t*vec = dynamic_cast<const netvector_t*>(type);
-      if (!vec || vec->packed_dims().empty())
+      const netenum_t*en = dynamic_cast<const netenum_t*>(type);
+      ivl_type_t packed_type = en ? en->base_type_obj() : type;
+      const netvector_t*vec = dynamic_cast<const netvector_t*>(packed_type);
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(packed_type);
+      const netparray_t*array = dynamic_cast<const netparray_t*>(packed_type);
+      if (!vec && !(record && record->packed()) && !array)
 	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
 					      scope, loop_env);
-      const netranges_t&dims = vec->packed_dims();
+      // The solver models a two-state invalid bit read as zero. A logic
+      // read instead needs a guarded failure, including when the index is
+      // symbolic and its value is chosen only during solving.
+      auto bit_select = [&](uint64_t span) -> string {
+	    if (ic.sel != index_component_t::SEL_BIT || !ic.msb || ic.lsb)
+		  return "";
+	    string index = pexpr_to_constraint_ir(ic.msb, cls, value_slots,
+						 scope, loop_env);
+	    if (index.empty()) return "";
+	    bool four_state = packed_type->base_type() == IVL_VT_LOGIC;
+	    constraint_const_ir_t value;
+	    uint64_t offset = 0;
+	    if (four_state && constraint_parse_const_ir_(index, value)
+		&& (value.width > 64 || !constraint_fixed_index_offset_(
+		      value, 0, span, offset))) return "";
+	    return string(four_state ? "(bit4 " : "(bit ") + base
+		  + " " + index + ")";
+      };
+      netranges_t dims = vec ? vec->packed_dims()
+	    : packed_type->slice_dimensions();
+      if (dims.empty()) {
+	    if (ic.sel == index_component_t::SEL_BIT)
+		  return bit_select(1);
+	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
+					      scope, loop_env);
+      }
       const netrange_t&outer = dims.front();
       if (!outer.defined() || outer.width() == 0) return "";
       if (dims.size() == 1 && outer.get_lsb() == 0
-	  && outer.get_msb() >= outer.get_lsb())
-	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
-					      scope, loop_env);
+	  && outer.get_msb() >= outer.get_lsb()
+	  && ic.sel == index_component_t::SEL_BIT)
+	    return bit_select(outer.width());
 
-      unsigned elem_width = vec->packed_width() / outer.width();
-      auto offset_of = [&](const PExpr*index, long&offset) -> bool {
+      unsigned elem_width = packed_type->packed_width() / outer.width();
+      auto offset_of = [&](const PExpr*index, uint64_t&offset) -> bool {
 	    string ir = pexpr_to_constraint_ir(index, cls, value_slots,
 					       scope, loop_env);
 	    constraint_const_ir_t value;
-	    if (ir.empty() || !constraint_parse_const_ir_(ir, value))
+	    uint64_t digit = 0;
+	    if (ir.empty() || !constraint_parse_const_ir_(ir, value)
+		|| value.width > 64
+		|| !constraint_fixed_index_offset_(
+		     value, min(outer.get_msb(), outer.get_lsb()),
+		     outer.width(), digit))
 		  return false;
-	    long idx = value.is_signed ? (long)(int64_t)value.value
-				       : (long)value.value;
 	    offset = outer.get_msb() >= outer.get_lsb()
-		  ? idx - outer.get_lsb() : outer.get_lsb() - idx;
-	    return offset >= 0 && (unsigned long)offset < outer.width();
+		  ? digit : outer.width() - 1 - digit;
+	    return true;
       };
       if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
-	    long off = 0;
+	    uint64_t off = 0;
 	    if (!offset_of(ic.msb, off)) return "";
-	    unsigned long lo = (unsigned long)off * elem_width;
+	    uint64_t lo = off * elem_width;
 	    if (elem_width == 1)
 		  return "(bit " + base + " c:" + to_string(lo) + ")";
 	    return "(part " + base + " c:" + to_string(lo + elem_width - 1)
 		  + " c:" + to_string(lo) + ")";
       }
       if (ic.sel == index_component_t::SEL_PART && ic.msb && ic.lsb) {
-	    long a = 0, b = 0;
-	    if (!offset_of(ic.msb, a) || !offset_of(ic.lsb, b)) return "";
-	    long lo = min(a, b), hi = max(a, b);
+	    uint64_t high = 0, low = 0;
+	    if (!offset_of(ic.msb, high) || !offset_of(ic.lsb, low)
+		|| high < low) return "";
 	    return "(part " + base + " c:"
-		  + to_string((hi + 1) * (long)elem_width - 1)
-		  + " c:" + to_string(lo * (long)elem_width) + ")";
+		  + to_string((high + 1) * elem_width - 1)
+		  + " c:" + to_string(low * elem_width) + ")";
       }
       return "";
 }
@@ -29934,8 +29972,9 @@ static uint64_t constraint_resize_const_bits_(
 }
 
 /* Convert an integral constant index to its mathematical offset from a
- * signed fixed-array lower bound. Keep unsigned values nonnegative: modular
- * uint64 subtraction would otherwise make unsigned MAX alias declared -1. */
+ * signed fixed declared-range lower bound. Keep unsigned values
+ * nonnegative: modular uint64 subtraction would otherwise make unsigned MAX
+ * alias declared -1. */
 static bool constraint_fixed_index_offset_(
       const constraint_const_ir_t&value, int64_t low, uint64_t span,
       uint64_t&offset)
@@ -32121,9 +32160,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (indices.empty())
 			      return ctx->value_ir;
 			if (indices.size() == 1)
-			      return scope_randomize_select_ir_(
-				    ctx->value_ir, indices.front(), cls,
-				    value_slots, scope, loop_env);
+			      return packed_typed_select_ir_(
+				    ctx->value_ir, ctx->value_type,
+				    indices.front(), cls, value_slots,
+				    scope, loop_env);
 			return "";
 		  }
 		  if (id->path().size() == 2
@@ -32307,9 +32347,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string value = "c:" + to_string(lit->second) + ":32:s";
 			if (indices.empty()) return value;
 			if (indices.size() == 1)
-			      return scope_randomize_select_ir_(
-				    value, indices.front(), cls, value_slots,
-				    scope, loop_env);
+			      return packed_typed_select_ir_(
+				    value, netvector_t::integer_type(),
+				    indices.front(), cls, value_slots, scope, loop_env);
 			return "";
 		  }
 	    }
@@ -32341,9 +32381,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			id->path().name.front().index;
 		  if (indices.empty()) return "L";
 		  if (indices.size() == 1)
-			return scope_randomize_select_ir_(
-			      "L", indices.front(), cls, value_slots,
-			      scope, loop_env);
+			return packed_typed_select_ir_(
+			      "L", dynforeach_emit_ctx_->index_type
+				? dynforeach_emit_ctx_->index_type
+				: netvector_t::integer_type(),
+			      indices.front(), cls, value_slots, scope, loop_env);
 		  return "";
 	    }
 
@@ -32665,9 +32707,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				+ (elem->get_signed() ? ":s" : "")
 				+ " " + index_ir + ")";
 			}
-			return scope_randomize_select_ir_(
-			      it->second, id->path().back().index.front(), cls,
-			      value_slots, scope, loop_env);
+			ivl_type_t type = nullptr;
+			if (scope_randomize_type_ctx_) {
+			      auto found = scope_randomize_type_ctx_->find(name);
+			      if (found != scope_randomize_type_ctx_->end())
+				type = found->second;
+			}
+			return packed_typed_select_ir_(
+			      it->second, type, id->path().back().index.front(),
+			      cls, value_slots, scope, loop_env);
 		  }
 
 		    /* A selected STATE vector such as reg_mask[index] must
@@ -32832,9 +32880,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    ? ":s" : "";
 			      string base = "p:" + to_string(idx) + ":"
 				    + to_string(pwid) + psfx;
-			      return scope_randomize_select_ir_(
-				    base, id->path().back().index.front(), cls,
-				    value_slots, scope, loop_env);
+			      return packed_typed_select_ir_(
+				    base, ptype, id->path().back().index.front(),
+				    cls, value_slots, scope, loop_env);
 			}
 			  // Element of the dynamic array being iterated by
 			  // an enclosing dynamic foreach: emit the runtime
@@ -35090,8 +35138,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			dctx.assoc_key_type = dynamic_cast<const netclass_t*>(key_type);
 			dctx.entry_key = dctx.assoc_key_type
 			      || (key_type && key_type->base_type() == IVL_VT_STRING);
-			if (!dctx.entry_key) {
-			      ivl_variable_type_t kbase = key_type
+		      if (!dctx.entry_key) {
+			    ivl_variable_type_t kbase = key_type
 				    ? key_type->base_type() : IVL_VT_NO_TYPE;
 			      if (!key_type || !key_type->packed()
 				  || key_type->packed_width() == 0
@@ -35104,6 +35152,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  constraint_ir_design_ctx_->errors += 1;
 				    return "";
 			      }
+			      dctx.index_type = key_type;
 			      key_suffix = "/" + to_string(key_type->packed_width())
 				    + (key_type->get_signed() ? ":s" : "");
 			}

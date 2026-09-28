@@ -621,7 +621,7 @@ static bool infer_constraint_integral_type_(IRParser&par,
             out.sign = yes.sign && no.sign;
             return out.width != 0;
       }
-      if (op == "bit") {
+      if (op == "bit" || op == "bit4") {
             constraint_integral_type_t base, index;
             if (!infer_constraint_integral_type_(par, base)
                 || !infer_constraint_integral_type_(par, index)
@@ -3386,7 +3386,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       /* Packed selection forms used by scope-randomization constraints.
        * The select index may itself be randomized. Fixed part-select bounds
        * have already had caller value slots substituted with constants. */
-      if (op == "bit") {
+      if (op == "bit" || op == "bit4") {
 	    unsigned outer_context = b.integral_context_width;
 	    int outer_sign = b.integral_context_sign;
 	    b.integral_context_width = 0;
@@ -3411,7 +3411,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  ++limit_w;
 		  limit_cap <<= 1;
 	    }
-	    unsigned cmpw = std::max(iw, limit_w);
+	    // A signed upper bound must remain positive at the comparison width.
+	    // For a 2-bit base and signed 2-bit index, `2'b10' is otherwise -2,
+	    // incorrectly rejecting valid index 1.
+	    unsigned cmpw = std::max(iw, limit_w + (idx_signed ? 1U : 0U));
 	    Z3_ast cmp_idx = b.coerce(idx, cmpw);
 	    Z3_sort cmps = Z3_mk_bv_sort(b.ctx, cmpw);
 	    Z3_ast limit = Z3_mk_unsigned_int64(b.ctx, bw, cmps);
@@ -3429,6 +3432,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast selected = Z3_mk_extract(b.ctx, 0, 0, shifted);
 	    Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0,
 				       Z3_mk_bv_sort(b.ctx, 1));
+	    if (op == "bit4" && b.collect_preferences && !b.collect_refs_only)
+		  b.state_checks.push_back({Z3_mk_not(b.ctx, valid),
+			"invalid 4-state packed bit index in constraint"});
 	    return Z3_mk_ite(b.ctx, valid, selected, zero);
       }
 
@@ -3444,7 +3450,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    unsigned bw = bv_width(b.ctx, base);
-	    if (!ok || hi < lo || hi >= bw) return mk_free_bv(b, 1);
+	    if (!ok || hi < lo || hi >= bw) {
+		  b.state_errors.push_back(
+		      "invalid or out-of-bounds packed constraint part-select");
+		  return mk_free_bv(b, 1);
+	    }
 	    return Z3_mk_extract(b.ctx, (unsigned)hi, (unsigned)lo, base);
       }
 
@@ -6171,7 +6181,7 @@ class state_foreach_expander_t {
                   {"pow",2}, {"lt",2}, {"le",2}, {"gt",2}, {"ge",2},
                   {"eq",2}, {"ne",2}, {"and",2}, {"or",2}, {"impl",2},
                   {"iff",2}, {"band",2}, {"bor",2}, {"bxor",2},
-                  {"shl",2}, {"lshr",2}, {"ashr",2}, {"bit",2},
+                  {"shl",2}, {"lshr",2}, {"ashr",2}, {"bit",2}, {"bit4",2},
                   {"order",2}, {"ite",3}, {"part",3}, {"cast",3}
             };
             auto arity = arities.find(op);

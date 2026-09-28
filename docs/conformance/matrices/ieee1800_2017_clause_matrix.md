@@ -2163,3 +2163,41 @@ earlier dynamic-array range control; `1838970aa` changes the local-queue
 solver path only. [Revision-scoped evidence](../session_logs/2026-09-27_string_case_and_ranged_size_focus.md)
 records the focus and completed gates. Real-DPI UVM passed 358/358 with zero failures or skips. Application
 replay and general clause-18 qualification remain open at this checkpoint.
+
+### September 27 exact packed indices in constraints
+
+The PARTIAL IEEE 1800-2017 §§7.4.1, 7.4.6, 18.3, and 18.5 subset (2023
+§7.4.5 for the invalid-read table) now interprets constant packed
+constraint indices by their declared width and signedness. Signed narrow
+negative indices select negative packed bounds, while unsigned high values
+cannot wrap into those bounds. Ascending and descending ranges retain their
+bit-offset orientation; reversed part-select endpoints reject explicitly.
+A 29-case scratch corpus passes 29/29 in each strict edition on the
+build-tree compiler. Paired strict 2017/2023 fixtures include exact
+negative-index values, symbolic `[N:0]` bit selection, a valid
+array-method iterator part, and six unsigned-high/reversed-range negative
+controls across direct packed properties and a foreach index. All six
+unsupported items produce source-line diagnostics. The VVP `(part)`
+evaluator no longer leaves invalid or out-of-bounds selects as free solver
+bits. A paired compile-error control pins an array-method iterator's
+reversed packed select. Typed `bit4` IR guards symbolic four-state bit
+reads against invalid indices; constant four-state OOB indices are
+diagnosed in the frontend and fail randomization, while two-state bit
+reads stay zero. A signed-width correction keeps narrow positive indices
+valid. Paired logic/bit controls cover constant and symbolic OOB indices,
+an underlying logic enum vector, narrow signed positive and negative
+indices, failure rollback, and a guarded inactive read. Both constant
+and symbolic OOB bit reads are checked against one to prove their zero
+value. A paired typed-caller fixture checks unrolled/dynamic foreach
+indices, typed associative keys, and packed-struct iterator/local
+selects with valid and OOB logic/bit controls. A paired packed-array
+member control selects constant elements exactly and diagnoses symbolic
+nested selections. A scratch caller-state select also rejects a symbolic
+OOB logic bit read. The focused JSON run, including nearby fixed-array
+controls, passes 20/20. Slang independently
+rejects the invalid constant fixtures, but is differential evidence rather than
+standards authority. Symbolic nested packed selections remain explicitly
+unsupported; item diagnostics name source lines rather than exact
+index/range reasons. Broad gates and application replay remain pending
+after this focused build-tree checkpoint.
+General clauses 7 and 18 remain PARTIAL.
