@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-FLASH-CONSTRAINT-CONSTANT-INDEXED-PART-SELECT — exact +: and -: constraint slices
+
+- **State:** Selected at compiler checkpoint `ab117f5b4` from the [20-error Flash corpus](session_logs/2026-09-28_ot_flash_omitted_assoc_foreach_focus.json). The inline erase-suspend constraint has one hard translation error at `flash_ctrl_erase_suspend_vseq.sv:300`; 12 separate address-slice constraints warn that `randomize()` will fail. Strict 2017/2023 tiny indexed-select REDs reproduce the failure, while parameter-derived fixed-range controls run and check the condition; Slang accepts the indexed syntax.
+- **Cause and expected behavior:** Constraint select IR currently handles a bit select and fixed `[msb:lsb]` range but not `+:` or `-:` indexed ranges. The selected scope is a constant base and positive width on a one-dimensional zero-based packed vector, including a packed-struct field receiver. Normalize the exact selected bounds to the existing fixed-range IR and prove runtime solver enforcement in both strict editions. The tiny controls are recorded in projectless `outputs/flash-erase-inline-select-triage-20260928.md` and `outputs/flash-constraint-warnings-7fdf53f16.md`.
+- **Boundary:** Invalid, symbolic, and multirank forms stay explicit failures unless separately qualified. No dropped constraint, source edit, or unsafe flag is authorized. The other 19 hard diagnostics and unrelated randomization warnings remain separate; no Flash VVP image or DV pass exists.
+
 ### OT-FLASH-FOREACH-OMITTED-ASSOC-KEY — skip an associative rank, iterate its fixed child
 
 - **State:** The compiler repair passes paired strict IEEE 1800-2017/2023 JSON and legacy focus 6/6 each on build-tree `ivl` SHA-256 `e561d97a5a92f6f760421b5e9f35164c8161c6ebbce287e1fa164832b1c9e604`; independent review found no scoped blocker. One controlled patched-copy Flash compile falls from 21 to 20 hard diagnostics by removing only `flash_ctrl_env.sv:43`. No new hard diagnostics appear, all 146 warnings remain unchanged, and no VVP image exists. The pinned source is unchanged. See the [focused checkpoint](session_logs/2026-09-28_ot_flash_omitted_assoc_foreach_focus.json).
