@@ -1,0 +1,19 @@
+--- a/hw/ip/rv_timer/dv/env/seq_lib/rv_timer_random_vseq.sv
++++ b/hw/ip/rv_timer/dv/env/seq_lib/rv_timer_random_vseq.sv
+@@ -79,11 +79,11 @@
+ 
+   // Timer expiry needs to occur within reasonable amount of time.
+   constraint timer_exp_c {
+-    solve en_harts before compare_val;
+-    solve en_timers before compare_val;
+-    solve timer_val before compare_val;
+-    solve step before compare_val;
+-    solve ticks before compare_val;
++    solve en_harts before compare_val[0][0];
++    solve en_timers before compare_val[0][0];
++    solve timer_val[0] before compare_val[0][0];
++    solve step[0] before compare_val[0][0];
++    solve ticks[0] before compare_val[0][0];
+     foreach (en_harts[i]) {
+       foreach (en_timers[j]) {
+         if (en_harts[i] && en_timers[j]) {
