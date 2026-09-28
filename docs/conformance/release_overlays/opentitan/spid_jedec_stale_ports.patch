@@ -1,0 +1,91 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_jedec_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_jedec_tb.sv
+@@ -46,8 +46,14 @@
+ 
+   assign sck_en = ~sif.csb;
+ 
+-  logic rst_spi_n;
++  logic rst_spi_n, rst_spi_out_n;
+   assign rst_spi_n = sck_rst_n && ~sif.csb;
++
++  // Match the RTL output-clock reset release after an input-clock edge.
++  always_ff @(posedge gated_sck or negedge rst_spi_n) begin
++    if (!rst_spi_n) rst_spi_out_n <= 1'b0;
++    else            rst_spi_out_n <= 1'b1;
++  end
+ 
+   sel_datapath_e dut_sel_dp;
+   // Command info for Read Status
+@@ -66,7 +72,7 @@
+ 
+   spi_mode_e spi_mode;
+ 
+-  logic s2p_valid;
++  logic s2p_valid, cmd_sync_pulse;
+   logic [7:0] s2p_data;
+ 
+   initial begin
+@@ -124,24 +130,6 @@
+ 
+   endtask : sw
+ 
+-  // CSb pulse
+-  logic csb_sckin_sync_d, csb_sckin_sync_q, csb_asserted_pulse_sckin;
+-  prim_flop_2sync #(
+-    .Width      (1),
+-    .ResetValue (1'b 1)
+-  ) u_csb_sckin_sync (
+-    .clk_i (gated_sck),
+-    .rst_ni(rst_spi_n), //Use CSb as a reset
+-    .d_i (1'b 0),
+-    .q_o (csb_sckin_sync_d)
+-  );
+-  always_ff @(posedge gated_sck or negedge rst_spi_n) begin
+-    if (!rst_spi_n) csb_sckin_sync_q <= 1'b 1;
+-    else            csb_sckin_sync_q <= csb_sckin_sync_d;
+-  end
+-
+-  assign csb_asserted_pulse_sckin = csb_sckin_sync_q && !csb_sckin_sync_d;
+-
+   logic p2s_valid, p2s_sent;
+   logic [7:0] p2s_data;
+ 
+@@ -151,9 +139,10 @@
+     .clk_i  (gated_sck),
+     .rst_ni (rst_spi_n),
+ 
+-    .clk_out_i (gated_sck_inverted),
+-
+-    .inclk_csb_asserted_pulse_i (csb_asserted_pulse_sckin),
++    .clk_out_i  (gated_sck_inverted),
++    .rst_out_ni (rst_spi_out_n),
++
++    .cmd_sync_pulse_i (cmd_sync_pulse),
+ 
+     .sys_jedec_i (jedec_id),
+ 
+@@ -184,6 +173,7 @@
+     .sel_dp_o       (dut_sel_dp),
+     .cmd_info_o     (cmd_info),
+     .cmd_info_idx_o (cmd_info_idx),
++    .cmd_sync_pulse_o (cmd_sync_pulse),
+ 
+     .cmd_config_req_o (),
+     .cmd_config_idx_o ()
+@@ -197,7 +187,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -215,8 +204,6 @@
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+ 
+-    .cpha_i       (1'b 0),
+-
+     .order_i      (1'b 0),
+ 
+     .io_mode_i    (dut_iomode)
