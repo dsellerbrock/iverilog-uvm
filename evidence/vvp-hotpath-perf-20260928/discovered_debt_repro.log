@@ -1,0 +1,4 @@
+xx xx xx xx | 01 10
+xx xx xx xx | 01 10
+br=xxxx1111 (a two-state variable cannot hold x)
+br=xxxx1111 (a two-state variable cannot hold x)
