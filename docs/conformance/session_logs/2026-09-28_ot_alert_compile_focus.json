@@ -1,0 +1,31 @@
+{
+  "base_commit": "d0290f34437945c35cfa5333ba7004dab9464710",
+  "core": "lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1",
+  "source_list": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_opentitan_top_earlgrey_alert_handler_sim_0.1/matrix-iverilog.scr",
+  "baseline": {
+    "compile_exit": 18,
+    "hard_diagnostics": 18
+  },
+  "candidate": {
+    "ivl_sha256": "4fca3bc5aa877ccce5c74a01bc77a184d799ffa3a4b7a922f1b3d806bb41aa45",
+    "compile_exit": 5,
+    "hard_diagnostics": 5,
+    "compile_log": "/private/tmp/ot-alert-final-focused.compile"
+  },
+  "fixed": [
+    "Package-qualified packed-parameter foreach retains its declared packed dimensions; the alert_handler_reg_pkg::LpgMap diagnostic is gone.",
+    "Inline randomize target-member lookup precedes the caller's inherited lock() task; twelve spurious automatic-item hierarchy diagnostics are gone."
+  ],
+  "focused_checks": {
+    "strict_2017_2023_and_neighbor_json_profiles": "22/22",
+    "old_compiler_new_foreach_test": "RED: one elaboration error",
+    "old_compiler_new_inline_test": "RED: three automatic-item hierarchy errors",
+    "new_compiler_tests": "GREEN: exact PASSED output in both editions",
+    "package_scalar_foreach": "still rejected"
+  },
+  "remaining": [
+    "Three dist endpoint errors in alert_handler_smoke_vseq.sv:56 and alert_handler_entropy_vseq.sv:20-21. Their 65-bit packed subjects use context-sensitive unbased fill expressions; the current bounded constant IR supports at most 64 bits.",
+    "Two diagnostics from one intr_timeout_cyc.max() call in alert_handler_smoke_vseq.sv:177. Runtime array methods cannot yet materialize a fixed-size array class-property receiver."
+  ],
+  "qualification": "Focused compile only. No alert-handler DV runtime or current-image 49-core corpus rerun. Pinned OpenTitan sources unchanged."
+}
