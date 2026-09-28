@@ -1,0 +1,53 @@
+{
+  "ticket": "OT-FLASH-COPYOUT-AND-INDEXED-VPI-RUNTIME",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_branch": "agent/ot-compile-blockers-20260927",
+  "commits": {
+    "runtime_overlays": "c5dcacc4a",
+    "nested_function_copyout": "64502d44f",
+    "indexed_vpi_lookup": "70580fdaf"
+  },
+  "selected_source_patches": [
+    "flash_constraint_foreach_standard.patch",
+    "flash_illegal_whole_array_solve_before.patch",
+    "flash_array_container_workaround.patch",
+    "flash_packed_field_solve_before.patch",
+    "flash_explicit_test_registration.patch",
+    "flash_bool_mubi_inline.patch"
+  ],
+  "copyout": {
+    "strict_2017_2023_legacy": "4/4 pass",
+    "strict_2017_2023_json": "4/4 pass",
+    "selected_compile_exit": 0,
+    "selected_compile_hard_errors": 0,
+    "selected_compile_warnings": 105,
+    "nested_copyout_stores": 2,
+    "remaining_unrelated_copyout_warnings": 1,
+    "guarded_image_sha256": "819c0be8dcf22546d986553027b69a749411b20d2574d9a6520653fed66bcd6f"
+  },
+  "indexed_vpi_lookup": {
+    "strict_2017_2023_packed_vpi": "2/2 pass",
+    "edge_controls": "baseline and optimized outputs match for valid indexed and escaped names, malformed/negative/out-of-range indices, and X/Z deposits",
+    "deposit_16384_baseline_cpu_seconds": 8.89,
+    "deposit_16384_optimized_cpu_seconds": 0.107,
+    "deposit_16384_integrated_cpu_seconds": 0.11,
+    "deposit_values": "first and last match"
+  },
+  "bounded_flash_runtime": {
+    "optimized_vvp_sha256": "6e1c492906010a2ea16184bac4d221a3e5f19af2f759432163eafcdce01ad5c7",
+    "bound_seconds": 95,
+    "elapsed_seconds": 96.74,
+    "sim_time_at_memory_init_ns": 1606,
+    "first_data_bank_start_seconds": 27.052,
+    "eighth_memory_bank_start_seconds": 37.627,
+    "memory_bank_start_markers": 8,
+    "uvm_errors_or_fatals_seen": 0,
+    "dv_verdict": "none before termination",
+    "dv_pass": false,
+    "note": "The process returned zero after bounded SIGTERM; this is not a DV pass. Post-initialization runtime is under focused profiling."
+  },
+  "corpora": {
+    "opentitan_49": "not rerun",
+    "caliptra_52": "stopped; not rerun"
+  }
+}
