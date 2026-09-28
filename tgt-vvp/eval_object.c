@@ -1054,7 +1054,8 @@ static int eval_object_select(ivl_expr_t expr)
 	    ivl_type_t sube_type = receiver_container_type_(sube);
 
 	    if (type_is_runtime_container_(sube_type)
-		|| expr_is_dynarray_container_(sube)) {
+		|| expr_is_dynarray_container_(sube)
+		|| fixed_uarray_expr_type_(sube)) {
 		  draw_eval_object(sube);
 		  if (sube_type
 		      && ivl_type_base(sube_type) == IVL_VT_QUEUE
@@ -1147,7 +1148,8 @@ static int eval_object_select(ivl_expr_t expr)
 	       * fell through to the arrayed-property path below, which
 	       * consumed the element index as a property-ARRAY index
 	       * (assertion idx < array_size_ at runtime). */
-	    if (expr_is_dynarray_container_(sube)) {
+	    if (expr_is_dynarray_container_(sube)
+		|| fixed_uarray_expr_type_(sube)) {
 		  draw_eval_object(sube);
 		  if (index)
 			draw_eval_expr_into_integer(index, 3);
@@ -3230,7 +3232,11 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 {
       unsigned nparm = ivl_expr_parms(expr);
       ivl_type_t etype = ivl_type_element(agg_type);
-      int is_darray = ivl_type_base(agg_type) == IVL_VT_DARRAY;
+      int is_fixed = type_is_fixed_uarray_property_(agg_type);
+      int reverse_fixed = is_fixed
+	    && ivl_type_packed_msb(agg_type, 0)
+	       > ivl_type_packed_lsb(agg_type, 0);
+      int is_darray = ivl_type_base(agg_type) == IVL_VT_DARRAY || is_fixed;
       int darray_via_queue = 0;
       char enc[32];
       int errors = 0;
@@ -3278,7 +3284,13 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
       }
 
       for (idx = 0; idx < nparm; idx += 1) {
-	    ivl_expr_t parm = ivl_expr_parm(expr, idx);
+	      /* The frontend supplies fixed-pattern operands in canonical
+	       * numeric-low-first order. Container value assignment is
+	       * left-to-right, so export descending fixed patterns in that
+	       * order before binding them to destination storage. */
+	    unsigned parm_idx = reverse_fixed && is_darray
+		  ? nparm - 1 - idx : idx;
+	    ivl_expr_t parm = ivl_expr_parm(expr, parm_idx);
 	    if (!parm)
 		  continue;
 	      /* A same-shape collection operand splices element-wise
@@ -3407,7 +3419,8 @@ static int eval_object_array_pattern(ivl_expr_t expr)
 
       agg_type = ivl_expr_net_type(expr);
       if (agg_type && (ivl_type_base(agg_type) == IVL_VT_QUEUE
-		       || ivl_type_base(agg_type) == IVL_VT_DARRAY))
+		       || ivl_type_base(agg_type) == IVL_VT_DARRAY
+		       || type_is_fixed_uarray_property_(agg_type)))
 	    return eval_object_container_pattern_(expr, agg_type);
 
       if (nparm == 0) {
@@ -3605,7 +3618,8 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
          * pattern to its first element. */
       if (rvt == IVL_EX_ARRAY_PATTERN && element_type
 	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
-	      || ivl_type_base(element_type) == IVL_VT_QUEUE))
+	      || ivl_type_base(element_type) == IVL_VT_QUEUE
+	      || type_is_fixed_uarray_property_(element_type)))
 	    return eval_object_container_pattern_(ex, element_type);
 
       if (is_value_container && rval_aliases) {

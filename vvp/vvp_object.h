@@ -24,6 +24,8 @@
 # include  <limits.h>
 # include  <memory>
 class vvp_net_t;
+class vvp_object;
+class vvp_object_t;
 struct vthread_s;
 typedef struct vthread_s* vthread_t;
 
@@ -44,7 +46,14 @@ typedef struct vthread_s* vthread_t;
 enum vvp_container_layout_kind_t {
       VVP_CONTAINER_QUEUE,
       VVP_CONTAINER_DARRAY,
-      VVP_CONTAINER_ASSOC
+      VVP_CONTAINER_ASSOC,
+      VVP_CONTAINER_FIXED
+};
+
+enum vvp_fixed_leaf_kind_t {
+      VVP_FIXED_BOOL,
+      VVP_FIXED_LOGIC,
+      VVP_FIXED_OBJECT
 };
 
 struct vvp_container_layout_s;
@@ -56,17 +65,34 @@ struct vvp_container_layout_s {
                              bool bound_known, uint64_t max_size,
                              const vvp_container_layout_t&child)
       : kind(kind), queue_bound_known(bound_known),
-        queue_max_size(max_size), element(child) { }
+        queue_max_size(max_size), element(child), fixed_left(0),
+        fixed_right(0), fixed_leaf(VVP_FIXED_OBJECT), fixed_width(0) { }
+
+      vvp_container_layout_s(int left, int right,
+                             vvp_fixed_leaf_kind_t leaf, unsigned width)
+      : kind(VVP_CONTAINER_FIXED), queue_bound_known(false),
+        queue_max_size(0), element(), fixed_left(left),
+        fixed_right(right), fixed_leaf(leaf), fixed_width(width) { }
 
       vvp_container_layout_kind_t kind;
       bool queue_bound_known;
       uint64_t queue_max_size;
       vvp_container_layout_t element;
+      int fixed_left;
+      int fixed_right;
+      vvp_fixed_leaf_kind_t fixed_leaf;
+      unsigned fixed_width;
 };
 
 extern vvp_container_layout_t vvp_make_container_layout(
       vvp_container_layout_kind_t kind, bool queue_bound_known,
       uint64_t queue_max_size, const vvp_container_layout_t&element);
+extern vvp_container_layout_t vvp_make_fixed_container_layout(
+      int left, int right, vvp_fixed_leaf_kind_t leaf, unsigned width);
+extern vvp_object_t vvp_make_fixed_array_value(
+      const vvp_container_layout_t&layout);
+extern void vvp_rebind_fixed_array_value(
+      vvp_object*value, const vvp_container_layout_t&layout);
 
 /* Parse the suffix of a queue/darray/associative type record. New images use
  * !Q0,D,A,Q3 (the first layer must match expected_outer); legacy @N/#N

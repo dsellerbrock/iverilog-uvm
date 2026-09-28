@@ -1001,12 +1001,13 @@ static int draw_fixed_uarray_queue_object_(ivl_expr_t expr,
  * it inserts a missing associative element with its nil dynamic-array default
  * without manufacturing a queue. */
 #define AA_VIV_DARRAY_NIL 16
+#define AA_VIV_FIXED 17
 static unsigned nested_queue_spec_(ivl_type_t container_type)
 {
       ivl_type_t element_type = ivl_type_element(container_type);
       unsigned kind = 3;
 
-      if (element_type) {
+      if (element_type && !type_is_fixed_uarray_property_(element_type)) {
 	    switch (ivl_type_base(element_type)) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:  kind = 0; break;
@@ -1264,12 +1265,15 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_ready);
 			}
 		  } else if (selected_type
-			     && (ivl_type_base(selected_type) == IVL_VT_QUEUE
+			     && (type_is_fixed_uarray_property_(selected_type)
+				 || ivl_type_base(selected_type) == IVL_VT_QUEUE
 				 || ivl_type_base(selected_type) == IVL_VT_DARRAY)) {
 			const char*key_kind = draw_eval_assoc_key_(container_idx, 0);
-			unsigned spec = ivl_type_base(selected_type) == IVL_VT_DARRAY
-			      ? AA_VIV_DARRAY_NIL
-			      : nested_queue_spec_(selected_type);
+			unsigned spec = type_is_fixed_uarray_property_(selected_type)
+			      ? AA_VIV_FIXED
+			      : (ivl_type_base(selected_type) == IVL_VT_DARRAY
+				 ? AA_VIV_DARRAY_NIL
+				 : nested_queue_spec_(selected_type));
 			if (strcmp(key_kind, "obj") == 0)
 			      spec += 8;
 			fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
@@ -1392,8 +1396,17 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    fprintf(vvp_out, "    %%prop/obj %d, 0; Load assoc property %s\n",
 	            prop_idx, ivl_type_prop_name(sub_type, prop_idx));
             key_kind = draw_eval_assoc_key_(nested_idx_expr, 0);
-	    fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
-	    fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
+	    if (type_is_fixed_uarray_property_(element_type)) {
+		  unsigned spec = AA_VIV_FIXED;
+		  if (strcmp(key_kind, "obj") == 0)
+			  spec += 8;
+		  fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
+			  key_kind, spec);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+	    } else {
+		  fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+		  fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
+	    }
       } else if (idx_word) {
 	    fprintf(vvp_out, "    %%prop/obj %d, %d; Load property %s\n", prop_idx,
 	            idx_word, ivl_type_prop_name(sub_type, prop_idx));
@@ -3397,6 +3410,28 @@ static int expr_is_assoc_default_(ivl_expr_t expr)
 	  && ivl_expr_parms(expr) == 1;
 }
 
+/* A variable-size pattern item is evaluated before the new associative map
+ * has its destination fixed-child layout. If its size is wrong, replacing
+ * the map would discard existing keys before a run-time check can reject it.
+ * Keep this legal 7.6 form as an explicit unsupported compile boundary until
+ * pattern installation can be validated transactionally. Ordinary keyed
+ * dynamic/queue-to-fixed assignments are checked at run time. */
+static int reject_variable_fixed_assoc_pattern_value_(ivl_expr_t marker,
+						 ivl_expr_t value)
+{
+      ivl_type_t source = receiver_container_type_(value);
+      ivl_variable_type_t base = source ? ivl_type_base(source)
+	    : IVL_VT_NO_TYPE;
+      if (base != IVL_VT_DARRAY
+	  && (base != IVL_VT_QUEUE
+	      || ivl_type_queue_assoc_compat(source)))
+	    return 0;
+      fprintf(stderr, "%s:%u: error: a dynamic-array or queue value in "
+	      "an associative fixed-array pattern is not yet supported\n",
+	      ivl_expr_file(marker), ivl_expr_lineno(marker));
+      return 1;
+}
+
 /* Evaluate the sentinel's sole value in its declared element category, then
  * construct a fresh typed associative-array object carrying that default.
  * The fresh object is left on the object stack for an ordinary signal/property
@@ -3406,6 +3441,14 @@ int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
 {
       int errors = 0;
       ivl_expr_t value = ivl_expr_parm(marker, 0);
+
+      if (type_is_fixed_uarray_property_(element_type)) {
+            if (reject_variable_fixed_assoc_pattern_value_(marker, value))
+		  return 1;
+            errors += draw_eval_object_value_copy(value, element_type);
+            fprintf(vvp_out, "    %%aa/new/default/obj;\n");
+            return errors;
+      }
 
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
@@ -3522,6 +3565,18 @@ static int draw_assoc_pattern_value_(ivl_expr_t marker, ivl_expr_t value,
 {
       int errors = 0;
       const char*operation = is_default ? "set/default" : "store";
+
+      if (type_is_fixed_uarray_property_(element_type)) {
+	    if (reject_variable_fixed_assoc_pattern_value_(marker, value))
+		  return 1;
+	    errors += assoc_pattern_object_value_(value, element_type);
+	    if (is_default)
+		  fprintf(vvp_out, "    %%aa/%s/obj;\n", operation);
+	    else
+		  fprintf(vvp_out, "    %%aa/%s/obj/%s;\n",
+			  operation, key_kind);
+	    return errors;
+      }
 
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
@@ -4006,6 +4061,9 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
             return -1;
       if (!idx_expr)
             return -1;
+      if (type_is_fixed_uarray_property_(element_type)
+          && ivl_stmt_opcode(net) != 0)
+            return -1;
       if (ivl_stmt_opcode(net) != 0) {
             switch (ivl_type_base(element_type)) {
                 case IVL_VT_REAL:
@@ -4018,7 +4076,8 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
       }
 
       object_like_elem =
-            ivl_type_base(element_type) == IVL_VT_CLASS
+            type_is_fixed_uarray_property_(element_type)
+         || ivl_type_base(element_type) == IVL_VT_CLASS
          || ivl_type_base(element_type) == IVL_VT_DARRAY
          || ivl_type_base(element_type) == IVL_VT_QUEUE
          || ivl_type_base(element_type) == IVL_VT_NO_TYPE;
@@ -4036,6 +4095,13 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
       } else {
             key_kind = "v";
             draw_eval_vec4(idx_expr);
+      }
+
+      if (type_is_fixed_uarray_property_(element_type)) {
+            errors += draw_eval_nested_object_value_(rval, element_type, 1);
+            fprintf(vvp_out, "    %%aa/store/sig/obj/%s v%p_0;\n",
+                    key_kind, var);
+            return errors;
       }
 
       if (!object_like_elem && !use_signal_scalar_ops)
@@ -4396,6 +4462,9 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 	    return -1;
       if (!idx_expr)
 	    return -1;
+      if (type_is_fixed_uarray_property_(element_type)
+	  && ivl_stmt_opcode(net) != 0)
+	    return -1;
       if (ivl_stmt_opcode(net) != 0) {
 	    switch (ivl_type_base(element_type)) {
 		case IVL_VT_REAL:
@@ -4410,6 +4479,13 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
       fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
 
       key_kind = draw_eval_assoc_key_(idx_expr, &errors);
+
+      if (type_is_fixed_uarray_property_(element_type)) {
+	    errors += draw_eval_nested_object_value_(rval, element_type, 1);
+	    fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
+	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	    return errors;
+      }
 
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
@@ -4575,7 +4651,8 @@ static int show_stmt_assign_nested_index_vec4(ivl_statement_t net)
 
       hint_type = ivl_lval_net_type(lval_nest);
       if (!hint_type
-	  || (ivl_type_base(hint_type) != IVL_VT_QUEUE
+	  || (!type_is_fixed_uarray_property_(hint_type)
+	      && ivl_type_base(hint_type) != IVL_VT_QUEUE
 	      && ivl_type_base(hint_type) != IVL_VT_DARRAY))
 	    return -1;
 
@@ -4590,7 +4667,8 @@ static int show_stmt_assign_nested_index_vec4(ivl_statement_t net)
        * fixed slot on the object stack. */
       container_type = draw_lval_expr(lval);
       if (!container_type
-	  || (ivl_type_base(container_type) != IVL_VT_QUEUE
+	  || (!type_is_fixed_uarray_property_(container_type)
+	      && ivl_type_base(container_type) != IVL_VT_QUEUE
 	      && ivl_type_base(container_type) != IVL_VT_DARRAY)) {
 	    fprintf(stderr, "%s:%u: internal error: nested integral container "
 		    "receiver lost its leaf type.\n",
@@ -4753,7 +4831,8 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
        * for real/string leaves (and for unrelated unsupported shapes). */
       hint_type = ivl_lval_net_type(lval_nest);
       if (!hint_type
-          || (ivl_type_base(hint_type) != IVL_VT_QUEUE
+          || (!type_is_fixed_uarray_property_(hint_type)
+              && ivl_type_base(hint_type) != IVL_VT_QUEUE
               && ivl_type_base(hint_type) != IVL_VT_DARRAY))
             return -1;
       element_type = ivl_type_element(hint_type);
@@ -4789,7 +4868,8 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
 
       element_type = ivl_type_element(container_type);
       element_kind = element_type ? ivl_type_base(element_type) : IVL_VT_VOID;
-      if ((ivl_type_base(container_type) != IVL_VT_QUEUE
+      if ((!type_is_fixed_uarray_property_(container_type)
+	   && ivl_type_base(container_type) != IVL_VT_QUEUE
 	   && ivl_type_base(container_type) != IVL_VT_DARRAY)
 	  || (element_kind != IVL_VT_REAL
 	      && element_kind != IVL_VT_STRING
@@ -4841,7 +4921,8 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
              * consumes its value and key, so pop exactly that map. */
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 
-      } else if ((ivl_type_base(container_type) == IVL_VT_DARRAY
+      } else if ((type_is_fixed_uarray_property_(container_type)
+                  || ivl_type_base(container_type) == IVL_VT_DARRAY
                   || ivl_type_base(container_type) == IVL_VT_QUEUE)) {
             int idx_word = allocate_word();
             int idx_flag = allocate_flag();

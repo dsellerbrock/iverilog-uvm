@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assoc_fixed_bounds_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_assoc_fixed_bounds"
+}

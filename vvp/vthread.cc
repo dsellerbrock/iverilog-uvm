@@ -20946,25 +20946,46 @@ static inline void container_value_copy_(vvp_vector4_t&) { }
 static inline void container_value_copy_(double&) { }
 static inline void container_value_copy_(std::string&) { }
 
-static inline void apply_declared_child_container_layout_(
+static inline bool apply_declared_child_container_layout_(
       const vvp_object*parent, vvp_object_t&child)
 {
       if (!parent)
-	    return;
+	    return true;
       const vvp_container_layout_t child_layout =
 	    parent->declared_element_container_layout();
+      if (child_layout && child_layout->kind == VVP_CONTAINER_FIXED) {
+	    vvp_darray*array = child.peek<vvp_darray>();
+	    const int64_t left = child_layout->fixed_left;
+	    const int64_t right = child_layout->fixed_right;
+	    const uint64_t count = static_cast<uint64_t>(
+		  left >= right ? left - right : right - left) + 1;
+	    if (!array || array->get_size() != count) {
+		  cerr << "RUN-TIME ERROR: cannot copy a container of size "
+		       << (array ? array->get_size() : 0)
+		       << " into an unpacked array of size " << count
+		       << " (IEEE 1800-2017/2023 7.6 requires equal element "
+			  "counts); the array is unchanged." << endl;
+		  return false;
+	    }
+      }
       if (vvp_object*value = child.peek<vvp_object>()) {
 	    /* Repeated element mutations normally revisit a bound child. Avoid
 	     * walking its complete populated subtree unless the declaration tail
 	     * actually changes. Whole-container stores call the setter directly
 	     * and deliberately force recursive rebinding. */
-	    if (value->declared_container_layout() != child_layout)
-		  value->set_declared_container_layout(child_layout);
+	if (value->declared_container_layout() != child_layout) {
+		  if (child_layout
+		      && child_layout->kind == VVP_CONTAINER_FIXED)
+			vvp_rebind_fixed_array_value(value, child_layout);
+		  else
+			value->set_declared_container_layout(child_layout);
+	}
       }
+      return true;
 }
 template <typename VALUE>
-static inline void apply_declared_child_container_layout_(
-      const vvp_object*, VALUE&) { }
+static inline bool apply_declared_child_container_layout_(
+      const vvp_object*, VALUE&) { return true; }
 
 template <typename ELEM, class ASSOC>
 static bool aa_store_str(vthread_t thr, unsigned wid=0)
@@ -20976,8 +20997,7 @@ static bool aa_store_str(vthread_t thr, unsigned wid=0)
       string key = thr->pop_str();
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -21000,8 +21020,7 @@ static bool aa_store_obj(vthread_t thr, unsigned wid=0)
 
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -21033,8 +21052,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       vvp_vector4_t key = thr->pop_vec4();
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -21446,8 +21464,7 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
             assoc->set(key, value);
 	    notify_mutated_object_signal_(thr, net, "aa-store-sig");
       }
@@ -21470,7 +21487,8 @@ enum aa_viv_spec_code {
       AA_VIV_ASSOC_STRING = 6,
       AA_VIV_ASSOC_OBJECT = 7,
         /* Insert a missing dynamic-array element with its nil default. */
-      AA_VIV_DARRAY_NIL   = 16
+      AA_VIV_DARRAY_NIL   = 16,
+      AA_VIV_FIXED       = 17
 };
 
 static vvp_object_t make_dynamic_container_from_code_(unsigned code)
@@ -21513,14 +21531,24 @@ static vvp_object_t aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
 		     * value, never an alias of the shared fallback object. */
 		  if (have_value)
 			value = value.value_copy_element();
+		  else if (spec == AA_VIV_FIXED)
+			value = vvp_make_fixed_array_value(
+			      assoc->declared_element_container_layout());
 		  else
 			value = make_dynamic_container_from_code_(spec);
-		  assoc->set(key, value);
-		  changed = true;
+		  if (!value.test_nil() || spec == AA_VIV_DARRAY_NIL) {
+			assoc->set(key, value);
+			changed = true;
+		  }
 	    } else if (value.test_nil() && spec != AA_VIV_DARRAY_NIL) {
-		  value = make_dynamic_container_from_code_(spec);
-		  assoc->set(key, value);
-		  changed = true;
+		  value = spec == AA_VIV_FIXED
+			? vvp_make_fixed_array_value(
+			      assoc->declared_element_container_layout())
+			: make_dynamic_container_from_code_(spec);
+		  if (!value.test_nil()) {
+			assoc->set(key, value);
+			changed = true;
+		  }
 	    }
 	    apply_declared_child_container_layout_(assoc, value);
       }

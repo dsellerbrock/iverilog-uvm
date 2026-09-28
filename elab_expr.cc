@@ -2888,8 +2888,23 @@ static NetExpr* apply_trailing_container_indices_(
 	    NetExpr*index_expr = nullptr;
 	    if (idx_comp.sel == index_component_t::SEL_BIT
 		       && idx_comp.msb && !idx_comp.lsb) {
-		  index_expr = elab_assoc_index(des, scope, idx_comp.msb,
-					cur_type, false);
+		  if (const netuarray_t*fixed =
+			dynamic_cast<const netuarray_t*>(cur_type)) {
+			if (fixed->static_dimensions().size() != 1) {
+			      cerr << loc.get_fileline() << ": sorry: an associative-array"
+				   << " value with more than one fixed dimension is not"
+				   << " yet supported." << endl;
+			      des->errors += 1;
+			      delete cur_expr;
+			      return nullptr;
+			}
+			list<index_component_t>fixed_index(1, idx_comp);
+			index_expr = make_checked_canonical_property_index(
+			      des, scope, &loc, fixed_index, fixed, false);
+		  } else {
+			index_expr = elab_assoc_index(des, scope, idx_comp.msb,
+					      cur_type, false);
+		  }
 	    } else {
 		  cerr << loc.get_fileline() << ": sorry: this select form on "
 		       << "a queue or associative-array class-property value is "
@@ -14192,7 +14207,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				    return true;
 			      }
 			      NetExpr*idx_expr = nullptr;
-			      if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
+			      if (const netuarray_t*fixed =
+				    dynamic_cast<const netuarray_t*>(use_type)) {
+				if (fixed->static_dimensions().size() != 1
+				    || idx_comp.sel != index_component_t::SEL_BIT
+				    || !idx_comp.msb || idx_comp.lsb) {
+				      cerr << get_fileline() << ": sorry: this fixed-array"
+					   << " element select is not yet supported." << endl;
+				      des->errors += 1;
+				      return false;
+				}
+				list<index_component_t>fixed_index(1, idx_comp);
+				idx_expr = make_checked_canonical_property_index(
+				      des, scope, this, fixed_index, fixed, false);
+				if (!idx_expr)
+				      return false;
+			      } else if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
 				    idx_expr = make_last_array_index_expr_(*this, cur_expr->dup_expr(),
 									cur_type);
 				    if (!idx_expr)
@@ -27150,6 +27180,8 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			      dynamic_cast<const netdarray_t*>(level);
 			const netqueue_t*level_queue =
 			      dynamic_cast<const netqueue_t*>(level);
+			const netuarray_t*level_fixed =
+			      dynamic_cast<const netuarray_t*>(level);
 
 			  /* A range selector consumes the current container as a
 			   * whole. Do not treat its first operand as an element index:
@@ -27211,11 +27243,28 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			unsigned ew = 1;
 			if (level_darray)
 			      ew = level_darray->element_width();
+			if (level_fixed && et)
+			      ew = et->packed_width();
 			if (ew == 0)
 			      ew = 1;
 
-			NetExpr*mux = elab_assoc_index(des, scope, level_index.msb,
+			NetExpr*mux = nullptr;
+			if (level_fixed) {
+			      if (level_fixed->static_dimensions().size() != 1) {
+				    cerr << get_fileline() << ": sorry: an associative-array"
+					 << " value with more than one fixed dimension is not"
+					 << " yet supported." << endl;
+				    des->errors += 1;
+				    delete cur_sel;
+				    return 0;
+			      }
+			      list<index_component_t>fixed_index(1, level_index);
+			      mux = make_checked_canonical_property_index(
+				    des, scope, this, fixed_index, level_fixed, need_const);
+			} else {
+			      mux = elab_assoc_index(des, scope, level_index.msb,
 						     level, need_const);
+			}
 			if (!mux) {
 			      delete cur_sel;
 			      return 0;
@@ -27233,6 +27282,8 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			  // index; anything else leaves the remaining
 			  // indices to the packed-select handling below.
 			level = dynamic_cast<const netdarray_t*>(et);
+			if (!level)
+			      level = dynamic_cast<const netuarray_t*>(et);
 		  }
 	    }
 

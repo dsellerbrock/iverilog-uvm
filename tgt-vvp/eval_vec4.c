@@ -1200,7 +1200,8 @@ static void draw_select_vec4(ivl_expr_t expr)
 	 * the signal-only branch below, where ivl_expr_signal() of a
 	 * property select yields the CLASS-typed handle signal and the
 	 * data-type assertion aborts. */
-      if (expr_is_dynarray_container_(subexpr) &&
+      if ((expr_is_dynarray_container_(subexpr)
+           || fixed_uarray_expr_type_(subexpr)) &&
           ivl_expr_type(subexpr) != IVL_EX_SIGNAL) {
 	    assert(base);
 	      /* Phase 50f: when the queue container is actually an
@@ -1209,6 +1210,7 @@ static void draw_select_vec4(ivl_expr_t expr)
 	       * numeric queue index reads garbage; emit %aa/load/v/* with
 	       * the proper key type instead. */
 	    ivl_type_t sub_type = receiver_container_type_(subexpr);
+	    ivl_type_t fixed_type = fixed_uarray_expr_type_(subexpr);
 	    if (sub_type && ivl_type_queue_assoc_compat(sub_type)) {
 		  if (expr_is_string_assoc_key_(base)) {
 			draw_eval_object(subexpr);
@@ -1240,7 +1242,9 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    }
 	    draw_eval_object(subexpr);
 	    draw_eval_expr_into_integer(base, 3);
-	    fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
+	    unsigned load_wid = fixed_type
+		  ? ivl_type_packed_width(ivl_type_element(fixed_type)) : wid;
+	    fprintf(vvp_out, "    %%load/qo/v %u;\n", load_wid);
 	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2;\n");
 	    return;

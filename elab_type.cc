@@ -2674,7 +2674,16 @@ static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 				       ivl_type_t assoc_index_type = 0,
 				       bool assoc_wildcard = false)
 {
-      base_type = elaborate_darray_check_type(des, li, base_type, "Queue");
+      const netuarray_t*fixed = assoc_compat
+	    ? dynamic_cast<const netuarray_t*>(base_type) : nullptr;
+      ivl_type_t fixed_leaf = fixed ? fixed->element_type() : nullptr;
+      const bool supported_fixed = fixed
+	    && fixed->static_dimensions().size() == 1 && fixed_leaf
+	    && (fixed_leaf->base_type() == IVL_VT_BOOL
+		|| fixed_leaf->base_type() == IVL_VT_LOGIC
+		|| fixed_leaf->base_type() == IVL_VT_CLASS);
+      if (!supported_fixed)
+	    base_type = elaborate_darray_check_type(des, li, base_type, "Queue");
 
       long max_idx = -1;
       if (ridx) {

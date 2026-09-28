@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assoc_fixed_container_source.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_assoc_fixed_container_source"
+}

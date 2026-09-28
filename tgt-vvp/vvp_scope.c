@@ -908,7 +908,9 @@ static void draw_reg_in_scope(ivl_signal_t sig)
             const char*queue_kind = 0;
             int assoc_compat = ivl_type_queue_assoc_compat(var_type);
 
-            switch (ivl_type_base(element_type)) {
+            if (type_is_fixed_uarray_property_(element_type)) {
+                  queue_kind = assoc_compat ? "Mo" : "Qo";
+            } else switch (ivl_type_base(element_type)) {
                 case IVL_VT_REAL:
                   queue_kind = assoc_compat ? "Mr" : "Qr";
                   break;

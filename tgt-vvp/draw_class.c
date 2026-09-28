@@ -256,6 +256,11 @@ static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
 	    return;
       }
 
+      if (type_is_fixed_uarray_property_(element_type)) {
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
+	    return;
+      }
+
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
 	    show_queue_type_(rp, assoc_compat ? "Mr" : "Qr", ptype);

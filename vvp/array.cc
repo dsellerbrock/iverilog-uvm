@@ -65,6 +65,8 @@ static bool object_matches_container_layout_(
 		  && value.peek<vvp_queue>() == 0;
       case VVP_CONTAINER_ASSOC:
 	    return value.peek<vvp_assoc_base>() != 0;
+      case VVP_CONTAINER_FIXED:
+	    return false;
       }
       return false;
 }

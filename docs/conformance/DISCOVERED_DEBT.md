@@ -3546,8 +3546,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** `elab_type.cc` associative element check; `tgt-vvp/vvp_priv.h` container layout; `vvp/vvp_object.*` layout; `vvp/vthread.cc` associative element construction.
 - **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.8; check exact nested-container behavior when selected.
 - **Evidence:** `outputs/minimal-reproducers/ot-flash-assoc-of-fixed-red.sv` and `work/flash-queue-triage-20260928/result.json` in the projectless campaign workspace.
-- **Reproducer status:** paired strict compile RED; runtime and key-isolation controls still to be built.
-- **Triage status:** read-only design audit; separate compiler blocker, not part of the RSTMGR source patch.
+- **Reproducer status:** paired strict compile RED on the frozen compiler; current active patch passes 16/16 focused strict JSON and 16/16 legacy controls for module and class-property storage. One patched-copy Flash compile and wider qualification remain pending.
+- **Triage status:** active compiler blocker OT-FLASH-ASSOC-OF-FIXED-ARRAY, separate from the RSTMGR source patch.
 
 ### DD-068 — nested queue constraints cannot reach fixed-array queue leaves
 
@@ -3578,3 +3578,54 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `outputs/patches/ot-spi-tpm-stale-parameter-overrides.patch` and `work/ot-spi-tpm-param-20260928/result.md` in the projectless campaign workspace.
 - **Reproducer status:** paired strict minimal controls and static port contract; no full core compile or runtime.
 - **Triage status:** source correction proposal only; requires separate port/FIFO reconciliation before application qualification.
+
+### DD-071 — missing associative key read omits the required warning
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** Reading a nonexistent scalar associative entry returns its default value without allocating, but emits no runtime warning. This predates fixed-array element support; the active blocker preserves the same read/value behavior and does not claim full missing-key diagnostic conformance.
+- **Warning distinction:** The fixed-child runtime currently stores its implicit default through `has_default_`, which also marks a user-specified default. A later warning fix must distinguish those cases so implicit fixed defaults do not suppress the §7.8.6 warning.
+- **File/function:** VVP associative-array read handlers in `vvp/vthread.cc`; precise warning path needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 §7.8.6 (read of a nonexistent entry warns unless a user default is specified).
+- **Evidence:** `work/flash-queue-triage-20260928/scalar-missing-key.sv` prints `VALUE=00 EXISTS=0` with no warning under the frozen Icarus runtime.
+- **Reproducer status:** confirmed with a minimal scalar control.
+- **Triage status:** untriaged; separate from fixed-array value/storage semantics.
+
+### DD-072 — variable-size whole-map pattern items need transactional validation
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** A dynamic array or queue can legally supply a fixed-array associative pattern item when its runtime size matches. On a mismatch, the whole-map assignment must report an error and leave the old map unchanged. The current typed pattern builder loses destination layout until after map replacement, so this slice explicitly rejects variable-size items at compile time instead of silently replacing the map.
+- **File/function:** `tgt-vvp/stmt_assign.c` `draw_eval_assoc_default`, `draw_assoc_pattern_value_`; `vvp/vthread.cc` `aa_new_default`; `vvp/vvp_assoc.h` map copy/rebind.
+- **Possible clause:** IEEE 1800-2017/2023 §7.6 and §7.8.
+- **Evidence:** Paired strict expected-fail fixture `ivtest/ivltests/sv_assoc_fixed_pattern_variable_source_fail.v`; transactional module/class reducers under `work/flash-queue-triage-20260928/flash-review-*-dynamic-mismatch-transaction.sv` in the projectless campaign workspace. Slang accepts those legal sources; current Icarus gives an explicit unsupported diagnostic for both default and keyed pattern items.
+- **Reproducer status:** strict 2017/2023 CE control passes in the 16-case JSON and legacy focus; transactional runtime implementation remains absent.
+- **Triage status:** explicit unsupported boundary for this blocker; select separately before claiming full §7.6 pattern assignment support.
+
+### DD-073 — module associative fixed arrays with class-handle leaves still reject indexed writes
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** A module variable `entry src[int][8:9]` with a class-handle leaf still fails target code generation on `src[4][8] = handle` with `could not recover the selected nested container type`. The active class-property handle control passes; the pinned Flash handle array is a class property.
+- **File/function:** `tgt-vvp/stmt_assign.c` nested object-element assignment type recovery.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.6, 7.8.
+- **Evidence:** `work/flash-queue-triage-20260928/flash-review-handle-cross-orientation.sv` in the projectless campaign workspace; strict 2017 emits three explicit `sorry` diagnostics and exits nonzero, while the class-property control passes both strict editions.
+- **Reproducer status:** focused compile boundary; no silent runtime success.
+- **Triage status:** separate follow-on beyond this blocker’s Flash class-property handle path.
+
+### DD-074 — packed-bit write after an associative fixed slot is unsupported
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** `m[key][fixed_slot][packed_bit] = value` is legal and accepted by Slang, but current Icarus gives an explicit `one key and one fixed slot index` elaboration error. The selected Flash sites use whole packed-leaf assignments.
+- **File/function:** `elab_lval.cc` nested fixed-child lvalue selection.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4 and 7.8.
+- **Evidence:** `work/flash-queue-triage-20260928/flash-assoc-fixed-packed-tail-boundary.sv` in the projectless campaign workspace; strict 2017 compiler exits nonzero, Slang lint accepts it.
+- **Reproducer status:** focused explicit compile boundary.
+- **Triage status:** separate follow-on; no packed-bit write support claimed by this blocker.
+
+### DD-075 — nonblocking indexed write to an associative fixed child is unsupported
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** `m[key][fixed_slot] <= value` is legal, but current target reports that the nonblocking property assignment form is unsupported rather than scheduling the write with NBA semantics. The selected Flash sites do not require this form.
+- **File/function:** `tgt-vvp/stmt_assign.c` nested indexed nonblocking assignment lowering.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.8 and 10.4.2.
+- **Evidence:** `work/flash-queue-triage-20260928/flash-review-nba.sv` in the projectless campaign workspace; strict 2017 compile exits nonzero with an explicit target diagnostic.
+- **Reproducer status:** focused explicit compile boundary.
+- **Triage status:** separate follow-on; no NBA behavior claimed by this blocker.

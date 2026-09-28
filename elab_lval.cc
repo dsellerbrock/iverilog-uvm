@@ -1060,6 +1060,52 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (!name_tail.index.empty())
 	    use_sel = name_tail.index.back().sel;
 
+	/* An associative element that is a fixed unpacked array has two
+	 * independent indices: a key and a declared fixed-array slot. Keep
+	 * both l-value ranks so the target can materialize the keyed array
+	 * before storing its selected word. */
+	const netqueue_t*assoc = reg->queue_type();
+	const netuarray_t*fixed_assoc_element = assoc && assoc->assoc_compat()
+	      ? dynamic_cast<const netuarray_t*>(assoc->element_type()) : nullptr;
+	if (tail_path.empty() && fixed_assoc_element
+	    && name_tail.index.size() >= 2) {
+	      if (fixed_assoc_element->static_dimensions().size() != 1
+		  || name_tail.index.size() != 2) {
+		cerr << get_fileline() << ": sorry: this associative-array value"
+		     << " with a fixed unpacked dimension needs one key and"
+		     << " one fixed slot index." << endl;
+		des->errors += 1;
+		return nullptr;
+	      }
+	      const index_component_t&key = name_tail.index.front();
+	      const index_component_t&slot = name_tail.index.back();
+	      if (key.sel != index_component_t::SEL_BIT || !key.msb || key.lsb
+		  || slot.sel != index_component_t::SEL_BIT || !slot.msb
+		  || slot.lsb) {
+		cerr << get_fileline() << ": sorry: an associative-array"
+		     << " fixed-element write needs simple key and slot indices."
+		     << endl;
+		des->errors += 1;
+		return nullptr;
+	      }
+	      NetExpr*key_expr = elab_lval_container_index_(
+		    des, scope, *this, key, reg);
+	      if (!key_expr)
+		return nullptr;
+	      list<index_component_t>slot_index(1, slot);
+	      NetExpr*slot_expr = make_checked_canonical_property_index(
+		    des, scope, this, slot_index, fixed_assoc_element, false);
+	      if (!slot_expr) {
+		delete key_expr;
+		return nullptr;
+	      }
+	      NetAssign_*key_lv = new NetAssign_(reg);
+	      key_lv->set_word(key_expr);
+	      NetAssign_*slot_lv = new NetAssign_(key_lv);
+	      slot_lv->set_word(slot_expr);
+	      return slot_lv;
+	}
+
 	// Special case: The l-value is an entire memory, or array
 	// slice. Detect the situation by noting if the index count
 	// is less than the array dimensions (unpacked).
@@ -4092,8 +4138,24 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    return 0;
 			      }
 
-			      NetExpr*idx_expr = elab_assoc_index(
-				    des, scope, index_tail.msb, ptype);
+			      NetExpr*idx_expr = nullptr;
+			      if (const netuarray_t*fixed =
+				    dynamic_cast<const netuarray_t*>(ptype)) {
+				if (fixed->static_dimensions().size() != 1) {
+				      cerr << get_fileline() << ": sorry: an associative-array"
+					   << " value with more than one fixed dimension is not"
+					   << " yet supported as an l-value." << endl;
+				      des->errors += 1;
+				      delete lv;
+				      return 0;
+				}
+				list<index_component_t>fixed_index(1, index_tail);
+				idx_expr = make_canonical_property_lval_index_(
+				      des, scope, this, fixed_index, fixed, false);
+			      } else {
+				idx_expr = elab_assoc_index(
+				      des, scope, index_tail.msb, ptype);
+			      }
 			      if (!idx_expr) {
 				    delete lv;
 				    return 0;
