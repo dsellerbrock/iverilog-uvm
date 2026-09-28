@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_dist_rejected_x_state_weight.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "top"],
+  "gold": "sv_constraint_dist_rejected_x_state_weight"
+}

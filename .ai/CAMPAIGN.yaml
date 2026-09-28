@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 01524842c
+checkpoint_head: 1323febc5
 active_open_titan_lane:
-  blocker: "OT-FLASH-SOURCE-OVERLAY-CURRENT-CORPUS"
-  phase: "FOCUSED_TESTED"
+  blocker: "OT-FLASH-CONSTRAINT-ASSOC-STATE-RANDOM-KEY"
+  phase: "REDUCER_READY"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "01524842c"
-  reproducer: "Pinned a78922f14 Flash selective compile with the four-patch disposable-source chain; source-list SHA-256 8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572."
-  pending_validation: "Four patches apply with zero fuzz and final pinned-copy hashes match the selective compile. Current compiler image exits 0 with zero hard errors and eight fail-closed warnings among 113 total. No Flash runtime, full 49-core census, integrated gate, or install."
-  next_command: "Commit and push the named Flash patches. Then integrate a strict-reducer fix for the six indexed 2D class-state reads, triage the two random-key associative state reads, and only then rerun the broader OpenTitan corpus. Keep Caliptra 52-case run stopped until its performance bottleneck is resolved."
-  boundary: "Source overlays are explicit, pinned OpenTitan remains pristine, and the invalid solve-order corrections can change sampling distribution. The eight remaining Flash fail-closed constraints preclude a DV pass."
+  baseline_head: "1323febc5"
+  reproducer: "Pinned a78922f14 four-patch Flash selective compile leaves OTF rand_op_c:134 and legacy rand_op_c:49 fail-closed random-key associative state reads."
+  pending_validation: "Fixed 2D state capture passes paired strict JSON and legacy focus 4/4 each; identical selective compile exits 0 with 107 warnings and exactly two fail-closed. No Flash DV runtime or 49-core census."
+  next_command: "Prove and fix the two random-key associative state reads with paired strict minimal reducers; rerun the selective Flash compile before any broader OpenTitan corpus. Keep Caliptra 52-case run stopped pending bounded full-top performance evidence."
+  boundary: "Pinned OpenTitan remains pristine; source patches are explicit. No Flash DV pass while legal constraints fail closed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED

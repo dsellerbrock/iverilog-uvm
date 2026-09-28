@@ -31877,14 +31877,16 @@ static string constraint_outside_scalar_ir_(const PEIdent*id,
 }
 
 /* A non-random integral value reached through an object-property chain
- * whose steps select array elements with literal indices, e.g.
+ * whose steps select complete fixed-array elements with constant indices, e.g.
  * cfg.m_edn_pull_agent_cfgs[0].device_delay_max (OpenTitan kmac). The
  * index-free chain has an `r:' token; this one is read at each randomize()
  * call through the state-slot wrapper, like any other state value (IEEE
- * 1800-2017/2023 18.3). A chain rand at every step, a non-literal index, or
- * a non-integral result is left to the callers' existing paths. */
+ * 1800-2017/2023 18.3). Fixed foreach indices are folded into the captured
+ * expression; a solver-dependent index or non-integral result is left to the
+ * callers' existing paths. */
 static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
-						       const netclass_t*cls)
+					       const netclass_t*cls,
+					       const map<perm_string,uint64_t>*loop_env)
 {
       if (!id || !cls || id->path().package || id->path().size() < 2)
 	    return "";
@@ -31893,6 +31895,8 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
       bool indexed = false;
       bool all_rand = true;
       pform_name_t prefix;
+      pform_name_t value_path;
+      vector<unique_ptr<PExpr> > folded_indices;
       PExpr*non_null = nullptr;
       for (pform_name_t::const_iterator it = id->path().name.begin()
 	   ; it != id->path().name.end() ; ++it) {
@@ -31903,7 +31907,7 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 		  non_null = non_null ? static_cast<PExpr*>(new PEBLogic('a', non_null, check))
 			: static_cast<PExpr*>(check);
 	    }
-	    prefix.push_back(*it);
+	    name_component_t selected = *it;
 	    if (!cur_cls || it->local_scope) { delete non_null; return ""; }
 	    int idx = cur_cls->property_idx_from_name(it->name);
 	    if (idx < 0) {
@@ -31916,18 +31920,54 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 	    property_qualifier_t qual = cur_cls->get_prop_qual((size_t)idx);
 	    all_rand = all_rand && (qual.test_rand() || qual.test_randc());
 	    cur_type = cur_cls->get_prop_type((size_t)idx);
-	    for (const index_component_t&index : it->index) {
+	    if (!it->index.empty()) {
 		  const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur_type);
 		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(cur_type);
-		  if (index.sel != index_component_t::SEL_BIT
-		      || !dynamic_cast<const PENumber*>(index.msb)
-		      || (!da && (!ua || ua->static_dimensions().size() != 1))) {
+		  if ((!ua && !da)
+		      || (ua && it->index.size() != ua->static_dimensions().size())
+		      || (da && it->index.size() != 1)) {
 			delete non_null;
 			return "";
+		  }
+		  list<index_component_t>::iterator capture = selected.index.begin();
+		  for (const index_component_t&index : it->index) {
+			if (index.sel != index_component_t::SEL_BIT
+			    || !index.msb || index.lsb) {
+			      delete non_null;
+			      return "";
+			}
+			if (!dynamic_cast<const PENumber*>(index.msb)) {
+			      const PEIdent*loop_id = dynamic_cast<const PEIdent*>(index.msb);
+			      if (!loop_env || !loop_id || loop_id->path().package
+				  || loop_id->path().name.size() != 1
+				  || loop_id->path().name.front().local_scope
+				  || !loop_id->path().name.front().index.empty()) {
+				    delete non_null;
+				    return "";
+			      }
+			      auto found = loop_env->find(loop_id->path().name.front().name);
+			      if (found == loop_env->end()) {
+				    delete non_null;
+				    return "";
+			      }
+			      int64_t loop_value = (int64_t)found->second;
+			      if (loop_value < INT32_MIN || loop_value > INT32_MAX) {
+				    delete non_null;
+				    return "";
+			      }
+			      verinum*number = new verinum(found->second, 32);
+			      number->has_sign(true);
+			      folded_indices.emplace_back(new PENumber(number));
+			      folded_indices.back()->set_line(*index.msb);
+			      capture->msb = folded_indices.back().get();
+			}
+			++capture;
 		  }
 		  indexed = true;
 		  cur_type = ua ? ua->element_type() : da->element_type();
 	    }
+	    prefix.push_back(selected);
+	    value_path.push_back(selected);
 	    cur_cls = dynamic_cast<const netclass_t*>(cur_type);
       }
       if (!indexed || all_rand || !cur_type || !cur_type->packed()
@@ -31940,7 +31980,7 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 	/* A null handle anywhere in the chain yields X, which fails the
 	   randomize() call with a diagnostic instead of reading 0. */
       unsigned width = (unsigned)cur_type->packed_width();
-      PExpr*value = new PEIdent(id->path().name, id->lexical_pos());
+      PExpr*value = new PEIdent(value_path, id->lexical_pos());
       value->set_line(*id);
       if (non_null) {
 	    PENumber*unknown = new PENumber(new verinum(verinum::Vx, width));
@@ -33567,7 +33607,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!state_ir.empty()) return state_ir;
 		  } else if (!value_slots) {
 			string state_ir =
-			      constraint_class_state_indexed_path_ir_(id, cls);
+			      constraint_class_state_indexed_path_ir_(id, cls, loop_env);
 			if (!state_ir.empty()) return state_ir;
 		  }
 	    }

@@ -494,6 +494,7 @@ static bool constraint_ir_header_type_(const string&token,
       size_t width_field = 0;
       if (fields[0] == "p" || fields[0] == "g" || fields[0] == "v")
             width_field = 2;
+      else if (fields[0] == "xbad") width_field = 1;
       else if (fields[0] == "m" || fields[0] == "a") width_field = 3;
       else if (fields[0] == "e") width_field = 2;
       else if (fields[0] == "r" || fields[0] == "pp")
@@ -2393,6 +2394,14 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	    par.p = start;
 	    return false;
       }
+	/* A rejected weight must leave its owning constraint unchanged. Commit
+	 * four-state checks only when the private expression has a ground value;
+	 * enclosing implication/if guards can then sift an inactive weight. */
+      auto commit_state_checks = [&]() {
+	    b.state_checks.insert(b.state_checks.end(),
+		  value_builder.state_checks.begin(),
+		  value_builder.state_checks.end());
+      };
 
       // Retain source activity before legacy prefill substitutions. The joint
       // sampler admits state weights only (2017 18.5.4; 2023 18.5.3).
@@ -2474,6 +2483,7 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
             // narrower than int (IEEE 1800-2017/2023 7.10.1, 11.8.1).
             if (negative && was_signed && semantic_width <= 64)
                   *negative = (out >> (semantic_width - 1)) & 1;
+            commit_state_checks();
             return true;
       }
 
@@ -2500,11 +2510,14 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 		  if (check_one(Z3_mk_not(b.ctx, high_is_zero)) == Z3_L_FALSE) {
 			Z3_ast low = Z3_simplify(
 			      b.ctx, Z3_mk_extract(b.ctx, 63, 0, value));
-			if (z3_ground_uint64(b.ctx, low, out))
+			if (z3_ground_uint64(b.ctx, low, out)) {
+			      commit_state_checks();
 			      return true;
+			}
 		  } else if (check_one(high_is_zero) == Z3_L_FALSE) {
 			overflow = true;
 			out = UINT64_MAX;
+			commit_state_checks();
 			return true;
 		  }
 	    }
@@ -2539,11 +2552,13 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 			}
 			if (fits) {
 			      out = parsed;
+			      commit_state_checks();
 			      return true;
 			}
 		  }
 		  overflow = true;
 		  out = UINT64_MAX;
+		  commit_state_checks();
 		  return true;
 	    }
       }
@@ -5773,12 +5788,16 @@ static bool substitute_class_slots_(const string&ir,
                         + to_string(width);
                   return false;
             }
+            bool unknown = false;
             for (unsigned bit = 0; bit < value.size(); ++bit)
-                  if (value.value(bit) != BIT4_0 && value.value(bit) != BIT4_1) {
-                        error = "X/Z value in class constraint function capture slot "
-                              + to_string(slot);
-                        return false;
-                  }
+                  unknown = unknown || (value.value(bit) != BIT4_0
+                        && value.value(bit) != BIT4_1);
+            if (unknown) {
+                  result += "xbad:" + to_string(width)
+                        + (is_signed ? ":s" : "");
+                  p = q;
+                  continue;
+            }
             string constant;
             for (unsigned high = value.size(); high > 0;) {
                   unsigned low = high > 64 ? high - 64 : 0;
