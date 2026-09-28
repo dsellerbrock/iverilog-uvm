@@ -5,6 +5,14 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The 2023 clause-18 unbraced implication-before-`dist` candidate shares the
+[2017 parser scope and focused evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-2026--implication-before-distribution).
+The distribution clause is 18.5.3 in this edition. The same direct and nested
+hard and soft distribution fixture passes in strict 2023 mode, and the paired
+compile-error fixture rejects an empty distribution list; no edition-specific
+behavior or full clause-18 qualification is claimed. The single saved AES
+core compile reaches separate implicit-cast errors and is not an application pass.
+
 The 2023 §§10.10/7.10.4 queue concatenation, §11.4.13
 constraint-context array membership, and §§9.4.2/25.9 mixed virtual-interface
 event waits share the bounded [2017 implementation scope](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--spi-queue-concatenation-constraint-membership-and-mixed-vif-waits).

@@ -5,6 +5,27 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 27, 2026 — implication before distribution
+
+IEEE 1800-2017 §§18.5.4 and 18.5.6 allow an unbraced implication whose
+consequent is a weighted distribution. The local parser candidate now keeps
+`guard -> subject dist {...};` as a guarded distribution, rather than applying
+`dist` to the Boolean result of `guard -> subject`. Nested unbraced hard and soft
+implications recurse onto the same distribution consequent. The saved AES-shaped
+21-line reducer was RED in strict 2017 and 2023 and is GREEN with the
+candidate. The [paired fixture](../../../ivtest/ivltests/sv_constraint_implication_dist.v)
+checks inactive/active guards, conflicting hard values, both weight forms,
+ordinary and braced implications, direct and nested soft preferences,
+rollback, and chained hard-distribution implication association. A paired
+compile-error fixture rejects an empty `dist {}` list; scratch checks cover
+plain, direct, nested, direct-soft, and nested-soft forms in both editions.
+The seven-case build-tree JSON focus passes 7/7. Bison's per-state conflict signature matches HEAD.
+Parenthesized Boolean implication subjects remain a top-down dist-subject
+diagnostic.
+A single saved AES core compile clears the original parser error but stops on
+four separate implicit-cast errors in `aes_wake_up_vseq.sv`; broad regression,
+installation, and DV qualification remain pending.
+
 ### September 24, 2026 — nested packed-select assertion sampling
 
 Concurrent assertion operands must be sampled in the Preponed region. A

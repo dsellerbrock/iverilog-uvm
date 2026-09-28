@@ -2403,7 +2403,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <irange> inside_value_range
 %type <irange_list> inside_range_list
 %type <irange> dist_item
-%type <irange_list> dist_list dist_list_opt
+%type <irange_list> dist_list
 
 %type <coverpoint>  covergroup_item
 %type <coverpoints> covergroup_item_list covergroup_item_list_opt
@@ -2420,6 +2420,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <cross_sel>   cross_bins_unary cross_bins_primary
 
 %type <expr>  constraint_expression constraint_block_item constraint_set_item
+%type <expr>  constraint_dist_consequent
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
 %type <exprs> randomize_constraint_block_opt
 %type <exprs> constraint_expression_list constraint_set constraint_trigger
@@ -2525,6 +2526,7 @@ static Module::port_t *module_declare_port_continuation(
 %nonassoc K_PLUS_EQ K_MINUS_EQ K_MUL_EQ K_DIV_EQ K_MOD_EQ K_AND_EQ K_OR_EQ
 %nonassoc K_XOR_EQ K_LS_EQ K_RS_EQ K_RSS_EQ K_NB_TRIGGER
 %right K_TRIGGER K_LEQUIV
+%precedence K_dist
 %right '?' ':'
 %left K_LOR
 %left K_LAND
@@ -4196,8 +4198,9 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
-  | expression K_dist '{' dist_list_opt '}' ';'
-      { /* `dist` shares PEInside's domain representation while retaining
+  | expression K_dist '{' dist_list '}' ';'
+      { /* Require at least one item: an empty dist list is a syntax error.
+           `dist` shares PEInside's domain representation while retaining
            the source operator and each item's optional weight mode. */
         if ($4) {
               PEInside*tmp = new PEInside($1, $4, true);
@@ -4345,7 +4348,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
      soft constraints on the variable for this randomize() call. */
   | K_disable K_soft expression ';'
       { PEDisableSoft*tmp = new PEDisableSoft($3); FILE_NAME(tmp, @1); $$ = tmp; }
-  | K_soft expression K_dist '{' dist_list_opt '}' ';'
+  | K_soft expression K_dist '{' dist_list '}' ';'
       { if ($5) {
 	      PEInside*dist = new PEInside($2, $5, true);
 	      FILE_NAME(dist, @3);
@@ -4357,41 +4360,62 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
               $$ = nullptr;
         }
       }
-  /* implication with soft: A -> soft B; (-> is K_TRIGGER when not followed by '{') */
-  | expression K_TRIGGER K_soft expression ';'
-      { /* Preserve both the implication guard and the soft qualifier.
-	   Dropping them turns an optional conditional preference into an
-	   unconditional hard constraint. */
-	PESoft*soft = new PESoft($4);
-	FILE_NAME(soft, @3);
-	std::list<PExpr*>*items = new std::list<PExpr*>();
-	items->push_back(soft);
-	PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
-	FILE_NAME(tmp, @2);
-	$$ = tmp;
-      }
-  | expression K_TRIGGER K_soft expression K_dist '{' dist_list_opt '}' ';'
-      { if ($7) {
-	      PEInside*dist = new PEInside($4, $7, true);
-	      FILE_NAME(dist, @5);
-	      PESoft*soft = new PESoft(dist);
-	      FILE_NAME(soft, @3);
-	      std::list<PExpr*>*items = new std::list<PExpr*>();
-	      items->push_back(soft);
-	      PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
-	      FILE_NAME(tmp, @2);
-	      $$ = tmp;
+  /* An unbraced implication guards a hard or soft consequent, including
+     another implication that ends in a distribution. */
+  | expression K_TRIGGER attribute_list_opt constraint_dist_consequent
+      { if ($4) {
+            std::list<PExpr*>*items = new std::list<PExpr*>();
+            items->push_back($4);
+            PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            FILE_NAME(tmp, @2);
+            $$ = tmp;
         } else {
-	      delete $1;
-              delete $4;
-              $$ = nullptr;
+            delete $1;
+            $$ = nullptr;
         }
       }
   ;
 
-dist_list_opt
-  :       { $$ = nullptr; }
-  | dist_list { $$ = $1; }
+constraint_dist_consequent
+  : expression K_dist '{' dist_list '}' ';'
+      { if ($4) {
+            PEInside*tmp = new PEInside($1, $4, true);
+            FILE_NAME(tmp, @2);
+            $$ = tmp;
+        } else {
+            delete $1;
+            $$ = nullptr;
+        }
+      }
+  | K_soft expression ';'
+      { PESoft*tmp = new PESoft($2);
+        FILE_NAME(tmp, @1);
+        $$ = tmp;
+      }
+  | K_soft expression K_dist '{' dist_list '}' ';'
+      { if ($5) {
+            PEInside*dist = new PEInside($2, $5, true);
+            FILE_NAME(dist, @3);
+            PESoft*tmp = new PESoft(dist);
+            FILE_NAME(tmp, @1);
+            $$ = tmp;
+        } else {
+            delete $2;
+            $$ = nullptr;
+        }
+      }
+  | expression K_TRIGGER attribute_list_opt constraint_dist_consequent
+      { if ($4) {
+            std::list<PExpr*>*items = new std::list<PExpr*>();
+            items->push_back($4);
+            PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            FILE_NAME(tmp, @2);
+            $$ = tmp;
+        } else {
+            delete $1;
+            $$ = nullptr;
+        }
+      }
   ;
 
 dist_list
