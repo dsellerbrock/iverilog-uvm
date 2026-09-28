@@ -1,6 +1,6 @@
 {
   "case": "OpenTitan EDN cfg.randomize() nested-object concatenation dist subject",
-  "status": "focused compiler fix passes; selected EDN DV remains unqualified",
+  "status": "focused compiler fix passes; selected EDN compile is clean, but bounded DV runtime has no native verdict",
   "ieee": "IEEE 1800-2017 18.5.4 / IEEE 1800-2023 18.5.3",
   "trigger": "A class with an owned rand child enters global joint solving. A weighted dist on a concatenation of two active rand scalar properties previously failed before sampling because the concatenation was not a direct canonical variable.",
   "compiler_fix": "Include a <=64-bit concatenated dist subject as a deterministic column of the complete joint tuple table, linked to all of its active canonical scalar leaves. Ordered, randc, or noncanonical leaves remain unsupported and fail loudly.",
@@ -21,18 +21,41 @@
   },
   "selected_edn_runtime": {
     "source_patch": "docs/conformance/release_overlays/opentitan/edn_endpoint_request_count_coverpoint.patch",
-    "vvp_image_sha256": "89f13b25c813a43abe04d7256526698c091e189e1e79037c3845cea6a150db01",
-    "build_tree_vvp_sha256": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
-    "timeout_s": 300,
-    "timed_out": true,
-    "simulation_time_ps_observed": 0,
-    "pass_banner": false,
-    "runtime_log_sha256": "ecbc01da85f905ad9f87f50257533f10870dbf10a158c19ddea0422d79d41cf6",
-    "trace_timeout_s": 15,
-    "trace_log_sha256": "8ecaa13031bd9d6cc3fc7d9f8ad0d615cad84d3a3a290fd551d3d5e6dcb4f7c6",
-    "trace_observation": "Two edn_env_cfg solves completed, followed by tl_seq_item and edn_smoke_vseq solves. Two alert_receiver_alert_rsp_seq solves began; the inner solve completed, but the outer one had not completed at the 15-second trace bound. This is a later runtime frontier; the 300-second untraced run had no completion banner."
+    "initial_replay_harness_error": {
+      "vvp_image_sha256": "89f13b25c813a43abe04d7256526698c091e189e1e79037c3845cea6a150db01",
+      "timeout_s": 300,
+      "simulation_time_ps_observed": 0,
+      "runtime_log_sha256": "ecbc01da85f905ad9f87f50257533f10870dbf10a158c19ddea0422d79d41cf6",
+      "trace_log_sha256": "8ecaa13031bd9d6cc3fc7d9f8ad0d615cad84d3a3a290fd551d3d5e6dcb4f7c6",
+      "reason": "The selected compile passed the inner FuseSoC source list directly and omitted the outer matrix-iverilog.scr +timescale+1ns/1ps option. Generated clk_rst_if scopes had 1s/1s, rounding OpenTitan's #(period_ps * 1ps) clock delays to zero. The saved original census image has 1ns/1ps for these same scopes. This run is not a valid EDN DV verdict."
+    },
+    "corrected_replay": {
+      "command_file": "/private/tmp/ot-edn-cover-bin-20260928/selected/matrix-iverilog-selected.scr",
+      "command_file_sha256": "d2311469cdb51d4a22a27adcda030a0917ba171f7400d3bee278b9776f7e123d",
+      "source_list_sha256": "1c607ef26afee32072425ee32953cb005375a0832b58b6df34ff09f02b7337d9",
+      "only_changed_generated_source": "src/lowrisc_dv_edn_cov_0/edn_cov_if.sv",
+      "timescale": "1ns/1ps; generated clk_rst_if .timescale -9 -12",
+      "compiler_wrapper_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+      "installed_ivl_core_sha256_before_subsequent_install": "1a4eb3d2b8e6c8738888f7da13964f75bfd364955a03d96cc3cdb4be21e79ab3",
+      "vvp_target_sha256": "072c8c4608f5ba0a076444a767e743290ca3c3295e67dead1c05a0c7a9aa7129",
+      "build_tree_vvp_sha256_loaded": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
+      "vvp_image_sha256": "57f84c155e2d719cedcfafdc833e0f3cbabab79b7b624f3efce3ec6cef7b51f9",
+      "compile_seconds": 5.887,
+      "compile_hard_errors": 0,
+      "compile_warnings": 15,
+      "compile_log_sha256": "e5ef9c7ca733b400a3cd8f405e21b92fbad95cd1af282cbffd09981256a10c00",
+      "wall_limit_seconds": 750,
+      "wall_seconds": 751.661,
+      "rss_limit_kib": 6291456,
+      "peak_rss_kib": 5302704,
+      "rss_limit_exceeded": false,
+      "simulation_time_ps_at_termination": 3337745713,
+      "native_dv_pass_or_fail_before_termination": false,
+      "termination_effect": "The supervisor's SIGTERM made VVP run final checks. It then emitted noOutstandingReqsAtEndOfSim_A and TEST FAILED CHECKS at 3337745713 ps; these are not native test verdicts.",
+      "runtime_log_sha256": "5cb1ebcb6115f9e62600d80e8df06f8fa65eb5123f2c1073b460305f33f890ae"
+    }
   },
   "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
   "pinned_checkout_edited": false,
-  "scope": "Focused compiler regression and one selected patched-source EDN run. No EDN DV pass or 49-target corpus replay."
+  "scope": "Focused compiler regression and selected patched-source EDN runs. No EDN DV pass or 49-target corpus replay."
 }
