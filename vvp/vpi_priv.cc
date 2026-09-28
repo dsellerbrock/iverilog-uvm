@@ -1764,9 +1764,11 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 	    && escaped_end != string::npos
 	    && escaped_end + 1 < indexed_leaf.size()
 	    && indexed_leaf[escaped_end + 1] == '[';
-      vpiHandle out = escaped_indexed ? 0 : find_name(nm_base, hand);
-	if (out == 0)
-	    out = find_indexed_name_(indexed_leaf, hand);
+      // Resolve array words by their parent and index first. A literal-name
+      // search walks every word of the memory before reaching mem[index].
+      vpiHandle out = find_indexed_name_(indexed_leaf, hand);
+	if (out == 0 && !escaped_indexed)
+	    out = find_name(nm_base, hand);
 
 	// M12: fall back to class-member descent for dotted paths
 	// whose prefix is a class variable in this scope.
