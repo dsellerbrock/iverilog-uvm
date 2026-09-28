@@ -9691,6 +9691,31 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             vector<pair<Z3_ast,Z3_ast> > preference_edges;
             for (const auto&spec : builder.dist_specs) {
                   if (dist_disabled(spec) || !dist_active(spec)) continue;
+                  if (!z3_direct_constant_(ctx, spec.subject)) {
+                        // A concatenated dist subject is a deterministic
+                        // projection of its rand leaves. Include that
+                        // projection in the complete tuple table so its
+                        // weighted value can be pinned without inventing a
+                        // separate random choice.
+                        set<Z3_ast> leaves;
+                        if (Z3_get_ast_kind(ctx, spec.subject) == Z3_APP_AST
+                            && Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx,
+                                  Z3_to_app(ctx, spec.subject))) == Z3_OP_CONCAT
+                            && bv_width(ctx, spec.subject) <= 64
+                            && z3_collect_constants_(ctx, spec.subject, leaves)
+                            && !leaves.empty()
+                            && all_of(leaves.begin(), leaves.end(),
+                                  [&](Z3_ast leaf) {
+                                        return seen.count(leaf)
+                                              && !stages.count(leaf)
+                                              && !active_randc_var(leaf);
+                                  })) {
+                              add(spec.subject);
+                              for (Z3_ast leaf : leaves)
+                                    preference_edges.emplace_back(
+                                          spec.subject, leaf);
+                        }
+                  }
                   for (Z3_ast guard : spec.guards) {
                         set<Z3_ast> constants;
                         if (!z3_collect_constants_(ctx, guard, constants))

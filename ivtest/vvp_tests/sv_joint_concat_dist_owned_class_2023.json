@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_joint_concat_dist_owned_class_2023.v",
+  "iverilog-args": ["-g2023", "-ssv_joint_concat_dist_owned_class"],
+  "gold": "sv_joint_concat_dist_owned_class"
+}
