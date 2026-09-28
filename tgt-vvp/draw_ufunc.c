@@ -809,6 +809,119 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 	    }
       }
 
+      /* A fixed-array element inside an associative class property is
+	 represented as SELECT(SELECT(PROPERTY, key), slot). In particular,
+	 uvm_config_db::get may copy a class handle into cfg.mem[key][slot].
+	 Materialize the associative child only after validating the fixed slot:
+	 an invalid copy-out must not create a new associative entry. */
+      if (ivl_expr_type(actual) == IVL_EX_SELECT) {
+	    ivl_expr_t child = ivl_expr_oper1(actual);
+	    ivl_expr_t slot = ivl_expr_oper2(actual);
+	    ivl_expr_t prop = child && ivl_expr_type(child) == IVL_EX_SELECT
+		? ivl_expr_oper1(child) : 0;
+	    ivl_expr_t key = child && ivl_expr_type(child) == IVL_EX_SELECT
+		? ivl_expr_oper2(child) : 0;
+	    ivl_type_t assoc_type = prop && ivl_expr_type(prop) == IVL_EX_PROPERTY
+		? property_expr_type_(prop) : 0;
+	    ivl_type_t fixed_type = assoc_type
+		? ivl_type_element(assoc_type) : 0;
+	    ivl_type_t leaf_type = fixed_type
+		? ivl_type_element(fixed_type) : 0;
+	    if (prop && key && slot && !ivl_expr_oper1(prop)
+		&& assoc_type && ivl_type_base(assoc_type) == IVL_VT_QUEUE
+		&& ivl_type_queue_assoc_compat(assoc_type)
+		&& type_is_fixed_uarray_property_(fixed_type)
+		&& leaf_type && ivl_type_base(leaf_type) == IVL_VT_CLASS
+		&& ivl_signal_data_type(port) == IVL_VT_CLASS
+		/* Keep %ix/vec4 within 64 bits so its flag only reports X/Z,
+		   never integer overflow. Wider keys retain the fallback warning. */
+		&& ivl_expr_width(key) > 0 && ivl_expr_width(key) <= 64
+		&& (ivl_expr_value(key) == IVL_VT_BOOL
+		    || ivl_expr_value(key) == IVL_VT_LOGIC)
+		&& !expr_is_string_assoc_key_(key)
+		&& !expr_is_object_assoc_key_(key)) {
+		ivl_signal_t base_sig = ivl_expr_signal(prop);
+		ivl_expr_t base_expr = ivl_expr_oper2(prop);
+		if (base_sig || base_expr) {
+		    int slot_word = allocate_word();
+		    int key_word = allocate_word();
+		    int x_flag = -1, range_flag = -1;
+		    int key_x_flag = allocate_flag();
+		    unsigned bad_slot = local_count++;
+		    unsigned bad_key = local_count++;
+		    unsigned null_receiver = local_count++;
+		    unsigned done = local_count++;
+		    int pidx = (int)ivl_expr_property_idx(prop);
+		    if (base_sig)
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+		    else
+			draw_eval_object(base_expr);
+		    fprintf(vvp_out, "    %%test_nul/obj;\n");
+		    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+			thread_count, null_receiver);
+		    fprintf(vvp_out, "    %%prop/obj %d, 0; output associative property\n",
+			pidx);
+		    fprintf(vvp_out, "    %%pop/obj 1, 1; keep associative property\n");
+		    draw_fixed_uarray_slot_index_(slot, fixed_type, slot_word,
+			&x_flag, &range_flag);
+		    fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d;\n",
+			thread_count, bad_slot, x_flag);
+		    if (range_flag >= 0)
+			fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
+			    thread_count, bad_slot, range_flag);
+		    draw_eval_assoc_key_(key, 0);
+		    fprintf(vvp_out, "    %%dup/vec4; preserve output associative key\n");
+		    fprintf(vvp_out, "    %%ix/vec4 %d; check key for X/Z\n",
+			key_word);
+		    fprintf(vvp_out, "    %%flag_mov %d, 4; associative key X/Z\n",
+			key_x_flag);
+		    fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d;\n",
+			thread_count, bad_key, key_x_flag);
+		    fprintf(vvp_out, "    %%aa/viv/o/v 17; materialize fixed child\n");
+		    draw_copy_out_load(port, "obj");
+		    fprintf(vvp_out, "    %%set/dar/obj/obj %d; output fixed child slot\n",
+			slot_word);
+		    fprintf(vvp_out, "    %%pop/obj 1, 0; discard fixed child\n");
+		    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, bad_key);
+		    fprintf(vvp_out,
+			"    %%vpi_call/w %u %u \"$warning\", "
+			"\"associative array key contains X/Z; function copy-out "
+			"was ignored\" {0 0 0 0};\n",
+			ivl_file_table_index(ivl_expr_file(key)),
+			ivl_expr_lineno(key));
+		    fprintf(vvp_out, "    %%pop/vec4 1; discard invalid key\n");
+		    fprintf(vvp_out, "    %%pop/obj 1, 0; discard associative property\n");
+		    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, bad_slot);
+		    fprintf(vvp_out,
+			"    %%vpi_call/w %u %u \"$warning\", "
+			"\"fixed unpacked-array property index is undefined or "
+			"out of range; function copy-out was ignored\" {0 0 0 0};\n",
+			ivl_file_table_index(ivl_expr_file(slot)),
+			ivl_expr_lineno(slot));
+		    fprintf(vvp_out, "    %%pop/obj 1, 0; discard associative property\n");
+		    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, null_receiver);
+		    fprintf(vvp_out,
+			"    %%vpi_call/w %u %u \"$warning\", "
+			"\"null class receiver; function copy-out was ignored\" "
+			"{0 0 0 0};\n",
+			ivl_file_table_index(ivl_expr_file(actual)),
+			ivl_expr_lineno(actual));
+		    fprintf(vvp_out, "    %%pop/obj 1, 0; discard null receiver\n");
+		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
+		    clr_word(slot_word);
+		    clr_word(key_word);
+		    clr_flag(x_flag);
+		    clr_flag(key_x_flag);
+		    if (range_flag >= 0)
+			clr_flag(range_flag);
+		    return;
+		}
+	    }
+      }
+
       /* Handle copy-out to an indexed assoc-array entry of a class
          property (e.g. cfg.vifs[key]). Iverilog represents this as
          IVL_EX_SELECT(arr, key) where `arr` is the IVL_EX_PROPERTY for

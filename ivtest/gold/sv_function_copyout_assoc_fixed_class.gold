@@ -1,0 +1,7 @@
+WARNING: ./ivltests/sv_function_copyout_assoc_fixed_class.v:68: fixed unpacked-array property index is undefined or out of range; function copy-out was ignored
+         Time: 0  Scope: sv_function_copyout_assoc_fixed_class.$unm_blk_1
+WARNING: ./ivltests/sv_function_copyout_assoc_fixed_class.v:74: fixed unpacked-array property index is undefined or out of range; function copy-out was ignored
+         Time: 0  Scope: sv_function_copyout_assoc_fixed_class.$unm_blk_1
+WARNING: ./ivltests/sv_function_copyout_assoc_fixed_class.v:81: null class receiver; function copy-out was ignored
+         Time: 0  Scope: sv_function_copyout_assoc_fixed_class.$unm_blk_1
+PASSED

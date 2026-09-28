@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_function_copyout_assoc_fixed_class_4state.v",
+    "iverilog-args": [ "-g2023", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_function_copyout_assoc_fixed_class_4state" ],
+    "gold": "sv_function_copyout_assoc_fixed_class_4state"
+}
