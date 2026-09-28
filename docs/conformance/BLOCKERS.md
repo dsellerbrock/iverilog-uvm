@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-FLASH-NESTED-COVERPOINT-GET-COVERAGE — method lookup through class and covergroup
+
+- **State:** Selected after compiler checkpoint `cde946a3d` from the saved 14-hard/125-warning Flash corpus. `flash_ctrl_rd_buff_evict_vseq.sv:389` calls `cov.control_cg.op_evict_cp.get_coverage()` and gets a missing-method error. A tiny strict 2017/2023 reproducer under projectless `outputs/flash-packed-select-triage-20260928/nested-coverpoint-method-red.sv` fails the same way; the group-level call compiles and reports 50% in that one-point control.
+- **Expected behavior:** Resolve the named coverpoint on the selected nested object and return its own coverage. Add a second point in the focused test so group and point results differ, and verify independent objects and invalid paths before one controlled Flash compile.
+- **Boundary:** Replacing the source call with group coverage would change what the test measures. Queue `.size()`, child `.shuffle()`, and whole-array `solve before` remain separate; no Flash DV runtime or broad qualification is claimed.
+
 ### OT-FLASH-CONSTRAINT-FOREACH-FUNCTION-ARGUMENT — retain iterator in a function argument
 
 - **State:** The compiler repair passes paired strict IEEE 1800-2017/2023 JSON and legacy focus 10/10 each on build-tree `ivl` SHA-256 `8181490bae115633e56b18166158a35d222e10159a6f8b0babc66e3d4dd96886`; independent review found no selected-ticket blocker. One hash-guarded patched-copy Flash compile removes exactly five `en_mp_regions[i]` hard errors, with no new hard errors: 19 → 14. Five paired unbound-`i` warnings disappear, while five `mp_regions_c` randomize()-will-fail warnings become visible, leaving 134 total warnings. See the [focused checkpoint](session_logs/2026-09-28_ot_flash_foreach_function_argument_focus.json) and projectless `outputs/flash-foreach-function-argument-evidence-20260928.md`.
