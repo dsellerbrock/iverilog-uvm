@@ -1,0 +1,61 @@
+{
+  "target": "lowrisc:dv:ibex_icache_sim:0.1",
+  "pinned_opentitan_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_commit": "8553fc872",
+  "compiler_iverilog_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "compiler_vvp_sha256": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
+  "generated_covergroup_fix": {
+    "isolated_commit": "cbad946a9",
+    "integrated_commit": "8553fc872",
+    "focused_legacy": "1/1 pass",
+    "focused_vvp_2017_2023": "2/2 pass",
+    "adjacent_class_covergroup_vvp": "42/42 pass",
+    "parser_memory_legacy": "36/36 pass"
+  },
+  "diagnostic_source_selection": {
+    "filelist": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ibex-generated-covergroup/diagnostic2.scr",
+    "sha256": "4581b556691a51a30aa058424b6683d3e8f7d4bd3e433c445a0aba9ea244241a",
+    "provider_kept": "lowrisc:ibex:bus_params_pkg",
+    "provider_removed": "lowrisc:opentitan:bus_params_pkg",
+    "coverage_enabled": true
+  },
+  "source_patch": {
+    "path": "docs/conformance/release_overlays/opentitan/ibex_icache_fcov_iff_parentheses.patch",
+    "sha256": "96a2b56d0783facb80b87869c492c472aea678cf3410085b8b0e60553f66896a",
+    "pinned_source_sha256": "cb760aff7683427460e30e9fba94c62afb7c3040f68ac8e6825114437a0e3e67",
+    "patched_source_sha256": "cea4d0f1a0be1d7b9c70ccac0d8c01e3f1446513173d7ee8103579ef9a0ff979"
+  },
+  "selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sibex_icache_fcov_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ibex-generated-covergroup/ibex_integrated.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ibex-generated-covergroup/diagnostic2.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_ibex_icache_sim_0.1/sim-icarus",
+    "compiler_commit": "8553fc872",
+    "exit_code": 1,
+    "wall_seconds": 0.337,
+    "hard_diagnostics": [
+      "../src/lowrisc_dv_ibex_icache_core_agent_0.1/ibex_icache_core_if.sv:142: sorry: sequence match-item subroutine calls in a cover property are not supported yet in the bounded IEEE 1800-2017 16.11 lowering; the assertion is dropped."
+    ],
+    "warning_count": 0,
+    "log_sha256": "258fbe289669fdce90e37db51836e9a5dd1722d74f85c5da3af0f48357b28378"
+  },
+  "dv_runtime_started": false,
+  "qualifies_dv_pass": false
+}
