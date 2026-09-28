@@ -9589,25 +9589,25 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       return sign;
 }
 
-/* The first executable 16.11 slice deliberately supports only a direct
-   $display match item. Keeping this predicate in one place makes cloning,
-   validation, and action construction agree: no package/receiver/type-arg
-   call can accidentally be rebuilt as an unrelated unqualified task. */
-static bool sva_match_call_is_display_(const PCallTask*call)
+/* Keep cloning and validation on the same direct-call subset. A user
+   subroutine with no actual arguments needs no sampled-argument or ref
+   carrier; argument-bearing user calls still fail closed. */
+static bool sva_match_call_is_direct_(const PCallTask*call, bool cover)
 {
       if (!call || call->is_void_cast() || call->leading_type_args()
 	  || !call->with_constraints().empty())
 	    return false;
       const pform_name_t&path = call->path();
       return path.size() == 1 && path.front().index.empty()
-	     && path.front().name == perm_string::literal("$display");
+	     && (path.front().name == perm_string::literal("$display")
+		 || (cover && call->parms().empty()));
 }
 
 static PCallTask* sva_clone_match_call_(
       const PCallTask*source,
       const std::map<perm_string,PExpr*>*subst = nullptr)
 {
-      if (!sva_match_call_is_display_(source)) return nullptr;
+      if (!sva_match_call_is_direct_(source, true)) return nullptr;
       std::list<named_pexpr_t> parms;
       const std::vector<named_pexpr_t>&src = source->parms();
       for (size_t i = 0 ; i < src.size() ; i += 1) {
@@ -15224,9 +15224,6 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 	  || (prop->mc_more && !prop->mc_more->empty()))
 	    return sva_match_item_sorry_(loc,
 		  "in a multiclocked sequence are not supported yet");
-      if (kind == 2)
-	    return sva_match_item_sorry_(loc,
-		  "in a cover property are not supported yet");
       if (prop->op_type != 0 || prop->antecedent)
 	    return sva_match_item_sorry_(loc,
 		  "are supported only in a flat, non-negated sequence property");
@@ -15251,9 +15248,10 @@ static int sva_validate_match_items_(const struct vlltype&loc,
       }
       const std::vector<PCallTask*>&calls = prop->seq->back().match_calls;
       for (size_t i = 0 ; i < calls.size() ; i += 1)
-	    if (!sva_match_call_is_display_(calls[i]))
+	    if (!sva_match_call_is_direct_(calls[i], kind == 2))
 		  return sva_match_item_sorry_(loc,
-			"currently support only a direct $display call");
+			"currently support only direct $display calls or "
+			"zero-argument user calls in a cover property");
       if (!pform_sva_nfa_enabled())
 	    return sva_match_item_sorry_(loc,
 		  "require the automaton engine (unset IVL_SVA_LEGACY)");
@@ -17491,6 +17489,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, r_cnt,
 			new PENumber(new verinum((uint64_t)0, 32))));
       }
+      perm_string r_match;
+      if (cover && match_action) {
+	    r_match = sva_make_reg_(loc, inst, "match", 0, true);
+	    init_zero.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
+      }
       perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
       init_zero.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
       perm_string r_oovf;
@@ -17559,6 +17562,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   legacy engine). Existing slots continue advancing after $assertoff. */
       body.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_attempt_state()));
+      if (cover && match_action)
+	    body.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
       body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
 
@@ -17776,6 +17781,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					      sva_bit_(loc, 1));
 		  FILE_NAME(add, loc);
 		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
+		  if (match_action)
+		    acc_v.push_back(increment_verdict(r_match));
 	    } else if (implication && !forbidden) {
 		  acc_v.push_back(increment_verdict(r_p));
 	    } else {
@@ -18003,6 +18010,20 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			    sva_if_(loc, ready, sva_block_(loc, pass), nullptr)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, parent_live[k]),
 				   sva_block_(loc, done), nullptr));
+      }
+
+	/* All endpoint verdicts are fixed in Observed before any attached
+	   subroutine runs. Spawn one child per match so a task that consumes
+	   time cannot delay the checker or suppress another endpoint. Each
+	   child enters Reactive before executing the source-ordered calls. */
+      if (cover && match_action) {
+	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+	    FILE_NAME(spawn, loc);
+	    std::vector<Statement*>child;
+	    child.push_back(sva_cover_action_(loc, match_action));
+	    spawn->set_statement(child);
+	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match), spawn));
+	    match_action = nullptr;
       }
 
 	/* Pass then fail dispatch: one report site each per tick, in

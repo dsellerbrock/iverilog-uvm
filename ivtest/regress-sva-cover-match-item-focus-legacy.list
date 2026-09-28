@@ -1,0 +1,4 @@
+sv_sva_cover_match_item_runtime normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
+sv_sva_cover_match_item_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
+sv_sva_cover_match_item_arg_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
+sv_sva_cover_match_item_arg_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
