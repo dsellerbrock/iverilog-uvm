@@ -1,0 +1,49 @@
+{
+  "case": "lowrisc:dv:clkmgr_sim:0.1 / clkmgr_base_test / clkmgr_smoke_vseq",
+  "status": "selected patched-source DV PASS",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_revision": "99b5b36c6",
+  "compiler_fixes": [
+    "974746928 selected clocking input aliases",
+    "3d50d0904 packed enum class property arrays",
+    "99b5b36c6 packed array constraint width"
+  ],
+  "source_patch": "docs/conformance/release_overlays/opentitan/clkmgr_clk_status_idle_drive.patch",
+  "source_patch_sha256": "673047c5760e502170829f5797c8c32c490fb92eaf50e0b6a76ff807edadc407",
+  "compile": {
+    "returncode": 0,
+    "seconds": 6.067,
+    "hard_errors": 0,
+    "unsampled_clockvars": 0,
+    "warnings": 9,
+    "vvp_sha256": "5204c4ae371724242656d55ad47315deff3a8a6d0f7e1f7762eb0e06bdf2b729"
+  },
+  "runtime": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-i",
+      "-n",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-clkmgr-input-alias/clkmgr-solver-width-shared.vvp",
+      "+UVM_NO_RELNOTES",
+      "+UVM_VERBOSITY=UVM_LOW",
+      "+UVM_TESTNAME=clkmgr_base_test",
+      "+UVM_TEST_SEQ=clkmgr_smoke_vseq",
+      "+do_clear_all_interrupts=0",
+      "+cdc_instrumentation_enabled=1"
+    ],
+    "cwd": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_dv_clkmgr_sim_0.1/sim-icarus",
+    "env_override": {
+      "IVL_SVA_NFA": "1"
+    },
+    "wall_seconds": 18.157,
+    "exit_code": 0,
+    "timed_out": false,
+    "pass_banner": "TEST PASSED CHECKS",
+    "uvm_warning": 0,
+    "uvm_error": 0,
+    "uvm_fatal": 0,
+    "sim_time_ps": 27971223
+  },
+  "focused_validation": "38/38 clocking/VIF; 28/28 class property/context; 2/2 strict 2017/2023 packed-array constraint width on installed image",
+  "scope": "One selected DV run; original 49-target aggregate was not rerun"
+}
