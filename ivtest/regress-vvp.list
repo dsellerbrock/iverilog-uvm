@@ -3872,6 +3872,9 @@ sv_assert_local_var_until_linear_fsm_2023 vvp_tests/sv_assert_local_var_until_li
 # Whole-signal part-select loads and word-level index/compare operands.
 vvp_load_vec4_part_select_2017 vvp_tests/vvp_load_vec4_part_select_2017.json
 vvp_load_vec4_part_select_2023 vvp_tests/vvp_load_vec4_part_select_2023.json
+# Static named blocks run in the enclosing thread.
+vvp_named_block_inline_2017 vvp_tests/vvp_named_block_inline_2017.json
+vvp_named_block_inline_2023 vvp_tests/vvp_named_block_inline_2023.json
 
 # Paired bound interface-port mixed-driver controls.
 sv_interface_port_mixed_driver_called_unsafe vvp_tests/sv_interface_port_mixed_driver_called_unsafe.json

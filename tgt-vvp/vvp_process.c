@@ -1599,16 +1599,117 @@ static int show_stmt_block(ivl_statement_t net, ivl_scope_t sscope)
       return rc;
 }
 
+static int named_block_can_inline_(ivl_scope_t subscope);
+
+/*
+ * True if STMT, and every statement nested in it, is one that runs the
+ * same whether the thread executing it is the enclosing thread or a
+ * child forked for a named block: no timing control, no call, no fork,
+ * no disable (which also covers break, continue and return), no event
+ * trigger, and no force or procedural continuous assignment. A nested
+ * named block qualifies only if it can be inlined itself. This is a
+ * whitelist; any statement kind not named here disqualifies the block.
+ */
+static int named_block_stmt_can_inline_(ivl_statement_t stmt)
+{
+      unsigned idx;
+
+      if (stmt == 0)
+	    return 1;
+
+      switch (ivl_statement_type(stmt)) {
+	  case IVL_ST_NOOP:
+	    return 1;
+
+	  case IVL_ST_ASSIGN:
+	      /* An intra-assignment event control is lowered to a
+		 separate wait, which the default case rejects. */
+	    return ivl_stmt_delay_expr(stmt) == 0;
+
+	  case IVL_ST_ASSIGN_NB:
+	    return ivl_stmt_delay_expr(stmt) == 0 && ivl_stmt_nevent(stmt) == 0;
+
+	  case IVL_ST_BLOCK:
+	    if (ivl_stmt_block_scope(stmt)
+		&& !named_block_can_inline_(ivl_stmt_block_scope(stmt)))
+		  return 0;
+	    for (idx = 0 ; idx < ivl_stmt_block_count(stmt) ; idx += 1)
+		  if (!named_block_stmt_can_inline_(ivl_stmt_block_stmt(stmt, idx)))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_CONDIT:
+	    return named_block_stmt_can_inline_(ivl_stmt_cond_true(stmt))
+		&& named_block_stmt_can_inline_(ivl_stmt_cond_false(stmt));
+
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ:
+	    for (idx = 0 ; idx < ivl_stmt_case_count(stmt) ; idx += 1)
+		  if (!named_block_stmt_can_inline_(ivl_stmt_case_stmt(stmt, idx)))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_WHILE:
+	  case IVL_ST_DO_WHILE:
+	  case IVL_ST_REPEAT:
+	    return named_block_stmt_can_inline_(ivl_stmt_sub_stmt(stmt));
+
+	  case IVL_ST_FORLOOP:
+	    return named_block_stmt_can_inline_(ivl_stmt_init_stmt(stmt))
+		&& named_block_stmt_can_inline_(ivl_stmt_sub_stmt(stmt))
+		&& named_block_stmt_can_inline_(ivl_stmt_step_stmt(stmt));
+
+	  default:
+	    return 0;
+      }
+}
+
+/*
+ * A named block normally runs in a child thread so that its scope has
+ * threads a disable can find, and so that an automatic block gets its
+ * own activation frame. A static block that no disable targets, inside
+ * no automatic scope, and whose body passes the whitelist above has
+ * neither need. Its child would start at the front of the active queue
+ * while the parent waits in %join, and the parent would resume at the
+ * front as soon as the child ended, so running the body in the
+ * enclosing thread executes the same statements in the same order.
+ */
+static int named_block_can_inline_(ivl_scope_t subscope)
+{
+      ivl_scope_t cur;
+
+      if (ivl_scope_type(subscope) != IVL_SCT_BEGIN)
+	    return 0;
+      if (ivl_scope_is_disable_target(subscope))
+	    return 0;
+      for (cur = subscope ; cur ; cur = ivl_scope_parent(cur))
+	    if (ivl_scope_is_auto(cur))
+		  return 0;
+      return 1;
+}
+
 /*
  * This draws an invocation of a named block. This is a little
  * different because a subscope is created. We do that by creating
- * a thread to deal with this.
+ * a thread to deal with this, unless the block can run inline in the
+ * enclosing thread (see named_block_can_inline_).
  */
 static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
 {
       int rc;
       unsigned out_id, sub_id;
       ivl_scope_t subscope = ivl_stmt_block_scope(net);
+
+      if (named_block_stmt_can_inline_(net)) {
+	      /* Compile the body in the block's scope, as the child would
+		 be, so any system call in it still reports that scope. */
+	    fprintf(vvp_out, "    .scope S_%p;\n", subscope);
+	    rc = show_stmt_block(net, subscope);
+	    fprintf(vvp_out, "    .scope S_%p;\n", scope);
+	    return rc;
+      }
 
       out_id = transient_id++;
       sub_id = transient_id++;

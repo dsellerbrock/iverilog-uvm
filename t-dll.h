@@ -913,6 +913,7 @@ struct ivl_scope_s {
       unsigned func_width;
 
       unsigned is_auto : 1;
+      unsigned is_disable_target : 1;
       unsigned auto_frame : 1;
       unsigned is_program : 1;
       unsigned is_interface : 1;
