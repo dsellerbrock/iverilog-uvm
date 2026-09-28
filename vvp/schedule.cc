@@ -34,6 +34,7 @@
 # include  <chrono>
 # include  <iostream>
 # include  <string>
+# include  <vector>
 # include  "vvp_cobject.h"
 # include  "vvp_vinterface.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -98,6 +99,12 @@ struct event_s {
       static void*operator new (size_t size) { return ::new char[size]; }
       static void operator delete(void*ptr)  { ::delete[]( static_cast<char*>(ptr) ); }
 };
+
+/* During one certified serial-shadow dispatch, NBA event objects stay
+ * private until the process suspends at its next edge wait. No worker runs
+ * here; replay through the ordinary queue preserves event and VPI order. */
+static thread_local std::vector<event_s*>*shadow_nba_intents_ = nullptr;
+static void shadow_nba_dispatch_(vthread_t thr);
 
 void event_s::single_step_display(void)
 {
@@ -181,7 +188,7 @@ void vthread_event_s::run_run(void)
             const char*name = scope ? scope->vpi_get_str(vpiFullName) : 0;
             const std::string scope_name = name ? name : "<none>";
             const auto begin = std::chrono::steady_clock::now();
-            vthread_run(thr);
+            shadow_nba_dispatch_(thr);
             const auto end = std::chrono::steady_clock::now();
             const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count();
             fprintf(stderr, "BATCH_PROFILE time=%llu scope=%s ns=%lld\n",
@@ -189,7 +196,7 @@ void vthread_event_s::run_run(void)
                     (long long)ns);
             return;
       }
-      vthread_run(thr);
+      shadow_nba_dispatch_(thr);
 }
 
 void vthread_event_s::single_step_display(void)
@@ -905,6 +912,10 @@ static inline void region_enter_(struct event_s*cur)
 static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 			    event_queue_t select_queue)
 {
+      if (shadow_nba_intents_) {
+            fprintf(stderr, "shadow NBA certificate violated: unexpected scheduled event\n");
+            abort();
+      }
       cur->region = select_queue;
       region_check_schedule_(select_queue, delay);
 
@@ -1036,6 +1047,34 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 	    }
 	    *q = cur;
       }
+}
+
+static void shadow_nba_dispatch_(vthread_t thr)
+{
+      static const bool enabled = []() {
+            const char*value = getenv("IVL_SHADOW_NBA");
+            return value && *value && strcmp(value, "0") != 0;
+      }();
+      if (!enabled || !vthread_is_shadow_nba(thr)) {
+            vthread_run(thr);
+            return;
+      }
+
+      assert(shadow_nba_intents_ == nullptr);
+      std::vector<event_s*> intents;
+      shadow_nba_intents_ = &intents;
+      vthread_run(thr);
+      shadow_nba_intents_ = nullptr;
+      for (event_s*intent : intents)
+            schedule_event_(intent, 0, SEQ_NBASSIGN);
+
+      static const bool trace = []() {
+            const char*value = getenv("IVL_SHADOW_NBA_TRACE");
+            return value && *value && strcmp(value, "0") != 0;
+      }();
+      if (trace)
+            fprintf(stderr, "SHADOW_NBA time=%llu intents=%zu\n",
+                    (unsigned long long)schedule_time, intents.size());
 }
 
 static void schedule_event_push_(struct event_s*cur)
@@ -1261,6 +1300,16 @@ void schedule_assign_vector(vvp_net_ptr_t ptr,
       cur->ptr = ptr;
       cur->base = base;
       cur->vwid = vwid;
+	/* The compiler certificate permits only a zero-delay design NBA here.
+	 * Abort on a violated certificate instead of changing region order. */
+      if (shadow_nba_intents_) {
+	    if (delay || reactive) {
+		fprintf(stderr, "shadow NBA certificate violated: delayed or reactive assignment\n");
+		abort();
+	    }
+	    shadow_nba_intents_->push_back(cur);
+	    return;
+      }
 	/* Nonblocking assignments from program-block processes
 	   schedule in the Re-NBA region (IEEE 1800-2017 4.4.2.7). */
       schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN

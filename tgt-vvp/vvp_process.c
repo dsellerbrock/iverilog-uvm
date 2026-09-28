@@ -40,6 +40,95 @@ unsigned transient_id = 0;
    ordinary IEEE event path. */
 static ivl_statement_t pure_comb_top_wait_ = 0;
 
+/* First serial-shadow experiment: exactly one edge wait followed by one or
+ * two zero-delay, whole-vector NBAs. A direct scalar/vector signal or literal
+ * is the complete RHS read set. No other statement, expression, dynamic
+ * selector, automatic variable, or side effect can enter the shadow path. */
+static int shadow_nba_rhs_(ivl_expr_t expr)
+{
+      ivl_signal_t signal;
+      ivl_variable_type_t type;
+      if (!expr) return 0;
+      if (ivl_expr_type(expr) == IVL_EX_NUMBER
+          || ivl_expr_type(expr) == IVL_EX_ULONG)
+            return 1;
+      if (ivl_expr_type(expr) != IVL_EX_SIGNAL
+          || ivl_expr_oper1(expr))
+            return 0;
+      signal = ivl_expr_signal(expr);
+      if (!signal || signal_is_return_value(signal)
+          || ivl_signal_lifetime(signal) == IVL_VLT_AUTOMATIC
+          || ivl_scope_is_auto(ivl_signal_scope(signal))
+          || ivl_signal_dimensions(signal) != 0)
+            return 0;
+      type = ivl_signal_data_type(signal);
+      return type == IVL_VT_BOOL || type == IVL_VT_LOGIC;
+}
+
+static int shadow_nba_stmt_(ivl_statement_t stmt)
+{
+      ivl_lval_t lval;
+      ivl_signal_t signal;
+      ivl_variable_type_t type;
+      if (!stmt || ivl_statement_type(stmt) != IVL_ST_ASSIGN_NB
+          || ivl_stmt_delay_expr(stmt) || ivl_stmt_nevent(stmt)
+          || ivl_stmt_lvals(stmt) != 1
+          || !shadow_nba_rhs_(ivl_stmt_rval(stmt)))
+            return 0;
+      lval = ivl_stmt_lval(stmt, 0);
+      signal = lval ? ivl_lval_sig(lval) : 0;
+      if (!signal || signal_is_return_value(signal)
+          || ivl_signal_lifetime(signal) == IVL_VLT_AUTOMATIC
+          || ivl_scope_is_auto(ivl_signal_scope(signal))
+          || ivl_signal_type(signal) != IVL_SIT_REG
+          || ivl_signal_dimensions(signal) != 0
+          || ivl_lval_idx(lval) || ivl_lval_part_off(lval)
+          || ivl_lval_nest(lval) || ivl_lval_property_idx(lval) >= 0
+          || ivl_lval_is_array_slice(lval)
+          || ivl_lval_is_queue_slice(lval)
+          || ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE
+          || ivl_lval_width(lval) != ivl_signal_width(signal))
+            return 0;
+      type = ivl_signal_data_type(signal);
+      return type == IVL_VT_BOOL || type == IVL_VT_LOGIC;
+}
+
+static int shadow_nba_process_(ivl_process_t process, ivl_statement_t stmt)
+{
+      ivl_statement_t body;
+      ivl_event_t event;
+      unsigned count;
+      ivl_scope_t scope;
+      if (ivl_process_type(process) != IVL_PR_ALWAYS_FF
+          || !stmt || ivl_statement_type(stmt) != IVL_ST_WAIT
+          || ivl_stmt_needs_t0_trigger(stmt)
+          || ivl_stmt_nevent(stmt) != 1)
+            return 0;
+      for (scope = ivl_process_scope(process); scope;
+           scope = ivl_scope_parent(scope))
+            if (ivl_scope_is_auto(scope) || ivl_scope_program(scope))
+                  return 0;
+      event = ivl_stmt_events(stmt, 0);
+      if (!event || ivl_event_is_obj_mutation(event)
+          || ivl_event_observer_expr(event)
+          || ivl_event_nany(event)
+          || (ivl_event_npos(event) + ivl_event_nneg(event)) != 1)
+            return 0;
+      body = ivl_stmt_sub_stmt(stmt);
+      if (!body) return 0;
+      if (ivl_statement_type(body) != IVL_ST_BLOCK)
+            return shadow_nba_stmt_(body);
+      if (ivl_stmt_block_scope(body)
+          || ivl_stmt_block_randsequence(body) != IVL_RANDSEQ_BLOCK_NONE)
+            return 0;
+      count = ivl_stmt_block_count(body);
+      if (count < 1 || count > 2) return 0;
+      for (unsigned idx = 0; idx < count; idx += 1)
+            if (!shadow_nba_stmt_(ivl_stmt_block_stmt(body, idx)))
+                  return 0;
+      return 1;
+}
+
 static int pure_comb_expr_(ivl_expr_t expr)
 {
       unsigned idx;
@@ -7827,6 +7916,10 @@ int draw_process(ivl_process_t net, void*x)
       int push_flag = 0;
       int clocking_bg_flag = 0;
       int clocking_sync_flag = 0;
+      const char*shadow_env = getenv("IVL_SHADOW_NBA_CERTIFY");
+      int shadow_nba_flag = shadow_env && *shadow_env
+	    && strcmp(shadow_env, "0") != 0
+	    && shadow_nba_process_(net, stmt);
 
       (void)x; /* Parameter is not used. */
 
@@ -7933,6 +8026,8 @@ int draw_process(ivl_process_t net, void*x)
 		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
 	    } else if (clocking_sync_flag) {
 		  fprintf(vvp_out, "    .thread T_%u, $clocking;\n", thread_count);
+	    } else if (shadow_nba_flag) {
+		  fprintf(vvp_out, "    .thread T_%u, $shadow_nba;\n", thread_count);
 	    } else if (ivl_process_type(net) == IVL_PR_INITIAL
 		       && ivl_scope_program(scope) && !clocking_bg_flag) {
 		    /* M6B: a program-block INITIAL procedure. Mark it so the

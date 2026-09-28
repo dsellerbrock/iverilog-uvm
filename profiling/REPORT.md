@@ -4,7 +4,19 @@
 
 Do not start parallel `vthread_run()` on the current VVP image. The target has enough useful work for a *coarse* two-core task, but no certified ready batch in the current interpreter. A first parallel stage must be an opt-in, compiler-certified Active-region **prepare** task: read a stable signal snapshot, compute RHS values, and append nonblocking-assignment intents to a private log. The scheduler then replays those intents in original process/event order and continues draining Active before entering NBA. Keep VPI callbacks, DPI calls, UVM/class mutation, derived-clock/Active feedback, and any unproved process on the serial path.
 
-The immediate next experiment is a serial shadow implementation of that prepare/commit split for one ordinary, no-fork `always_ff` process. For Adams Bridge, the compiler must also form one macro-task from each lane's parent/child fork/join sequence before the 46 lanes become a ready batch. This is an architectural prerequisite, not a safe `std::thread` wrapper around existing dispatches.
+The first serial-shadow experiment now exists in this isolated branch. It proves a narrow NBA intent-log boundary for one ordinary no-fork `always_ff` body; it does not create a read snapshot or a parallel-ready task. For Adams Bridge, the compiler must also form one macro-task from each lane's parent/child fork/join sequence before the 46 lanes become a ready batch. This is an architectural prerequisite, not a safe `std::thread` wrapper around existing dispatches.
+
+## Isolated serial-shadow result
+
+With `IVL_SHADOW_NBA_CERTIFY=1`, `tgt-vvp/vvp_process.c` marks only an `always_ff` containing one ordinary edge wait and one or two zero-delay, whole-vector NBAs. The RHS can be only a fixed static integral signal or a literal. All other statement and expression kinds, selectors, automatic scopes, and program scopes stay on the normal path. The certificate rejects a function-call RHS, a delayed NBA (`x <= #1 a`), and a `$display` task in separate compile probes. An additional event control inside `always_ff` fails elaboration under the language rule. Without the compile flag, the image has no marker.
+
+With `IVL_SHADOW_NBA=1`, VVP runs the certified process serially and collects its allocated NBA event objects in a private log. It appends them to the existing NBA queue, in order, before another Active event runs. An unexpected scheduled event, delayed NBA, or Reactive NBA during this dispatch aborts as a violated certificate. Without the runtime flag, the ordinary dispatch path is used. No worker threads, queue-region changes, or shared-branch compiler edits are involved.
+
+The focused regression `sh profiling/run_shadow_nba.sh` passes. The pre-change compiler fails its required `$shadow_nba` marker check. The current 2012 image emits one certified thread; 2017 and 2023 focused compiles also emit the marker and pass the callback ledger. The ordinary and serial-shadow VPI logs match exactly: `0001 → 1001` at 1 ns, then `1111 → 0000` at 3 ns. Shadow trace shows two NBA intents at each edge. `profiling/shadow_nba.expected` records each callback separately, so merging or reordering the two NBAs fails. The rejected effects are tested as separate top modules, so one rejection cannot mask another.
+
+Seven alternating env-off pairs on the identical bounded 100-clock Adams Bridge image compare the profiler-only `0de6270ba` VVP with this prototype. Median wall time is 312.941 ms versus 312.640 ms; median CPU is 311.401 ms versus 311.258 ms. Median paired ratios are 0.9951 wall and 0.9951 CPU, with the same `hash=cc373498` and empty stderr on every run. The small difference is measurement noise, not evidence of a speedup. `profiling/shadow-vs-profiler-only-overhead.json` holds each pair.
+
+This is still a serial interpreter run: the RHS reads live VVP signals in original process order, and the intent log only delays NBA queue insertion until the same dispatch returns. Parallel prepare needs an explicit stable input snapshot, machine-readable read/write footprints, proof that no source can mutate those inputs within a batch, and an uninterrupted certified Active-ready group. The current Adams Bridge fork/join ordering fails that last condition. This prototype stays private until those boundaries have controls.
 
 ## Measured work
 
@@ -69,3 +81,5 @@ python3 profiling/compare_env_off.py /Users/danielellerbrock/Documents/Codex/202
 ```
 
 The env-off VVP run also produced `hash=cc373498` with zero profiler lines on stderr. The profile instrumentation is confined to this isolated branch.
+
+For the serial-shadow control, build the full local compiler and VVP with Homebrew Bison on this Mac (`make -j8 YACC=/opt/homebrew/opt/bison/bin/bison`), then run `sh profiling/run_shadow_nba.sh` and `sh profiling/run_nba_vpi_order.sh`. Both scripts use the local compiler and VVP; the shadow script checks the compile and runtime opt-in gates, the two-intent VPI order, and separate unsafe-shape rejections. This isolated prototype is intentionally not integrated into the shared compiler branch.

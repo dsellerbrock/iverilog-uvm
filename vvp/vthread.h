@@ -111,6 +111,9 @@ extern void vthread_cancel_resource_wait(vthread_t thr);
  * 4.4.2.5, clause 24).
  */
 extern int vthread_is_reactive(vthread_t thr);
+/* Narrow compiler-certified always_ff serial-shadow experiment. */
+extern void vthread_mark_shadow_nba(vthread_t thr);
+extern int vthread_is_shadow_nba(vthread_t thr);
 /* Mark synthesized clocking scheduler infrastructure as a design process,
  * even when its lexical scope is a program. */
 extern void vthread_mark_clocking_sync(vthread_t thr);

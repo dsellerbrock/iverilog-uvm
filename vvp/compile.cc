@@ -3228,6 +3228,8 @@ void compile_thread(char*start_sym, char*flag)
 	    push_flag = true;
 
       vthread_t thr = vthread_new(pc, vpip_peek_current_scope());
+	if (flag && (strcmp(flag,"$shadow_nba") == 0))
+	    vthread_mark_shadow_nba(thr);
 	/* A synthesized clocking sampler belongs to the design-region
 	   pipeline even when its declaration scope is a program. */
       if (flag && (strcmp(flag,"$clocking") == 0))

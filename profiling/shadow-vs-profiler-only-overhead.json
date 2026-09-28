@@ -1,0 +1,83 @@
+{
+  "base": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/vvp-scheduler-baseline-0de6270ba/vvp/vvp",
+  "candidate": "vvp/vvp",
+  "image": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/caliptra-perf/real_a2b_diag-fused.vvp",
+  "pairs": [
+    {
+      "base": {
+        "wall_s": 0.3129414999857545,
+        "cpu_s": 0.31140099999999993
+      },
+      "candidate": {
+        "wall_s": 0.319298250018619,
+        "cpu_s": 0.31797300000000017
+      }
+    },
+    {
+      "candidate": {
+        "wall_s": 0.3126399159664288,
+        "cpu_s": 0.3112579999999998
+      },
+      "base": {
+        "wall_s": 0.3161688329419121,
+        "cpu_s": 0.3146740000000001
+      }
+    },
+    {
+      "base": {
+        "wall_s": 0.31629337498452514,
+        "cpu_s": 0.31505499999999986
+      },
+      "candidate": {
+        "wall_s": 0.31173499999567866,
+        "cpu_s": 0.31053400000000053
+      }
+    },
+    {
+      "candidate": {
+        "wall_s": 0.3091437090188265,
+        "cpu_s": 0.3077419999999993
+      },
+      "base": {
+        "wall_s": 0.3106522500747815,
+        "cpu_s": 0.3092630000000005
+      }
+    },
+    {
+      "base": {
+        "wall_s": 0.3117410830454901,
+        "cpu_s": 0.3103880000000001
+      },
+      "candidate": {
+        "wall_s": 0.31382320798002183,
+        "cpu_s": 0.3124589999999996
+      }
+    },
+    {
+      "candidate": {
+        "wall_s": 0.3081117499386892,
+        "cpu_s": 0.30676000000000014
+      },
+      "base": {
+        "wall_s": 0.31005783297587186,
+        "cpu_s": 0.3087350000000004
+      }
+    },
+    {
+      "base": {
+        "wall_s": 0.32331283297389746,
+        "cpu_s": 0.3219689999999993
+      },
+      "candidate": {
+        "wall_s": 0.35306770796887577,
+        "cpu_s": 0.3263290000000003
+      }
+    }
+  ],
+  "median_base_wall_s": 0.3129414999857545,
+  "median_candidate_wall_s": 0.3126399159664288,
+  "median_base_cpu_s": 0.31140099999999993,
+  "median_candidate_cpu_s": 0.3112579999999998,
+  "median_paired_wall_ratio": 0.9951439558039838,
+  "median_paired_cpu_ratio": 0.9950818558961104
+}

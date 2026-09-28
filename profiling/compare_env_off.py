@@ -6,8 +6,9 @@ import subprocess
 import sys
 import time
 
-assert len(sys.argv) == 4, 'usage: compare_env_off.py BASE_VVP CANDIDATE_VVP IMAGE'
-base, candidate, image = sys.argv[1:]
+assert len(sys.argv) in (4, 5), 'usage: compare_env_off.py BASE_VVP CANDIDATE_VVP IMAGE [OUTPUT_JSON]'
+base, candidate, image = sys.argv[1:4]
+output = Path(sys.argv[4]) if len(sys.argv) == 5 else Path(__file__).with_name('env-off-overhead.json')
 
 def run(binary):
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
@@ -44,5 +45,5 @@ result = {
     'median_paired_cpu_ratio': statistics.median(
         p['candidate']['cpu_s']/p['base']['cpu_s'] for p in pairs),
 }
-Path(__file__).with_name('env-off-overhead.json').write_text(json.dumps(result, indent=2) + '\n')
+output.write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps({key: value for key, value in result.items() if key != 'pairs'}, indent=2))

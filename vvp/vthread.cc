@@ -878,6 +878,8 @@ struct vthread_s {
 	   sensitivity inputs return to their entry values during another pure
 	   combinational evaluation. */
       unsigned is_pure_comb_process :1;
+	/* Compiler-certified edge wait plus fixed-read, zero-delay NBAs. */
+      unsigned is_shadow_nba_process :1;
 	/* Program-block process (IEEE 1800-2017 clause 24): scheduled
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
@@ -9914,6 +9916,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->is_fork_v_child = 0;
       thr->is_trampoline_child = 0;
       thr->is_pure_comb_process = 0;
+      thr->is_shadow_nba_process = 0;
       thr->is_reactive_process = 0;
       thr->in_region_drain = 0;
       for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
@@ -10532,6 +10535,16 @@ void vthread_cancel_mutation_wait(vthread_t thr)
 int vthread_is_reactive(vthread_t thr)
 {
       return (thr && thr->is_reactive_process) ? 1 : 0;
+}
+
+void vthread_mark_shadow_nba(vthread_t thr)
+{
+      if (thr) thr->is_shadow_nba_process = 1;
+}
+
+int vthread_is_shadow_nba(vthread_t thr)
+{
+      return (thr && thr->is_shadow_nba_process) ? 1 : 0;
 }
 
 void vthread_mark_clocking_sync(vthread_t thr)
