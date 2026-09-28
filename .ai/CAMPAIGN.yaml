@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 1323febc5
+checkpoint_head: 9c127289a
 active_open_titan_lane:
-  blocker: "OT-FLASH-CONSTRAINT-ASSOC-STATE-RANDOM-KEY"
-  phase: "REDUCER_READY"
+  blocker: "OT-FLASH-BOUNDED-DV-FIRST-RUNTIME"
+  phase: "COMPILE_CLEAN"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "1323febc5"
-  reproducer: "Pinned a78922f14 four-patch Flash selective compile leaves OTF rand_op_c:134 and legacy rand_op_c:49 fail-closed random-key associative state reads."
-  pending_validation: "Fixed 2D state capture passes paired strict JSON and legacy focus 4/4 each; identical selective compile exits 0 with 107 warnings and exactly two fail-closed. No Flash DV runtime or 49-core census."
-  next_command: "Prove and fix the two random-key associative state reads with paired strict minimal reducers; rerun the selective Flash compile before any broader OpenTitan corpus. Keep Caliptra 52-case run stopped pending bounded full-top performance evidence."
-  boundary: "Pinned OpenTitan remains pristine; source patches are explicit. No Flash DV pass while legal constraints fail closed."
+  baseline_head: "9c127289a"
+  reproducer: "The final two Flash random-key associative class-state warnings have strict 2017/2023 reducers; the same four-patch selective compile now has zero hard and zero fail-closed diagnostics."
+  pending_validation: "Focused strict JSON 4/4 and legacy 2/2 pass; selective Flash compile exits 0 with 105 conventional warnings. No Flash DV runtime or current-image 49-core census."
+  next_command: "Run one bounded Flash smoke on the disposable four-patch image and triage its runtime result. Then decide whether the 49-core corpus is ready for replay. Caliptra 52-case run remains stopped pending performance work."
+  boundary: "Pinned OpenTitan is pristine, source overlays are explicit, and compile success alone is not a DV pass."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED

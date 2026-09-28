@@ -1,0 +1,47 @@
+{
+  "ticket": "OT-FLASH-CONSTRAINT-ASSOC-STATE-RANDOM-KEY",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "baseline_compiler_commit": "9c127289a",
+  "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+  "source_patch_order": [
+    "flash_constraint_foreach_standard.patch",
+    "flash_illegal_whole_array_solve_before.patch",
+    "flash_array_container_workaround.patch",
+    "flash_packed_field_solve_before.patch"
+  ],
+  "installed_ivl_sha256": "5d5d7a0363b8221a8ade0cdead71b0b1cf8c6a82456926fe1465160b897910c8",
+  "installed_vvp_sha256": "e5419f2b7e780ca6ab2ee646de34c3fbbb0f7de0c879fe14b60fc8519bd1c73e",
+  "strict_focus": {
+    "json": {
+      "passed": 4,
+      "failed": 0
+    },
+    "legacy": {
+      "passed": 2,
+      "failed": 0
+    },
+    "editions": [
+      "2017",
+      "2023"
+    ]
+  },
+  "negative_boundary": "5-bit associative keys and solver-random fixed-child indices retain warning and randomize failure in both strict editions.",
+  "selective_compile_before": {
+    "exit_code": 0,
+    "hard_errors": 0,
+    "warnings": 107,
+    "fail_closed_constraints": 2
+  },
+  "selective_compile_after": {
+    "exit_code": 0,
+    "hard_errors": 0,
+    "warnings": 105,
+    "fail_closed_constraints": 0,
+    "removed": [
+      "flash_ctrl_otf_base_vseq.sv:134 rand_op_c",
+      "flash_ctrl_legacy_base_vseq.sv:49 rand_op_c"
+    ],
+    "added_warning_lines": 0
+  },
+  "qualification": "Selective compile and focused regressions only. Flash DV runtime and the 49-core corpus remain unrun on this image."
+}

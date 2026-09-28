@@ -31451,7 +31451,8 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 		  "$shortrealtobits", "$signed", "$sin", "$sinh", "$size",
 		  "$sqrt", "$tan", "$tanh", "$typename", "$unsigned",
 		  "$ivl_array_query$size", "$ivl_assoc_method$exists",
-		  "$ivl_assoc_method$num", "$ivl_class_method$constraint_mode_get",
+		  "$ivl_assoc_method$num", "$ivl_checked_property_index",
+		  "$ivl_class_method$constraint_mode_get",
 		  "$ivl_class_method$get_randstate", "$ivl_class_method$rand_mode_get",
 		  "$ivl_class_method$rand_mode_get_assoc",
 		  "$ivl_class_method$rand_mode_get_last", "$ivl_enum_method$name",
@@ -31923,9 +31924,15 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 	    if (!it->index.empty()) {
 		  const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur_type);
 		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(cur_type);
-		  if ((!ua && !da)
+		  const netqueue_t*queue = dynamic_cast<const netqueue_t*>(cur_type);
+		  const netuarray_t*assoc_child = queue && queue->assoc_compat()
+			? dynamic_cast<const netuarray_t*>(queue->element_type())
+			: nullptr;
+		  if ((!ua && !da && !assoc_child)
 		      || (ua && it->index.size() != ua->static_dimensions().size())
-		      || (da && it->index.size() != 1)) {
+		      || (assoc_child && (assoc_child->static_dimensions().size() != 1
+			|| it->index.size() != 2))
+		      || (da && !assoc_child && it->index.size() != 1)) {
 			delete non_null;
 			return "";
 		  }
@@ -31937,6 +31944,63 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 			      return "";
 			}
 			if (!dynamic_cast<const PENumber*>(index.msb)) {
+			      bool state_index = false;
+			      const PEIdent*state_id =
+				    dynamic_cast<const PEIdent*>(index.msb);
+			      if (assoc_child && capture != selected.index.begin()) {
+				    if (state_id && !state_id->path().package
+					&& state_id->path().name.size() >= 2) {
+					  vector<perm_string> names;
+					  for (const name_component_t&part : state_id->path().name) {
+						if (part.local_scope || !part.index.empty()) break;
+						names.push_back(part.name);
+					  }
+					  if (names.size() == state_id->path().name.size()) {
+						int root = cls->property_idx_from_name(names.front());
+						if (root >= 0) {
+						      property_qualifier_t root_qual =
+							    cls->get_prop_qual((size_t)root);
+						      state_index = !root_qual.test_rand()
+							    && !root_qual.test_randc()
+							    && !constraint_class_state_path_ir_(names, cls).empty();
+						}
+					  }
+				    }
+			      }
+		      if (state_index) {
+			    /* The index is itself state. A null handle in its
+			       property chain must not become an invalid two-state
+			       array read that silently yields zero. */
+			    pform_name_t index_prefix;
+			    const netclass_t*index_owner = cls;
+			    for (auto part = state_id->path().name.begin();
+				 part != prev(state_id->path().name.end()); ++part) {
+				  int property = index_owner->property_idx_from_name(part->name);
+				  index_owner = property >= 0
+					? dynamic_cast<const netclass_t*>(
+					    index_owner->get_prop_type((size_t)property))
+					: nullptr;
+				  if (!index_owner) { delete non_null; return ""; }
+				  index_prefix.push_back(*part);
+				  PEBComp*check = new PEBComp('N',
+					new PEIdent(index_prefix, id->lexical_pos()),
+					new PENull);
+				  check->set_line(*index.msb);
+				  non_null = non_null
+					? static_cast<PExpr*>(
+					    new PEBLogic('a', non_null, check))
+					: static_cast<PExpr*>(check);
+			    }
+			    PExpr*known = new PEBComp('e',
+				  new PEIdent(state_id->path().name, id->lexical_pos()),
+				  new PEIdent(state_id->path().name, id->lexical_pos()));
+			    known->set_line(*index.msb);
+			    non_null = non_null
+				  ? static_cast<PExpr*>(new PEBLogic('a', non_null, known))
+				  : known;
+			    ++capture;
+			    continue;
+		      }
 			      const PEIdent*loop_id = dynamic_cast<const PEIdent*>(index.msb);
 			      if (!loop_env || !loop_id || loop_id->path().package
 				  || loop_id->path().name.size() != 1
@@ -31964,7 +32028,9 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
 			++capture;
 		  }
 		  indexed = true;
-		  cur_type = ua ? ua->element_type() : da->element_type();
+		  cur_type = ua ? ua->element_type()
+			: assoc_child ? assoc_child->element_type()
+			: da->element_type();
 	    }
 	    prefix.push_back(selected);
 	    value_path.push_back(selected);
@@ -31991,6 +32057,95 @@ static string constraint_class_state_indexed_path_ir_(const PEIdent*id,
       ivl_type_t capture = new netvector_t(IVL_VT_LOGIC, width - 1, 0,
 					   cur_type->get_signed());
       return constraint_state_expression_slot_(id, value, capture, cls, false);
+}
+
+/* A bounded integral associative key may be solver-random while the array
+ * and its fixed integral child are state. Capture every possible key's live
+ * value at randomize(), then select the matching capture in solver IR. This
+ * includes keys without an explicit entry: the ordinary associative read
+ * supplies their declared/default value. Never sample the random key in a
+ * state-slot wrapper before the solve (IEEE 1800-2017/2023 18.3, 18.4). */
+static string constraint_class_state_assoc_select_ir_(
+      const PEIdent*id, const netclass_t*cls, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (!id || !cls || !scope || id->path().package
+	  || id->path().name.size() < 2 || !constraint_ir_state_calls_ctx_)
+	    return "";
+      const netclass_t*owner = cls;
+      bool all_rand = true;
+      for (auto it = id->path().name.begin(); it != id->path().name.end(); ++it) {
+	    if (!owner || it->local_scope) return "";
+	    int prop = owner->property_idx_from_name(it->name);
+	    if (prop < 0) return "";
+	    property_qualifier_t qual = owner->get_prop_qual((size_t)prop);
+	    all_rand = all_rand && (qual.test_rand() || qual.test_randc());
+	    ivl_type_t type = owner->get_prop_type((size_t)prop);
+	    if (next(it) != id->path().name.end()) {
+		  if (!it->index.empty()) return "";
+		  owner = dynamic_cast<const netclass_t*>(type);
+		  continue;
+	    }
+	    const netqueue_t*assoc = dynamic_cast<const netqueue_t*>(type);
+	    const netuarray_t*child = assoc && assoc->assoc_compat()
+		  ? dynamic_cast<const netuarray_t*>(assoc->element_type())
+		  : nullptr;
+	    ivl_type_t key_type = assoc ? assoc->assoc_index_type() : nullptr;
+	    ivl_type_t leaf = child ? child->element_type() : nullptr;
+	    if (all_rand || !child || child->static_dimensions().size() != 1
+		  || it->index.size() != 2 || !key_type || !key_type->packed()
+		  || key_type->packed_width() == 0 || key_type->packed_width() > 4
+		  || (key_type->base_type() != IVL_VT_BOOL
+		      && key_type->base_type() != IVL_VT_LOGIC)
+		  || !leaf || !leaf->packed() || leaf->packed_width() == 0
+		  || (leaf->base_type() != IVL_VT_BOOL
+		      && leaf->base_type() != IVL_VT_LOGIC))
+		  return "";
+	    const index_component_t&key = it->index.front();
+	    if (key.sel != index_component_t::SEL_BIT || !key.msb || key.lsb)
+		  return "";
+	    size_t first_slot = constraint_ir_state_calls_ctx_->size();
+	    auto reject = [&]() -> string {
+		  constraint_ir_state_calls_ctx_->resize(first_slot);
+		  return "";
+	    };
+	    string key_ir = pexpr_to_constraint_ir(key.msb, cls, nullptr,
+						  scope, loop_env);
+	    if (key_ir.empty()) return reject();
+	    unsigned key_width = (unsigned)key_type->packed_width();
+	    string suffix = key_type->get_signed() ? ":s" : "";
+	    string normalized = "(trunc:" + to_string(key_width) + suffix
+		  + " " + key_ir + ")";
+	    vector<string> values;
+	    values.reserve(1u << key_width);
+	    for (unsigned key_value = 0; key_value < (1u << key_width);
+		  ++key_value) {
+		  pform_name_t path = id->path().name;
+		  auto select = path.back().index.begin();
+		  verinum*bits = new verinum(key_value, key_width);
+		  bits->has_sign(key_type->get_signed());
+		  unique_ptr<PExpr> literal(new PENumber(bits));
+		  literal->set_line(*key.msb);
+		  select->msb = literal.get();
+		  PEIdent selected(path, id->lexical_pos());
+		  selected.set_line(*id);
+		  string value = constraint_class_state_indexed_path_ir_(
+			&selected, cls, loop_env);
+		  if (value.empty()) return reject();
+		  values.push_back(value);
+	    }
+	    string result = values.back();
+	    for (unsigned key_value = (unsigned)values.size() - 1;
+		  key_value-- > 0;) {
+		  string match = "(eq " + normalized + " c:"
+			+ to_string(key_value) + ":" + to_string(key_width)
+			+ suffix + ")";
+		  result = "(ite " + match + " " + values[key_value]
+			+ " " + result + ")";
+	    }
+	    return result;
+      }
+      return "";
 }
 
 /* The element count of a const outside array is fixed: by its unpacked
@@ -33607,6 +33762,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!state_ir.empty()) return state_ir;
 		  } else if (!value_slots) {
 			string state_ir =
+			      constraint_class_state_assoc_select_ir_(
+				id, cls, scope, loop_env);
+			if (!state_ir.empty()) return state_ir;
+			state_ir =
 			      constraint_class_state_indexed_path_ir_(id, cls, loop_env);
 			if (!state_ir.empty()) return state_ir;
 		  }
