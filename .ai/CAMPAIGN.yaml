@@ -3,13 +3,13 @@ mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned 
 branch: agent/ot-compile-blockers-20260927
 checkpoint_head: 70580fdaf
 active_open_titan_lane:
-  blocker: "OT-FLASH-POST-INIT-RUNTIME-PROGRESS"
+  blocker: "OT-FLASH-ZERO-TIME-COMBINATIONAL-LOOP"
   phase: "DV_RUNTIME_TRIAGE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "70580fdaf"
-  reproducer: "Guarded nested handle copy-out reaches all eight Flash memory-bank initialization starts by 37.6 s with indexed VPI lookup optimized. The 95 s bounded run yields no later UVM marker or DV verdict."
+  reproducer: "Guarded selected Flash smoke completes memory initialization and init CSR polling, then freezes at 4401.911 ns. PC tracing records 725 million opcodes without time advance, mainly in flash_ctrl_lcmgr and NRZ prim_sync_reqack."
   pending_validation: "Copy-out strict paired focus passes 4/4 in each harness, selected six-patch compile has zero hard errors and 105 warnings, and indexed VPI 2017/2023 focus passes 2/2. The 16,384-deposit duplicator drops from about 8.89 to 0.11 CPU seconds. No Flash DV pass or current-image 49-core census."
-  next_command: "Profile the selected Flash run after the eighth initialization marker and reduce its next bottleneck before considering a longer timeout. The Caliptra 52-case run remains stopped pending performance work."
+  next_command: "Build a minimal LC-manager/request-acknowledge reducer and distinguish RTL feedback from Icarus scheduling before any fix or selected Flash replay. The Caliptra 52-case run remains stopped while compiler speed candidates are measured."
   boundary: "Pinned OpenTitan is pristine. Source overlays and selected unsafe-mode results are explicit; exit-zero VVP with UVM_ERROR remains DV failure."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
