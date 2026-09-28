@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 770472f02
+checkpoint_head: 782fb1529
 active_open_titan_lane:
-  blocker: "OT-SPID-CONST-REF-FORWARD"
-  phase: "REDUCED_IMPLEMENTING"
+  blocker: "OT-SPID-STALE-PORTS-MIXED-DRIVERS"
+  phase: "SPLIT_MINIMAL_TRIAGE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "770472f02"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-spid-const-ref-forward-min.sv; patched-copy SPID has four const-signal errors"
-  pending_validation: "Keymgr defaulted-method commit 770472f02 passes paired strict JSON 4/4 and legacy 4/4 with independent review; one unchanged pinned Keymgr compile exits zero with 41 warnings, four fewer than before and no unresolved get_current_max_version or assumed-false branches. No runtime, broad gate, install, or fresh census."
-  next_command: "Fix const-ref-to-const-ref forwarding through the shared binding path with paired strict minimal controls before one focused patched-copy SPID compile; do not start SPID runtime yet."
+  baseline_head: "782fb1529"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-const-ref-core-focused-20260927/compile.log; three spid_jedec_tb.sv stale ports and four sd_out mixed-driver errors remain"
+  pending_validation: "Const-ref compiler fix 6e9283b59 passes direct paired strict 26/26, registered JSON 16/16, legacy 8/8, and independent review. Named SPID source patch 782fb1529 supplies the required 28 read_pipeline_mode fields on a disposable copy. One patched-copy spid_jedec compile falls from 11 to seven hard errors, with the four const-ref errors gone and the other seven byte-for-byte unchanged. Flash named source patch 4d8b2e170 clears its first syntax error but exposes 231 independent elaboration errors. No SPID/Flash runtime, broad gate, install, or fresh census."
+  next_command: "Reduce the three stale SPID port names and four mixed sd_out drivers separately against pinned RTL and Slang; use named disposable source corrections only where the released testbench is wrong. No further core rerun until minimal classifications are complete."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
