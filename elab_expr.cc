@@ -382,11 +382,34 @@ NetESFunc* make_randomize_with_expr(
  * lowering rather than $ivl_std_randomize's raw bits. So does a function's
  * implicit return variable (13.4.1): a system task receives it by value,
  * and only the solver lowering stores its result to the return value. */
+static NetNet* std_randomize_fixed_array_arg_(const PExpr*arg,
+					      Design*des, NetScope*scope)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(arg);
+      if (!id || id->path().size() != 1
+	  || !id->path().back().index.empty())
+	    return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.net || !sr.path_tail.empty() || sr.path_head.empty()
+	  || !sr.path_head.back().index.empty())
+	    return nullptr;
+      NetNet*net = sr.net;
+      if (net->unpacked_dimensions() != 1 || net->darray_type()
+	  || net->queue_type() || net->type() != NetNet::REG
+	  || net->enumeration() || net->unpacked_count() == 0)
+	    return nullptr;
+      ivl_variable_type_t base = net->data_type();
+      return base == IVL_VT_BOOL || base == IVL_VT_LOGIC ? net : nullptr;
+}
+
 bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 				    Design*des, NetScope*scope)
 {
       for (const named_pexpr_t&parm : parms) {
 	    if (!parm.parm) continue;
+	    if (std_randomize_fixed_array_arg_(parm.parm, des, scope))
+	      continue;
 	    NetExpr*ne = elab_and_eval(des, scope, parm.parm, -1, false);
 	    bool is_enum = ne && (ne->enumeration()
 			|| dynamic_cast<const netenum_t*>(ne->net_type()));
@@ -399,6 +422,46 @@ bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 	    if (is_enum || is_return) return true;
       }
       return false;
+}
+
+/* A fixed unpacked array is one scope-randomize argument, but the VPI
+ * implementation writes individual integral variables. Supply each
+ * canonical memory word as an argument, retaining the existing RNG and
+ * write-back path. Constraint-bearing calls use the solver path instead. */
+NetESFunc* make_std_randomize_simple_expr(
+      const vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
+      const LineInfo*loc)
+{
+      vector<NetExpr*> args;
+      for (const named_pexpr_t&parm : parms) {
+	    if (!parm.parm) {
+		for (NetExpr*old : args) delete old;
+		return nullptr;
+	    }
+	    if (NetNet*array = std_randomize_fixed_array_arg_(
+		  parm.parm, des, scope)) {
+		for (unsigned word = 0; word < array->unpacked_count(); ++word) {
+		      NetEConst*index = make_const_val_s(word);
+		      index->set_line(*parm.parm);
+		      NetESignal*element = new NetESignal(array, index);
+		      element->set_line(*parm.parm);
+		      args.push_back(element);
+		}
+	    } else {
+		NetExpr*arg = elab_and_eval(des, scope, parm.parm, -1);
+		if (!arg) {
+		      for (NetExpr*old : args) delete old;
+		      return nullptr;
+		}
+		args.push_back(arg);
+	    }
+      }
+      NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
+					 IVL_VT_BOOL, 32, args.size());
+      fun->set_line(*loc);
+      for (size_t idx = 0; idx < args.size(); ++idx)
+	    fun->parm(idx, args[idx]);
+      return fun;
 }
 
 NetESFunc* make_std_randomize_with_expr(
@@ -424,7 +487,8 @@ NetESFunc* make_std_randomize_with_expr(
        * constraints, with an inline path such as h.payload.valid rooted
        * at that object. This is semantically an all-properties object
        * randomize, not an attempt to synthesize random pointer bits. */
-      if (parms.size() == 1 && parms[0].parm) {
+      if (parms.size() == 1 && parms[0].parm
+	  && !std_randomize_fixed_array_arg_(parms[0].parm, des, scope)) {
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(parms[0].parm);
 	    if (id && id->path().size() == 1
 		&& id->path().back().index.empty()) {
@@ -491,6 +555,15 @@ NetESFunc* make_std_randomize_with_expr(
 
       for (size_t idx = 0 ; idx < parms.size() ; idx += 1) {
 	    PExpr*pe = parms[idx].parm;
+	    if (std_randomize_fixed_array_arg_(pe, des, scope)) {
+		cerr << loc->get_fileline() << ": sorry: "
+		     << "std::randomize() with constraints on a fixed "
+		     << "unpacked array is not yet supported; the call "
+		     << "cannot be compiled." << endl;
+		des->errors += 1;
+		for (NetExpr*old : random_vars) delete old;
+		return nullptr;
+	    }
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(pe);
 	    if (!id || id->path().size() != 1
 		|| !id->path().back().index.empty()) {
@@ -16121,22 +16194,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				      has_randomize_with_identifier_list(),
 				      des, scope, this);
 		  }
-		  NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
-						IVL_VT_BOOL, 32,
-						parms_.size());
-		  fun->set_line(*this);
-		  bool args_ok = true;
-		  for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
-			NetExpr*ap = 0;
-			if (parms_[idx].parm)
-			      ap = elab_and_eval(des, scope,
-						 parms_[idx].parm, -1);
-			if (!ap) { args_ok = false; break; }
-			fun->parm(idx, ap);
-		  }
-		  if (args_ok)
-			return fun;
-		  delete fun;
+		  return make_std_randomize_simple_expr(
+		      parms_, des, scope, this);
 	    }
 
 	      /* A template seed carries no debt: see 8.25 above.  Checked

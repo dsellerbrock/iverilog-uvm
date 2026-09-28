@@ -92,6 +92,9 @@ extern NetESFunc* make_randomize_with_expr(
       bool force_all_properties = false);
 extern bool std_randomize_args_need_solver(
       const std::vector<named_pexpr_t>&parms, Design*des, NetScope*scope);
+extern NetESFunc* make_std_randomize_simple_expr(
+      const std::vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
+      const LineInfo*loc);
 extern NetESFunc* make_std_randomize_with_expr(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,
@@ -13588,20 +13591,17 @@ static NetProc* elaborate_scope_randomize_task_(
 	    return sys;
       }
 
-      vector<NetExpr*> argv(parms.size(), nullptr);
-      for (size_t idx = 0 ; idx < parms.size() ; idx += 1) {
-	    if (parms[idx].parm)
-		  argv[idx] = elab_and_eval(
-			des, scope, parms[idx].parm, -1, false);
-	    if (!argv[idx]) {
-		  for (NetExpr*arg : argv) delete arg;
-		  return nullptr;
-	    }
-      }
+      NetESFunc*fun = make_std_randomize_simple_expr(
+	    parms, des, scope, call);
+      if (!fun) return nullptr;
+      vector<NetExpr*> argv(fun->nparms());
+      for (unsigned idx = 0 ; idx < fun->nparms() ; idx += 1)
+	    argv[idx] = fun->parm(idx)->dup_expr();
 
       NetSTask*sys = new NetSTask("$ivl_std_randomize",
 				  IVL_SFUNC_AS_TASK_IGNORE, argv);
       sys->set_line(*call);
+      delete fun;
       return sys;
 }
 
