@@ -1,0 +1,4 @@
+ivltests/sv_const_ref_forward_writable_fail.v:6: error: Assignment to const signal `value` is not allowed.
+ivltests/sv_const_ref_forward_writable_fail.v:6: error: Assignment to const signal `value` is not allowed.
+ivltests/sv_const_ref_forward_writable_fail.v:6: error: I give up on task port 1 expression: value
+2 error(s) during elaboration.

@@ -1,0 +1,2 @@
+ivltests/sv_const_ref_forward_function_type_fail.v:7: error: A const ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+1 error(s) during elaboration.

@@ -243,7 +243,8 @@ class PExpr : public LineInfo {
 					 NetScope*scope,
 					 bool is_cassign,
 					 bool is_force,
-					 bool is_init = false) const;
+					 bool is_init = false,
+					 bool read_only_ref = false) const;
 
 	// This method returns true if the expression represents a
         // structural net that can have multiple drivers. This is
@@ -434,7 +435,8 @@ class PEConcat : public PExpr {
 					 NetScope*scope,
 					 bool is_cassign,
 					 bool is_force,
-					 bool is_init = false) const override;
+					 bool is_init = false,
+					 bool read_only_ref = false) const override;
       virtual bool is_collapsible_net(Design*des, NetScope*scope,
                                       NetNet::PortType port_type) const override;
     private:
@@ -580,7 +582,8 @@ class PEIdent : public PExpr {
 					 NetScope*scope,
 					 bool is_cassign,
 					 bool is_force,
-					 bool is_init = false) const override;
+					 bool is_init = false,
+					 bool read_only_ref = false) const override;
 
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     ivl_type_t type, unsigned flags) const override;
@@ -729,7 +732,7 @@ class PEIdent : public PExpr {
 				      NetNet *reg, ivl_type_t data_type,
 				      pform_name_t tail_path,
 				      const std::list<index_component_t>&base_index,
-				      bool is_init) const;
+				      bool is_init, bool read_only_ref) const;
       NetAssign_*elaborate_lval_net_word_(Design*, NetScope*, NetNet*,
 					  bool need_const_idx, bool is_force) const;
       bool elaborate_lval_net_bit_(Design*, NetScope*, NetAssign_*,
@@ -745,7 +748,8 @@ class PEIdent : public PExpr {
 						   pform_name_t,
 						   const std::list<index_component_t>&base_index,
 						   bool need_const_idx,
-						   bool is_init) const;
+						   bool is_init,
+						   bool read_only_ref) const;
       bool elaborate_lval_net_packed_member_(Design*, NetScope*,
 					     NetAssign_*,
 					     pform_name_t member_path, bool is_force) const;
@@ -1093,7 +1097,8 @@ class PENumber : public PExpr {
 					 NetScope*scope,
 					 bool is_cassign,
 					 bool is_force,
-					 bool is_init = false) const override;
+					 bool is_init = false,
+					 bool read_only_ref = false) const override;
 
     private:
       verinum*const value_;
@@ -1804,7 +1809,8 @@ class PEStreamWith : public PExpr {
                               unsigned flags) const override;
       NetAssign_* elaborate_lval(Design*des, NetScope*scope,
                                  bool is_cassign, bool is_force,
-                                 bool is_init = false) const override;
+                                 bool is_init = false,
+                                 bool read_only_ref = false) const override;
 
     private:
       PExpr*base_;

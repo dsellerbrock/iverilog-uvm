@@ -1,0 +1,1 @@
+{"type":"normal","source":"sv_const_ref_forward.v","iverilog-args":["-g2023","-s","sv_const_ref_forward"],"gold":"sv_const_ref_forward"}

@@ -1,0 +1,3 @@
+./ivltests/sv_const_ref_forward_packed_select_fail.v:6: error: A const ref actual must be a variable, class property, or unpacked member or element.
+./ivltests/sv_const_ref_forward_packed_select_fail.v:11: error: A const ref actual must be a variable, class property, or unpacked member or element.
+2 error(s) during elaboration.

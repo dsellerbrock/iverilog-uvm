@@ -18053,7 +18053,23 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 	    break;
       }
 
-      if (NetAssign_*lv = actual->elaborate_lval(des, scope, false, false)) {
+      if (NetAssign_*lv = actual->elaborate_lval(
+				des, scope, false, false, false,
+				port->get_const())) {
+	    if (port->get_const()) {
+		ivl_type_t formal_type = port->net_type();
+		ivl_type_t actual_type = netassign_type_for_equivalence(lv);
+		if (!formal_type || !actual_type
+		    || !formal_type->type_equivalent(actual_type)
+		    || !actual_type->type_equivalent(formal_type)) {
+		    cerr << actual->get_fileline() << ": error: A const ref actual "
+			 << "must have a type equivalent to the formal "
+			 << "(IEEE 1800-2017/2023 13.5.2)." << endl;
+		    des->errors += 1;
+		    delete lv;
+		    return nullptr;
+		}
+	    }
 	    const netclass_t*formal_vif =
 		  virtual_interface_type_(port->net_type());
 	    const netclass_t*actual_vif =
@@ -18172,6 +18188,10 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 	    }
 
 	    delete lv;
+      } else if (port->get_const()) {
+	    // The temporary fallback below is for an addressable subobject,
+	    // not a value expression such as x+1.
+	    return nullptr;
       }
 
       if (sig == 0) {

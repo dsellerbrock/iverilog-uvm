@@ -86,8 +86,14 @@ static string stream_int128_text_(__int128 value)
 
 NetAssign_* PEStreamWith::elaborate_lval(Design*des, NetScope*scope,
                                           bool is_cassign, bool is_force,
-                                          bool is_init) const
+                                          bool is_init, bool read_only_ref) const
 {
+      if (read_only_ref) {
+	cerr << get_fileline() << ": error: A const ref actual must be a variable."
+	     << endl;
+	des->errors += 1;
+	return nullptr;
+      }
       NetAssign_*res = base_->elaborate_lval(des, scope, is_cassign,
                                              is_force, is_init);
       if (!res)
@@ -280,9 +286,16 @@ void PEIdent::report_mixed_assignment_conflict_(const char*category) const
  * is to try to make a net elaboration, and see if the result is
  * suitable for assignment.
  */
-NetAssign_* PExpr::elaborate_lval(Design*, NetScope*, bool, bool, bool) const
+NetAssign_* PExpr::elaborate_lval(Design*des, NetScope*, bool, bool, bool,
+				 bool read_only_ref) const
 {
-      cerr << get_fileline() << ": Assignment l-value too complex." << endl;
+      if (read_only_ref) {
+	cerr << get_fileline() << ": error: A const ref actual must be a variable."
+	     << endl;
+	des->errors += 1;
+      } else {
+	cerr << get_fileline() << ": Assignment l-value too complex." << endl;
+      }
       return 0;
 }
 
@@ -346,8 +359,15 @@ NetAssign_* PEConcat::elaborate_lval(Design*des,
                                      NetScope*scope,
                                      bool is_cassign,
                                      bool is_force,
-                                     bool is_init) const
+                                     bool is_init,
+                                     bool read_only_ref) const
 {
+      if (read_only_ref) {
+	cerr << get_fileline() << ": error: A const ref actual must be a variable."
+	     << endl;
+	des->errors += 1;
+	return nullptr;
+      }
       if (repeat_) {
 	    cerr << get_fileline() << ": error: Repeat concatenations make "
 		  "no sense in l-value expressions. I refuse." << endl;
@@ -702,7 +722,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 				    NetScope*scope,
 				    bool is_cassign,
 				    bool is_force,
-				    bool is_init) const
+				    bool is_init,
+				    bool read_only_ref) const
 {
 
       for (const name_component_t&component : path_.name) {
@@ -829,13 +850,15 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_clocking_access(mapped_access);
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
-						    is_force, is_init);
+						      is_force, is_init,
+						      read_only_ref);
 	    }
 	    PEIdent mapped_ident(rewritten_path, lexical_pos_);
 	    mapped_ident.set_line(*this);
 	    mapped_ident.set_clocking_access(mapped_access);
 	    return mapped_ident.elaborate_lval(des, scope, is_cassign,
-					      is_force, is_init);
+						is_force, is_init,
+						read_only_ref);
       }
 
 	/* The l-value must be a variable. If not, then give up and
@@ -955,7 +978,36 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
             && reg->unpacked_dimensions() == 0
             && !sr.path_head.empty() && sr.path_head.back().index.empty()
             && dynamic_cast<const netclass_t*>(reg->net_type());
-      if (reg->get_const() && !is_init && !class_member_write) {
+	/* A const-ref call needs the storage address, not permission to
+	   assign to it. Packed selects are not reference actuals
+	   (IEEE 1800-2017/2023 13.5.2). */
+      const netstruct_t*record =
+	    dynamic_cast<const netstruct_t*>(reg->net_type());
+      bool unpacked_member = record && !record->packed()
+	    && member_path.size() == 1
+	    && member_path.front().index.empty();
+      bool addressable_const_ref = read_only_ref
+	    && (member_path.empty() || unpacked_member);
+      if (addressable_const_ref && !sr.path_head.empty()) {
+	const auto&indices = sr.path_head.back().index;
+	unsigned unpacked_dims = reg->unpacked_dimensions();
+	if (reg->darray_type()) unpacked_dims += 1;
+	if (indices.size() > unpacked_dims)
+	  addressable_const_ref = false;
+	for (const index_component_t&index : indices)
+	  if (index.sel != index_component_t::SEL_BIT)
+	    addressable_const_ref = false;
+      }
+	if (read_only_ref && !addressable_const_ref
+	    && !class_member_write) {
+	    cerr << get_fileline() << ": error: A const ref actual must be "
+		 << "a variable, class property, or unpacked member or element."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+	}
+      if (reg->get_const() && !is_init && !class_member_write
+	  && !addressable_const_ref) {
 	    cerr << get_fileline() << ": error: Assignment to const signal `"
 	         << reg->name() << "` is not allowed." << endl;
 	    des->errors++;
@@ -979,7 +1031,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       ivl_assert(*this, !sr.path_head.empty());
       NetAssign_*res = elaborate_lval_var_(des, scope, is_force, is_cassign,
 					 reg, sr.type, member_path,
-					 sr.path_head.back().index, is_init);
+					 sr.path_head.back().index, is_init,
+					 read_only_ref);
       if (is_force && res)
 	    res->mark_force_lval();
       return res;
@@ -990,7 +1043,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 					NetNet *reg, ivl_type_t data_type,
 					const pform_name_t tail_path,
 					const list<index_component_t>&base_index,
-					bool is_init) const
+					bool is_init, bool read_only_ref) const
 {
 	// We are processing the tail of a string of names. For
 	// example, the Verilog may be "a.b.c", so we are processing
@@ -1177,7 +1230,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 		  return elaborate_lval_net_class_member_(des, scope, member_root_type,
 							  reg, tail_path, base_index,
 							  is_cassign || is_force,
-							  is_init);
+							  is_init, read_only_ref);
       }
 
 
@@ -3079,7 +3132,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    ivl_type_t root_type, NetNet*sig,
 				    pform_name_t member_path,
 				    const list<index_component_t>&base_index,
-				    bool need_const_idx, bool is_init) const
+				    bool need_const_idx, bool is_init,
+				    bool read_only_ref) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEIdent::elaborate_lval_net_class_member_: "
@@ -3470,7 +3524,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			des->errors += 1;
 
 		  } else if (qual.test_static()) {
-			  if (qual.test_const()) {
+			  if (qual.test_const()
+			      && !(read_only_ref && member_cur.index.empty()
+				   && member_path.empty())) {
 				cerr << get_fileline() << ": error: Assignment to const class property `"
 				     << owner_class->get_prop_name(pidx)
 				     << "' is not allowed." << endl;
@@ -3517,7 +3573,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    return elaborate_lval_net_class_member_(
 					  des, scope, psig->net_type(), psig,
 					  member_path, member_cur.index,
-					  need_const_idx, is_init);
+					  need_const_idx, is_init,
+					  read_only_ref);
 			      }
 			      cerr << get_fileline() << ": sorry: member"
 				   << " access into an indexed static-property"
@@ -3598,7 +3655,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			des->errors += 1;
 			return 0;
 
-		  } else if (qual.test_const()) {
+		  } else if (qual.test_const()
+			     && !(read_only_ref && member_cur.index.empty()
+				  && member_path.empty())) {
 			// Instance-constant writes are authorized per assignment site by
 			// the unlowered constructor control-flow audit. A single mutable
 			// bit cannot decide this: assignments in mutually exclusive arms
@@ -4866,7 +4925,8 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
       }
 }
 
-NetAssign_* PENumber::elaborate_lval(Design*des, NetScope*, bool, bool, bool) const
+NetAssign_* PENumber::elaborate_lval(Design*des, NetScope*, bool, bool, bool,
+				    bool) const
 {
       cerr << get_fileline() << ": error: Constant values not allowed "
 	   << "in l-value expressions." << endl;
