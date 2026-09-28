@@ -7,21 +7,22 @@
     "hard_diagnostics": 18
   },
   "candidate": {
-    "ivl_sha256": "4fca3bc5aa877ccce5c74a01bc77a184d799ffa3a4b7a922f1b3d806bb41aa45",
+    "ivl_sha256": "d7501288dbb9e2c8c57a074b82e1e8b9f2e3278a2dc270305d8b3bab48bab015",
     "compile_exit": 5,
     "hard_diagnostics": 5,
-    "compile_log": "/private/tmp/ot-alert-final-focused.compile"
+    "compile_log": "/private/tmp/ot-alert-review-repair-focused.compile"
   },
   "fixed": [
     "Package-qualified packed-parameter foreach retains its declared packed dimensions; the alert_handler_reg_pkg::LpgMap diagnostic is gone.",
-    "Inline randomize target-member lookup precedes the caller's inherited lock() task; twelve spurious automatic-item hierarchy diagnostics are gone."
+    "Inline randomize target-member lookup precedes the caller's inherited lock() task; twelve spurious automatic-item hierarchy diagnostics are gone.",
+    "Package-qualified scalar integral parameters (int, integer, byte) are rejected before the generic expression route can iterate their implementation bit ranges."
   ],
   "focused_checks": {
-    "strict_2017_2023_and_neighbor_json_profiles": "22/22",
+    "strict_2017_2023_and_neighbor_json_profiles": "26/26",
     "old_compiler_new_foreach_test": "RED: one elaboration error",
     "old_compiler_new_inline_test": "RED: three automatic-item hierarchy errors",
     "new_compiler_tests": "GREEN: exact PASSED output in both editions",
-    "package_scalar_foreach": "still rejected"
+    "package_scalar_foreach": "three package-qualified integral atom errors match exact gold in both strict editions"
   },
   "remaining": [
     "Three dist endpoint errors in alert_handler_smoke_vseq.sv:56 and alert_handler_entropy_vseq.sv:20-21. Their 65-bit packed subjects use context-sensitive unbased fill expressions; the current bounded constant IR supports at most 64 bits.",
