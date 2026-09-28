@@ -1,0 +1,2 @@
+ivltests/sv_foreach_omitted_assoc_excess_fail.v:4: error: foreach target map has too few dimensions for foreach dimension list.
+1 error(s) during elaboration.

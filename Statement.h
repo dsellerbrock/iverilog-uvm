@@ -868,7 +868,8 @@ class PForeach : public Statement {
 				       const netranges_t&dims) const;
       NetProc* elaborate_static_array_prefix_(Design*des, NetScope*scope,
 				       const netranges_t&dims, size_t count,
-				       NetProc*sub) const;
+				       NetProc*sub,
+				       size_t index_var_start = 0) const;
       NetProc* elaborate_mixed_fixed_array_(Design*des, NetScope*scope,
 				       const netranges_t&dims) const;
 

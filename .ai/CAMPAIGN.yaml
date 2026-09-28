@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 513b865c9
+checkpoint_head: 8f122784b
 active_open_titan_lane:
   blocker: "OT-FLASH-FOREACH-OMITTED-ASSOC-KEY"
-  phase: "SELECTED_MINIMAL_REPRODUCER"
+  phase: "FOCUSED_TESTED_APPLICATION_STILL_RED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "513b865c9"
+  baseline_head: "8f122784b"
   reproducer: "projectless work/flash-foreach-next-20260928/flash-omitted-assoc-key.sv with -DRED_OMITTED; strict 2017/2023 Icarus rejects omitted associative key followed by fixed bank index, Slang accepts, explicit-loop control runs"
-  pending_validation: "The VIF checkpoint passes paired 14/14 JSON and legacy focus; a patched-copy Flash compile has 21 hard diagnostics and 146 warnings. The selected flash_ctrl_env.sv:43 error is isolated to omitted associative outer index with a fixed inner bank rank. All 21 hard errors have a current grouping and small triage; 37 randomize()-will-fail warnings remain. No Flash VVP image or DV runtime exists."
-  next_command: "Implement only the selected omitted-associative-key foreach path and paired runtime/negative controls, then review before one patched-copy Flash compile. Do not run the broad suite until current corpus work is complete."
-  boundary: "One implementation blocker at a time. No pinned-source edits, unsafe flag, solver or array-method changes, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
+  pending_validation: "Build-tree ivl SHA-256 e561d97a5a92f6f760421b5e9f35164c8161c6ebbce287e1fa164832b1c9e604 passes strict paired JSON and legacy focus 6/6 each; independent review found no scoped blocker. One controlled patched-source Flash compile drops 21 to 20 hard diagnostics: only flash_ctrl_env.sv:43 clears, no new hard error, all 146 warnings unchanged. No VVP image exists. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. Integrated gates, install, DV runtime, broad suite, and fresh 49-core census remain pending."
+  next_command: "Commit the focused checkpoint, then classify the 20-error corpus and select the next concrete blocker before another Flash source-list replay."
+  boundary: "One implementation blocker at a time. Legal packed-tail and indexed earlier-target omitted-associative foreach forms are explicit unsupported boundaries, not claimed working. No pinned-source edits, unsafe flag, solver or array-method changes, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED

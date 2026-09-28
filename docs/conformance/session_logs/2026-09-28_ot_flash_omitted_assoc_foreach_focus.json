@@ -1,0 +1,39 @@
+{
+  "id": "OT-FLASH-FOREACH-OMITTED-ASSOC-KEY",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint",
+  "compiler_base_commit": "8f122784b92eb17071d77c85485aed6ec0cda167",
+  "compiler_engine_sha256": "e561d97a5a92f6f760421b5e9f35164c8161c6ebbce287e1fa164832b1c9e604",
+  "root_cause": "PForeach::elaborate_assoc_array_ required a named associative index before inspecting the fixed child rank.",
+  "correction": "An omitted associative rank skips key traversal and reuses declared fixed-range loop lowering with an index-variable offset. All-omitted forms visit zero bodies.",
+  "focused_validation": {
+    "json": "6/6 passed, strict paired 2017/2023",
+    "legacy": "6/6 passed, strict paired 2017/2023",
+    "runtime": "Original Flash-shaped reducer and registered populated/empty class and signal controls pass with distinct bank values and declared ascending/descending order.",
+    "negative": "True excess rank hard-errors; legal packed tail and indexed earlier target prefix explicitly diagnose unsupported.",
+    "independent_review": "No remaining scoped blocker on final compiler image.",
+    "diff_check": "git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 21,
+    "after_hard_diagnostics": 20,
+    "removed_diagnostic": "flash_ctrl_env.sv:43 associative-array foreach requires a named associative index variable",
+    "added_hard_diagnostics": 0,
+    "warnings_before": 146,
+    "warnings_after": 146,
+    "explicit_randomize_will_fail_warnings": 37,
+    "exit_code": 20,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "raw_result": "projectless work/ot-flash-omitted-assoc-core-20260928/result.json"
+  },
+  "boundaries": [
+    "The remaining 20 hard diagnostics prevent Flash compilation and DV runtime.",
+    "Broad gates, installation, and a fresh 49-core census remain pending.",
+    "Pinned OpenTitan and Caliptra sources were not modified."
+  ]
+}

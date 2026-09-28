@@ -4919,3 +4919,11 @@ sv_vif_packed_struct_field_range_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtype
 sv_vif_packed_struct_field_string_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_string_index_fail.gold
 sv_vif_packed_struct_field_real_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_real_index_fail.gold
 sv_vif_packed_struct_field_enum_method_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_enum_method_fail.gold
+
+# Skipped associative rank with a fixed bank child.
+sv_foreach_omitted_assoc_fixed_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_fixed.gold
+sv_foreach_omitted_assoc_excess_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_excess_fail.gold
+sv_foreach_omitted_assoc_indexed_prefix_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix_fail.gold
+sv_foreach_omitted_assoc_fixed_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_fixed.gold
+sv_foreach_omitted_assoc_excess_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_excess_fail.gold
+sv_foreach_omitted_assoc_indexed_prefix_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix_fail.gold

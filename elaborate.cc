@@ -24324,7 +24324,7 @@ NetProc* PForeach::elaborate_static_array_(Design*des, NetScope*scope,
 
 NetProc* PForeach::elaborate_static_array_prefix_(Design*des,
 		NetScope*scope, const netranges_t&dims, size_t count,
-		NetProc*sub) const
+		NetProc*sub, size_t index_var_start) const
 {
       NetForLoop*stmt = 0;
 
@@ -24343,7 +24343,7 @@ NetProc* PForeach::elaborate_static_array_prefix_(Design*des,
 
 	      // It is possible to skip dimensions by not providing a identifier
 	      // name for it. E.g. `int x[1][2][3]; foreach(x[a,,b]) ...`
-	    if (index_vars_[idx_idx].nil())
+	    if (index_vars_[index_var_start + idx_idx].nil())
 		  continue;
 
 	      // Get the $high and $low constant values for this slice
@@ -24357,7 +24357,7 @@ NetProc* PForeach::elaborate_static_array_prefix_(Design*des,
 	    right_expr->set_line(*this);
 
 	    pform_name_t idx_name;
-	    idx_name.push_back(name_component_t(index_vars_[idx_idx]));
+	    idx_name.push_back(name_component_t(index_vars_[index_var_start + idx_idx]));
 	    NetNet*idx_sig = des->find_signal(scope, idx_name);
 	    ivl_assert(*this, idx_sig);
 
@@ -24380,8 +24380,8 @@ NetProc* PForeach::elaborate_static_array_prefix_(Design*des,
 	    sub = stmt;
       }
 
-        // If there are no loop variables elide the whole block
-      if (!stmt && count == index_vars_.size()) {
+	// If there are no loop variables elide the whole block.
+      if (!stmt && index_var_start + count == index_vars_.size()) {
 	    delete sub;
 	    return new NetBlock(NetBlock::SEQU, 0);
       }
@@ -24627,8 +24627,56 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 {
       ivl_assert(*this, array_expr);
 
-      if (index_vars_.size() <= index_var_start
-	  || index_vars_[index_var_start].nil()) {
+      if (index_vars_.size() > index_var_start
+	  && index_vars_[index_var_start].nil()) {
+	for (const name_component_t&part : array_path_) {
+	  if (part.index.empty()) continue;
+	  delete array_expr;
+	  cerr << get_fileline() << ": sorry: omitted associative foreach"
+	       << " with an indexed target prefix is not supported." << endl;
+	  des->errors += 1;
+	  return nullptr;
+	}
+	const netqueue_t*assoc =
+	    dynamic_cast<const netqueue_t*>(array_expr->net_type());
+	ivl_assert(*this, assoc && assoc->assoc_compat());
+	const netuarray_t*fixed =
+	    dynamic_cast<const netuarray_t*>(assoc->element_type());
+	const size_t count = index_vars_.size() - index_var_start - 1;
+	if (count && !fixed) {
+	  delete array_expr;
+	  cerr << get_fileline() << ": sorry: omitted associative foreach"
+	       << " requires fixed child dimensions." << endl;
+	  des->errors += 1;
+	  return nullptr;
+	}
+	if (count && count > fixed->static_dimensions().size()) {
+	  const netvector_t*leaf =
+	      dynamic_cast<const netvector_t*>(fixed->element_type());
+	  size_t packed_count = leaf ? leaf->packed_dims().size() : 0;
+	  delete array_expr;
+	  if (count <= fixed->static_dimensions().size() + packed_count)
+	    cerr << get_fileline() << ": sorry: foreach over packed dimensions"
+	         << " after omitted associative index is not supported." << endl;
+	  else
+	    cerr << get_fileline() << ": error: foreach target " << array_path_
+	         << " has too few dimensions for foreach dimension list." << endl;
+	  des->errors += 1;
+	  return nullptr;
+	}
+	delete array_expr;
+	NetProc*sub = statement_ ? statement_->elaborate(des, scope)
+				 : new NetBlock(NetBlock::SEQU, 0);
+	if (!count) {
+	  delete sub;
+	  return new NetBlock(NetBlock::SEQU, 0);
+	}
+	return elaborate_static_array_prefix_(
+	    des, scope, fixed->static_dimensions(), count, sub,
+	    index_var_start + 1);
+      }
+
+      if (index_vars_.size() <= index_var_start) {
 	    delete array_expr;
 	    cerr << get_fileline() << ": sorry: associative-array foreach"
 	         << " requires a named associative index variable." << endl;

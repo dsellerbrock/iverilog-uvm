@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_foreach_omitted_assoc_indexed_prefix_fail.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "top"],
+  "gold": "sv_foreach_omitted_assoc_indexed_prefix_fail"
+}

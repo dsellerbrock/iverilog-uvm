@@ -3659,3 +3659,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Projectless `work/flash-vif-packed-struct-20260928/runtime-print-invalid.sv` on the focused candidate prints `outer=xx inner_high=33 inner_low=22 outer_x=xx inner_x=xx`; paired VIF-focused runtime controls return X for invalid inner indices.
 - **Reproducer status:** confirmed with a minimal strict 2017 direct-interface runtime probe; VIF controls pass strict 2017/2023.
 - **Triage status:** untriaged; separate from the selected VIF packed-struct field repair.
+
+### DD-079 — packed child rank after an omitted associative foreach key
+
+- **Discovered while working:** OT-FLASH-FOREACH-OMITTED-ASSOC-KEY.
+- **Observation:** `foreach (map[, bank, bit_index])` is legal when `map` has an associative rank, one fixed child rank, and a packed vector leaf. Slang accepts the strict 2017/2023 reducer. The selected repair iterates the fixed bank rank but explicitly diagnoses the packed tail as unsupported; no packed-rank execution is claimed.
+- **File/function:** `elaborate.cc` `PForeach::elaborate_assoc_array_` and packed-rank descent after fixed child iteration.
+- **Possible clause:** IEEE 1800-2017/2023 §12.7.3.
+- **Evidence:** Focused candidate reducer and paired diagnostics in projectless `outputs/flash-omitted-assoc-foreach-focused-evidence-20260928.md`.
+- **Reproducer status:** strict Slang accepts; focused Icarus gives an explicit `sorry` in both editions.
+- **Triage status:** separate packed-tail implementation ticket; no silent execution accepted.
+
+### DD-080 — indexed parent path before an omitted associative foreach key
+
+- **Discovered while working:** OT-FLASH-FOREACH-OMITTED-ASSOC-KEY.
+- **Observation:** `foreach (boxes[next_idx()].m[, bank])` is legal and the indexed parent expression must be evaluated. A candidate that deleted the target expression without evaluating it visited banks but called `next_idx()` zero times. The selected repair explicitly diagnoses this form as unsupported, while the unindexed Flash target works.
+- **File/function:** `elaborate.cc` `PForeach::elaborate_assoc_array_`; selector evaluation must precede fixed child loop execution.
+- **Possible clause:** IEEE 1800-2017/2023 §12.7.3 and ordinary expression side effects.
+- **Evidence:** Focused indexed-prefix negative and independent review in projectless `outputs/flash-omitted-assoc-foreach-focused-evidence-20260928.md`.
+- **Reproducer status:** Slang accepts strict 2017/2023; Icarus emits an explicit `sorry` in both editions.
+- **Triage status:** separate indexed-target evaluation ticket; no dropped side effects accepted.
