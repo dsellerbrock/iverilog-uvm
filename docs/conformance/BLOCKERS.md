@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL — released CSR array helper type mismatch
+
+- **State:** The named [source patch](release_overlays/opentitan/rstmgr_csr_array_selector.patch) is reviewed and compiles on a disposable pinned OpenTitan copy. One `rstmgr_sim` core compile exits zero with 21 port/assertion warnings. The pinned checkout is unchanged; DV runtime, integrated gates, install, and a fresh 49-core census remain pending.
+- **Cause:** Eleven calls pass fixed arrays of distinct derived RAL register classes to an `input uvm_object ptr[]` helper. IEEE 1800-2017/2023 §7.6 requires equivalent array element types. Slang and Icarus reject a minimal strict 2017/2023 array call; an explicit per-element handle selector compiles and runs in both Icarus editions.
+- **Correction and boundary:** The patch selects each scalar handle from `sw_rst_ctrl_n[8]` or `sw_rst_regwen[8]`, preserving index order, value bits, reset exits, and each CSR operation. It updates both generated Earlgrey sequences and template mirrors. This is source correction, not compiler or unsafe-dialect support, and the compile alone does not qualify RSTMGR DV.
+
 ### OT-AES-IMPLICATION-DIST-GRAMMAR — unbraced guarded distribution
 
 - **State:** Committed at `8a35c584b`; the [paired self-checking fixture](../../ivtest/ivltests/sv_constraint_implication_dist.v) covers direct and nested hard and soft distributions, and a paired compile-error fixture rejects `dist {}`. The seven-case build-tree JSON focus passes 7/7. The released AES testbench has a separate `logic [255:0] init_key[2]` to `bit [7:0][31:0] key[2]` type mismatch. A one-line correction on a disposable source copy lets the core compile; this is patched-source compile evidence, not a pristine or DV pass. Broad gates and installation remain pending.
