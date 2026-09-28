@@ -1,0 +1,25 @@
+--- a/hw/ip/spi_device/rtl/spi_readcmd.sv
++++ b/hw/ip/spi_device/rtl/spi_readcmd.sv
+@@ -433,7 +433,6 @@
+   end
+ 
+   always_comb begin : addr_cnt
+-    addr_cnt_d = addr_cnt_q;
+     if (addr_cnt_set) begin
+       // Set to the addr size based on cmd_info_i
+       // If addr_mode && addr_4b_en is Addr4B, then 32, if not, 24
+@@ -442,12 +441,13 @@
+       // datapath should latch the Address[31] or Address[23] too. So, it
+       // already counts one beat.
+       addr_cnt_d = (cmdinfo_addr_mode == Addr4B) ? 5'd 31 : 5'd 23;
+-
+     end else if (addr_cnt_q == '0) begin
+       addr_cnt_d = addr_cnt_q;
+     end else if (addr_shift_en) begin
+       // Stacking the address, decrease the address counter
+       addr_cnt_d = addr_cnt_q - 1'b 1;
++    end else begin
++      addr_cnt_d = addr_cnt_q;
+     end
+   end
+   // END:   Address Count -----------------------------------------------------

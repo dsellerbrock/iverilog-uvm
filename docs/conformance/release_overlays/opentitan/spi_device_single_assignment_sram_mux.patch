@@ -1,0 +1,36 @@
+--- a/hw/ip/spi_device/rtl/spi_device.sv
++++ b/hw/ip/spi_device/rtl/spi_device.sv
+@@ -868,26 +868,19 @@
+   end
+ 
+   always_comb begin
+-    // SRAM comb logic is in SCK clock domain
+-    mem_b_l2m = '{ default: '0 };
+-
+-    flash_sram_m2l = '{
+-      rvalid: 1'b 0,
+-      rdata: '0,
+-      rerror: '{uncorr: 1'b 0, corr: 1'b 0}
+-    };
+-    tpm_sram_m2l = '{
+-      rvalid: 1'b 0,
+-      rdata: '0,
+-      rerror: '{uncorr: 1'b 0, corr: 1'b 0}
+-    };
+-
++    // Assign each output once per path to avoid zero-time default/override feedback.
+     if (!sck_csb && ((spi_mode == FlashMode) || (spi_mode == PassThrough))) begin
+       mem_b_l2m = flash_sram_l2m;
+       flash_sram_m2l = mem_b_m2l;
++      tpm_sram_m2l = '0;
+     end else if (cfg_tpm_en) begin
+       mem_b_l2m = tpm_sram_l2m;
++      flash_sram_m2l = '0;
+       tpm_sram_m2l = mem_b_m2l;
++    end else begin
++      mem_b_l2m = '0;
++      flash_sram_m2l = '0;
++      tpm_sram_m2l = '0;
+     end
+   end
+ 
