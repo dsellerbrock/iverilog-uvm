@@ -6198,6 +6198,8 @@ class NetESignal  : public NetExpr {
       NetESignal(NetNet*n, NetExpr*word_index);
       ~NetESignal() override;
 
+      void set_interface_view_type(ivl_type_t type) { set_net_type(type); }
+
       perm_string name() const;
 
       virtual NetESignal* dup_expr() const override;

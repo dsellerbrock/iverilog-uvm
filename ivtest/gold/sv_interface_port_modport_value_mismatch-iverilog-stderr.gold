@@ -1,0 +1,2 @@
+ivltests/sv_interface_port_modport_value.v:31: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.

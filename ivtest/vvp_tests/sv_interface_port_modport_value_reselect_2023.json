@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_interface_port_modport_value.v",
+    "iverilog-args" : [ "-g2023", "-DBAD_SOURCE_VIEW", "-s", "sv_interface_port_modport_value" ],
+    "gold"          : "sv_interface_port_modport_value_mismatch"
+}

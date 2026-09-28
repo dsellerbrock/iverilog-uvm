@@ -21933,6 +21933,38 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       NetNet *net = sr.net;
 
+      /* An interface port is a signal, unlike a directly named interface
+       * instance (a scope). Its `.modport' suffix selects a view of the
+       * same handle, not a class property. */
+      const netclass_t*want_if = dynamic_cast<const netclass_t*>(ntype);
+      const netclass_t*source_if =
+	    dynamic_cast<const netclass_t*>(net->net_type());
+      if (want_if && want_if->is_interface()
+	  && source_if && source_if->is_interface()
+	  && net->unpacked_dimensions() == 0
+	  && sr.path_head.size() == 1
+	  && sr.path_head.back().index.empty()
+	  && sr.path_tail.size() == 1
+	  && sr.path_tail.front().index.empty()) {
+	    perm_string modport = sr.path_tail.front().name;
+	    const Module*definition = source_if->interface_definition();
+	    if (definition && definition->modports.count(modport)) {
+		  const netclass_t*view = elaborate_interface_instance_type(
+			des, const_cast<netclass_t*>(source_if)->definition_scope(),
+			modport);
+		  if (!view || !view->interface_assignment_compatible_from(source_if)
+		      || !want_if->interface_assignment_compatible_from(view)) {
+			report_virtual_interface_assignment_mismatch_(
+			      des, *this, want_if, view);
+			return nullptr;
+		  }
+		  NetESignal*value = new NetESignal(net);
+		  value->set_interface_view_type(view);
+		  value->set_line(*this);
+		  return value;
+	    }
+      }
+
       /* IEEE 1800-2017 7.12 permits the iterator argument parentheses to be
        * omitted. In a typed aggregate context, terminal min/max/unique
        * locator spellings used to pass the container compatibility check
