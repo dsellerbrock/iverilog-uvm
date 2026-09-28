@@ -37,6 +37,7 @@
 # include  <iostream>
 # include  <sstream>
 # include  <list>
+# include  <memory>
 # include  <set>
 # include  <tuple>
 # include  "pform.h"
@@ -23942,6 +23943,10 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    if (const netsarray_t*atype = dynamic_cast<const netsarray_t*>(ptype)) {
 		  const netranges_t&dims = atype->static_dimensions();
 		  if (dims.size() < index_vars_.size()) {
+		    if (dynamic_cast<const netdarray_t*>(atype->element_type())) {
+		      delete array_expr;
+		      return elaborate_mixed_fixed_array_(des, scope, dims);
+		    }
 			delete array_expr;
 			cerr << get_fileline() << ": error: "
 			     << "property target " << array_path_
@@ -24063,6 +24068,8 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    if (atype != 0) {
 		  const netranges_t&dims = atype->static_dimensions();
 		  if (dims.size() < index_vars_.size()) {
+		    if (dynamic_cast<const netdarray_t*>(atype->element_type()))
+		      return elaborate_mixed_fixed_array_(des, scope, dims);
 			cerr << get_fileline() << ": error: "
 			     << "class " << class_scope->get_name()
 			     << " property " << array_var
@@ -24220,7 +24227,7 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
 					   NetNet*array_sig) const
 {
       if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(array_sig->net_type())) {
-	    if (aq->assoc_compat()) {
+	    if (aq->assoc_compat() && array_sig->unpacked_dimensions() == 0) {
 		    /* This method is only reached for a plain foreach with
 		       no selector prefix: PForeach::elaborate's hier_sig
 		       fast path (above it in the caller) now routes any
@@ -24268,6 +24275,16 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
 	    dims.erase(dims.begin(), dims.begin() + (long)selector_count);
       }
 
+	/* An unpacked signal can have fixed dimensions on the NetNet and a
+	 * queue, dynamic, or associative element type. Iterate its complete
+	 * fixed tuple before descending into that inner container. */
+      if (!foreach_target_has_selector_prefix_(array_path_)
+	  && !array_sig->unpacked_dims().empty()
+	  && array_sig->unpacked_dims().size() < index_vars_.size()
+	  && dynamic_cast<const netdarray_t*>(array_sig->net_type()))
+	return elaborate_mixed_fixed_array_(
+	      des, scope, array_sig->unpacked_dims());
+
 	// Classic arrays are processed this way.
       if (array_sig->data_type() == IVL_VT_BOOL
           || array_sig->data_type() == IVL_VT_LOGIC
@@ -24301,18 +24318,27 @@ NetProc* PForeach::elaborate_static_array_(Design*des, NetScope*scope,
 	    sub = statement_->elaborate(des, scope);
       else
 	    sub = new NetBlock(NetBlock::SEQU, 0);
+      return elaborate_static_array_prefix_(des, scope, dims,
+						index_vars_.size(), sub);
+}
+
+NetProc* PForeach::elaborate_static_array_prefix_(Design*des,
+		NetScope*scope, const netranges_t&dims, size_t count,
+		NetProc*sub) const
+{
       NetForLoop*stmt = 0;
 
-      if (index_vars_.size() > dims.size()) {
+      if (count > dims.size()) {
 	    delete sub;
 	    cerr << get_fileline() << ": error: Number of foreach loop variables"
-	         << "(" << index_vars_.size() << ") must not exceed number of "
+	         << "(" << count << ") must not exceed number of "
 		 << "array dimensions (" << dims.size() << ")." << endl;
 	    des->errors++;
 	    return nullptr;
       }
 
-      for (int idx_idx = index_vars_.size()-1 ; idx_idx >= 0 ; idx_idx -= 1) {
+      for (size_t idx = count; idx > 0;) {
+	const size_t idx_idx = --idx;
 	    const netrange_t&idx_range = dims[idx_idx];
 
 	      // It is possible to skip dimensions by not providing a identifier
@@ -24355,12 +24381,82 @@ NetProc* PForeach::elaborate_static_array_(Design*des, NetScope*scope,
       }
 
         // If there are no loop variables elide the whole block
-      if (!stmt) {
+      if (!stmt && count == index_vars_.size()) {
 	    delete sub;
 	    return new NetBlock(NetBlock::SEQU, 0);
       }
 
-      return stmt;
+      return sub;
+}
+
+/* The fixed dimensions of a class property form one netsarray_t, and a
+ * signal keeps those dimensions on its NetNet. Select the complete fixed
+ * tuple before asking the ordinary queue/dynamic/associative foreach path
+ * to iterate the nested container. Selecting one fixed rank at a time would
+ * jump straight to netsarray_t::element_type() and lose the other ranks. */
+NetProc* PForeach::elaborate_mixed_fixed_array_(Design*des,
+		NetScope*scope, const netranges_t&dims) const
+{
+      ivl_assert(*this, !array_path_.empty()
+		 && array_path_.back().index.empty());
+      size_t fixed_count = dims.size();
+      if (fixed_count >= index_vars_.size()) {
+	cerr << get_fileline() << ": internal error: mixed-rank foreach "
+	     << "has no inner iterator." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+      pform_name_t selected_path = array_path_;
+      vector<unique_ptr<PEIdent> > synthetic_indices;
+      for (size_t idx = 0; idx < fixed_count; ++idx) {
+	if (index_vars_[idx].nil()) {
+	  cerr << get_fileline() << ": sorry: mixed-rank foreach "
+	       << "requires named fixed-dimension indices." << endl;
+	  des->errors += 1;
+	  return nullptr;
+	}
+	unique_ptr<PEIdent>index(new PEIdent(index_vars_[idx], lexical_pos_));
+	index->set_line(*this);
+	index_component_t select;
+	select.sel = index_component_t::SEL_BIT;
+	select.msb = index.get();
+	selected_path.back().index.push_back(select);
+	synthetic_indices.push_back(std::move(index));
+      }
+
+      ivl_type_t inner_type = nullptr;
+      NetExpr*inner_expr = elaborate_foreach_target_expr_(
+	    des, *this, lexical_pos_, scope, selected_path, inner_type);
+      if (!inner_expr)
+	return nullptr;
+
+      ivl_type_t rank_type = inner_type;
+      for (size_t idx = fixed_count; idx < index_vars_.size(); ++idx) {
+	const netdarray_t*array = dynamic_cast<const netdarray_t*>(rank_type);
+	if (!array) {
+	  const netvector_t*packed = dynamic_cast<const netvector_t*>(rank_type);
+	  if (packed && index_vars_.size() - idx <= packed->packed_dims().size()) {
+	    cerr << get_fileline() << ": sorry: foreach over packed "
+	         << "dimensions after mixed fixed/runtime arrays is not "
+	         << "supported." << endl;
+	  } else {
+	    cerr << get_fileline() << ": error: foreach target " << array_path_
+	         << " has too few dimensions for foreach dimension list."
+	         << endl;
+	  }
+	  des->errors += 1;
+	  delete inner_expr;
+	  return nullptr;
+	}
+	rank_type = array->element_type();
+      }
+
+      NetProc*inner_loop = elaborate_runtime_array_(
+	    des, scope, inner_expr, fixed_count);
+      if (!inner_loop)
+	return nullptr;
+      return elaborate_static_array_prefix_(
+	    des, scope, dims, fixed_count, inner_loop);
 }
 
 NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,

@@ -1,0 +1,5 @@
+# Whole-target fixed-prefix foreach with queue, dynamic and string-key leaves.
+sv_foreach_mixed_fixed_runtime_2017 vvp_tests/sv_foreach_mixed_fixed_runtime_2017.json
+sv_foreach_mixed_fixed_excess_fail_2017 vvp_tests/sv_foreach_mixed_fixed_excess_fail_2017.json
+sv_foreach_mixed_fixed_runtime_2023 vvp_tests/sv_foreach_mixed_fixed_runtime_2023.json
+sv_foreach_mixed_fixed_excess_fail_2023 vvp_tests/sv_foreach_mixed_fixed_excess_fail_2023.json

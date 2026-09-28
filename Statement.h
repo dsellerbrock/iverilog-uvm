@@ -866,6 +866,11 @@ class PForeach : public Statement {
 					size_t index_var_start) const;
       NetProc* elaborate_static_array_(Design*des, NetScope*scope,
 				       const netranges_t&dims) const;
+      NetProc* elaborate_static_array_prefix_(Design*des, NetScope*scope,
+				       const netranges_t&dims, size_t count,
+				       NetProc*sub) const;
+      NetProc* elaborate_mixed_fixed_array_(Design*des, NetScope*scope,
+				       const netranges_t&dims) const;
 
     private:
       pform_name_t array_path_;

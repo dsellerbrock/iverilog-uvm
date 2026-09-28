@@ -1,0 +1,2 @@
+./ivltests/sv_foreach_mixed_fixed_excess_fail.v:6: error: foreach target q has too few dimensions for foreach dimension list.
+1 error(s) during elaboration.

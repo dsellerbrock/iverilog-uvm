@@ -4897,3 +4897,9 @@ sv_const_ref_forward_type_fail CE,-g2017,-s,sv_const_ref_forward_type_fail ivlte
 sv_const_ref_forward_function_type_fail CE,-g2017,-s,sv_const_ref_forward_function_type_fail ivltests gold=sv_const_ref_forward_function_type_fail.gold
 sv_const_ref_forward_expr_fail CE,-g2017,-s,sv_const_ref_forward_expr_fail ivltests gold=sv_const_ref_forward_expr_fail.gold
 sv_const_ref_forward_packed_property_fail CE,-g2017,-s,sv_const_ref_forward_packed_property_fail ivltests gold=sv_const_ref_forward_packed_property_fail.gold
+
+# Flash mixed fixed/runtime foreach whole-target traversal.
+sv_foreach_mixed_fixed_runtime_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_runtime.gold
+sv_foreach_mixed_fixed_excess_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_excess_fail.gold
+sv_foreach_mixed_fixed_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_runtime.gold
+sv_foreach_mixed_fixed_excess_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_excess_fail.gold

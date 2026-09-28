@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-FLASH-FOREACH-MIXED-RANK — fixed ranks followed by runtime array ranks
+
+- **State:** The focused compiler repair passes paired strict 2017/2023 JSON and legacy tests 4/4 each. One disposable patched-source Flash compile falls from 47 to 29 hard diagnostics: all 16 standard whole-target mixed-rank `foreach` errors clear through this repair; two nonstandard `info_mem` errors clear through a separate source correction. No new hard errors appear, and all 146 warnings remain unchanged. The pinned checkout is unchanged; broad gates, installation, Flash DV runtime, and a fresh 49-core census remain pending. See the [focused record](session_logs/2026-09-28_ot_flash_mixed_foreach_focus.json).
+- **Cause and correction:** Class-property elaboration counted only grouped outer fixed dimensions, while the plain-signal path could compile a populated fixed-plus-queue loop that visited zero elements. The repair selects the complete fixed slot, iterates its queue, dynamic, or associative child through the existing runtime walker, then wraps the child loop in declared-order fixed loops. The positive test checks ragged lengths, string keys, selected values, and outer order; a true excess rank remains a hard error.
+- **Boundary:** Final-component bracketed `foreach` targets are a separate accepted extension and are outside the standard whole-target compiler change. A packed dimension after a runtime child receives an explicit unsupported diagnostic; standalone queue packed-tail zero-visit behavior is [DD-077](DISCOVERED_DEBT.md#dd-077--queue-foreach-silently-skips-a-packed-element-dimension). The remaining 29 Flash hard diagnostics and 37 explicit `randomize()`-will-fail warnings preclude an application or DV pass.
+
 ### OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL — released CSR array helper type mismatch
 
 - **State:** The named [source patch](release_overlays/opentitan/rstmgr_csr_array_selector.patch) is reviewed and compiles on a disposable pinned OpenTitan copy. One `rstmgr_sim` core compile exits zero with 21 port/assertion warnings. The pinned checkout is unchanged; DV runtime, integrated gates, install, and a fresh 49-core census remain pending.

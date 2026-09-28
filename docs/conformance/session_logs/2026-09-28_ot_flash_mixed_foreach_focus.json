@@ -1,0 +1,41 @@
+{
+  "id": "OT-FLASH-FOREACH-MIXED-RANK",
+  "date_utc": "2026-09-28",
+  "phase": "focused implementation checkpoint",
+  "compiler_base_commit": "9e174d545",
+  "tracker_commit": "b228aeba3",
+  "compiler_engine_sha256": "66494f8a4e0fb0f646bc3968bd4e692a3d6f4f5a831d614f6d28e53ae46da562",
+  "standard_scope": "IEEE 1800-2017/2023 12.7.3 whole-target foreach with grouped fixed ranks followed by queue, dynamic, or associative ranks",
+  "focused_validation": {
+    "json": "4/4 passed; paired strict 2017/2023 positive and true excess-rank negative",
+    "legacy": "4/4 passed; paired strict 2017/2023 positive and true excess-rank negative",
+    "positive": "Class simple and dotted targets plus plain signals visit exact fixed-slot/inner values, nonzero descending outer ranges in declared order, ragged queue/dynamic lengths, and disjoint string keys.",
+    "slang": "Positive accepted with zero errors and warnings in both editions; five-index excess rejected in both editions.",
+    "neighbors": "Selected-prefix associative, nested associative, and selector-evaluation controls passed in strict 2017/2023; multi-selector and pure-fixed omitted-index controls passed in 2012 mode.",
+    "focus_lists": [
+      "ivtest/regress-flash-foreach-mixed-rank-focus-vvp.list",
+      "ivtest/regress-flash-foreach-mixed-rank-focus-legacy.list"
+    ]
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 47,
+    "after_hard_diagnostics": 29,
+    "removed_by_compiler_fix": 16,
+    "removed_by_separate_info_mem_source_correction": 2,
+    "added_hard_diagnostics": 0,
+    "warnings_before": 146,
+    "warnings_after": 146,
+    "explicit_randomize_will_fail_warnings": 37,
+    "exit_code": 29,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "raw_result": "projectless work/ot-flash-mixed-foreach-core-20260928/result.json",
+    "raw_log": "projectless work/ot-flash-mixed-foreach-core-20260928/flash-current.log"
+  },
+  "boundaries": [
+    "Final-component bracketed selected-prefix foreach syntax is outside this standard whole-target fix.",
+    "Packed tails after runtime children receive an explicit unsupported diagnostic; standalone queue packed-tail zero visits are DD-077.",
+    "This single patched-source compile is not a successful Flash compile or DV runtime result; broad suites, installation, and a fresh 49-core census are pending."
+  ],
+  "pinned_application_sources_modified": false
+}

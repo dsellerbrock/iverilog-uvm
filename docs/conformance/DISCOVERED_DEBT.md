@@ -3639,3 +3639,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `work/flash-direct-null.sv`, `work/flash-indexed-null.sv`, and `work/flash-indexed-oob.sv` in the projectless campaign workspace; paired strict Icarus runs print `FAILED null method returned` for direct and selected null receivers.
 - **Reproducer status:** paired strict runtime observation; no change to this global behavior in the indexed receiver fix.
 - **Triage status:** record-only diagnostic-policy follow-on; do not count silent null calls as successful method execution.
+
+### DD-077 — queue foreach silently skips a packed element dimension
+
+- **Discovered while working:** OT-FLASH-FOREACH-MIXED-RANK.
+- **Observation:** `bit [1:0] q[$]; foreach (q[i,j])` compiles in strict 2017/2023 but executes zero body visits after a two-bit queue element is inserted. Slang accepts the same source. This predates the mixed fixed/runtime repair; that repair gives an explicit unsupported diagnostic when a packed rank follows its selected runtime leaf, rather than silently dropping the loop.
+- **File/function:** `elaborate.cc` `PForeach::elaborate_runtime_array_` and `make_foreach_array_element_expr_` currently descend through runtime array ranks only.
+- **Possible clause:** IEEE 1800-2017/2023 §12.7.3.
+- **Evidence:** `work/flash-foreach-next-20260928/plain-queue-packed-tail.sv` and `work/flash-foreach-next-20260928/mixed-packed-tail-unsupported.sv` in the projectless campaign workspace.
+- **Reproducer status:** paired strict Icarus runtime zero-visit control and explicit mixed-tail compile boundary; Slang accepts the legal packed-tail source.
+- **Triage status:** separate foreach packed-tail lowering task; no packed-tail runtime support claimed by the mixed-rank repair.
