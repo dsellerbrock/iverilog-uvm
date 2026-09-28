@@ -31,7 +31,9 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
+# include  <chrono>
 # include  <iostream>
+# include  <string>
 # include  "vvp_cobject.h"
 # include  "vvp_vinterface.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -169,6 +171,24 @@ struct vthread_event_s : public event_s {
 void vthread_event_s::run_run(void)
 {
       count_thread_events += 1;
+      static const vvp_time64_t profile_time = []() {
+            const char*value = getenv("IVL_BATCH_PROFILE_TIME");
+            return value && *value ? strtoull(value, 0, 10)
+                                   : vvp_time64_t(-1);
+      }();
+      if (schedule_time == profile_time) {
+            __vpiScope*scope = vthread_scope(thr);
+            const char*name = scope ? scope->vpi_get_str(vpiFullName) : 0;
+            const std::string scope_name = name ? name : "<none>";
+            const auto begin = std::chrono::steady_clock::now();
+            vthread_run(thr);
+            const auto end = std::chrono::steady_clock::now();
+            const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count();
+            fprintf(stderr, "BATCH_PROFILE time=%llu scope=%s ns=%lld\n",
+                    (unsigned long long)schedule_time, scope_name.c_str(),
+                    (long long)ns);
+            return;
+      }
       vthread_run(thr);
 }
 
