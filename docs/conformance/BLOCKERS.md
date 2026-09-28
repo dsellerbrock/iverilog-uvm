@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY — preserve solve ordering for Flash regions and pages
+
+- **State:** Selected after compiler checkpoint `f964fd17c`. The hash-guarded patched-copy Flash compile has two hard diagnostics, at `flash_ctrl_otf_base_vseq.sv:49` and `flash_ctrl_mp_regions_vseq.sv:43`, both for whole multidimensional fixed-array `solve before` operands. Projectless `outputs/flash-solve-before-multidim-triage-20260928.md` shows strict Icarus 2017/2023 rejects the shape, while Slang permissively accepts it. No new Flash source-list replay follows this selection.
+- **Expected behavior and cause:** IEEE 1800-2017/2023 §18.5.10 requires integral ordering operands; whole unpacked arrays are not portable. Icarus also stops expansion beyond one fixed dimension. Explicit selected integral elements work in tiny controls, but a selected nested queue element currently yields an unrepresentable-constraint warning and failed `randomize()`. A seeded control demonstrates that deleting ordering changes observed stimulus weights. A correction must retain both source clauses' intent and prove nonempty queue randomization.
+- **Boundary:** Only a named disposable OpenTitan source correction and directly necessary solver support may be considered after focused semantic proof. Ten independent nested queue-element constraint warnings remain separate. No pinned source edit, unsafe flag, Flash DV runtime, broad suite, or new source-list compile is authorized before the minimal controls pass.
+
 ### OT-FLASH-ASSOC-FIXED-CHILD-SHUFFLE — order a selected associative fixed array
 
 - **State:** Focused strict 2017/2023 JSON and legacy tests pass **4/4 each**, 18 adjacent associative fixed-array checks pass in each runner, and independent review found no scoped blocker. One hash-guarded patched-copy Flash compile removes exactly `cfg.tgt_pre[partition].shuffle()` at `flash_ctrl_otf_base_vseq.sv:208`: **3 → 2 hard errors**, **135 → 135 warnings**, with no additions. See [the focused session](session_logs/2026-09-28_ot_flash_assoc_fixed_child_shuffle_focus.json) and projectless `outputs/flash-assoc-fixed-child-shuffle-evidence-20260928.md`.

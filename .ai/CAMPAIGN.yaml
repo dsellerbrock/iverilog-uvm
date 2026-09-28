@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: c56988df8
+checkpoint_head: f964fd17c
 active_open_titan_lane:
-  blocker: "OT-FLASH-ASSOC-FIXED-CHILD-SHUFFLE"
+  blocker: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
   phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "c56988df8"
-  reproducer: "Projectless work/flash-shuffle-c56988df8-20260928/shuffle_min.sv gives unknown task for assoc selected fixed-child shuffle/reverse in strict Icarus 2017/2023, while Slang accepts it. A bytecode-only strict control proves typed associative vivify plus object-order opcode mutates the stored child and leaves a sibling untouched. Direct class fixed-property ordering silently skips, recorded separately as DD-084."
-  pending_validation: "The committed indexed queue-size repair passes strict paired JSON and legacy focus 8/8 each, adjacent controls, and independent review; one hash-guarded Flash compile removes all ten size-call hard errors, leaving 3 hard diagnostics and 135 warnings. No VVP image, Flash DV runtime, broad gate, installation, or current-image census exists."
-  next_command: "Implement only the selected associative fixed-child ordering path by admitting the fixed child and lowering through typed associative vivify plus existing object shuffle/reverse, preserving receiver stack balance. Prove selected-key effect, missing-key insertion, sibling isolation, and permutation in tiny strict paired controls before focused harnesses and at most one controlled Flash compile. Keep direct class-property copyback DD-084, whole-array solve-before, and nested queue-element constraints separate."
-  boundary: "One implementation blocker at a time. No silent ordering no-op, pinned-source edit, unsafe flag, unrelated solver change, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
+  baseline_head: "f964fd17c"
+  reproducer: "Projectless outputs/flash-solve-before-multidim-triage-20260928.md records tiny strict paired controls. The saved Flash corpus has only two whole-array solve-before hard errors at flash_ctrl_otf_base_vseq.sv:49 and patched-copy flash_ctrl_mp_regions_vseq.sv:43. Slang accepts these nonportable unpacked-array operands."
+  pending_validation: "The committed selected-child shuffle repair passes paired JSON and legacy focus 4/4 each, 18 adjacent controls in each runner, and independent review; one hash-guarded Flash compile removes line-208 shuffle, leaving 2 hard diagnostics and 135 warnings. Ten warnings state nested queue-element randomize will fail. No VVP image, Flash DV runtime, broad gate, installation, or fresh census exists."
+  next_command: "Revisit the tiny solve-before reducers and exact two Flash clauses. Find a legal integral-leaf ordering rewrite that preserves region/page randomization and ordering effects, including nonempty queues; test it in strict paired controls before one guarded Flash replay. If the solver cannot represent it without a broader change, record the precise prerequisite and safely suspend this blocker."
+  boundary: "One implementation blocker at a time. Do not delete solve ordering, silently skip queue constraints, edit pinned sources, add unsafe flags, install, run broad suites, or launch Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
