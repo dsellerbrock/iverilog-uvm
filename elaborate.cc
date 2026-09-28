@@ -41021,8 +41021,10 @@ bool PGenerate::elaborate_(Design*des, NetScope*scope) const
 
 	// If there are no fatal elab tasks then elaborate the rest.
       if (result_flag) {
+	    elaborate_classes_lexical(des, scope, classes_lexical);
 	    elaborate_functions(des, scope, funcs);
 	    elaborate_tasks(des, scope, tasks);
+	    elaborate_standalone_cg_samplers_(des, scope, classes_lexical);
 
 	    for (const auto gt : gates) gt->elaborate(des, scope);
 

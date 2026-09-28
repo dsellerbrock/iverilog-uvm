@@ -715,12 +715,15 @@ PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name)
 
       PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
       ivl_assert(loc, scopex);
-      ivl_assert(loc, !pform_cur_generate);
-
       pform_set_scope_timescale(class_scope, scopex);
 
-      scopex->classes[name] = class_scope;
-      scopex->classes_lexical .push_back(class_scope);
+      if (pform_cur_generate && lexical_scope == pform_cur_generate) {
+	    pform_cur_generate->classes[name] = class_scope;
+	    pform_cur_generate->classes_lexical.push_back(class_scope);
+      } else {
+	    scopex->classes[name] = class_scope;
+	    scopex->classes_lexical.push_back(class_scope);
+      }
 
       lexical_scope = class_scope;
       return class_scope;
@@ -762,7 +765,7 @@ PTask* pform_push_task_scope(const struct vlltype&loc, const char*name,
 
       pform_set_scope_timescale(task, scopex);
 
-      if (pform_cur_generate) {
+      if (pform_cur_generate && lexical_scope == pform_cur_generate) {
 	    add_local_symbol(pform_cur_generate, task_name, task);
 	    pform_cur_generate->tasks[task_name] = task;
       } else {
@@ -817,7 +820,7 @@ PFunction* pform_push_function_scope(const struct vlltype&loc, const char*name,
 
       pform_set_scope_timescale(func, scopex);
 
-      if (pform_cur_generate) {
+      if (pform_cur_generate && lexical_scope == pform_cur_generate) {
 	    add_local_symbol(pform_cur_generate, func_name, func);
 	    pform_cur_generate->funcs[func_name] = func;
 
@@ -1418,6 +1421,11 @@ void pform_set_nettype_referenced(const struct vlltype&loc, const char*name)
 static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
 {
       for (LexicalScope*cur = start ; cur ; cur = cur->parent_scope()) {
+	    if (PGenerate*generate = dynamic_cast<PGenerate*>(cur)) {
+		  auto cls = generate->classes.find(name);
+		  if (cls != generate->classes.end())
+			return cls->second;
+	    }
 	    if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(cur)) {
 		  auto cls = scopex->classes.find(name);
 		  if (cls != scopex->classes.end())
@@ -26727,6 +26735,14 @@ static LexicalScope* pform_nettype_child_scope_(LexicalScope*scope,
       if (!scope)
             return nullptr;
 
+      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope)) {
+            auto cls = generate->classes.find(name);
+            if (cls != generate->classes.end()) {
+                  name_exists = true;
+                  return cls->second;
+            }
+      }
+
       if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope)) {
             map<perm_string,PClass*>::const_iterator cls =
                   scopex->classes.find(name);
@@ -26854,9 +26870,12 @@ static void pform_validate_nettype_resolvers_(LexicalScope*scope,
                   pform_validate_nettype_resolvers_(generate, seen);
       }
 
-      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope))
-            for (PGenerate*child : generate->generate_schemes)
-                  pform_validate_nettype_resolvers_(child, seen);
+      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope)) {
+	    for (const auto&item : generate->classes)
+		  pform_validate_nettype_resolvers_(item.second, seen);
+	    for (PGenerate*child : generate->generate_schemes)
+		  pform_validate_nettype_resolvers_(child, seen);
+      }
 
 }
 
@@ -26932,6 +26951,8 @@ static void pform_release_scope_memory_(LexicalScope*scope,
 	    for (map<perm_string,PTask*>::value_type&item : generate->tasks)
 		  pform_release_scope_memory_(item.second, seen);
 	    for (map<perm_string,PFunction*>::value_type&item : generate->funcs)
+		  pform_release_scope_memory_(item.second, seen);
+	    for (map<perm_string,PClass*>::value_type&item : generate->classes)
 		  pform_release_scope_memory_(item.second, seen);
 	    for (PGenerate*child : generate->generate_schemes)
 		  pform_release_scope_memory_(child, seen);
