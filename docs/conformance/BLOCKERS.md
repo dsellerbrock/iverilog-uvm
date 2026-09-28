@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-FLASH-FOREACH-OMITTED-ASSOC-KEY — skip an associative rank, iterate its fixed child
+
+- **State:** Selected at compiler checkpoint `513b865c9`. The patched-copy Flash compile has one hard error at `flash_ctrl_env.sv:43` for `foreach (cfg.mem_bkdr_util_h[, bank])`, among 21 remaining hard errors and 146 warnings. Strict 2017/2023 Icarus reducers reproduce the error; Slang accepts the source, and explicit bank-loop and fixed/fixed omitted-rank controls run.
+- **Cause and expected behavior:** `PForeach::elaborate_assoc_array_` rejects an omitted associative key before examining the fixed bank rank. IEEE 1800-2017 §12.7.3 omits iteration over that outer rank. The selected fix must visit each fixed bank once per enclosing `part`, without inventing or traversing associative keys. The paired reducer is recorded in projectless `outputs/flash-env-omitted-assoc-foreach-triage-20260928.md`.
+- **Boundary:** Only associative-to-fixed omitted-rank foreach elaboration and paired focused tests are authorized. The other 20 hard diagnostics and 37 explicit `randomize()`-will-fail warnings remain separate; no Flash VVP image or DV pass exists.
+
 ### OT-FLASH-VIF-PACKED-STRUCT-FIELD — packed struct fields through a virtual interface
 
 - **State:** The compiler repair passes paired strict IEEE 1800-2017/2023 JSON and legacy focus 14/14 each on build-tree `ivl` SHA-256 `9e9695f87b70325cf8582c22ba122d3775b50523ecd40cd332c14cf752f068ac`. One controlled patched-source Flash compile falls from 29 to 21 hard diagnostics: all six targeted scoreboard line-108/110 errors clear, two line-124 diagnostics disappear downstream, no new hard errors appear, and all 146 warnings remain unchanged. The compile exits 21 without a VVP image. The pinned source is unchanged. See the [focused checkpoint](session_logs/2026-09-28_ot_flash_vif_packed_struct_field_focus.json).

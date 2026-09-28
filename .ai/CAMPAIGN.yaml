@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 9df733664
+checkpoint_head: 513b865c9
 active_open_titan_lane:
-  blocker: "OT-FLASH-VIF-PACKED-STRUCT-FIELD"
-  phase: "FOCUSED_TESTED_APPLICATION_STILL_RED"
+  blocker: "OT-FLASH-FOREACH-OMITTED-ASSOC-KEY"
+  phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "9df733664"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-vif-packed-struct-field-red.sv; direct packed-struct field read passes, virtual-interface field read fails in strict 2017/2023, and Slang accepts both"
-  pending_validation: "Build-tree ivl SHA-256 9e9695f87b70325cf8582c22ba122d3775b50523ecd40cd332c14cf752f068ac passes strict paired JSON and legacy focus 14/14 each. One controlled patched-source Flash compile drops 29 to 21 hard diagnostics: six targeted scoreboard line-108/110 errors clear and two line-124 diagnostics disappear downstream, with zero added errors and all 146 warnings unchanged. No VVP output exists. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. Integrated gates, install, DV runtime, broad suite, and fresh 49-core census remain pending."
-  next_command: "Classify the remaining 21-error corpus and select the next blocker before any further Flash source-list replay. Treat line 124 as a downstream disappearance without independently proven field semantics."
-  boundary: "Only compiler expression elaboration, paired focused tests, and relevant docs for the selected packed-struct VIF field path. Enum methods on a selected enum field remain an explicit unsupported boundary; direct physical-interface inner-index alias is DD-078. No pinned-source patch, unsafe flag, broad suite, install, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
+  baseline_head: "513b865c9"
+  reproducer: "projectless work/flash-foreach-next-20260928/flash-omitted-assoc-key.sv with -DRED_OMITTED; strict 2017/2023 Icarus rejects omitted associative key followed by fixed bank index, Slang accepts, explicit-loop control runs"
+  pending_validation: "The VIF checkpoint passes paired 14/14 JSON and legacy focus; a patched-copy Flash compile has 21 hard diagnostics and 146 warnings. The selected flash_ctrl_env.sv:43 error is isolated to omitted associative outer index with a fixed inner bank rank. All 21 hard errors have a current grouping and small triage; 37 randomize()-will-fail warnings remain. No Flash VVP image or DV runtime exists."
+  next_command: "Implement only the selected omitted-associative-key foreach path and paired runtime/negative controls, then review before one patched-copy Flash compile. Do not run the broad suite until current corpus work is complete."
+  boundary: "One implementation blocker at a time. No pinned-source edits, unsafe flag, solver or array-method changes, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
