@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: afe838f3a
+checkpoint_head: 9e174d545
 active_open_titan_lane:
-  blocker: "OT-FLASH-NESTED-VIF-REF-MEMBER-ALIAS"
+  blocker: "OT-FLASH-FOREACH-MIXED-RANK"
   phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "afe838f3a"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-mixed-driver-ref-alias-red.sv; -DREF_CALL is disjoint and falsely reports five mixed drivers; -DREF_CONFLICT must retain one true conflict"
-  pending_validation: "Prior indexed-handle slice afe838f3a passes strict JSON and legacy 18/18 each; one patched-copy Flash compile has 79 hard errors and 146 unchanged warnings. Exactly nine method-call errors disappeared; 32 mixed-driver errors share an unresolved nested VIF ref member alias. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. No Flash DV runtime, integrated gates, install, or fresh 49-core census."
-  next_command: "Run the tiny no-call, disjoint-ref, and same-member conflict controls in strict 2017/2023, preserve the pending ref actual's member identity in the shared late alias check, and add paired semantic regressions before any new Flash core replay."
+  baseline_head: "9e174d545"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-foreach-class-mixed-rank-red.sv and ot-flash-foreach-signal-mixed-rank-silent-red.sv; the class property gives a false rank error and the populated signal silently visits zero queue elements"
+  pending_validation: "Prior nested-VIF ref alias slice 9e174d545 passes strict JSON and legacy 6/6 each; one patched-copy Flash compile has 47 hard errors and 146 unchanged warnings. Exactly 32 mixed-driver errors disappeared; 16 remaining class-property foreach errors share a fixed-plus-inner-container rank gap. A plain-signal control exposes silent zero visits. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. No Flash DV runtime, integrated gates, install, or fresh 49-core census."
+  next_command: "Repair PForeach's fixed-prefix plus inner-container traversal for class properties and plain signals, using populated strict 2017/2023 controls before one patched-copy Flash compile. Keep preselected fixed-prefix source syntax separate."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
