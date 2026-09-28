@@ -2636,8 +2636,7 @@ static bool interface_member_has_property_writer_(
 	  continue;
 	/* A run-time-selected handle can alias any instance of this layout.
 	 * Its property cannot alias a different ordinary interface wire,
-	 * however. Keep modport views conservative because their ports may
-	 * rename a property (e.g. .reset(count)). */
+	 * provided a selected modport exposes that same wire directly. */
 	ivl_type_t owner_type_expr = lval->nest()
 	      ? lval->nest()->net_type()
 	      : lval->sig()->net_type();
@@ -2662,8 +2661,7 @@ static bool interface_member_has_property_writer_(
 	    return true;
 	}
 
-	if (owner_type->interface_modport().nil()
-	    && (!interface_type || interface_type->interface_modport().nil())
+	if ((!interface_type || interface_type->interface_modport().nil())
 	    && lval->get_property_idx() >= 0
 	    && static_cast<size_t>(lval->get_property_idx())
 		 < owner_type->get_properties()
@@ -2674,6 +2672,18 @@ static bool interface_member_has_property_writer_(
 	    if (concrete != module->second->wires.end() && concrete->second) {
 	      perm_string written = lex_strings.make(owner_type->get_prop_name(
 		    static_cast<size_t>(lval->get_property_idx())));
+	      if (!owner_type->interface_modport().nil()) {
+		const PModport*view = interface_modport_view(
+		    owner_type, owner_type->interface_modport());
+		if (!view)
+		  return true;
+		auto port = view->simple_ports.find(written);
+		/* Named expressions may rename or select another member. Their
+		 * l-value lowering is separate, so retain the conservative check. */
+		if (port == view->simple_ports.end()
+		    || port->second.second)
+		  return true;
+	      }
 	      if (written != member->name())
 		continue;
 	    }

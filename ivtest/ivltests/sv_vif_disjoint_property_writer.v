@@ -83,3 +83,49 @@ module disjoint_direct_same_member_illegal;
     vif.count = 1'b1;
   end
 endmodule
+
+interface disjoint_modport_task_if;
+  logic csb, sd_out;
+  modport tb (output csb, input sd_out);
+  modport drive_sd_out (output sd_out);
+endinterface
+
+module disjoint_modport_task_legal;
+  disjoint_modport_task_if bus();
+  virtual disjoint_modport_task_if.tb vif = bus.tb;
+  assign bus.sd_out = 1'b1;
+  task automatic drive(virtual disjoint_modport_task_if.tb p);
+    p.csb = 1'b0;
+  endtask
+  initial begin
+    drive(vif);
+    #1;
+    if (bus.csb !== 1'b0 || bus.sd_out !== 1'b1)
+      $fatal(1, "disjoint modport task write failed");
+    $display("PASSED");
+  end
+endmodule
+
+module disjoint_modport_task_same_member_illegal;
+  disjoint_modport_task_if bus();
+  virtual disjoint_modport_task_if.drive_sd_out vif = bus.drive_sd_out;
+  assign bus.sd_out = 1'b1;
+  task automatic drive(virtual disjoint_modport_task_if.drive_sd_out p);
+    p.sd_out = 1'b0;
+  endtask
+  initial drive(vif);
+endmodule
+
+module disjoint_modport_task_dynamic_receiver_illegal;
+  disjoint_modport_task_if bus(), other();
+  virtual disjoint_modport_task_if.drive_sd_out vif;
+  assign bus.sd_out = 1'b1;
+  task automatic drive(virtual disjoint_modport_task_if.drive_sd_out p);
+    p.sd_out = 1'b0;
+  endtask
+  initial begin
+    if ($test$plusargs("OTHER")) vif = other.drive_sd_out;
+    else vif = bus.drive_sd_out;
+    drive(vif);
+  end
+endmodule
