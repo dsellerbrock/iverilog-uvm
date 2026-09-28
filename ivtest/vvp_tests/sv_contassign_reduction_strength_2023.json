@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_contassign_reduction_strength_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_contassign_reduction_strength"]
+}

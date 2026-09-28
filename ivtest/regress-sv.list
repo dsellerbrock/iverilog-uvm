@@ -4996,3 +4996,5 @@ sv_constraint_fixed_queue_function_stage_argument_fail normal,-g2017,-gno-icarus
 sv_constraint_fixed_queue_function_stage_argument_fail_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage_argument_fail.gold
 sv_constraint_state_fixed_queue_size_foreach normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_state_fixed_queue_size_foreach.gold
 sv_constraint_state_fixed_queue_size_foreach_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_state_fixed_queue_size_foreach.gold
+sv_contassign_reduction_strength normal,-g2017,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold
+sv_contassign_reduction_strength_2023 normal,-g2023,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold
