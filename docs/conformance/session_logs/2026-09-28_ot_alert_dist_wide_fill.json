@@ -1,0 +1,17 @@
+{
+  "base_commit": "4893c8c65",
+  "blocker": "OpenTitan alert-handler 65-bit dist fill contexts",
+  "standards": "IEEE 1800-2017 5.7.1, 11.8.2, 18.5.4; IEEE 1800-2023 5.7.1, 11.8.2, 18.5.3",
+  "root_cause": "The dist compared-fill helper stopped at 64 bits although the existing constant IR and solver support wider packed subjects and constants.",
+  "fix": "Materialize bare fill and fill-minus-integral-literal endpoints at their context width using the existing wide constant IR. Leave other context-sensitive expressions rejected.",
+  "reproducer": "ivtest/ivltests/sv_constraint_dist_wide_fill_context.v",
+  "before": "Three strict elaboration errors in the reproducer; selected alert-handler compile had three dist errors and two unrelated fixed-array max() diagnostics.",
+  "focused_regression": "5/5 strict VVP checks passed: new 2017/2023 high-bit cases, existing 2017/2023 wide-dist cases, and the existing unsupported-context negative case. Slang parsed the new case in 2017 and 2023 modes.",
+  "selected_compile": {
+    "source_list": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_opentitan_top_earlgrey_alert_handler_sim_0.1/matrix-iverilog.scr",
+    "hard_diagnostics_before": 5,
+    "hard_diagnostics_after": 2,
+    "remaining": "Two fixed-size class-property intr_timeout_cyc.max() diagnostics at alert_handler_smoke_vseq.sv:177."
+  },
+  "qualification": "Focused compile and high-bit runtime reducer only; no alert-handler DV runtime or 49-core corpus replay. Pinned OpenTitan sources unchanged."
+}

@@ -30591,9 +30591,18 @@ static bool constraint_dist_context_fill_ir_(const PExpr*expr,
 					       unsigned subject_width,
 					       string&ir)
 {
-      if (!expr || subject_width == 0 || subject_width > 64) return false;
+      if (!expr || subject_width == 0) return false;
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    if (!num->value().is_single()) return false;
+	    if (subject_width > 64) {
+		  /* Reuse the wide concat IR instead of truncating the fill to
+		   * constraint_const_ir_t's 64-bit value. */
+		  verinum::V bit = num->value().get(0);
+		  if (bit != verinum::V0 && bit != verinum::V1) return false;
+		  ir = constraint_const_bits_ir_(
+			verinum(bit, subject_width, true), subject_width, false);
+		  return true;
+	    }
 	    constraint_const_ir_t value;
 	    if (!constraint_dist_number_const_(num, subject_width, value))
 		  return false;
@@ -30620,7 +30629,21 @@ static bool constraint_dist_context_fill_ir_(const PExpr*expr,
       };
       unsigned width = subject_width;
       width = max(width, natural_width(right_num));
-      if (width == 0 || width > 64) return false;
+      if (width > 64) {
+	    /* This fill makes the subtraction unsigned; zero-extend the
+	     * literal before doing the exact-width constant subtraction. */
+	    const verinum&rhs = right_num->value();
+	    verinum::V fill = left_num->value().get(0);
+	    if (!rhs.is_defined()
+		|| (fill != verinum::V0 && fill != verinum::V1))
+		  return false;
+	    verinum left(fill, width, true);
+	    verinum right(verinum::V0, width, true);
+	    for (unsigned i = 0 ; i < rhs.len() ; i += 1)
+		right.set(i, rhs.get(i));
+	    ir = constraint_const_bits_ir_(left - right, width, false);
+	    return true;
+      }
 
       constraint_const_ir_t left;
       constraint_const_ir_t right;

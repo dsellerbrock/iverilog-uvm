@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_dist_wide_fill_context.v",
+  "iverilog-args": ["-g2023", "-gstrict-expr-width"],
+  "gold": "sv_constraint_dist_wide_fill_context"
+}
