@@ -4,7 +4,7 @@ baseline: "Keymgr unbased fill is committed at 3f7e74d90 and dynamic packed-elem
 blocker: "OT-KEYMGR-BARE-DEFAULTED-METHOD-CALL"
 goal: "Preserve both key-version comparison branches in the released scoreboard instead of compiling them as false after an unresolved reference."
 standards: "IEEE 1800-2017/2023 §13.5.5 permits omitted parentheses on a class method when all formals have defaults; §13.7 covers later method declarations."
-failing_reproducer: "The pinned compile at work/keymgr-core-focused-20260927/compile.log cannot bind bare get_current_max_version at keymgr_scoreboard.sv:296,298 and assumes both conditions false. The later method has one defaulted state formal; a minimal earlier-declared RED isolates the same Icarus binding failure."
+failing_reproducer: "outputs/minimal-reproducers/ot-keymgr-parenless-default-method-red.sv reproduces the two assumed-false conditions and runtime failure; an explicit-() control passes. The pinned compile at work/keymgr-core-focused-20260927/compile.log has the same failure at keymgr_scoreboard.sv:296,298."
 expected: "A bare method call uses its defaulted argument and both key-version comparison branches remain live; adding explicit () is an equivalent control."
 root_cause_hypothesis: "elab_expr.cc implicit class-method lowering rejects any declared formal (`nports != 0`) instead of testing whether every formal has a usable default, unlike explicit-call lowering."
 local_focus: "Fix the shared bare defaulted-method binding path with paired strict 2017/2023 reducers and explicit-call/required-formal controls before one focused Keymgr compile."

@@ -7,7 +7,7 @@ active_open_titan_lane:
   phase: "REDUCED_IMPLEMENTING"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "36d2f5822"
-  reproducer: "work/keymgr-core-focused-20260927/compile.log (keymgr_scoreboard.sv:296,298); minimal bare class-method defaulted-formal RED and explicit () control"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-keymgr-parenless-default-method-red.sv and explicit-() control; pinned keymgr_scoreboard.sv:296,298 compile warnings"
   pending_validation: "Dynamic packed-element commit 36d2f5822 passes paired strict JSON 4/4 and legacy 4/4 with independent review and eleven neighboring direct checks. One unchanged pinned Keymgr compile exits zero with 45 warnings, including unresolved get_current_max_version and two assumed-false condition branches. No runtime, broad gate, install, or fresh census."
   next_command: "Fix elab_expr.cc implicit class-method default argument binding and run paired strict focused controls before one Keymgr compile; do not start Keymgr runtime yet."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
