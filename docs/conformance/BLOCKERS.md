@@ -8,7 +8,7 @@
 
 ### OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER — constrain a packed member of a fixed-array element
 
-- **State:** Newly exposed after the five function-argument hard errors clear. The saved Flash source-list compile emits five `mp_regions_c` randomize()-will-fail warnings at the outer foreach lines. Strict 2017/2023 `work/flash-foreach-function-arg-20260928/packed-member-min.sv` shows the same failure for literal `regions[0].en == 4'h6` on a rand fixed array of packed structs; whole-element and flat-array controls pass. No implementation is selected yet.
+- **State:** Selected after compiler checkpoint `1b1f8974c`. The saved Flash source-list compile emits five `mp_regions_c` randomize()-will-fail warnings at the outer foreach lines. Strict 2017/2023 `work/flash-foreach-function-arg-20260928/packed-member-min.sv` shows the same failure for literal `regions[0].en == 4'h6` on a rand fixed array of packed structs; whole-element and flat-array controls pass. Begin with that reducer before another Flash compile.
 - **Cause and expected behavior:** The class-constraint IR handles a direct packed struct property and a whole fixed-array element, but it does not project a packed member from a selected fixed-array element. Preserve the exact member offset and the rand element dependency for literal and foreach indices, then check solver enforcement and contradiction in both strict editions.
 - **Boundary:** This is independent of function argument capture, enum return type, and `solve before`; do not suppress its warning or count Flash DV as passing. The saved compile still has 14 hard errors and 134 warnings without an output image.
 
