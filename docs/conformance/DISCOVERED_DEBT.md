@@ -3709,3 +3709,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Projectless `work/flash-fixed-packed-member-20260928/{flash-scalar-x-rhs,flash-packed-member-x-rhs}.sv` on build-tree `ivl` SHA-256 `8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba` and VVP SHA-256 `0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3`; both report `WRONG-SUCCESS value=0`.
 - **Reproducer status:** confirmed in both strict editions for scalar and array-member forms.
 - **Triage status:** untriaged; selected Flash RHS uses known enum literals and a pure function, so do not broaden the packed-member fix or claim X/Z RHS support.
+
+### DD-084 — fixed class-property ordering method silently skips its receiver
+
+- **Discovered while working:** OT-FLASH-ASSOC-FIXED-CHILD-SHUFFLE.
+- **Observation:** A direct one-dimensional fixed-array class property accepts `.reverse()` in strict 2017/2023, but target emission warns that `$ivl_uarray_method$order` has an unsupported receiver and skips it. The runtime array remains unchanged. This is distinct from the selected associative child: that child can use typed associative vivify to obtain stored object storage, while a direct fixed property needs explicit copyback.
+- **File/function:** `tgt-vvp/vvp_process.c` `$ivl_uarray_method$order` at 6125–6150; fixed class-property array materialization and store path.
+- **Possible clause:** IEEE 1800-2017/2023 §7.12.2.
+- **Evidence:** Projectless `work/flash-shuffle-c56988df8-20260928/shuffle_min.sv`; Slang accepts the source in both editions, and current build-tree Icarus emits the skip warning and fails the direct-property reverse self-check.
+- **Reproducer status:** confirmed.
+- **Triage status:** untriaged; explicitly outside the selected associative child shuffle fix.

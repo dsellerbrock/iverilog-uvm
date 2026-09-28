@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 8142f82c7
+checkpoint_head: c56988df8
 active_open_titan_lane:
-  blocker: "OT-FLASH-CONSTRAINT-INDEXED-QUEUE-SIZE"
-  phase: "FOCUSED_TESTED_DOCUMENTED_COMMIT_PENDING"
+  blocker: "OT-FLASH-ASSOC-FIXED-CHILD-SHUFFLE"
+  phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "951a4aba1"
-  reproducer: "Projectless work/flash-queue-triage-20260928/nested-size.sv fails strict 2017/2023 for q[i].size() under a rand fixed array of queue leaves; flat-size.sv passes. Ten of the 13 current Flash hard errors are the same indexed queue-size signature."
-  pending_validation: "Frozen indexed queue-size repair passes strict paired JSON and legacy focus 8/8 each, six adjacent JSON checks, one direct queue legacy control, and independent review. One hash-guarded patched-copy Flash compile removes ten targeted hard errors, 13 to 3, with no new hard errors; warnings 125 to 135 expose ten separate nested queue-element items that make randomize fail. No VVP image, Flash DV runtime, broad gate, installation, or current-image census exists."
-  next_command: "Commit only the reviewed indexed queue-size code, paired tests, and focused evidence. Then select the remaining indexed child shuffle error as the next one-blocker ticket; preserve the two whole-array solve-before errors and nested queue-element warnings as separate work. Do not rerun the full suite."
-  boundary: "One implementation blocker at a time. No dropped constraint, pinned-source edit, unsafe flag, unrelated solver change, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
+  baseline_head: "c56988df8"
+  reproducer: "Projectless work/flash-shuffle-c56988df8-20260928/shuffle_min.sv gives unknown task for assoc selected fixed-child shuffle/reverse in strict Icarus 2017/2023, while Slang accepts it. A bytecode-only strict control proves typed associative vivify plus object-order opcode mutates the stored child and leaves a sibling untouched. Direct class fixed-property ordering silently skips, recorded separately as DD-084."
+  pending_validation: "The committed indexed queue-size repair passes strict paired JSON and legacy focus 8/8 each, adjacent controls, and independent review; one hash-guarded Flash compile removes all ten size-call hard errors, leaving 3 hard diagnostics and 135 warnings. No VVP image, Flash DV runtime, broad gate, installation, or current-image census exists."
+  next_command: "Implement only the selected associative fixed-child ordering path by admitting the fixed child and lowering through typed associative vivify plus existing object shuffle/reverse, preserving receiver stack balance. Prove selected-key effect, missing-key insertion, sibling isolation, and permutation in tiny strict paired controls before focused harnesses and at most one controlled Flash compile. Keep direct class-property copyback DD-084, whole-array solve-before, and nested queue-element constraints separate."
+  boundary: "One implementation blocker at a time. No silent ordering no-op, pinned-source edit, unsafe flag, unrelated solver change, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
