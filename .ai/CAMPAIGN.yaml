@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: cde946a3d
+checkpoint_head: 951a4aba1
 active_open_titan_lane:
-  blocker: "OT-FLASH-NESTED-COVERPOINT-GET-COVERAGE"
+  blocker: "OT-FLASH-CONSTRAINT-INDEXED-QUEUE-SIZE"
   phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "cde946a3d"
-  reproducer: "Projectless outputs/flash-packed-select-triage-20260928/nested-coverpoint-method-red.sv fails strict 2017/2023 and unsafe with a missing-method diagnostic for cov.control_cg.op_evict_cp.get_coverage(); group get_coverage works but measures something else. Saved Flash rd_buff_evict line 389 matches one of 14 remaining hard errors."
-  pending_validation: "The committed packed-member checkpoint passes paired strict 2017/2023 JSON and legacy focus 10/10 each on ivl SHA-256 8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba and VVP SHA-256 0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3. One patched-copy Flash compile remains at 14 hard errors and 125 warnings with no VVP image. Integrated gates, installation, and current-image 49-core census remain pending."
-  next_command: "Trace nested named-coverpoint method lookup with the tiny strict reducer, make point and group percentages diverge, then paired focused runtime checks before one controlled patched-copy Flash compile. Keep other 13 errors separate."
+  baseline_head: "951a4aba1"
+  reproducer: "Projectless work/flash-queue-triage-20260928/nested-size.sv fails strict 2017/2023 for q[i].size() under a rand fixed array of queue leaves; flat-size.sv passes. Ten of the 13 current Flash hard errors are the same indexed queue-size signature."
+  pending_validation: "The committed named coverage-item checkpoint passes paired strict 2017/2023 JSON and legacy focus 6/6 each plus four adjacent covergroup checks, and one patched-copy Flash compile removes exactly rd_buff_evict line 389, leaving 13 hard errors and 125 unchanged warnings. No VVP image exists. Integrated gates, installation, and current-image 49-core census remain pending."
+  next_command: "Strengthen and rerun only the tiny indexed queue-size RED with distinct leaf lengths and contradiction, trace direct queue-size and fixed-array foreach lowering, then paired focused tests before one controlled Flash compile. Keep nested element warnings, shuffle, and solve-before separate."
   boundary: "One implementation blocker at a time. No dropped constraint, pinned-source edit, unsafe flag, unrelated solver change, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
@@ -29,11 +29,11 @@ prior_open_titan_lane:
 current_caliptra_continuation:
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924"
   selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3 selected 52-case copied-source diagnostic with unsafe mode, reset/checker source overlays, and ephemeral JTAG port. Pristine qualification is separate."
-  prior_completed: "29 of 52 completed: 16 selected-profile passes, 12 four-hour timeouts, and one genuine smoke_test_hmac assertion failure. No aggregate 52-case pass."
-  continuation: "23 remaining cases are running with three initial jobs smoke_test_kv_hmac_flow, smoke_test_kv_doe, and smoke_test_mlkem_locked_api; unified exec session 20675 was still active at 2026-09-28 02:43 UTC."
+  prior_completed: "Last read-only status at 2026-09-28 11:40 UTC: 35 of 52 finalized, 17 selected-profile passes and 18 failures, including 15 timeouts; no aggregate 52-case pass."
+  continuation: "At that status, smoke_test_hmac_errortrigger, smoke_test_mldsa_zeroize, and smoke_test_pcr_zeroize had active growing traces; 14 cases had not started. Unified exec session 20675 remains a live continuation unless its result file later says otherwise."
   observed_failure: "pv_hash_zeroize exited on ERR_SHA_BLOCK_NOT_STABLE at 597595 ns. A 1024-bit Icarus/Verilator assertion reproducer and RTL trace support an invalid stability invariant during PCR generate-hash block refill; exact failing word and patched single-case runtime remain unverified."
   patches: "Completed smoke_test_hw_config used its named hash-checked C patch on a disposable copy. Pending smoke_test_hmac_errortrigger will receive its named C patch only when launched. A one-line SHA512 assertion source patch is a dry-run-validated candidate for pv_hash_zeroize, not yet used in a full case. Pinned Caliptra and Adams Bridge checkouts remain clean."
-  next_command: "Poll unified exec session 20675 sparingly; do not restart the 52-case suite. Keep timeout, patched-source, pristine, and genuine assertion outcomes distinct."
+  next_command: "Poll unified exec session 20675 sparingly, and separately check the HMAC candidate single-case replay result; do not restart either. Keep timeout, patched-source, pristine, and genuine assertion outcomes distinct."
 prior_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/

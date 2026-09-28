@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-FLASH-CONSTRAINT-INDEXED-QUEUE-SIZE — indexed queue leaf in a class constraint
+
+- **State:** Selected from the saved 13-hard/125-warning Flash corpus after compiler checkpoint `951a4aba1`. Ten sites constrain `rand_info[i][j].size()` or `mp_info_pages[i][j].size()` under fixed unpacked dimensions. The tiny strict 2017/2023 `nested-size.sv` reproducer fails with an unresolved constraint call; a direct flat queue `.size()` control passes. No new application compile is needed to establish this RED.
+- **Expected behavior:** Bind each `.size()` expression to its indexed rand queue leaf and enforce its length after successful randomization. Focused checks must distinguish leaves, verify contradiction failure, and leave invalid or unsupported shapes explicit. Existing nested element-constraint warnings are a separate possible prerequisite and must not be suppressed to claim Flash support.
+- **Boundary:** Only this queue-size path is selected. The single indexed child `.shuffle()` call and two whole-array `solve before` errors remain separate; a read-only review found no qualified distribution-preserving source patch for `solve before` yet. Pinned sources, unsafe flags, broad suites, and Flash DV runtime remain unchanged.
+
 ### OT-FLASH-NESTED-COVERPOINT-GET-COVERAGE — method lookup through class and covergroup
 
 - **State:** Focused compiler checkpoint on base `ae698ea3d`: strict IEEE 1800-2017/2023 JSON and legacy tests each pass 6/6, four adjacent JSON checks pass, and independent review found no scoped blocker. One hash-guarded patched-copy Flash compile removes exactly the line-389 missing-method error, **14 → 13 hard diagnostics**, with warnings **125 → 125** and no new diagnostics. See the [focused session](session_logs/2026-09-28_ot_flash_nested_item_coverage_focus.json) and projectless `outputs/flash-nested-coverage-item-evidence-20260928.md`.
