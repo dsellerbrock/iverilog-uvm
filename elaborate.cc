@@ -26905,6 +26905,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.width = width ? width : 1;
 	    out.is_signed = end && *end == ':' && end[1] == 's';
 	    out.self_safe = args_self_safe();
+	    out.terminal = out.args.size() == 1 && out.args[0].terminal;
 	    return out;
       }
       if (out.op == "countones") {
@@ -26937,8 +26938,8 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		&& out.args[2].terminal && out.args[2].is_constant) {
 		  uint64_t hi = out.args[1].constant_value;
 		  uint64_t lo = out.args[2].constant_value;
-		  uint64_t width = hi >= lo ? hi - lo + 1 : lo - hi + 1;
-		  if (width != 0 && width <= 64) {
+		  if (hi >= lo && hi - lo < UINT_MAX) {
+		  uint64_t width = hi - lo + 1;
 			out.width = (unsigned)width;
 			out.is_signed = false;
 			out.terminal = true;
@@ -26982,13 +26983,21 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  out.width = out.args[0].width;
 		  out.is_signed = out.args[0].is_signed;
 	    }
-	    return out; // context-determined
+	    return out;
       }
       if (out.op == "ite") {
 	    if (out.args.size() >= 3) {
 		  out.width = out.args[1].width > out.args[2].width
 			? out.args[1].width : out.args[2].width;
 		  out.is_signed = out.args[1].is_signed && out.args[2].is_signed;
+		  /* A fixed-width select mux has a self-determined result. Its
+		   * branches are constant packed slices (or the invalid-read
+		   * sentinel), so an outer comparison cannot resize the slice. */
+		  out.terminal = out.args[0].self_safe
+		    && out.args[1].terminal && out.args[2].terminal
+		    && out.args[1].width == out.args[2].width
+		    && out.args[1].is_signed == out.args[2].is_signed;
+		  out.self_safe = out.terminal;
 	    }
 	    return out; // context-determined
       }
@@ -29863,9 +29872,8 @@ static bool constraint_fixed_index_offset_(
  * s[1] is the 16-bit element at bits [31:16], not bit 1, and a declared
  * range that does not end at 0 shifts every index. A single 0-based packed
  * dimension, including a scalar or packed struct, maps a symbolic index to
- * a bit. Multidimensional and shifted ranges need a constant (e.g.
- * foreach-unrolled) index and return a diagnosed unsupported item rather
- * than a wrong constraint when it is unavailable. */
+ * a bit. In std::randomize, a symbolic outer element index selects one of
+ * the fixed-width slices; other unsupported selects still fail explicitly. */
 static string packed_typed_select_ir_(
       const string&base, ivl_type_t type, const index_component_t&ic,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
@@ -29913,9 +29921,11 @@ static string packed_typed_select_ir_(
 	    return bit_select(outer.width());
 
       unsigned elem_width = packed_type->packed_width() / outer.width();
-      auto offset_of = [&](const PExpr*index, uint64_t&offset) -> bool {
+      auto offset_of = [&](const PExpr*index, uint64_t&offset,
+			   string*captured) -> bool {
 	    string ir = pexpr_to_constraint_ir(index, cls, value_slots,
 					       scope, loop_env);
+	    if (captured) *captured = ir;
 	    constraint_const_ir_t value;
 	    uint64_t digit = 0;
 	    if (ir.empty() || !constraint_parse_const_ir_(ir, value)
@@ -29930,7 +29940,77 @@ static string packed_typed_select_ir_(
       };
       if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
 	    uint64_t off = 0;
-	    if (!offset_of(ic.msb, off)) return "";
+	    string index;
+	    if (!offset_of(ic.msb, off, &index)) {
+		  if (!scope_randomize_emit_ctx_ || !scope
+		      || !constraint_ir_design_ctx_) return "";
+		  /* part has constant bounds in the solver. Keep the selected
+		   * value's width by choosing among constant slices instead of
+		   * treating an outer packed index as a single bit. */
+		  if (outer.width() > 64) {
+			cerr << ic.msb->get_fileline()
+			     << ": sorry: a symbolic packed element select over more "
+			     << "than 64 elements is not representable in "
+			     << "std::randomize constraints." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+		  PExpr::width_mode_t mode = PExpr::SIZED;
+		  unsigned index_width = const_cast<PExpr*>(ic.msb)->test_width(
+		    constraint_ir_design_ctx_, const_cast<NetScope*>(scope), mode);
+		  if (index_width == UINT_MAX) return "";
+		  if (index_width == 0) index_width = 32;
+		  unsigned compare_width = max(65U, index_width + 1);
+		  bool index_signed = ic.msb->has_sign();
+		  if (index.empty()) return "";
+		  if (index.compare(0, 2, "v:") == 0) {
+			/* The generic caller slot defaults to unsigned int. This
+			 * select needs the actual index type before comparing it to
+			 * declared (possibly negative) packed indices. */
+			if (index_width > 64) return "";
+			size_t width_colon = index.find(':', 2);
+			if (width_colon == string::npos) return "";
+			index = index.substr(0, width_colon + 1)
+			      + to_string(index_width)
+			      + (index_signed ? ":s" : "");
+		  } else if (index.compare(0, 2, "p:") != 0) {
+			/* Composite symbolic indices need their own type-preserving
+			 * lowering. Keep them explicitly unsupported here. */
+			return "";
+		  }
+		  bool four_state = packed_type->base_type() == IVL_VT_LOGIC;
+		  string selected = four_state
+		    ? "(trunc:" + to_string(elem_width)
+		      + " (bit4 c:0:1 c:1:1))"
+		    : "c:0:" + to_string(elem_width);
+		  long first = min(outer.get_msb(), outer.get_lsb());
+		  for (unsigned long digit = 0; digit < outer.width(); ++digit) {
+			long declared = first + (long)digit;
+			/* An unsigned index cannot name a negative declared
+			 * position, even if its low bits match that position. */
+			if (declared < 0 && !index_signed) continue;
+			verinum label(declared < 0 ? verinum::V1 : verinum::V0,
+				      compare_width, true);
+			uint64_t bits = (uint64_t)declared;
+			for (unsigned bit = 0; bit < 64; ++bit)
+			      label.set(bit, (bits >> bit) & 1
+					? verinum::V1 : verinum::V0);
+			string test = "(eq " + index + " "
+			      + constraint_const_bits_ir_(label, compare_width, true)
+			      + ")";
+			uint64_t position = outer.get_msb() >= outer.get_lsb()
+			      ? digit : outer.width() - 1 - digit;
+			uint64_t low = position * elem_width;
+			string element = elem_width == 1
+			      ? "(bit " + base + " c:" + to_string(low) + ")"
+			      : "(part " + base + " c:"
+				+ to_string(low + elem_width - 1) + " c:"
+				+ to_string(low) + ")";
+			selected = "(ite " + test + " " + element
+			      + " " + selected + ")";
+		  }
+		  return selected;
+	    }
 	    uint64_t lo = off * elem_width;
 	    if (elem_width == 1)
 		  return "(bit " + base + " c:" + to_string(lo) + ")";
@@ -29939,7 +30019,8 @@ static string packed_typed_select_ir_(
       }
       if (ic.sel == index_component_t::SEL_PART && ic.msb && ic.lsb) {
 	    uint64_t high = 0, low = 0;
-	    if (!offset_of(ic.msb, high) || !offset_of(ic.lsb, low)
+	    if (!offset_of(ic.msb, high, nullptr)
+		|| !offset_of(ic.lsb, low, nullptr)
 		|| high < low) return "";
 	    return "(part " + base + " c:"
 		  + to_string((high + 1) * elem_width - 1)
