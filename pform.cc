@@ -17198,9 +17198,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* Rewrite sampled-value functions in the already-Preponed action
 	   arguments against this checker's history state, then rebuild the
-	   direct $display calls in source order. These statements are folded
-	   ahead of the user's property pass action below, so a successful
-	   attempt observes sequence-match ordering exactly once. */
+	   admitted direct calls in source order. Assertion match calls fold
+	   ahead of the user's pass action; cover match calls run at their
+	   accepted sequence endpoints. */
       Statement*match_action = nullptr;
       if (match_calls) {
 	    std::vector<Statement*>actions;
@@ -17221,9 +17221,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 
 	/* M12B-cb SUCCESS fold (the NFA hook runs before the legacy
-	   fold, so replicate it): every match reports
-	   cbAssertionSuccess; negated properties have no pass path and
-	   cover keeps only its counter (matching the legacy engine). */
+	   fold, so replicate it): assertion matches report
+	   cbAssertionSuccess. Negated properties have no pass path; cover
+	   keeps a counter and dispatches attached calls separately. */
       if (!negated && !cover) {
 	    if (match_action) {
 		  std::vector<Statement*>ordered;
@@ -17491,6 +17491,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
       perm_string r_match;
       if (cover && match_action) {
+	      /* The admitted flat, fixed-length sequence starts at most once
+		 per sampled tick. Overlapping starts therefore end on different
+		 ticks. Track endpoint calls per tick, while r_cnt stays cumulative. */
 	    r_match = sva_make_reg_(loc, inst, "match", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
       }
