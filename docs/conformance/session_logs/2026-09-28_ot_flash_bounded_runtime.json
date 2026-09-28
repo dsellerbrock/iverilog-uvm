@@ -1,0 +1,160 @@
+{
+  "ticket": "OT-FLASH-BOUNDED-DV-RUNTIME-TRIAGE",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_commit": "4a105fad6",
+  "selected_source_patches_before_runtime": [
+    "flash_constraint_foreach_standard.patch",
+    "flash_illegal_whole_array_solve_before.patch",
+    "flash_array_container_workaround.patch",
+    "flash_packed_field_solve_before.patch"
+  ],
+  "runtime_source_patch_checks": [
+    {
+      "patch": "flash_explicit_test_registration.patch",
+      "pinned_sha256": "54ba8a34483e1a844a3d793a2db800c9c3bb0fc77e9797de3cbef644d382b3c9",
+      "patched_sha256": "ae5854cc68d0b6ababba8af9d72b48fb9ef5b8dc794ea312bd903328d9263085",
+      "dry_run": "pass",
+      "applied_exactly": "pass"
+    },
+    {
+      "patch": "flash_bool_mubi_inline.patch",
+      "pinned_sha256": "172ada8b30ff55d80e1bc236d5a25812c9e8500a2ea6c7151f49a0dab4419475",
+      "patched_sha256": "fdf9c924b4a4008d7e4499efc0ef4538f9d01fe8a756aa84c68d9063c901b36f",
+      "dry_run": "pass",
+      "applied_exactly": "pass"
+    }
+  ],
+  "selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-I",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/runtime-overlay",
+      "-I",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-release-patches-20260928/selected-overlay",
+      "-I",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-foreach-20260927",
+      "-g2012",
+      "-stb",
+      "-sflash_ctrl_bind",
+      "-sflash_ctrl_cov_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-factory-seq-overlay.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-factory-wrapper.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_flash_ctrl_sim_0.1/sim-icarus",
+    "compiler_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "source_list_sha256": "65dcce1c3743b19961fc3cc639ac0d9440616665498a3891d8177be5cf536617",
+    "tb_overlay_sha256": "ae5854cc68d0b6ababba8af9d72b48fb9ef5b8dc794ea312bd903328d9263085",
+    "sequence_overlay_sha256": "fdf9c924b4a4008d7e4499efc0ef4538f9d01fe8a756aa84c68d9063c901b36f",
+    "returncode": 0,
+    "hard_errors": 0,
+    "warnings": 105,
+    "fail_closed_constraints": 0
+  },
+  "stages": [
+    {
+      "name": "four_source_patches",
+      "image_sha256": "4099409ed6836f6f1cb8be0c374c82675c6dcb442a75ae540b3582587bd93bcd",
+      "vvp_sha256": "e5419f2b7e780ca6ab2ee646de34c3fbbb0f7de0c879fe14b60fc8519bd1c73e",
+      "dpi_sha256": "50f6d4785f994bdab823fd0e892ea6351221ea99508ebe70b2dabf090a45a009",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+        "-n",
+        "-d",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-shared-assoc-after-dpi.dylib",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-shared-assoc-after.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=flash_ctrl_base_test",
+        "+UVM_TEST_SEQ=flash_ctrl_smoke_vseq"
+      ],
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 2.481
+      },
+      "runtime_log_sha256": "5a80876ba977ca4fff62e13a5761d93a9436fb81d46a7df5853c20c4a1936967",
+      "observed": "UVM_FATAL [INVTST] at 0 ns: test class not registered",
+      "dv_pass": false
+    },
+    {
+      "name": "plus_explicit_test_registration",
+      "image_sha256": "92cb92f0796639606f8a1661e7b7e2c708936f684914febc5dee573a3cc3054e",
+      "vvp_sha256": "e5419f2b7e780ca6ab2ee646de34c3fbbb0f7de0c879fe14b60fc8519bd1c73e",
+      "dpi_sha256": "fd4a793823cd7e70c5ea33dd016e1a4d05ef8a32276e4108d771b6c10c8b2117",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+        "-n",
+        "-d",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-factory-overlay-dpi.dylib",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-factory-overlay.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=flash_ctrl_base_test",
+        "+UVM_TEST_SEQ=flash_ctrl_smoke_vseq"
+      ],
+      "runtime": {
+        "returncode": 1,
+        "timed_out": false,
+        "seconds": 4.9
+      },
+      "runtime_log_sha256": "d1d3058ea1d79d08b6bd7f0574f94f06fa38ff19ef17731b7f9c48cdde7e65a8",
+      "observed": "test starts; dynamic foreach function-priority runtime error at 0 ns",
+      "dv_pass": false
+    },
+    {
+      "name": "plus_exact_mubi_function_body",
+      "image_sha256": "344a06c1d87cc092ab5ca4b3431c589549c29eb5dc18d77c45d14628ada1ccba",
+      "vvp_sha256": "e5419f2b7e780ca6ab2ee646de34c3fbbb0f7de0c879fe14b60fc8519bd1c73e",
+      "dpi_sha256": "dfd369dc418c8070876e130ca1fb9060fbc6862f3f583c03235f32f4536c56f3",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+        "-n",
+        "-d",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-factory-seq-overlay-dpi.dylib",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-flash-state2d-results/flash-factory-seq-overlay.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=flash_ctrl_base_test",
+        "+UVM_TEST_SEQ=flash_ctrl_smoke_vseq"
+      ],
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 28.744
+      },
+      "runtime_log_sha256": "8058d83ebf09dd861c2ec821e8541781468794c88ac345c0a5fd19f536c8031a",
+      "observed": "test reaches 1606 ns; memory backdoor handle null, size X, TEST FAILED CHECKS",
+      "dv_pass": false
+    }
+  ],
+  "current_blocker": {
+    "location": "flash_ctrl_env.sv:45-46",
+    "compile_warning": "Skipping unsupported function copy-out argument for `value`",
+    "symptom": "uvm_config_db#(mem_bkdr_util)::get output does not populate cfg.mem_bkdr_util_h[part][bank]; later null-handle read reports size X at 1606 ns",
+    "status": "minimal strict reproducer and compiler fix in private agent branch; not integrated"
+  },
+  "qualification": "No Flash DV pass and no fresh 49-core corpus run. Exit code 0 at stage 1 or 3 does not override UVM failure markers. Pinned OpenTitan sources remain unmodified."
+}

@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 9c127289a
+checkpoint_head: 4a105fad6
 active_open_titan_lane:
-  blocker: "OT-FLASH-BOUNDED-DV-FIRST-RUNTIME"
-  phase: "COMPILE_CLEAN"
+  blocker: "OT-FLASH-CONFIG-DB-HANDLE-COPYOUT"
+  phase: "DV_RUNTIME_TRIAGE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "9c127289a"
-  reproducer: "The final two Flash random-key associative class-state warnings have strict 2017/2023 reducers; the same four-patch selective compile now has zero hard and zero fail-closed diagnostics."
-  pending_validation: "Focused strict JSON 4/4 and legacy 2/2 pass; selective Flash compile exits 0 with 105 conventional warnings. No Flash DV runtime or current-image 49-core census."
-  next_command: "Run one bounded Flash smoke on the disposable four-patch image and triage its runtime result. Then decide whether the 49-core corpus is ready for replay. Caliptra 52-case run remains stopped pending performance work."
-  boundary: "Pinned OpenTitan is pristine, source overlays are explicit, and compile success alone is not a DV pass."
+  baseline_head: "4a105fad6"
+  reproducer: "Pinned flash_ctrl_env.sv:45-46 passes a nested associative/fixed class-property handle as uvm_config_db::get output. The compiler warns that copy-out is skipped; the selected smoke later dereferences a null memory backdoor handle at 1606 ns."
+  pending_validation: "Four-patch selective compile exits 0 with zero hard/fail-closed diagnostics and 105 warnings. Two further hash-checked source patches advance the bounded Flash smoke through test registration and randomization to the 1606 ns copy-out failure. No Flash DV pass or current-image 49-core census."
+  next_command: "Prove and repair nested output-handle copy-out in paired strict minimal reducers, then rerun one bounded Flash smoke with the six named disposable-source patches. The Caliptra 52-case run remains stopped pending performance work."
+  boundary: "Pinned OpenTitan is pristine. Source overlays and selected unsafe-mode results are explicit; exit-zero VVP with UVM_ERROR remains DV failure."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
