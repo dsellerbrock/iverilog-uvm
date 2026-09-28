@@ -2545,7 +2545,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 
       /* IEEE 1800-2017 7.12.1 min()/max():
        *   $ivl_darray_method$minmax|<kind>(array, iter, result, idx,
-       *                                    best, bestitem, val)
+       *                                    best, bestitem, val[, recv],
+       *                                    [declared_idx, idx_expr])
        * Walk the array tracking the best per-element value (the with
        * expression, or the element itself) and return a queue holding
        * the single best element — or an empty queue for an empty
@@ -2555,8 +2556,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strncmp(name, "$ivl_darray_method$minmax|", 26) == 0) {
 	    const char*kind = name + 26;
 	    int is_min = (strcmp(kind, "min") == 0);
+	    int is_fixed = parm_count == 9 || parm_count == 10;
+	    int fixed_has_recv = parm_count == 10;
 
-	    if (parm_count < 7) {
+	    if (parm_count < 7 || parm_count > 10) {
 		  fprintf(vvp_out, "    %%null; ; minmax: bad parm count\n");
 		  return 0;
 	    }
@@ -2567,8 +2570,12 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_expr_t best_arg = ivl_expr_parm(expr, 4);
 	    ivl_expr_t bitem_arg = ivl_expr_parm(expr, 5);
 	    ivl_expr_t val = ivl_expr_parm(expr, 6);
-	    ivl_expr_t recv_parm = (parm_count > 7)
+	    ivl_expr_t recv_parm = (parm_count == 8 || fixed_has_recv)
 		  ? ivl_expr_parm(expr, 7) : 0;
+	    ivl_expr_t declared_idx_arg = is_fixed
+		  ? ivl_expr_parm(expr, fixed_has_recv ? 8 : 7) : 0;
+	    ivl_expr_t declared_idx_expr = is_fixed
+		  ? ivl_expr_parm(expr, fixed_has_recv ? 9 : 8) : 0;
 
 	    ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
 	    if (!a_sig
@@ -2582,13 +2589,20 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		|| !ivl_expr_signal(best_arg)
 		|| !bitem_arg || ivl_expr_type(bitem_arg) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(bitem_arg)
-		|| !val) {
+		|| !val
+		|| (is_fixed
+		    && (!declared_idx_arg
+			|| ivl_expr_type(declared_idx_arg) != IVL_EX_SIGNAL
+			|| !ivl_expr_signal(declared_idx_arg)
+			|| !declared_idx_expr))) {
 		  fprintf(vvp_out, "    %%null; ; minmax: bad arg shape\n");
 		  return 0;
 	    }
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+	    ivl_signal_t declared_idx_sig = is_fixed
+		  ? ivl_expr_signal(declared_idx_arg) : 0;
 	    ivl_signal_t best_sig = ivl_expr_signal(best_arg);
 	    ivl_signal_t bitem_sig = ivl_expr_signal(bitem_arg);
 
@@ -2635,6 +2649,11 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    draw_array_elem_load_vec4_(a_sig);
 	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
 		    iter_sig, iter_wid);
+	    if (is_fixed) {
+		draw_eval_vec4(declared_idx_expr);
+		fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
+			declared_idx_sig);
+	    }
 
 	      /* value on the stack; the first element is always taken */
 	    draw_eval_vec4(val);

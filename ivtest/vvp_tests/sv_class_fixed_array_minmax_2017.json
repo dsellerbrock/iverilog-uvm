@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_fixed_array_minmax.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_class_fixed_array_minmax"
+}

@@ -2034,6 +2034,8 @@ static NetExpr* make_array_reduction_expr_(
  *   parm 4: best NetESignal (best value so far, value width)
  *   parm 5: bestitem NetESignal (element with the best value)
  *   parm 6: value expression
+ *   parm 7: optional materialized receiver
+ *   final two parms for fixed arrays: declared index net and expression
  */
 static NetExpr* make_array_minmax_expr_(
       const LineInfo*li, Design*des, NetScope*scope,
@@ -2053,8 +2055,21 @@ static NetExpr* make_array_minmax_expr_(
 	    return 0;
       }
 
+      const netuarray_t*fixed_type =
+	    dynamic_cast<const netuarray_t*>(container_type);
+      const bool fixed_materialized = fixed_type
+	    && !dynamic_cast<NetESignal*>(array_expr);
       NetNet*recv_net = 0;
-      if (!dynamic_cast<NetESignal*>(array_expr)) {
+      if (fixed_materialized) {
+	    /* A fixed-array property has no container handle. Snapshot its
+	     * complete value once using the same object-context path as the
+	     * reduction methods. */
+	    ivl_type_t recv_type = new netdarray_t(element_type);
+	    recv_net = new NetNet(scope, scope->local_symbol(),
+				   NetNet::REG, recv_type);
+	    recv_net->set_line(*li);
+	    recv_net->local_flag(true);
+      } else if (!dynamic_cast<NetESignal*>(array_expr)) {
 	    recv_net = make_array_method_recv_net_(li, des, scope,
 						   array_expr,
 						   container_type, kind);
@@ -2073,12 +2088,27 @@ static NetExpr* make_array_minmax_expr_(
       idx_net->set_line(*li);
       idx_net->local_flag(true);
 
+      NetNet*visible_idx_net = idx_net;
+      NetExpr*declared_idx_expr = 0;
+      if (fixed_type) {
+	    visible_idx_net = new NetNet(scope, scope->local_symbol(),
+				     NetNet::REG, &netvector_t::atom2s32);
+	    visible_idx_net->set_line(*li);
+	    visible_idx_net->local_flag(true);
+	    const netrange_t&range = fixed_type->static_dimensions().front();
+	    declared_idx_expr = fixed_materialized
+		  ? make_fixed_array_method_declared_index_(
+			*li, idx_net, range)
+		  : make_fixed_array_method_canonical_index_(
+			*li, idx_net, range);
+      }
+
       NetExpr*val_expr = 0;
       if (!with_exprs.empty() && with_exprs.front()) {
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
 						    iter_name, iter_net,
-						    idx_net);
+						    visible_idx_net);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -2122,7 +2152,8 @@ static NetExpr* make_array_minmax_expr_(
 
       string mangled = string("$ivl_darray_method$minmax|") + kind;
       NetESFunc*fn = new NetESFunc(mangled.c_str(), result_qtype,
-				   recv_net ? 8 : 7);
+				   fixed_type ? (recv_net ? 10 : 9)
+					      : (recv_net ? 8 : 7));
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*li);
@@ -2144,6 +2175,12 @@ static NetExpr* make_array_minmax_expr_(
 	    NetESignal*recv_ref = new NetESignal(recv_net);
 	    recv_ref->set_line(*li);
 	    fn->parm(7, recv_ref);
+      }
+      if (fixed_type) {
+	    NetESignal*visible_idx_ref = new NetESignal(visible_idx_net);
+	    visible_idx_ref->set_line(*li);
+	    fn->parm(recv_net ? 8 : 7, visible_idx_ref);
+	    fn->parm(recv_net ? 9 : 8, declared_idx_expr);
       }
       fn->set_line(*li);
       return fn;
