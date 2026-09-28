@@ -6130,6 +6130,32 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    ivl_expr_t parm1 = (ivl_stmt_parm_count(net) > 1)
 		  ? ivl_stmt_parm(net, 1) : 0;
 	    ivl_signal_t sig = 0;
+	    if (parm0 && parm1 && ivl_expr_type(parm1) == IVL_EX_NUMBER
+		&& ivl_expr_type(parm0) == IVL_EX_SELECT) {
+		ivl_expr_t map = ivl_expr_oper1(parm0);
+		ivl_expr_t key = ivl_expr_oper2(parm0);
+		ivl_type_t assoc = property_assoc_container_type_(map);
+		ivl_type_t child = assoc ? ivl_type_element(assoc) : 0;
+		ivl_type_t elem = child ? ivl_type_element(child) : 0;
+		unsigned mode = ivl_expr_uvalue(parm1) & 3;
+		if (map && ivl_expr_type(map) == IVL_EX_PROPERTY
+		    && !ivl_expr_oper1(map) && key
+		    && child && type_is_fixed_uarray_property_(child)
+		    && ivl_type_packed_dimensions(child) == 1
+		    && elem && (ivl_type_base(elem) == IVL_VT_BOOL
+				|| ivl_type_base(elem) == IVL_VT_LOGIC)
+		    && (mode == 2 || mode == 3)) {
+		    /* The selected fixed child is a live vvp_darray value. Vivify
+		     * before ordering so a missing key gets private stored storage. */
+		    draw_eval_object(map);
+		    const char*key_kind = draw_eval_assoc_key_(key, 0);
+		    fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n", key_kind,
+			    strcmp(key_kind, "obj") == 0 ? 25U : 17U);
+		    fprintf(vvp_out, "    %s;\n",
+			    mode == 2 ? "%qreverse/o" : "%qshuffle/o");
+		    return 0;
+		}
+	    }
 	    if (parm0 && (ivl_expr_type(parm0) == IVL_EX_SIGNAL
 			  || ivl_expr_type(parm0) == IVL_EX_ARRAY))
 		  sig = ivl_expr_signal(parm0);

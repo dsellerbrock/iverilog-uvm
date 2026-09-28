@@ -1821,7 +1821,22 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
 	    }
 	  }
       }
-      if (!assoc_compat_supports_indexed_method_target_(prop_type, method_name)) {
+      const netqueue_t*order_assoc =
+	  dynamic_cast<const netqueue_t*>(prop_type);
+      const netuarray_t*order_child = order_assoc && order_assoc->assoc_compat()
+	  && dynamic_cast<const netenum_t*>(order_assoc->assoc_index_type())
+	  ? dynamic_cast<const netuarray_t*>(order_assoc->element_type()) : nullptr;
+      ivl_type_t order_elem = order_child
+	  ? order_child->element_type() : nullptr;
+      bool fixed_child_order = comp.index.size() == 1 && order_child
+	  && order_child->static_dimensions().size() == 1
+	  && (dynamic_cast<const netvector_t*>(order_elem)
+	      || dynamic_cast<const netenum_t*>(order_elem))
+	  && (method_name == perm_string::literal("reverse")
+	      || method_name == perm_string::literal("shuffle"));
+      if (!fixed_child_order
+	  && !assoc_compat_supports_indexed_method_target_(prop_type,
+							method_name)) {
 	    delete base_expr;
 	    return nullptr;
       }
