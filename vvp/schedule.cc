@@ -1122,8 +1122,10 @@ struct assign_prop_vec4_event_s : public event_s {
 		  cobj->set_vec4(pid, val, 0);
 	    } else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>()) {
 		  vif->get_vec4(pid, current, 0);
-		  if (current.size() == val.size() && current.eeq(val))
+		  if (current.size() == val.size() && current.eeq(val)) {
+			vif->reject_continuous_write(pid);
 			return;
+		  }
 		  vif->set_vec4(pid, val, 0);
 		  obj.touch();
 	    } else {
@@ -1178,6 +1180,7 @@ struct assign_prop_vec4_bits_event_s : public event_s {
 		  return;
 
 	    bool changed = false;
+	    bool selected = false;
 	    for (uint64_t idx = 0 ; idx < val.size() ; idx += 1) {
 		  uint64_t dst;
 		  if (signed_offset && (bitoff >> 63)) {
@@ -1192,14 +1195,18 @@ struct assign_prop_vec4_bits_event_s : public event_s {
 		  }
 		  if (dst >= current.size())
 			continue;
+		  selected = true;
 		  vvp_bit4_t bit = val.value((unsigned)idx);
 		  if (current.value((unsigned)dst) != bit) {
 			current.set_bit((unsigned)dst, bit);
 			changed = true;
 		  }
 	    }
-	    if (!changed)
+	    if (!changed) {
+		  if (vif && selected)
+			vif->reject_continuous_write(pid);
 		  return;
+	    }
 
 	    if (cobj)
 		  cobj->set_vec4(pid, current, 0);

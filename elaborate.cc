@@ -2683,7 +2683,7 @@ static int clocking_output_property_writes_member_(
 	    ? -2 : -1;
 }
 
-static bool interface_member_has_property_writer_(
+static bool interface_member_has_ref_property_writer_(
 		const NetNet*member, const netclass_t*interface_type)
 {
       for (const auto&ref : unresolved_interface_ref_properties_) {
@@ -2719,6 +2719,15 @@ static bool interface_member_has_property_writer_(
 	if (written == member->name())
 	  return true;
       }
+
+      return false;
+}
+
+static bool interface_member_has_property_writer_(
+		const NetNet*member, const netclass_t*interface_type)
+{
+      if (interface_member_has_ref_property_writer_(member, interface_type))
+	return true;
 
       for (const NetAssign_*lval : NetAssign_::interface_member_lvals()) {
 	if (lval->is_force_lval())
@@ -2946,9 +2955,17 @@ static void finalize_interface_continuous_drivers_(Design*des)
       pending_interface_variable_continuous_drivers_.clear();
 
       for (const auto&pending : pending_direct_interface_members_) {
+	bool completely_driven = pending.signal->unpacked_dimensions() == 0
+	    && pending.signal->pin_count() == 1
+	    && type_is_vectorable(pending.signal->data_type());
+	for (unsigned bit = 0;
+	     completely_driven && bit < pending.signal->vector_width(); ++bit)
+	  completely_driven = pending.signal->test_part_driven(bit, bit);
 	if (pending.signal->has_unsafe_ref_actual_write()
+	    || interface_member_has_ref_property_writer_(pending.signal, nullptr)
 	    || static_clocking_output_writers_.count(pending.signal)
-	    || interface_member_has_property_writer_(pending.signal, nullptr)) {
+	    || (interface_member_has_property_writer_(pending.signal, nullptr)
+		&& !(gn_commercial_unsafe_flag && completely_driven))) {
 	  cerr << pending.location->get_fileline()
 	       << ": error: Variable '" << pending.signal->name()
 	       << "' cannot have continuous and procedural drivers on the"
