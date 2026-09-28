@@ -5001,3 +5001,9 @@ sv_contassign_reduction_strength normal,-g2017,-ssv_contassign_reduction_strengt
 sv_contassign_reduction_strength_2023 normal,-g2023,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold
 sv_joint_concat_dist_owned_class normal,-g2017,-ssv_joint_concat_dist_owned_class ivltests gold=sv_joint_concat_dist_owned_class.gold
 sv_joint_concat_dist_owned_class_2023 normal,-g2023,-Iivltests,-ssv_joint_concat_dist_owned_class ivltests gold=sv_joint_concat_dist_owned_class.gold
+
+# Sequence match-item subroutine calls on cover endpoints.
+sv_sva_cover_match_item_runtime normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
+sv_sva_cover_match_item_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
+sv_sva_cover_match_item_arg_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
+sv_sva_cover_match_item_arg_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold

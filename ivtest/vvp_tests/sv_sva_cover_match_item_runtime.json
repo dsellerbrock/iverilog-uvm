@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_sva_cover_match_item_runtime.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_sva_cover_match_item_runtime"],
+  "gold": "sv_sva_cover_match_item_runtime"
+}

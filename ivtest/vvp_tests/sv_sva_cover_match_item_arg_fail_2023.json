@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_sva_cover_match_item_arg_fail.v",
+  "iverilog-args": ["-g2023", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_sva_cover_match_item_arg_fail"],
+  "gold": "sv_sva_cover_match_item_arg_fail"
+}

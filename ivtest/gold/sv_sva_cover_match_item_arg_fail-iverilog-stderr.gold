@@ -1,0 +1,1 @@
+ivltests/sv_sva_cover_match_item_arg_fail.v:6: sorry: sequence match-item subroutine calls currently support only direct $display calls or zero-argument user calls in a cover property in the bounded IEEE 1800-2017 16.11 lowering; the assertion is dropped.
