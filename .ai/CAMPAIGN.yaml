@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: b228aeba3
+checkpoint_head: 468a17149
 active_open_titan_lane:
-  blocker: "OT-FLASH-FOREACH-MIXED-RANK"
-  phase: "FOCUSED_IMPLEMENTATION_CHECKPOINT"
+  blocker: "OT-FLASH-VIF-PACKED-STRUCT-FIELD"
+  phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "9e174d545"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-foreach-class-mixed-rank-red.sv and ot-flash-foreach-signal-mixed-rank-silent-red.sv; the class property gives a false rank error and the populated signal silently visits zero queue elements"
-  pending_validation: "PForeach mixed-rank candidate passes paired strict JSON and legacy focus 4/4 each. One patched-source disposable Flash compile drops 47 to 29 hard diagnostics: 16 standard whole-target mixed-rank errors clear through the compiler fix, two nonstandard info_mem errors clear through a separate source correction, no new errors, and all 146 warnings remain. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. No Flash DV runtime, integrated gates, install, broad suite, or fresh 49-core census."
-  next_command: "Triage the remaining 29 Flash hard diagnostics with minimal reproducers before another application compile. Keep the nonstandard info_mem source correction distinct from the compiler repair, and defer broad gates and runtime qualification until the current error corpus is addressed."
-  boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
+  baseline_head: "468a17149"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-vif-packed-struct-field-red.sv; direct packed-struct field read passes, virtual-interface field read fails in strict 2017/2023, and Slang accepts both"
+  pending_validation: "The committed mixed-rank foreach slice passes paired JSON and legacy focus 4/4 each. One patched-source disposable Flash compile has 29 hard diagnostics and 146 unchanged warnings, including six grouped packed-struct virtual-interface field errors at scoreboard lines 108/110; line 124 remains ungrouped. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. Integrated gates, install, Flash DV runtime, broad suite, and fresh 49-core census remain pending."
+  next_command: "Use the tiny direct/VIF RED to trace packed-array and packed-struct field selection, then implement and validate only that path with paired strict 2017/2023 controls. Classify line 124 and the remaining error corpus separately before another Flash compile."
+  boundary: "Only compiler expression elaboration, paired focused tests, and relevant docs for the selected packed-struct VIF field path. No pinned-source patch, unsafe flag, broad suite, install, or Flash DV runtime. Keep the 29-error corpus current and leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
