@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = Path(__file__).resolve().parent
 WORKTREE = HERE.parents[1]
@@ -285,7 +286,7 @@ def prepare_vectors(output, timeout, env, preflight):
         [sys.executable, str(VECTORS / "check_native_mldsa.py"), str(adams), str(ref / "test/test_dilithium5")],
     ]
     for index, command in enumerate(commands):
-        code, timed_out = invoke(command, native, env, native / f"step_{index}.log", timeout)
+        code, timed_out, _, _ = invoke(command, native, env, native / f"step_{index}.log", timeout)
         if code != 0:
             raise RuntimeError(f"Native vector preparation step {index} failed (exit={code}, timeout={timed_out})")
     files = {
@@ -343,30 +344,67 @@ def cases():
     return selected
 
 
-def invoke(argv, cwd, env, log, timeout):
+def stop_process(process):
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        process.terminate()
+    try:
+        return process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            process.kill()
+        return process.wait()
+
+
+def physical_footprint(pid):
+    report = subprocess.run(
+        ["/usr/bin/footprint", "--noCategories", "--swapped", "-f", "bytes", "-p", str(pid)],
+        capture_output=True, text=True, timeout=10)
+    match = re.search(r"^\s*phys_footprint:\s*(\d+) B\s*$", report.stdout, re.MULTILINE)
+    if report.returncode or not match:
+        raise RuntimeError(f"Cannot measure VVP physical footprint: {report.stderr.strip()}")
+    return int(match.group(1))
+
+
+def invoke(argv, cwd, env, log, timeout, memory_cap_bytes=None):
     with log.open("w") as stream:
         process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=stream,
                                    stderr=subprocess.STDOUT, start_new_session=True)
-        try:
-            return process.wait(timeout=timeout), False
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            except PermissionError:
-                process.terminate()
-            try:
-                process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
+        if memory_cap_bytes is not None:
+            deadline = time.monotonic() + timeout
+            peak_footprint = None
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    stop_process(process)
+                    return None, True, False, peak_footprint
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                except PermissionError:
-                    process.kill()
-                process.wait()
-            return None, True
+                    return process.wait(timeout=min(5, remaining)), False, False, peak_footprint
+                except subprocess.TimeoutExpired:
+                    if process.poll() is not None:
+                        return process.returncode, False, False, peak_footprint
+                    try:
+                        footprint = physical_footprint(process.pid)
+                    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+                        if process.poll() is not None:
+                            return process.returncode, False, False, peak_footprint
+                        stop_process(process)
+                        raise
+                    peak_footprint = max(peak_footprint or 0, footprint)
+                    if footprint > memory_cap_bytes:
+                        return stop_process(process), False, True, peak_footprint
+        try:
+            return process.wait(timeout=timeout), False, False, None
+        except subprocess.TimeoutExpired:
+            stop_process(process)
+            return None, True, False, None
 
 
 def main():
@@ -384,6 +422,8 @@ def main():
                         help="use a hash-guarded copied top with JTAG ListenPort 0")
     parser.add_argument("--output", type=Path, help="new isolated results directory")
     parser.add_argument("--timeout", type=int, default=900, help="seconds per command")
+    parser.add_argument("--sim-memory-gib", type=int,
+                        help="stop VVP if its macOS physical footprint exceeds this many GiB")
     args = parser.parse_args()
     selected = cases()
     if args.list:
@@ -397,6 +437,11 @@ def main():
         parser.error(f"unknown released L0 test: {args.case}")
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if args.sim_memory_gib is not None:
+        if args.sim_memory_gib <= 0:
+            parser.error("--sim-memory-gib must be positive")
+        if platform.system() != "Darwin" or not os.access("/usr/bin/footprint", os.X_OK):
+            parser.error("--sim-memory-gib requires macOS /usr/bin/footprint")
     run_cases = selected if args.all else [next(case for case in selected
                                                 if case["name"] == (args.case or "smoke_test_veer"))]
     source_before = verify_sources()
@@ -476,12 +521,13 @@ def main():
         "ephemeral_jtag_port": args.ephemeral_jtag_port,
         "jtag_port_provenance": jtag_port_provenance,
         "qualification": qualification, "compiler_flags": compiler_flags,
+        "sim_memory_cap_gib": args.sim_memory_gib,
         "expected_smoke_readmemh_sha256": SEED_HASHES, "jtagdpi_bundle_sha256": jtagdpi_hash,
         "vector_preflight": vector_preflight,
     }, indent=2) + "\n")
     compile_error = None
     try:
-        compile_code, compile_timeout = invoke(compiler, output, env, output / "compile.log", args.timeout)
+        compile_code, compile_timeout, _, _ = invoke(compiler, output, env, output / "compile.log", args.timeout)
     except OSError as exc:
         compile_code, compile_timeout, compile_error = 127, False, str(exc)
     sampling_warnings = len(SAMPLING_WARNING.findall((output / "compile.log").read_text(errors="replace")))
@@ -528,6 +574,7 @@ def main():
         print(f"run preparation failed: {exc}", file=sys.stderr)
         return 1
     failed = 0
+    memory_limit_hits = 0
     for case in run_cases:
         name = case["name"]
         firmware_root = firmware_roots[name]
@@ -540,8 +587,8 @@ def main():
         firmware_env = env.copy()
         firmware_env["CALIPTRA_ROOT"] = str(firmware_root)
         firmware_env["CALIPTRA_PRIM_ROOT"] = str(firmware_root / "src/caliptra_prim_generic")
-        firmware_code, firmware_timeout = invoke(firmware_command, run, firmware_env,
-                                                  run / "firmware.log", args.timeout)
+        firmware_code, firmware_timeout, _, _ = invoke(firmware_command, run, firmware_env,
+                                                        run / "firmware.log", args.timeout)
         images = {name: run / name for name in SEED_HASHES}
         missing_images = [name for name, path in images.items() if not path.is_file()]
         image_hashes = {name: sha256(path) if path.is_file() else None
@@ -551,14 +598,17 @@ def main():
                     and expected_match is not False)
         sim_command = [str(VVP), "-d", str(JTAGDPI), "-n", str(output / "caliptra_top_tb.vvp"),
                        "+CLP_REGRESSION", "+CLP_BUS_LOGS", *case["plusargs"]]
-        sim_code, sim_timeout = (None, False)
+        sim_code, sim_timeout, sim_memory_limit_hit, sim_peak_footprint = (None, False, False, None)
         staged_hashes = None
         vector_integrity_ok = False
         if firmware_code == 0 and image_ok:
             staged_hashes = stage_vectors(run, vector_files, vector_hashes, vector_preflight)
             sim_env = env.copy()
             sim_env["PATH"] = f"{run / '.bin'}:{env['PATH']}"
-            sim_code, sim_timeout = invoke(sim_command, run, sim_env, run / "sim.log", args.timeout)
+            sim_code, sim_timeout, sim_memory_limit_hit, sim_peak_footprint = invoke(
+                sim_command, run, sim_env, run / "sim.log", args.timeout,
+                memory_cap_bytes=(args.sim_memory_gib * 1024**3
+                                  if args.sim_memory_gib is not None else None))
             vector_integrity_ok = all(sha256(run / relative) == digest
                                       for relative, digest in staged_hashes.items())
         sim = (run / "sim.log").read_text(errors="replace") if (run / "sim.log").exists() else ""
@@ -570,6 +620,7 @@ def main():
         missing_dpi = len(MISSING_DPI.findall(sim))
         jtag_server_errors = len(JTAG_SERVER_ERROR.findall(sim))
         passed = (firmware_code == 0 and image_ok and sim_code == 0 and not sim_timeout
+                  and not sim_memory_limit_hit
                   and vector_integrity_ok
                   and sim.count("* TESTCASE PASSED") == 1 and "TESTCASE FAILED" not in sim
                   and runtime_diagnostics_ok(sim)
@@ -594,6 +645,9 @@ def main():
                   "program_sha256": image_hashes["program.hex"],
                   "sim_command": sim_command if firmware_code == 0 and image_ok else None,
                   "sim_exit": sim_code, "sim_timeout": sim_timeout,
+                  "sim_memory_cap_gib": args.sim_memory_gib,
+                  "memory_limit_hit": sim_memory_limit_hit,
+                  "peak_physical_footprint_bytes": sim_peak_footprint,
                   "pass_markers": sim.count("* TESTCASE PASSED"),
                   "failed_markers": sim.count("TESTCASE FAILED"),
                   "bad_diagnostics": len(BAD.findall(sim)),
@@ -604,6 +658,7 @@ def main():
         (run / "result.json").write_text(json.dumps(result, indent=2) + "\n")
         print(f"{'PASS' if passed else 'FAIL'} {name}: retired={retired} trace={commits}", flush=True)
         failed += not passed
+        memory_limit_hits += sim_memory_limit_hit
     source_after = None
     source_error = None
     try:
@@ -655,6 +710,8 @@ def main():
     (output / "summary.json").write_text(json.dumps({"selected": 52, "attempted": attempted,
                                                        "passed": attempted - failed,
                                                        "failed": failed, "unrun": 52 - attempted,
+                                                       "sim_memory_cap_gib": args.sim_memory_gib,
+                                                       "memory_limit_hits": memory_limit_hits,
                                                        "status": "COMPLETE" if not integrity_error else "INVALIDATED",
                                                        "qualification": qualification,
                                                        "commercial_unsafe": args.commercial_unsafe,
