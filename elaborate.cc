@@ -32859,6 +32859,88 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    constraint_ir_design_ctx_->errors += 1;
 			      return "";
 			}
+			/* A member of one fixed packed-struct array element is a
+			 * slice of that element's e: solver variable. Resolve the
+			 * root here so an unsupported tail cannot bind an unrelated
+			 * class property with the same name. */
+			const netuarray_t*fixed =
+			      dynamic_cast<const netuarray_t*>(ptype);
+			if (pidx >= 0 && fixed && outer_element
+			    && outer_element->packed()
+			    && outer_tail != id->path().name.end()) {
+			      const netranges_t&dims = fixed->static_dimensions();
+			      pform_name_t::const_iterator after = outer_tail;
+			      ++after;
+			      if (!target_owner->get_prop_qual((size_t)pidx).test_rand()
+				  || dims.size() != 1 || !dims.front().defined()
+				  || comp->index.size() != 1
+				  || !outer_tail->index.empty()
+				  || after != id->path().name.end())
+				return "";
+			      unsigned long offset = 0;
+			      const netstruct_t::member_t*member =
+				outer_element->packed_member(outer_tail->name, offset);
+			      ivl_type_t mtype = member ? member->net_type : nullptr;
+			      unsigned ewidth = outer_element->packed_width();
+			      unsigned mwidth = mtype ? mtype->packed_width() : 0;
+			      if (!mtype || dynamic_cast<const netstruct_t*>(mtype)
+				  || (mtype->base_type() != IVL_VT_BOOL
+				      && mtype->base_type() != IVL_VT_LOGIC)
+				  || mtype->get_signed() || !mwidth || !ewidth
+				  || offset > ewidth || mwidth > ewidth - offset)
+				return "";
+			      const index_component_t&select = comp->index.front();
+			      if (!select.msb || select.lsb
+				  || select.sel != index_component_t::SEL_BIT)
+				return "";
+			      string index_ir = pexpr_to_constraint_ir(
+				select.msb, cls, value_slots, scope, loop_env);
+			      constraint_const_ir_t index;
+			      const PEIdent*loop_id =
+				dynamic_cast<const PEIdent*>(select.msb);
+			      bool loop_index = loop_env && loop_id
+				&& !loop_id->path().package
+				&& loop_id->path().name.size() == 1
+				&& !loop_id->path().name.front().local_scope
+				&& loop_id->path().name.front().index.empty()
+				&& loop_env->count(loop_id->path().name.front().name);
+			      if (!loop_index) {
+				if (!constraint_ir_design_ctx_ || !scope) return "";
+				unique_ptr<NetExpr>folded(elab_and_eval(
+				  constraint_ir_design_ctx_,
+				  const_cast<NetScope*>(scope),
+				  select.msb, -1, false, false));
+				const NetEConst*constant =
+				  dynamic_cast<const NetEConst*>(folded.get());
+				if (!constant || !constant->value().is_defined()
+				    || (constant->expr_type() != IVL_VT_BOOL
+					&& constant->expr_type() != IVL_VT_LOGIC)
+				    || constant->value().len() == 0
+				    || constant->value().len() > 64)
+				  return "";
+				const verinum&bits = constant->value();
+				index_ir = constraint_const_bits_ir_(
+				  bits, bits.len(), bits.has_sign());
+			      }
+			      uint64_t element = 0;
+			      long low = std::min(dims.front().get_msb(),
+					  dims.front().get_lsb());
+			      if (!constraint_parse_const_ir_(index_ir, index)
+				  || index.width > 64
+				  || !constraint_fixed_index_offset_(
+				    index, (int64_t)low, dims.front().width(), element)
+				  || element > UINT_MAX)
+				return "";
+			      string base = "e:" + to_string(pidx) + ":"
+				+ to_string(ewidth) + ":" + to_string(element)
+				+ (outer_element->get_signed() ? ":s" : "");
+			      if (mwidth == 1)
+				return "(bit " + base + " c:" + to_string(offset)
+				  + ")";
+			      return "(part " + base + " c:"
+				+ to_string(offset + mwidth - 1) + " c:"
+				+ to_string(offset) + ")";
+			}
 			if (pidx >= 0 && st && !st->packed()) {
 			      pform_name_t::const_iterator member = comp;
 			      ++member;

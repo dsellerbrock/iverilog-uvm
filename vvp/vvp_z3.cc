@@ -1634,6 +1634,14 @@ static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
       if (b.collect_refs_only)
 	    return Z3_mk_unsigned_int64(
 		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+      if (b.collect_preferences
+	  && !rand_elem_active_(b, b.prop_active, idx, elem)) {
+	    vvp_vector4_t value;
+	    if (!cobj_elem_vec4_(b.object(idx), b.local_index(idx), elem, value)
+		|| value.size() != width || !vec4_is_two_state_(value))
+		  b.state_checks.push_back({Z3_mk_true(b.ctx),
+			"unknown or invalid fixed-array state element in constraint"});
+      }
       Z3_ast var = b.get_elem_var(idx, width, elem);
       if (sflag) b.signed_vars.insert(var);
       return var;

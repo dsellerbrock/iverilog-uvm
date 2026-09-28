@@ -1,0 +1,38 @@
+{
+  "id": "OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint with remaining application errors",
+  "compiler_base_commit": "5434d7adb",
+  "compiler_engine_sha256": "8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba",
+  "runtime_sha256": "0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3",
+  "root_cause": "Constraint IR could select a whole rand fixed-array element or a member of a direct packed-struct property, but not a packed member of a selected fixed-array element. The unresolved path could fall through toward an unrelated same-named class property.",
+  "correction": "Resolve a direct unsigned integral member of a one-dimensional rand fixed array of packed structs through the existing e: element variable and its exact packed-member bit offset. Require a defined constant or foreach-folded index and reject unsupported shapes. A guard-aware runtime state check prevents an unknown inactive whole element from being pinned to fabricated zero when its member is read.",
+  "focused_validation": {
+    "json": "10/10 passed, strict paired 2017/2023; focus list SHA-256 25c8a3c90cccb54f9080bc60752008f262ff62ba5144bac4f75e70b8de11f029",
+    "legacy": "10/10 passed, strict paired 2017/2023; focus list SHA-256 41194852ba7976133757864e7349ca4ee959bd4090398d0c26625da49b6a4163",
+    "runtime": "Flash-shaped 92-bit en/read/program/he/num/start offsets, homonymous class property, nonzero declared array bounds, contradiction and rollback, and guard-off success versus active unknown-inactive-element failure.",
+    "negative": "X/Z index and signed member produce explicit unsupported-item warnings and randomize failure. Symbolic, out-of-bounds, nonrand, and nested-member scratch cases also fail explicitly.",
+    "additional_scratch": "Strict paired 2017/2023 Flash-shaped enum/pure-function RHS, selected-member := and :/ dist with contradiction, and nested overlap inside SAT/UNSAT controls pass.",
+    "independent_review": "No selected-ticket blocker; confirmed exact field offsets, state-read guard, and all nine removed warning source shapes. DD-082 and DD-083 record separate preexisting diagnostic and X/Z literal defects.",
+    "diff_check": "make -q ivl vvp/vvp and git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 14,
+    "after_hard_diagnostics": 14,
+    "removed_hard_diagnostics": 0,
+    "added_hard_diagnostics": 0,
+    "warnings_before": 134,
+    "warnings_after": 125,
+    "removed_warnings": "Exactly nine randomize()-will-fail warnings from rand_regions_c or mp_regions_c on fixed arrays of packed flash_mp_region_cfg_t values",
+    "added_warnings": 0,
+    "exit_code": 14,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "raw_result": "projectless work/ot-flash-fixed-member-core-20260928/result.json"
+  },
+  "boundary": "Only this focused subset is tested. Unknown or invalid inactive fixed-array elements fail an active state read conservatively, while an inactive guard still succeeds. Signed, nested, nonrand, symbolic-index, and X/Z-index member paths remain explicit unsupported forms. DD-083 tracks the preexisting X/Z RHS literal alias for scalar and array-member constraints; do not claim that semantic. Fourteen other hard errors prevent a Flash VVP image and DV runtime; integrated gates, installation, and a current-image 49-core census remain pending. Pinned application sources and unsafe flags are unchanged."
+}

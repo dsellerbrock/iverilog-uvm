@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_fixed_array_packed_member_signed_fail_2023.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "sv_constraint_fixed_array_packed_member_signed_fail"
+}

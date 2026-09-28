@@ -4,12 +4,12 @@ branch: agent/ot-compile-blockers-20260927
 checkpoint_head: 1b1f8974c
 active_open_titan_lane:
   blocker: "OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER"
-  phase: "SELECTED_MINIMAL_REPRODUCER"
+  phase: "FOCUSED_CHECKPOINT_COMPLETE_PENDING_INTEGRATION"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "1b1f8974c"
   reproducer: "Projectless work/flash-foreach-function-arg-20260928/packed-member-min.sv fails randomize() for literal and foreach fixed-array packed-struct member constraints in strict 2017/2023. Whole-element and flat-array controls pass. Five saved Flash mp_regions_c warnings share the gap."
-  pending_validation: "The committed function-argument checkpoint passes paired strict 2017/2023 JSON and legacy focus 10/10 each on ivl SHA-256 8181490bae115633e56b18166158a35d222e10159a6f8b0babc66e3d4dd96886. One patched-copy Flash compile remains at 14 hard errors and 134 warnings with no VVP image; five new solver warnings are independently reduced to this selected LHS gap. Integrated gates, installation, and current-image 49-core census remain pending."
-  next_command: "Trace fixed-array element and packed-field member IR with the strict reducer; add the smallest sound projection, then paired focused runtime checks before one controlled patched-copy Flash compile. Keep solve-before source candidates separate."
+  pending_validation: "The packed-member repair passes paired strict 2017/2023 JSON and legacy focus 10/10 each on ivl SHA-256 8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba and VVP SHA-256 0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3. One patched-copy Flash compile leaves 14 hard errors and removes nine matching solver warnings, 134 to 125, with no VVP image. Integrated gates, installation, and current-image 49-core census remain pending."
+  next_command: "Commit the focused packed-member checkpoint, then select the independently reduced nested coverpoint get_coverage() lookup blocker from the saved 14-error corpus. Keep solve-before source candidates separate."
   boundary: "One implementation blocker at a time. No dropped constraint, pinned-source edit, unsafe flag, unrelated solver change, installation, broad suite, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE

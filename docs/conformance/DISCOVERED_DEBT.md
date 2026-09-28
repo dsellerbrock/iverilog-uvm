@@ -3689,3 +3689,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Projectless `work/flash-constraint-indexed-impl-20260928/class-ascending-readback-debt.sv` reproduces in strict 2017 and 2023 using frozen installed ivl SHA-256 `56fe5718f2a7db3ea2075a588d1bbe82a49ecde8827536cde35897eebe6dfb6e` and VVP SHA-256 `0bc8c3b3e6a430dd0feec77d987c9ff78350206e8f386695f068131db5bcf862`.
 - **Reproducer status:** paired strict runtime observation; the selected solver test checks ascending bits through a copied local.
 - **Triage status:** separate procedural class-property selector repair; no claim that this constraint change repairs the read path.
+
+### DD-082 — unsupported constraint marker mistakes a `.v:` filename for a value slot
+
+- **Discovered while working:** OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER.
+- **Observation:** An unsupported constraint in a source named `*.v` emits the expected compile warning and makes `randomize()` fail, but runtime reports `malformed class constraint function capture` instead of naming the unsupported item. The same source named `*.sv` reports the intended unsupported-item error.
+- **File/function:** `substitute_class_slots_` scans the `(unsupported ...file.v:line)` marker as if its `v:` filename suffix were a value-slot token.
+- **Possible clause:** Diagnostic fidelity for explicitly unsupported class constraints; no changed IEEE semantic acceptance is claimed.
+- **Evidence:** Projectless `work/flash-foreach-function-arg-20260928/unsupported-marker-filename.v`, compiled with strict `-g2017` and run with the current build-tree VVP. The `.v` run printed `ERROR: constraint state read: malformed class constraint function capture.`; the `.sv` variant printed the intended unsupported-item site.
+- **Reproducer status:** confirmed with a minimal source; no solver-acceptance change.
+- **Triage status:** untriaged; keep the filename parser repair separate from the packed-member fix.
+
+### DD-083 — X/Z numeric literal in a constraint can alias zero
+
+- **Discovered while working:** OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER.
+- **Observation:** Both `rand logic [3:0] en; en == 4'hx` and a packed-struct array member constrained to `4'hx` compile without a diagnostic and `randomize()` wrongly succeeds with value zero in strict 2017 and 2023. The plain scalar control shows this predates the selected member path.
+- **File/function:** `elaborate.cc` `PENumber` constraint IR lowering calls `constraint_const_bits_ir_`, which serializes only one-bits and loses X/Z information.
+- **Possible clause:** IEEE 1800-2017/2023 class-constraint four-state expression semantics; exact clause and legal failure behavior need separate triage.
+- **Evidence:** Projectless `work/flash-fixed-packed-member-20260928/{flash-scalar-x-rhs,flash-packed-member-x-rhs}.sv` on build-tree `ivl` SHA-256 `8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba` and VVP SHA-256 `0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3`; both report `WRONG-SUCCESS value=0`.
+- **Reproducer status:** confirmed in both strict editions for scalar and array-member forms.
+- **Triage status:** untriaged; selected Flash RHS uses known enum literals and a pure function, so do not broaden the packed-member fix or claim X/Z RHS support.
