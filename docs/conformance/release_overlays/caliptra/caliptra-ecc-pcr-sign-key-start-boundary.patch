@@ -1,0 +1,14 @@
+diff --git a/src/ecc/rtl/ecc_dsa_ctrl.sv b/src/ecc/rtl/ecc_dsa_ctrl.sv
+--- a/src/ecc/rtl/ecc_dsa_ctrl.sv
++++ b/src/ecc/rtl/ecc_dsa_ctrl.sv
+@@ -1011,7 +1011,9 @@ always_comb busy_o = ~ecc_ready_reg | ~kv_write_ready | ~kv_seed_ready | ~kv_privkey_ready;
+ `CALIPTRA_ASSERT_STABLE(ERR_ECC_WR_CTRL_ENTRY_NOT_STABLE, kv_write_ctrl_reg.write_entry, clk, (!reset_n || ecc_ready_reg) )
+ `CALIPTRA_ASSERT_STABLE(ERR_ECC_WR_CTRL_DEST_NOT_STABLE, kv_write_ctrl_reg.write_dest_vld, clk, (!reset_n || ecc_ready_reg) )
+ 
+-`CALIPTRA_ASSERT_STABLE(ERR_ECC_PRIVKEY_NOT_STABLE, privkey_reg, clk, (!reset_n || ecc_ready_reg) )
++// PCR signing loads the key on the edge that enters busy; check later busy edges.
++`CALIPTRA_ASSERT(ERR_ECC_PRIVKEY_NOT_STABLE, ecc_ready_reg || $past(ecc_ready_reg) ||
++                 $stable(privkey_reg), clk, !reset_n)
+ `CALIPTRA_ASSERT_STABLE(ERR_ECC_SEED_NOT_STABLE, seed_reg, clk, (!reset_n || ecc_ready_reg) )
+ 
+ endmodule

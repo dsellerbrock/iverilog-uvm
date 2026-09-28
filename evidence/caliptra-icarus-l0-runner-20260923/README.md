@@ -20,6 +20,18 @@ Apply any named Caliptra or OpenTitan test-selected source patch only to a dispo
 
 `--commercial-unsafe --checker-source-overlay` applies the frozen [checker patch](../../docs/conformance/release_overlays/caliptra/l0_pure_checker_functions.patch) to a hash-guarded disposable copy of the pinned SVA file, then substitutes that copy in the compile profile. The patch removes only nine internal print calls from four KV/MLDSA functions; their Boolean checks and all outer assertion failure actions remain enabled. A genuine failure still prints its outer action, though the first-mismatch detail is lost. [Paired 2017/2023 controls](../caliptra-l0-checker-source-overlay-20260924/README.md) cover vacuity, true pass/fail, reset disablement, and a same-slot NBA. The runner records source, patch, and copy hashes and labels this profile `diagnostic_checker_source_overlay`. Combining both options is labeled `diagnostic_reset_checker_source_overlay`. These diagnostic outcomes are separate from the pristine unsafe compatibility denominator; neither patch is an IEEE conformance result.
 
+`--ecc-pcr-key-boundary-overlay` is restricted to `--commercial-unsafe --case smoke_test_pcr_zeroize`. It dry-runs and applies the frozen [ECC checker patch](../../docs/conformance/release_overlays/caliptra/caliptra-ecc-pcr-sign-key-start-boundary.patch) with zero fuzz to a hash-guarded copy of `ecc_dsa_ctrl.sv`, then substitutes only that file in the compile profile. The runner records the source, patch, and copied-file hashes before and after the case; the pinned tree stays clean. This selected diagnostic case has not yet passed. Check preparation without starting a case with `python3 evidence/caliptra-icarus-l0-runner-20260923/check_ecc_pcr_overlay.py`.
+
+When ready for the single long replay, run from this worktree with a fresh output directory:
+
+```sh
+python3 evidence/caliptra-icarus-l0-runner-20260923/run.py \
+  --commercial-unsafe --reset-overlay --checker-source-overlay \
+  --ecc-pcr-key-boundary-overlay --ephemeral-jtag-port \
+  --case smoke_test_pcr_zeroize --sim-memory-gib 8 --timeout 57600 \
+  --output evidence/caliptra-ecc-pcr-boundary-single-20260928
+```
+
 `--commercial-unsafe --ephemeral-jtag-port` copies only the pinned top testbench, changes its sole `jtagdpi` `ListenPort` value from `63224` to `0`, and substitutes the hash-guarded copy in the filelist. Port 0 lets the native TCP server request an OS-selected ephemeral port, avoiding fixed-port collisions during diagnostic replays; its startup message still prints `0`, not the assigned port. The runner records original/copied top and input/output profile hashes and rechecks them after the run. JTAG bind/server errors fail the case even if VVP exits zero or prints `TESTCASE PASSED`. This explicit option labels results `diagnostic_ephemeral_jtag_port_overlay`, or appends `ephemeral_jtag_port` to a combined diagnostic overlay label. It does not modify the pinned checkout or relax any L0 check, and its results stay separate from the pristine unsafe and IEEE denominators. Run `python3 evidence/caliptra-icarus-l0-runner-20260923/check_ephemeral_jtag_port.py` for the focused copy and error-gate check.
 
 The baseline top compile emitted 32 Preponed-region sampling warnings for the released `KV_MLKEM_CHECK0` concurrent assertion. The final shared build's exact strict top compile emits zero after the paired nested constant packed-select fix; it still rejects the 46 mixed-driver errors. The runner records any sampling warning and disqualifies a runtime even if it later prints a pass marker. Nested dynamic-index sampling remains an unqualified boundary.
