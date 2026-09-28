@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_comb_input_port_settled.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_comb_input_port_settled" ],
+    "gold"          : "sv_comb_input_port_settled"
+}

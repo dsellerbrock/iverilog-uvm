@@ -6575,13 +6575,24 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			}
 		  }
 
-		    // Add module input buffers if needed
-		  if (need_bufz_for_input_port(prts) || gn_interconnect_flag == true) {
+		    /* An input port connection from a variable is a continuous
+		       assignment (IEEE 1800-2017/2023 23.3.3). Keep its formal
+		       nexus separate from the actual so internal consumers see
+		       the settled port value. The VVP target can then sample an
+		       always_comb source at this BUFZ boundary. */
+		  bool variable_input_source =
+		      ptype == NetNet::PINPUT && prts.size() == 1 &&
+		      instance.size() == 1 && sig->type() == NetNet::REG &&
+		      (sig->data_type() == IVL_VT_BOOL ||
+		       sig->data_type() == IVL_VT_LOGIC);
+		  if (need_bufz_for_input_port(prts) || gn_interconnect_flag == true ||
+		      variable_input_source) {
 			  // FIXME improve this for multiple module instances
 			NetScope* inner_scope = scope->instance_arrays[get_name()][0];
 
 			NetBUFZ*tmp = new NetBUFZ(inner_scope, inner_scope->local_symbol(),
-			                          sig->vector_width(), true, gn_interconnect_flag ? idx : -1);
+			                          sig->vector_width(), !variable_input_source,
+			                          (gn_interconnect_flag || variable_input_source) ? idx : -1);
 			tmp->set_line(*this);
 			des->add_node(tmp);
 			connect(tmp->pin(1), sig->pin(0));

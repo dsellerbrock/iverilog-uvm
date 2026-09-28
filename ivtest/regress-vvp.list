@@ -1546,6 +1546,7 @@ sv_always_comb_fixed_point	vvp_tests/sv_always_comb_fixed_point.json
 sv_always_comb_named_fixed_point	vvp_tests/sv_always_comb_named_fixed_point.json
 sv_always_comb_observer_visibility	vvp_tests/sv_always_comb_observer_visibility.json
 sv_always_comb_assertion_action_visibility	vvp_tests/sv_always_comb_assertion_action_visibility.json
+sv_comb_input_port_settled	vvp_tests/sv_comb_input_port_settled.json
 
 # IEEE 1800-2017/2023 25.9 and 13.4.1 value-returning virtual-interface
 # function dispatch, null receivers, and typed discarded results. The final
