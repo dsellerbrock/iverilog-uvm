@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 3f7e74d90
+checkpoint_head: 36d2f5822
 active_open_titan_lane:
-  blocker: "OT-KEYMGR-STD-RANDOMIZE-DYNAMIC-PACKED-ELEMENT"
-  phase: "REDUCED_IMPLEMENTING"
+  blocker: "OT-KEYMGR-SCOREBOARD-NOARG-FUNCTION-REFERENCE"
+  phase: "REDUCING_LEGALITY"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "3f7e74d90"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-keymgr-std-randomize-dynamic-index-red.sv"
-  pending_validation: "Keymgr unbased fill commit 3f7e74d90 passes paired strict JSON 4/4 and legacy 4/4 with independent review and focused neighbors. The separate dynamic packed-element RED is accepted by Slang but rejected by Icarus. Broad gates, install, Keymgr runtime, and fresh census remain pending the current corpus batch."
-  next_command: "Trace packed_typed_select_ir_ and shared constraint callers; fix the saved dynamic packed-element RED with paired strict controls before any application rerun."
+  baseline_head: "36d2f5822"
+  reproducer: "work/keymgr-core-focused-20260927/compile.log (keymgr_scoreboard.sv:296,298); a standalone minimal syntax differential is being prepared"
+  pending_validation: "Dynamic packed-element commit 36d2f5822 passes paired strict JSON 4/4 and legacy 4/4 with independent review and eleven neighboring direct checks. One unchanged pinned Keymgr compile exits zero with 45 warnings, including unresolved get_current_max_version and two assumed-false condition branches. No runtime, broad gate, install, or fresh census."
+  next_command: "Reduce the bare no-argument class function use and establish strict legality before a compiler fix or named source patch; do not start Keymgr runtime yet."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
