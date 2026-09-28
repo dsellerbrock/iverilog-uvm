@@ -120,7 +120,7 @@ void ufunc_core::assign_bits_to_ports(vvp_context_t context)
 
 	      // If the port is a real variable, then simply copy the
 	      // propagated input to the port variable.
-	    if (vvp_fun_signal_real*tmp = dynamic_cast<vvp_fun_signal_real*>(net->fun))
+	    if (vvp_fun_signal_real*tmp = vvp_fun_as_signal_real(net->fun))
 		  tmp->recv_real(pp, value_r(idx), context);
 
 	      // If the port is a bit4 vector, then copy the
@@ -154,7 +154,7 @@ void ufunc_core::assign_resolver_to_port_(vvp_context_t context)
 
       vvp_net_t*net = ports_[0];
       vvp_fun_signal_object*formal =
-	    dynamic_cast<vvp_fun_signal_object*>(net->fun);
+	    vvp_fun_as_signal_object(net->fun);
       if (!formal) {
 	    report_resolver_runtime_error_(
 		  "user nettype resolver formal is not a dynamic array");

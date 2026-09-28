@@ -416,7 +416,7 @@ void force_vector4_event_s::run_run(void)
 	// vvp_net_t::force_vec4 propagates all the bits of the
 	// forced vector value, regardless of the mask. This
 	// ensures the unforced bits retain their current value.
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(net->fil);
       assert(sig);
       sig->vec4_value(tmp);
 

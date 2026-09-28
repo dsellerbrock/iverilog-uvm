@@ -129,6 +129,9 @@ class __vpiHandle {
       virtual ~__vpiHandle();
 
       virtual int get_type_code(void) const =0;
+	// The net that holds this object's value, for the signal-like
+	// handles (__vpiSignal, __vpiRealVar and __vpiBaseVar), or nil.
+      virtual vvp_net_t*backing_net() { return 0; }
       virtual int vpi_get(int code);
       virtual int64_t vpi_get64(int code);
       virtual char* vpi_get_str(int code);
@@ -385,6 +388,7 @@ extern void vpip_make_root_iterator(class __vpiHandle**&table,
  * a declared name and declaration indices.
  */
 struct __vpiSignal : public __vpiHandle {
+      vvp_net_t*backing_net() override { return node; }
       int vpi_get(int code) override;
       int64_t vpi_get64(int code) override;
       char* vpi_get_str(int code) override;
@@ -747,6 +751,7 @@ extern bool is_net_array(vpiHandle obj);
  */
 struct __vpiRealVar : public __vpiHandle {
       __vpiRealVar();
+      vvp_net_t*backing_net() override { return net; }
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
@@ -789,6 +794,7 @@ class __vpiBaseVar : public __vpiHandle {
 
       inline vvp_net_t* get_net() const { return net_; }
       inline bool automatic_storage() const { return automatic_storage_; }
+      vvp_net_t*backing_net() override { return net_; }
 
     protected:
       __vpiScope* scope_;

@@ -79,6 +79,10 @@ class vvp_vpi_callback {
 	// time to call the callback.
       void run_vpi_callbacks();
       void run_driver_activity_callbacks();
+	// Run the value-change callbacks inside an event-callback
+	// boundary. With no value callbacks and no array words attached
+	// there is nothing to run, so the boundary is skipped too.
+      void run_vpi_callbacks_in_boundary();
 
     private:
       value_callback*vpi_callbacks_;

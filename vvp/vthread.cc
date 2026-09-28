@@ -56,6 +56,7 @@
 #endif
 # include  <set>
 # include  <map>
+# include  <tuple>
 # include  <memory>
 # include  <deque>
 # include  <unordered_map>
@@ -2212,16 +2213,7 @@ static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
 
 static vvp_net_t* handle_net_(vpiHandle item)
 {
-      if (!item)
-            return 0;
-
-      if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(item))
-            return sig->node;
-      if (__vpiRealVar*sig = dynamic_cast<__vpiRealVar*>(item))
-            return sig->net;
-      if (__vpiBaseVar*sig = dynamic_cast<__vpiBaseVar*>(item))
-            return sig->get_net();
-      return 0;
+      return item ? item->backing_net() : 0;
 }
 
 static vpiHandle lookup_scope_item_by_net_(__vpiScope*scope, vvp_net_t*net)
@@ -2279,9 +2271,9 @@ static vvp_fun_signal_object* handle_object_fun_(vpiHandle item)
             return 0;
 
       vvp_fun_signal_object*fun =
-            dynamic_cast<vvp_fun_signal_object*>(net->fun);
+            vvp_fun_as_signal_object(net->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_fun_signal_object*>(net->fil);
+            fun = vvp_fil_as_signal_object(net->fil);
       return fun;
 }
 
@@ -2292,9 +2284,9 @@ static vvp_fun_signal_string* handle_string_fun_(vpiHandle item)
             return 0;
 
       vvp_fun_signal_string*fun =
-            dynamic_cast<vvp_fun_signal_string*>(net->fun);
+            vvp_fun_as_signal_string(net->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_fun_signal_string*>(net->fil);
+            fun = vvp_fil_as_signal_string(net->fil);
       return fun;
 }
 
@@ -2305,9 +2297,9 @@ static vvp_fun_signal_real* handle_real_fun_(vpiHandle item)
             return 0;
 
       vvp_fun_signal_real*fun =
-            dynamic_cast<vvp_fun_signal_real*>(net->fun);
+            vvp_fun_as_signal_real(net->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_fun_signal_real*>(net->fil);
+            fun = vvp_fil_as_signal_real(net->fil);
       return fun;
 }
 
@@ -2353,7 +2345,7 @@ static vvp_signal_value* handle_signal_value_(vpiHandle item)
       vvp_signal_value*fun =
             dynamic_cast<vvp_signal_value*>(net->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_signal_value*>(net->fil);
+            fun = vvp_fil_signal_value(net->fil);
       return fun;
 }
 
@@ -2863,7 +2855,7 @@ static bool step_trace_enabled_(const char*scope_name);
  */
 template <class VVP_QUEUE> static vvp_queue*get_queue_object(vthread_t thr, vvp_net_t*net)
 {
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_queue*queue = obj->get_object().peek<vvp_queue>();
@@ -2983,7 +2975,7 @@ static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
 
 bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       vvp_darray*arr = 0;
       vvp_object_t obj;
       if (fun) {
@@ -3032,7 +3024,7 @@ static void inside_arr_match_string_(vthread_t thr, vvp_darray*arr)
 bool of_INSIDE_ARR_STR(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun =
-	    dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+	    vvp_fun_as_signal_object(cp->net->fun);
       vvp_object_t obj;
       vvp_darray*arr = 0;
       if (fun) {
@@ -3053,7 +3045,7 @@ bool of_INSIDE_ARR_O_STR(vthread_t thr, vvp_code_t)
 
 bool of_QSIZE(vthread_t thr, vvp_code_t cp)
 {
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (cp->net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(cp->net->fun);
       assert(obj);
 
       vvp_object_t collection;
@@ -3436,7 +3428,7 @@ static vvp_darray* pop_queue_order_receiver_(
 bool of_QREVERSE(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
@@ -3459,7 +3451,7 @@ bool of_QREVERSE_O(vthread_t thr, vvp_code_t)
 bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
@@ -4239,7 +4231,7 @@ static vvp_darray* qunique_source_(vvp_code_t cp, const char*opcode,
 				   vvp_object_t&src_obj)
 {
       vvp_fun_signal_object*fun = cp->net
-	    ? dynamic_cast<vvp_fun_signal_object*>(cp->net->fun) : 0;
+	    ? vvp_fun_as_signal_object(cp->net->fun) : 0;
       if (!fun) {
 	    fprintf(stderr, "vvp internal error: %s requires an object signal "
 		    "receiver\n", opcode);
@@ -4400,8 +4392,8 @@ static bool qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
 bool of_QSORT_KEYS(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
-      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
-      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
+      vvp_fun_signal_object*qfun = vvp_fun_as_signal_object(cp->net->fun);
+      vvp_fun_signal_object*kfun = vvp_fun_as_signal_object(cp->net2->fun);
       if (!qfun || !kfun) return true;
       vvp_darray*q = qfun->get_object().peek<vvp_darray>();
       vvp_darray*k = kfun->get_object().peek<vvp_darray>();
@@ -4412,8 +4404,8 @@ bool of_QSORT_KEYS(vthread_t thr, vvp_code_t cp)
 bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
-      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
-      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
+      vvp_fun_signal_object*qfun = vvp_fun_as_signal_object(cp->net->fun);
+      vvp_fun_signal_object*kfun = vvp_fun_as_signal_object(cp->net2->fun);
       if (!qfun || !kfun) return true;
       vvp_darray*q = qfun->get_object().peek<vvp_darray>();
       vvp_darray*k = kfun->get_object().peek<vvp_darray>();
@@ -4430,7 +4422,7 @@ static bool qsort_keys_object_receiver_(vthread_t thr, vvp_code_t cp,
       vvp_darray*q = pop_queue_order_receiver_(
             thr, opcode, recv, root_net, root_obj);
       vvp_fun_signal_object*kfun = cp->net
-            ? dynamic_cast<vvp_fun_signal_object*>(cp->net->fun) : 0;
+            ? vvp_fun_as_signal_object(cp->net->fun) : 0;
       vvp_darray*k = kfun ? kfun->get_object().peek<vvp_darray>() : 0;
       if (!q || !k) return true;
 
@@ -4546,8 +4538,8 @@ static bool qunique_with_keys_dispatch_(vvp_darray*q, vvp_darray*k)
 bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
-      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
-      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
+      vvp_fun_signal_object*qfun = vvp_fun_as_signal_object(cp->net->fun);
+      vvp_fun_signal_object*kfun = vvp_fun_as_signal_object(cp->net2->fun);
       if (!qfun || !kfun) return true;
       qunique_with_keys_dispatch_(
             qfun->get_object().peek<vvp_darray>(),
@@ -4562,7 +4554,7 @@ bool of_QUNIQUE_KEYS_O(vthread_t thr, vvp_code_t cp)
       vvp_darray*q = pop_queue_order_receiver_(
             thr, "%qunique/keys/o", recv, root_net, root_obj);
       vvp_fun_signal_object*kfun = cp->net
-            ? dynamic_cast<vvp_fun_signal_object*>(cp->net->fun) : 0;
+            ? vvp_fun_as_signal_object(cp->net->fun) : 0;
       vvp_darray*k = kfun ? kfun->get_object().peek<vvp_darray>() : 0;
       if (q && qunique_with_keys_dispatch_(q, k))
             notify_mutated_object_root_(thr, recv, root_net, root_obj,
@@ -4592,7 +4584,7 @@ static bool qsort_object_receiver_(vthread_t thr, vvp_code_t cp,
 
 bool of_QSORT(vthread_t thr, vvp_code_t cp)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
@@ -4607,7 +4599,7 @@ bool of_QSORT_O(vthread_t thr, vvp_code_t cp)
 
 bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
@@ -4622,7 +4614,7 @@ bool of_QSORT_R_O(vthread_t thr, vvp_code_t cp)
 
 bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
@@ -12551,7 +12543,7 @@ bool of_ASSIGN_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       if (thr->flags[4] != BIT4_0)
 	    return true;
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(cp->net->fil);
       assert(sig);
 
       if (!resize_rval_vec(val, off, sig->value_size()))
@@ -12577,7 +12569,7 @@ bool of_ASSIGN_VEC4_OFF_E(vthread_t thr, vvp_code_t cp)
       if (thr->flags[4] != BIT4_0)
 	    return true;
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(cp->net->fil);
       assert(sig);
 
       if (!resize_rval_vec(val, off, sig->value_size()))
@@ -12604,7 +12596,7 @@ bool of_ASSIGN_VEC4D(vthread_t thr, vvp_code_t cp)
 
       vvp_vector4_t value = thr->pop_vec4();
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(cp->net->fil);
       assert(sig);
 
       schedule_assign_vector(ptr, 0, sig->value_size(), value, del,
@@ -12621,7 +12613,7 @@ bool of_ASSIGN_VEC4E(vthread_t thr, vvp_code_t cp)
       vvp_net_ptr_t ptr (cp->net, 0);
       vvp_vector4_t value = thr->pop_vec4();
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(cp->net->fil);
       assert(sig);
 
       if (thr->ecount == 0) {
@@ -13182,14 +13174,24 @@ static bool build_dynamic_method_label_(const class_type*defn,
       return true;
 }
 
-static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_thr,
-                                          __vpiScope*dst_scope, vvp_context_t dst_context,
-                                          bool copy_outputs)
-{
-      if (!(src_scope && src_thr && dst_scope && dst_context))
-            return false;
+/*
+ * The items copy_method_ports_to_context_ copies between two method
+ * scopes, in copy order. Finding them takes name lookups over both
+ * scopes' items, but depends only on the scopes, which are fixed once the
+ * design is loaded, so the list is built once per scope pair and
+ * direction and then reused by every call.
+ */
+struct method_port_copy_s {
+      std::string name;
+      vpiHandle src_item;
+      vpiHandle dst_item;
+};
 
-      bool copied_any = false;
+static void build_method_port_copies_(__vpiScope*src_scope,
+                                      __vpiScope*dst_scope,
+                                      bool copy_outputs,
+                                      vector<method_port_copy_s>&copies)
+{
       std::set<std::string> seen_names;
 
       auto copy_named_item = [&](const std::string&name, vpiHandle src_item) {
@@ -13204,17 +13206,7 @@ static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_th
             if (!dst_item)
                   return;
 
-            bool copied = copy_handle_value_to_context_(src_item, src_thr,
-                                                        dst_item, dst_context);
-            if (virtual_dispatch_trace_enabled_()) {
-                  fprintf(stderr,
-                          "vdispatch: copy-port scope=%s -> %s name=%s copied=%d outputs=%d\n",
-                          scope_name_or_unknown_(src_scope),
-                          scope_name_or_unknown_(dst_scope),
-                          name.c_str(), copied ? 1 : 0, copy_outputs ? 1 : 0);
-            }
-            if (copied)
-                  copied_any = true;
+            copies.push_back(method_port_copy_s{name, src_item, dst_item});
       };
 
       for (unsigned idx = 0; idx < src_scope->intern.size(); idx += 1) {
@@ -13296,7 +13288,7 @@ static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_th
          locals from the callee back into the caller frame on recursive
          automatic method returns. */
       if (copy_outputs)
-            return copied_any;
+            return;
 
       vector<vpiHandle> src_items;
       collect_scope_copy_items_(src_items, src_scope);
@@ -13305,7 +13297,47 @@ static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_th
             const char*name = vpi_get_str(vpiName, src_item);
             copy_named_item(name ? std::string(name) : std::string(), src_item);
       }
+}
 
+static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_thr,
+                                          __vpiScope*dst_scope, vvp_context_t dst_context,
+                                          bool copy_outputs)
+{
+      if (!(src_scope && src_thr && dst_scope && dst_context))
+            return false;
+
+      struct plan_s {
+            bool built = false;
+            size_t src_items = 0, dst_items = 0;
+            vector<method_port_copy_s> copies;
+      };
+      static std::map<std::tuple<__vpiScope*,__vpiScope*,bool>, plan_s> plans;
+
+      plan_s&plan = plans[std::make_tuple(src_scope, dst_scope, copy_outputs)];
+      if (!plan.built || plan.src_items != src_scope->intern.size()
+          || plan.dst_items != dst_scope->intern.size()) {
+            plan.built = true;
+            plan.copies.clear();
+            build_method_port_copies_(src_scope, dst_scope, copy_outputs,
+                                      plan.copies);
+            plan.src_items = src_scope->intern.size();
+            plan.dst_items = dst_scope->intern.size();
+      }
+
+      bool copied_any = false;
+      for (const method_port_copy_s&copy : plan.copies) {
+            bool copied = copy_handle_value_to_context_(copy.src_item, src_thr,
+                                                        copy.dst_item, dst_context);
+            if (virtual_dispatch_trace_enabled_()) {
+                  fprintf(stderr,
+                          "vdispatch: copy-port scope=%s -> %s name=%s copied=%d outputs=%d\n",
+                          scope_name_or_unknown_(src_scope),
+                          scope_name_or_unknown_(dst_scope),
+                          copy.name.c_str(), copied ? 1 : 0, copy_outputs ? 1 : 0);
+            }
+            if (copied)
+                  copied_any = true;
+      }
       return copied_any;
 }
 
@@ -15726,7 +15758,7 @@ bool of_DEASSIGN(vthread_t, vvp_code_t cp)
       unsigned base  = cp->bit_idx[0];
       unsigned width = cp->bit_idx[1];
 
-      vvp_signal_value*fil = dynamic_cast<vvp_signal_value*> (net->fil);
+      vvp_signal_value*fil = vvp_fil_signal_value(net->fil);
       assert(fil);
       vvp_fun_signal_vec*sig = dynamic_cast<vvp_fun_signal_vec*>(net->fun);
       assert(sig);
@@ -15763,7 +15795,7 @@ bool of_DEASSIGN_WR(vthread_t, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
 
-      vvp_fun_signal_real*sig = dynamic_cast<vvp_fun_signal_real*>(net->fun);
+      vvp_fun_signal_real*sig = vvp_fun_as_signal_real(net->fun);
       assert(sig);
 
 	// This is the net that is forcing me...
@@ -16824,7 +16856,7 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 	    return true;
       size_t idx = idx_val;
 
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_queue*queue = obj->get_object().peek<vvp_queue>();
@@ -16951,7 +16983,7 @@ bool of_DELETE_TAIL(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
 
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_queue*queue = obj->get_object().peek<vvp_queue>();
@@ -18287,7 +18319,7 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	// vvp_net_t::force_vec4 propagates all the bits of the
 	// forced vector value, regardless of the mask. This
 	// ensures the unforced bits retain their current value.
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(net->fil);
       assert(sig);
       sig->vec4_value(tmp);
 
@@ -18815,7 +18847,7 @@ bool of_IX_GETV(vthread_t thr, vvp_code_t cp)
       unsigned index = cp->bit_idx[0];
       vvp_net_t*net = cp->net;
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(net->fil);
       if (sig == 0) {
 	    assert(net->fil);
 	    cerr << thr->get_fileline()
@@ -18846,7 +18878,7 @@ bool of_IX_GETV_S(vthread_t thr, vvp_code_t cp)
       unsigned index = cp->bit_idx[0];
       vvp_net_t*net = cp->net;
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(net->fil);
       if (sig == 0) {
 	    assert(net->fil);
 	    cerr << thr->get_fileline()
@@ -19305,12 +19337,12 @@ static void dpi_export_copy_out_(const struct dpi_export_info_s&info,
 	    char direction = info.arg_sig[2*idx+1];
 	    if (direction == 'i' || info.arg_nets[idx] == 0) continue;
 	    vvp_net_t*net = info.arg_nets[idx];
-	    vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
+	    vvp_signal_value*sv = vvp_fil_signal_value(net->fil);
 	    if (letter == 'f' || letter == 'r') {
 		  if (sv) args[idx].r = sv->real_value();
 	    } else if (letter == 's') {
 		  vvp_fun_signal_string*ss =
-			dynamic_cast<vvp_fun_signal_string*>(net->fil);
+			vvp_fil_as_signal_string(net->fil);
 		  if (ss) {
 			string_arg_hold[idx] = ss->get_string();
 			args[idx].s = string_arg_hold[idx].c_str();
@@ -19514,7 +19546,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 				  : std::string(args[idx].s ? args[idx].s : ""),
 				  exp_context);
 	    } else {
-		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
+		  vvp_signal_value*sv = vvp_fil_signal_value(net->fil);
 		  unsigned wid = sv ? sv->value_size() : 64;
 		  vvp_vector4_t val (
 			wid, (direction == 'o'
@@ -20022,7 +20054,7 @@ static bool load_dar(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
       assert(net);
 
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_object_t collection;
@@ -20078,7 +20110,7 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
       assert(net);
 
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
@@ -20165,9 +20197,9 @@ static vvp_fun_signal_object* signal_object_fun_(vvp_net_t*net)
             return 0;
 
       vvp_fun_signal_object*fun =
-            dynamic_cast<vvp_fun_signal_object*>(net->fun);
+            vvp_fun_as_signal_object(net->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_fun_signal_object*>(net->fil);
+            fun = vvp_fil_as_signal_object(net->fil);
       return fun;
 }
 
@@ -20216,7 +20248,7 @@ void vthread_s::static_call_setup_save_string(vvp_net_t*net)
             return;
 
       vvp_fun_signal_string*fun = net
-            ? dynamic_cast<vvp_fun_signal_string*>(net->fun) : 0;
+            ? vvp_fun_as_signal_string(net->fun) : 0;
       assert(fun);
       frame->formals.push_back(
             static_formal_snapshot_s(STATIC_FORMAL_STRING));
@@ -20599,9 +20631,9 @@ static vvp_fun_signal_string* signal_string_fun_(vvp_net_t*net)
             return 0;
 
       vvp_fun_signal_string*fun =
-            dynamic_cast<vvp_fun_signal_string*>(net->fun);
+            vvp_fun_as_signal_string(net->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_fun_signal_string*>(net->fil);
+            fun = vvp_fil_as_signal_string(net->fil);
       return fun;
 }
 
@@ -20613,7 +20645,7 @@ static vvp_signal_value* signal_vec4_fun_(vvp_net_t*net)
       vvp_signal_value*fun =
             dynamic_cast<vvp_signal_value*>(net->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_signal_value*>(net->fil);
+            fun = vvp_fil_signal_value(net->fil);
       return fun;
 }
 
@@ -22265,7 +22297,7 @@ static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
 
       if (assoc && (!have || value.test_nil())) {
 	    vvp_fun_signal_object*obj =
-		  dynamic_cast<vvp_fun_signal_object*>(net->fun);
+		  vvp_fun_as_signal_object(net->fun);
 	    if (obj && obj->declared_type()) {
 		  value = vvp_object_t(new vvp_cobject(obj->declared_type()));
 		  assoc->set(key, value);
@@ -23258,7 +23290,7 @@ bool of_LOAD_STR(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (net->fun);
+      vvp_fun_signal_string*fun = vvp_fun_as_signal_string(net->fun);
       vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*> (net->fun);
       assert(fun || ref);
 
@@ -23483,7 +23515,7 @@ bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(net->fil);
       if (sig == 0) {
 	    cerr << thr->get_fileline()
 	         << "%load/preponed error: Net arg not a signal? "
@@ -23558,7 +23590,7 @@ bool of_LOAD_PREPONED_REAL(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(net->fil);
       if (sig == 0) {
 	    cerr << thr->get_fileline()
 	         << "%load/preponed/real error: Net arg not a signal? "
@@ -27420,7 +27452,7 @@ bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
 	/* Get the existing value of the string. If we find that the
 	   index is too big for the string, then give up. */
       vvp_net_t*net = cp->net;
-      vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (net->fun);
+      vvp_fun_signal_string*fun = vvp_fun_as_signal_string(net->fun);
       vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*> (net->fun);
       assert(fun || ref);
 
@@ -29335,7 +29367,7 @@ static bool store_dar(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
       assert(net);
 
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
@@ -29430,7 +29462,7 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
       assert(net);
 
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
@@ -29484,7 +29516,7 @@ bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
       assert(net);
 
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
@@ -30852,7 +30884,7 @@ static bool store_qslice(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       vvp_net_t*net = cp->net;
       assert(net);
       vvp_fun_signal_object*sig_obj =
-	    dynamic_cast<vvp_fun_signal_object*>(net->fun);
+	    vvp_fun_as_signal_object(net->fun);
       QTYPE*dst = sig_obj
 	    ? dynamic_cast<QTYPE*>(sig_obj->get_object().peek<vvp_queue>())
 	    : 0;
@@ -31625,7 +31657,7 @@ bool of_TEST_NUL(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
 
       assert(net);
-      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
       bool is_nil = obj->get_object().test_nil();
@@ -31897,7 +31929,7 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
       thr->in_region_drain = 0;
 
 	/* Add this thread to the list in the event. */
-      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (cp->net->fun);
+      waitable_hooks_s*ep = (cp->net->fun ? cp->net->fun->as_waitable() : 0);
       assert(ep);
       thr->wait_next = ep->add_waiting_thread(thr);
 
@@ -31946,7 +31978,7 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
       thr->waiting_for_event = 1;
 
       vvp_net_t*net = cobj->get_inst_event(cp->number);
-      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
+      waitable_hooks_s*ep = (net->fun ? net->fun->as_waitable() : 0);
       assert(ep);
       thr->wait_next = ep->add_waiting_thread(thr);
 
@@ -31977,7 +32009,7 @@ bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
       assert(! thr->waiting_for_event);
       thr->waiting_for_event = 1;
 
-      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
+      waitable_hooks_s*ep = (net->fun ? net->fun->as_waitable() : 0);
       assert(ep);
       thr->wait_next = ep->add_waiting_thread(thr);
 
@@ -32612,8 +32644,7 @@ static void register_event_expr_sources_(event_expr_observer_s*observer,
             observer->vif_relays.push_back(relay);
       }
 
-      waitable_hooks_s*event = dynamic_cast<waitable_hooks_s*>(
-            observer->source_net->fun);
+      waitable_hooks_s*event = (observer->source_net->fun ? observer->source_net->fun->as_waitable() : 0);
       assert(event);
       vthread_t saved_running = running_thread;
       running_thread = waiter;

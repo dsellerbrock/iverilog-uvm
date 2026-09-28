@@ -785,7 +785,7 @@ void __vpiSignal::get_bit_value(const struct __vpiBit*bit, p_vpi_value vp)
 {
       unsigned index = value_base + bit->get_norm_index();
 
-      vvp_signal_value*vsig = dynamic_cast<vvp_signal_value*>(node->fil);
+      vvp_signal_value*vsig = vvp_fil_signal_value(node->fil);
       assert(vsig);
 
       if (vp->format == vpiObjTypeVal) {
@@ -855,7 +855,7 @@ vpiHandle __vpiSignal::put_bit_value(struct __vpiBit*bit, p_vpi_value vp, int fl
 	      // M12-3: force/release a single bit-select (sig[i]) — a
 	      // width-1 case of the part-select force path.
 	    vvp_signal_value*sig = node->fil
-		  ? dynamic_cast<vvp_signal_value*>(node->fil) : 0;
+		  ? vvp_fil_signal_value(node->fil) : 0;
 	    if (!sig) {
 		  fprintf(stderr, "vpi error: vpi_put_value() force/release "
 			  "on %s: object cannot carry a force.\n",
@@ -939,7 +939,7 @@ static void signal_get_value(vpiHandle ref, s_vpi_value*vp)
       unsigned wid = rfp->width();
       unsigned base = rfp->value_base;
 
-      vvp_signal_value*vsig = dynamic_cast<vvp_signal_value*>(rfp->node->fil);
+      vvp_signal_value*vsig = vvp_fil_signal_value(rfp->node->fil);
       assert(vsig);
 
       switch (vp->format) {
@@ -1047,7 +1047,7 @@ static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
                       ref->get_type_code()==vpiNetBit;
       unsigned wid = rfp->width();
       unsigned base = rfp->value_base;
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(rfp->node->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(rfp->node->fil);
       assert(sig);
       unsigned full_width = sig->value_size();
       bool full_sig = base == 0 && wid == full_width;
@@ -1604,7 +1604,7 @@ static void PV_get_value(vpiHandle ref, p_vpi_value vp)
       struct __vpiPV*rfp = dynamic_cast<__vpiPV*>(ref);
       assert(rfp);
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(rfp->net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(rfp->net->fil);
       assert(sig);
 
       int64_t wide_base = PV_get_base(rfp);
@@ -1681,7 +1681,7 @@ static vpiHandle PV_put_value(vpiHandle ref, p_vpi_value vp, int flags)
       vvp_force_statement_context stmt_context(0);
       struct __vpiPV*rfp = dynamic_cast<__vpiPV*>(ref);
       assert(rfp);
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(rfp->net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(rfp->net->fil);
       assert(sig);
 
       unsigned sig_size = sig->value_size();
