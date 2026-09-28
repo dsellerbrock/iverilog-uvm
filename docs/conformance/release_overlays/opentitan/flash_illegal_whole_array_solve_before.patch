@@ -1,0 +1,22 @@
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
+@@ -46,7 +46,6 @@
+   flash_mem_init_e otf_flash_init = FlashMemInitEccMode;
+ 
+   constraint all_ent_c {
+-    solve all_entry_en before rand_regions, rand_info;
+     if (cfg.en_always_any) all_entry_en == 1;
+     else all_entry_en dist { 1 := 1, 0 := 4};
+   }
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv
+@@ -39,9 +39,6 @@
+   flash_bank_mp_info_page_cfg_t
+   mp_info_pages[NumBanks][flash_ctrl_pkg::InfoTypes][$];
+ 
+-  constraint solv_order_c {
+-    solve mp_regions, mp_info_pages before flash_op;
+-  }
+   // Constraint address to be in relevant range for the selected partition.
+   constraint addr_c {
+     if (flash_op.partition != FlashPartData) {
