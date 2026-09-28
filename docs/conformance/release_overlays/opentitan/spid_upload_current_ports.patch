@@ -1,0 +1,121 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
+@@ -47,10 +47,10 @@
+   logic rst_spi_n;
+   assign rst_spi_n = sck_rst_n && ~sif.csb;
+ 
+-  sel_datapath_e dut_sel_dp;
+-
+-  logic [CmdInfoIdxW-1:0] cmd_info_idx;
+-  cmd_info_t cmd_info;
++  sel_datapath_e dut_sel_dp, dut_cmd_only_sel_dp;
++
++  logic [CmdInfoIdxW-1:0] cmd_only_info_idx;
++  cmd_info_t cmd_only_info;
+ 
+   // CmdInfo is defined in spid_common.sv
+   // ReserveStart:ReserveStart+2 are for upload test
+@@ -61,7 +61,6 @@
+ 
+   logic               s2p_valid;
+   logic [7:0]         s2p_data;
+-  logic [BitCntW-1:0] s2p_bitcnt;
+ 
+   // Memory interface
+   logic              bus_mem_req;
+@@ -134,7 +133,7 @@
+ 
+   // FIFO
+   logic cmdfifo_rvalid, cmdfifo_rready;
+-  logic [7:0] cmdfifo_rdata;
++  logic [15:0] cmdfifo_rdata;
+   logic addrfifo_rvalid, addrfifo_rready;
+   logic [31:0] addrfifo_rdata;
+   logic cmdfifo_notempty, addrfifo_notempty;
+@@ -302,7 +301,7 @@
+       // due to the latency that FIFO reads from DPSRAM.
+       // Check cmdfifo_rvalid rather than cmdfifo_notempty
+       @(posedge clk iff (cmdfifo_set_pulse == 1'b 1));
+-      cmd = cmdfifo_rdata;
++      cmd = cmdfifo_rdata[7:0];
+       $display("Cmd %x is uploaded", cmd);
+       cmdfifo_rready = 1'b 1;
+       @(posedge clk);
+@@ -436,9 +435,8 @@
+ 
+     .clk_csb_i  (sif.csb),
+ 
+-    .sys_csb_deasserted_pulse_i (csb_deasserted_busclk),
+-
+-    .sel_dp_i (dut_sel_dp),
++    .sel_dp_i          (dut_sel_dp),
++    .cmd_only_sel_dp_i (dut_cmd_only_sel_dp),
+ 
+     .sck_sram_o (sck_l2m),
+     .sck_sram_i (sck_m2l),
+@@ -463,7 +461,6 @@
+     // Interface: SPI to Parallel
+     .s2p_valid_i  (s2p_valid),
+     .s2p_byte_i   (s2p_data),
+-    .s2p_bitcnt_i (s2p_bitcnt),
+ 
+     // Interface: Parallel to SPI
+     .p2s_valid_o (p2s_valid),
+@@ -472,10 +469,12 @@
+ 
+     .spi_mode_i (spi_mode),
+ 
+-    .cfg_addr_4b_en_i (cfg_addr_4b_en),
+-
+-    .cmd_info_i     (cmd_info),
+-    .cmd_info_idx_i (cmd_info_idx),
++    .cmd_sync_cfg_addr_4b_en_i (cfg_addr_4b_en),
++    .cmd_sync_status_wel_i     (1'b0),
++    .cmd_sync_status_busy_i    (1'b0),
++
++    .cmd_only_info_i     (cmd_only_info),
++    .cmd_only_info_idx_i (cmd_only_info_idx),
+ 
+     .io_mode_o (dut_iomode),
+ 
+@@ -504,12 +503,20 @@
+     .spi_mode_i   (spi_mode),
+ 
+     .cmd_info_i   (spid_common::CmdInfo),
++    .sck_status_busy_i (1'b0),
+ 
+     .io_mode_o    (s2p_iomode),
+ 
+-    .sel_dp_o       (dut_sel_dp),
+-    .cmd_info_o     (cmd_info),
+-    .cmd_info_idx_o (cmd_info_idx),
++    .sel_dp_o          (dut_sel_dp),
++    .cmd_only_sel_dp_o (dut_cmd_only_sel_dp),
++    .cmd_info_o        (),
++    .cmd_info_idx_o    (),
++    .cmd_only_info_o     (cmd_only_info),
++    .cmd_only_info_idx_o (cmd_only_info_idx),
++
++    .cfg_intercept_en_status_i (1'b0),
++    .cfg_intercept_en_jedec_i  (1'b0),
++    .cfg_intercept_en_sfdp_i   (1'b0),
+ 
+     .cmd_config_req_o (),
+     .cmd_config_idx_o ()
+@@ -523,7 +530,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (s2p_bitcnt),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -540,8 +546,6 @@
+     .csb_i        (sif.csb),
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+-
+-    .cpha_i       (1'b 0),
+ 
+     .order_i      (1'b 0),
+ 

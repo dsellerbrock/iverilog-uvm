@@ -1,0 +1,12 @@
+diff --git a/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv b/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
+--- a/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
++++ b/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
+@@ -3,7 +3,7 @@
+ // SPDX-License-Identifier: Apache-2.0
+ //
+ 
+-`define DPSRAM_DATA(x) tb.dut.u_memory_2p.u_mem.gen_generic.u_impl_generic.mem[(x)]
++`define DPSRAM_DATA(x) tb.dut.u_spid_dpram.gen_ram2p.u_memory_2p.u_mem.gen_generic.u_impl_generic.mem[(x)]
+ 
+ program prog_passthrough_sw
+   import spid_common::*;

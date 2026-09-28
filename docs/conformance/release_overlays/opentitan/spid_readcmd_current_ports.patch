@@ -1,0 +1,61 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_readcmd_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_readcmd_tb.sv
+@@ -63,7 +63,6 @@
+ 
+   logic               s2p_valid;
+   logic [7:0]         s2p_data;
+-  logic [BitCntW-1:0] s2p_bitcnt;
+ 
+   logic               p2s_valid;
+   logic [7:0]         p2s_data;
+@@ -124,7 +123,7 @@
+   logic        cfg_mailbox_en;
+   logic        cfg_intercept_en_mbx;
+   logic [31:0] cfg_mailbox_addr; // Assume the size of mailbox 1kB
+-  logic [7:0]  cfg_readbuf_threshold;
++  logic [SramBufferAw-1:0] cfg_readbuf_threshold;
+ 
+   logic mailbox_assumed;
+   logic [31:0] readbuf_address;
+@@ -715,6 +714,8 @@
+     .clk_i      (gated_sck),
+     .rst_ni     (rst_spi_n),
+     .clk_out_i  (gated_sck_inverted),
++    .rst_out_ni (rst_spi_n),
++    .sys_clk_i  (clk),
+     .sys_rst_ni (rst_n),
+ 
+     .sel_dp_i (dut_sel_dp),
+@@ -724,7 +725,6 @@
+ 
+     .s2p_valid_i  (s2p_valid),
+     .s2p_byte_i   (s2p_data),
+-    .s2p_bitcnt_i (s2p_bitcnt),
+ 
+     .p2s_valid_o (p2s_valid),
+     .p2s_byte_o  (p2s_data),
+@@ -736,6 +736,7 @@
+     .cmd_info_idx_i (cmd_info_idx),
+ 
+     .readbuf_threshold_i (cfg_readbuf_threshold),
++    .sys_readbuf_clr_i (1'b0),
+ 
+     .addr_4b_en_i (cfg_addr_4b_en),
+ 
+@@ -786,7 +787,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (s2p_bitcnt),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -803,8 +803,6 @@
+     .csb_i        (sif.csb),
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+-
+-    .cpha_i       (1'b 0),
+ 
+     .order_i      (1'b 0),
+ 
