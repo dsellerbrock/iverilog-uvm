@@ -27,6 +27,8 @@ interface ibex_match_if(input logic clk);
     if (ordered_count != match_count) $fatal(1, "match calls out of source order");
   endfunction
 
+  // Fixed-length starts overlap but end on successive sampled edges. The
+  // first delayed task remains active when the second endpoint is checked.
   sequence overlapping;
     @(posedge clk) arm ##1 (done, overlap_hit());
   endsequence
