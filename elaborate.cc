@@ -28103,6 +28103,10 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 	    return nv->packed_width() > 0;
       if (const netenum_t*ne = dynamic_cast<const netenum_t*>(ptype))
 	    return ne->packed_width() > 0;
+      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(ptype))
+	    return pa->packed_width() > 0
+	      && (pa->base_type() == IVL_VT_BOOL
+	          || pa->base_type() == IVL_VT_LOGIC);
       if (!indexed)
 	if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(ptype))
 	    return st->packed() && st->base_type() == IVL_VT_BOOL
@@ -33933,11 +33937,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
-		  const netvector_t*pvec = dynamic_cast<const netvector_t*>(ptype);
-		  const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
-		  const netstruct_t*pstruct = dynamic_cast<const netstruct_t*>(ptype);
-		  bool packed_scalar = pvec || penum
-		    || (pstruct && constraint_state_prop_ok_(ptype, false));
+		  bool packed_scalar = constraint_state_prop_ok_(ptype, false);
 		  bool packed_select = packed_scalar
 		    && id->path().back().index.size() == 1;
 		    // A property that is not `rand` is a STATE VARIABLE
