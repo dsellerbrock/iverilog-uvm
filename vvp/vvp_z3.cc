@@ -835,7 +835,7 @@ class z3_object_graph_t {
       bool active(unsigned idx) const;
       bool element_active(unsigned idx, unsigned elem) const;
       bool member_active(unsigned idx, unsigned member) const;
-      bool size_active(unsigned idx) const;
+      bool size_active(unsigned idx, unsigned leaf = 0) const;
       void select_storage_owners();
 
     private:
@@ -1054,12 +1054,14 @@ struct Z3Builder {
             return false;
       }
 
-	// Dynamic-container size variables ("s:N:T"): one 32-bit BV per
-	// property index. T is either %new/darray-style element type text,
+	// Dynamic-container size variables ("s:N:T", or "s:N:#L:T" for a
+	// fixed-array leaf): one 32-bit BV per property and selected leaf.
+	// T is either %new/darray-style element type text,
 	// or Q<MAX>:<element-type> for a queue (MAX=0 means unbounded).
 	// IEEE 1800-2017 18.4 randomizes the size before the elements.
       struct SizeVar {
 	    unsigned idx;
+	    unsigned leaf;
 	    string container_type;
 	    Z3_ast var;
       };
@@ -1097,14 +1099,19 @@ struct Z3Builder {
       };
       vector<MemberElemVar> member_elem_vars;
 
-      Z3_ast get_size_var(unsigned idx, const string&dtype) {
+      Z3_ast get_size_var(unsigned idx, const string&dtype,
+			 unsigned leaf = 0, bool selected = false) {
 	    for (auto& v : size_vars)
-		  if (v.idx == idx) return v.var;
+		  if (v.idx == idx && v.leaf == leaf) return v.var;
 	    char name[32];
-	    snprintf(name, sizeof(name), "s%u", idx);
+	    if (selected)
+		  snprintf(name, sizeof(name), "s%u_%u", idx, leaf);
+	    else
+		  snprintf(name, sizeof(name), "s%u", idx);
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast var = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, name), sort);
-	    SizeVar sv; sv.idx = idx; sv.container_type = dtype; sv.var = var;
+	    SizeVar sv; sv.idx = idx; sv.leaf = leaf;
+	    sv.container_type = dtype; sv.var = var;
 	    size_vars.push_back(sv);
 	    return var;
       }
@@ -1390,7 +1397,8 @@ static bool cobj_elem_vec4_(vvp_cobject*cobj, unsigned idx, unsigned elem,
                             vvp_vector4_t&value);
 static uint64_t cobj_qelem_member_bits(vvp_cobject* cobj, unsigned qprop,
 				       unsigned elem, unsigned member);
-static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx);
+static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx,
+				 size_t leaf = 0);
 static bool vec4_to_uint64_(const vvp_vector4_t&value, uint64_t&bits);
 
 static bool vec4_is_two_state_(const vvp_vector4_t&value)
@@ -1593,24 +1601,70 @@ static Z3_ast parse_member(IRParser&, Z3Builder& b, const string& tok)
       return var;
 }
 
-// Parse "s:N:T" -- returns the 32-bit dynamic-container size variable.
+// Parse "s:N:T" or "s:N:#L:T" -- returns one container's 32-bit size.
 static Z3_ast parse_size(Z3Builder& b, const string& tok,
 			 unsigned*idx_out = nullptr)
 {
+      auto invalid = [&]() -> Z3_ast {
+	    b.state_errors.push_back("invalid indexed queue size token");
+	    return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, 32));
+      };
       const char*s = tok.c_str() + 2;
-      unsigned idx = (unsigned)atoi(s);
-      while (*s && *s != ':') ++s;
-      string dtype = (*s == ':') ? string(s + 1) : string("v32");
+      char*end = nullptr;
+      errno = 0;
+      unsigned long property = strtoul(s, &end, 10);
+      if (end == s || errno == ERANGE || *end != ':'
+	  || property > UINT_MAX) return invalid();
+      unsigned idx = (unsigned)property;
+      s = end + 1;
+      unsigned leaf = 0;
+      bool selected = false;
+      if (*s == '#') {
+	    selected = true;
+	    errno = 0;
+	    unsigned long leaf_value = strtoul(s + 1, &end, 10);
+	    if (end == s + 1 || errno == ERANGE || *end != ':'
+		|| leaf_value > UINT_MAX)
+		  return invalid();
+	    leaf = (unsigned)leaf_value;
+	    s = end + 1;
+      }
+      string dtype = *s ? string(s) : string("v32");
+      if (selected) {
+	    const char*max_text = dtype.c_str() + 1;
+	    char*max_end = nullptr;
+	    if (dtype[0] != 'Q') return invalid();
+	    errno = 0;
+	    (void)strtoull(max_text, &max_end, 10);
+	    if (max_end == max_text || errno == ERANGE || *max_end != ':')
+		  return invalid();
+	    const char*elem = max_end + 1;
+	    if (*elem == 's') ++elem;
+	    if (*elem != 'b' && *elem != 'v') return invalid();
+	    ++elem;
+	    char*width_end = nullptr;
+	    errno = 0;
+	    unsigned long width = strtoul(elem, &width_end, 10);
+	    if (width_end == elem || errno == ERANGE || *width_end || width == 0
+		|| width > UINT_MAX) return invalid();
+      }
+      if (selected && (!b.cobj || !b.cobj->get_defn()
+	  || idx >= b.cobj->get_defn()->property_count()
+	  || b.cobj->get_defn()->property_dimensions(idx).empty()
+	  || leaf >= b.cobj->get_defn()->property_array_size(idx)
+	  || b.cobj->get_defn()->property_base_type(idx).empty()
+	  || b.cobj->get_defn()->property_base_type(idx)[0] != 'Q'
+	  || dtype.empty() || dtype[0] != 'Q')) return invalid();
       idx = b.property_index(idx);
       if (idx_out) *idx_out = idx;
       if (b.collect_refs) {
-	    Z3Builder::VarRef ref = {Z3Builder::VarRef::SIZE, idx, 0};
+	    Z3Builder::VarRef ref = {Z3Builder::VarRef::SIZE, idx, leaf};
 	    b.collect_refs->insert(ref);
       }
       if (b.collect_refs_only)
 	    return Z3_mk_unsigned_int64(
 		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, 32));
-      return b.get_size_var(idx, dtype);
+      return b.get_size_var(idx, dtype, leaf, selected);
 }
 
 // Parse "e:N:W:I[:s]" -- returns the selected array-element variable.
@@ -5380,10 +5434,11 @@ static void cobj_set_elem_vec4_(vvp_cobject* cobj, unsigned idx, unsigned elem,
 }
 
 /* Current size of a dynamic-array property (0 when unallocated). */
-static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx)
+static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx,
+				 size_t leaf)
 {
       vvp_object_t propobj;
-      cobj->get_object(idx, propobj, 0);
+      cobj->get_object(idx, propobj, leaf);
       if (vvp_darray*da = propobj.peek<vvp_darray>())
 	    return da->get_size();
       if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>())
@@ -6473,17 +6528,24 @@ bool z3_object_graph_t::member_active(unsigned idx, unsigned member) const
       return false;
 }
 
-bool z3_object_graph_t::size_active(unsigned idx) const
+bool z3_object_graph_t::size_active(unsigned idx, unsigned leaf) const
 {
       for (const auto&binding : properties.at(idx).bindings)
-            if (rand_active_(binding.scope->object->get_defn(),
-                  binding.scope->object, binding.scope->selection(), binding.pid)
+            if ((binding.scope->object->get_defn()
+                    ->property_dimensions(binding.pid).empty()
+                  ? rand_active_(binding.scope->object->get_defn(),
+                        binding.scope->object, binding.scope->selection(),
+                        binding.pid)
+                  : rand_elem_active_(binding.scope->object->get_defn(),
+                        binding.scope->object, binding.scope->selection(),
+                        binding.pid, leaf))
                 && (!binding.scope->staged_selection
                     || any_of(binding.scope->staged_active.begin(),
                               binding.scope->staged_active.end(),
                               [&](const vvp_z3_ref_s&ref) {
                                     return ref.kind == vvp_z3_ref_s::SIZE
-                                          && ref.property == binding.pid;
+                                          && ref.property == binding.pid
+                                          && ref.leaf == leaf;
                               })))
                   return true;
       return false;
@@ -6518,9 +6580,12 @@ static bool rand_elem_active_(const Z3Builder&builder,
 }
 
 static bool rand_size_active_(const Z3Builder&builder,
-      const vector<bool>*selection, unsigned idx)
+      const vector<bool>*selection, unsigned idx, unsigned leaf = 0)
 {
-      return builder.graph ? builder.graph->size_active(idx)
+      if (builder.graph) return builder.graph->size_active(idx, leaf);
+      return builder.defn && !builder.defn->property_dimensions(idx).empty()
+            ? rand_elem_active_(builder.defn, builder.cobj, selection,
+                                idx, leaf)
             : rand_active_(builder.defn, builder.cobj, selection, idx);
 }
 
@@ -6573,7 +6638,8 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
                     : ref.kind == Z3Builder::VarRef::ELEM
                       ? rand_elem_active_(b, b.prop_active, ref.idx, ref.leaf)
                       : !(b.dyn_sizes && b.dyn_sizes->count(ref.idx))
-                        && rand_size_active_(b, b.prop_active, ref.idx);
+                        && rand_size_active_(b, b.prop_active, ref.idx,
+					      ref.leaf);
             if (active) random = true;
             else state_refs.insert(ref);
       }
@@ -6654,8 +6720,10 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
                               if (!word(var.var, data)) return Z3_L_UNDEF;
                         }
             } else {
-                  for (const auto&var : b.size_vars) if (var.idx == ref.idx)
-                        bits(var.var, cobj_darray_size(b.object(var.idx), b.local_index(var.idx)));
+                  for (const auto&var : b.size_vars)
+			if (var.idx == ref.idx && var.leaf == ref.leaf)
+                              bits(var.var, cobj_darray_size(b.object(var.idx),
+				    b.local_index(var.idx), var.leaf));
             }
       }
       for (const auto&var : b.qelem_vars)
@@ -8514,10 +8582,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_solver_assert(ctx, base, eq);
       }
       for (auto& sv : builder.size_vars) {
-	    if (rand_size_active_(builder, prop_active, sv.idx)) continue;
+	    if (rand_size_active_(builder, prop_active, sv.idx, sv.leaf)) continue;
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
-		  cobj_darray_size(builder.object(sv.idx), builder.local_index(sv.idx)), s32);
+		  cobj_darray_size(builder.object(sv.idx),
+			builder.local_index(sv.idx), sv.leaf), s32);
 	    Z3_ast eq = Z3_mk_eq(ctx, sv.var, cv);
 	    Z3_optimize_assert(ctx, opt, eq);
 	    Z3_solver_assert(ctx, base, eq);
@@ -8586,7 +8655,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    for (auto& sv : builder.size_vars) {
 		  Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 		  Z3_ast cur = Z3_mk_unsigned_int64(ctx,
-			cobj_darray_size(builder.object(sv.idx), builder.local_index(sv.idx)), s32);
+			cobj_darray_size(builder.object(sv.idx),
+			      builder.local_index(sv.idx), sv.leaf), s32);
 		  Z3_ast eq = Z3_mk_eq(ctx, sv.var, cur);
 		  Z3_optimize_assert(ctx, opt, eq);
 		  Z3_solver_assert(ctx, base, eq);
@@ -8703,7 +8773,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
             for (Z3_ast domain : enum_domains) Z3_solver_assert(ctx, chk, domain);
 	    for (auto& sv : builder.size_vars) {
-		  uint64_t cur = cobj_darray_size(builder.object(sv.idx), builder.local_index(sv.idx));
+		  uint64_t cur = cobj_darray_size(builder.object(sv.idx),
+			builder.local_index(sv.idx), sv.leaf);
 		  Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
 		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, cur, sort);
 		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, sv.var, cv));
@@ -8739,7 +8810,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	      // size pass — the element pass has them pinned already.)
 	    if (!dyn_sizes)
 		  for (auto& sv : builder.size_vars)
-			if (rand_size_active_(builder, prop_active, sv.idx))
+			if (rand_size_active_(builder, prop_active, sv.idx, sv.leaf))
 			      precheck = Z3_L_FALSE;
 
 	      // A constrained randc variable must be selected against its
@@ -8841,7 +8912,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   defer_ordered_joint_randc |= active_randc_var(ev.var);
       }
 
-      map<unsigned, uint64_t> proved_joint_sizes;
+      map<pair<unsigned,unsigned>, uint64_t> proved_joint_sizes;
       if (exact_joint) {
             // Ordered randc/dist and non-scalar stages need separate proofs.
             // Reject before any sampling; a cap failure after a randc draw
@@ -8860,7 +8931,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               && base[0] != 'M';
                         const Z3Builder::SizeVar*size = nullptr;
                         for (const auto&candidate : builder.size_vars)
-                              if (candidate.idx == ref.idx) {
+                              if (candidate.idx == ref.idx
+				  && candidate.leaf == 0) {
                                     size = &candidate;
                                     break;
                               }
@@ -8868,6 +8940,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               ? random_container_desc_(size->container_type)
                               : random_container_desc_t();
                         bool variable_integral = size && desc.elem_integral
+                              && type->property_dimensions(pid).empty()
                               && ((base.size() > 1 && base[0] == 'D')
                                   || desc.is_queue);
                         return fixed || variable_integral;
@@ -8890,10 +8963,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         return fail_joint("global array sizes must have one proven value before element solving");
                   for (size_t i = 0; i < sizes.size(); ++i) {
                         const auto&sv = builder.size_vars[i];
-                        proved_joint_sizes[sv.idx] = values[0][i];
+                        proved_joint_sizes[make_pair(sv.idx, sv.leaf)] = values[0][i];
                         if (values[0][i] > random_container_size_cap_(sv.container_type))
                               return fail_joint("a fixed array size exceeds the supported allocation limit");
-                        if (!rand_size_active_(builder, prop_active, sv.idx)
+                        if (!rand_size_active_(builder, prop_active,
+					    sv.idx, sv.leaf)
                             || !builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx))
                             || random_container_desc_(sv.container_type).elem_width <= 20) continue;
                         for (uint64_t elem = 0; elem < values[0][i]; ++elem)
@@ -8908,7 +8982,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               ->property_base_type(builder.local_index(ref.idx));
                         const Z3Builder::SizeVar*size_var = nullptr;
                         for (const auto&candidate : builder.size_vars)
-                              if (candidate.idx == ref.idx) {
+                              if (candidate.idx == ref.idx
+				  && candidate.leaf == 0) {
                                     size_var = &candidate;
                                     break;
                               }
@@ -8917,7 +8992,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                 && !random_container_desc_(
                                       size_var->container_type).is_queue))
                               continue;
-                        auto size = proved_joint_sizes.find(ref.idx);
+                        auto size = proved_joint_sizes.find(
+					make_pair(ref.idx, 0));
                         if (size == proved_joint_sizes.end())
                               return fail_joint("dynamic element ordering requires one proved array size");
                         if (ref.elem >= size->second)
@@ -8943,7 +9019,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				     ref.idx, ref.leaf);
 	    if (ref.kind == Z3Builder::VarRef::PROP)
                   return rand_scalar_active_(builder, prop_active, ref.idx);
-	    return rand_size_active_(builder, prop_active, ref.idx);
+	    return rand_size_active_(builder, prop_active,
+				      ref.idx, ref.leaf);
       };
       auto dist_disabled = [&](const Z3Builder::DistSpec&spec) -> bool {
 	    if (!spec.disableable) return false;
@@ -10096,13 +10173,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// satisfying model, so they can never make later stages UNSAT. Size
 	// targets are cached across the staged and combined passes: every size
 	// consumes exactly one object-RNG word regardless of its ordering rank.
-      std::map<unsigned,uint64_t> size_random_targets;
-      auto size_random_target = [&](unsigned idx) -> uint64_t {
-	    std::map<unsigned,uint64_t>::iterator found =
-		  size_random_targets.find(idx);
+      std::map<pair<unsigned,unsigned>,uint64_t> size_random_targets;
+      auto size_random_target = [&](unsigned idx,
+				    unsigned leaf = 0) -> uint64_t {
+	    pair<unsigned,unsigned> key = make_pair(idx, leaf);
+	    auto found = size_random_targets.find(key);
 	    if (found != size_random_targets.end()) return found->second;
 	    uint64_t target = (uint64_t)(property_rng(idx).next() & 0xF);
-	    size_random_targets[idx] = target;
+	    size_random_targets[key] = target;
 	    return target;
       };
       if (!exact_joint && !builder.order_pairs.empty()) {
@@ -10118,7 +10196,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			return rand_member_active_(builder, prop_active,
 					   ref.idx, ref.elem);
 		  return ref.kind == Z3Builder::OrderRef::SIZE
-			? rand_size_active_(builder, prop_active, ref.idx)
+			? rand_size_active_(builder, prop_active,
+					    ref.idx, ref.elem)
 			: rand_active_(builder, prop_active, ref.idx);
 	    };
 	    for (const auto& pr : builder.order_pairs) {
@@ -10236,12 +10315,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    rand_bits = cobj_prop_bits(builder.object(ref.idx), builder.local_index(ref.idx));
 			      } else {
 				    for (auto&sv : builder.size_vars)
-					  if (sv.idx == ref.idx) {
+					  if (sv.idx == ref.idx
+					      && sv.leaf == ref.elem) {
 						var = sv.var;
 						width = 32;
 						break;
 					  }
-				    rand_bits = size_random_target(ref.idx);
+			    rand_bits = size_random_target(ref.idx, ref.elem);
 			      }
 			      if (!var || width == 0) continue;
 			      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
@@ -10292,7 +10372,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  }
 			      } else {
 				    for (auto&sv : builder.size_vars)
-					  if (sv.idx == ref.idx) {
+					  if (sv.idx == ref.idx
+					      && sv.leaf == ref.elem) {
 						var = sv.var;
 						break;
 					  }
@@ -10430,7 +10511,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
       sample_member_elements(false);
       for (auto& sv : builder.size_vars) {
-	    if (!rand_size_active_(builder, prop_active, sv.idx)) continue;
+	    if (!rand_size_active_(builder, prop_active, sv.idx, sv.leaf)) continue;
 	      // Prefer small varied sizes when the constraints leave slack.
 	      // R3 (IEEE 1800-2017 18.13.1): draw from the OBJECT's own
 	      // generator (always seeded, see of_NEW_COBJ), not libc rand(),
@@ -10439,7 +10520,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	      // properties.
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast rv = Z3_mk_unsigned_int64(ctx,
-		  size_random_target(sv.idx), sort);
+		  size_random_target(sv.idx, sv.leaf), sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, sv.var, rv));
       }
 
@@ -10528,10 +10609,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
                   if ((type != "Do" && type != "Qo")
                       || sv.container_type == "D"
-                      || !rand_size_active_(builder, prop_active, sv.idx)) continue;
+                      || !rand_size_active_(builder, prop_active,
+					   sv.idx, sv.leaf)) continue;
                   uint64_t count = 0;
                   if (!z3_eval_uint64(ctx, model, sv.var, count)
-                      || count != cobj_darray_size(builder.object(sv.idx), builder.local_index(sv.idx))) {
+                      || count != cobj_darray_size(builder.object(sv.idx),
+					      builder.local_index(sv.idx), sv.leaf)) {
                         fprintf(stderr, "ERROR: resizing a random class-handle collection during a global solve is not yet supported.\n");
                         Z3_model_dec_ref(ctx, model);
                         Z3_solver_dec_ref(ctx, base);
@@ -10668,7 +10751,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       };
 
       for (auto& sv : builder.size_vars) {
-	    if (!rand_size_active_(builder, prop_active, sv.idx)) continue;
+	    if (!rand_size_active_(builder, prop_active, sv.idx, sv.leaf)) continue;
 	    uint64_t new_size = 0;
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
@@ -10683,8 +10766,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    random_container_desc_t desc =
 		  random_container_desc_(sv.container_type);
 	    vvp_object_t old_obj;
-	    builder.object(sv.idx)->get_object(builder.local_index(sv.idx), old_obj, 0);
+	    builder.object(sv.idx)->get_object(builder.local_index(sv.idx),
+					 old_obj, sv.leaf);
 	    vvp_darray*old_array = old_obj.peek<vvp_darray>();
+	    bool fixed_queue = !builder.type(sv.idx)->property_dimensions(
+			builder.local_index(sv.idx)).empty();
+	    auto element_active = [&](unsigned adr) {
+		  if (!fixed_queue)
+			return rand_elem_active_(builder, prop_active, sv.idx, adr);
+		  return old_array ? (adr < old_array->get_size()
+			? old_array->rand_mode(adr)
+			: old_array->rand_mode_default()) : true;
+	    };
 	    vvp_darray*da = desc.elem_type == "D"
 		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
 		  : make_random_container_(desc, (size_t)new_size);
@@ -10698,8 +10791,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  const uint64_t queue_max = desc.max_size;
 		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
 			vvp_vector4_t nv(desc.elem_width, BIT4_0);
-			bool active = rand_elem_active_(builder, prop_active,
-						 sv.idx, (unsigned)adr);
+			bool active = element_active((unsigned)adr);
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
 			else if (!is_randc && !enum_domain.empty())
@@ -10737,8 +10829,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			unsigned wid = word.size();
 			if (wid == 0) wid = 32;
 			vvp_vector4_t nv(wid, BIT4_0);
-			bool active = rand_elem_active_(builder, prop_active,
-						 sv.idx, (unsigned)adr);
+			bool active = element_active((unsigned)adr);
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
 			else if (!is_randc && !enum_domain.empty())
@@ -10762,10 +10853,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 	    vvp_object_t obj(da);
 	    if (old_array) da->inherit_randc_histories(*old_array);
-	    builder.object(sv.idx)->set_object(builder.local_index(sv.idx), obj, 0);
+	    builder.object(sv.idx)->set_object(builder.local_index(sv.idx),
+					 obj, sv.leaf);
 	    if (old_array) {
 		  vvp_object_t stored;
-		  builder.object(sv.idx)->get_object(builder.local_index(sv.idx), stored, 0);
+		  builder.object(sv.idx)->get_object(builder.local_index(sv.idx),
+					    stored, sv.leaf);
 		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
 			{
 			      stored_array->inherit_rand_modes(*old_array);
@@ -10774,12 +10867,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 	    if (is_randc) {
 		  vvp_object_t stored;
-		  builder.object(sv.idx)->get_object(builder.local_index(sv.idx), stored, 0);
+		  builder.object(sv.idx)->get_object(builder.local_index(sv.idx),
+					    stored, sv.leaf);
 		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
 			for (size_t adr = 0 ; adr < stored_array->get_size();
 			     adr += 1) {
-		      if (!rand_elem_active_(builder, prop_active,
-					     sv.idx, (unsigned)adr))
+		      if (!element_active((unsigned)adr))
 				    continue;
 			      bool modeled_element = false;
 			      for (const auto&ev : builder.elem_vars)
@@ -11155,6 +11248,10 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                               : canonical.kind == Z3Builder::VarRef::ELEM
                               ? rand_elem_active_(builder, nullptr,
                                                   canonical.idx, canonical.leaf)
+                              : canonical.kind == Z3Builder::VarRef::SIZE
+                              ? canonical.idx < graph.properties.size()
+                                && graph.size_active(canonical.idx,
+                                                     canonical.leaf)
                               : canonical.idx < graph.properties.size()
                                 && graph.active(canonical.idx);
                         if (active) entry.refs.insert(canonical);
@@ -11199,16 +11296,22 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                         return graph.element_active(ref.idx, ref.leaf);
                   if (ref.kind == Ref::MEMBER)
                         return graph.member_active(ref.idx, ref.leaf);
-                  return graph.size_active(ref.idx);
+                  return graph.size_active(ref.idx, ref.leaf);
             };
             for (unsigned idx = 0; idx < graph.properties.size(); ++idx) {
                   if (member_aliases.count(idx)) continue;
                   const class_type*type = graph.properties[idx].object->get_defn();
                   unsigned pid = graph.properties[idx].pid;
                   const string&base = type->property_base_type(pid);
-                  uint64_t words = type->property_array_size(pid);
-                  if (words > 1) {
-                        for (unsigned leaf = 0; leaf < words; ++leaf) {
+                  uint64_t fixed_words = type->property_array_size(pid);
+                  if (!type->property_dimensions(pid).empty()
+			&& !base.empty() && base[0] == 'Q') {
+			for (unsigned leaf = 0; leaf < fixed_words; ++leaf) {
+			      Ref size = {Ref::SIZE, idx, leaf};
+			      if (active_ref(size)) active_refs.insert(size);
+			}
+		  } else if (fixed_words > 1) {
+                        for (unsigned leaf = 0; leaf < fixed_words; ++leaf) {
                               Ref ref = {Ref::ELEM, idx, leaf};
                               if (active_ref(ref)) active_refs.insert(ref);
                         }
@@ -11322,9 +11425,15 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                   for (const Ref&ref : active_refs)
                         /* Dynamic size is an inherent prerequisite of its
                          * prospective elements. Keep that established tier;
-                         * ordinary nonargument scalars/elements remain peers
-                         * in the final lower set. */
-                        if (!all_args.count(ref) && ref.kind != Ref::SIZE)
+                         * a fixed-array queue leaf has no dynamic foreach
+                         * expansion here and may depend on a function result.
+                         * Other nonargument variables remain peers in the
+                         * final lower set. */
+                        if (!all_args.count(ref)
+			    && (ref.kind != Ref::SIZE
+				|| !graph.properties[ref.idx].object->get_defn()
+				    ->property_dimensions(
+					graph.properties[ref.idx].pid).empty()))
                               levels[ref] = final_level;
             }
             for (const Ref&element : active_refs) {
@@ -11438,7 +11547,8 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                                                       variable = var.var;
                                     if (ref.kind == Ref::SIZE)
                                           for (const auto&var : collector.size_vars)
-                                                if (var.idx == ref.idx)
+                                                if (var.idx == ref.idx
+						    && var.leaf == ref.leaf)
                                                       variable = var.var;
                                     if (ref.kind == Ref::MEMBER)
                                           for (const auto&var : collector.member_vars)
@@ -11545,6 +11655,15 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                                                 objects[oi].object,
                                                 objects[oi].selection(),
                                                 binding.pid, ref.leaf)
+                                          : ref.kind == Ref::SIZE
+                                            && !objects[oi].object->get_defn()
+                                              ->property_dimensions(binding.pid)
+                                              .empty()
+                                          ? rand_elem_active_(
+                                                objects[oi].object->get_defn(),
+                                                objects[oi].object,
+                                                objects[oi].selection(),
+                                                binding.pid, ref.leaf)
                                           : rand_active_(
                                                 objects[oi].object->get_defn(),
                                                 objects[oi].object,
@@ -11592,6 +11711,8 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                   const auto&property = graph.properties[idx];
                   const string&base = property.object->get_defn()
                         ->property_base_type(property.pid);
+                  if (!property.object->get_defn()
+			->property_dimensions(property.pid).empty()) continue;
                   if (base.empty() || (base[0] != 'D' && base[0] != 'Q'))
                         continue;
                   for (const auto&binding : property.bindings)

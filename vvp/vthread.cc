@@ -5632,6 +5632,45 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
                   continue;
             }
 
+	      // A fixed array of queues stores one queue object per property
+	      // word. Prefill existing integral words through those objects;
+	      // treating each queue handle as a scalar calls set_vec4 on an
+	      // object property and leaves a spurious unsupported-size warning.
+	    if (!defn->property_dimensions(pid).empty()
+		&& !bt.empty() && bt[0] == 'Q') {
+		  uint64_t count = defn->property_array_size(pid);
+		  bool all_active = sel && pid < sel->size() && (*sel)[pid];
+		  for (uint64_t leaf = 0; leaf < count; ++leaf) {
+			if (!rand_leaf_active_(defn, cobj, sel, pid,
+					   (size_t)leaf)) continue;
+			vvp_object_t object;
+			cobj->get_object(pid, object, (size_t)leaf);
+			vvp_darray*array = object.peek<vvp_darray>();
+			if (!array) continue;
+			for (size_t position = 0; position < array->get_size();
+			     ++position) {
+			      if (!all_active && !array->rand_mode(position)) continue;
+			      vvp_vector4_t value;
+			      array->get_word((unsigned)position, value);
+			      if (value.size() == 0) continue;
+			      if (defn->property_is_randc(pid)
+				  && randomize_randc_container_leaf_(cobj, pid,
+				      (size_t)leaf, position, value, next_random)) {
+				    array->set_word((unsigned)position, value);
+				    continue;
+			      }
+			      for (unsigned bit = 0; bit < value.size(); ++bit)
+				    value.set_bit(bit, (next_random() & 1)
+					  ? BIT4_1 : BIT4_0);
+			      array->set_word((unsigned)position, value);
+			}
+			if (defn->property_is_static(pid))
+			      defn->static_randomize_transaction_mark_dirty(
+				    pid, (size_t)leaf);
+		  }
+		  continue;
+	    }
+
 	      // Fixed integral rand properties randomize every active leaf.
 	      // Object-backed and associative properties were handled above.
 	    if (defn->property_array_size(pid) > 1) {
@@ -6571,7 +6610,8 @@ bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
 	    ? defn->property_array_size(pid) : 0;
 	// D/Q properties have one class slot containing a run-time-sized
 	// unpacked container; use its live element count, not slot count 1.
-      if (pid < defn->property_count()) {
+      if (pid < defn->property_count()
+	  && defn->property_dimensions(pid).empty()) {
 	    const std::string&bt = defn->property_base_type(pid);
 	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
 		  vvp_object_t container;

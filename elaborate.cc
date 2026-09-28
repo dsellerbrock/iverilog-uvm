@@ -30539,11 +30539,13 @@ static bool constraint_dist_context_fill_ir_(const PExpr*expr,
  * dynamic-container size solver variable. Keep their lowering in one place
  * so the two parsed expression shapes cannot drift apart. */
 static string constraint_class_container_size_ir_(
-      const pform_name_t&cpath, const netclass_t*cls)
+      const pform_name_t&cpath, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
 {
       if (cpath.size() != 2
 	  || cpath.back().name != perm_string::literal("size")
-	  || !cpath.back().index.empty() || !cpath.front().index.empty()
+	  || !cpath.back().index.empty()
 	  || cpath.front().local_scope || cpath.back().local_scope
 	  || !cls)
 	    return "";
@@ -30557,10 +30559,68 @@ static string constraint_class_container_size_ir_(
 	    return "";
 
       ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+      bool fixed_leaf = false;
+      uint64_t word = 0;
+      if (const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(ptype)) {
+	    const netranges_t&dims = fixed->static_dimensions();
+	    if (!scope || dims.empty() || cpath.front().index.size() != dims.size())
+		  return "";
+	    size_t dim = 0;
+	    for (const index_component_t&select : cpath.front().index) {
+		  if (select.sel != index_component_t::SEL_BIT || !select.msb
+		      || select.lsb || !dims[dim].defined()
+		      || dims[dim].width() == 0) return "";
+		  string index_ir;
+		  const PEIdent*loop_id = dynamic_cast<const PEIdent*>(select.msb);
+		  bool loop_index = loop_env && loop_id
+		      && !loop_id->path().package
+		      && loop_id->path().name.size() == 1
+		      && !loop_id->path().name.front().local_scope
+		      && loop_id->path().name.front().index.empty()
+		      && loop_env->count(loop_id->path().name.front().name);
+		  if (loop_index)
+			index_ir = pexpr_to_constraint_ir(select.msb, cls,
+			      value_slots, scope, loop_env);
+		  else {
+			unique_ptr<NetExpr>folded(elab_and_eval(
+			      constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
+			      select.msb, -1, false, false));
+			const NetEConst*constant =
+			      dynamic_cast<const NetEConst*>(folded.get());
+			if (!constant || !constant->value().is_defined()
+			    || (constant->expr_type() != IVL_VT_BOOL
+				&& constant->expr_type() != IVL_VT_LOGIC)
+			    || constant->value().len() == 0
+			    || constant->value().len() > 64) return "";
+			const verinum&bits = constant->value();
+			index_ir = constraint_const_bits_ir_(
+			      bits, bits.len(), bits.has_sign());
+		  }
+		  constraint_const_ir_t index;
+		  uint64_t digit = 0;
+		  long low = min(dims[dim].get_msb(), dims[dim].get_lsb());
+		  if (!constraint_parse_const_ir_(index_ir, index)
+		      || index.width > 64
+		      || !constraint_fixed_index_offset_(index, (int64_t)low,
+			    dims[dim].width(), digit)
+		      || digit > UINT_MAX
+		      || word > (UINT_MAX - digit) / dims[dim].width())
+			return "";
+		  word = word * dims[dim].width() + digit;
+		  ++dim;
+	    }
+	    ptype = fixed->element_type();
+	    fixed_leaf = true;
+      } else if (!cpath.front().index.empty()) {
+	    return "";
+      }
       const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
       const netqueue_t*queue = dynamic_cast<const netqueue_t*>(ptype);
       property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
       bool rand_container = qual.test_rand() || qual.test_randc();
+	// A fixed leaf and an element of its queue need two randc history
+	// coordinates; the current history store has only one.
+      if (fixed_leaf && qual.test_randc()) return "";
       ivl_type_t etype = da ? da->element_type() : nullptr;
       ivl_variable_type_t ebase = etype
 	    ? etype->base_type() : IVL_VT_NO_TYPE;
@@ -30573,7 +30633,7 @@ static string constraint_class_container_size_ir_(
 	// non-integral elements.
       bool unsupported_rand_queue = queue && rand_container
 	    && (queue->assoc_compat() || !integral_queue);
-      if (!da || unsupported_rand_queue)
+      if (!da || unsupported_rand_queue || (fixed_leaf && !queue))
 	    return "";
 
       unsigned ewid = etype ? etype->packed_width() : 32;
@@ -30595,7 +30655,8 @@ static string constraint_class_container_size_ir_(
 		  : (uint64_t)queue->max_idx() + 1;
 	    ttext = "Q" + to_string(max_size) + ":" + ttext;
       }
-      return "s:" + to_string(idx) + ":" + ttext;
+      return "s:" + to_string(idx) + ":"
+	    + (fixed_leaf ? "#" + to_string(word) + ":" : "") + ttext;
 }
 
 static string constraint_scope_queue_size_ir_(const pform_name_t&path)
@@ -31521,7 +31582,27 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
 			}
 		  } else if (signal) pid = static_property(signal->sig());
 		  if (pid >= 0) {
-			add(dependency_t::SIZE, pid);
+			ivl_type_t ptype = cls->get_prop_type((size_t)pid);
+			const netuarray_t*fixed =
+			      dynamic_cast<const netuarray_t*>(ptype);
+			unsigned leaf = 0;
+			if (fixed) {
+			      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(
+				    fixed->element_type());
+			      if (!queue || queue->assoc_compat() || !property
+				  || !constant_index(property->get_index(), leaf))
+				    return false;
+			      uint64_t words = 1;
+			      for (const netrange_t&dim : fixed->static_dimensions()) {
+				    if (!dim.defined() || !dim.width()
+					|| words > UINT_MAX / dim.width()) return false;
+				    words *= dim.width();
+			      }
+			      if (leaf >= words) return false;
+			} else if (property && property->get_index()) {
+			      return false;
+			}
+			add(dependency_t::SIZE, pid, leaf);
 			for (unsigned idx = 1; idx < call->nparms(); ++idx)
 			      if (!constraint_call_dependencies_(call->parm(idx), cls,
 				    receiver, dependencies)) return false;
@@ -32706,7 +32787,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (!ctx && !foreach_shadow && !local_qualified && !id->path().package
 		&& !id->has_scoped_type_prefix()) {
 		  string size_ir = constraint_class_container_size_ir_(
-			id->path().name, cls);
+			id->path().name, cls, value_slots, scope, loop_env);
 		  if (size_ir.empty() && !cls)
 		    size_ir = constraint_scope_queue_size_ir_(id->path().name);
 		  if (!size_ir.empty()) return size_ir;
@@ -34365,7 +34446,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (!call_iter_ctx && !call_foreach_shadow
 		&& !call_local_qualified && !call->path().package
 		&& !call->has_scoped_type_prefix()) {
-		  string size_ir = constraint_class_container_size_ir_(cpath, cls);
+		  string size_ir = call->get_parms().empty()
+			&& call->with_constraints().empty()
+			? constraint_class_container_size_ir_(
+			    cpath, cls, value_slots, scope, loop_env) : "";
 		  if (size_ir.empty() && !cls)
 		    size_ir = constraint_scope_queue_size_ir_(cpath);
 		  if (!size_ir.empty()) return size_ir;

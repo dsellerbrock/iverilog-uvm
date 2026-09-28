@@ -1,0 +1,12 @@
+{
+    "type": "CE",
+    "source": "sv_constraint_fixed_queue_leaf_bad_index.v",
+    "iverilog-args": [
+        "-g2017",
+        "-gno-icarus-misc",
+        "-gno-xtypes",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_fixed_queue_leaf_bad_index"
+}
