@@ -1,0 +1,27 @@
+{
+  "compiler_revision": "974746928",
+  "returncode": 2,
+  "seconds": 2.675,
+  "errors": [
+    "../src/lowrisc_dv_clkmgr_env_0.1/seq_lib/clkmgr_base_vseq.sv:76: error: unpacked array concatenation expects 4 element(s), found 1.",
+    "../src/lowrisc_dv_clkmgr_env_0.1/seq_lib/clkmgr_clk_status_vseq.sv:34: error: The expression ''d1' cannot be implicitly cast to the target type."
+  ],
+  "unsampled": [],
+  "warnings": [
+    "../src/lowrisc_dv_clkmgr_sim_0.1/tb.sv:122: warning: input port rst_n is coerced to inout.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process."
+  ],
+  "case": "lowrisc:dv:clkmgr_sim:0.1",
+  "status": "selected compile blocked by two hard errors; no DV runtime",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "selected_input_fix_commit": "974746928",
+  "focused_regressions": "38/38 clocking and VIF 2017/2023 checks; dynamic index fail-closed in both editions",
+  "scope": "One selected compile; the 49-case corpus was not rerun"
+}
