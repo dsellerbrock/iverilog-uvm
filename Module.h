@@ -249,7 +249,8 @@ class Module : public PScopeExtra, public PNamedItem {
    other expression shapes return nil). Implemented in netmisc.cc. */
 class Design;
 extern NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
-					   const Module::PClocking*cb,
-					   perm_string sig_name);
+				    const Module::PClocking*cb,
+				    perm_string sig_name,
+				    bool input_select = false);
 
 #endif /* IVL_Module_H */

@@ -902,7 +902,8 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
 
-		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it,
+						     is_in && !is_out);
 		  if (!raw) {
 			if (cb->decl_assigns.count(*sig_it))
 			      cerr << cb->get_fileline() << ": sorry: "
@@ -928,6 +929,23 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  }
 
 		  ivl_type_t vt = raw->net_type();
+		  bool selected_input = false;
+		  if (is_in && !is_out) {
+		    auto da = cb->decl_assigns.find(*sig_it);
+		    if (da != cb->decl_assigns.end()) {
+		      const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+		      if (id && !id->path().name.back().index.empty()) {
+			selected_input = true;
+			vt = id->test_type_of_ident(des, scope);
+		      }
+		    }
+		  }
+		  if (selected_input && !vt) {
+		    cerr << cb->get_fileline() << ": sorry: selected clocking input `"
+			 << *sig_it << "' has no resolvable type." << endl;
+		    des->errors += 1;
+		    continue;
+		  }
 
 		    /* Edge-qualified skews (14.4 `input negedge [#d]`):
 		       the delay/#1step part is honored; the edge

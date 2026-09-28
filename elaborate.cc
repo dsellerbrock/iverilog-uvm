@@ -26243,6 +26243,49 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
    - numeric-skew samples update after the Observed wait;
    - the public tick and trigger update last, so static and virtual-interface
      @(cb) waiters see settled design state and this edge's samples. */
+static NetExpr* select_clocking_input_(Design*des, NetScope*scope,
+				       const Module::PClocking*cb,
+				       perm_string sig_name, NetNet*raw,
+				       NetExpr*value)
+{
+      auto da = cb->decl_assigns.find(sig_name);
+      if (da == cb->decl_assigns.end()) return value;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+      if (!id || id->path().name.empty()
+	  || id->path().name.back().index.empty()) return value;
+
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      da->second->test_width(des, scope, mode);
+      NetExpr*shape = id->elaborate_expr(des, scope, id->expr_width(),
+						 PExpr::NO_FLAGS);
+      const NetESelect*sel = dynamic_cast<const NetESelect*>(shape);
+      const NetESignal*signal = sel
+	    ? dynamic_cast<const NetESignal*>(sel->sub_expr()) : nullptr;
+      NetExpr*index = sel && sel->select()
+	    ? sel->select()->dup_expr() : nullptr;
+      if (index) eval_expr(index, -1);
+      if (!signal || signal->sig() != raw
+	  || !dynamic_cast<NetEConst*>(index)) {
+	    cerr << cb->get_fileline() << ": sorry: selected clocking input `"
+		 << sig_name << "' requires a constant packed select." << endl;
+	    des->errors += 1;
+	    delete value;
+	    delete shape;
+	    delete index;
+	    return nullptr;
+      }
+      ivl_type_t type = sel->net_type();
+      NetESelect*result = type && type->packed_width() == sel->expr_width()
+	? new NetESelect(value, index, sel->expr_width(), type,
+			 sel->select_type())
+	: new NetESelect(value, index, sel->expr_width(),
+			 sel->select_type());
+      result->set_line(*cb);
+      result->cast_signed(sel->has_sign());
+      delete shape;
+      return result;
+}
+
 static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 					 const Module*mod)
 {
@@ -26294,7 +26337,8 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*smp = scope->find_signal(lex_strings.make(sname.c_str()));
 		  if (!smp)
 			continue;   // not sampleable; alias behavior
-		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it,
+						      dir == NetNet::PINPUT);
 		  if (!raw)
 			continue;
 
@@ -26313,8 +26357,11 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			      NetExpr*dly = skew_delay
 				    ? elaborate_clocking_skew_expr(skew_delay, des, scope)
 				    : nullptr;
-			      NetESignal*rv = new NetESignal(raw);
-			      rv->set_line(*cb);
+			      NetESignal*raw_value = new NetESignal(raw);
+			      raw_value->set_line(*cb);
+			      NetExpr*rv = select_clocking_input_(des, scope, cb,
+							*sig_it, raw, raw_value);
+			      if (!rv) continue;
 			      NetAssignNB*sasn = new NetAssignNB(new NetAssign_(shadow),
 								 rv, 0, 0);
 			      sasn->set_line(*cb);
@@ -26358,14 +26405,19 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  hist_on->set_line(*cb);
 		  prologue->append(hist_on);
 
-		  NetESFunc*samp = new NetESFunc("$ivl_clocking_sample",
-						 smp->net_type(), 1);
+		  NetESFunc*samp = raw->net_type()
+		    ? new NetESFunc("$ivl_clocking_sample", raw->net_type(), 1)
+		    : new NetESFunc("$ivl_clocking_sample", raw->data_type(),
+						 raw->vector_width(), 1);
 		  NetESignal*samp_arg = new NetESignal(raw);
 		  samp_arg->set_line(*cb);
 		  samp->parm(0, samp_arg);
 		  samp->set_line(*cb);
+		  NetExpr*sampled = select_clocking_input_(des, scope, cb,
+							*sig_it, raw, samp);
+		  if (!sampled) continue;
 		  NetAssign_*lv = new NetAssign_(smp);
-		  NetAssignNB*asn = new NetAssignNB(lv, samp, 0, 0);
+		  NetAssignNB*asn = new NetAssignNB(lv, sampled, 0, 0);
 		  asn->set_line(*cb);
 		  body->append(asn);
 	    }

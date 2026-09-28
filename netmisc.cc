@@ -4666,14 +4666,13 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
       return false;
 }
 
-/* Resolve the raw signal a clocking-block item samples or drives: the
-   local signal of the same name, or the clocking_decl_assign target
-   when the item declared one (`input a = path.to.sig;` — the
-   signal-path form; other expression shapes return nil and the
-   caller diagnoses). */
+/* Resolve the raw signal a clocking-block item samples or drives. A
+   selected INPUT may sample the whole packed signal before selecting
+   its clockvar value; OUTPUT callers still require a whole target. */
 NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 				    const Module::PClocking*cb,
-				    perm_string sig_name)
+				    perm_string sig_name,
+				    bool input_select)
 {
       std::map<perm_string,PExpr*>::const_iterator da =
 	    cb->decl_assigns.find(sig_name);
@@ -4687,7 +4686,7 @@ NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 	   A select on the declaration-assignment target must not be discarded and
 	   reinterpreted as that whole signal. */
       if (id->path().name.empty()
-	  || !id->path().name.back().index.empty())
+	  || (!input_select && !id->path().name.back().index.empty()))
 	    return nullptr;
       symbol_search_results sr;
       symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr);

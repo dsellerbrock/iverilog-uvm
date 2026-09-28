@@ -774,7 +774,7 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 		  if (da != cb->decl_assigns.end()) {
 			const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
 			if (!id || id->path().name.empty()
-			    || !id->path().name.back().index.empty())
+			    || (is_out && !id->path().name.back().index.empty()))
 			      continue;
 			map<perm_string,perm_string>::const_iterator alias =
 			      aliases.find(*sig_it);
