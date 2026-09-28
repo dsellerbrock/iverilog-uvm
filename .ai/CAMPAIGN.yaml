@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 7a87c0707
+checkpoint_head: dc2dd1b69
 active_open_titan_lane:
-  blocker: "OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL"
-  phase: "FOCUSED_CORE_GREEN"
+  blocker: "OT-FLASH-ASSOC-OF-FIXED-ARRAY"
+  phase: "SELECTED_ARCHITECTURE_AUDIT"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "7a87c0707"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/rstmgr-array-class-20260928/derived-fixed-to-base-open.sv; derived fixed array passed to base open-array formal"
-  pending_validation: "Named RSTMGR source patch d533f71059faa4e45ca3ae94db90755698c80cdfabd706fd830b98337cd210a6 is independently reviewed and mirrors generated/template sources. One patched-copy rstmgr_sim compile on frozen build-tree ivl 3e2f5ecc69a4c77942273ca7ff86a24625a2820e7233b965ed0474d3675397e8 exits zero with 21 port/assertion warnings. Runtime, integrated gates, install, and fresh census remain pending. SPID virtual-modport fix ce52be1af is safely suspended after a clean dual-patched JEDEC compile with its own pending gates/runtime."
-  next_command: "Commit the RSTMGR named patch and focused evidence, then safely suspend this compile-only checkpoint and select the next independent corpus blocker. No broad suite or type-system relaxation."
+  baseline_head: "dc2dd1b69"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-assoc-of-fixed-runtime-red.sv; enum-keyed fixed array storage/default/copy/delete"
+  pending_validation: "Saved patched-copy Flash compile has 114 associative-of-fixed type diagnostics within 231 hard errors. Small strict 2017/2023 declaration RED and read-only architecture audit show elab_type plus VVP layout/runtime/class-property work is required; guard removal alone is unsound. RSTMGR source patch af8ce9035 is safely suspended after a zero-error patched-copy compile with 21 warnings, pending DV runtime and integrated gates. SPID ce52be1af remains compile-only with pending gates/runtime."
+  next_command: "Build paired module and class-property semantic REDs, trace the complete container path, then implement the smallest sound associative-of-fixed representation. Do not rerun Flash core or broad suite before focused runtime behavior is proved."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
