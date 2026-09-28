@@ -444,6 +444,7 @@ extern bool of_RAND_MODE_P_A_STR(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_P_A_V(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_P_LAST(vthread_t thr, vvp_code_t code);
+extern bool of_RAND_MODE_P_Q(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_GET(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_GET_I(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_GET_LAST(vthread_t thr, vvp_code_t code);

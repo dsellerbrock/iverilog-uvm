@@ -15216,6 +15216,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  if (ctype) {
 			int pid = ctype->property_idx_from_name(fname);
 			NetExpr *leaf_expr = nullptr;
+			NetExpr *queue_index_expr = nullptr;
 			uint64_t leaf_count = 0;
 			bool assoc_index = false;
 			bool last_index = false;
@@ -15266,8 +15267,14 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 					  const netranges_t&dims =
 						array_type->static_dimensions();
 					  size_t used = field_comp.index.size();
+					  const netqueue_t*queue_type =
+					      dynamic_cast<const netqueue_t*>(
+						  array_type->element_type());
+					  const bool queue_element = queue_type
+					      && !queue_type->assoc_compat()
+					      && used == dims.size() + 1;
 					  if (used > dims.size()) {
-						if (dynamic_cast<const netvector_t*>(
+						if (queue_element || dynamic_cast<const netvector_t*>(
 						      array_type->element_type()))
 						      used = dims.size();
 						else {
@@ -15315,6 +15322,22 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 						      for (size_t dim = used ; dim < dims.size();
 							   dim += 1)
 							    leaf_count *= dims[dim].width();
+						      if (queue_element) {
+							    const index_component_t&qidx =
+							      *std::next(field_comp.index.begin(), used);
+							    if (qidx.sel == index_component_t::SEL_BIT)
+							      queue_index_expr = elab_and_eval(des, scope,
+								    qidx.msb, -1, false);
+							    if (!queue_index_expr) {
+							      cerr << get_fileline() << ": error: rand_mode() "
+								   << "requires an indexed queue element."
+								   << endl;
+							      des->errors += 1;
+							      delete obj_expr;
+							      obj_expr = nullptr;
+							      field_diagnostic = true;
+							    }
+						      }
 						}
 					  }
 				    } else if (const netdarray_t*container_type =
@@ -15395,13 +15418,19 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			      argv[2] = pid_expr;
 			      if (leaf_expr) {
 				    argv[3] = leaf_expr;
-				    NetExpr*count_expr = new NetEConst(
-					  verinum(leaf_count, 64));
-				    count_expr->set_line(*this);
-				    argv[4] = count_expr;
+				    if (queue_index_expr) {
+					  argv[4] = queue_index_expr;
+				    } else {
+					  NetExpr*count_expr = new NetEConst(
+					    verinum(leaf_count, 64));
+					  count_expr->set_line(*this);
+					  argv[4] = count_expr;
+				    }
 			      }
 				NetSTask *sys = new NetSTask(
-				    last_index
+				    queue_index_expr
+				      ? "$ivl_class_method$rand_mode_nested"
+				    : last_index
 				      ? "$ivl_class_method$rand_mode_last"
 				    : assoc_index
 				      ? "$ivl_class_method$rand_mode_assoc"
@@ -27658,102 +27687,111 @@ string pexpr_to_rooted_class_constraint_ir(
 
 static bool constraint_is_narrow_const_ir_(const string&ir);
 
-/* A package parameter array is expanded into constant element parameters.
- * Keep a rand index symbolic by passing the selected packed member as a
- * typed constant table to the solver. Only the one-dimensional, integral
- * member form is represented here; other forms retain their diagnostics. */
+/* Parameter arrays are expanded into constant element parameters. Keep a
+ * selected index symbolic by passing a typed constant table to the solver.
+ * This covers direct integral elements and packed-struct members of a
+ * one-dimensional array; other forms retain their diagnostics. */
 static string constraint_parameter_member_select_ir_(
-      const PEIdent*id, const NetScope*scope, const netclass_t*cls)
+      const PEIdent*id, const NetScope*scope, const netclass_t*cls,
+      const map<perm_string,uint64_t>*loop_env)
 {
       Design*des = constraint_ir_design_ctx_;
       if (!des || !scope || !id) return "";
       symbol_search_results found;
       if (!symbol_search(id, des, const_cast<NetScope*>(scope), id->path(),
-			 id->lexical_pos(), &found)
-	  || !found.par_val || !found.scope || found.path_head.empty()
-	  || found.path_tail.size() != 1) return "";
+                          id->lexical_pos(), &found)
+          || !found.par_val || !found.scope || found.path_head.empty()
+          || found.path_tail.size() > 1) return "";
 
       const name_component_t&root = found.path_head.back();
-      const name_component_t&field = found.path_tail.front();
+      const name_component_t*field = found.path_tail.empty()
+          ? nullptr : &found.path_tail.front();
       if (!found.scope->is_array_parameter(root.name)
-	  || root.index.size() != 1 || !field.index.empty()
-	  || field.local_scope) return "";
+          || root.index.size() != 1
+          || (field && (!field->index.empty() || field->local_scope)))
+          return "";
       const index_component_t&select = root.index.front();
       if (select.sel != index_component_t::SEL_BIT
-	  || !select.msb || select.lsb) return "";
-      string index_ir = pexpr_to_constraint_ir(select.msb, cls, nullptr, scope);
-      if (index_ir.empty() || index_ir.compare(0, 2, "c:") == 0)
-	return "";
+          || !select.msb || select.lsb) return "";
+      string index_ir = pexpr_to_constraint_ir(
+          select.msb, cls, nullptr, scope, loop_env);
+      if (index_ir.empty()) return "";
 
       auto fail = [&](const string&reason) -> string {
-	    cerr << id->get_fileline() << ": error: " << reason << endl;
-	    des->errors += 1;
-	    return "";
+            cerr << id->get_fileline() << ": error: " << reason << endl;
+            des->errors += 1;
+            return "";
       };
       auto pit = found.scope->parameters.find(root.name);
       if (pit == found.scope->parameters.end()
-	  || !pit->second.array_bounds_known
-	  || pit->second.array_dims.size() != 1)
-	return fail("Rand-indexed parameter member requires one known unpacked dimension.");
+          || !pit->second.array_bounds_known
+          || pit->second.array_dims.size() != 1)
+          return fail("Rand-indexed parameter requires one known unpacked dimension.");
       const netrange_t&dim = pit->second.array_dims.front();
       unsigned long span = dim.width();
       long low = std::min(dim.get_msb(), dim.get_lsb());
-      if (!span || span > LONG_MAX)
-	return fail("Rand-indexed parameter member array range is not representable.");
+      if (!span || span > UINT_MAX || span > LONG_MAX)
+          return fail("Rand-indexed parameter array range is not representable.");
 
       auto element = [&](long index, ivl_type_t&elem_type) -> const NetEConst* {
-	    string name = string(root.name.str()) + "[" + to_string(index) + "]";
-	    perm_string key = lex_strings.make(name.c_str());
-	    return dynamic_cast<const NetEConst*>(
-		  const_cast<NetScope*>(found.scope)->get_parameter(des, key,
-							       elem_type));
+            string name = string(root.name.str()) + "[" + to_string(index) + "]";
+            perm_string key = lex_strings.make(name.c_str());
+            return dynamic_cast<const NetEConst*>(
+                const_cast<NetScope*>(found.scope)->get_parameter(
+                    des, key, elem_type));
       };
       ivl_type_t first_type = nullptr;
       if (!element(low, first_type))
-	return fail("Rand-indexed parameter member has no integral constant element.");
-      // The expanded element parameters can have a flat inferred type;
-      // symbol_search retains the declared packed-struct element type.
-      const netstruct_t*st = dynamic_cast<const netstruct_t*>(found.type);
-      if (!st || !st->packed())
-	return fail("Rand-indexed parameter member requires a packed struct element.");
+          return fail("Rand-indexed parameter has no integral constant element.");
+
       unsigned long member_off = 0;
-      const netstruct_t::member_t*member =
-	st->packed_member(field.name, member_off);
-      if (!member)
-	return fail("Struct parameter `" + string(root.name.str())
-		    + "' has no member `" + string(field.name.str()) + "'.");
-      ivl_type_t member_type = member->net_type;
+      ivl_type_t member_type = found.type;
+      if (field) {
+            // Expanded element parameters can have a flat inferred type;
+            // symbol_search retains the declared packed-struct element type.
+            const netstruct_t*st = dynamic_cast<const netstruct_t*>(found.type);
+            if (!st || !st->packed())
+                return fail("Rand-indexed parameter member requires a packed struct element.");
+            const netstruct_t::member_t*member =
+                st->packed_member(field->name, member_off);
+            if (!member)
+                return fail("Struct parameter `" + string(root.name.str())
+                            + "' has no member `" + string(field->name.str()) + "'.");
+            member_type = member->net_type;
+      } else if (!member_type || !member_type->packed()) {
+            member_type = first_type;
+      }
       long member_width = member_type ? member_type->packed_width() : 0;
       if (member_width <= 0 || member_width > 64
-	  || (member_type->base_type() != IVL_VT_BOOL
-	      && member_type->base_type() != IVL_VT_LOGIC))
-	return fail("Rand-indexed parameter member requires a 1..64-bit integral field.");
+          || (member_type->base_type() != IVL_VT_BOOL
+              && member_type->base_type() != IVL_VT_LOGIC))
+          return fail("Rand-indexed parameter requires a 1..64-bit integral element or field.");
       bool two_state = member_type->base_type() == IVL_VT_BOOL;
       string result = "(psel " + to_string(member_width)
-	  + (member_type->get_signed() ? ":s" : "")
-	  + " c:" + (two_state ? "1" : "0") + " "
-	  + to_string(low) + ":" + to_string(span) + " " + index_ir;
+          + (member_type->get_signed() ? ":s" : "")
+          + " c:" + (two_state ? "1" : "0") + " "
+          + to_string(low) + ":" + to_string(span) + " " + index_ir;
       for (unsigned long pos = 0; pos < span; pos += 1) {
-	    ivl_type_t elem_type = nullptr;
-	    const NetEConst*value = element(low + (long)pos, elem_type);
-	    if (!value)
-		  return fail("Rand-indexed parameter member has incompatible table elements.");
-	    const verinum&bits = value->value();
-	    if (member_off > bits.len()
-		|| (unsigned long)member_width > bits.len() - member_off)
-		  return fail("Rand-indexed parameter member exceeds its packed element width.");
-	    uint64_t word = 0;
-	    bool defined = true;
-	    for (long bit = 0; bit < member_width; bit += 1) {
-		  verinum::V value_bit = bits.get(member_off + bit);
-		  if (value_bit == verinum::V1) word |= UINT64_C(1) << bit;
-		  else if (value_bit != verinum::V0) defined = false;
-	    }
-	    if (!defined && two_state)
-		  return fail("Two-state parameter member contains X/Z bits.");
-	    result += defined
-		  ? " c:" + to_string(word) + ":" + to_string(member_width)
-		  : " x";
+            ivl_type_t elem_type = nullptr;
+            const NetEConst*value = element(low + (long)pos, elem_type);
+            if (!value)
+                return fail("Rand-indexed parameter has incompatible table elements.");
+            const verinum&bits = value->value();
+            if (member_off > bits.len()
+                || (unsigned long)member_width > bits.len() - member_off)
+                return fail("Rand-indexed parameter element exceeds its packed width.");
+            uint64_t word = 0;
+            bool defined = true;
+            for (long bit = 0; bit < member_width; bit += 1) {
+                  verinum::V value_bit = bits.get(member_off + bit);
+                  if (value_bit == verinum::V1) word |= UINT64_C(1) << bit;
+                  else if (value_bit != verinum::V0) defined = false;
+            }
+            if (!defined && two_state)
+                return fail("Two-state parameter element contains X/Z bits.");
+            result += defined
+                ? " c:" + to_string(word) + ":" + to_string(member_width)
+                : " x";
       }
       return result + ")";
 }
@@ -30549,6 +30587,67 @@ static bool constraint_dist_context_fill_ir_(const PExpr*expr,
       return true;
 }
 
+/* A fixed-array leaf containing a queue uses the same canonical flat
+ * word for size and content IR. Every fixed index must be ground after
+ * foreach unrolling; a symbolic fixed leaf cannot be assigned a queue
+ * identity at elaboration. */
+static bool constraint_fixed_queue_leaf_(
+      const netuarray_t*fixed, const list<index_component_t>&indices,
+      const netclass_t*cls, vector<const PExpr*>*value_slots,
+      const NetScope*scope, const map<perm_string,uint64_t>*loop_env,
+      uint64_t&word)
+{
+      if (!fixed || !scope) return false;
+      const netranges_t&dims = fixed->static_dimensions();
+      if (dims.empty() || indices.size() != dims.size()) return false;
+      word = 0;
+      size_t dim = 0;
+      for (const index_component_t&select : indices) {
+            if (select.sel != index_component_t::SEL_BIT || !select.msb
+                || select.lsb || !dims[dim].defined()
+                || dims[dim].width() == 0) return false;
+            string index_ir;
+            const PEIdent*loop_id = dynamic_cast<const PEIdent*>(select.msb);
+            bool loop_index = loop_env && loop_id
+                && !loop_id->path().package
+                && loop_id->path().name.size() == 1
+                && !loop_id->path().name.front().local_scope
+                && loop_id->path().name.front().index.empty()
+                && loop_env->count(loop_id->path().name.front().name);
+            if (loop_index)
+                  index_ir = pexpr_to_constraint_ir(select.msb, cls,
+                        value_slots, scope, loop_env);
+            else {
+                  unique_ptr<NetExpr>folded(elab_and_eval(
+                        constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
+                        select.msb, -1, false, false));
+                  const NetEConst*constant =
+                        dynamic_cast<const NetEConst*>(folded.get());
+                  if (!constant || !constant->value().is_defined()
+                      || (constant->expr_type() != IVL_VT_BOOL
+                          && constant->expr_type() != IVL_VT_LOGIC)
+                      || constant->value().len() == 0
+                      || constant->value().len() > 64) return false;
+                  const verinum&bits = constant->value();
+                  index_ir = constraint_const_bits_ir_(
+                        bits, bits.len(), bits.has_sign());
+            }
+            constraint_const_ir_t index;
+            uint64_t digit = 0;
+            long low = min(dims[dim].get_msb(), dims[dim].get_lsb());
+            if (!constraint_parse_const_ir_(index_ir, index)
+                || index.width > 64
+                || !constraint_fixed_index_offset_(index, (int64_t)low,
+                      dims[dim].width(), digit)
+                || digit > UINT_MAX
+                || word > (UINT_MAX - digit) / dims[dim].width())
+                  return false;
+            word = word * dims[dim].width() + digit;
+            ++dim;
+      }
+      return true;
+}
+
 /* A no-argument function call may omit its parentheses (IEEE 1800-2017
  * 13.4.2), so both `items.size' and `items.size()' must denote the same
  * dynamic-container size solver variable. Keep their lowering in one place
@@ -30577,55 +30676,10 @@ static string constraint_class_container_size_ir_(
       bool fixed_leaf = false;
       uint64_t word = 0;
       if (const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(ptype)) {
-	    const netranges_t&dims = fixed->static_dimensions();
-	    if (!scope || dims.empty() || cpath.front().index.size() != dims.size())
-		  return "";
-	    size_t dim = 0;
-	    for (const index_component_t&select : cpath.front().index) {
-		  if (select.sel != index_component_t::SEL_BIT || !select.msb
-		      || select.lsb || !dims[dim].defined()
-		      || dims[dim].width() == 0) return "";
-		  string index_ir;
-		  const PEIdent*loop_id = dynamic_cast<const PEIdent*>(select.msb);
-		  bool loop_index = loop_env && loop_id
-		      && !loop_id->path().package
-		      && loop_id->path().name.size() == 1
-		      && !loop_id->path().name.front().local_scope
-		      && loop_id->path().name.front().index.empty()
-		      && loop_env->count(loop_id->path().name.front().name);
-		  if (loop_index)
-			index_ir = pexpr_to_constraint_ir(select.msb, cls,
-			      value_slots, scope, loop_env);
-		  else {
-			unique_ptr<NetExpr>folded(elab_and_eval(
-			      constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
-			      select.msb, -1, false, false));
-			const NetEConst*constant =
-			      dynamic_cast<const NetEConst*>(folded.get());
-			if (!constant || !constant->value().is_defined()
-			    || (constant->expr_type() != IVL_VT_BOOL
-				&& constant->expr_type() != IVL_VT_LOGIC)
-			    || constant->value().len() == 0
-			    || constant->value().len() > 64) return "";
-			const verinum&bits = constant->value();
-			index_ir = constraint_const_bits_ir_(
-			      bits, bits.len(), bits.has_sign());
-		  }
-		  constraint_const_ir_t index;
-		  uint64_t digit = 0;
-		  long low = min(dims[dim].get_msb(), dims[dim].get_lsb());
-		  if (!constraint_parse_const_ir_(index_ir, index)
-		      || index.width > 64
-		      || !constraint_fixed_index_offset_(index, (int64_t)low,
-			    dims[dim].width(), digit)
-		      || digit > UINT_MAX
-		      || word > (UINT_MAX - digit) / dims[dim].width())
-			return "";
-		  word = word * dims[dim].width() + digit;
-		  ++dim;
-	    }
-	    ptype = fixed->element_type();
-	    fixed_leaf = true;
+            if (!constraint_fixed_queue_leaf_(fixed, cpath.front().index,
+                  cls, value_slots, scope, loop_env, word)) return "";
+            ptype = fixed->element_type();
+            fixed_leaf = true;
       } else if (!cpath.front().index.empty()) {
 	    return "";
       }
@@ -30672,6 +30726,51 @@ static string constraint_class_container_size_ir_(
       }
       return "s:" + to_string(idx) + ":"
 	    + (fixed_leaf ? "#" + to_string(word) + ":" : "") + ttext;
+}
+
+/* A selected queue element below fixed property ranks has two indices:
+ * a canonical fixed leaf and the inner queue position. Retain both in the
+ * IR so sibling queues cannot alias each other in the solver. */
+static string constraint_class_fixed_queue_element_ir_(
+      const name_component_t&component, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env, ivl_type_t*element_type)
+{
+      if (element_type) *element_type = nullptr;
+      if (!cls || component.local_scope || component.index.empty()) return "";
+      int idx = cls->property_idx_from_name(component.name);
+      const netuarray_t*fixed = idx < 0 ? nullptr
+            : dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
+      if (!fixed || component.index.size() != fixed->static_dimensions().size() + 1)
+            return "";
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(fixed->element_type());
+      if (!queue || queue->assoc_compat()) return "";
+      property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
+      if (qual.test_randc()) return "";
+      ivl_type_t type = queue->element_type();
+      ivl_variable_type_t base = type ? type->base_type() : IVL_VT_NO_TYPE;
+      unsigned width = type && type->packed() ? type->packed_width() : 0;
+      if (!width || width > 64
+          || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
+              && !dynamic_cast<const netenum_t*>(type))) return "";
+      list<index_component_t> prefix(component.index.begin(),
+            prev(component.index.end()));
+      uint64_t word = 0;
+      if (!constraint_fixed_queue_leaf_(fixed, prefix, cls, value_slots,
+            scope, loop_env, word)) return "";
+      const index_component_t&inner = component.index.back();
+      if (inner.sel != index_component_t::SEL_BIT || !inner.msb || inner.lsb)
+            return "";
+      string index = pexpr_to_constraint_ir(inner.msb, cls, value_slots,
+            scope, loop_env);
+      if (index.empty()) return "";
+      constraint_const_ir_t constant;
+      if (!dynforeach_emit_ctx_
+          && !constraint_parse_const_ir_(index, constant)) return "";
+      if (element_type) *element_type = type;
+      return "(delem " + to_string(idx) + ":#" + to_string(word)
+            + ":" + to_string(width) + (type->get_signed() ? ":s" : "")
+            + " " + index + ")";
 }
 
 static string constraint_scope_queue_size_ir_(const pform_name_t&path)
@@ -32826,7 +32925,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      return constant;
 			if (!value_slots) {
 			      string selected = constraint_parameter_member_select_ir_(
-				id, scope, cls);
+				id, scope, cls, loop_env);
 			      if (!selected.empty()) return selected;
 			}
 		  }
@@ -32954,6 +33053,46 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      if (constraint_ir_design_ctx_)
 				    constraint_ir_design_ctx_->errors += 1;
 			      return "";
+			}
+			/* A packed member of a queue element below fixed ranks
+			 * is a slice of the exact nested delem solver variable. */
+			const netuarray_t*nested_fixed =
+			      dynamic_cast<const netuarray_t*>(ptype);
+			if (pidx >= 0 && nested_fixed && !comp->index.empty()
+			    && dynamic_cast<const netqueue_t*>(
+				 nested_fixed->element_type())
+			    && comp->index.size()
+			       == nested_fixed->static_dimensions().size() + 1) {
+			      ivl_type_t selected_type = nullptr;
+			      string base = constraint_class_fixed_queue_element_ir_(
+				 *comp, target_owner, value_slots, scope, loop_env,
+				 &selected_type);
+			      const netstruct_t*record =
+				 dynamic_cast<const netstruct_t*>(selected_type);
+			      pform_name_t::const_iterator after = outer_tail;
+			      if (after != id->path().name.end()) ++after;
+			      if (base.empty() || !record || !record->packed()
+			          || outer_tail == id->path().name.end()
+			          || !outer_tail->index.empty()
+			          || after != id->path().name.end()) return "";
+			      unsigned long offset = 0;
+			      const netstruct_t::member_t*member =
+				 record->packed_member(outer_tail->name, offset);
+			      ivl_type_t mtype = member ? member->net_type : nullptr;
+			      unsigned width = mtype ? mtype->packed_width() : 0;
+			      if (!mtype || !mtype->packed() || !width
+			          || (mtype->base_type() != IVL_VT_BOOL
+			              && mtype->base_type() != IVL_VT_LOGIC)
+			          || offset + width > (unsigned long)selected_type->packed_width())
+				return "";
+			      string slice = width == 1
+				? "(bit " + base + " c:" + to_string(offset) + ")"
+				: "(part " + base + " c:"
+				  + to_string(offset + width - 1) + " c:"
+				  + to_string(offset) + ")";
+			      return mtype->get_signed()
+				? "(cast c:" + to_string(width) + " c:1 "
+				  + slice + ")" : slice;
 			}
 			/* A member of one fixed packed-struct array element is a
 			 * slice of that element's e: solver variable. Resolve the
@@ -33444,7 +33583,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			id->lexical_pos(), &found) && found.par_val) {
 		      string constant = constraint_constant_ir_(id, scope, cls);
 		      if (!constant.empty()) return constant;
-		      return constraint_parameter_member_select_ir_(id, scope, cls);
+		      return constraint_parameter_member_select_ir_(id, scope, cls, loop_env);
 		    }
 	    }
 
@@ -33500,7 +33639,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    base, ptype, id->path().back().index.front(),
 				    cls, value_slots, scope, loop_env);
 			}
-			  // Element of the dynamic array being iterated by
+			  if (id->path().size() == 1) {
+		    string nested = constraint_class_fixed_queue_element_ir_(
+			  id->path().back(), cls, value_slots, scope, loop_env,
+			  nullptr);
+		    if (!nested.empty()) return nested;
+		  }
+		  // Element of the dynamic array being iterated by
 			  // an enclosing dynamic foreach: emit the runtime
 			  // element-reference template form. The index sub-IR
 			  // may contain the symbolic loop token L.
@@ -33683,6 +33828,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    {
 		  string constant = constraint_constant_ir_(id, scope, cls);
 		  if (!constant.empty()) return constant;
+		  if (!value_slots) {
+			string selected = constraint_parameter_member_select_ir_(
+			    id, scope, cls, loop_env);
+			if (!selected.empty()) return selected;
+		  }
 	    }
 	    // Non-class-property identifier: treat as caller-scope runtime value.
 	    if (value_slots) {
@@ -35724,12 +35874,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    bool class_key_assoc = assoc_foreach && assoc_foreach->assoc_compat()
 		  && dynamic_cast<const netclass_t*>(
 			assoc_foreach->assoc_index_type());
-	    if (!cls->get_prop_qual((size_t)idx).test_rand()
-		&& !constraint_state_prop_ok_(foreach_type, true)
-		&& !class_key_assoc)
-		  return "";
 	    const netuarray_t*ua =
 		  dynamic_cast<const netuarray_t*>(foreach_type);
+	    property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
+	    const netqueue_t*state_queue = ua
+		  ? dynamic_cast<const netqueue_t*>(ua->element_type()) : nullptr;
+	      // The fixed foreach domain is known even when its queue leaves
+	      // are state. Their size tokens are pinned at randomize() time.
+	    bool state_fixed_queue = !qual.test_rand() && !qual.test_randc()
+		  && state_queue && !state_queue->assoc_compat()
+		  && cfe->prefix_names().size() + cfe->loop_vars().size()
+		      <= ua->static_dimensions().size();
+	    if (!qual.test_rand()
+		&& !constraint_state_prop_ok_(foreach_type, true)
+		&& !class_key_assoc && !state_fixed_queue)
+		  return "";
 	      // Dynamic array or queue property: the element count is a
 	      // runtime value (18.5.8.2: the size is solved before the
 	      // iterative constraints), so emit a template the runtime
@@ -35805,39 +35964,90 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			+ key_suffix + " " + body + ")";
 	    }
 	    const netranges_t&dims = ua->static_dimensions();
-	      /* DD-043: a selected-prefix target (has_hierarchical_target()
-		 with a nil member_name, guarded above) already consumed
-		 `prefix_names().size()' LEADING dimensions -- each one fixed
-		 by an already-bound outer variable, not iterated here. Offset
-		 past them so the trailing loop variables unroll the array's
-		 REMAINING dimensions instead of restarting at dimension 0
-		 (which would silently reiterate the fixed dimension and never
-		 reach the one the selector actually meant to leave open). The
-		 fixed prefix names are not re-bound into env2: they are
-		 already present in the incoming loop_env, seeded from the
-		 enclosing foreach's own unroll(). */
 	    size_t prefix_dims = cfe->has_hierarchical_target()
-		  ? cfe->prefix_names().size() : 0;
-	    if (prefix_dims + cfe->loop_vars().size() > dims.size())
-		  return "";
+	      ? cfe->prefix_names().size() : 0;
+	    const netqueue_t*nested_queue =
+	      dynamic_cast<const netqueue_t*>(ua->element_type());
+	    bool queue_tail = nested_queue && !nested_queue->assoc_compat()
+	      && prefix_dims + cfe->loop_vars().size() == dims.size() + 1
+	      && !cfe->loop_vars().back().nil();
+	    size_t fixed_loops = cfe->loop_vars().size() - (queue_tail ? 1 : 0);
+	    if (prefix_dims + fixed_loops > dims.size()) return "";
+	    ivl_type_t queue_element = queue_tail
+	      ? nested_queue->element_type() : nullptr;
+	    ivl_variable_type_t queue_base = queue_element
+	      ? queue_element->base_type() : IVL_VT_NO_TYPE;
+	    unsigned queue_width = queue_element && queue_element->packed()
+	      ? queue_element->packed_width() : 0;
+	    if (queue_tail && (!queue_width || queue_width > 64
+	      || (queue_base != IVL_VT_BOOL && queue_base != IVL_VT_LOGIC
+	          && !dynamic_cast<const netenum_t*>(queue_element))
+	      || cls->get_prop_qual((size_t)idx).test_randc())) return "";
 	    string acc;
 	    map<perm_string,uint64_t> env2;
 	    if (loop_env) env2 = *loop_env;
 	    bool valid = true;
 	    function<void(size_t)> unroll = [&](size_t dim) {
 		  if (!valid) return;
-		  if (dim == cfe->loop_vars().size()) {
-			for (const PExpr*item : cfe->items()) {
-			      if (!item) continue;
-			      string s = pexpr_to_constraint_ir(
-				    item, cls, value_slots, scope, &env2);
-			      if (s.empty()) { valid = false; return; }
-			      acc = acc.empty() ? s
-				    : "(and " + acc + " " + s + ")";
-			}
-			return;
-		  }
-		  perm_string loop = cfe->loop_vars()[dim];
+		  if (dim == fixed_loops) {
+	    if (queue_tail) {
+	      if (dynforeach_emit_ctx_ || prefix_dims + fixed_loops != dims.size()) {
+	        valid = false; return;
+	      }
+	      uint64_t word = 0;
+	      for (size_t d = 0; d < dims.size(); ++d) {
+	        perm_string selector = d < prefix_dims
+	          ? cfe->prefix_names()[d] : cfe->loop_vars()[d - prefix_dims];
+	        auto found = env2.find(selector);
+	        constraint_const_ir_t value;
+	        value.width = 64;
+	        value.is_signed = true;
+	        value.value = found == env2.end() ? 0 : found->second;
+	        uint64_t digit = 0;
+	        if (found == env2.end() || !dims[d].defined()
+	            || !dims[d].width()
+	            || !constraint_fixed_index_offset_(value,
+	                 (int64_t)min(dims[d].get_msb(), dims[d].get_lsb()),
+	                 dims[d].width(), digit)
+	            || word > (UINT_MAX - digit) / dims[d].width()) {
+	          valid = false; return;
+	        }
+	        word = word * dims[d].width() + digit;
+	      }
+	      dynforeach_emit_ctx_t dctx;
+	      dctx.loop_var = cfe->loop_vars().back();
+	      dctx.prop_idx = idx;
+	      dctx.elem_wid = queue_width;
+	      dctx.elem_signed = queue_element->get_signed();
+	      dynforeach_emit_ctx_ = &dctx;
+	      string body;
+	      for (const PExpr*item : cfe->items()) {
+	        if (!item) continue;
+	        string s = pexpr_to_constraint_ir(
+	          item, cls, value_slots, scope, &env2);
+	        if (s.empty()) { valid = false; break; }
+	        body = body.empty() ? s : "(and " + body + " " + s + ")";
+	      }
+	      dynforeach_emit_ctx_ = nullptr;
+	      if (!valid || body.empty()) { valid = false; return; }
+	      string header = to_string(idx) + ":#" + to_string(word)
+	        + ":" + to_string(queue_width)
+	        + (queue_element->get_signed() ? ":s" : "");
+	      string s = "(dynforeach " + header + " " + body + ")";
+	      acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
+	      return;
+	    }
+	    for (const PExpr*item : cfe->items()) {
+	      if (!item) continue;
+	      string s = pexpr_to_constraint_ir(
+	        item, cls, value_slots, scope, &env2);
+	      if (s.empty()) { valid = false; return; }
+	      acc = acc.empty() ? s
+	        : "(and " + acc + " " + s + ")";
+	    }
+	    return;
+	  }
+	  perm_string loop = cfe->loop_vars()[dim];
 		  /* An omitted iterator suppresses iteration over that dimension;
 		   * a short iterator list likewise omits all trailing dimensions. */
 		  if (loop.nil()) {

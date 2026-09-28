@@ -6632,6 +6632,34 @@ bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Select one inner queue element under a canonical fixed-array leaf. */
+bool of_RAND_MODE_P_Q(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p/q", 1, 0, 1))
+	return true;
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || thr->flags[4] != BIT4_0) return true;
+
+      const class_type*defn = cobj->get_defn();
+      size_t pid = (size_t)cp->number;
+      int64_t leaf = thr->words[cp->bit_idx[0]].w_int;
+      int64_t elem = thr->words[cp->bit_idx[1]].w_int;
+      if (pid >= defn->property_count() || !defn->property_is_rand(pid)
+	  || defn->property_dimensions(pid).empty()
+	  || leaf < 0 || (uint64_t)leaf >= defn->property_array_size(pid)
+	  || elem < 0) return true;
+      vvp_object_t container;
+      cobj->get_object(pid, container, (size_t)leaf);
+      vvp_darray*array = container.peek<vvp_darray>();
+      if (!array || !dynamic_cast<vvp_queue*>(array)
+	  || (uint64_t)elem >= array->get_size()) return true;
+      array->set_rand_mode((size_t)elem, mode_vec.value(0) == BIT4_1);
+      return true;
+}
+
 bool of_RAND_MODE_P_LAST(vthread_t thr, vvp_code_t cp)
 {
       if (!rand_mode_stack_operands_(thr, "%rand_mode/p/last", 1, 0, 1))

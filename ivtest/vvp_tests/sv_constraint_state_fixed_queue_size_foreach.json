@@ -1,0 +1,12 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_state_fixed_queue_size_foreach.v",
+    "iverilog-args": [
+        "-g2017",
+        "-gno-icarus-misc",
+        "-gno-xtypes",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_state_fixed_queue_size_foreach"
+}

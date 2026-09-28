@@ -6969,7 +6969,10 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	       *         an unpacked-array element/subarray. */
       if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0
 	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_assoc") == 0
-	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_last") == 0) {
+	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_last") == 0
+	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_nested") == 0) {
+	    int nested_index = strcmp(stmt_name,
+			     "$ivl_class_method$rand_mode_nested") == 0;
 	    int assoc_index = strcmp(stmt_name,
 			     "$ivl_class_method$rand_mode_assoc") == 0;
 	    int last_index = strcmp(stmt_name,
@@ -6994,8 +6997,25 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    if (pid_arg && leaf_arg && count_arg
 		&& number_is_immediate(pid_arg, 32, 0)
 		&& !number_is_unknown(pid_arg)) {
-		  long pid = get_number_immediate(pid_arg);
-		  if (assoc_index) {
+	      long pid = get_number_immediate(pid_arg);
+	      if (nested_index) {
+		  int leaf_word = allocate_word();
+		  int elem_word = allocate_word();
+		  int invalid_flag = allocate_flag();
+		  draw_expr_into_idx(leaf_arg, leaf_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve queue leaf X/Z\n",
+			  invalid_flag);
+		  draw_expr_into_idx(count_arg, elem_word);
+		  fprintf(vvp_out, "    %%flag_or 4, %d; combine queue index X/Z\n",
+			  invalid_flag);
+		  clr_flag(invalid_flag);
+		  fprintf(vvp_out, "    %%rand_mode/p/q %ld, %d, %d;\n",
+			  pid, leaf_word, elem_word);
+		  clr_word(elem_word);
+		  clr_word(leaf_word);
+		  return 0;
+	      }
+	      if (assoc_index) {
 			const char*key_kind = draw_eval_assoc_key_(leaf_arg, 0);
 			fprintf(vvp_out, "    %%rand_mode/p/a/%s %ld;\n",
 				key_kind, pid);

@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: f964fd17c
+checkpoint_head: e1c125574
 active_open_titan_lane:
-  blocker: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
-  phase: "PAUSED_PREREQUISITE_IDENTIFIED"
+  blocker: "OT-FLASH-CONSTRAINT-FIXED-QUEUE-CONTENT"
+  phase: "FOCUSED_TESTED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "f13b3c8a2"
-  reproducer: "Projectless outputs/flash-solve-before-multidim-triage-20260928.md records tiny strict paired controls. The saved Flash corpus has only two whole-array solve-before hard errors at flash_ctrl_otf_base_vseq.sv:49 and patched-copy flash_ctrl_mp_regions_vseq.sv:43. Slang accepts these nonportable unpacked-array operands."
-  pending_validation: "Committed selected-child shuffle f964fd17c passes paired JSON and legacy 4/4 each plus 18 adjacent checks in each runner. One hash-guarded Flash compile leaves 2 hard solve-before errors and 135 warnings; no VVP image. Read-only strict paired triage found selected queue-content constraints fail randomize(), and whole-queue order silently emits a scalar e: target. No new source patch or Flash replay followed. Integrated gates, install, Flash DV runtime, and fresh census remain open."
-  next_command: "Only after explicit resume: read docs/conformance/session_logs/2026-09-28_ot_flash_solve_before_prerequisite.json and projectless outputs/flash-solve-before-prerequisite-20260928.md; select OT-FLASH-CONSTRAINT-NESTED-QUEUE-CONTENT, then start with one strict 2017/2023 nonempty fixed-array-of-queue content reducer. Keep solve-before suspended until that solver prerequisite is proved."
-  boundary: "User requested pause. Do not run new implementation, Flash source-list, broad suite, installation, or DV while paused. Preserve pinned sources and unsafe flags. Existing Caliptra processes are preserved but monitoring is stopped."
+  baseline_head: "e1c125574"
+  reproducer: "Strict 2017/2023 nested fixed-queue content, parameter-array psel, and state fixed-queue-size foreach controls registered in ivtest."
+  pending_validation: "Current frontend/VVP image rebuilds; focused JSON and legacy 16/16 each pass after independent rand_mode review fixes. The prior hash-guarded selective Flash compile with two source overlays reached 0 hard errors and 121 warnings, including 16 fail-closed constraints; no Flash runtime, broad 49-core corpus, integrated gates, or install."
+  next_command: "Commit the focused compiler slice, then select the next concrete Flash blocker from the 16 warning minimal reducers. Keep the two invalid solve-before clauses as a named source patch, not an unsafe flag."
+  boundary: "User requested current-error-corpus minimal triage before a broad OpenTitan rerun and Caliptra performance root cause before restarting its 52-case suite. Pinned application sources remain unchanged."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
