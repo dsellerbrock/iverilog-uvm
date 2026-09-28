@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 7fdf53f16
+checkpoint_head: afe838f3a
 active_open_titan_lane:
-  blocker: "OT-FLASH-INDEXED-FIXED-HANDLE-METHOD"
+  blocker: "OT-FLASH-NESTED-VIF-REF-MEMBER-ALIAS"
   phase: "SELECTED_MINIMAL_REPRODUCER"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "7fdf53f16"
-  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-indexed-handle-method-red.sv; class-property map[key][slot].write/read"
-  pending_validation: "Prior fixed-child slice 7fdf53f16 passes strict JSON and legacy 16/16 each; one patched-copy Flash compile has 88 hard errors and 146 warnings, with indexed handle task dispatch first and nine such diagnostics. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. No Flash DV runtime, integrated gates, install, or fresh 49-core census."
-  next_command: "Verify the tiny method-call RED in strict 2017/2023 with Slang and current Icarus, trace the shared task/function selected-receiver path, and add a paired semantic regression before any new Flash core replay."
+  baseline_head: "afe838f3a"
+  reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-mixed-driver-ref-alias-red.sv; -DREF_CALL is disjoint and falsely reports five mixed drivers; -DREF_CONFLICT must retain one true conflict"
+  pending_validation: "Prior indexed-handle slice afe838f3a passes strict JSON and legacy 18/18 each; one patched-copy Flash compile has 79 hard errors and 146 unchanged warnings. Exactly nine method-call errors disappeared; 32 mixed-driver errors share an unresolved nested VIF ref member alias. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. No Flash DV runtime, integrated gates, install, or fresh 49-core census."
+  next_command: "Run the tiny no-call, disjoint-ref, and same-member conflict controls in strict 2017/2023, preserve the pending ref actual's member identity in the shared late alias check, and add paired semantic regressions before any new Flash core replay."
   boundary: "Minimal reproducers and focused controls first. Leave Caliptra's selected-case continuation and pinned application sources untouched. Use named hash-checked patches only on disposable application copies; label pristine and patched results separately. No broad application rerun until the current error-corpus batch is addressed."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
@@ -31,7 +31,8 @@ current_caliptra_continuation:
   selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3 selected 52-case copied-source diagnostic with unsafe mode, reset/checker source overlays, and ephemeral JTAG port. Pristine qualification is separate."
   prior_completed: "29 of 52 completed: 16 selected-profile passes, 12 four-hour timeouts, and one genuine smoke_test_hmac assertion failure. No aggregate 52-case pass."
   continuation: "23 remaining cases are running with three initial jobs smoke_test_kv_hmac_flow, smoke_test_kv_doe, and smoke_test_mlkem_locked_api; unified exec session 20675 was still active at 2026-09-28 02:43 UTC."
-  patches: "Completed smoke_test_hw_config used its named hash-checked C patch on a disposable copy. Pending smoke_test_hmac_errortrigger will receive its named C patch only when launched. No documented functional RTL patch is selected for the 23 cases. Pinned Caliptra and Adams Bridge checkouts remain clean."
+  observed_failure: "pv_hash_zeroize exited on ERR_SHA_BLOCK_NOT_STABLE at 597595 ns. A 1024-bit Icarus/Verilator assertion reproducer and RTL trace support an invalid stability invariant during PCR generate-hash block refill; exact failing word and patched single-case runtime remain unverified."
+  patches: "Completed smoke_test_hw_config used its named hash-checked C patch on a disposable copy. Pending smoke_test_hmac_errortrigger will receive its named C patch only when launched. A one-line SHA512 assertion source patch is a dry-run-validated candidate for pv_hash_zeroize, not yet used in a full case. Pinned Caliptra and Adams Bridge checkouts remain clean."
   next_command: "Poll unified exec session 20675 sparingly; do not restart the 52-case suite. Keep timeout, patched-source, pristine, and genuine assertion outcomes distinct."
 prior_icarus_runs:
   selected_52:
