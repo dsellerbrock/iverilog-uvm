@@ -1,0 +1,19 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_status_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_status_tb.sv
+@@ -279,7 +279,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -297,8 +296,6 @@
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+ 
+-    .cpha_i       (1'b 0),
+-
+     .order_i      (1'b 0),
+ 
+     .io_mode_i    (dut_iomode)
