@@ -18,9 +18,8 @@
 // exercises explicitly-seeded objects/processes).
 //
 // process::srandom()/get_randstate()/set_randstate() drive the per-THREAD
-// generator (18.13.2), which is separate from any object's. $urandom uses
-// it when there is no seeded enclosing object, so an object's seed takes
-// precedence inside that object's own methods. UVM relies on the
+// generator (18.14), which is separate from any object's. $urandom uses
+// this process generator even inside an object method. UVM relies on the
 // save/restore idiom (uvm_report_message.svh, uvm_resource_pool.svh,
 // uvm_component.svh), so it has to work rather than be diagnosed away.
 //
@@ -103,10 +102,15 @@ module m3b5_object_random_state_test;
     check(a.v === r1[0], "unqualified srandom() is not reproducible");
     check(a.my_state().len() > 0, "unqualified get_randstate() is empty");
 
-    // 6. 18.13.1: $urandom inside a method follows the object's seed.
-    a.srandom(9); u1 = a.draw_urandom();
-    a.srandom(9); u2 = a.draw_urandom();
-    check(u1 == u2, "$urandom inside a method ignores the object seed");
+    // 6. $urandom inside a method follows the calling process's seed.
+    begin
+      automatic process p = process::self();
+      automatic string ost = a.get_randstate();
+      p.srandom(9); u1 = a.draw_urandom();
+      check(a.get_randstate() == ost, "$urandom changed object state");
+      p.srandom(9); u2 = $urandom();
+      check(u1 == u2, "$urandom inside method missed process RNG");
+    end
 
     // 7. A CONSTRAINED property is both reproducible and still legal.
     d.srandom(4);
@@ -142,15 +146,15 @@ module m3b5_object_random_state_test;
       check(p1 == p2, "process set_randstate() did not restore the stream");
     end
 
-    // 9. An object's seed wins over the process seed inside its methods.
+    // 9. An object's seed does not affect $urandom inside its methods.
     begin
       automatic process p = process::self();
       int o1, o2;
       p.srandom(77);
       a.srandom(31); o1 = a.draw_urandom();
-      p.srandom(99);            // perturbing the PROCESS must not matter
-      a.srandom(31); o2 = a.draw_urandom();
-      check(o1 == o2, "object seed did not take precedence over process seed");
+      p.srandom(77);
+      a.srandom(99); o2 = a.draw_urandom();
+      check(o1 == o2, "object seed changed process RNG draw");
     end
 
     if (errors == 0) $display("PASS m3b5_object_random_state_test");

@@ -8,8 +8,7 @@
 // class, unique{} over both scalars and array elements, solve...before
 // (18.5.9) as an ordering hint, inline `with` on randomize() (18.7),
 // constraint_mode() (18.9), a 3-level pre_randomize/post_randomize chain
-// (18.6.2-18.6.4), and srandom() determinism (18.13.3) for both
-// randomize() draws and $urandom_range() calls made from an object method.
+// (18.6.2-18.6.4), and separately seeded object and process RNG sequences.
 module sv_rand_conformance_pin2;
 
   class ImplC;
@@ -186,16 +185,20 @@ module sv_rand_conformance_pin2;
       end
     end
 
-    // -- srandom() determinism: randomize() sequence AND $urandom_range() --
+    // -- object randomize() and process $urandom_range() determinism --
     begin
       UrandomC c1 = new(), c2 = new(), c3 = new();
+      process p;
       int seq1[5], seq2[5];
       int u1[5], u2[5];
+      p = process::self();
       c1.srandom(42);
       c2.srandom(42);
+      p.srandom(42);
       for (int i = 0; i < 5; i++) begin
         void'(c1.randomize()); seq1[i] = c1.v; u1[i] = c1.draw_urandom();
       end
+      p.srandom(42);
       for (int i = 0; i < 5; i++) begin
         void'(c2.randomize()); seq2[i] = c2.v; u2[i] = c2.draw_urandom();
       end

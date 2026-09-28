@@ -361,10 +361,10 @@ void vpip_mcd_rawwrite(PLI_UINT32 mcd, const char*buf, size_t count)
       assert(vpip_routines);
       vpip_routines->mcd_rawwrite(mcd, buf, count);
 }
-int vpip_object_urandom(unsigned int*val)
+int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val)
 {
       assert(vpip_routines);
-      return vpip_routines->object_urandom(val);
+      return vpip_routines->object_urandom(seed, val);
 }
 void vpip_print_stacktrace(const char*call_file, long call_line)
 {

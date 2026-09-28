@@ -2441,7 +2441,7 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
  * The actual stack walk needs access to vvp's vthread call-frame chain,
  * which is core-side state; vpip_print_stacktrace() (vvp/vthread.cc) does
  * that walk and prints it, the same way $urandom reaches back into
- * vthread.cc via vpip_object_urandom() for object-scoped RNG state.
+ * vthread.cc via vpip_object_urandom() for process RNG state.
  */
 static PLI_INT32 sys_stacktrace_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {

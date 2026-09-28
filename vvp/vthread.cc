@@ -7208,58 +7208,20 @@ bool of_SET_RANDSTATE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/*
- * R3/M3B-5 (IEEE 1800-2017 18.13.1): $urandom called from inside a class
- * method draws from THAT OBJECT's generator; $urandom called from an
- * ordinary thread (or a function/task call nested inside one) draws from
- * the enclosing LOGICAL PROCESS's generator (18.13.2). $urandom lives in
- * the vpi/ system module and has its own static generator (the pre-R3
- * global default), so it asks here first.
- *
- * Every thread and object is now always seeded (see the R3 block above
- * thread_rng_srandom_/logical_process_thread_), so this always succeeds
- * once a thread is found; it can only return 0 when there is no running
- * thread context at all (e.g. a $urandom evaluated at compile time,
- * which cannot happen, or a malformed call).
- */
-extern "C" int vpip_object_urandom(unsigned int*val)
+/* System randomization calls use the logical caller's process RNG (IEEE
+ * 1800-2017/2023 18.14). Object RNGs belong exclusively to randomize(). */
+extern "C" int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val)
 {
-	/* Use the thread the VPI call was made ON. `running_thread' is not
-	   reliable here -- during a %vpi_func it can still name an earlier
-	   thread, which sent this lookup to the wrong generator entirely.
-	   vpip_current_vthread is set by vpip_execute_vpi_call for exactly
-	   this purpose. */
+      /* During a %vpi_func, running_thread may still name an earlier thread. */
       vthread_t thr = vpip_current_vthread ? vpip_current_vthread
-					   : running_thread;
+                                           : running_thread;
       if (! (thr && val))
-	    return 0;
-
-	// Walk out through enclosing scopes: $urandom may sit in a
-	// begin/end or a nested block inside the method.
-      for (__vpiScope*scope = thr->parent_scope ; scope ; scope = scope->scope) {
-	    vpiHandle self = lookup_scope_item_(scope, "@");
-	    if (! self)
-		  continue;
-	    vvp_object_t obj;
-	    if (! read_handle_object_in_thread_(self, thr, obj))
-		  continue;
-	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
-	    if (cobj && cobj->rng_seeded()) {
-		  *val = cobj->rng_next();
-		  return 1;
-	    }
-	      // Found `this' but it is not seeded: stop looking outward
-	      // rather than reaching some unrelated enclosing object. The
-	      // thread generator below still applies.
-	    break;
-      }
-
-	// No enclosing object: the PROCESS generator (18.13.2).
-	// logical_process_thread_() resolves straight to the real thread a
-	// callf/fork_v continuation belongs to, which is always seeded.
+            return 0;
       if (vthread_t owner = logical_process_thread_(thr)) {
-	    *val = thread_rng_next_(owner);
-	    return 1;
+            if (seed)
+                  thread_rng_srandom_(owner, *seed);
+            *val = thread_rng_next_(owner);
+            return 1;
       }
       return 0;
 }
