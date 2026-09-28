@@ -14277,10 +14277,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			continue;
 		  }
 
-		    /* IEEE 1800-2017/2023 13.4.2: a function with no arguments
-		     * may be called without its parentheses. The parser leaves
+		    /* IEEE 1800-2017/2023 13.5.5: a function with no formals or
+		     * only defaulted formals may be called without parentheses.
+		     * The parser leaves
 		     * `obj.m' as a member component rather than a
-		     * PECallFunction, so a zero-argument METHOD reached through
+		     * PECallFunction, so a method reached through
 		     * a class PROPERTY never became a call -- it fell through to
 		     * the property walk, matched no property, and yielded 0.
 		     * Silently wrong, and the reason uvm_driver's connectivity
@@ -14307,7 +14308,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      bool implicit_this =
 				    mdef && scope_method_uses_implicit_this(des, mscope);
 			      unsigned want = implicit_this ? 1u : 0u;
-			      if (mdef && mdef->port_count() == want) {
+			      if (mdef && mdef->port_count() >= want) {
+				    unsigned required_idx = want;
+				    while (required_idx < mdef->port_count()
+					   && mdef->port_defe(required_idx))
+					  required_idx += 1;
+				    if (required_idx < mdef->port_count()) {
+					  cerr << get_fileline() << ": error: Class method `"
+					       << tail_comp.name << "' requires argument `"
+					       << mdef->port(required_idx)->name()
+					       << "'; parentheses may be omitted only when "
+						  "every argument has a default "
+						  "(IEEE 1800-2017/2023 13.5.5)." << endl;
+					  des->errors += 1;
+					  delete base_expr;
+					  return 0;
+				    }
 				    NetNet*res =
 					  mscope->find_signal(mscope->basename());
 				    if (!res)
@@ -14316,6 +14332,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 					  std::vector<NetExpr*> parms(mdef->port_count());
 					  if (implicit_this)
 						parms[0] = base_expr;
+					  for (unsigned idx = want;
+					       idx < mdef->port_count(); idx += 1)
+						parms[idx] = mdef->port_defe(idx)->dup_expr();
 					  NetESignal*eres = new NetESignal(res);
 					  NetEUFunc*call = new NetEUFunc(
 						scope, mscope, eres, parms, false);
@@ -20898,11 +20917,10 @@ bool PEIdent::is_string_byte_select(Design*des, NetScope*scope) const
 
 
 /*
- * IEEE 1800-2017 13.4.2: "the parentheses may be omitted" on a call to a
- * subroutine that takes no arguments. An unqualified identifier appearing
- * inside a class method may therefore be a paren-less call to a zero-argument
- * method of the enclosing class, or of one it inherits -- `get_full_name' in
- * a uvm_object subclass is the common case.
+ * IEEE 1800-2017/2023 13.5.5: parentheses may also be omitted when every
+ * argument has a default. An unqualified identifier inside a class method
+ * may therefore call a method of that class (or an inherited method);
+ * `get_full_name' in a uvm_object subclass is the zero-argument case.
  *
  * This runs only after ordinary signal binding has already failed, so it can
  * never shadow a real signal of the same name. Without it the reference
@@ -20913,8 +20931,10 @@ bool PEIdent::is_string_byte_select(Design*des, NetScope*scope) const
 static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 					      const PEIdent*self,
 					      const pform_scoped_name_t&path,
-					      unsigned expr_wid, unsigned flags)
+					      unsigned expr_wid, unsigned flags,
+					      bool&handled)
 {
+      handled = false;
       if (!gn_system_verilog())
 	    return 0;
       if (path.package || path.name.size() != 1)
@@ -20930,8 +20950,7 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 	    return 0;
 
       NetScope*mscope = cdef->method_from_name(peek_tail_name(path.name));
-	/* Only a function can appear in an expression, and only a
-	   zero-argument one may drop its parentheses. A method whose
+	/* Only a function can appear in an expression. A method whose
 	   signature has not been published yet is left alone rather than
 	   guessed at. */
       if (!mscope || mscope->type() != NetScope::FUNC)
@@ -20940,17 +20959,26 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
       if (!fdef)
 	    return 0;
 
-	/* A non-static class method carries the synthetic THIS_TOKEN ("@")
-	   port ahead of its declared arguments; a static one does not.
-	   Discount it the same way elab_sig.cc does, so that "takes no
-	   arguments" means the same thing for both. */
-      unsigned nports = fdef->port_count();
-      if (nports >= 1
+	/* A non-static method carries a synthetic this port. Every
+	   declared formal must have a default before an empty actual list
+	   can be passed to ordinary function-call elaboration. */
+      unsigned first_port = 0;
+      if (fdef->port_count() >= 1
 	  && fdef->port(0)->name() == perm_string::literal(THIS_TOKEN))
-	    nports -= 1;
-      if (nports != 0)
-	    return 0;
+	    first_port = 1;
+      for (unsigned idx = first_port; idx < fdef->port_count(); idx += 1)
+	    if (!fdef->port_defe(idx)) {
+		  cerr << self->get_fileline() << ": error: Class method `"
+		       << path << "' requires argument `"
+		       << fdef->port(idx)->name() << "'; parentheses may be omitted "
+			  "only when every argument has a default "
+			  "(IEEE 1800-2017/2023 13.5.5)." << endl;
+		  des->errors += 1;
+		  handled = true;
+		  return 0;
+	    }
 
+      handled = true;
       std::vector<named_pexpr_t> empty_parms;
       PECallFunction*call = new PECallFunction(path.name, empty_parms);
       call->set_line(*self);
@@ -20959,8 +20987,9 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 
       if (res && debug_elaborate)
 	    cerr << self->get_fileline() << ": debug: Resolved unqualified `"
-		 << path << "' as a paren-less call to a zero-argument "
-		    "class method (IEEE 1800-2017 13.4.2)." << endl;
+		 << path << "' as a paren-less call to a class method "
+		    "whose formals all have defaults (IEEE 1800-2017/2023 "
+		    "13.5.5)." << endl;
       return res;
 }
 
@@ -23867,14 +23896,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // the user's own reference to the same name reports it.
 	    if (quiet_bind_) return 0;
 
-	      /* IEEE 1800-2017 13.4.2: an unqualified name in a class
-		 method may be a paren-less call to a zero-argument method
-		 of the enclosing class or one it inherits. Only reachable
-		 once ordinary signal binding has failed. */
+	      /* IEEE 1800-2017/2023 13.5.5: an unqualified name may call an
+		 enclosing or inherited class method without parentheses when
+		 all formals have defaults. Ordinary signal binding has failed. */
+	    bool handled_method = false;
 	    if (NetExpr*r = paren_less_class_method_call_(des, scope, this,
 							  path_, expr_wid,
-							  flags))
+							  flags, handled_method))
 		  return r;
+	    if (handled_method) return 0;
 
 	      // strict_bind_ marks identifiers that came out of a
 	      // concurrent assertion. The compile-progress warning keeps
@@ -24050,12 +24080,14 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// user's own reference to the same name reports it.
       if (quiet_bind_) return 0;
 
-	/* IEEE 1800-2017 13.4.2 paren-less zero-argument method call.
+	/* IEEE 1800-2017/2023 13.5.5 paren-less defaulted method call.
 	   See paren_less_class_method_call_ -- the companion binding
 	   failure path above calls it too. */
-      if (NetExpr*r = paren_less_class_method_call_(des, scope, this, path_,
-						    expr_wid, flags))
+	bool handled_method = false;
+	if (NetExpr*r = paren_less_class_method_call_(des, scope, this, path_,
+						    expr_wid, flags, handled_method))
 	    return r;
+	if (handled_method) return 0;
 
 
 	// strict_bind_: see the companion site above. An identifier that

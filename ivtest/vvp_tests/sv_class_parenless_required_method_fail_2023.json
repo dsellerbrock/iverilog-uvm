@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_class_parenless_required_method_fail_2023.v","iverilog-args":["-g2023","-Iivltests","-s","main"],"gold":"sv_class_parenless_required_method_fail"}
