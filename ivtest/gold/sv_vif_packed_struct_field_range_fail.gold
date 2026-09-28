@@ -1,0 +1,2 @@
+./ivltests/sv_vif_packed_struct_field_range_fail.v:19: error: a packed-array struct element requires a single index in each dimension.
+1 error(s) during elaboration.

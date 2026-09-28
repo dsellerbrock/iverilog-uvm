@@ -3649,3 +3649,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `work/flash-foreach-next-20260928/plain-queue-packed-tail.sv` and `work/flash-foreach-next-20260928/mixed-packed-tail-unsupported.sv` in the projectless campaign workspace.
 - **Reproducer status:** paired strict Icarus runtime zero-visit control and explicit mixed-tail compile boundary; Slang accepts the legal packed-tail source.
 - **Triage status:** separate foreach packed-tail lowering task; no packed-tail runtime support claimed by the mixed-rank repair.
+
+### DD-078 — physical-interface packed inner index aliases a neighbor
+
+- **Discovered while working:** OT-FLASH-VIF-PACKED-STRUCT-FIELD.
+- **Observation:** With distinct packed-struct values in `rd_buf[0][0] = 8'h11`, `[0][1] = 8'h22`, `[1][0] = 8'h33`, and `[1][1] = 8'h44`, direct physical-interface reads `fi.rd_buf[0][2].addr` and `fi.rd_buf[1][-1].addr` return `8'h33` and `8'h22`. The invalid inner index carries into the neighboring outer row. The selected VIF repair returns X for both because it selects each packed rank separately. Valid direct slots still provide the field-value oracle for the active blocker.
+- **File/function:** Direct physical-interface packed-select collapse in `elab_expr.cc`/`netmisc.cc`; exact owner needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 packed-array out-of-range indexing; exact subclause needs separate assessment.
+- **Evidence:** Projectless `work/flash-vif-packed-struct-20260928/runtime-print-invalid.sv` on the focused candidate prints `outer=xx inner_high=33 inner_low=22 outer_x=xx inner_x=xx`; paired VIF-focused runtime controls return X for invalid inner indices.
+- **Reproducer status:** confirmed with a minimal strict 2017 direct-interface runtime probe; VIF controls pass strict 2017/2023.
+- **Triage status:** untriaged; separate from the selected VIF packed-struct field repair.

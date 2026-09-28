@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 468a17149
+checkpoint_head: 9df733664
 active_open_titan_lane:
   blocker: "OT-FLASH-VIF-PACKED-STRUCT-FIELD"
-  phase: "SELECTED_MINIMAL_REPRODUCER"
+  phase: "FOCUSED_TESTED_APPLICATION_STILL_RED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "468a17149"
+  baseline_head: "9df733664"
   reproducer: "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-flash-vif-packed-struct-field-red.sv; direct packed-struct field read passes, virtual-interface field read fails in strict 2017/2023, and Slang accepts both"
-  pending_validation: "The committed mixed-rank foreach slice passes paired JSON and legacy focus 4/4 each. One patched-source disposable Flash compile has 29 hard diagnostics and 146 unchanged warnings, including six grouped packed-struct virtual-interface field errors at scoreboard lines 108/110; line 124 remains ungrouped. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. Integrated gates, install, Flash DV runtime, broad suite, and fresh 49-core census remain pending."
-  next_command: "Use the tiny direct/VIF RED to trace packed-array and packed-struct field selection, then implement and validate only that path with paired strict 2017/2023 controls. Classify line 124 and the remaining error corpus separately before another Flash compile."
-  boundary: "Only compiler expression elaboration, paired focused tests, and relevant docs for the selected packed-struct VIF field path. No pinned-source patch, unsafe flag, broad suite, install, or Flash DV runtime. Keep the 29-error corpus current and leave Caliptra's selected-case continuation untouched."
+  pending_validation: "Build-tree ivl SHA-256 9e9695f87b70325cf8582c22ba122d3775b50523ecd40cd332c14cf752f068ac passes strict paired JSON and legacy focus 14/14 each. One controlled patched-source Flash compile drops 29 to 21 hard diagnostics: six targeted scoreboard line-108/110 errors clear and two line-124 diagnostics disappear downstream, with zero added errors and all 146 warnings unchanged. No VVP output exists. The 37 explicit randomize()-will-fail warnings remain independent runtime blockers. Integrated gates, install, DV runtime, broad suite, and fresh 49-core census remain pending."
+  next_command: "Classify the remaining 21-error corpus and select the next blocker before any further Flash source-list replay. Treat line 124 as a downstream disappearance without independently proven field semantics."
+  boundary: "Only compiler expression elaboration, paired focused tests, and relevant docs for the selected packed-struct VIF field path. Enum methods on a selected enum field remain an explicit unsupported boundary; direct physical-interface inner-index alias is DD-078. No pinned-source patch, unsafe flag, broad suite, install, or Flash DV runtime. Leave Caliptra's selected-case continuation untouched."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED

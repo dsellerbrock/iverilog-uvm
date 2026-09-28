@@ -13494,6 +13494,72 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    return prop_expr;
       }
 
+	// A packed array of structs is one packed property value. Select each
+	// declared dimension from the value before looking up the struct field.
+	// Keeping the ranks separate also makes an out-of-range inner index
+	// yield X instead of carrying into a neighboring outer element.
+      const netparray_t*packed_array =
+	    dynamic_cast<const netparray_t*>(prop_type);
+      if (packed_array
+	  && dynamic_cast<const netstruct_t*>(packed_array->element_type())
+	  && comp.index.size() <= packed_array->static_dimensions().size()) {
+	    const netranges_t&dims = packed_array->static_dimensions();
+	    NetExpr*cur = prop_expr;
+	    auto index = comp.index.begin();
+	    for (size_t rank = 0; rank < comp.index.size(); ++rank, ++index) {
+		  if (index->sel != index_component_t::SEL_BIT
+		      || !index->msb || index->lsb) {
+			cerr << li->get_fileline() << ": error: a packed-array "
+			     << "struct element requires a single index "
+			     << "in each dimension." << endl;
+			des->errors += 1;
+			delete cur;
+			return 0;
+		  }
+		  NetExpr*offset = elab_and_eval(des, scope, index->msb,
+						      -1, false);
+		  if (!offset) {
+			delete cur;
+			return 0;
+		  }
+		  if (!type_is_vectorable(offset->expr_type())) {
+			cerr << li->get_fileline() << ": error: packed-array "
+			     << "index must be an integral expression." << endl;
+			des->errors += 1;
+			delete offset;
+			delete cur;
+			return 0;
+		  }
+		  offset = normalize_variable_base(offset,
+						 dims[rank].get_msb(),
+						 dims[rank].get_lsb(),
+						 1, true);
+		  ivl_type_t slice_type = packed_array->element_type();
+		  if (rank + 1 < dims.size()) {
+			netranges_t remaining(dims.begin() + rank + 1,
+					      dims.end());
+			slice_type = new netparray_t(remaining, slice_type);
+		  }
+		  long width = slice_type->packed_width();
+		  if (width <= 0 || (unsigned long)width > UINT_MAX) {
+			cerr << li->get_fileline() << ": error: packed property "
+			     << "element width is out of range." << endl;
+			des->errors += 1;
+			delete offset;
+			delete cur;
+			return 0;
+		  }
+		  offset = scale_index_to_bits(offset, (unsigned long)width,
+					       *li);
+		  NetESelect*slice = new NetESelect(cur, offset,
+						  (unsigned)width, slice_type);
+		  slice->set_line(*li);
+		  cur = slice;
+	    }
+	    out_type = cur->net_type();
+	    return cur;
+      }
+
 	// A queue property slice is an unbounded queue value. A legal dynamic-
 	// array slice stops at the fixed-size-result unsupported boundary.
 	// Passing the lower bound as NetEProperty's word
@@ -17063,6 +17129,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    && search_results.net->data_type() == IVL_VT_STRING
 	    && search_results.net->unpacked_dimensions() == 0
 	    && target_indexed;
+      bool selected_vif_packed_struct = false;
 
 	// IEEE 1800-2017 7.12.4: the call form of the iterator index
 	// query (`item.index()`, optional dimension defaulting to 1).
@@ -17427,6 +17494,17 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 				class_type, prop_comp.name);
 		    int pidx = ensure_class_property_idx_(
 			  des, class_type, prop_comp.name);
+		    if (class_type->is_interface() && pidx >= 0) {
+			  const netparray_t*packed_array =
+			    dynamic_cast<const netparray_t*>(
+			      class_type->get_prop_type(pidx));
+			  if (packed_array
+			      && dynamic_cast<const netstruct_t*>(
+				   packed_array->element_type())
+			      && prop_comp.index.size()
+				 == packed_array->static_dimensions().size())
+			    selected_vif_packed_struct = true;
+		    }
 		    if (pidx >= 0
 			&& dynamic_cast<const netstring_t*>(
 			      class_type->get_prop_type(pidx))
@@ -17537,6 +17615,16 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    cerr << get_fileline() << ": error: A selected string character has "
 		 << "byte type and cannot be the receiver of string method `"
 		 << method_name << "'." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
+      }
+
+      if (selected_vif_packed_struct
+	  && dynamic_cast<const netenum_t*>(target_type)) {
+	    cerr << get_fileline() << ": sorry: enumeration methods on "
+		 << "packed-struct fields selected through a virtual interface "
+		 << "are not yet supported." << endl;
 	    des->errors += 1;
 	    delete sub_expr;
 	    return 0;

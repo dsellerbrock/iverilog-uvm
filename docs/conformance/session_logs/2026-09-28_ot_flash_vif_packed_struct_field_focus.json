@@ -1,0 +1,50 @@
+{
+  "id": "OT-FLASH-VIF-PACKED-STRUCT-FIELD",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint",
+  "compiler_base_commit": "9df7336645aa58b1e32ba5a24d9231e30383a437",
+  "compiler_engine_sha256": "9e9695f87b70325cf8582c22ba122d3775b50523ecd40cd332c14cf752f068ac",
+  "standard_scope": "IEEE 1800-2017/2023 packed-array index, packed-struct field, and virtual-interface member expression semantics; full clause qualification remains open",
+  "root_cause": "A two-dimensional netparray_t virtual-interface property fell through the generic netarray_t path. It selected the first packed rank at one struct width, then sent the remaining rank to apply_trailing_container_indices_, which reported an unrelated queue/associative-array sorry.",
+  "correction": "Select each packed rank from the whole virtual-interface property with a typed NetESelect. Intermediate rows keep their remaining netparray_t dimensions; the final value keeps the declared netstruct_t type before field lookup. Each rank validates a simple integral index and is normalized and bounds-checked independently.",
+  "focused_validation": {
+    "json": "14/14 passed; paired strict 2017/2023 runtime positive and six compile-error boundaries per edition",
+    "legacy": "14/14 passed; paired strict 2017/2023 runtime positive and six compile-error boundaries per edition",
+    "runtime_positive": "Four distinct packed slots preserve exact addr, part, and info_sel values through the virtual interface. Outer and inner out-of-range and unknown VIF indices return X; neighboring valid slots remain distinct. The direct physical interface is the valid-slot oracle.",
+    "negative": "Missing field, partial-index field, range-index field, string outer index, and real inner index hard-error. Enum method on a selected enum field has an explicit unsupported diagnostic rather than a broken VVP runtime call.",
+    "slang": "The runtime positive and enum-method construct are accepted in strict 2017/2023. Slang rejects the missing/partial/range member forms and string/real indices.",
+    "focus_lists": [
+      "ivtest/regress-flash-vif-packed-struct-field-focus-vvp.list",
+      "ivtest/regress-flash-vif-packed-struct-field-focus-legacy.list"
+    ],
+    "diff_check": "git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 29,
+    "after_hard_diagnostics": 21,
+    "targeted_scoreboard_line_108_110_errors_removed": 6,
+    "downstream_scoreboard_line_124_errors_disappeared": 2,
+    "line_124_semantics_independently_qualified": false,
+    "added_hard_diagnostics": 0,
+    "warnings_before": 146,
+    "warnings_after": 146,
+    "explicit_randomize_will_fail_warnings": 37,
+    "exit_code": 21,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "target_sha256": "cb8336e7b7f107ca944abe6b565e23f7dfa2e6b20e1bd7eda5336c520ae07407",
+    "raw_result": "projectless work/ot-flash-vif-packed-struct-core-20260928/result.json",
+    "raw_log": "projectless work/ot-flash-vif-packed-struct-core-20260928/flash-current.log"
+  },
+  "boundaries": [
+    "The direct physical-interface inner-index alias is recorded separately as DD-078 and was not repaired here.",
+    "An enum method on a selected enum field remains explicitly unsupported; enum method runtime semantics are not claimed.",
+    "The two line-124 errors disappeared in the controlled compile, but their packed-vector/coverage semantics were not independently tested.",
+    "The 21 remaining hard diagnostics and 37 randomize-will-fail warnings prevent Flash application compilation or DV runtime. Broad gates, installation, and fresh 49-core census remain pending."
+  ],
+  "pinned_application_sources_modified": false
+}
