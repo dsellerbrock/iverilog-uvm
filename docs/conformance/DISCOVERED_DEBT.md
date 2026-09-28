@@ -3538,3 +3538,43 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-spid-const-ref-forward-min.sv`; disposable SPID compile log `/private/tmp/ot-spid_jedec-focused-w3qzp13u/compile.log`. The three stale SPID ports and four `sd_out` mixed-driver diagnostics in that log are separate.
 - **Reproducer status:** Confirmed compile rejection in local Icarus and acceptance in paired Slang editions; the writable-ref negative control rejects as expected in Slang. No compiler patch or application-source edit was made.
 - **Triage status:** Reproduced, record-only during OT-PACKED-CONSTRAINT-INDEX-EXACT; no implementation selected.
+
+### DD-067 — associative arrays of fixed arrays lack a sound VVP representation
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** A three-line `bit tgt[enum][2]` declaration fails under Icarus strict 2017/2023 while Slang accepts it. This is the largest family in the saved patched-copy Flash compile (114 diagnostics). Removing the `netuarray_t` type guard alone would lose fixed bounds and default element construction in VVP.
+- **File/function:** `elab_type.cc` associative element check; `tgt-vvp/vvp_priv.h` container layout; `vvp/vvp_object.*` layout; `vvp/vthread.cc` associative element construction.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.8; check exact nested-container behavior when selected.
+- **Evidence:** `outputs/minimal-reproducers/ot-flash-assoc-of-fixed-red.sv` and `work/flash-queue-triage-20260928/result.json` in the projectless campaign workspace.
+- **Reproducer status:** paired strict compile RED; runtime and key-isolation controls still to be built.
+- **Triage status:** read-only design audit; separate compiler blocker, not part of the RSTMGR source patch.
+
+### DD-068 — nested queue constraints cannot reach fixed-array queue leaves
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** `q[i].size()==2` under `rand bit q[2][$]` fails elaboration, and `foreach(q[i,j]) q[i][j]==1` warns that it is unrepresentable before `randomize()` fails. Flat queue controls pass in both editions; Slang accepts the nested sources.
+- **File/function:** `elaborate.cc` indexed queue `.size()` constraint lowering and fixed-array/queue `foreach` IR traversal.
+- **Possible clause:** IEEE 1800-2017/2023 §18.5; confirm subclauses during selection.
+- **Evidence:** `outputs/minimal-reproducers/ot-flash-nested-queue-size-red.sv`, `outputs/minimal-reproducers/ot-flash-nested-queue-element-red.sv`, and `work/flash-queue-triage-20260928/result.json` in the projectless campaign workspace.
+- **Reproducer status:** paired strict compile/runtime REDs; no compiler fix.
+- **Triage status:** separate solver-lowering blocker; no Flash core rerun.
+
+### DD-069 — prim_flop_2sync setup omits its generated flop provider
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** The pinned FuseSoC dependency graph contains `prim_generic:flop_2sync -> prim:flop`, but its source list omits both `prim_flop.sv` and `prim_generic_flop.sv`. A one-line direct `prim:flop` dependency in `prim_flop_2sync.core` makes disposable setup generate both. One focused compile removes the two unknown-module errors and exposes separate obsolete CDC-delay task calls.
+- **File/function:** `hw/ip/prim/prim_flop_2sync.core` `primgen_dep`; generated `prim_flop_2sync` file list.
+- **Possible clause:** setup/provider mapping, not an IEEE compiler-semantic issue.
+- **Evidence:** `outputs/patches/ot-prim-flop-provider-dependency.patch` and `work/prim-flop-provider-20260928/compile-result.json` in the projectless campaign workspace.
+- **Reproducer status:** disposable setup and one focused compile; no runtime.
+- **Triage status:** source metadata correction proposal; the six stale TB task calls remain a separate issue.
+
+### DD-070 — SPI TPM pre-DV testbench targets obsolete parameters and ports
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** Three TB overrides name local or nonexistent `spi_tpm` parameters. A three-line correction clears the exact minimal strict 2017/2023 errors, but static RTL comparison also finds eight obsolete named ports and a TB 8-bit read-FIFO assumption against the RTL's 32-bit read FIFO.
+- **File/function:** `hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv` instance versus released `hw/ip/spi_device/rtl/spi_tpm.sv`.
+- **Possible clause:** released source/interface mismatch, not an IEEE compiler-semantic issue.
+- **Evidence:** `outputs/patches/ot-spi-tpm-stale-parameter-overrides.patch` and `work/ot-spi-tpm-param-20260928/result.md` in the projectless campaign workspace.
+- **Reproducer status:** paired strict minimal controls and static port contract; no full core compile or runtime.
+- **Triage status:** source correction proposal only; requires separate port/FIFO reconciliation before application qualification.
