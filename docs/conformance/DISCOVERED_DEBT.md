@@ -3769,3 +3769,43 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Selected compile and tiny controls](../../evidence/opentitan-otp-factory-registration-20260929/selected_compile.json); the [named OTP source workaround](release_overlays/opentitan/otp_ctrl_explicit_test_registration.patch) calls the intended concrete specialization before `run_test()`.
 - **Reproducer status:** confirmed in the small compile gate and selected OTP image; full patched-source OTP runtime pending.
 - **Triage status:** compiler fix remains open as a separate shared blocker. Before changing it, require paired concrete typedef-only, false-generate, generic-only, and later-concrete-use controls with exactly one correct initializer where applicable. Retain the named OTP source workaround for selected DV.
+
+### DD-090 — SDF interconnect port buffer emitted as BUFZ
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** All three `sdf_interconnect` tests report `Could not find intermodpath` and miss their annotated delay. The smallest existing source, `sdf_interconnect1.v`, emits a `BUFZ` for the top variable-to-module input buffer with the current compiler, where the older compiler emitted `BUFT`. Current VVP runs the older bytecode correctly; older VVP reproduces the failure with current bytecode. This is compiler output, not a VVP runtime regression.
+- **File/function:** `elaborate.cc` input-port `NetBUFZ` construction around line 6611 uses `!variable_input_source` even with `gn_interconnect_flag`; `t-dll.cc` maps a nontransparent buffer to `IVL_LO_BUFZ`; `vvp/vpi_priv.cc` `vpi_handle_multi` requires `vvp_fun_buft` for SDF interconnect. The variable-port rule was added in `d696b6934d`.
+- **Possible clause:** Module port connection and SDF interconnect delay semantics; confirm precise IEEE 1800-2017/2023 clauses before implementation.
+- **Evidence:** `ivtest/ivltests/sdf_interconnect1.v` with `-Ttyp -ginterconnect -gspecify -s top`; projectless `work/sdf-regression-triage-20260929/` has both bytecode images and cross-runtime results. The integrated gate ran 4,097 JSON tests with 32 failures; this family accounts for three.
+- **Reproducer status:** confirmed with a minimal existing test and compiler/runtime cross-matrix.
+- **Triage status:** separate compiler ticket. Preserve variable-port settled-value behavior while making SDF port buffers annotatable; no shared source change under the fixed-2D ticket.
+
+### DD-091 — unsafe interface-driver guard suppresses live overlapping writes
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** Twelve paired unsafe-mode compile negatives unexpectedly succeed with no diagnostic: eight virtual-interface property writers, two module-port procedural writers, and two virtual clocking-output writers. Each strict counterpart reports the expected continuous/procedural overlap error. Legal disjoint-member controls pass.
+- **File/function:** `elaborate.cc` `finalize_unsafe_interface_drivers_` around lines 2960–2971. Commit `ed6415e450` suppresses `interface_member_has_property_writer_` whenever `-gcommercial-unsafe` and `completely_driven` are true. A fully driven scalar satisfies that condition even when its procedural writer is live or its VIF receiver is uncertain. The intended waiver is narrower: provably uncalled same-instance interface task writers.
+- **Possible clause:** IEEE 1800-2017/2023 variable driver restrictions and virtual-interface aliasing; verify exact subclauses before implementation.
+- **Evidence:** Exact-head direct strict/unsafe pairs and analysis in projectless `work/json-unsafe-negative-20260929/triage.md`. The 12 names are in the 4,097/32 full JSON gate.
+- **Reproducer status:** confirmed in both editions using existing minimal sources.
+- **Triage status:** separate compiler ticket; preserve the SPI compatibility case that motivated the unsafe waiver while keeping live or uncertain writes rejected.
+
+### DD-092 — function argument capture rejects fixed queue size leaves
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** Both editions of `sv_constraint_fixed_queue_leaf_size` pass direct size constraints but fail the function-argument leaf-identity check. Emitted `.constraint_dep 3 0 1` denotes the requested fixed queue leaf SIZE; VVP rejects a function dependency on any fixed queue before capturing that value. A dynamic queue-size function argument also fails, so removing this one guard is not a proven fix.
+- **File/function:** `vvp/vvp_z3.cc` around lines 11632–11636, fixed queue function-argument dependency guard and stage/capture path.
+- **Possible clause:** IEEE 1800-2017/2023 class-constraint function calls and queue size; verify exact subclauses before implementation.
+- **Evidence:** Exact-head direct tests and smallest controls in projectless `work/json-eight-direct-20260929/triage.md`.
+- **Reproducer status:** confirmed strict 2017/2023 direct cases.
+- **Triage status:** separate solver ticket; validate stage value and rollback before relaxing the guard, and retain intentional fixed-element function-argument rejection.
+
+### DD-093 — constraint constant-folding errors trigger duplicate PartInfo diagnostics
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** The bad-member and above-bit-63 PartInfo negatives each emit the expected specific error followed by a generic selector error, producing four JSON gold mismatches across 2017/2023. The second diagnostic does not add information.
+- **File/function:** `elaborate.cc` constant-then-selector paths around lines 33465, 34093, and 34334 call `constraint_parameter_member_select_ir_` after `constraint_constant_ir_` has already increased `Design::errors`.
+- **Possible clause:** Diagnostic quality rather than a new language-semantic claim.
+- **Evidence:** Exact-head direct tests and first-error traces in projectless `work/json-eight-direct-20260929/triage.md`.
+- **Reproducer status:** confirmed paired 2017/2023 negative tests; positive rand-index controls await a scoped fix.
+- **Triage status:** separate diagnostic ticket. Skip selector fallback only when constant folding adds an error; continue symbolic fallback when it returns empty without an error.

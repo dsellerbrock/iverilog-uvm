@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: b2822b177
+checkpoint_head: d5c7366c3
 active_open_titan_lane:
   blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
-  phase: "FOCUSED_TESTED_AWAITING_INTEGRATED_GATES"
+  phase: "INTEGRATED_JSON_GATE_FAILED_32_CLASSIFYING"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "b2822b177"
   reproducer: "Strict 2017/2023 2D fixed rand packed-struct member reducer fails before the compiler fix. The isolated compiler passes signed/unsigned fields, descending indices, and UNSAT rollback; neighboring focused JSON and legacy tests each pass 8/8."
-  pending_validation: "Integrate the isolated compiler change and paired regression, then run required compiler gates when the live Caliptra simulation permits. The fixed-array repair does not cover pinned ADC's nested dynamic array."
-  next_command: "Monitor Caliptra pv_hash_zeroize to verdict; meanwhile review and commit the isolated fixed-array compiler slice. After its guardian exits, run one queued selected OpenTitan replay at a time."
+  pending_validation: "The fixed-2D compiler fix is integrated and its paired tests pass. Full JSON ran 4097 with 32 failures in 11 families; classify saved failures with minimal reproducers before another full gate. Full legacy is deferred. The fixed-array repair does not cover pinned ADC's nested dynamic array."
+  next_command: "Check guarded Caliptra HMAC result.json; classify the saved 32 JSON failures with minimal reproducers. Do not rerun a full suite yet. After the HMAC guardian exits, run one selected OpenTitan VVP replay at a time under a memory/time guard."
   boundary: "No current 49-target OpenTitan census or ADC DV pass is inferred from the focused compiler tests."
 suspended_adc_proxy_lane:
   blocker: "OT-ADC-2CH-FILTER-CONSTRAINT-PROXY"
