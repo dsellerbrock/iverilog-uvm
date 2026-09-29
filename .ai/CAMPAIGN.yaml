@@ -10,8 +10,8 @@ active_open_titan_lane:
   installed_ivl_sha256: "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db"
   installed_vvp_sha256: "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
   reproducer: "Package-only original-source ROM scrambler mode5 rises from 9.4 MiB at 64 words to 203.9 MiB at 1024; mode1 address S&P alone reaches 139.0 MiB. Corrected-DPI full-top ROM init hits 4 GiB after 8192 words even with final deposit omitted."
-  validation: "PR394 OT build/install and focused JSON 12/12 pass. The small reducer ran under 384 MiB and isolates address/data scrambling; its specific VVP owner remains under investigation. Prior DD-089 broad gates and OTP pass used the older VVP and remain revision-scoped."
-  next_command: "Identify VVP object retention in the small scrambler reducer, fix only the shared lifetime invariant, prove unchanged outputs and bounded RSS, run focused/broad gates, then one guarded selected ROM Control replay when Caliptra releases the host budget. Do not rerun the 49-target corpus yet."
+  validation: "PR394 OT build/install and focused JSON 12/12 pass. The small reducer isolates address/data scrambling. Live object and malloc in-use counts remain nearly flat while RSS/physical footprint rise across iterations, pointing to allocator high-water rather than an object leak. Prior DD-089 broad gates and OTP pass used the older VVP and remain revision-scoped."
+  next_command: "Identify the allocation pattern behind high-water growth in the small scrambler reducer; apply a semantic-safe VVP change only if proven, then check values/memory and focused/broad gates. Run one guarded selected ROM Control replay when Caliptra releases the host budget. Do not rerun the 49-target corpus yet."
   boundary: "No ROM Control DV pass or refreshed 49-target census. OTBN coverage-bin triage remains read-only during this blocker."
 completed_dd089_lane:
   blocker: "DD-089"
