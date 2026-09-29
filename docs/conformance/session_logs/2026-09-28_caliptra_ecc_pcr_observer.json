@@ -1,0 +1,26 @@
+{
+  "scope": "Selected smoke_test_pcr_zeroize replay with start-of-busy checker guard and disposable ECC private-key observer; no 52-case corpus rerun",
+  "caliptra_pinned_sha": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "target": "smoke_test_pcr_zeroize",
+  "observer_patch_sha256": "0bf5b0a6af12e74f26442ab6ad30a1aa90c707dc834fb2613de7b5e942df8623",
+  "sim_log_sha256": "3fc444bb544693118d5c5942f16eb85360c0036d5e86659253117744fc8bcdc9",
+  "exec_log_sha256": "4e956c73d407572bfa72818960080346bcc8234a7f9aace0ea036e6ca570ac67",
+  "run_directory": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924/evidence/caliptra-ecc-pcr-internal-observer-replay-20260928/smoke_test_pcr_zeroize",
+  "sim_log_lines": "100-178",
+  "edge_observations": [
+    {"edge": 63228, "time_ns": 632535, "ready": 1, "pcr_sign_mode": 1, "zeroize_reg": 0, "key": "zero", "all_12_key_we": 1, "all_12_key_hwclr": 0},
+    {"edge": 63229, "time_ns": 632545, "ready": 0, "pcr_sign_mode": 0, "zeroize_reg": 0, "key": "loaded nonzero", "all_12_key_we": 0, "all_12_key_hwclr": 0},
+    {"edge": 63230, "time_ns": 632555, "ready": 0, "pcr_sign_mode": 0, "zeroize_reg": 0, "key": "unchanged", "all_12_key_we": 0, "all_12_key_hwclr": 0},
+    {"edge": 63231, "time_ns": 632565, "ready": 0, "pcr_sign_mode": 0, "zeroize_reg": 0, "key": "unchanged", "all_12_key_we": 0, "all_12_key_hwclr": 0},
+    {"edge": 63232, "time_ns": 632575, "ready": 0, "pcr_sign_mode": 0, "zeroize_reg": 1, "key": "unchanged loaded nonzero", "all_12_key_we": 0, "all_12_key_hwclr": 1},
+    {"edge": 63233, "time_ns": 632585, "ready": 0, "pcr_sign_mode": 0, "zeroize_reg": 0, "key": "zero", "all_12_key_we": 0, "all_12_key_hwclr": 0}
+  ],
+  "keyvault_controls": "kv_privkey_write_en, kv_key_data_present_reset, and kv_privkey_error were zero throughout observed edges",
+  "first_failure": "Original checker fired at 632545 ns after PCR_SIGN loaded the key while ready deasserted; previous-ready guard permits the intended entry transition.",
+  "second_failure": "Start-of-busy guarded checker fired at 632585 ns after zeroize_reg had asserted and all 12 key hwclr inputs were high on the previous edge; key was then zero.",
+  "proposed_checker_condition": "ecc_ready_reg || $past(ecc_ready_reg) || ($past(zeroize_reg) && privkey_reg == '0) || $stable(privkey_reg)",
+  "tiny_reproducer": "work/caliptra-ecc-pcr-zeroize-boundary-20260928.sv in the task workspace; existing model covers prior zeroize and unrelated busy mutation, while final zero-value qualification remains to be checked",
+  "guardian": {"memory_cap_gib": 8, "timeout_hours": 16, "vvp_exit_local_time": "2026-09-28 20:39:51 MDT", "peak_physical_footprint_bytes": 1106806416, "cap_hit": false, "timeout": false},
+  "selected_dv_result": "FAIL at the original private-key stability assertion; final checker replay pending",
+  "qualifies_52_case_census_update": false
+}
