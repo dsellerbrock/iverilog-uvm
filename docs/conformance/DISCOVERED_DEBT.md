@@ -3849,3 +3849,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `evidence/opentitan-otbn-dpi-import-scope-20260929/selected-result.json` and `selected-runtime.log`.
 - **Reproducer status:** confirmed in one selected pinned-source smoke with real libelf DPI and the generated smoke ELF; no minimal reducer yet.
 - **Triage status:** untriaged. Keep OTBN DEBT until the trace operation is finished and checked; do not suppress the warning under the DPI scope ticket.
+
+### DD-098 — SPI Device flash-mode selected compile retains semantic notices
+
+- **Discovered while working:** OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION.
+- **Observation:** The official `spi_device_flash_mode_vseq` selected replay compiles and prints `TEST PASSED CHECKS` with zero UVM warnings/errors/fatals, but its compile has five semantic notices: three `spi_agent_pkg` foreach iterator `i` unresolved references, one covergroup `valids` bin clipped to a 1-bit domain, and one `spi_device_pass_base_vseq` indexed `addr` fallback. The runner correctly reports DEBT rather than PASS.
+- **File/function:** OpenTitan SPI agent sequence files, `spi_device_env_cov.sv:123`, and `spi_device_pass_base_vseq.sv:548`; compiler diagnostics in the selected result.
+- **Possible clause:** IEEE 1800-2017/2023 foreach scoping, covergroup bin typing, and indexed expression semantics; root causes remain to be separated.
+- **Evidence:** `evidence/opentitan-matrix-smoke-selection-20260929/selected-result.json` and the selected compile log path recorded there.
+- **Reproducer status:** selected pinned-source compile and runtime; no minimal reducer for these five notices yet.
+- **Triage status:** record-only under the harness ticket. Preserve the SPI Device DEBT verdict until each semantic notice is resolved or justified.

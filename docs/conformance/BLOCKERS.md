@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION — honor the named smoke regression
+
+- **State:** DONE for smoke selection. A direct pre-fix discovery check failed for both targets. The corrected discovery chooses `rv_timer_random` and `spi_device_flash_mode` from their pinned smoke regressions; the other 47 census target selections are unchanged, and the matrix self-test passes. Selected RV Timer is **PASS**; selected SPI Device prints `TEST PASSED CHECKS` but remains **DEBT** from five separate compile-time semantic notices. See the [focused evidence](../../evidence/opentitan-matrix-smoke-selection-20260929/README.md).
+- **Cause and correction:** `scripts/opentitan_matrix.py` selected by a `smoke` substring in test names and ignored the smoke regression's `tests` list, although it already read that regression's run options. It now chooses the most local regression-named test with a concrete `uvm_test_seq` before the existing fallback.
+- **Boundary:** The immutable raw 49 rows and pinned source are unchanged. The corrected selected replays are revision-scoped; SPI Device's compile notices are DD-098, not waived by this harness fix. No full-suite qualification follows from these two replays.
+
 ### OT-OTBN-DPI-IMPORT-SCOPE — context import exposes its declaration instance
 
 - **State:** DONE for the DPI scope semantics. A paired strict IEEE 1800-2017/2023 two-instance reducer passes for imported functions and tasks; neighboring export and disable controls pass. Exact-image gates pass: JSON 4,129/0 across four shards, legacy 6,880 passed/0 failed (6,885 total), real-DPI UVM 362/362, VPI 131/131, and negatives 154/154. The selected OTBN smoke with real libelf DPI and its ELF reaches `TEST PASSED CHECKS` with zero UVM warnings/errors/fatals; the harness reports DEBT for one native trace-checker teardown warning.

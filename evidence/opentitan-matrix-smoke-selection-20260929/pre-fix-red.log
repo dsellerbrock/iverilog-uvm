@@ -1,0 +1,5 @@
+lowrisc:dv:rv_timer_sim:0.1 got (None, 'rv_timer_base_vseq') expected ('rv_timer_random', 'rv_timer_random_vseq')
+lowrisc:dv:spi_device_sim:0.1 got (None, 'spi_device_base_vseq') expected ('spi_device_flash_mode', 'spi_device_flash_mode_vseq')
+Traceback (most recent call last):
+  File "<stdin>", line 20, in <module>
+AssertionError: ['lowrisc:dv:rv_timer_sim:0.1', 'lowrisc:dv:spi_device_sim:0.1']

@@ -1,0 +1,3 @@
+lowrisc:dv:rv_timer_sim:0.1 got ('rv_timer_random', 'rv_timer_random_vseq') expected ('rv_timer_random', 'rv_timer_random_vseq')
+lowrisc:dv:spi_device_sim:0.1 got ('spi_device_flash_mode', 'spi_device_flash_mode_vseq') expected ('spi_device_flash_mode', 'spi_device_flash_mode_vseq')
+changed selections [('lowrisc:dv:rv_timer_sim:0.1', (None, 'rv_timer_base_vseq'), ('rv_timer_random', 'rv_timer_random_vseq')), ('lowrisc:dv:spi_device_sim:0.1', (None, 'spi_device_base_vseq'), ('spi_device_flash_mode', 'spi_device_flash_mode_vseq'))]

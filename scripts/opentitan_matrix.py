@@ -1601,11 +1601,31 @@ for config_path, config in loaded_configs:
     if "{" in core_name or core_name not in cores:
         continue
     tests = [test for test in config.get("tests", []) or [] if isinstance(test, dict)]
+    smoke_regressions = [
+        regression
+        for regression in config.get("regressions", []) or []
+        if isinstance(regression, dict) and regression.get("name") == "smoke"
+    ]
+    tests_by_name = {
+        substitute(test["name"], context): test
+        for test in tests
+        if isinstance(test.get("name"), str) and test.get("uvm_test_seq")
+    }
+    regression_smoke = next(
+        (
+            tests_by_name[substitute(name, context)]
+            for regression in reversed(smoke_regressions)
+            for name in regression.get("tests", []) or []
+            if isinstance(name, str)
+            and substitute(name, context) in tests_by_name
+        ),
+        None,
+    )
     smoke_tests = [
         test for test in tests if "smoke" in str(test.get("name", "")).casefold()
     ]
     expected_smoke = str(config.get("name", "")) + "_smoke"
-    selected = next(
+    selected = regression_smoke or next(
         (test for test in smoke_tests if test.get("name") == expected_smoke),
         smoke_tests[0] if smoke_tests else (tests[0] if len(tests) == 1 else {}),
     )
@@ -1615,11 +1635,6 @@ for config_path, config in loaded_configs:
     uvm_test_seq = substitute(
         selected.get("uvm_test_seq", config.get("uvm_test_seq", "")), context
     ) or None
-    smoke_regressions = [
-        regression
-        for regression in config.get("regressions", []) or []
-        if isinstance(regression, dict) and regression.get("name") == "smoke"
-    ]
     run_options = [
         *(config.get("run_opts", []) or []),
         *(selected.get("run_opts", []) or []),
