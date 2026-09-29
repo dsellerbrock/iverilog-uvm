@@ -501,21 +501,15 @@ struct vthread_s {
       }
       inline void push_vec4(const vvp_vector4_t&val)
       {
-	    /* Debug environment controls are immutable for a vvp run. This
-	       operation is on nearly every integral expression path, so asking
-	       libc to lock and rescan environ for every one-bit push is a large
-	       tax on real RTL/UVM workloads even when tracing is disabled. */
-	    static int push1_trace = -1;
-	    if (push1_trace < 0) {
-		  const char*env = getenv("IVL_PUSH1_TRACE");
-		  push1_trace = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
-	    }
-	    if (val.size() == 1 && push1_trace) {
-		  fprintf(stderr, "[push1] pushed 1-bit val at depth %zu, pc=%p\n",
-			  stack_vec4_.size(), (void*)pc);
-	    }
+	    /* IVL_PUSH1_TRACE is read once, at the first one-bit push; it is
+	       immutable for a vvp run. push1_trace_ is -1 until then. The
+	       report lives out of line so this stays inlinable. */
+	    if (push1_trace_ != 0 && val.size() == 1)
+		  push1_trace_note_();
 	    stack_vec4_.push_back(val);
       }
+      static int push1_trace_;
+      void push1_trace_note_(void);
       inline const vvp_vector4_t& peek_vec4(unsigned depth)
       {
 	    unsigned size = stack_vec4_.size();
@@ -531,22 +525,11 @@ struct vthread_s {
       }
       inline vvp_vector4_t& peek_vec4(void)
       {
-	    unsigned use_index = stack_vec4_.size();
-	    if (use_index < 1) {
-		  static unsigned warned = 0;
-		  if (warned < 8) {
-			fprintf(stderr, "[PEEK_VEC4-UF] fileline='%s' (further suppressed)\n",
-				get_fileline().c_str());
-			warned++;
-		  }
-		  /* Soft fallback: push 1-bit 0 so the peeking opcode has
-		     something to read and the run can progress. The actual
-		     bug is a missing earlier push. */
-		  push_vec4(vvp_vector4_t(1, BIT4_0));
-		  use_index = stack_vec4_.size();
-	    }
-	    return stack_vec4_[use_index-1];
+	    if (stack_vec4_.empty())
+		  peek_vec4_underflow_();
+	    return stack_vec4_.back();
       }
+      void peek_vec4_underflow_(void);
       inline void poke_vec4(unsigned depth, const vvp_vector4_t&val)
       {
 	    assert(depth < stack_vec4_.size());
@@ -10623,6 +10606,40 @@ static void unpin_synchronous_run_thread_(vthread_t thr, bool was_delayed)
 	    thr->delay_delete = was_delayed;
 }
 
+/* The run pins held by one vthread_run dispatch: the running thread, plus
+   one per trampolined call frame. Nearly always one or two, so the first
+   few live inline instead of in a heap-allocated vector. */
+class dispatch_pin_list_s {
+    public:
+      dispatch_pin_list_s() : count_(0) { }
+      bool empty() const { return count_ == 0; }
+      vthread_t back() const
+      {
+	    assert(count_ > 0);
+	    return count_ <= INLINE ? inline_[count_-1] : more_.back();
+      }
+      void push_back(vthread_t thr)
+      {
+	    if (count_ < INLINE)
+		  inline_[count_] = thr;
+	    else
+		  more_.push_back(thr);
+	    count_ += 1;
+      }
+      void pop_back()
+      {
+	    assert(count_ > 0);
+	    if (count_ > INLINE)
+		  more_.pop_back();
+	    count_ -= 1;
+      }
+    private:
+      enum { INLINE = 4 };
+      vthread_t inline_[INLINE];
+      size_t count_;
+      std::vector<vthread_t> more_;
+};
+
 void vthread_run(vthread_t thr)
 {
       static int pc_hottrace_enabled = -1;
@@ -10678,7 +10695,7 @@ void vthread_run(vthread_t thr)
 		  continue;
 	    }
 
-	    std::vector<vthread_t> dispatch_pins;
+	    dispatch_pin_list_s dispatch_pins;
 	    vthread_run_pin_(thr);
 	    dispatch_pins.push_back(thr);
 
@@ -10695,32 +10712,37 @@ void vthread_run(vthread_t thr)
 		    thr->i_am_delaying = 0;
 
             running_thread = thr;
-            __vpiScope*run_ctx_scope = resolve_context_scope(thr->parent_scope);
-            if (!thr->wt_context && thr->rd_context
-                && context_live_matches_scope_(thr->rd_context, run_ctx_scope)) {
-                  if (!warned_runentry_wt_sync) {
-                        const char*scope_name = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
-                        fprintf(stderr,
-                                "Warning: vthread_run synchronized missing wt_context from live rd_context"
-                                " (scope=%s wt=%p rd=%p; further similar warnings suppressed)\n",
-                                scope_name ? scope_name : "<unknown>",
-                                thr->wt_context, thr->rd_context);
-                        warned_runentry_wt_sync = true;
+              /* Synchronize a thread that has only one of its read and
+                 write contexts. Both checks need exactly one set, so the
+                 scope resolution is skipped otherwise. */
+            if ((thr->wt_context == 0) != (thr->rd_context == 0)) {
+                  __vpiScope*run_ctx_scope = resolve_context_scope(thr->parent_scope);
+                  if (!thr->wt_context && thr->rd_context
+                      && context_live_matches_scope_(thr->rd_context, run_ctx_scope)) {
+                        if (!warned_runentry_wt_sync) {
+                              const char*scope_name = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                              fprintf(stderr,
+                                      "Warning: vthread_run synchronized missing wt_context from live rd_context"
+                                      " (scope=%s wt=%p rd=%p; further similar warnings suppressed)\n",
+                                      scope_name ? scope_name : "<unknown>",
+                                      thr->wt_context, thr->rd_context);
+                              warned_runentry_wt_sync = true;
+                        }
+                        thr->wt_context = thr->rd_context;
                   }
-                  thr->wt_context = thr->rd_context;
-            }
-            if (!thr->rd_context && thr->wt_context
-                && context_live_matches_scope_(thr->wt_context, run_ctx_scope)) {
-                  if (!warned_runentry_rd_sync) {
-                        const char*scope_name = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
-                        fprintf(stderr,
-                                "Warning: vthread_run synchronized missing rd_context from live wt_context"
-                                " (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
-                                scope_name ? scope_name : "<unknown>",
-                                thr->rd_context, thr->wt_context);
-                        warned_runentry_rd_sync = true;
+                  if (!thr->rd_context && thr->wt_context
+                      && context_live_matches_scope_(thr->wt_context, run_ctx_scope)) {
+                        if (!warned_runentry_rd_sync) {
+                              const char*scope_name = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                              fprintf(stderr,
+                                      "Warning: vthread_run synchronized missing rd_context from live wt_context"
+                                      " (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
+                                      scope_name ? scope_name : "<unknown>",
+                                      thr->rd_context, thr->wt_context);
+                              warned_runentry_rd_sync = true;
+                        }
+                        thr->rd_context = thr->wt_context;
                   }
-                  thr->rd_context = thr->wt_context;
             }
 
 	    for (;;) {
@@ -10920,6 +10942,33 @@ void vthread_run(vthread_t thr)
 	    thr = tmp;
       }
       running_thread = 0;
+}
+
+int vthread_s::push1_trace_ = -1;
+
+void vthread_s::push1_trace_note_(void)
+{
+      if (push1_trace_ < 0) {
+	    const char*env = getenv("IVL_PUSH1_TRACE");
+	    push1_trace_ = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (push1_trace_)
+	    fprintf(stderr, "[push1] pushed 1-bit val at depth %zu, pc=%p\n",
+		    stack_vec4_.size(), (void*)pc);
+}
+
+/* An empty vec4 stack on a peek is a missing earlier push. Report it
+   and push a 1-bit 0 so the peeking opcode has something to read and
+   the run can progress. Kept out of line so peek_vec4() inlines. */
+void vthread_s::peek_vec4_underflow_(void)
+{
+      static unsigned warned = 0;
+      if (warned < 8) {
+	    fprintf(stderr, "[PEEK_VEC4-UF] fileline='%s' (further suppressed)\n",
+		    get_fileline().c_str());
+	    warned++;
+      }
+      push_vec4(vvp_vector4_t(1, BIT4_0));
 }
 
 /*
@@ -12271,27 +12320,16 @@ static void get_immediate_rval(vvp_code_t cp, vvp_vector4_t&val)
 	    return;
       }
 
-	// The immediate value can be values bigger then 32 bits, but
-	// only if the high bits are zero. So at most we need to run
-	// through the loop below 32 times. Maybe less, if the target
-	// width is less. We don't have to do anything special on that
-	// because vala/valb bits will shift away so (vala|valb) will
-	// turn to zero at or before 32 shifts.
-
-      for (unsigned idx = 0 ; idx < wid && (vala|valb) ; idx += 1) {
-	    uint32_t ba = 0;
-	      // Convert the vala/valb bits to a ba number that
-	      // matches the encoding of the vvp_bit4_t enumeration.
-	    ba = (valb & 1) << 1;
-	    ba |= vala & 1;
-
-	      // Note that the val is already pre-filled with BIT4_0
-	      // bits, os we only need to set non-zero bit values.
-	    if (ba) val.set_bit(idx, (vvp_bit4_t)ba);
-
-	    vala >>= 1;
-	    valb >>= 1;
+	// The immediate is at most 32 bits of a/b planes (the vvp_bit4_t
+	// encoding), so it fits the lowest word of val, which starts as 0.
+      unsigned long a = vala, b = valb;
+      if (wid < 8*sizeof(unsigned long)) {
+	    unsigned long mask = (1UL << wid) - 1UL;
+	    a &= mask;
+	    b &= mask;
       }
+      if (wid > 0)
+	    val.set_low_word_ab(a, b);
 }
 
 /*

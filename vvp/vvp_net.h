@@ -381,6 +381,19 @@ class vvp_vector4_t {
 	// store its bits in val (zero above size()) and return true.
 	// Otherwise return false and leave val alone.
       bool small_2state_word(unsigned long&val) const;
+	// Set the a/b planes of the lowest word (the vvp_bit4_t encoding:
+	// ab 00=0 10=1 01=z 11=x). The caller clears the bits at or above
+	// size().
+      void set_low_word_ab(unsigned long a, unsigned long b)
+      {
+	    if (size_ > BITS_PER_WORD) {
+		  abits_ptr_[0] = a;
+		  bbits_ptr_[0] = b;
+	    } else {
+		  abits_val_ = a;
+		  bbits_val_ = b;
+	    }
+      }
 
 	// Change all Z bits to X bits.
       void change_z2x();
@@ -481,7 +494,12 @@ inline vvp_vector4_t::vvp_vector4_t(unsigned size__, vvp_bit4_t val)
 	    WORD_Z_BBITS,
 	    WORD_X_BBITS };
 
-      allocate_words_(init_atable[val], init_btable[val]);
+      if (size_ <= BITS_PER_WORD) {
+	    abits_val_ = init_atable[val];
+	    bbits_val_ = init_btable[val];
+      } else {
+	    allocate_words_(init_atable[val], init_btable[val]);
+      }
 }
 
 inline vvp_vector4_t::~vvp_vector4_t()
