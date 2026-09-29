@@ -3749,3 +3749,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/two_state_oob_part_select.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log), identical on the unmodified 7a04009f baseline and with the new part-load opcode.
 - **Reproducer status:** confirmed, paired 2017/2023.
 - **Triage status:** untriaged. `vvp_load_vec4_part_select.v` checks two-state selects only in range.
+
+### DD-088 — packed-subfield `release` asserts on non-immediate LHS offset
+
+- **Discovered while working:** OT-OTP-FORCE-RHS-BANKED.
+- **Observation:** A `release dut.part_access[0].read_lock` on a packed array of packed structs aborts the VVP target with `Assertion failed: (number_is_immediate(part_off_ex, 64, 0)), function show_stmt_release, file vvp_process.c, line 3322.` This occurs after the separately selected packed-force link guard is applied. Whole-array `release dut.part_access` and `release dut.part_access_dai` compile and run; these are the exact release forms used by the selected OTP task.
+- **File/function:** `tgt-vvp/vvp_process.c` `show_stmt_release`, packed LHS offset handling.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6 procedural continuous assignment `release` semantics; inspect the exact packed-select requirements before implementation.
+- **Evidence:** [Reducer](../../evidence/opentitan-otp-force-rhs-20260928/packed_partial_release_repro.sv) and [focused OTP evidence](../../evidence/opentitan-otp-force-rhs-20260928/README.md). Strict `-g2017` and `-g2023`, each with `-gstrict-expr-width`, both exit 134 at the assertion on the private force-corrected VVP target.
+- **Reproducer status:** confirmed paired compile-time assertion; no selected OTP runtime implicated.
+- **Triage status:** separate targeted ticket; do not broaden the OTP force-RHS correction to partial release.

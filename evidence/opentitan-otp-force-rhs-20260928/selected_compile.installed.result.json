@@ -1,0 +1,111 @@
+{
+  "scope": "selected OTP UVM compile only on installed VVP target; no selected VVP execution",
+  "cwd": "/private/tmp/ot-dv-baseline-unsafe-20260925/work/runtime/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus",
+  "branch_head": "210eb6db35ccd6d59fe1f8d76e48a5021ecc9bb7",
+  "pinned_opentitan_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "sha256": {
+    "iverilog_driver": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+    "installed_ivl_engine": "80d46ba33e85b5c5add971a881839200029f8f6d987ddf28c14565210b93ae44",
+    "installed_vvp_target": "84f6a6d6fb653bb0983d4a01bca0ad99600c26e7e3eaa9d67e2fcf4a62687d84",
+    "banked_otp_source_copy": "43d736ea0dfb5cd2857d5ab05c69bc8468b0b5972f55f4046a8a1bc316445b4e",
+    "typed_endpoint_source_copy": "46cd4f9142237a12abed3d6b0eacf56b95faa97cf2a3ddb05bda09a518be5de5"
+  },
+  "variants": {
+    "baseline": {
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-sotp_ctrl_bind",
+        "-sotp_ctrl_cov_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-gcommercial-unsafe",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/otp-baseline-typed-installed.vvp",
+        "-c",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/baseline-typed-matrix-iverilog.scr"
+      ],
+      "exit_code": 0,
+      "stderr_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/baseline-typed-installed.stderr.log",
+      "stdout_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/baseline-typed-installed.stdout.log",
+      "diagnostics": {
+        "force_rhs_sorry": 40,
+        "warning": 56,
+        "unsafe_purity_warning": 36,
+        "error": 0,
+        "stderr_lines": 97,
+        "stdout_lines": 0
+      },
+      "source_list_sha256": "5c5e74d563ca2e7ffc29efb8a444b663d6881a8767e8e1ddff4d9cbabc69f0df",
+      "outer_list_sha256": "470ca768814815989254fd3de1c43bd0fd8fe766a6dbc91631a2787549e01c1e",
+      "vvp_image_bytes": 100085842,
+      "vvp_image_sha256": "00178e9383cda1fc11e7a265b3aaa1ac5a272648f23cc5c5de7a6190fc539776",
+      "vvp_executed": false
+    },
+    "force": {
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-sotp_ctrl_bind",
+        "-sotp_ctrl_cov_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-gcommercial-unsafe",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/otp-force-typed-installed.vvp",
+        "-c",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/force-typed-matrix-iverilog.scr"
+      ],
+      "exit_code": 0,
+      "stderr_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/force-typed-installed.stderr.log",
+      "stdout_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/force-typed-installed.stdout.log",
+      "diagnostics": {
+        "force_rhs_sorry": 0,
+        "warning": 56,
+        "unsafe_purity_warning": 36,
+        "error": 0,
+        "stderr_lines": 57,
+        "stdout_lines": 0
+      },
+      "source_list_sha256": "b6681b7ca8c3a92c8dde7cca1dc2cc5a5008c1628d6c58e802bcae07bdf016cf",
+      "outer_list_sha256": "c9a083cc29653caf9cbfab11169f4eb9f7d5f4ee7e33f84ad732425c3b4e35b0",
+      "vvp_image_bytes": 100145848,
+      "vvp_image_sha256": "67c85d2a680af198986cda0e0c22343b7213b0b7a046f44d0daf43ed0d29a7a2",
+      "vvp_executed": false
+    }
+  },
+  "diagnostics_match_after_removing_40_force_notices": true,
+  "source_list_changed_lines": [
+    {
+      "line": 310,
+      "baseline": "../src/lowrisc_dv_otp_ctrl_env_0.1/otp_ctrl_if.sv",
+      "force": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otp-force-candidate-20260928/otp_ctrl_if.sv"
+    }
+  ]
+}
