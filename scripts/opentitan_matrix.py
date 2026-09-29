@@ -176,6 +176,19 @@ DEBT_PATTERNS = (
 OPENTITAN_RUNTIME_PASS_RE = re.compile(
     r"^TEST PASSED (?:UVM_)?CHECKS$", re.I | re.M
 )
+SPID_JEDEC_CHECKED_PASS_RE = re.compile(r"^SPI Flash Read JEDEC ID Tested!!:$", re.M)
+
+
+def opentitan_runtime_pass_marker(core: str, output: str) -> bool:
+    return bool(
+        OPENTITAN_RUNTIME_PASS_RE.search(output)
+        or (
+            core == "lowrisc:dv:spid_jedec_sim:0.1"
+            and SPID_JEDEC_CHECKED_PASS_RE.search(output)
+        )
+    )
+
+
 OPENTITAN_RUNTIME_FAIL_PATTERNS = (
     re.compile(r"^UVM_ERROR\s[^:].*$", re.I),
     re.compile(r"^UVM_FATAL\s[^:].*$", re.I),
@@ -183,6 +196,7 @@ OPENTITAN_RUNTIME_FAIL_PATTERNS = (
     re.compile(r"^Assert failed: ", re.I),
     re.compile(r"^\s*Offending '.*'", re.I),
     re.compile(r"^TEST FAILED (?:UVM_)?CHECKS$", re.I),
+    re.compile(r"(?:^|:\s*)TEST TIMED OUT!!$"),
     re.compile(r"^Error:.*$", re.I),
     re.compile(r"^DPI error:.*$", re.I),
 )
@@ -2850,10 +2864,12 @@ def run_job(
         (*HARD_ERROR_PATTERNS, *OPENTITAN_RUNTIME_FAIL_PATTERNS),
         RUNTIME_ERROR_ALLOWLIST,
     )
-    runtime_pass_banner = bool(OPENTITAN_RUNTIME_PASS_RE.search(runtime_result.output))
+    runtime_pass_banner = opentitan_runtime_pass_marker(
+        job.core.vlnv, runtime_result.output
+    )
     if not runtime_pass_banner:
         runtime_errors.append(
-            "OpenTitan runtime produced no `TEST PASSED [UVM_]CHECKS` banner"
+            "OpenTitan runtime produced no recognized checked pass marker"
         )
     runtime_debt = matching_lines(
         runtime_result.output, DEBT_PATTERNS, RUNTIME_DEBT_ALLOWLIST
@@ -3468,6 +3484,18 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED CHECKS\n")
     assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED UVM_CHECKS\n")
     assert not OPENTITAN_RUNTIME_PASS_RE.search("UVM_INFO test ended\n")
+    jedec_core = "lowrisc:dv:spid_jedec_sim:0.1"
+    jedec_pass = "SPI Flash Read JEDEC ID Tested!!:\n"
+    assert opentitan_runtime_pass_marker(jedec_core, jedec_pass)
+    assert not opentitan_runtime_pass_marker("lowrisc:dv:spid_upload_sim:0.1", jedec_pass)
+    assert not opentitan_runtime_pass_marker(
+        jedec_core, "Jedec ID Received: Manufacturer ID [be], JEDEC_ID [a55a]\n"
+    )
+    assert matching_lines("TEST TIMED OUT!!", OPENTITAN_RUNTIME_FAIL_PATTERNS)
+    assert matching_lines(
+        "FATAL: spid_jedec_tb.sv:93: TEST TIMED OUT!!",
+        OPENTITAN_RUNTIME_FAIL_PATTERNS,
+    )
     assert matching_lines(
         "UVM_FATAL @ 0: reporter [NOCOMP] No components instantiated",
         OPENTITAN_RUNTIME_FAIL_PATTERNS,
