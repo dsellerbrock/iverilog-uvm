@@ -7,7 +7,7 @@ module test;
   signed_member item;
   initial begin
     item = new;
-    if (item.randomize()) $fatal(1, "signed member was accepted");
+    if (item.randomize()) $fatal(1, "unknown index of signed member was accepted");
     $display("PASSED");
   end
 endmodule

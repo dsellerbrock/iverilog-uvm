@@ -1,0 +1,1 @@
+ERROR: constraint state read: the constraint item at ./ivltests/sv_constraint_fixed_array_packed_member_signed_x_index.sv:4 is not supported by the constraint solver; randomize() fails rather than ignore it.

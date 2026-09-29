@@ -30935,11 +30935,10 @@ static bool constraint_dist_context_fill_ir_(const PExpr*expr,
       return true;
 }
 
-/* A fixed-array leaf containing a queue uses the same canonical flat
- * word for size and content IR. Every fixed index must be ground after
- * foreach unrolling; a symbolic fixed leaf cannot be assigned a queue
- * identity at elaboration. */
-static bool constraint_fixed_queue_leaf_(
+/* Map a fully selected fixed-array leaf to its canonical flat word.
+ * Every index must be ground after foreach unrolling; a symbolic leaf
+ * cannot have a stable solver identity at elaboration. */
+static bool constraint_fixed_array_leaf_word_(
       const netuarray_t*fixed, const list<index_component_t>&indices,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
       const NetScope*scope, const map<perm_string,uint64_t>*loop_env,
@@ -31024,7 +31023,7 @@ static string constraint_class_container_size_ir_(
       bool fixed_leaf = false;
       uint64_t word = 0;
       if (const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(ptype)) {
-            if (!constraint_fixed_queue_leaf_(fixed, cpath.front().index,
+            if (!constraint_fixed_array_leaf_word_(fixed, cpath.front().index,
                   cls, value_slots, scope, loop_env, word)) return "";
             ptype = fixed->element_type();
             fixed_leaf = true;
@@ -31104,7 +31103,7 @@ static string constraint_class_fixed_queue_element_ir_(
       list<index_component_t> prefix(component.index.begin(),
             prev(component.index.end()));
       uint64_t word = 0;
-      if (!constraint_fixed_queue_leaf_(fixed, prefix, cls, value_slots,
+      if (!constraint_fixed_array_leaf_word_(fixed, prefix, cls, value_slots,
             scope, loop_env, word)) return "";
       const index_component_t&inner = component.index.back();
       if (inner.sel != index_component_t::SEL_BIT || !inner.msb || inner.lsb)
@@ -33667,7 +33666,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  || offset > ewidth || mwidth > ewidth - offset)
 				return "";
 		      uint64_t element = 0;
-		      if (!constraint_fixed_queue_leaf_(fixed, comp->index, cls,
+		      if (!constraint_fixed_array_leaf_word_(fixed, comp->index, cls,
 			    value_slots, scope, loop_env, element))
 			return "";
 			      string base = "e:" + to_string(pidx) + ":"
