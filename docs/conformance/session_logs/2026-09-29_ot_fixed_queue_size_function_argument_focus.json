@@ -1,0 +1,21 @@
+{
+  "blocker": "OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT",
+  "baseline_head": "6497dcd3e",
+  "baseline": "The 2017 and 2023 sv_constraint_fixed_queue_leaf_size JSON cases each fail only the function argument leaf identity check. Installed VVP rejects the selected fixed-queue size argument before solving.",
+  "compiler_dependency": ".constraint_dep 3 0 1 identifies SIZE of property 0, fixed leaf 1; the generated wrapper reads q[1].size() before calling plus_one.",
+  "implementation": "vvp/vvp_z3.cc admits Ref::SIZE through its fixed-queue function-dependency guard. Other dependency kinds retain the rejection.",
+  "build_tree_vvp_sha256": "e978a84bff1268ab70970eb6c5977f9f0f834d73c93ae9267d09125d2d40745b",
+  "shared_source_sha256": "57513e51662d2cd519595200d191391f8834689b99188a2ce08cc03f98617157",
+  "installed_ivl_sha256": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+  "focused_results": {
+    "strict_json_equivalent_exact_gold": "6 passed, 0 failed: paired fixed-queue size function positives, fixed-element function negatives, and direct size-conflict controls",
+    "minimal_red_green": "A 12-line fixed-queue function argument reducer fails on the installed VVP and passes on the one-condition candidate.",
+    "make_check": "pass",
+    "gold_changes": 0
+  },
+  "stage_and_writeback": "The selected q[1] SIZE reference is stage 0; the class function is captured before stage 1, which solves q[0]. The existing size writeback uses the selected leaf index.",
+  "remaining_prior_json_failures": {
+    "unsafe_interface_driver": 12
+  },
+  "qualification_boundary": "The historical full JSON result remains 4,097/32 at d5c7366c3. No full JSON/legacy or OpenTitan/Caliptra corpus rerun followed this focused repair. Independent review approved the narrow guard; the exact-head broad gate remains pending."
+}

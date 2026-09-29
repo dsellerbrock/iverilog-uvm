@@ -351,6 +351,12 @@
 - **Cause and expected behavior:** Three constant-then-parameter-selector branches in `elaborate.cc` continue after `constraint_constant_ir_` has already increased `Design::errors`. Stop that fallback only after an actual diagnostic; an empty error-free constant attempt must still reach symbolic rand-index selection. Keep value-slot capture behavior unchanged.
 - **Boundary:** Verify both invalid constants, valid member-range/rand-index controls, and symbolic invalid-member rejection before any full gate. This repairs diagnostic identity/count, not a new language feature or OpenTitan DV target.
 
+### OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT — preserve the selected size leaf
+
+- **State:** A SIZE-only guard narrowing in `vvp/vvp_z3.cc` passes the strict paired 2017/2023 fixed-queue function-argument positives, fixed-element function-argument negatives, and contradictory size controls: 6/6 exact gold. The build-tree VVP, `make check`, and independent review pass. See [focused evidence](session_logs/2026-09-29_ot_fixed_queue_size_function_argument_focus.json).
+- **Cause and behavior:** The compiler emits `SIZE/property 0/leaf 1` for the `q[1].size()` argument and a wrapper that reads that leaf. VVP rejected every fixed-queue function dependency before stage planning. Allowing SIZE alone lets the existing stage solver write back `q[1]` first, capture `plus_one(1)`, then solve `q[0].size()==2`; a fixed queue element argument remains unsupported.
+- **Boundary:** The saved full JSON gate remains 4,097/32 at `d5c7366c3`; no broad gate or application DV run followed this focused change. Dynamic queue-size function arguments have a separate staging gap and are outside this ticket.
+
 ### OT-SDF-INTERCONNECT-PORT-BOUNDARY — annotate variable-driven input ports
 
 - **State:** The VPI boundary fix passes strict 2017/2023 one-edge reg, `always_comb`, and wire controls with the exact 20 ps delay; focused SDF JSON passes 15/15, including the three saved failures, singleton guard, and selected-resolver neighbors. `make check` passes. The original 4,097/32 gate remains historical. See [the focused evidence](session_logs/2026-09-29_ot_sdf_interconnect_port_boundary_focus.json).

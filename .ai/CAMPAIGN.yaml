@@ -1,16 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 04d73e889
+checkpoint_head: 6497dcd3e
 active_open_titan_lane:
-  blocker: "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK"
+  blocker: "OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT"
   phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "04d73e889"
-  reproducer: "Two PartInfo compile-negative cases ×2017/2023 each emit a specific error followed by a generic fallback error; saved gold requires one. Direct probes and three call sites are identified in work/json-eight-direct-20260929/triage.md."
-  pending_validation: "The three fallback guards remove duplicate diagnostics in all four saved CE cases. Focused PartInfo JSON 18/18, legacy 18/18 and make check pass; symbolic rand-index positive and invalid-member negative remain sound. Independent diff review found no actionable issue."
-  next_command: "Select the fixed-queue function argument blocker, then unsafe-driver blocker. Keep Caliptra HMAC guarded and broad gates deferred until all 14 saved failures are addressed."
-  boundary: "No application DV or changed 4097/32 historical JSON count is inferred from focused diagnostic repair."
+  baseline_head: "6497dcd3e"
+  reproducer: "sv_constraint_fixed_queue_leaf_size ×2017/2023 fails only its function argument leaf identity check; generated dependency is SIZE/property 0/leaf 1, and VVP rejects it before planning."
+  pending_validation: "The one-condition SIZE-only guard narrowing passes strict paired positive, fixed-element negative and size-conflict controls 6/6 with exact gold on build-tree VVP; make check and independent review pass. Exact-head broad gate remains pending."
+  next_command: "Select the 12 unsafe-driver cases, then run the exact-head JSON gate. Keep Caliptra HMAC guarded and application DV deferred."
+  boundary: "No application DV or changed 4097/32 historical JSON count is inferred from focused repair."
+suspended_partinfo_lane:
+  blocker: "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK"
+  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  last_validated_revision: "6497dcd3e"
+  state: "The four saved CE golds again match one specific diagnostic; focused PartInfo JSON 18/18, legacy 18/18 and make check pass."
+  next_command: "After the remaining saved JSON failures are repaired, run the exact-head full JSON gate."
 suspended_sdf_lane:
   blocker: "OT-SDF-INTERCONNECT-PORT-BOUNDARY"
   phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"

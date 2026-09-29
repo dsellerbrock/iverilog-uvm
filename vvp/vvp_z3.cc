@@ -11631,7 +11631,8 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                                     dependency.property);
                               if (!type->property_dimensions(
                                         dependency.property).empty()
-                                  && !base.empty() && base[0] == 'Q') {
+                                  && !base.empty() && base[0] == 'Q'
+                                  && dependency.kind != Ref::SIZE) {
                                     plan.error = "constraint function argument from a fixed queue is not supported";
                                     goto fail;
                               }
