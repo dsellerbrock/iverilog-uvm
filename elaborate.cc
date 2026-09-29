@@ -42369,6 +42369,37 @@ static void bind_root_interface_synthesis_members_(Design*des)
       }
 }
 
+bool elaborate_concrete_class_typedefs(Design*des, NetScope*scope)
+{
+      if (!scope)
+	    return false;
+      if (scope->type() == NetScope::CLASS) {
+	    const netclass_t*cls = scope->class_def();
+	    const PClass*pclass = scope->class_pform();
+	    if (!cls || cls->generic_body_only()
+		|| (pclass && pclass->has_parameter_port_list
+		    && !cls->specialized_instance()))
+		  return false;
+      }
+
+      bool reached = false;
+      for (const auto&entry : scope->local_typedefs()) {
+	    typedef_t*td = entry.second;
+	    const typeref_t*ref = td
+		? dynamic_cast<const typeref_t*>(td->get_data_type()) : 0;
+	    if (ref && (ref->parameter_values()
+		|| dynamic_cast<const class_scoped_typeref_t*>(ref)
+		|| specialize_bare_class_at_concrete_use(
+		      des, scope, ref, 0, false))) {
+		  td->elaborate_type(des, scope);
+		  reached = true;
+	    }
+      }
+      for (const auto&child : scope->children())
+	    reached |= elaborate_concrete_class_typedefs(des, child.second);
+      return reached;
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -42706,8 +42737,15 @@ Design* elaborate(list<perm_string>roots)
       }
       report_elaboration_perf_phase_("roots-end", root_elems.size(), root_elems.size());
 
+	/* A typedef-only explicit class specialization is a concrete use. */
+	bool reached_typedef = false;
+	for (NetScope*pkg : des->find_package_scopes())
+	    reached_typedef |= elaborate_concrete_class_typedefs(des, pkg);
+	for (NetScope*root : des->find_root_scopes())
+	    reached_typedef |= elaborate_concrete_class_typedefs(des, root);
+
       report_elaboration_perf_phase_("specialized-bodies-begin");
-      finalize_pending_specialized_class_elaboration(des);
+      finalize_pending_specialized_class_elaboration(des, reached_typedef);
       release_deferred_static_inits(des);
       report_elaboration_perf_phase_("specialized-bodies-end");
 

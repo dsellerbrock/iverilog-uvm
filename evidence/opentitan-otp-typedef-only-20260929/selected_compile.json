@@ -1,0 +1,18 @@
+{
+  "blocker": "DD-089",
+  "qualification": "selected_compile_only",
+  "source_count": 282,
+  "source_list_sha256": "b6681b7ca8c3a92c8dde7cca1dc2cc5a5008c1628d6c58e802bcae07bdf016cf",
+  "copied_tb_sha256": "a7bd1964e2c7e626d5a25a04597129417a7c47f89c95069da6af86dd094689c6",
+  "explicit_registration_workaround": false,
+  "ivl_sha256": "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db",
+  "compile_exit": 0,
+  "errors": 0,
+  "sorry": 0,
+  "warnings": 56,
+  "image_sha256": "82821822c92ed1f40562dfcdbe06eb6f400933dc839a2b65d03e4bef37564a82",
+  "image_bytes": 103683069,
+  "concrete_otp_ctrl_base_test_classes": 1,
+  "matching_registry_initializers": 1,
+  "vvp_runtime_executed": false
+}

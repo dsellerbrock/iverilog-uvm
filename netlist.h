@@ -1277,6 +1277,8 @@ class NetScope : public Definitions, public Attrib {
       NetScope*find_import(const Design*des, perm_string name);
 
       void add_typedefs(const std::map<perm_string,typedef_t*>*typedefs);
+      const std::map<perm_string,typedef_t*>& local_typedefs() const
+	{ return typedefs_; }
 
       void add_nettypes(Design*des,
                         const LexicalScope::nettype_map_t*nettypes);
@@ -6437,6 +6439,8 @@ class Design {
 	 * a process-static AST-pointer cache can suppress errors in a later
 	 * Design after the first parse/elaboration has finished. */
       bool mark_constraint_randc_diagnostic(const PExpr*expr);
+      bool mark_randc_cycle_cap_warning(const class_type_t::prop_info_t*prop,
+                                        long width);
       bool mark_constraint_order_diagnostic(const PExpr*expr);
       bool mark_constraint_dist_diagnostic(const PExpr*expr);
 
@@ -6485,6 +6489,8 @@ class Design {
       std::map<std::pair<const PExpr*,const NetScope*>,bool>
 	    struct_member_default_validations_;
       std::set<const PExpr*> constraint_randc_diagnostic_sites_;
+      std::map<const class_type_t::prop_info_t*,std::set<long> >
+            randc_cycle_cap_warning_sites_;
       std::set<const PExpr*> constraint_order_diagnostic_sites_;
       std::set<const PExpr*> constraint_dist_diagnostic_sites_;
       bool package_subroutine_bodies_ready_;

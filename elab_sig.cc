@@ -2376,7 +2376,9 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    if (!bad_type && cur->second.qual.test_randc() && use_type) {
 	      long pw = class_randc_property_leaf_width_(use_type);
 	      const long randc_cap_bits = 20;
-	      if (pw > randc_cap_bits) {
+	      // Specializations share a declaration but can change its width.
+	      if (pw > randc_cap_bits
+	          && des->mark_randc_cycle_cap_warning(&cur->second, pw)) {
 		cerr << cur->second.get_fileline() << ": warning: randc property '"
 			     << cur->first << "' of class " << get_name()
 			     << " has a " << pw << "-bit cyclic leaf, beyond the "

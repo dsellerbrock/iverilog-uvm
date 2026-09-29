@@ -133,6 +133,9 @@ module randc_prov_bad_let_scope;
   endfunction
 endmodule
 
+// A concrete typedef elsewhere must not re-diagnose the randc class.
+typedef randc_prov_bad_box#(randc_prov_bad_leaf) randc_prov_alias_t;
+
 module test;
   randc_prov_bad_ast ast;
   randc_prov_bad_specialization specialization;

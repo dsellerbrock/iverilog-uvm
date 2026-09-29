@@ -1639,6 +1639,7 @@ static NetScope* s_type_elaborate_caller_scope_ = nullptr;
  */
 ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 {
+      NetScope*caller_scope = scope;
       // Save the caller scope before find_scope changes it. typeref_t uses
       // this to pass the correct call_scope to elaborate_specialized_class_type.
       NetScope* saved_caller_scope = s_type_elaborate_caller_scope_;
@@ -1647,6 +1648,13 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
       scope = find_scope(des, scope);
 
       Definitions*use_definitions = scope;
+      /* A package-qualified C#(N) resolves C in the package, but N may
+       * differ between module instances. Cache those specializations by
+       * their caller, not by the package that owns C. */
+      if (scope != caller_scope)
+            if (const typeref_t*ref = dynamic_cast<const typeref_t*>(this))
+                  if (ref->parameter_values() && caller_scope)
+                        use_definitions = caller_scope;
 
       map<Definitions*,ivl_type_t>::iterator pos = cache_type_elaborate_.lower_bound(use_definitions);
 	  if (pos != cache_type_elaborate_.end() && pos->first == use_definitions) {
@@ -1672,7 +1680,8 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
       }
 
       if (tmp)
-	    cache_type_elaborate_.insert(pos, pair<NetScope*,ivl_type_t>(scope, tmp));
+	    cache_type_elaborate_.insert(pos,
+		pair<Definitions*,ivl_type_t>(use_definitions, tmp));
       s_type_elaborate_caller_scope_ = saved_caller_scope;  // always restore
       return tmp;
 }

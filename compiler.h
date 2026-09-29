@@ -128,7 +128,9 @@ extern bool debug_emit;
 extern bool debug_synth2;
 extern bool debug_optimizer;
 
-void finalize_pending_specialized_class_elaboration(Design*des);
+void finalize_pending_specialized_class_elaboration(Design*des,
+                                                    bool reached_typedef);
+bool elaborate_concrete_class_typedefs(Design*des, NetScope*scope);
 void repair_specialized_class_property_types(Design*des);
 void release_deferred_static_inits(Design*des);
 void release_elaboration_specialization_caches();
