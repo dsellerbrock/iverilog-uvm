@@ -67,6 +67,13 @@ static int draw_condition_binary_compare(ivl_expr_t expr)
 	    return draw_condition_fallback(expr);
       }
 
+	/* Dynamic arrays and queues compare element-wise; the vec4 path
+	   below would compare "handle is non-null" flags instead. */
+      if (ivl_expr_value(le)==IVL_VT_DARRAY || ivl_expr_value(le)==IVL_VT_QUEUE
+	  || ivl_expr_value(re)==IVL_VT_DARRAY || ivl_expr_value(re)==IVL_VT_QUEUE) {
+	    return draw_condition_fallback(expr);
+      }
+
       unsigned use_wid = ivl_expr_width(le);
       if (ivl_expr_width(re) > use_wid)
 	    use_wid = ivl_expr_width(re);

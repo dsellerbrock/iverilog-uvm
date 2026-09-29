@@ -3466,9 +3466,22 @@ NetExpr* elaborate_rval_expr(Design *des, NetScope *scope, ivl_type_t lv_net_typ
  * `'{data: .., mask: ..}' patterns, failed with "Unable to elaborate
  * r-value" because only a DIRECT pattern was recognized here.
  */
+bool concat_of_assign_patterns_is_unsafe_typed(const PExpr*expr)
+{
+      const PEConcat*concat = dynamic_cast<const PEConcat*>(expr);
+      if (!gn_commercial_unsafe_flag || !concat || concat->has_repeat()
+	  || concat->stream_parms().empty())
+	    return false;
+      for (const PExpr*item : concat->stream_parms())
+	    if (!dynamic_cast<const PEAssignPattern*>(item))
+		  return false;
+      return true;
+}
+
 static bool expr_needs_typed_elab_(const PExpr*expr)
 {
-      if (dynamic_cast<const PEAssignPattern*>(expr))
+      if (dynamic_cast<const PEAssignPattern*>(expr)
+	  || concat_of_assign_patterns_is_unsafe_typed(expr))
 	    return true;
       if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
 	    return expr_needs_typed_elab_(ter->get_true())
@@ -4579,6 +4592,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
       auto &members = struct_type->members();
 
       vector<NetExpr*> items(members.size(), nullptr);
+      unsigned errors_before = des->errors;
 
       size_t union_active_member = members.size();
       if (!keys_.empty()) {
@@ -4723,6 +4737,14 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 		  items[idx] = elaborate_rval_expr(des, scope,
 					   members[idx].net_type,
 					   pv[idx], need_const);
+      }
+
+	/* A reported member error leaves a hole in items[]; returning the
+	   partial pattern only cascades into misleading later diagnostics. */
+      if (des->errors != errors_before) {
+	    for (NetExpr*item : items)
+		  delete item;
+	    return nullptr;
       }
 
       if (!struct_type->packed()) {
@@ -19724,6 +19746,39 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
+	/* Nonstandard compatibility, -gcommercial-unsafe only: a concatenation
+	 * of untyped assignment patterns filling a one-dimensional packed
+	 * array, `info_t [2:0] P = {'{...}, '{...}, '{...}}'. A concatenation
+	 * operand is not an assignment-like context (IEEE 1800-2017/2023
+	 * 10.9), so strict mode rejects each pattern as untyped. Commercial
+	 * simulators give every operand the packed element type. */
+      if (concat_of_assign_patterns_is_unsafe_typed(this)) {
+	    const netparray_t*parray = dynamic_cast<const netparray_t*>(ntype);
+	    if (!parray || parray->static_dimensions().size() != 1)
+		  return elaborate_expr(des, scope, ntype->packed_width(), flags);
+	    unsigned count = parray->static_dimensions()[0].width();
+	    if (count != parms_.size()) {
+		  cerr << get_fileline() << ": error: concatenation of "
+		       << "assignment patterns expects " << count
+		       << " packed element(s), found " << parms_.size()
+		       << "." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    NetEConcat*res = new NetEConcat(parms_.size(), 1, ntype->base_type());
+	    res->set_line(*this);
+	    for (size_t idx = 0; idx < parms_.size(); idx += 1) {
+		  NetExpr*item = elaborate_rval_expr(
+			des, scope, parray->element_type(), parms_[idx], false);
+		  if (!item) {
+			delete res;
+			return nullptr;
+		  }
+		  res->set(idx, item);
+	    }
+	    return res;
+      }
+
       switch (ntype->base_type()) {
 	  case IVL_VT_STRING: {
 	      /* IEEE 1800-2017 11.4.12.2 and Table 6-9: when a
@@ -19996,8 +20051,15 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  gn_strict_expr_width_flag = save_strict;
 	    }
 
+	    unsigned operand_errors = des->errors;
 	    NetExpr*ex = parms_[idx]->elaborate_expr(des, scope, wid, flags);
-	    if (ex == 0) continue;
+	    if (ex == 0) {
+		    // An operand that already reported its error must not
+		    // cascade into a misleading zero-width diagnostic.
+		  if (des->errors != operand_errors)
+			parm_errors += 1;
+		  continue;
+	    }
 
 	    ex->set_line(*parms_[idx]);
 

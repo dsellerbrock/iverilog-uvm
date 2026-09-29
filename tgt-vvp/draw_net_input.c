@@ -637,6 +637,31 @@ static void display_multi_driver_error(ivl_nexus_t nex, unsigned ndrivers,
  */
 
 static ivl_nexus_ptr_t *drivers = 0x0;
+/* Continuous assignments to different bits of one variable are legal (IEEE
+ * 1800-2017/2023 6.5): each reaches the nexus as a part-select driver, and
+ * tri resolution of their disjoint ranges is exact. Only overlapping writes
+ * break the single-driver rule. */
+static int part_drivers_are_disjoint_(ivl_nexus_ptr_t*list, unsigned count)
+{
+      unsigned idx, jdx;
+      for (idx = 0 ; idx < count ; idx += 1) {
+	    ivl_lpm_t lpm = ivl_nexus_ptr_lpm(list[idx]);
+	    if (!lpm || ivl_lpm_type(lpm) != IVL_LPM_PART_PV)
+		  return 0;
+      }
+      for (idx = 0 ; idx < count ; idx += 1) {
+	    ivl_lpm_t a = ivl_nexus_ptr_lpm(list[idx]);
+	    unsigned abase = ivl_lpm_base(a), aend = abase + ivl_lpm_width(a);
+	    for (jdx = idx + 1 ; jdx < count ; jdx += 1) {
+		  ivl_lpm_t b = ivl_nexus_ptr_lpm(list[jdx]);
+		  unsigned bbase = ivl_lpm_base(b), bend = bbase + ivl_lpm_width(b);
+		  if (abase < bend && bbase < aend)
+			return 0;
+	    }
+      }
+      return 1;
+}
+
 static unsigned adrivers = 0;
 
 void EOC_cleanup_drivers(void)
@@ -908,7 +933,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 
 	/* A uwire is a tri with only one driver. */
       if (res == IVL_SIT_UWIRE) {
-	    if (ndrivers > 1) {
+	    if (ndrivers > 1 && !part_drivers_are_disjoint_(drivers, ndrivers)) {
 		  /* Compile-progress: uwire multi-driver is an error per the standard,
 		   * but in DV testbenches with struct ports this is common. Downgrade
 		   * to a warning and continue (treat as regular tri resolution). */

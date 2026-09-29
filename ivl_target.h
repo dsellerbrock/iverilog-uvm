@@ -1991,6 +1991,11 @@ extern unsigned    ivl_parameter_lineno(ivl_parameter_t net);
  * ivl_scope_is_auto
  *    Is the task or function declared to be automatic?
  *
+ * ivl_scope_is_disable_target
+ *    Does any disable statement in the design target this scope? The
+ *    break, continue and return flow controls count, since they are
+ *    lowered to disables.
+ *
  * ivl_scope_is_cell
  *    Is the module defined to be a cell?
  *
@@ -2077,6 +2082,7 @@ extern unsigned     ivl_scope_events(ivl_scope_t net);
 extern ivl_event_t  ivl_scope_event(ivl_scope_t net, unsigned idx);
 extern const char* ivl_scope_file(ivl_scope_t net);
 extern unsigned ivl_scope_is_auto(ivl_scope_t net);
+extern unsigned ivl_scope_is_disable_target(ivl_scope_t net);
   /* Does this automatic scope own an activation frame, or is it
      collapsed into the enclosing frame? (Meaningful only when
      ivl_scope_is_auto is true.) */

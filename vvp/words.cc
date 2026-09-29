@@ -304,7 +304,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
 	// carry no element type and their elements correctly default to null.
       if (element_type) {
 	    if (vvp_fun_signal_object*obj =
-		    dynamic_cast<vvp_fun_signal_object*>(net->fun))
+		    vvp_fun_as_signal_object(net->fun))
 		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>
 				     (&obj->declared_type_ref()), element_type);
       }
@@ -321,7 +321,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
 			  "type encoding");
 		  compile_errors += 1;
 	    } else if (vvp_fun_signal_object*obj =
-		       dynamic_cast<vvp_fun_signal_object*>(net->fun)) {
+		       vvp_fun_as_signal_object(net->fun)) {
 		  obj->default_container_layout(layout);
 	    }
       }
@@ -355,7 +355,7 @@ void compile_var_queue(char*label, char*name, unsigned size,
       }
 
       if (vvp_fun_signal_object*obj =
-              dynamic_cast<vvp_fun_signal_object*>(net->fun)) {
+              vvp_fun_as_signal_object(net->fun)) {
 	      /* Historical images used the three-operand .var/queue form and
 	       * supplied no runtime element-kind or declaration-layout record.
 	       * Preserve that deliberately unknown state: legacy opcodes provide
@@ -479,7 +479,7 @@ void compile_variable(char*label, char*name,
 	    net->fil = new vvp_wire_vec4(wid, init);
             net->fun = new vvp_fun_signal4_sa(wid);
       }
-      const vvp_signal_value*vfil = dynamic_cast<vvp_signal_value*>(net->fil);
+      const vvp_signal_value*vfil = vvp_fil_signal_value(net->fil);
 
       define_functor_symbol(label, net);
 

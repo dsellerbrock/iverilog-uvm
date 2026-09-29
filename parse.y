@@ -2207,7 +2207,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
 %type <identifiers> class_type_parameter_port_item
 %type <identifiers> list_of_identifiers
-%type <perm_strings> loop_variables
+%type <perm_strings> loop_variables foreach_selector_prefixes
 %type <perm_strings> randomize_with_identifier_tail
 %type <perm_strings> sva_formal_list
 %type <perm_strings> sva_local_ident_list
@@ -4276,23 +4276,24 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
      above, which accepts its own prefix_names the same way. Elaboration
      validates each undotted selector independently of references in the
      body, before binding the new loop variables. */
-  | K_foreach '(' IDENTIFIER '[' loop_variables ']' '[' loop_variables ']'
+  | K_foreach '(' IDENTIFIER foreach_selector_prefixes '[' loop_variables ']'
     ')' constraint_set
       { PEConstraintForeach*tmp = nullptr;
-	if ($5->size() == 1 && !$5->front().nil()) {
-	      std::list<perm_string>*prefix = new std::list<perm_string>();
-	      prefix->push_back($5->front());
-	      tmp = new PEConstraintForeach(lex_strings.make($3), prefix,
-					    perm_string(), $8, $11);
+	bool shape_ok = true;
+	for (perm_string name : *$4)
+	      if (name.nil()) shape_ok = false;
+	if (shape_ok) {
+	      tmp = new PEConstraintForeach(lex_strings.make($3), $4,
+					    perm_string(), $6, $9);
 	      FILE_NAME(tmp, @1);
 	} else {
 	      yyerror(@1, "error: A selected foreach prefix requires one index expression.");
-	      delete $8;
-	      for (PExpr*item : *$11) delete item;
-	      delete $11;
+	      delete $4;
+	      delete $6;
+	      for (PExpr*item : *$9) delete item;
+	      delete $9;
 	}
 	delete[] $3;
-	delete $5;
 	$$ = tmp;
       }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
@@ -6408,7 +6409,7 @@ loop_statement /* IEEE1800-2005: A.6.8 */
       // m_changed_sev[string][string]' where `id' is already a local
       // variable). Confirmed independently: slang (--std 1800-2017)
       // accepts it, 0 errors.
-  | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '['
+  | K_foreach '(' foreach_array_identifier foreach_selector_prefixes '['
     loop_variables ']' ')'
       {
 	char for_block_name[64];
@@ -6418,7 +6419,8 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	  /* The shape check alone (single non-nil identifier) cannot tell a
+	  /* Every selector in `arr[bank][part][i]' is checked the same way.
+	     The shape check alone (single non-nil identifier) cannot tell a
 	     genuine selector from a plain typo'd/undeclared second loop
 	     variable -- both look identical to the parser. IEEE 1800-2017/
 	     2023 12.7.3 draws the line by whether that identifier is
@@ -6426,46 +6428,55 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	     check that now, while `id' is still just a name and before
 	     anything downstream can quietly treat an unresolved reference
 	     as a valid (if degraded) index expression. */
-        bool shape_ok = $5->size() == 1 && !$5->front().nil();
-        bool declared_ok = shape_ok
-              && pform_wire_visible_in_enclosing_scope($5->front());
-        if (shape_ok && !declared_ok) {
-              cerr << @5 << ": error: '" << $5->front() << "' is not a "
+        bool shape_ok = true;
+        bool declared_ok = true;
+        for (perm_string name : *$4) {
+              if (name.nil()) {
+                    shape_ok = declared_ok = false;
+                    continue;
+              }
+              if (pform_name_visible_in_enclosing_scope(@4, name))
+                    continue;
+              declared_ok = false;
+              cerr << @4 << ": error: '" << name << "' is not a "
                       "declared variable in any enclosing scope; a "
-                      "foreach selector prefix (`array[" << $5->front()
+                      "foreach selector prefix (`array[" << name
                    << "][...]') must name one, not introduce a new loop "
                       "variable here." << endl;
               error_count += 1;
         }
         if (declared_ok) {
-              index_component_t itmp;
-              itmp.sel = index_component_t::SEL_BIT;
-              itmp.msb = new PEIdent($5->front(), @5.lexical_pos);
-              FILE_NAME(itmp.msb, @5);
-              itmp.lsb = nullptr;
-              $3->back().index.push_back(itmp);
-              pform_make_foreach_declarations(@1, $3, $8);
+              for (perm_string name : *$4) {
+                    index_component_t itmp;
+                    itmp.sel = index_component_t::SEL_BIT;
+                    itmp.msb = new PEIdent(name, @4.lexical_pos);
+                    FILE_NAME(itmp.msb, @4);
+                    itmp.lsb = nullptr;
+                    $3->back().index.push_back(itmp);
+              }
+              pform_make_foreach_declarations(@1, $3, $6);
         } else {
-              pform_make_foreach_declarations(@1, nullptr, $8);
+              pform_make_foreach_declarations(@1, nullptr, $6);
         }
-      }
-    statement_or_null
-      { bool shape_ok = $5->size() == 1 && !$5->front().nil();
-        bool declared_ok = shape_ok
-              && pform_wire_visible_in_enclosing_scope($5->front());
         if (!shape_ok)
               yyerror(@1, "error: A selected foreach prefix requires one index expression.");
-        // The undeclared-identifier case already reported its own,
-        // more specific error in the mid-rule action above.
+        // Keep the verdict for the final action; the prefix names have
+        // been consumed into the array name's index list above.
+        $4->clear();
+        if (!declared_ok) $4->push_back(perm_string());
+      }
+    statement_or_null
+      { // An undeclared or malformed selector already reported its error.
+	bool declared_ok = $4->empty();
 
 	PForeach*tmp_for = 0;
 	if (declared_ok) {
-	      tmp_for = pform_make_foreach(@1, *$3, $8, $12);
+	      tmp_for = pform_make_foreach(@1, *$3, $6, $10);
 	} else {
-	      delete $8;
-	      delete $12;
+	      delete $6;
+	      delete $10;
 	}
-	delete $5;
+	delete $4;
 	delete $3;
 
 	pform_pop_scope();
@@ -6641,6 +6652,25 @@ variable_decl_assignment /* IEEE1800-2005 A.2.3 */
       }
   ;
 
+
+  /* The fixed selectors of `foreach (arr[bank][part][i])': each bracket
+     group names one variable already declared in an enclosing scope
+     (IEEE 1800-2017/2023 12.7.3). A malformed group becomes a nil entry
+     so the consumer can report it. The groups parse through
+     loop_variables for the one-token-lookahead reason given above. */
+foreach_selector_prefixes
+  : '[' loop_variables ']'
+      { std::list<perm_string>*tmp = new std::list<perm_string>;
+	tmp->push_back($2->size() == 1 ? $2->front() : perm_string());
+	delete $2;
+	$$ = tmp;
+      }
+  | foreach_selector_prefixes '[' loop_variables ']'
+      { $1->push_back($3->size() == 1 ? $3->front() : perm_string());
+	delete $3;
+	$$ = $1;
+      }
+  ;
 
 loop_variables /* IEEE1800-2005: A.6.8 */
   : loop_variables ',' IDENTIFIER
@@ -15524,17 +15554,43 @@ module_item
        rejected -- with a clear, specific diagnostic instead of a raw
        `syntax error' -- not accepted as valid. */
   | K_static task_declaration
-      { cerr << @1 << ": error: A `static' qualifier is not allowed "
-	        "on an ordinary module-scope task declaration (only on "
-	        "a class method)." << endl;
-	error_count += 1;
+      { /* Commercial simulators accept a leading `static' here and
+	   read it as the task/function's lifetime. Under
+	   -gcommercial-unsafe accept it where static is already the
+	   enclosing default; an automatic enclosing scope would need
+	   the qualifier to override the lifetime, which is not done. */
+	if (!gn_commercial_unsafe_flag) {
+	      cerr << @1 << ": error: A `static' qualifier is not allowed "
+		      "on an ordinary module-scope task declaration (only on "
+		      "a class method)." << endl;
+	      error_count += 1;
+	} else if (pform_peek_scope()->default_lifetime
+		   == LexicalScope::AUTOMATIC) {
+	      cerr << @1 << ": sorry: A leading `static' qualifier on a "
+		      "task in an automatic scope is not supported; write "
+		      "`task static' instead." << endl;
+	      error_count += 1;
+	}
       }
 
   | K_static function_declaration
-      { cerr << @1 << ": error: A `static' qualifier is not allowed "
-	        "on an ordinary module-scope function declaration (only "
-	        "on a class method)." << endl;
-	error_count += 1;
+      { /* Commercial simulators accept a leading `static' here and
+	   read it as the task/function's lifetime. Under
+	   -gcommercial-unsafe accept it where static is already the
+	   enclosing default; an automatic enclosing scope would need
+	   the qualifier to override the lifetime, which is not done. */
+	if (!gn_commercial_unsafe_flag) {
+	      cerr << @1 << ": error: A `static' qualifier is not allowed "
+		      "on an ordinary module-scope function declaration (only on "
+		      "a class method)." << endl;
+	      error_count += 1;
+	} else if (pform_peek_scope()->default_lifetime
+		   == LexicalScope::AUTOMATIC) {
+	      cerr << @1 << ": sorry: A leading `static' qualifier on a "
+		      "function in an automatic scope is not supported; write "
+		      "`function static' instead." << endl;
+	      error_count += 1;
+	}
       }
 
   | K_automatic task_declaration
@@ -17514,6 +17570,23 @@ subroutine_call
 	delete $4;
 	$$ = tmp;
       }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens '.' IDENTIFIER
+    argument_list_parens_opt
+      { /* Method-call statement on a package function's result:
+	   pkg::f(args).method(args); (IEEE 1800-2017/2023 8.10). OpenTitan's
+	   sec_cm_pkg::find_sec_cm_if_proxy(.path(p), .is_regex(1)).disable_fi(). */
+	pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PECallFunction*rcv = new PECallFunction($1, hident, *$4);
+	FILE_NAME(rcv, @3);
+	PCallTask*tmp = new PCallTask(rcv, lex_strings.make($6), *$7);
+	FILE_NAME(tmp, @5);
+	delete[]$3;
+	delete $4;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
   | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($3)));
@@ -17937,6 +18010,24 @@ statement_item /* This is roughly statement_item in the LRM */
 	      pform_make_var(@3, $4, dtype, nullptr, false);
 	}
 	delete[] $3;
+	$$ = nullptr;
+      }
+    /* `automatic pkg::cls x;' in a block (IEEE 1800-2017/2023 6.21). The
+       member token is read before package scope is entered, so a class not
+       otherwise visible arrives as IDENTIFIER, as in the rule above. */
+  | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($2, $4);
+	if (!type) {
+	      pform_forward_typedef(@4, lex_strings.make($4), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@4, $4);
+	}
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $2);
+	      FILE_NAME(dtype, @4);
+	      pform_make_var(@4, $5, dtype, nullptr, false);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $4;
 	$$ = nullptr;
       }
   | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'

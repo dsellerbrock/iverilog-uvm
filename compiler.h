@@ -130,6 +130,7 @@ extern bool debug_optimizer;
 
 void finalize_pending_specialized_class_elaboration(Design*des);
 void repair_specialized_class_property_types(Design*des);
+void release_deferred_static_inits(Design*des);
 void release_elaboration_specialization_caches();
 void release_elaboration_interface_caches();
 void release_elaboration_interface_types();

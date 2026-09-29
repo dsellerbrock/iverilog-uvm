@@ -48,6 +48,23 @@ using namespace std;
 bool vpip_vec4_to_int64_saturated(const vvp_vector4_t&vec, bool is_signed,
                                     int64_t&value)
 {
+      unsigned long word;
+      if (vec.size() <= 64 && vec.small_2state_word(word)) {
+	    uint64_t bits = word;
+	    unsigned wid = vec.size();
+	    if (is_signed && wid && ((bits >> (wid-1)) & 1)) {
+		    // Sign extend. A 64-bit INT64_MIN is exact here too.
+		  if (wid < 64)
+			bits |= ~uint64_t(0) << wid;
+		  value = static_cast<int64_t>(bits);
+	    } else if (bits >> 63) {
+		  value = LLONG_MAX;
+	    } else {
+		  value = static_cast<int64_t>(bits);
+	    }
+	    return true;
+      }
+
       for (unsigned idx = 0; idx < vec.size(); idx += 1) {
             vvp_bit4_t bit = vec.value(idx);
             if (bit != BIT4_0 && bit != BIT4_1)

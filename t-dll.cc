@@ -262,6 +262,7 @@ ivl_scope_s::ivl_scope_s()
   func_type(IVL_VT_NO_TYPE), func_width(0)
 {
       is_auto = false;
+      is_disable_target = false;
       auto_frame = false;
       is_program = false;
       is_interface = false;
@@ -966,6 +967,7 @@ void dll_target::add_root(const NetScope *s)
       if (ivl_attribute_s*attr = fill_in_attributes(s))
 	    root_->ensure_aux_()->attr = attr;
       root_->is_auto = 0;
+      root_->is_disable_target = s->is_disable_target();
       root_->auto_frame = 1;
       root_->is_program = s->program_block();
       root_->is_interface = s->is_interface();
@@ -3562,6 +3564,7 @@ void dll_target::scope(const NetScope*net)
 	    if (ivl_attribute_s*attr = fill_in_attributes(net))
 		  scop->ensure_aux_()->attr = attr;
 	    scop->is_auto = net->is_auto();
+	    scop->is_disable_target = net->is_disable_target();
 	    scop->auto_frame = net->auto_frame();
 	    scop->is_program = net->program_block();
 	    scop->is_interface = net->is_interface();

@@ -2692,6 +2692,12 @@ extern "C" unsigned ivl_scope_is_auto(ivl_scope_t net)
       return net->is_auto;
 }
 
+extern "C" unsigned ivl_scope_is_disable_target(ivl_scope_t net)
+{
+      assert(net);
+      return net->is_disable_target;
+}
+
 extern "C" unsigned ivl_scope_auto_frame(ivl_scope_t net)
 {
       assert(net);

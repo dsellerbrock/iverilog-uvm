@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_foreach_multi_selector_prefix.v",
+    "iverilog-args" : [ "-g2012" ]
+}

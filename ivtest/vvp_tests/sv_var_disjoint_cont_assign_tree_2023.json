@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "sv_var_disjoint_cont_assign_tree.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"   : "sv_var_disjoint_cont_assign_tree"
+}

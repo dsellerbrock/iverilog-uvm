@@ -1268,10 +1268,22 @@ PWire*pform_get_wire_in_scope(perm_string name)
    name a variable declared in any ENCLOSING scope (e.g. the
    function/task body, not just the implicit block the foreach header
    itself is nested in), so this walks the parent chain. */
-bool pform_wire_visible_in_enclosing_scope(perm_string name)
+bool pform_name_visible_in_enclosing_scope(const struct vlltype&loc,
+					   perm_string name)
 {
+	/* A foreach selector may be any visible value: a variable, a
+	   parameter, an enum constant, a class property, or an imported
+	   one (foreach (tgt_pre[FlashPartData][i]) in OpenTitan). */
       for (LexicalScope*scope = lexical_scope ; scope ; scope = scope->parent_scope()) {
-	    if (scope->wires_find(name))
+	    if (scope->wires_find(name)
+		|| scope->local_symbols.count(name)
+		|| scope->explicit_imports.count(name))
+		  return true;
+	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
+		  if (class_scope->type && class_scope->type->properties.count(name))
+			return true;
+	    }
+	    if (pform_find_potential_import(loc, scope, name, false, true))
 		  return true;
       }
       return false;
@@ -1610,7 +1622,8 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 
 typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 {
-      if (getenv("IVL_TRACE_TYPES"))
+      static const bool trace_types = getenv("IVL_TRACE_TYPES") != 0;
+      if (trace_types)
 	    cerr << "TYPE_TRACE " << loc << " name=" << txt
 		 << " scope=" << lexical_scope << endl;
       perm_string name = lex_strings.make(txt);
@@ -17032,6 +17045,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
       long depth = pform_sva_nfa_depth(nfa);
       long K;
+	/* A cyclic local-variable attempt lives until its obligation resolves,
+	   and attempts holding different values never coincide. OpenTitan's
+	   ASSERT_FPV_LINEAR_FSM, `(s != init) until rst', keeps one live attempt
+	   per FSM state left since reset, which outgrows the 8..16 default. Such
+	   pools get room for a realistic FSM when the generated-state budget
+	   allows it (see size_pools below); overflow stays a loud diagnostic. */
+      const long lv_pool_floor = has_lv ? 32 : 0;
+      long K_unfloored = -1;
       if (!cyclic) {
 	    K = depth > 0 ? depth : 1;
       } else {
@@ -17048,7 +17069,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  return false;
 	    K = depth > 8 ? depth : 8;
 	    if (K > 16) K = 16;
-	    if (sva_nfa_slots_env_() > 0) K = sva_nfa_slots_env_();
+	    if (K < lv_pool_floor) { K_unfloored = K; K = lv_pool_floor; }
+	    if (sva_nfa_slots_env_() > 0) { K = sva_nfa_slots_env_(); K_unfloored = -1; }
       }
 
       bool consequence_cyclic = endpoint_fanout
@@ -17066,7 +17088,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    } else {
 		  K = K > 8 ? K : 8;
 		  if (K > 16) K = 16;
-		  if (sva_nfa_slots_env_() > 0) K = sva_nfa_slots_env_();
+		  K_unfloored = -1;
+		  if (K < lv_pool_floor) { K_unfloored = K; K = lv_pool_floor; }
+		  if (sva_nfa_slots_env_() > 0) { K = sva_nfa_slots_env_(); K_unfloored = -1; }
 	    }
       }
       unsigned N = nfa.nstates;
@@ -17074,11 +17098,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	 antecedent/consequence implications need a larger aggregate allowance
 	 because their exact acyclic obligation capacity is part of the checker. */
       const long generated_state_budget = endpoint_fanout ? 8192 : 1024;
-      if (K <= 0 || (long)N > generated_state_budget / K) return false;
-      long generated_states = (long)N * K;
+      long generated_states = 0;
       long OK = 0;
       unsigned ON = 0;
-      if (endpoint_fanout) {
+      auto size_pools = [&](long k) -> bool {
+	    if (k <= 0 || (long)N > generated_state_budget / k) return false;
+	    generated_states = (long)N * k;
+	    if (!endpoint_fanout) return true;
 	    ON = consequence_nfa.nstates;
 	    long lifetime = consequence_depth > 0 ? consequence_depth : 1;
 	    if (consequence_cyclic && lifetime < 8) lifetime = 8;
@@ -17090,10 +17116,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (antecedent_capacity > LONG_MAX / lifetime) return false;
 	    OK = antecedent_capacity * lifetime;
 	    if (consequence_cyclic && OK > 256) OK = 256;
-	    if (OK < K) OK = K;
-	    if (ON == 0
-		|| OK > (generated_state_budget - generated_states) / (long)ON)
-		  return false;
+	    if (OK < k) OK = k;
+	    return ON != 0
+		&& OK <= (generated_state_budget - generated_states) / (long)ON;
+      };
+	/* The local-variable floor never costs a property its automaton. */
+      if (!size_pools(K)) {
+	    if (K_unfloored <= 0 || !size_pools(K_unfloored)) return false;
+	    K = K_unfloored;
       }
 
 	/* Obligation trigger for |->/|=>: the antecedent completes the
@@ -17566,10 +17596,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   for loop-free automata (K = longest path), kept as a
 	   no-silent-drop backstop regardless. */
       {
-	    char msg[192];
+	    char msg[512];
 	    snprintf(msg, sizeof msg,
-		     "SVA NFA: attempt pool overflow (%ld slots) -- "
-		     "attempts are being dropped%s", K,
+		     "%s:%u: SVA NFA: attempt pool overflow (%ld slots) -- "
+		     "attempts are being dropped%s", loc.text ? loc.text : "?", (unsigned)loc.first_line, K,
 		     (cyclic || consequence_cyclic)
 			? "; raise IVL_SVA_NFA_SLOTS" : " (internal bug)");
 	    std::list<named_pexpr_t> dargs;
