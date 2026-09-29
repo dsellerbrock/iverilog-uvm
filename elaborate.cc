@@ -33462,9 +33462,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			   id->path().name.front().name))
 			direct_package_value = true;
 		  if (direct_package_value) {
+			unsigned errors_before = constraint_ir_design_ctx_
+			    ? constraint_ir_design_ctx_->errors : 0;
 			string constant = constraint_constant_ir_(id, scope, cls);
 			if (!constant.empty())
 			      return constant;
+			if (constraint_ir_design_ctx_
+			    && constraint_ir_design_ctx_->errors != errors_before)
+			      return "";
 			if (!value_slots) {
 			      string selected = constraint_parameter_member_select_ir_(
 				id, scope, cls, loop_env);
@@ -34090,8 +34095,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (symbol_search(id, constraint_ir_design_ctx_,
 			const_cast<NetScope*>(scope), id->path(),
 			id->lexical_pos(), &found) && found.par_val) {
+		      unsigned errors_before = constraint_ir_design_ctx_->errors;
 		      string constant = constraint_constant_ir_(id, scope, cls);
 		      if (!constant.empty()) return constant;
+		      if (constraint_ir_design_ctx_->errors != errors_before) return "";
 		      return constraint_parameter_member_select_ir_(id, scope, cls, loop_env);
 		    }
 	    }
@@ -34331,8 +34338,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    }
 	    // Parameters and enum literals retain target-class name precedence.
 	    {
+		  unsigned errors_before = constraint_ir_design_ctx_
+		    ? constraint_ir_design_ctx_->errors : 0;
 		  string constant = constraint_constant_ir_(id, scope, cls);
 		  if (!constant.empty()) return constant;
+		  if (constraint_ir_design_ctx_
+		    && constraint_ir_design_ctx_->errors != errors_before)
+		    return "";
 		  if (!value_slots) {
 			string selected = constraint_parameter_member_select_ir_(
 			    id, scope, cls, loop_env);

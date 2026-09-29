@@ -345,6 +345,12 @@
 - **Cause and evidence:** `pexpr_to_constraint_ir` restricted the selected packed-struct member branch to one fixed dimension and manually flattened one index. Reusing the existing checked fixed-array leaf helper supports multidimensional fixed arrays, while a signed cast preserves member type. The [paired focused record](session_logs/2026-09-29_ot_adc_fixed_2d_struct_member.json) includes baseline failure, candidate success, and 8/8 in each focused regression harness.
 - **Boundary:** This repair covers fixed arrays. The pinned ADC configuration uses nested dynamic arrays, whose indexed inner `.size` and whole-array ordering remain separate gaps. Its copied-source selected compile and queued DV replay are unchanged; no ADC DV pass is established.
 
+### OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK — stop after the specific error
+
+- **State:** All four saved 2017/2023 compile-negative cases now emit their original one specific error instead of two. Focused PartInfo JSON and legacy each pass 18/18, including legal rand-index values and invalid symbolic members; `make check` passes. No test gold changed. See [focused evidence](session_logs/2026-09-29_ot_partinfo_diagnostic_fallback_focus.json).
+- **Cause and expected behavior:** Three constant-then-parameter-selector branches in `elaborate.cc` continue after `constraint_constant_ir_` has already increased `Design::errors`. Stop that fallback only after an actual diagnostic; an empty error-free constant attempt must still reach symbolic rand-index selection. Keep value-slot capture behavior unchanged.
+- **Boundary:** Verify both invalid constants, valid member-range/rand-index controls, and symbolic invalid-member rejection before any full gate. This repairs diagnostic identity/count, not a new language feature or OpenTitan DV target.
+
 ### OT-SDF-INTERCONNECT-PORT-BOUNDARY — annotate variable-driven input ports
 
 - **State:** The VPI boundary fix passes strict 2017/2023 one-edge reg, `always_comb`, and wire controls with the exact 20 ps delay; focused SDF JSON passes 15/15, including the three saved failures, singleton guard, and selected-resolver neighbors. `make check` passes. The original 4,097/32 gate remains historical. See [the focused evidence](session_logs/2026-09-29_ot_sdf_interconnect_port_boundary_focus.json).

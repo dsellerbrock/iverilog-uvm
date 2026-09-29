@@ -1,16 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: cdc7fa586
+checkpoint_head: 04d73e889
 active_open_titan_lane:
-  blocker: "OT-SDF-INTERCONNECT-PORT-BOUNDARY"
-  phase: "FOCUSED_TESTED_PENDING_REVIEW"
+  blocker: "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK"
+  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "cdc7fa586"
-  reproducer: "Saved sdf_interconnect1-3 lose 20 ps. One-edge reg and always_comb input-port reducers lose 20 ps; wire/BUFT control gets the delay. Baseline/current bytecode cross-runs isolate port functor shape."
-  pending_validation: "The vpi_handle_multi boundary fix recognizes BUFZ and .sample; one-edge reg/always_comb/wire controls each pass 2017/2023 with 20 ps, focused SDF JSON 15/15 and make check pass. Independent diff review and commit remain. Other 18 JSON failures are separate."
-  next_command: "Complete independent VPI diff review, commit this SDF checkpoint, then select the next classified JSON blocker. Keep Caliptra HMAC guarded and defer full suites."
-  boundary: "No new full JSON/legacy gate, 49-case OpenTitan corpus, or selected OTP DV pass is inferred."
+  baseline_head: "04d73e889"
+  reproducer: "Two PartInfo compile-negative cases ×2017/2023 each emit a specific error followed by a generic fallback error; saved gold requires one. Direct probes and three call sites are identified in work/json-eight-direct-20260929/triage.md."
+  pending_validation: "The three fallback guards remove duplicate diagnostics in all four saved CE cases. Focused PartInfo JSON 18/18, legacy 18/18 and make check pass; symbolic rand-index positive and invalid-member negative remain sound. Independent diff review found no actionable issue."
+  next_command: "Select the fixed-queue function argument blocker, then unsafe-driver blocker. Keep Caliptra HMAC guarded and broad gates deferred until all 14 saved failures are addressed."
+  boundary: "No application DV or changed 4097/32 historical JSON count is inferred from focused diagnostic repair."
+suspended_sdf_lane:
+  blocker: "OT-SDF-INTERCONNECT-PORT-BOUNDARY"
+  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  last_validated_revision: "04d73e889"
+  state: "BUFZ and .sample port-boundary SDF support passes six strict tiny controls, focused SDF JSON 15/15 and make check; old 4097/32 gate remains historical."
+  next_command: "After the other 18 saved JSON failures are repaired, run the required exact-head full JSON gate."
 suspended_json_stale_fixture_lane:
   blocker: "OT-JSON-STALE-EXPECTATIONS-11"
   phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
