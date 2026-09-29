@@ -37,6 +37,8 @@
 
 # include  "config.h"
 # include  "vvp_net.h"
+# include  <cstring>
+# include  <unordered_map>
 
 /*
  * This is the basic type of a symbol table. It is opaque. Don't even
@@ -70,13 +72,19 @@ class symbol_table_s {
       symbol_value_t sym_get_value(const char*key);
 
     private:
-      struct tree_node_*root;
+      struct key_hash_ {
+	    size_t operator()(const char*key) const;
+      };
+      struct key_equal_ {
+	    bool operator()(const char*a, const char*b) const
+	    { return strcmp(a, b) == 0; }
+      };
+	// The keys point into the key_strings chunks, which live as long
+	// as the table.
+      std::unordered_map<const char*, symbol_value_t, key_hash_, key_equal_> map_;
       struct key_strings*str_chunk;
       unsigned str_used;
 
-      symbol_value_t find_value_(struct tree_node_*cur,
-				 const char*key, symbol_value_t val,
-				 bool force_flag);
       char*key_strdup_(const char*str);
 };
 

@@ -424,7 +424,8 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
 	    return element_type;
       }
 
-      if (getenv("IVL_FOREACH_TYPE_TRACE")) {
+      static const bool foreach_trace = getenv("IVL_FOREACH_TYPE_TRACE") != 0;
+      if (foreach_trace) {
             cerr << "[resolve-placeholder] type_pf="
                  << typeid(*type_pf).name() << endl;
       }
@@ -453,7 +454,7 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
 		dynamic_cast<const foreach_index_type_t*>(type_pf)) {
 	    ivl_type_t resolved =
 		  const_cast<foreach_index_type_t*>(idx_type)->elaborate_type(des, scope);
-	    if (getenv("IVL_FOREACH_TYPE_TRACE")) {
+	    if (foreach_trace) {
 		  cerr << "[resolve-placeholder/foreach] resolved=";
 		  if (resolved)
 			cerr << "base=" << ivl_type_base(resolved);

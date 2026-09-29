@@ -761,56 +761,105 @@ static int pure_comb_stmt_(ivl_statement_t stmt)
       return pure_comb_stmt_impl_(stmt, 1);
 }
 
-static char**td_refs = 0;
-static size_t td_refs_cnt = 0;
-static size_t td_refs_cap = 0;
-static char**td_defs = 0;
-static size_t td_defs_cnt = 0;
-static size_t td_defs_cap = 0;
+/*
+ * The TD_ labels referenced and defined so far, each kept in first-seen
+ * order (the stubs are emitted in reference order) with a hash index so
+ * that noting a label is not a scan of every label before it. A large
+ * class library notes each label many times.
+ */
+struct td_list_s {
+      char**items;
+      size_t count;
+      size_t cap;
+      char**slots; /* open-addressed hash of items; nil is empty */
+      size_t nslots;
+};
 
-static int td_list_contains(char**list, size_t count, const char*label)
+static struct td_list_s td_refs = { 0, 0, 0, 0, 0 };
+static struct td_list_s td_defs = { 0, 0, 0, 0, 0 };
+
+static size_t td_hash_(const char*label)
+{
+      size_t hash = (size_t)14695981039346656037ULL; /* FNV-1a */
+      const unsigned char*cp;
+      for (cp = (const unsigned char*)label ; *cp ; cp += 1) {
+	    hash ^= *cp;
+	    hash *= (size_t)1099511628211ULL;
+      }
+      return hash;
+}
+
+static void td_index_insert_(struct td_list_s*list, char*label)
+{
+      size_t idx = td_hash_(label) & (list->nslots - 1);
+      while (list->slots[idx])
+	    idx = (idx + 1) & (list->nslots - 1);
+      list->slots[idx] = label;
+}
+
+static int td_list_contains(const struct td_list_s*list, const char*label)
 {
       size_t idx;
-      for (idx = 0; idx < count; idx += 1)
-	    if (strcmp(list[idx], label) == 0)
+      if (list->nslots == 0)
+	    return 0;
+      idx = td_hash_(label) & (list->nslots - 1);
+      while (list->slots[idx]) {
+	    if (strcmp(list->slots[idx], label) == 0)
 		  return 1;
+	    idx = (idx + 1) & (list->nslots - 1);
+      }
       return 0;
 }
 
-static void td_list_append_unique(char***list, size_t*count, size_t*cap, const char*label)
+static void td_list_append_unique(struct td_list_s*list, const char*label)
 {
-      if (td_list_contains(*list, *count, label))
+      size_t idx;
+
+      if (td_list_contains(list, label))
 	    return;
 
-      if (*count >= *cap) {
-	    size_t new_cap = (*cap == 0)? 64 : (*cap * 2);
-	    char**tmp = (char**)realloc(*list, new_cap * sizeof(char*));
+      if (list->count >= list->cap) {
+	    size_t new_cap = (list->cap == 0)? 64 : (list->cap * 2);
+	    char**tmp = (char**)realloc(list->items, new_cap * sizeof(char*));
 	    assert(tmp);
-	    *list = tmp;
-	    *cap = new_cap;
+	    list->items = tmp;
+	    list->cap = new_cap;
       }
 
-      (*list)[*count] = strdup(label);
-      assert((*list)[*count]);
-      *count += 1;
+      list->items[list->count] = strdup(label);
+      assert(list->items[list->count]);
+      list->count += 1;
+
+	/* Keep the hash at most half full. */
+      if (2 * list->count > list->nslots) {
+	    size_t nslots = list->nslots ? 2 * list->nslots : 128;
+	    free(list->slots);
+	    list->slots = (char**)calloc(nslots, sizeof(char*));
+	    assert(list->slots);
+	    list->nslots = nslots;
+	    for (idx = 0 ; idx < list->count ; idx += 1)
+		  td_index_insert_(list, list->items[idx]);
+      } else {
+	    td_index_insert_(list, list->items[list->count - 1]);
+      }
 }
 
 void note_td_reference(const char*label)
 {
-      td_list_append_unique(&td_refs, &td_refs_cnt, &td_refs_cap, label);
+      td_list_append_unique(&td_refs, label);
 }
 
 void note_td_definition(const char*label)
 {
-      td_list_append_unique(&td_defs, &td_defs_cnt, &td_defs_cap, label);
+      td_list_append_unique(&td_defs, label);
 }
 
 void emit_td_stub_definitions(void)
 {
       size_t idx;
-      for (idx = 0; idx < td_refs_cnt; idx += 1) {
-	    const char*label = td_refs[idx];
-	    if (td_list_contains(td_defs, td_defs_cnt, label))
+      for (idx = 0; idx < td_refs.count; idx += 1) {
+	    const char*label = td_refs.items[idx];
+	    if (td_list_contains(&td_defs, label))
 		  continue;
 	    fprintf(vvp_out, "TD_%s ;\n", label);
 	    fprintf(vvp_out, "    %%end;\n");

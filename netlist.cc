@@ -3100,10 +3100,17 @@ ivl_variable_type_t NetEBLogic::expr_type() const
       return IVL_VT_BOOL;
 }
 
+/* Read the trace switch once; constants are built and cast very often. */
+static bool neteconst_trace_()
+{
+      static const bool trace = getenv("IVL_NETECONST_TRACE") != 0;
+      return trace;
+}
+
 NetEConst::NetEConst(const verinum&val)
 : NetExpr(val.len()), value_(val)
 {
-      if (getenv("IVL_NETECONST_TRACE")) {
+      if (neteconst_trace_()) {
             fprintf(stderr,
                     "trace neteconst ctor: width=%u as_ulong=%llu has_len=%d has_sign=%d\n",
                     value_.len(), (unsigned long long)value_.as_ulong64(),
@@ -3129,7 +3136,7 @@ NetEConst::~NetEConst()
 
 void NetEConst::cast_signed(bool flag)
 {
-      if (getenv("IVL_NETECONST_TRACE")) {
+      if (neteconst_trace_()) {
             fprintf(stderr,
                     "trace neteconst cast_signed before: width=%u as_ulong=%llu has_len=%d has_sign=%d flag=%d\n",
                     value_.len(), (unsigned long long)value_.as_ulong64(),
@@ -3137,7 +3144,7 @@ void NetEConst::cast_signed(bool flag)
       }
       cast_signed_base_(flag);
       value_.has_sign(flag);
-      if (getenv("IVL_NETECONST_TRACE")) {
+      if (neteconst_trace_()) {
             fprintf(stderr,
                     "trace neteconst cast_signed after: width=%u as_ulong=%llu has_len=%d has_sign=%d\n",
                     value_.len(), (unsigned long long)value_.as_ulong64(),
