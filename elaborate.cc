@@ -26666,6 +26666,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  }
 		  NetBlock*apply_blk = new NetBlock(NetBlock::SEQU, 0);
 		  apply_blk->set_line(*cb);
+		  unsigned plain_outputs = 0;
 		  for (size_t idx = 0 ; idx < out_raws.size() ; idx += 1) {
 			NetESignal*pend_rd = new NetESignal(out_pends[idx]);
 			pend_rd->set_line(*cb);
@@ -26731,24 +26732,106 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			hit->append(clr);
 			NetCondit*cond = new NetCondit(pend_rd, hit, 0);
 			cond->set_line(*cb);
-			apply_blk->append(cond);
+
+			const pform_clocking_skew_t*sk =
+			      cb->output_skew(out_names[idx]);
+			if (sk && sk->edge) {
+			      const vector<PEEvent*>&clock_events =
+				    cb->event->event_expressions();
+			      const PEEvent*clock_event = clock_events.size() == 1
+				    ? clock_events.front() : nullptr;
+			      PEEvent::edge_t output_edge = sk->edge == 'p'
+				    ? PEEvent::POSEDGE : sk->edge == 'n'
+				    ? PEEvent::NEGEDGE : PEEvent::EDGE;
+			      if (clock_event && output_edge == clock_event->type()) {
+				    /* The qualifier is the clocking edge itself. */
+				    apply_blk->append(cond);
+				    ++plain_outputs;
+				    continue;
+			      }
+			      const PEIdent*clock_signal = clock_event
+				    ? dynamic_cast<const PEIdent*>(clock_event->expr())
+				    : nullptr;
+			      bool opposite = clock_event &&
+				    ((clock_event->type() == PEEvent::POSEDGE
+				      && output_edge == PEEvent::NEGEDGE)
+				     || (clock_event->type() == PEEvent::NEGEDGE
+				      && output_edge == PEEvent::POSEDGE));
+			      if (!opposite || !clock_signal || clock_event->condition()) {
+				    cerr << cb->get_fileline() << ": sorry: output edge "
+					 << "skew on clocking signal `" << out_names[idx]
+					 << "' requires an unguarded single-signal "
+					 << "posedge/negedge clocking event with the "
+					 << "opposite output edge." << endl;
+				    des->errors += 1;
+				    delete cond;
+				    continue;
+			      }
+
+			      /* Arm at the clocking event, then drive on the named
+				 output edge. The pending mask is read at that later edge,
+				 so writes made between the two edges land in this cycle. */
+			      NetBlock*cycle = new NetBlock(NetBlock::SEQU, 0);
+			      cycle->set_line(*cb);
+			      NetBlock*empty = new NetBlock(NetBlock::SEQU, 0);
+			      empty->set_line(*cb);
+			      NetProc*clock_wait = cb->event->elaborate_st(des, scope, empty);
+			      if (!clock_wait) {
+				    delete cycle;
+				    delete empty;
+				    delete cond;
+				    continue;
+			      }
+			      cycle->append(clock_wait);
+			      unique_ptr<PEIdent> edge_signal(
+				    clock_signal->clone_for_reference());
+			      PEEvent edge_event(output_edge, edge_signal.get());
+			      edge_event.set_line(*cb);
+			      PEventStatement edge_stmt(&edge_event);
+			      edge_stmt.set_line(*cb);
+			      NetProc*edge_wait = edge_stmt.elaborate_st(des, scope, cond);
+			      if (!edge_wait) {
+				    delete cycle;
+				    delete cond;
+				    continue;
+			      }
+			      cycle->append(edge_wait);
+			      NetForever*edge_loop = new NetForever(cycle);
+			      edge_loop->set_line(*cb);
+			      NetProcTop*edge_top = new NetProcTop(scope, IVL_PR_INITIAL,
+				    edge_loop);
+			      edge_top->set_line(*cb);
+			      if (gn_system_verilog())
+				    edge_top->attribute(
+					  perm_string::literal("_ivl_clocking_bg"),
+					  verinum(1));
+			      des->add_process(edge_top);
+		      } else {
+			      apply_blk->append(cond);
+			      ++plain_outputs;
+		      }
 		  }
-		  NetEvWait*await = new NetEvWait(apply_blk);
-		  await->set_line(*cb);
-		  await->add_event(trig);
-		  if (kick_event)
-			await->add_event(kick_event);
-		  NetForever*apply_loop = new NetForever(await);
-		  apply_loop->set_line(*cb);
-		  NetProcTop*apply_top = new NetProcTop(scope, IVL_PR_INITIAL,
-							apply_loop);
-		  apply_top->set_line(*cb);
-		    /* Background forever loop — see the sampler above; must not
-		       gate program-completion end-of-simulation. */
-		  if (gn_system_verilog())
-			apply_top->attribute(perm_string::literal("_ivl_clocking_bg"),
-					     verinum(1));
-		  des->add_process(apply_top);
+		  if (plain_outputs) {
+			NetEvWait*await = new NetEvWait(apply_blk);
+			await->set_line(*cb);
+			await->add_event(trig);
+			if (kick_event)
+			      await->add_event(kick_event);
+			NetForever*apply_loop = new NetForever(await);
+			apply_loop->set_line(*cb);
+			NetProcTop*apply_top = new NetProcTop(scope, IVL_PR_INITIAL,
+							  apply_loop);
+			apply_top->set_line(*cb);
+			  /* Background forever loop — see the sampler above; must not
+			     gate program-completion end-of-simulation. */
+			if (gn_system_verilog())
+			      apply_top->attribute(
+				    perm_string::literal("_ivl_clocking_bg"),
+				    verinum(1));
+			des->add_process(apply_top);
+		  } else {
+			delete apply_blk;
+		  }
 	    }
       }
 }
