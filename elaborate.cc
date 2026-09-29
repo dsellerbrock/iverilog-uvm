@@ -38065,6 +38065,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    struct xbin_desc_t {
 			  perm_string name;
 			  std::vector<std::pair<uint64_t,uint64_t>> ranges;
+			  std::vector<std::vector<uint64_t>> wide_values;
 			  bool wildcard = false;
 			    // Counter property for an ordinary fixed value bin. Dynamic
 			    // crosses use this stable identity instead of repeating the
@@ -39124,6 +39125,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_value_signed = false;
 			  bool cp_value_supported = coverpoint_effective_shape(
 				cp.expr, cp_value_width, cp_value_signed);
+			  ivl_type_t cp_type = coverpoint_expr_type(cp.expr);
+			  ivl_variable_type_t cp_base = cp_type
+				? cp_type->base_type() : IVL_VT_NO_TYPE;
+			  bool cp_wide_exact_supported = cp_type && cp_type->packed()
+				&& (cp_base == IVL_VT_BOOL || cp_base == IVL_VT_LOGIC)
+				&& !cp_value_signed && cp_value_width > 64
+				&& cp_value_width <= 256;
 			  cp_value_widths.push_back(cp_value_width);
 			  cp_value_signedness.push_back(cp_value_signed);
 			  int parent_prop = -1;
@@ -39210,6 +39218,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // generate tuples from it.
 			  std::vector<std::pair<uint64_t,uint64_t>> carve_ranges;
 			  for (auto& xbin : cp.bins) {
+				if (cp_value_width > 64) break;
 				unsigned xk = ((unsigned)xbin.kind) & 7;
 				if (xk != 1 && xk != 2) continue;
 				if (xbin.wildcard || !xbin.trans_seqs.empty())
@@ -39277,6 +39286,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				std::string bstem = std::string("__bin_")
 						  + std::string(cp.label.str())
 						  + "_" + std::string(bin.name.str());
+				if (cp_value_width > 64 && !bin.trans_seqs.empty()) {
+				      cerr << pclass->get_fileline()
+					   << ": error: wide covergroup transition bin '"
+					   << bin.name << "' is not represented." << endl;
+				      des->errors += 1;
+				      continue;
+				}
 
 				if (!bin.trans_seqs.empty()) {
 				        // IEEE 19.5.2 transition bins. Preserve each term as
@@ -39511,6 +39527,161 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							       0, 1, 1, 0, 1,
 							       netclass_t::COVGRP_NO_FAMILY,
 							       0, bin_guard);
+				      continue;
+				}
+
+				// Exact unsigned wide values use one existing metadata
+				// record per 64-bit word. Records in one tuple are ANDed;
+					// separate values of the same bin are ORed. Bit 6 marks
+				// an exact word; hi carries source width, word index and
+				// the number of valid bits in that word.
+				if (cp_value_width > 64) {
+				      bool supported = cp_wide_exact_supported
+					&& base_kind == 0 && !bin.array_size
+					&& !bin.wildcard && !bin.with_expr
+					&& !bin.set_expr && bin.source_coverpoint.nil()
+					&& bin.trans_seqs.empty() && !bin.ranges.empty();
+				      std::vector<std::vector<uint64_t>> values;
+			      auto read_value = [&](PExpr*expr,
+						 std::vector<uint64_t>&words) -> bool {
+					if (!expr || range_references_runtime(expr))
+					      return false;
+					// An unbased '1 fills the coverpoint width. The
+					// generic constant folder leaves it one bit wide;
+					// compound fill expressions need their own context
+					// handling and are rejected instead of miscounted.
+					if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
+					      const verinum&literal = num->value();
+					      if (literal.is_single()) {
+						if (!literal.is_defined()) return false;
+						words.assign((cp_value_width + 63) / 64,
+							literal.get(0) == verinum::V1 ? UINT64_MAX : 0);
+						if (literal.get(0) == verinum::V1
+						    && cp_value_width % 64)
+						      words.back() &= (UINT64_C(1)
+							<< (cp_value_width % 64)) - 1;
+						return true;
+					      }
+					}
+					if (constraint_dist_contains_fill_literal_(expr))
+					      return false;
+					NetExpr*net = elab_and_eval(des, class_scope_,
+							      expr, -1, false, false);
+					NetEConst*constant = dynamic_cast<NetEConst*>(net);
+					if (!constant || !constant->value().is_defined()) {
+					      delete net;
+					      return false;
+					}
+					const verinum&bits = constant->value();
+					bool ok = !(constant->has_sign() && bits.len()
+					      && bits.get(bits.len()-1) == verinum::V1);
+					words.assign((cp_value_width + 63) / 64, 0);
+					for (unsigned bit = 0; bit < bits.len(); bit++) {
+					      if (bits.get(bit) == verinum::V1) {
+						if (bit >= cp_value_width) ok = false;
+						else words[bit / 64] |= UINT64_C(1) << (bit % 64);
+					      }
+					}
+					delete net;
+					return ok;
+				      };
+				      if (supported) for (auto&range : bin.ranges) {
+					std::vector<uint64_t> lo, hi;
+					if (!read_value(range.first, lo)
+					    || !read_value(range.second, hi) || lo != hi) {
+					      supported = false;
+					      break;
+					}
+					values.push_back(std::move(lo));
+				      }
+				      if (!supported) {
+					cerr << pclass->get_fileline()
+					     << ": error: wide covergroup bin '" << bin.name
+					     << "' requires unsigned packed exact constant "
+						"values (up to 256 bits); the bin cannot be represented."
+					     << endl;
+					des->errors += 1;
+					if (base_kind == 0) has_value_bins = true;
+					continue;
+				      }
+				      if (bin.arrayed) {
+					// An open bin array is keyed by each distinct value.
+					// Keep the source list bounded; ranges and sized
+					// arrays are intentionally outside this exact path.
+					std::sort(values.begin(), values.end(),
+					      [](const std::vector<uint64_t>&a,
+						 const std::vector<uint64_t>&b) {
+						return std::lexicographical_compare(
+						      a.rbegin(), a.rend(), b.rbegin(), b.rend());
+					      });
+					values.erase(std::unique(values.begin(), values.end()),
+						     values.end());
+					if (values.size() > 256) {
+					      cerr << pclass->get_fileline()
+						   << ": error: wide open covergroup bin array '"
+						   << bin.name << "' exceeds 256 exact values."
+						   << endl;
+					      des->errors += 1;
+					      has_value_bins = true;
+					      continue;
+					}
+					for (const auto&value : values) {
+					      std::vector<uint64_t> quotient = value;
+					      std::string key;
+					      do {
+						unsigned __int128 rem = 0;
+						for (size_t i = quotient.size(); i > 0; i--) {
+						      unsigned __int128 n = (rem << 64)
+							    | quotient[i-1];
+						      quotient[i-1] = (uint64_t)(n / 10);
+						      rem = n % 10;
+						}
+						key.push_back('0' + (unsigned)rem);
+					      } while (std::any_of(quotient.begin(),
+						quotient.end(), [](uint64_t word) {
+						      return word != 0;
+						}));
+					      std::reverse(key.begin(), key.end());
+					      int added = add_unique_cov_counter(bstem + "_" + key);
+					      if (added < 0) continue;
+					      for (unsigned word = 0; word < value.size(); word++) {
+						unsigned width = std::min(64u,
+						      cp_value_width - word * 64);
+						uint64_t meta = ((uint64_t)cp_value_width << 16)
+						      | ((uint64_t)word << 8) | width;
+						cg_class->add_covgrp_bin(cp_idx, (unsigned)added,
+						      value[word], meta, 64u, 0, cp_idx);
+						cg_class->set_last_covgrp_bin_guard(bin_guard);
+					      }
+					      xbin_desc_t d;
+					      d.name = lex_strings.make((std::string(bin.name.str())
+						      + "[" + key + "]").c_str());
+					      d.wide_values.push_back(value);
+					      d.source_prop = added;
+					      d.guard_idx = bin_guard;
+					      vbins.push_back(std::move(d));
+					}
+					has_value_bins = true;
+					continue;
+				      }
+				      int added = add_unique_cov_counter(bstem);
+				      if (added < 0) continue;
+				      for (unsigned tuple = 0; tuple < values.size(); tuple++)
+				      for (unsigned word = 0; word < values[tuple].size(); word++) {
+					unsigned width = std::min(64u, cp_value_width - word * 64);
+					uint64_t meta = ((uint64_t)cp_value_width << 16)
+					      | ((uint64_t)word << 8) | width;
+					cg_class->add_covgrp_bin(cp_idx, (unsigned)added,
+						values[tuple][word], meta, 64u, tuple, cp_idx);
+					cg_class->set_last_covgrp_bin_guard(bin_guard);
+				      }
+				      xbin_desc_t d;
+				      d.name = bin.name;
+				      d.wide_values = std::move(values);
+				      d.source_prop = added;
+				      d.guard_idx = bin_guard;
+				      vbins.push_back(std::move(d));
+				      has_value_bins = true;
 				      continue;
 				}
 
@@ -40051,7 +40222,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // Automatic bins (19.5.1): no explicit value
 			    // bins => min(auto_bin_max, 2**M) uniform bins
 			    // over the coverpoint's bit-pattern space.
-			  if (!has_value_bins) {
+			  if (!has_value_bins && cp_value_width > 64) {
+				cerr << pclass->get_fileline()
+				     << ": error: automatic bins for a coverpoint wider "
+					"than 64 bits are not represented." << endl;
+				des->errors += 1;
+			  } else if (!has_value_bins) {
 				unsigned w = 32;
 				  // IEEE 19.5.1: an ENUM coverpoint gets
 				  // one automatic bin per named value,
@@ -40329,9 +40505,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				continue;
 			  }
 			  bool has_dynamic_family = false;
+			  bool has_wide_bin = false;
 			  for (unsigned cpi : cp_indexes)
 				for (const xbin_desc_t&desc : cp_value_bins[cpi])
-				      if (desc.dyn_family >= 0) has_dynamic_family = true;
+				      {
+					if (desc.dyn_family >= 0) has_dynamic_family = true;
+					if (!desc.wide_values.empty()) has_wide_bin = true;
+				      }
+			  if (has_dynamic_family && has_wide_bin) {
+				cerr << pclass->get_fileline()
+				     << ": error: cross '"
+				     << (cross.label.nil() ? "(unnamed)" : cross.label.str())
+				     << "' mixes wide exact and dynamic bins; the "
+					"product cannot be represented." << endl;
+				des->errors += 1;
+				continue;
+			  }
 
 			  opt_check(cross.options, "cross");
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
@@ -40654,6 +40843,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						if (!nm) return 0;
 					  }
 					  if (!s->intersect_ranges.empty()) {
+						if (cp_value_widths[cp_indexes[k]] > 64) {
+						      cerr << pclass->get_fileline()
+							   << ": error: wide coverpoint binsof "
+							      "intersect is not represented." << endl;
+						      des->errors += 1;
+						      return -1;
+						}
 						std::vector<std::pair<uint64_t,uint64_t>> irr;
 						if (!eval_ranges(s->intersect_ranges, irr,
 						 cp_value_widths[cp_indexes[k]],
@@ -40832,7 +41028,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				cerr << " product=" << nprod << endl;
 			  }
 				  if (nprod == 0) {
-					cerr << "sorry: cross '"
+					cerr << (has_wide_bin ? "error: " : "sorry: ")
+					     << "cross '"
 					     << (cross.label.nil() ? "(unnamed)"
 								   : cross.label.str())
 					     << (product_too_large ? "' would generate more than "
@@ -40841,6 +41038,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					     << " bins (limit " << cross_bin_limit
 				     << "); the cross is "
 				     << "dropped." << endl;
+				if (has_wide_bin) des->errors += 1;
 				continue;
 			  }
 
@@ -40881,10 +41079,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 									"continue." << endl;
 								des->errors += 1;
 							  } else {
-								cerr << "sorry: cross bin '" << cb.name
+								cerr << (has_wide_bin ? "error: " : "sorry: ")
+								     << "cross bin '" << cb.name
 								     << "' uses a binsof select form that "
 								     << "could not be evaluated; the bin "
 									"selects nothing." << endl;
+								if (has_wide_bin) des->errors += 1;
 							  }
 						  ubin_sorried[ub] = true;
 					    }
@@ -40942,7 +41142,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      for (size_t k = 0; k < idx.size(); k++) {
 					    const xbin_desc_t&d =
 						  cp_value_bins[cp_indexes[k]][idx[k]];
-					    rsizes[k] = d.ranges.size() ? d.ranges.size() : 1;
+					    rsizes[k] = !d.wide_values.empty()
+						? d.wide_values.size()
+						: d.ranges.size() ? d.ranges.size() : 1;
 					    if (rsizes[k] > cross_range_tuple_limit
 						|| nrt > cross_range_tuple_limit / rsizes[k]) {
 						range_product_too_large = true;
@@ -40952,13 +41154,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    nrt *= rsizes[k];
 				      }
 				      if (range_product_too_large) {
-					    cerr << "sorry: a cross product bin of '"
+					    cerr << (has_wide_bin ? "error: " : "sorry: ")
+						 << "a cross product bin of '"
 						 << (cross.label.nil() ? "(unnamed)"
 								       : cross.label.str())
 						 << "' spans more than " << cross_range_tuple_limit
 						 << " range tuples (limit " << cross_range_tuple_limit
 						 << "); the product bin never "
 						 << "matches." << endl;
+					    if (has_wide_bin) des->errors += 1;
 				      }
 				      for (auto&tgt : targets) {
 					    std::vector<size_t> ridx(idx.size(), 0);
@@ -40991,6 +41195,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 									tgt.second | 32u, tup, item_idx);
 								      cg_class->set_last_covgrp_bin_guard(
 									d.guard_idx);
+								      continue;
+								}
+								if (!d.wide_values.empty()) {
+								      const auto&words = d.wide_values[ridx[k]];
+								      unsigned width = cp_value_widths[cp_indexes[k]];
+								      for (unsigned word = 0; word < words.size(); word++) {
+									unsigned bits = std::min(64u, width - word * 64);
+									uint64_t meta = ((uint64_t)width << 16)
+									      | ((uint64_t)word << 8) | bits;
+									cg_class->add_covgrp_bin(cp_indexes[k],
+									      tgt.first, words[word], meta,
+									      tgt.second | 64u, tup, item_idx);
+									cg_class->set_last_covgrp_bin_guard(
+									      d.guard_idx);
+								      }
 								      continue;
 								}
 								if (d.ranges.empty()) continue;

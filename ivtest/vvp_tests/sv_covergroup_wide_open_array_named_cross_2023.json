@@ -1,0 +1,1 @@
+{"type":"normal","source":"sv_covergroup_wide_open_array_named_cross.v","iverilog-args":["-g2023","-gno-icarus-misc","-gno-xtypes","-s","top"],"gold":"sv_covergroup_wide_open_array_named_cross"}

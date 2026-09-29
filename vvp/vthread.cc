@@ -7365,8 +7365,23 @@ static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
 
 // One record's value predicate ('kind & 8' = wildcard).
 static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
-				     uint64_t val)
+				     uint64_t val,
+				     const vvp_vector4_t*wide_val = nullptr)
 {
+      if (bin.kind & 64) {
+	    unsigned width = bin.hi >> 16;
+	    unsigned word = (bin.hi >> 8) & 255;
+	    unsigned bits = bin.hi & 255;
+	    if (!wide_val || width <= 64 || width > 256
+		|| wide_val->size() != width || wide_val->has_xz()
+		|| bits == 0 || bits > 64 || word * 64 + bits > width
+		|| (bits < 64 && (bin.lo >> bits) != 0)) return false;
+	    for (unsigned bit = 0; bit < bits; bit++)
+		if (wide_val->value(word * 64 + bit)
+		    != ((bin.lo >> bit) & 1 ? BIT4_1 : BIT4_0))
+		      return false;
+	    return true;
+      }
       if (bin.kind & 8)
 	    return ((val ^ bin.lo) & bin.hi) == 0;
       return val >= bin.lo && val <= bin.hi;
@@ -8688,6 +8703,7 @@ static bool covgrp_cross_route_matches_(const covgrp_cross_route_t&route,
  */
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
+				const vector<vvp_vector4_t>&wide_vals,
 				const vector<uint64_t>&guards,
 				const vector<uint64_t>&cross_guards,
 				const vector<uint64_t>&bin_guards);
@@ -8741,9 +8757,11 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       }
 
       vector<uint64_t> cp_vals(ncp, 0);
+      vector<vvp_vector4_t> wide_vals(ncp);
       vector<bool> cp_has_xz(ncp, false);
       for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
 	    vvp_vector4_t v = thr->pop_vec4();
+	    if (v.size() > 64) wide_vals[ii] = v;
 	    uint64_t val = 0;
 	    bool xz = false;
 	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1) {
@@ -8763,7 +8781,7 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
-	 covgrp_sample_core_(cobj, ncp, cp_vals, guards, cross_guards,
+	 covgrp_sample_core_(cobj, ncp, cp_vals, wide_vals, guards, cross_guards,
 			     bin_guards);
       return true;
 }
@@ -8772,6 +8790,7 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
  * %covgrp/sample/all (M11-3 event-driven sampling). */
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
+				const vector<vvp_vector4_t>&wide_vals,
 				const vector<uint64_t>&guards,
 				const vector<uint64_t>&cross_guards,
 				const vector<uint64_t>&bin_guards)
@@ -8835,7 +8854,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			continue;
 		  }
 		  bool m = bin_enabled(bin.guard_idx)
-			&& covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+			&& covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
+					       &wide_vals[bin.cp_idx]);
 		  auto it = tuple_ok.find(bin.tuple);
 		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
 		  else it->second = it->second && m;
@@ -8918,7 +8938,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (!item_enabled(bin.item_idx)) continue;
 	    if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx])
 		  continue;
-	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx]))
+	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
+					 &wide_vals[bin.cp_idx]))
 		  cp_suppressed[bin.cp_idx] = true;
       }
       for (auto&entry : dyn_states) {
@@ -9138,7 +9159,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		      || cp_suppressed[bin.cp_idx])
 			m = false;
 		  else
-			m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+			m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
+					       &wide_vals[bin.cp_idx]);
 		  auto it = tuple_ok.find(bin.tuple);
 		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
 		  else it->second = it->second && m;
@@ -9244,10 +9266,12 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
       if (pprop < 0) return true;
       unsigned ncp = defn->covgrp_src_count();
 
-      auto read_u64 = [](vvp_cobject*o, unsigned prop,
-			 uint64_t&val, bool&low_is_1) {
+	      auto read_u64 = [](vvp_cobject*o, unsigned prop,
+			 uint64_t&val, bool&low_is_1,
+			 vvp_vector4_t*wide = nullptr) {
 	    vvp_vector4_t v;
 	    o->get_vec4(prop, v);
+	    if (wide && v.size() > 64) *wide = v;
 	    val = 0;
 	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1)
 		  if (v.value(b) == BIT4_1)
@@ -9266,12 +9290,14 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 	    if (!parent) continue;
 
 	    vector<uint64_t> vals(ncp, 0);
+	    vector<vvp_vector4_t> wide_vals(ncp);
 	    vector<uint64_t> guards(ncp, 1);
 	    for (unsigned ci = 0 ; ci < ncp ; ci += 1) {
 		  uint64_t v; bool low;
 		  int sp = defn->covgrp_srcprop(ci);
 		  if (sp >= 0) {
-			read_u64(parent, (unsigned)sp, v, low);
+			read_u64(parent, (unsigned)sp, v, low,
+				 &wide_vals[ci]);
 			vals[ci] = v;
 		  }
 		  int gp = defn->covgrp_guardsrc(ci);
@@ -9305,7 +9331,7 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 	    // retain the historical enabled recovery rather than silently
 	    // disabling every guarded bin.
 	    vector<uint64_t> bin_guards(nbin_guards, 1);
-	    covgrp_sample_core_(cg, ncp, vals, guards, cross_guards,
+	    covgrp_sample_core_(cg, ncp, vals, wide_vals, guards, cross_guards,
 				 bin_guards);
       }
       return true;
