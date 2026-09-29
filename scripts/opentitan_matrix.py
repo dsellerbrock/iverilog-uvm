@@ -186,6 +186,9 @@ OPENTITAN_RUNTIME_FAIL_PATTERNS = (
     re.compile(r"^Error:.*$", re.I),
     re.compile(r"^DPI error:.*$", re.I),
 )
+RUNTIME_ERROR_ALLOWLIST = (
+    re.compile(r"^----\| has Configuration error:\s+FALSE$"),
+)
 RUNTIME_DEBT_ALLOWLIST = (
     # IEEE 1800 permits a function call as a statement with its return value
     # discarded. Icarus deliberately emits this optional diagnostic from its
@@ -2830,6 +2833,7 @@ def run_job(
     runtime_errors = matching_lines(
         runtime_result.output,
         (*HARD_ERROR_PATTERNS, *OPENTITAN_RUNTIME_FAIL_PATTERNS),
+        RUNTIME_ERROR_ALLOWLIST,
     )
     runtime_pass_banner = bool(OPENTITAN_RUNTIME_PASS_RE.search(runtime_result.output))
     if not runtime_pass_banner:
@@ -3433,6 +3437,19 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert matching_lines("foo.sv:4: syntax error", HARD_ERROR_PATTERNS)
     assert matching_lines("ivl: synth2.cc:1: failed assertion x", HARD_ERROR_PATTERNS)
     assert matching_lines("Abort trap: 6", HARD_ERROR_PATTERNS)
+    runtime_failure_patterns = (*HARD_ERROR_PATTERNS, *OPENTITAN_RUNTIME_FAIL_PATTERNS)
+    assert not matching_lines(
+        "----| has Configuration error:  FALSE", runtime_failure_patterns,
+        RUNTIME_ERROR_ALLOWLIST,
+    )
+    assert matching_lines(
+        "----| has Configuration error:  TRUE", runtime_failure_patterns,
+        RUNTIME_ERROR_ALLOWLIST,
+    )
+    assert matching_lines(
+        "UVM_ERROR @ 0 ps: real failure", runtime_failure_patterns,
+        RUNTIME_ERROR_ALLOWLIST,
+    )
     assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED CHECKS\n")
     assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED UVM_CHECKS\n")
     assert not OPENTITAN_RUNTIME_PASS_RE.search("UVM_INFO test ended\n")
