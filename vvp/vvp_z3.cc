@@ -9737,6 +9737,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             if (!z3_joint_components_(ctx, base, variables, components,
                   preference_edges))
                   return fail_joint("the joint dependency graph contains an unsupported expression");
+            vector<bool> ordered_components;
+            for (const auto&component : components)
+                  ordered_components.push_back(any_of(component.begin(),
+                        component.end(), [&](Z3_ast var) {
+                              return stages.count(var) || active_randc_var(var);
+                        }));
             struct JointDistBinding {
                   const Z3Builder::DistSpec*spec;
                   size_t subject_column;
@@ -10032,12 +10038,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   }
             }
             // Prove every ordered prefix can resolve its due distribution
-            // before consuming any random draw. The common 2017/2023 subset
-            // keeps the existing complete-range requirement: 2023 18.5.3
+            // before consuming any random draw. Ordered components keep the
+            // existing complete-range requirement: 2023 18.5.3
             // specifies retained source-range mass after exclusions, while
             // 2017 18.5.4 has different per-value wording. Validation moves
             // prefix-dependent exclusions, range/weight caps, and any solver
-            // UNKNOWN ahead of all component/stage sampling.
+            // UNKNOWN ahead of all component/stage sampling. An independent
+            // component keeps ordinary distribution range semantics.
             if (!builder.order_pairs.empty()) {
                   for (size_t ci = 0; ci < components.size(); ++ci) {
                         if (distributions[ci].size() != 1) continue;
@@ -10078,7 +10085,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               bool valid = active >= 0 && (!active
                                     || z3_resolve_dist_exact(ctx, base, opt,
                                           *spec, owner_rng(spec->rng_owner), ignored,
-                                          true, true));
+                                          ordered_components[ci], true));
                               Z3_solver_pop(ctx, base, 1);
                               if (!valid)
                                     return fail_joint("an ordered distribution cannot be resolved for every proved prefix fiber");
@@ -10330,7 +10337,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               uint64_t subject = 0;
                               if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
                                     owner_rng(spec->rng_owner), subject,
-                                    true))
+                                    ordered_components[ci]))
                                     return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
                               unsigned width = bv_width(ctx, spec->subject);
                               if (width < 64) subject &= (uint64_t(1) << width) - 1;

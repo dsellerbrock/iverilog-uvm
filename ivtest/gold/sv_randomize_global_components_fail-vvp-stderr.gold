@@ -4,4 +4,3 @@ ERROR: global constraint sampling failed: joint dist requires an unconditional h
 Warning: dist weight expression could not be evaluated at randomize time; its branch has zero weight (further similar warnings suppressed).
 ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
 ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
-ERROR: global constraint sampling failed: a joint distribution has an excluded range member or could not be sampled exactly.

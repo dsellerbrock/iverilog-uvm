@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_randomize_joint_unordered_dist_clipped_2023.v",
+    "iverilog-args": ["-g2023", "-s", "sv_randomize_joint_unordered_dist_clipped"],
+    "gold": "sv_randomize_joint_unordered_dist_clipped"
+}

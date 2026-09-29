@@ -1,0 +1,40 @@
+[
+  {
+    "edition": "2017",
+    "source": "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-control.sv",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "reducer",
+      "-o",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-2017.vvp",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-control.sv"
+    ],
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/vvp/vvp",
+      "-n",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-2017.vvp"
+    ],
+    "runtime_output": "PASS clk=50\n"
+  },
+  {
+    "edition": "2023",
+    "source": "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-control.sv",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "reducer",
+      "-o",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-2023.vvp",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-control.sv"
+    ],
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/vvp/vvp",
+      "-n",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/no-order-2023.vvp"
+    ],
+    "runtime_output": "PASS clk=50\n"
+  }
+]

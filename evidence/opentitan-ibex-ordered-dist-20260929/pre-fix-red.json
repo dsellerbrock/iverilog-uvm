@@ -1,0 +1,46 @@
+[
+  {
+    "edition": "2017",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2017",
+      "-I",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest",
+      "-s",
+      "sv_randomize_joint_unordered_dist_clipped",
+      "-o",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/red-2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_randomize_joint_unordered_dist_clipped.v"
+    ],
+    "compile_output": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-n",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/red-2017.vvp"
+    ],
+    "runtime_returncode": 1,
+    "runtime_output": "ERROR: global constraint sampling failed: an ordered distribution cannot be resolved for every proved prefix fiber.\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_randomize_joint_unordered_dist_clipped.v:23: independent fixed range must randomize\n       Time: 0  Scope: sv_randomize_joint_unordered_dist_clipped\n"
+  },
+  {
+    "edition": "2023",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2023",
+      "-I",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest",
+      "-s",
+      "sv_randomize_joint_unordered_dist_clipped",
+      "-o",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/red-2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_randomize_joint_unordered_dist_clipped_2023.v"
+    ],
+    "compile_output": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-n",
+      "/private/tmp/ot-ibex-ordered-dist-20260929/red-2023.vvp"
+    ],
+    "runtime_returncode": 1,
+    "runtime_output": "ERROR: global constraint sampling failed: an ordered distribution cannot be resolved for every proved prefix fiber.\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_randomize_joint_unordered_dist_clipped.v:23: independent fixed range must randomize\n       Time: 0  Scope: sv_randomize_joint_unordered_dist_clipped\n"
+  }
+]
