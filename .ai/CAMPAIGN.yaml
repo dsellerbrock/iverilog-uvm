@@ -1,18 +1,23 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 8e57f8364
+checkpoint_head: 072de981c
 active_open_titan_lane:
-  blocker: "OT-ROM-CTRL-STARTUP-RSS"
+  blocker: "DD-094"
   phase: "REPRODUCED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "8e57f8364"
+  baseline_head: "072de981c"
   installed_ivl_sha256: "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db"
   installed_vvp_sha256: "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
-  reproducer: "Package-only original-source ROM scrambler mode5 rises from 9.4 MiB at 64 words to 203.9 MiB at 1024; mode1 address S&P alone reaches 139.0 MiB. Corrected-DPI full-top ROM init hits 4 GiB after 8192 words even with final deposit omitted."
-  validation: "PR394 OT build/install and focused JSON 12/12 pass. The small reducer isolates address/data scrambling. Live object and malloc in-use counts remain nearly flat while RSS/physical footprint rise across iterations, pointing to allocator high-water rather than an object leak. Prior DD-089 broad gates and OTP pass used the older VVP and remain revision-scoped."
-  next_command: "Identify the allocation pattern behind high-water growth in the small scrambler reducer; apply a semantic-safe VVP change only if proven, then check values/memory and focused/broad gates. Run one guarded selected ROM Control replay when Caliptra releases the host budget. Do not rerun the 49-target corpus yet."
-  boundary: "No ROM Control DV pass or refreshed 49-target census. OTBN coverage-bin triage remains read-only during this blocker."
+  reproducer: "Saved OTBN compile has 178 mutable class-field bin errors. Exact 128/160-bit packed reducer fails for mutable and const fields, while class localparams compile and sample in strict 2017/2023."
+  validation: "Reducer and saved error corpus only; no copied-source OTBN patch or target compile yet. ROM allocator high-water diagnosis is preserved and suspended without VVP source change or ROM DV pass."
+  next_command: "Create a named copied-source OTBN patch changing only DEF_MNEM/DEF_CSR to class localparams; verify hashes, strict reducer and one selected OTBN compile. Triage remaining errors before any corpus rerun."
+  boundary: "No fresh OTBN target pass or refreshed 49-target census. Caliptra selected ML-KEM guard is active separately."
+suspended_rom_memory_lane:
+  blocker: "OT-ROM-CTRL-STARTUP-RSS"
+  phase: "SUSPENDED_ALLOCATOR_HIGH_WATER"
+  evidence: "docs/conformance/session_logs/2026-09-29_ot_rom_ctrl_bounded_memory_triage.json: package reducer and corrected-DPI selected A/B; no VVP patch or DV pass."
+  prerequisite: "A measured semantic-safe allocator strategy or a resource-exclusive guarded ROM replay with a concrete discriminating hypothesis."
 completed_dd089_lane:
   blocker: "DD-089"
   phase: "DONE"
