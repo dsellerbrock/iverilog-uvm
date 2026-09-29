@@ -3827,5 +3827,15 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** Icarus `parse.y` covergroup sample-formal capture near line 3795 stores only `PWire::data_type()`, omitting `unpacked_indices()`; `elaborate.cc` then builds scalar formal placeholders/call slots. The `elab_expr.cc` and `netmisc.cc` failures are downstream symptoms.
 - **Possible clause:** IEEE 1800-2017 §7.4.6 and IEEE 1800-2023 §7.4.5 for array indexing; both editions §19.5 for coverpoint sample expressions.
 - **Evidence:** Projectless `work/otbn-flag-select-20260929/flag_select.sv` and `results.json`; DD-094 patched selected compile retains 25 sample-index and 3 packed-member internal errors.
-- **Reproducer status:** confirmed strict paired direct failures and scalarized runtime controls; direct Icarus runtime awaits compiler repair.
-- **Triage status:** selected as the next compiler blocker. No source workaround or unsafe-flag addition is accepted as a semantic fix.
+- **Reproducer status:** the final candidate passes paired strict 2017/2023 direct, class-property, bare-array, opposite-direction and defaulted-array sample controls. Focused JSON and legacy runners pass 10/10 each; the guarded selected OTBN compile clears 25 dynamic-index errors and three packed-member internal errors, leaving two original tracer errors.
+- **Triage status:** DONE for the tested compiler scope: exact-image JSON 4129/0, legacy 6880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, negative 154/154. [DD-095 evidence](../../evidence/opentitan-otbn-dynamic-sample-formal-20260929/focus.json) records exact source/tool hashes and the selected compile. No OTBN VVP/DV pass or 49-target update.
+
+### DD-096 — X/Z coverpoint samples hit known-value bins
+
+- **Discovered while working:** DD-095 focused regression.
+- **Observation:** A scalar non-ref covergroup sample formal `logic flag` is sampled as `1'bx` and `1'bz` in `{fg, flag}`; each sample reports 50% coverage of explicit known-value bins `2'b00` and `2'b11`, then the guard fatals. The sample has no dynamic array or packed-struct selection.
+- **File/function:** Functional-coverage value sampling/bin matching, exact runtime root cause not yet traced.
+- **Possible clause:** IEEE 1800-2017 and 1800-2023 §19.5.4: non-wildcard value bins match four-state values exactly; sampled X/Z cannot match these known-only bins.
+- **Evidence:** [DD-096 reducer and paired red logs](../../evidence/opentitan-covergroup-xz-bin-debt-20260929/); the original projectless files remain under `work/dd095-xz-coverage-debt-20260929/`.
+- **Reproducer status:** paired strict editions compile and fail the runtime check; first X sample already reports 50% instead of 0%.
+- **Triage status:** separate coverage-runtime blocker. Exclude X/Z samples from the DD-095 array-shape success fixture; do not infer four-state bin qualification from known-value passes.

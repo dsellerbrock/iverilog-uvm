@@ -1,0 +1,4 @@
+after X: 50.000000
+after Z: 50.000000
+FATAL: work/dd095-xz-coverage-debt-20260929/concat_sample_xz.sv:17: X/Z sampled a known-value bin
+       Time: 0  Scope: top

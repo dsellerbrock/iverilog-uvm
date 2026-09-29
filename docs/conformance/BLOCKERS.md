@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-OTBN-SAMPLE-FORMAL-UNPACKED-ARRAY — preserve sample array shape and values
+
+- **State:** DD-095 DONE for its bounded compiler fix. Paired strict 2017/2023 focused JSON and legacy tests pass 10/10 each; exact-image JSON 4,129/0, legacy 6,880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, and negatives 154/154 pass. The [guarded OTBN compile](../../evidence/opentitan-otbn-dynamic-sample-formal-20260929/focus.json) reduces 30 hard errors to two original tracer declaration-order errors, with no new diagnostic line.
+- **Cause and correction:** Covergroup sample formals lost unpacked dimensions when parsing retained only the element type. The compiler now carries the declared array shape into covergroup placeholders, copies fixed-array actuals by value, and checks explicit and defaulted actual shape. Defaults are evaluated on every omitted call.
+- **Boundary:** No OTBN VVP/DV pass or refreshed 49-target census. Four-state X/Z bin matching is separate DD-096 debt; the two remaining tracer errors require the named pinned-source declaration-order patch.
+
 ### OT-UNSAFE-INTERFACE-DRIVER-ALIAS-GUARD — distinguish guarded VIF writes from static conflicts
 
 - **State:** Focused candidate on `525642475`, awaiting exact-head broad gates. The [revision-scoped evidence](session_logs/2026-09-29_ot_unsafe_interface_driver_alias_guard.json) records paired 2017/2023 controls, the selected copied-source SPI Host compile, and the compiler/VVP fingerprints. No selected SPI DV runtime ran.

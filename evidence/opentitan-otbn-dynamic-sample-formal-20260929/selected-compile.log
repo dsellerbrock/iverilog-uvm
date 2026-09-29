@@ -1,0 +1,10 @@
+../src/lowrisc_dv_otbn_sim_0.1/tb.sv:86: warning: input port rst_n is coerced to inout.
+../src/lowrisc_ip_otbn_tracer_0/rtl/otbn_trace_if.sv:375: error: Unable to bind wire/reg/memory `controller_bad_int_i.loop_hw_intg_err' in `tb.dut.u_otbn_core.i_otbn_trace_if'
+../src/lowrisc_ip_otbn_tracer_0/rtl/otbn_trace_if.sv:382:      : A symbol with that name was declared here. Check for declaration after use.
+../src/lowrisc_ip_otbn_tracer_0/rtl/otbn_trace_if.sv:375: error: Unable to elaborate r-value: controller_bad_int_i.loop_hw_intg_err
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+2 error(s) during elaboration.

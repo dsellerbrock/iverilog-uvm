@@ -104,6 +104,49 @@ extern NetESFunc* make_std_randomize_with_expr(
 
 using namespace std;
 
+static NetNet* make_covergroup_formal_signal_(NetScope*scope, ivl_type_t type)
+{
+      netranges_t unpacked;
+      while (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	unpacked.insert(unpacked.begin(),
+			array->static_dimensions().begin(),
+			array->static_dimensions().end());
+	type = array->element_type();
+      }
+      return new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			unpacked, type);
+}
+
+static const netuarray_t* covergroup_sample_array_type_(const NetExpr*expr)
+{
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+	if (sig->word_index()) return nullptr;
+	return dynamic_cast<const netuarray_t*>(sig->sig()->array_type());
+      }
+      return dynamic_cast<const netuarray_t*>(expr->net_type());
+}
+
+static NetExpr* elaborate_covergroup_sample_value_(Design*des, NetScope*scope,
+						  PExpr*expr, ivl_type_t formal_type)
+{
+      if (!expr) return nullptr;
+      if (dynamic_cast<const netuarray_t*>(formal_type)) {
+	if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	      symbol_search_results array_sr;
+	      if (symbol_search(ident, des, scope, ident->path(),
+			ident->lexical_pos(), &array_sr)
+		  && array_sr.net && array_sr.path_tail.empty()
+		  && ident->path().name.back().index.empty()
+		  && dynamic_cast<const netuarray_t*>(array_sr.net->array_type())) {
+		NetESignal*actual = new NetESignal(array_sr.net, nullptr);
+		actual->set_line(*expr);
+		return actual;
+	      }
+	}
+      }
+      return elab_and_eval(des, scope, expr, -1, false, false);
+}
+
 static const netclass_t* virtual_interface_type_(ivl_type_t type)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(type);
@@ -8578,6 +8621,16 @@ static bool fixed_uarray_shapes_compatible_(const netuarray_t*dst,
       return dst_elem == src_elem
 	    || (dst_elem->type_equivalent(src_elem)
 		&& src_elem->type_equivalent(dst_elem));
+}
+
+static bool covergroup_sample_array_shapes_compatible_(ivl_type_t formal,
+						       const NetExpr*actual)
+{
+      const netuarray_t*formal_array =
+	    dynamic_cast<const netuarray_t*>(formal);
+      const netuarray_t*actual_array = covergroup_sample_array_type_(actual);
+      return (!formal_array && !actual_array)
+	    || fixed_uarray_shapes_compatible_(formal_array, actual_array);
 }
 
 static NetProc* make_fixed_uarray_signal_copy_(Design*des, NetScope*scope,
@@ -17611,12 +17664,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  }
 					  if (fj >= nformals || !parms_[ai].parm)
 						continue;
-					  NetExpr*actual = elab_and_eval(
-						des, scope, parms_[ai].parm,
-						-1, false, false);
-					  if (!actual) continue;
 					  ivl_type_t slot_type =
 						cgtype->covgrp_sample_formal_type(fj);
+					  NetExpr*actual = elaborate_covergroup_sample_value_(
+						des, scope, parms_[ai].parm, slot_type);
+					  if (!actual) continue;
 					  if (!slot_type) slot_type = actual->net_type();
 					  if (!slot_type) {
 						unsigned aw = actual->expr_width();
@@ -17627,12 +17679,23 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 							    IVL_VT_LOGIC, aw - 1, 0,
 							    actual->has_sign());
 					  }
-					  NetNet*slot = new NetNet(
-						scope, scope->local_symbol(),
-						NetNet::REG, slot_type);
+					  NetNet*slot = make_covergroup_formal_signal_(
+						 scope, slot_type);
 					  slot->set_line(*this);
 					  slot->local_flag(true);
 					  formal_nets[fj] = slot;
+					  if (!covergroup_sample_array_shapes_compatible_(
+						 slot_type, actual)) {
+						cerr << get_fileline() << ": error: covergroup '"
+						     << cgtype->get_name() << "' sample() formal '"
+						     << cgtype->covgrp_sample_formal(fj)
+						     << "' requires a fixed unpacked-array actual "
+						     << "with matching dimensions, sizes, and "
+						     << "element type." << endl;
+						des->errors += 1;
+						delete actual;
+						continue;
+					  }
 					  NetAssign*copy = new NetAssign(
 						new NetAssign_(slot), actual);
 					  copy->set_line(*this);
@@ -17644,19 +17707,32 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						      cgtype->covgrp_sample_formal_type(k);
 						if (!slot_type)
 						      slot_type = &netvector_t::atom2s32;
-						NetNet*slot = new NetNet(
-						      scope, scope->local_symbol(),
-						      NetNet::REG,
-						      slot_type);
+						NetNet*slot = make_covergroup_formal_signal_(
+						      scope, slot_type);
 						slot->set_line(*this);
 						slot->local_flag(true);
 						formal_nets[k] = slot;
 						PExpr*default_expr =
 						      cgtype->covgrp_sample_formal_default(k);
 						NetExpr*default_value = default_expr
-						      ? elab_and_eval(des, scope, default_expr,
-								      -1, false, false)
+						      ? elaborate_covergroup_sample_value_(
+							      des, cp_scope, default_expr, slot_type)
 						      : nullptr;
+						bool shape_error = default_value
+						      && !covergroup_sample_array_shapes_compatible_(
+							      slot_type, default_value);
+						if (shape_error) {
+						      cerr << get_fileline() << ": error: covergroup '"
+							   << cgtype->get_name()
+							   << "' sample() default for formal '"
+							   << cgtype->covgrp_sample_formal(k)
+							   << "' requires a fixed unpacked array with "
+							   << "matching dimensions, sizes, and "
+							   << "element type." << endl;
+						      des->errors += 1;
+						      delete default_value;
+						      default_value = nullptr;
+						}
 						if (!default_expr) {
 						      cerr << get_fileline()
 							   << ": error: covergroup '"
@@ -17666,7 +17742,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 							   << cgtype->covgrp_sample_formal(k)
 							   << "'." << endl;
 						      des->errors += 1;
-						} else if (!default_value) {
+						} else if (!default_value && !shape_error) {
 						      cerr << get_fileline()
 							   << ": error: unable to elaborate "
 							   << "default for covergroup sample "
@@ -17675,15 +17751,12 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 							   << "'." << endl;
 						      des->errors += 1;
 						}
-						if (!default_value) {
-						      default_value = new NetEConst(
-							    verinum((uint64_t)0, 32));
-						      default_value->set_line(*this);
+						if (default_value) {
+						      NetAssign*copy = new NetAssign(
+							    new NetAssign_(slot), default_value);
+						      copy->set_line(*this);
+						      sample_block->append(copy);
 						}
-						NetAssign*copy = new NetAssign(
-						      new NetAssign_(slot), default_value);
-						copy->set_line(*this);
-						sample_block->append(copy);
 					  }
 					  previous_formal_bindings[k] =
 						cp_scope->set_signal_alias(
@@ -37932,7 +38005,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (fi < cgdef->sample_formal_types.size()
 			      && cgdef->sample_formal_types[fi]) {
 				ivl_type_t declared = cgdef->sample_formal_types[fi]
-				      ->elaborate_type(des, class_scope_);
+				      ->elaborate_sig_type(des, class_scope_);
 				if (declared) formal_type = declared;
 			  }
 			  cg_class->add_covgrp_sample_formal(
@@ -38972,12 +39045,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (fi < cgdef->sample_formal_types.size()
 			      && cgdef->sample_formal_types[fi]) {
 				ivl_type_t declared = cgdef->sample_formal_types[fi]
-				      ->elaborate_type(des, class_scope_);
+				      ->elaborate_sig_type(des, class_scope_);
 				if (declared) formal_type = declared;
 			  }
-			  NetNet*placeholder = new NetNet(
-				class_scope_, class_scope_->local_symbol(),
-				NetNet::REG, formal_type);
+			  NetNet*placeholder = make_covergroup_formal_signal_(
+				class_scope_, formal_type);
 			  placeholder->local_flag(true);
 			  sample_formal_placeholders.push_back(placeholder);
 			  sample_formal_previous.push_back(class_scope_->set_signal_alias(
@@ -40322,10 +40394,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  if (cgdef->sample_formals[fj] != snm)
 							continue;
 						  is_formal_src = true;
-						  if (data_type_t*ft =
+						  if (PWire*ft =
 							cgdef->sample_formal_types[fj]) {
-							ivl_type_t fit =
-							      ft->elaborate_type(des, class_scope_);
+						  ivl_type_t fit =
+							      ft->elaborate_sig_type(des, class_scope_);
 							if (const netenum_t*fet =
 							      dynamic_cast<const netenum_t*>(fit))
 							      src_enum = fet;

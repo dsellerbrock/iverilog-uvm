@@ -6214,7 +6214,8 @@ void emit_store_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
 }
 
 /* `fa = da' and its siblings: a WHOLE fixed-size unpacked array l-value
-   receiving a dynamic-array or queue r-value (IEEE 1800-2017 7.6).
+   receiving an array value (IEEE 1800-2017 7.6). Fixed-array r-values
+   are first marshaled into passive container storage by draw_eval_object.
    %load/arr/dar has marshaled the other direction since M10-1; this is
    the return trip, and it is the single instruction every legal
    container -> fixed-array copy goes through -- the plain assignment
@@ -6237,7 +6238,7 @@ static int show_stmt_assign_uarray_from_container(ivl_statement_t net,
       return 0;
 }
 
-/* True when an r-value expression is a WHOLE container value.
+/* True when an r-value expression is a WHOLE array value.
 
    ivl_expr_value() is not the test: a signal expression naming a
    dynamic array reports its ELEMENT type (IVL_VT_LOGIC for `int da[]'),
@@ -6251,6 +6252,9 @@ static int rval_is_whole_container_(ivl_expr_t rv)
 
       if (!rv)
 	    return 0;
+
+      if (vvp_expr_is_fixed_uarray_value(rv))
+	    return 1;
 
       if (ivl_expr_type(rv) == IVL_EX_SIGNAL && !ivl_expr_oper1(rv)) {
 	    ivl_signal_t rsig = ivl_expr_signal(rv);

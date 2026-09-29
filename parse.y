@@ -3784,16 +3784,16 @@ class_item /* IEEE1800-2005: A.1.8 */
 	if (strcmp($4, "sample") != 0)
 	      yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
-	std::vector<data_type_t*>*ftypes__ = 0;
+	std::vector<PWire*>*ftypes__ = 0;
 	std::vector<PExpr*>*fdefaults__ = 0;
 	if ($6) {
 	      formals__ = new std::vector<perm_string>;
-	      ftypes__ = new std::vector<data_type_t*>;
+	      ftypes__ = new std::vector<PWire*>;
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
 			  formals__->push_back((*$6)[idx__].port->basename());
-			  ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
 		    }
 	      current_function->set_ports($6);
@@ -7580,16 +7580,16 @@ package_covergroup_declaration
         if (strcmp($4, "sample") != 0)
               yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
         std::vector<perm_string>*formals__ = 0;
-        std::vector<data_type_t*>*ftypes__ = 0;
+        std::vector<PWire*>*ftypes__ = 0;
 	std::vector<PExpr*>*fdefaults__ = 0;
         if ($6) {
               formals__ = new std::vector<perm_string>;
-              ftypes__ = new std::vector<data_type_t*>;
+              ftypes__ = new std::vector<PWire*>;
 	      fdefaults__ = new std::vector<PExpr*>;
               for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
                     if ((*$6)[idx__].port) {
                           formals__->push_back((*$6)[idx__].port->basename());
-                          ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+                          ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
                     }
               current_function->set_ports($6);
@@ -15593,16 +15593,16 @@ module_item
       { if (strcmp($4, "sample") != 0)
 	      yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
-	std::vector<data_type_t*>*ftypes__ = 0;
+	std::vector<PWire*>*ftypes__ = 0;
 	std::vector<PExpr*>*fdefaults__ = 0;
 	if ($6) {
 	      formals__ = new std::vector<perm_string>;
-	      ftypes__ = new std::vector<data_type_t*>;
+	      ftypes__ = new std::vector<PWire*>;
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
 			  formals__->push_back((*$6)[idx__].port->basename());
-			  ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
 		    }
 	      current_function->set_ports($6);

@@ -1,0 +1,2 @@
+./ivltests/sv_covergroup_sample_unpacked_shape_fail.v:11: error: covergroup 'cg' sample() formal 'flags' requires a fixed unpacked-array actual with matching dimensions, sizes, and element type.
+1 error(s) during elaboration.
