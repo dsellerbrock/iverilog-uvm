@@ -1,0 +1,304 @@
+diff --git a/vvp/codes.h b/vvp/codes.h
+index 8cb21604..5a4a2ebe 100644
+--- a/vvp/codes.h
++++ b/vvp/codes.h
+@@ -354,6 +354,7 @@ extern bool of_LOAD_PREPONED_REAL(vthread_t thr, vvp_code_t code);
+ extern bool of_LOAD_STR(vthread_t thr, vvp_code_t code);
+ extern bool of_LOAD_STRA(vthread_t thr, vvp_code_t code);
+ extern bool of_LOAD_VEC4(vthread_t thr, vvp_code_t code);
++extern bool of_NATIVE(vthread_t thr, vvp_code_t code);
+ extern bool of_LOAD_VEC4_PART_S(vthread_t thr, vvp_code_t code);
+ extern bool of_LOAD_VEC4_PART_U(vthread_t thr, vvp_code_t code);
+ extern bool of_LOAD_VEC4_PARTI(vthread_t thr, vvp_code_t code);
+diff --git a/vvp/compile.cc b/vvp/compile.cc
+index 04bcc2ca..dffa8068 100644
+--- a/vvp/compile.cc
++++ b/vvp/compile.cc
+@@ -485,6 +485,7 @@ static const struct opcode_table_s opcode_table[] = {
+       { "%muli",   of_MULI,   3,  {OA_BIT1,     OA_BIT2,     OA_NUMBER} },
+       { "%nand",   of_NAND,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
+       { "%nand/r", of_NANDR,  0,  {OA_NONE,     OA_NONE,     OA_NONE} },
++      { "%native", of_NATIVE, 2,  {OA_BIT1,     OA_CODE_PTR, OA_NONE} },
+       { "%new/cobj",  of_NEW_COBJ,  1, {OA_VPI_PTR, OA_NONE,     OA_NONE} },
+       { "%new/darray",of_NEW_DARRAY,2, {OA_BIT1,   OA_STRING,OA_NONE} },
+       { "%new/queue", of_NEW_QUEUE, 1, {OA_STRING, OA_NONE,  OA_NONE} },
+@@ -832,6 +833,16 @@ static const struct opcode_table_s opcode_table[] = {
+       { 0, of_NOOP, 0, {OA_NONE, OA_NONE, OA_NONE} }
+ };
+ 
++
++/* Native-code spike: the mnemonic of an instruction, for checking that a
++   generated library's instruction numbering matches the loaded code. */
++extern "C" const char* vvp_native_opname(vvp_code_t c)
++{
++      for (const opcode_table_s*op = opcode_table ; op->mnemonic ; op += 1)
++	    if (op->opcode == c->opcode)
++		  return op->mnemonic;
++      return "?";
++}
+ static const unsigned opcode_count =
+                     sizeof(opcode_table)/sizeof(*opcode_table) - 1;
+ 
+diff --git a/vvp/vthread.cc b/vvp/vthread.cc
+index 64ac4a7b..d76beb2c 100644
+--- a/vvp/vthread.cc
++++ b/vvp/vthread.cc
+@@ -56,6 +56,7 @@
+ #endif
+ # include  <set>
+ # include  <map>
++# include  <dlfcn.h>
+ # include  <tuple>
+ # include  <memory>
+ # include  <deque>
+@@ -783,6 +784,8 @@ struct vthread_s {
+             stack_obj_size_ += 1;
+       }
+ 
++      bool no_static_call_setups() const { return static_call_setups_.empty(); }
++
+     private:
+       vector<static_call_setup_s> static_call_setups_;
+       static_call_setup_s* static_setup_for_save_();
+@@ -23467,6 +23470,223 @@ bool of_LOAD_VEC4_PARTI(vthread_t thr, vvp_code_t cp)
+       return true;
+ }
+ 
++/*
++ * EXPERIMENTAL native-code spike (not for merge): %native <index>, <label>
++ *
++ * Runs function <index> of the table exported by the shared library named
++ * in VVP_NATIVE_SO. The function receives the first instruction after this
++ * one (the original bytecode body, which stays in place). If it returns
++ * true it has executed the body natively and the thread continues at
++ * <label>; if it returns false the thread runs the original bytecode.
++ */
++typedef vvp_code_t (*vvp_native_fn_t)(vthread_t, vvp_code_t);
++static vvp_native_fn_t*native_table_ = 0;
++static unsigned native_count_ = 0;
++static bool native_loaded_ = false;
++static const unsigned NATIVE_MAX_ = 65536;
++static unsigned long native_runs_[NATIVE_MAX_], native_deopts_[NATIVE_MAX_];
++static void native_report_()
++{
++      for (unsigned i = 0 ; i < native_count_ && i < NATIVE_MAX_ ; i += 1)
++	    fprintf(stderr, "vvp native: fn %u runs %lu deopts %lu\n",
++		    i, native_runs_[i], native_deopts_[i]);
++}
++
++static void native_load_table_()
++{
++      native_loaded_ = true;
++      const char*path = getenv("VVP_NATIVE_SO");
++      if (!path || !*path)
++	    return;
++      void*dll = dlopen(path, RTLD_NOW | RTLD_LOCAL);
++      if (!dll) {
++	    fprintf(stderr, "vvp native: dlopen %s: %s\n", path, dlerror());
++	    return;
++      }
++      native_table_ = (vvp_native_fn_t*)dlsym(dll, "vvp_native_table");
++      unsigned*cnt = (unsigned*)dlsym(dll, "vvp_native_count");
++      native_count_ = (native_table_ && cnt) ? *cnt : 0;
++      if (native_count_ > NATIVE_MAX_)
++	    native_count_ = NATIVE_MAX_;
++      if (getenv("VVP_NATIVE_STATS"))
++	    atexit(native_report_);
++	// Debug: VVP_NATIVE_RANGE=lo-hi keeps only those functions.
++      if (const char*r = getenv("VVP_NATIVE_RANGE")) {
++	    unsigned lo = 0, hi = 0;
++	    if (sscanf(r, "%u-%u", &lo, &hi) == 2) {
++		  static vvp_native_fn_t tab[NATIVE_MAX_];
++		  for (unsigned i = 0 ; i < native_count_ && i < NATIVE_MAX_ ; i += 1)
++			tab[i] = (i >= lo && i <= hi) ? native_table_[i] : 0;
++		  native_table_ = tab;
++	    }
++      }
++      fprintf(stderr, "vvp native: loaded %u functions from %s\n",
++	      native_count_, path);
++}
++
++/* The helpers below are the whole interface of a generated library. They
++   use C linkage and opaque pointers so it needs no vvp headers. */
++extern "C" {
++
++vvp_code_t vvp_native_next(vvp_code_t c)
++{
++      c += 1;
++      while (c->opcode == &of_CHUNK_LINK)
++	    c = c->cptr;
++      return c;
++}
++
++/* Values cross the native interface as a/b bit-plane words, the
++   encoding vvp_vector4_t uses (0=00 1=10 z=01 x=11 as ab). */
++
++static inline bool native_words_(const vvp_vector4_t&v, uint64_t*a, uint64_t*b)
++{
++      unsigned long wa, wb;
++      if (!v.small_words(wa, wb))
++	    return false;
++	// The bits above size() are not kept zero.
++      unsigned long m = v.size() >= 64 ? ~0UL : (1UL << v.size()) - 1UL;
++      *a = wa & m;
++      *b = wb & m;
++      return true;
++}
++
++static inline vvp_vector4_t native_vec_(uint64_t a, uint64_t b, unsigned wid)
++{
++      vvp_vector4_t v (wid, BIT4_0);
++      v.set_small_words(a, b);
++      return v;
++}
++
++/* Read the net of a %load/vec4. False only for a net the native code
++   cannot hold (not a signal, or wider than a word). */
++bool vvp_native_read(vvp_code_t c, uint64_t*a, uint64_t*b)
++{
++      vvp_signal_value*sig = vvp_fil_signal_value(c->net->fil);
++      if (!sig)
++	    return false;
++      vvp_vector4_t v;
++      sig->vec4_value(v);
++      return native_words_(v, a, b);
++}
++
++/* Read the part of a %load/vec4/parti. */
++bool vvp_native_read_part(vthread_t thr, vvp_code_t c, uint64_t*a, uint64_t*b)
++{
++      vvp_signal_value*sig = vvp_fil_signal_value(c->net->fil);
++      unsigned wid = c->bit_idx[0], base = c->bit_idx[1];
++      if (!sig || base + wid > sig->value_size()) {
++	      // Out of range: let the handler build the x-filled value.
++	    c->opcode(thr, c);
++	    return native_words_(thr->pop_vec4(), a, b);
++      }
++      vvp_vector4_t v;
++      sig->vec4_part_value(v, base, wid);
++      return native_words_(v, a, b);
++}
++
++/* Run any instruction that pushes one vec4 (e.g. %load/vec4a), then take
++   the result off the stack. */
++bool vvp_native_load(vthread_t thr, vvp_code_t c, uint64_t*a, uint64_t*b)
++{
++      c->opcode(thr, c);
++      return native_words_(thr->pop_vec4(), a, b);
++}
++
++/* Run an instruction that touches neither the stack nor the flags. */
++void vvp_native_exec(vthread_t thr, vvp_code_t c)
++{
++      c->opcode(thr, c);
++}
++
++void vvp_native_set_flag(vthread_t thr, unsigned idx, unsigned code)
++{
++      static const vvp_bit4_t map_bit[4] = {BIT4_0, BIT4_1, BIT4_Z, BIT4_X};
++      thr->flags[idx] = map_bit[code & 3];
++}
++
++unsigned vvp_native_get_flag(vthread_t thr, unsigned idx)
++{
++      switch (thr->flags[idx]) {
++	  case BIT4_0: return 0;
++	  case BIT4_1: return 1;
++	  case BIT4_Z: return 2;
++	  default:     return 3;
++      }
++}
++
++void vvp_native_push(vthread_t thr, uint64_t a, uint64_t b, unsigned wid)
++{
++      thr->push_vec4(native_vec_(a, b, wid));
++}
++
++uint64_t vvp_native_get_word(vthread_t thr, unsigned idx)
++{
++      return thr->words[idx].w_uint;
++}
++
++void vvp_native_set_word(vthread_t thr, unsigned idx, int64_t val)
++{
++      thr->words[idx].w_int = val;
++}
++
++/* %store/vec4 of a whole static net from a thread with no automatic
++   context: the handler's context lookup would find none, so send the
++   value directly. Anything else goes through the handler. */
++void vvp_native_store(vthread_t thr, vvp_code_t c, uint64_t a, uint64_t b,
++		      unsigned wid);
++
++/* %store/vec4 of a whole static net from a thread with no automatic
++   context: the handler's context lookup would find none, so send the
++   value directly. Anything else goes through the handler. */
++void vvp_native_store_net(vthread_t thr, vvp_code_t c, uint64_t a, uint64_t b,
++			  unsigned wid)
++{
++      vvp_signal_value*sig = c->net->fil ? c->net->fil->as_signal_value() : 0;
++      if (sig && c->bit_idx[0] == 0 && wid == sig->value_size()
++	  && !thr->wt_context && !thr->owned_context) {
++	    vvp_send_vec4(vvp_net_ptr_t(c->net, 0), native_vec_(a, b, wid), 0);
++	    return;
++      }
++      vvp_native_store(thr, c, a, b, wid);
++}
++
++/* Push a value and run a store/assign instruction's handler. */
++void vvp_native_store(vthread_t thr, vvp_code_t c, uint64_t a, uint64_t b,
++		      unsigned wid)
++{
++      thr->push_vec4(native_vec_(a, b, wid));
++      c->opcode(thr, c);
++}
++
++}
++
++/* Native code may run only when no static-call or randomize overlay can
++   redirect a load, i.e. a thread that is not in a call or randomize. */
++static bool native_plain_(vthread_t thr)
++{
++      return !thr->is_callf_child && thr->no_static_call_setups()
++	    && thr->randomize_calls.empty();
++}
++
++bool of_NATIVE(vthread_t thr, vvp_code_t cp)
++{
++      if (!native_loaded_)
++	    native_load_table_();
++      if (cp->bit_idx[0] < native_count_ && native_table_[cp->bit_idx[0]]
++	  && native_plain_(thr)) {
++	      /* The function returns 0 when it ran the whole body, or
++		 the instruction to resume at after it deoptimized: its
++		 stack and flags are then already in the thread. */
++	    vvp_code_t resume = native_table_[cp->bit_idx[0]](thr,
++						vvp_native_next(cp));
++	    thr->pc = resume ? resume : cp->cptr;
++	    native_runs_[cp->bit_idx[0]] += 1;
++	    if (resume) native_deopts_[cp->bit_idx[0]] += 1;
++      }
++      return true;
++}
++
+ /*
+  * %hist/on <var-label>
+  *
+diff --git a/vvp/vvp_net.h b/vvp/vvp_net.h
+index 2488d9bc..3326174e 100644
+--- a/vvp/vvp_net.h
++++ b/vvp/vvp_net.h
+@@ -381,6 +381,13 @@ class vvp_vector4_t {
+ 	// store its bits in val (zero above size()) and return true.
+ 	// Otherwise return false and leave val alone.
+       bool small_2state_word(unsigned long&val) const;
++	// Native-code spike: the a/b bit planes of a vector of at most one
++	// word (bits above size() are unspecified).
++      bool small_words(unsigned long&a, unsigned long&b) const
++      { if (size_ > BITS_PER_WORD) return false;
++	a = abits_val_; b = bbits_val_; return true; }
++      void set_small_words(unsigned long a, unsigned long b)
++      { assert(size_ <= BITS_PER_WORD); abits_val_ = a; bbits_val_ = b; }
+ 
+ 	// Change all Z bits to X bits.
+       void change_z2x();
