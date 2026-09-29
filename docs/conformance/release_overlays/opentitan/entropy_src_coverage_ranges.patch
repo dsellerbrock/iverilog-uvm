@@ -1,0 +1,41 @@
+--- a/hw/ip/entropy_src/dv/cov/entropy_src_cov_if.sv
++++ b/hw/ip/entropy_src/dv/cov/entropy_src_cov_if.sv
+@@ -181,7 +181,7 @@
+     cp_otp_en_es_fw_read: coverpoint otp_en_es_fw_read {
+       bins         mubi_true  = { MuBi8True };
+       illegal_bins mubi_false = { MuBi8False };
+-      illegal_bins mubi_inval = {[0:$]} with (!(item inside {MuBi8True, MuBi8False}));
++      illegal_bins mubi_inval = {[8'h00:8'h68], [8'h6a:8'h95], [8'h97:8'hff]};
+     }
+ 
+     // Sample the FW_OV parameters, just to be sure that they
+@@ -498,7 +498,7 @@
+     cp_otp_en_es_fw_over: coverpoint otp_en_es_fw_over {
+       bins         mubi_true  = { MuBi8True };
+       illegal_bins mubi_false = { MuBi8False };
+-      illegal_bins mubi_inval = {[0:$]} with (!(item inside {MuBi8True, MuBi8False}));
++      illegal_bins mubi_inval = {[8'h00:8'h68], [8'h6a:8'h95], [8'h97:8'hff]};
+     }
+ 
+     cp_entropy_insert: coverpoint entropy_insert {
+@@ -867,15 +867,15 @@
+     cp_threshold : coverpoint sigma_to_int(sigma) {
+       // Very frequent false positive rates 1 in 6 for single-sided test
+       // (good for testing frequent alert scenarios)
+-      bins extremely_tight = { [0 : sigma_to_int(1.0) - 1]};
++      bins extremely_tight = { [0 : 1]};
+       // False positive rate > 2.5% (for testing frequent single failures)
+-      bins very_tight      = { [sigma_to_int(1.0) : sigma_to_int(2.0) - 1] };
++      bins very_tight      = { [2 : 3] };
+       // False positive rate > 3ppm (almost covers up to SP 800-90B's minimum suggested 1 in 2^20)
+-      bins tight           = { [sigma_to_int(2.0) : sigma_to_int(4.5) - 1] };
++      bins tight           = { [4 : 8] };
+       // False positive rate > 1.25 in 1e12 (covers to most of SP 800-90B range down to 1 in 2^40)
+-      bins typical         = { [sigma_to_int(4.5) : sigma_to_int(7.0) - 1] };
++      bins typical         = { [9 : 13] };
+       // All other possible sigma values
+-      bins loose           = { [sigma_to_int(7.0) : 32'hffff_ffff] };
++      bins loose           = { [14 : 32'hffff_ffff] };
+     }
+ 
+     cr_cross : cross cp_winsize, cp_by_line, cp_type, cp_hi_lo, cp_fail, cp_threshold {
