@@ -1,18 +1,24 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: da76bb1d1
+checkpoint_head: f5d9c4308
 active_open_titan_lane:
-  blocker: "OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION"
+  blocker: "OT-IBEX-ICACHE-BUS-PARAMS-PROVIDER"
   phase: "DONE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "3b9d4bdbc"
+  baseline_head: "2eae29172"
   installed_ivl_sha256: "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4"
   installed_vvp_sha256: "a3dc04b0409f8572d73d6d5daf982af42206a5c04a083ddb91cc52196a4d0a2e"
-  reproducer: "RV Timer and SPI Device raw rows run abstract base vseqs and fatal at cip_base_vseq.sv:123 even though their pinned configs name rv_timer_random and spi_device_flash_mode in the smoke regression."
-  validation: "Pre-fix pinned-source discovery red; post-fix discovery selects exactly RV Timer and SPI Device smoke sequences with other 47 target selections unchanged. Matrix self-test PASS. Parallel selected RV Timer PASS; SPI Device DEBT from DD-098 despite passed UVM checks."
-  next_command: "Select the next concrete blocker from the raw corpus; Ibex I-cache package-provider collision is the next ranked candidate. Caliptra stays paused."
-  boundary: "Implementation committed at da76bb1d1; raw 49-target census unchanged. No Caliptra or full OpenTitan corpus under this completed ticket."
+  reproducer: "Raw Ibex I-cache generated file list contains both ibex and OpenTitan bus_params_pkg providers; compile exits 1 on a duplicate package declaration."
+  validation: "Paired 2017/2023 package reducer red/green, hash-guarded patch, one-provider generated file list, and selected Ibex compile exit 0 with no hard or semantic diagnostics. Runtime fails at cfg.randomize() with a separate ordered-distribution solver error."
+  next_command: "Open a separate Ibex solver blocker and use a minimal reducer before modifying the compiler or source; Caliptra stays paused."
+  boundary: "Provider implementation committed at f5d9c4308; raw 49-target census unchanged. No Caliptra or full OpenTitan corpus under this completed ticket."
+completed_smoke_selection_lane:
+  blocker: "OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION"
+  phase: "DONE"
+  implementation_commit: "da76bb1d1"
+  checkpoint_commit: "2eae29172"
+  evidence: "evidence/opentitan-matrix-smoke-selection-20260929/: selected RV Timer PASS, selected SPI Device DEBT from DD-098, other 47 target selections unchanged."
 completed_otbn_scope_lane:
   blocker: "OT-OTBN-DPI-IMPORT-SCOPE"
   phase: "DONE"
