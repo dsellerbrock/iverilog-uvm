@@ -1,0 +1,20 @@
+{
+  "host": "Linux x86-64 container, 4 vCPU, gcc -g0 -O2 (not the campaign Mac; ratios only)",
+  "baseline": "7a04009f vvp + vvp.tgt (clean worktree), same ivl front end",
+  "new": "claude/icarus-vvp-optimization-p3ejxh working tree",
+  "workload": "adams-bridge b77e3d899e828d626cfc2a0d26a6b5704cc121e0 (Caliptra RTL v2.1.2 pin) abr_masked_A2B_conv/full_adder/AND, WIDTH=46, 4 instances, tb_a2b.sv",
+  "output_hash_150_cycles_all_variants": "d7427ab35c41830a 23f2fa7cd62c91f8 a2b5b4618c4e2666 7b7fa14232b6f2d5",
+  "callgrind_simulate_phase_Ir_8_cycles": {
+    "base_rolled": 2776181664,
+    "new_rolled": 2056196272,
+    "base_unrolled_diagnostic": 1513754431,
+    "new_unrolled_diagnostic": 1140679167
+  },
+  "cpu_user_seconds_150_cycles_interleaved_pairs": {
+    "rolled":   {"base": [8.603, 8.864, 9.495], "new": [7.685, 7.982, 7.210], "ratios": [1.119, 1.110, 1.317], "median_ratio": 1.119},
+    "unrolled": {"base": [6.000, 6.250, 6.095], "new": [5.751, 5.304, 5.229], "ratios": [1.043, 1.178, 1.166], "median_ratio": 1.166}
+  },
+  "vvp_image_bytes": {"base_rolled": 4264527, "new_rolled": 4213130, "base_unrolled": 7320609, "new_unrolled": 7045812},
+  "compile_seconds_rolled_3_pairs": {"base": [0.369, 0.326, 0.330], "new": [0.320, 0.327, 0.343]},
+  "full_top_caliptra": "not run (no harness on this host); see assessment log for the paired plan"
+}

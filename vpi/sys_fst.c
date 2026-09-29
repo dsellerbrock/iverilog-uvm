@@ -394,6 +394,11 @@ static void open_dumpfile(vpiHandle callh)
 	        (lxm_optimum_mode == LXM_BOTH)) {
 		  fstWriterSetRepackOnClose(dump_file, 1);
 	    }
+#ifdef FST_WRITER_PARALLEL
+	      /* Compress and write finished blocks in a separate thread.
+		 The file contents are the same. */
+	    fstWriterSetParallelMode(dump_file, 1);
+#endif
       }
 }
 

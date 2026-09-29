@@ -1192,6 +1192,18 @@ void vvp_vpi_callback::clear_all_callbacks()
 }
 #endif
 
+void vvp_vpi_callback::run_vpi_callbacks_in_boundary()
+{
+      if (vpi_callbacks_ == 0 && array_words_ == 0)
+	    return;
+
+      struct boundary_s {
+	    boundary_s() { vvp_event_callback_begin(); }
+	    ~boundary_s() { vvp_event_callback_end(); }
+      } boundary;
+      run_vpi_callbacks();
+}
+
 /*
  * A vvp_fun_signal uses this method to run its callbacks whenever it
  * has a value change. If the cb_rtn is non-nil, then call the

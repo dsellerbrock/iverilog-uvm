@@ -35,7 +35,7 @@ using namespace std;
 static string string_var_value_(vvp_net_t*net)
 {
       if (vvp_fun_signal_string*fun =
-            dynamic_cast<vvp_fun_signal_string*>(net->fun))
+            vvp_fun_as_signal_string(net->fun))
             return fun->get_string();
       if (vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*>(net->fun))
             return ref->get_string();

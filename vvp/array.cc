@@ -1600,7 +1600,7 @@ vvp_vector4_t __vpiArray::get_word_raw_(unsigned address)
 	    assert(word);
 	    struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(word);
 	    assert(vsig);
-	    vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (vsig->node->fil);
+	    vvp_signal_value*sig = vvp_fil_signal_value(vsig->node->fil);
 	    assert(sig);
 	    return vvp_vector4_t(sig->value_size(), BIT4_X);
       }
@@ -1608,7 +1608,7 @@ vvp_vector4_t __vpiArray::get_word_raw_(unsigned address)
       vpiHandle word = nets[address];
       struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(word);
       assert(vsig);
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (vsig->node->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(vsig->node->fil);
       assert(sig);
 
       vvp_vector4_t val;
@@ -1651,7 +1651,7 @@ double __vpiArray::get_word_r(unsigned address)
       vpiHandle word = nets[address];
       struct __vpiRealVar*vsig = dynamic_cast<__vpiRealVar*>(word);
       assert(vsig);
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (vsig->net->fil);
+      vvp_signal_value*sig = vvp_fil_signal_value(vsig->net->fil);
       assert(sig);
 
       double val = sig->real_value();

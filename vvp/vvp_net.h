@@ -377,6 +377,11 @@ class vvp_vector4_t {
 	// Return true if there is an X or Z anywhere in the vector.
       bool has_xz() const;
 
+	// If the vector fits in a single word and has no X or Z bits,
+	// store its bits in val (zero above size()) and return true.
+	// Otherwise return false and leave val alone.
+      bool small_2state_word(unsigned long&val) const;
+
 	// Change all Z bits to X bits.
       void change_z2x();
 
@@ -535,6 +540,18 @@ inline vvp_bit4_t vvp_vector4_t::value(unsigned idx) const
       int tmp = ((bbits&1) << 1) + (abits&1);
 	// This cast works since b==1,a==1 is X and b==1,a==0 is Z.
       return (vvp_bit4_t)tmp;
+}
+
+inline bool vvp_vector4_t::small_2state_word(unsigned long&val) const
+{
+      if (size_ > BITS_PER_WORD)
+	    return false;
+      unsigned long mask = size_ == BITS_PER_WORD
+	    ? ~0UL : ((1UL << size_) - 1UL);
+      if (bbits_val_ & mask)
+	    return false;
+      val = abits_val_ & mask;
+      return true;
 }
 
 inline vvp_vector4_t vvp_vector4_t::subvalue(unsigned adr, unsigned wid) const
@@ -1299,6 +1316,15 @@ class vvp_net_fun_t {
 
     public:
       vvp_net_fun_t();
+	// A functor that threads can %wait on returns its wait-list
+	// hooks. This replaces a dynamic_cast on every wait.
+      virtual struct waitable_hooks_s*as_waitable() { return 0; }
+	// Signal functors of these kinds return themselves, in place
+	// of a dynamic_cast.
+      virtual class vvp_fun_signal_object*as_signal_object() { return 0; }
+      virtual class vvp_fun_signal_string*as_signal_string() { return 0; }
+      virtual class vvp_fun_signal_real*as_signal_real() { return 0; }
+
       virtual ~vvp_net_fun_t();
 
       virtual void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -1368,6 +1394,9 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
 	   base. Hot vector loads/stores need that cross-cast on virtually every
 	   RTL expression, so let the concrete filter provide it without RTTI. */
       virtual vvp_signal_value*as_signal_value() { return 0; }
+	// An automatic signal is both the functor and the filter of its
+	// net. It returns its functor; every other filter returns nil.
+      virtual vvp_net_fun_t*automatic_fun() { return 0; }
 
       /* EVCD state encodes active-driver multiplicity in addition to the
        * resolved value. Resolver nodes use this private hook to wake an
@@ -1847,6 +1876,34 @@ inline bool vvp_net_fil_t::test_force_mask(unsigned bit) const
       else
 	    return false;
 }
+
+/*
+ * The signal value behind a net filter, or nil if the filter is not a
+ * signal. Every filter that is a vvp_signal_value returns itself from
+ * as_signal_value(), so this is the same as a dynamic_cast.
+ */
+inline vvp_signal_value*vvp_fil_signal_value(vvp_net_fil_t*fil)
+{
+      return fil ? fil->as_signal_value() : 0;
+}
+
+/*
+ * The same as dynamic_cast<vvp_fun_signal_object*> (or string, or real)
+ * of a net's functor or filter. Only an automatic signal is a filter
+ * that is also a signal functor, and it returns itself as automatic_fun.
+ */
+inline vvp_fun_signal_object*vvp_fun_as_signal_object(vvp_net_fun_t*fun)
+{ return fun ? fun->as_signal_object() : 0; }
+inline vvp_fun_signal_string*vvp_fun_as_signal_string(vvp_net_fun_t*fun)
+{ return fun ? fun->as_signal_string() : 0; }
+inline vvp_fun_signal_real*vvp_fun_as_signal_real(vvp_net_fun_t*fun)
+{ return fun ? fun->as_signal_real() : 0; }
+inline vvp_fun_signal_object*vvp_fil_as_signal_object(vvp_net_fil_t*fil)
+{ return fil ? vvp_fun_as_signal_object(fil->automatic_fun()) : 0; }
+inline vvp_fun_signal_string*vvp_fil_as_signal_string(vvp_net_fil_t*fil)
+{ return fil ? vvp_fun_as_signal_string(fil->automatic_fun()) : 0; }
+inline vvp_fun_signal_real*vvp_fil_as_signal_real(vvp_net_fil_t*fil)
+{ return fil ? vvp_fun_as_signal_real(fil->automatic_fun()) : 0; }
 
 inline bool vvp_net_fil_t::test_force_mask_is_zero(void) const
 {

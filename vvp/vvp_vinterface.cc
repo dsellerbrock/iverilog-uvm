@@ -60,7 +60,7 @@ static vvp_signal_value* get_signal_value_(__vpiSignal*sig)
       if (!sig || !sig->node)
 	    return 0;
 
-      vvp_signal_value*vsig = dynamic_cast<vvp_signal_value*>(sig->node->fil);
+      vvp_signal_value*vsig = vvp_fil_signal_value(sig->node->fil);
       if (!vsig)
 	    vsig = dynamic_cast<vvp_signal_value*>(sig->node->fun);
       return vsig;
@@ -126,7 +126,7 @@ static vvp_signal_value* get_real_value_(__vpiRealVar*var)
 
       vvp_signal_value*vsig = dynamic_cast<vvp_signal_value*>(var->net->fun);
       if (!vsig)
-	    vsig = dynamic_cast<vvp_signal_value*>(var->net->fil);
+	    vsig = vvp_fil_signal_value(var->net->fil);
       return vsig;
 }
 

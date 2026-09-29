@@ -161,6 +161,13 @@ case "${host}" in *linux*) AC_DEFINE([LINUX], [1], [Host operating system is Lin
 
 # vpi uses these
 AC_CHECK_LIB(pthread, pthread_create)
+# With pthreads, the FST writer compresses and writes finished blocks in
+# a separate thread (fstWriterSetParallelMode).
+FST_PARALLEL_FLAGS=
+if test "$ac_cv_lib_pthread_pthread_create" = "yes"; then
+  FST_PARALLEL_FLAGS="-DFST_WRITER_PARALLEL -DHAVE_LIBPTHREAD"
+fi
+AC_SUBST(FST_PARALLEL_FLAGS)
 AC_CHECK_LIB(z, gzwrite)
 AC_CHECK_LIB(z, gzwrite, HAVE_LIBZ=yes, HAVE_LIBZ=no)
 AC_SUBST(HAVE_LIBZ)

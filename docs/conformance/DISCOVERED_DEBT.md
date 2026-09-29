@@ -3729,3 +3729,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Projectless `work/flash-solve-solver-review-20260928/EVIDENCE.md` and `result.json`, build-tree `ivl` SHA-256 `512c79d3f4830012397def1142bf5325fee9004bb0e86e44847497380bcf283c`.
 - **Reproducer status:** confirmed in strict 2017 and 2023; no Flash source-list replay followed.
 - **Triage status:** reject whole-queue order until a typed nested queue-content representation exists; a simple dimension-guard removal is unsound.
+
+### DD-086 — unpacked-array output port connected to a slice of a 2-D unpacked array reads X
+
+- **Discovered while working:** VVP-HOTPATH-PERF (Caliptra/Adams Bridge single-core performance assessment; no conformance ticket).
+- **Observation:** `m u0(.s(s[0]))`, where `s` is `logic [1:0] s [2][3:0]` and the port is `output logic [1:0] s [3:0]` driven by `always_comb`, leaves every `s[0][k]` at X. Connecting a whole one-dimensional array (`.s(s1)`) works. No diagnostic is issued. The first Adams Bridge A2B reducer hit this and reported an all-X output hash.
+- **File/function:** Port binding of unpacked-array slices; exact elaboration path not traced.
+- **Possible clause:** IEEE 1800-2017/2023 §7.6 (unpacked array assignment compatibility) and §23.3.3 (port connection rules); review exact wording before implementation.
+- **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/unpacked_slice_output_port.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log): `xx xx xx xx | 01 10` in both strict editions, identical on the unmodified 7a04009f baseline.
+- **Reproducer status:** confirmed, paired 2017/2023.
+- **Triage status:** untriaged. The performance reducer now uses per-instance arrays.
+
+### DD-087 — out-of-range part select of a two-state vector leaves X in a two-state variable
+
+- **Discovered while working:** VVP-HOTPATH-PERF.
+- **Observation:** `bit [7:0] br = bv[b +: 8]`, with `bit [99:0] bv` and `b = 96`, stores `xxxx1111` into the two-state `br`. A two-state variable cannot hold X or Z bits.
+- **File/function:** Two-state conversion of a dynamic part-select result on store (`tgt-vvp` select/assignment lowering). Not traced further.
+- **Possible clause:** IEEE 1800-2017/2023 §6.11.2 (two-state conversion of unknown bits) and §11.5.1 (out-of-bounds part-select reads); review exact wording before implementation.
+- **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/two_state_oob_part_select.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log), identical on the unmodified 7a04009f baseline and with the new part-load opcode.
+- **Reproducer status:** confirmed, paired 2017/2023.
+- **Triage status:** untriaged. `vvp_load_vec4_part_select.v` checks two-state selects only in range.

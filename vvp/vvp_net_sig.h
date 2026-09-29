@@ -114,6 +114,12 @@ class vvp_signal_value {
       virtual vvp_bit4_t value(unsigned idx) const =0;
       virtual vvp_scalar_t scalar_value(unsigned idx) const =0;
       virtual void vec4_value(vvp_vector4_t&) const =0;
+	// Get the wid bits starting at base, which the caller guarantees
+	// lie within value_size(). The result is exactly the subvalue of
+	// what vec4_value() would return; a signal that can produce it
+	// without materializing the whole vector overrides this.
+      virtual void vec4_part_value(vvp_vector4_t&val, unsigned base,
+                                   unsigned wid) const;
       virtual double real_value() const;
 
       virtual void get_signal_value(struct t_vpi_value*vp);
@@ -132,6 +138,8 @@ class automatic_signal_base : public vvp_signal_value, public vvp_net_fil_t {
 
     public:
       vvp_signal_value*as_signal_value() override { return this; }
+	// Each automatic signal class returns itself.
+      vvp_net_fun_t*automatic_fun() override =0;
 
 	// Automatic variables cannot be forced or released. Provide
 	// stubs that assert.
@@ -176,6 +184,7 @@ class vvp_fun_signal4_sa : public vvp_fun_signal_vec {
 class vvp_fun_signal4_aa : public vvp_fun_signal_vec, public automatic_signal_base, public automatic_hooks_s {
 
     public:
+      vvp_net_fun_t*automatic_fun() override { return this; }
       explicit vvp_fun_signal4_aa(vvp_net_t*net, unsigned wid, vvp_bit4_t init=BIT4_X);
       ~vvp_fun_signal4_aa() override;
 
@@ -215,6 +224,7 @@ class vvp_fun_signal4_aa : public vvp_fun_signal_vec, public automatic_signal_ba
 class vvp_fun_signal_real : public vvp_fun_signal_base {
 
     public:
+      vvp_fun_signal_real*as_signal_real() override { return this; }
       explicit vvp_fun_signal_real() {};
 
 	// Get information about the vector value.
@@ -245,6 +255,7 @@ class vvp_fun_signal_real_sa : public vvp_fun_signal_real {
 class vvp_fun_signal_real_aa : public vvp_fun_signal_real, public automatic_signal_base, public automatic_hooks_s {
 
     public:
+      vvp_net_fun_t*automatic_fun() override { return this; }
       explicit vvp_fun_signal_real_aa();
       ~vvp_fun_signal_real_aa() override;
 
@@ -281,6 +292,7 @@ class vvp_fun_signal_real_aa : public vvp_fun_signal_real, public automatic_sign
 class vvp_fun_signal_string : public vvp_fun_signal_base {
 
     public:
+      vvp_fun_signal_string*as_signal_string() override { return this; }
       explicit vvp_fun_signal_string() {};
 
       virtual const std::string& get_string() const =0;
@@ -309,6 +321,7 @@ class vvp_fun_signal_string_sa : public vvp_fun_signal_string {
 class vvp_fun_signal_string_aa : public vvp_fun_signal_string, public automatic_signal_base, public automatic_hooks_s {
 
     public:
+      vvp_net_fun_t*automatic_fun() override { return this; }
       explicit vvp_fun_signal_string_aa();
       ~vvp_fun_signal_string_aa() override;
 
@@ -341,6 +354,7 @@ class vvp_fun_signal_string_aa : public vvp_fun_signal_string, public automatic_
 class vvp_fun_signal_object : public vvp_fun_signal_base {
 
     public:
+      vvp_fun_signal_object*as_signal_object() override { return this; }
       enum init_obj_kind_t {
             INIT_OBJ_NONE = 0,
             INIT_OBJ_QUEUE_REAL,
@@ -420,6 +434,7 @@ class vvp_fun_signal_object_sa : public vvp_fun_signal_object {
 class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_signal_base, public automatic_hooks_s {
 
     public:
+      vvp_net_fun_t*automatic_fun() override { return this; }
       explicit vvp_fun_signal_object_aa(unsigned size);
       ~vvp_fun_signal_object_aa() override;
 
@@ -498,6 +513,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
                           public automatic_hooks_s {
 
     public:
+      vvp_net_fun_t*automatic_fun() override { return this; }
       explicit vvp_ref_signal_aa(unsigned wid);
       ~vvp_ref_signal_aa() override;
 
@@ -739,6 +755,8 @@ class vvp_wire_vec4 : public vvp_wire_base {
       vvp_bit4_t value(unsigned idx) const override;
       vvp_scalar_t scalar_value(unsigned idx) const override;
       void vec4_value(vvp_vector4_t&) const override;
+      void vec4_part_value(vvp_vector4_t&val, unsigned base,
+                           unsigned wid) const override;
 
         // Support for $countdrivers
       vvp_bit4_t driven_value(unsigned idx) const override;

@@ -761,56 +761,105 @@ static int pure_comb_stmt_(ivl_statement_t stmt)
       return pure_comb_stmt_impl_(stmt, 1);
 }
 
-static char**td_refs = 0;
-static size_t td_refs_cnt = 0;
-static size_t td_refs_cap = 0;
-static char**td_defs = 0;
-static size_t td_defs_cnt = 0;
-static size_t td_defs_cap = 0;
+/*
+ * The TD_ labels referenced and defined so far, each kept in first-seen
+ * order (the stubs are emitted in reference order) with a hash index so
+ * that noting a label is not a scan of every label before it. A large
+ * class library notes each label many times.
+ */
+struct td_list_s {
+      char**items;
+      size_t count;
+      size_t cap;
+      char**slots; /* open-addressed hash of items; nil is empty */
+      size_t nslots;
+};
 
-static int td_list_contains(char**list, size_t count, const char*label)
+static struct td_list_s td_refs = { 0, 0, 0, 0, 0 };
+static struct td_list_s td_defs = { 0, 0, 0, 0, 0 };
+
+static size_t td_hash_(const char*label)
+{
+      size_t hash = (size_t)14695981039346656037ULL; /* FNV-1a */
+      const unsigned char*cp;
+      for (cp = (const unsigned char*)label ; *cp ; cp += 1) {
+	    hash ^= *cp;
+	    hash *= (size_t)1099511628211ULL;
+      }
+      return hash;
+}
+
+static void td_index_insert_(struct td_list_s*list, char*label)
+{
+      size_t idx = td_hash_(label) & (list->nslots - 1);
+      while (list->slots[idx])
+	    idx = (idx + 1) & (list->nslots - 1);
+      list->slots[idx] = label;
+}
+
+static int td_list_contains(const struct td_list_s*list, const char*label)
 {
       size_t idx;
-      for (idx = 0; idx < count; idx += 1)
-	    if (strcmp(list[idx], label) == 0)
+      if (list->nslots == 0)
+	    return 0;
+      idx = td_hash_(label) & (list->nslots - 1);
+      while (list->slots[idx]) {
+	    if (strcmp(list->slots[idx], label) == 0)
 		  return 1;
+	    idx = (idx + 1) & (list->nslots - 1);
+      }
       return 0;
 }
 
-static void td_list_append_unique(char***list, size_t*count, size_t*cap, const char*label)
+static void td_list_append_unique(struct td_list_s*list, const char*label)
 {
-      if (td_list_contains(*list, *count, label))
+      size_t idx;
+
+      if (td_list_contains(list, label))
 	    return;
 
-      if (*count >= *cap) {
-	    size_t new_cap = (*cap == 0)? 64 : (*cap * 2);
-	    char**tmp = (char**)realloc(*list, new_cap * sizeof(char*));
+      if (list->count >= list->cap) {
+	    size_t new_cap = (list->cap == 0)? 64 : (list->cap * 2);
+	    char**tmp = (char**)realloc(list->items, new_cap * sizeof(char*));
 	    assert(tmp);
-	    *list = tmp;
-	    *cap = new_cap;
+	    list->items = tmp;
+	    list->cap = new_cap;
       }
 
-      (*list)[*count] = strdup(label);
-      assert((*list)[*count]);
-      *count += 1;
+      list->items[list->count] = strdup(label);
+      assert(list->items[list->count]);
+      list->count += 1;
+
+	/* Keep the hash at most half full. */
+      if (2 * list->count > list->nslots) {
+	    size_t nslots = list->nslots ? 2 * list->nslots : 128;
+	    free(list->slots);
+	    list->slots = (char**)calloc(nslots, sizeof(char*));
+	    assert(list->slots);
+	    list->nslots = nslots;
+	    for (idx = 0 ; idx < list->count ; idx += 1)
+		  td_index_insert_(list, list->items[idx]);
+      } else {
+	    td_index_insert_(list, list->items[list->count - 1]);
+      }
 }
 
 void note_td_reference(const char*label)
 {
-      td_list_append_unique(&td_refs, &td_refs_cnt, &td_refs_cap, label);
+      td_list_append_unique(&td_refs, label);
 }
 
 void note_td_definition(const char*label)
 {
-      td_list_append_unique(&td_defs, &td_defs_cnt, &td_defs_cap, label);
+      td_list_append_unique(&td_defs, label);
 }
 
 void emit_td_stub_definitions(void)
 {
       size_t idx;
-      for (idx = 0; idx < td_refs_cnt; idx += 1) {
-	    const char*label = td_refs[idx];
-	    if (td_list_contains(td_defs, td_defs_cnt, label))
+      for (idx = 0; idx < td_refs.count; idx += 1) {
+	    const char*label = td_refs.items[idx];
+	    if (td_list_contains(&td_defs, label))
 		  continue;
 	    fprintf(vvp_out, "TD_%s ;\n", label);
 	    fprintf(vvp_out, "    %%end;\n");
@@ -1599,16 +1648,117 @@ static int show_stmt_block(ivl_statement_t net, ivl_scope_t sscope)
       return rc;
 }
 
+static int named_block_can_inline_(ivl_scope_t subscope);
+
+/*
+ * True if STMT, and every statement nested in it, is one that runs the
+ * same whether the thread executing it is the enclosing thread or a
+ * child forked for a named block: no timing control, no call, no fork,
+ * no disable (which also covers break, continue and return), no event
+ * trigger, and no force or procedural continuous assignment. A nested
+ * named block qualifies only if it can be inlined itself. This is a
+ * whitelist; any statement kind not named here disqualifies the block.
+ */
+static int named_block_stmt_can_inline_(ivl_statement_t stmt)
+{
+      unsigned idx;
+
+      if (stmt == 0)
+	    return 1;
+
+      switch (ivl_statement_type(stmt)) {
+	  case IVL_ST_NOOP:
+	    return 1;
+
+	  case IVL_ST_ASSIGN:
+	      /* An intra-assignment event control is lowered to a
+		 separate wait, which the default case rejects. */
+	    return ivl_stmt_delay_expr(stmt) == 0;
+
+	  case IVL_ST_ASSIGN_NB:
+	    return ivl_stmt_delay_expr(stmt) == 0 && ivl_stmt_nevent(stmt) == 0;
+
+	  case IVL_ST_BLOCK:
+	    if (ivl_stmt_block_scope(stmt)
+		&& !named_block_can_inline_(ivl_stmt_block_scope(stmt)))
+		  return 0;
+	    for (idx = 0 ; idx < ivl_stmt_block_count(stmt) ; idx += 1)
+		  if (!named_block_stmt_can_inline_(ivl_stmt_block_stmt(stmt, idx)))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_CONDIT:
+	    return named_block_stmt_can_inline_(ivl_stmt_cond_true(stmt))
+		&& named_block_stmt_can_inline_(ivl_stmt_cond_false(stmt));
+
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ:
+	    for (idx = 0 ; idx < ivl_stmt_case_count(stmt) ; idx += 1)
+		  if (!named_block_stmt_can_inline_(ivl_stmt_case_stmt(stmt, idx)))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_WHILE:
+	  case IVL_ST_DO_WHILE:
+	  case IVL_ST_REPEAT:
+	    return named_block_stmt_can_inline_(ivl_stmt_sub_stmt(stmt));
+
+	  case IVL_ST_FORLOOP:
+	    return named_block_stmt_can_inline_(ivl_stmt_init_stmt(stmt))
+		&& named_block_stmt_can_inline_(ivl_stmt_sub_stmt(stmt))
+		&& named_block_stmt_can_inline_(ivl_stmt_step_stmt(stmt));
+
+	  default:
+	    return 0;
+      }
+}
+
+/*
+ * A named block normally runs in a child thread so that its scope has
+ * threads a disable can find, and so that an automatic block gets its
+ * own activation frame. A static block that no disable targets, inside
+ * no automatic scope, and whose body passes the whitelist above has
+ * neither need. Its child would start at the front of the active queue
+ * while the parent waits in %join, and the parent would resume at the
+ * front as soon as the child ended, so running the body in the
+ * enclosing thread executes the same statements in the same order.
+ */
+static int named_block_can_inline_(ivl_scope_t subscope)
+{
+      ivl_scope_t cur;
+
+      if (ivl_scope_type(subscope) != IVL_SCT_BEGIN)
+	    return 0;
+      if (ivl_scope_is_disable_target(subscope))
+	    return 0;
+      for (cur = subscope ; cur ; cur = ivl_scope_parent(cur))
+	    if (ivl_scope_is_auto(cur))
+		  return 0;
+      return 1;
+}
+
 /*
  * This draws an invocation of a named block. This is a little
  * different because a subscope is created. We do that by creating
- * a thread to deal with this.
+ * a thread to deal with this, unless the block can run inline in the
+ * enclosing thread (see named_block_can_inline_).
  */
 static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
 {
       int rc;
       unsigned out_id, sub_id;
       ivl_scope_t subscope = ivl_stmt_block_scope(net);
+
+      if (named_block_stmt_can_inline_(net)) {
+	      /* Compile the body in the block's scope, as the child would
+		 be, so any system call in it still reports that scope. */
+	    fprintf(vvp_out, "    .scope S_%p;\n", subscope);
+	    rc = show_stmt_block(net, subscope);
+	    fprintf(vvp_out, "    .scope S_%p;\n", scope);
+	    return rc;
+      }
 
       out_id = transient_id++;
       sub_id = transient_id++;

@@ -1630,7 +1630,8 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 
 typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 {
-      if (getenv("IVL_TRACE_TYPES"))
+      static const bool trace_types = getenv("IVL_TRACE_TYPES") != 0;
+      if (trace_types)
 	    cerr << "TYPE_TRACE " << loc << " name=" << txt
 		 << " scope=" << lexical_scope << endl;
       perm_string name = lex_strings.make(txt);

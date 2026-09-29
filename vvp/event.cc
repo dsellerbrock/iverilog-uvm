@@ -603,7 +603,7 @@ void schedule_evctl(__vpiHandle*handle, double value,
                     vvp_net_t*event, unsigned long ecount)
 {
 	// Get the functor we are going to wait on.
-      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (event->fun);
+      waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
       *(ep->last) = new evctl_real(handle, value, ecount);
@@ -632,7 +632,7 @@ void schedule_evctl(vvp_net_ptr_t ptr, const vvp_vector4_t&value,
                     vvp_net_t*event, unsigned long ecount)
 {
 	// Get the functor we are going to wait on.
-      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (event->fun);
+      waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
       *(ep->last) = new evctl_vector(ptr, value, offset, wid, ecount);
@@ -659,7 +659,7 @@ void schedule_evctl(vvp_array_t memory, unsigned index,
                     vvp_net_t*event, unsigned long ecount)
 {
 	// Get the functor we are going to wait on.
-      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (event->fun);
+      waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
       *(ep->last) = new evctl_array(memory, index, value, offset, ecount);
@@ -685,7 +685,7 @@ void schedule_evctl(vvp_array_t memory, unsigned index,
                     vvp_net_t*event, unsigned long ecount)
 {
 	// Get the functor we are going to wait on.
-      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (event->fun);
+      waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
       *(ep->last) = new evctl_array_r(memory, index, value, ecount);
@@ -2494,7 +2494,7 @@ class vvp_fun_event_valid : public vvp_net_fun_t {
       void recv_valid_(const vvp_vector4_t&value, vvp_context_t context)
       {
             waitable_hooks_s*waitable = target_
-                  ? dynamic_cast<waitable_hooks_s*>(target_->fun) : 0;
+                  ? (target_->fun ? target_->fun->as_waitable() : 0) : 0;
             if (!waitable) {
                   fprintf(stderr, "runtime error: .eventvalid target is not waitable\n");
                   if (!schedule_finished())
@@ -2523,7 +2523,7 @@ void compile_event_valid(char*event_label, char*valid_label)
       if (target) {
             fun->set_target(target);
             waitable_hooks_s*waitable =
-                  dynamic_cast<waitable_hooks_s*>(target->fun);
+                  (target->fun ? target->fun->as_waitable() : 0);
             if (waitable) {
                   waitable->attach_vif_validity();
                   fun->mark_attached();

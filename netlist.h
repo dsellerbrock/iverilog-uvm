@@ -1526,6 +1526,12 @@ class NetScope : public Definitions, public Attrib {
       void is_auto(bool is_auto__) { is_auto_ = is_auto__; };
       bool is_auto() const { return is_auto_; };
 
+	/* Does any disable statement (including the break, continue and
+	   return flow controls lowered to disables) target this scope?
+	   A target needs its own threads so the disable can find them. */
+      void set_disable_target() { is_disable_target_ = true; }
+      bool is_disable_target() const { return is_disable_target_; }
+
 	/* Does this automatic scope own an activation frame? True for
 	   automatic task/function scopes (frame per call) and for
 	   automatic block scopes that cannot ride an enclosing frame:
@@ -1835,6 +1841,7 @@ class NetScope : public Definitions, public Attrib {
 
       unsigned lcounter_;
       bool need_const_func_, is_const_func_, is_auto_, auto_frame_, is_cell_, calls_stask_;
+      bool is_disable_target_;
       bool is_virtual_method_ = false;
 
       /* Final procedures sets this to notify statements that

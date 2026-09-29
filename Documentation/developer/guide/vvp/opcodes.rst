@@ -750,6 +750,20 @@ more than the width at the functor, the value is padded with X bits.
 This instruction loads a vector value from the given functor node and
 pushes it onto the vec4 stack. See also the %store/vec4 instruction.
 
+* %load/vec4/part/s <var-label>, <wid>
+* %load/vec4/part/u <var-label>, <wid>
+* %load/vec4/parti <var-label>, <wid>, <base>
+
+These push the <wid>-bit part of the variable that starts at a base,
+with the same result as %load/vec4 followed by %part/s, %part/u or
+%parti. The /s and /u forms pop the base from the vec4 stack and
+interpret it as signed or unsigned; an x or z base pushes all x
+bits. The %load/vec4/parti form takes a non-negative immediate base.
+Bits outside the variable are x. An in-range part is read without
+copying the whole variable. Because the base is evaluated before the
+load, the code generator uses these only when evaluating the base
+cannot change the variable.
+
 * %load/vec4a <arr-label>, <addr-index>
 
 This instruction loads a vec4 value from the array and pushes the
