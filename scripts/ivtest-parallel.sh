@@ -50,8 +50,11 @@ TOTAL=$(wc -l < "$WORKROOT/all.list")
 
 for ((k = 0; k < JOBS; k++)); do
       mkdir -p "$WORKROOT/shard$k"
-      # Copy the harness tree but not stale logs or work files.
-      tar -C "$REPO/ivtest" --exclude=./log --exclude=./work -cf - . \
+      # Copy the harness tree but not stale logs or work files, nor a
+      # vsim left by an interrupted legacy vvp_reg.pl run: some tests
+      # (pr2509349a) look for a file of that name.
+      tar -C "$REPO/ivtest" --exclude=./log --exclude=./work \
+	    --exclude=./vsim -cf - . \
 	    | tar -C "$WORKROOT/shard$k" -xf -
       mkdir -p "$WORKROOT/shard$k/log" "$WORKROOT/shard$k/work"
       awk -v k=$k -v n=$JOBS '(NR - 1) % n == k' "$WORKROOT/all.list" \
