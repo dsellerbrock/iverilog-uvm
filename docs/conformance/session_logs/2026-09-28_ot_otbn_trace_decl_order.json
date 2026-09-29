@@ -1,0 +1,155 @@
+{
+  "target": "lowrisc:dv:otbn_sim:0.1",
+  "pinned_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "original_source": "hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv",
+  "original_source_sha256": "6a66b4c38ed63aeedd231c519ed087ad271ee4274810f45433dfecd91fd72446",
+  "patch_sha256": "baffc9d26205d5f57afcc9eb0ce07c82b53a740b4ef180be01ba454e6a624207",
+  "reproducer_sha256": "0b10abda746761517a5e343c6b5d909040e8b8dc405731a2c1688c28cd65bd8c",
+  "standard": "IEEE 1800-2017 and 1800-2023 \u00a76.5: data must be declared before use, apart from implicit nets.",
+  "compiler_sha256": {
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp": "7600d5b8aff49b1f4269d92f45ec0ee7ffbad8bc553860d63b6f2a6a7f1e4c52",
+    "/Users/danielellerbrock/oss-cad-suite/bin/slang": "c38c0fc380ac4c7c48434daa9245d18ad2638b23cd47e14aa82a4a4e7a783ab4"
+  },
+  "strict_cases": [
+    {
+      "edition": "2017",
+      "declaration_moved": false,
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/private/tmp/otbn-trace-final-2017-0.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 2,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to bind wire/reg/memory `controller_bad_int_i.loop_hw_intg_err' in `top.trace'\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:12:      : A symbol with that name was declared here. Check for declaration after use.\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to elaborate r-value: controller_bad_int_i.loop_hw_intg_err\n2 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 1,
+        "output": "Top level design units:\n    top\n\n\nBuild failed: 1 error, 0 warnings\nwork/otbn_trace_forward.sv:11:21: error: identifier 'controller_bad_int_i' used before its declaration\n  assign mirrored = controller_bad_int_i.loop_hw_intg_err;\n                    ^~~~~~~~~~~~~~~~~~~~\nwork/otbn_trace_forward.sv:12:24: note: declared here\n  controller_bad_int_t controller_bad_int_i;\n                       ^"
+      }
+    },
+    {
+      "edition": "2017",
+      "declaration_moved": true,
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/private/tmp/otbn-trace-final-2017-1.vvp",
+          "-DEARLY_DECL",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "-DEARLY_DECL",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/private/tmp/otbn-trace-final-2017-1.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS"
+      }
+    },
+    {
+      "edition": "2023",
+      "declaration_moved": false,
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/private/tmp/otbn-trace-final-2023-0.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 2,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to bind wire/reg/memory `controller_bad_int_i.loop_hw_intg_err' in `top.trace'\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:12:      : A symbol with that name was declared here. Check for declaration after use.\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to elaborate r-value: controller_bad_int_i.loop_hw_intg_err\n2 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 1,
+        "output": "Top level design units:\n    top\n\n\nBuild failed: 1 error, 0 warnings\nwork/otbn_trace_forward.sv:11:21: error: identifier 'controller_bad_int_i' used before its declaration\n  assign mirrored = controller_bad_int_i.loop_hw_intg_err;\n                    ^~~~~~~~~~~~~~~~~~~~\nwork/otbn_trace_forward.sv:12:24: note: declared here\n  controller_bad_int_t controller_bad_int_i;\n                       ^"
+      }
+    },
+    {
+      "edition": "2023",
+      "declaration_moved": true,
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/private/tmp/otbn-trace-final-2023-1.vvp",
+          "-DEARLY_DECL",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "-DEARLY_DECL",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/private/tmp/otbn-trace-final-2023-1.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS"
+      }
+    }
+  ],
+  "selected_compile": "not run: saved OTBN image has 200+ independent coverage diagnostics; Caliptra replay is running, so this reduction is limited to the exact source-order blocker.",
+  "runtime": "only tiny Icarus control; no OTBN DV simulation",
+  "pinned_tree_clean": true
+}

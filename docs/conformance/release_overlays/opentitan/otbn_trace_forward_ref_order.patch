@@ -1,0 +1,18 @@
+--- a/hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv
++++ b/hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv
+@@ -372,7 +372,6 @@
+   assign internal_intg_err_i.rf_bignum_intg_err = rf_bignum_intg_err;
+   assign internal_intg_err_i.mod_ispr_intg_err = alu_bignum_reg_intg_violation_err;
+   assign internal_intg_err_i.acc_ispr_intg_err = mac_bignum_reg_intg_violation_err;
+-  assign internal_intg_err_i.loop_stack_addr_intg_err = controller_bad_int_i.loop_hw_intg_err;
+   assign internal_intg_err_i.insn_fetch_intg_err = insn_fetch_err;
+ 
+   // Bad Internal State Probes
+@@ -387,6 +386,7 @@
+   logic rf_base_spurious_we_err_d, rf_base_spurious_we_err_q;
+   logic rf_bignum_spurious_we_err_d, rf_bignum_spurious_we_err_q;
+ 
++  assign internal_intg_err_i.loop_stack_addr_intg_err = controller_bad_int_i.loop_hw_intg_err;
+   assign missed_gnt_d = (locking_o) ? '0 : (missed_gnt_q | missed_gnt_i);
+   assign predec_err_d = (locking_o) ? '0 : (predec_err_q | predec_err_i);
+   assign urnd_all_zero_d = (locking_o) ? '0 : (urnd_all_zero_q | urnd_all_zero);
