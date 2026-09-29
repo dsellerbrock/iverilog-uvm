@@ -340,10 +340,17 @@
 
 ### OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT — selected fields in fixed arrays
 
-- **State:** An isolated compiler candidate passes the strict 2017/2023 reducer and neighboring focused regressions; shared integration and full compiler gates remain pending.
+- **State:** Integrated at `8cffebe38` and `d5c7366c3`. Strict paired affected JSON and legacy focus passes 8/8 each; `make check` passes. Full JSON ran 4,097 tests with 32 failures in unrelated families, while both new fixed-2D tests pass. Broad legacy and application corpora remain deferred until the saved error corpus is addressed.
 - **Requirement:** IEEE 1800-2017 §§7.4.1, 18.3, 18.5.8.1 and 2023 §§7.4.1, 18.3, 18.5.7.1 require constraint `foreach` over each declared fixed-array dimension to bind the selected packed-struct field of the corresponding rand element. Signed fields retain signed comparisons, and failed randomization preserves old values.
 - **Cause and evidence:** `pexpr_to_constraint_ir` restricted the selected packed-struct member branch to one fixed dimension and manually flattened one index. Reusing the existing checked fixed-array leaf helper supports multidimensional fixed arrays, while a signed cast preserves member type. The [paired focused record](session_logs/2026-09-29_ot_adc_fixed_2d_struct_member.json) includes baseline failure, candidate success, and 8/8 in each focused regression harness.
 - **Boundary:** This repair covers fixed arrays. The pinned ADC configuration uses nested dynamic arrays, whose indexed inner `.size` and whole-array ordering remain separate gaps. Its copied-source selected compile and queued DV replay are unchanged; no ADC DV pass is established.
+
+### OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION — concrete environment override bodies
+
+- **State:** Reviewed isolated candidate `8c3c9b820` passes paired strict 2017/2023 UVM direct/explicit-typedef controls, ten adjacent specialization controls, and one exact 282-source selected OTP compile with zero errors/sorry and 56 existing warnings. Shared integration and OTP DV runtime remain pending.
+- **Requirement:** A concrete default-parameterized environment used as a type actual of a concrete parameterized UVM test must have its overriding `build_phase` and `connect_phase` bodies emitted; generic masters and false generate branches remain lazy. Confirm exact IEEE 1800-2017/2023 clause references before qualification.
+- **Cause and evidence:** `NetScope::evaluate_type_parameter_` resolves bare `ENV=env` through a type-only class reference, so the concrete environment carrier lacks its methods. The explicit typedef control requests ordinary elaboration and works. The isolated candidate requests that elaboration for a non-deferred bare type actual in a concrete specialization. The selected original parameterized OTP environment then emits its concrete `build_phase` body; the pre-fix image does not. DD-089, concrete test registration from typedef-only use, is separate and the named source workaround remains.
+- **Boundary:** Compilation and method emission do not establish an OTP DV pass. The selected OTP replay waits for the guarded Caliptra HMAC VVP to release the memory slot; the older historical 49-case count is unchanged.
 
 ### OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH — sparse caller-owned command keys
 

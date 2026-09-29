@@ -1,16 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: d5c7366c3
+checkpoint_head: 8b16887cb
 active_open_titan_lane:
-  blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
-  phase: "INTEGRATED_JSON_GATE_FAILED_32_CLASSIFYING"
+  blocker: "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION"
+  phase: "SELECTED_ISOLATED_CANDIDATE_REVIEWED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "b2822b177"
-  reproducer: "Strict 2017/2023 2D fixed rand packed-struct member reducer fails before the compiler fix. The isolated compiler passes signed/unsigned fields, descending indices, and UNSAT rollback; neighboring focused JSON and legacy tests each pass 8/8."
-  pending_validation: "The fixed-2D compiler fix is integrated and its paired tests pass. Full JSON ran 4097 with 32 failures in 11 families; classify saved failures with minimal reproducers before another full gate. Full legacy is deferred. The fixed-array repair does not cover pinned ADC's nested dynamic array."
-  next_command: "Check guarded Caliptra HMAC result.json; classify the saved 32 JSON failures with minimal reproducers. Do not rerun a full suite yet. After the HMAC guardian exits, run one selected OpenTitan VVP replay at a time under a memory/time guard."
-  boundary: "No current 49-target OpenTitan census or ADC DV pass is inferred from the focused compiler tests."
+  baseline_head: "8b16887cb"
+  reproducer: "Strict paired UVM 1.2 direct test#(CFG, env) factory case dispatches only inherited base env build_phase on shared compiler; explicit env#(CFG) typedef control works. The missing OTP concrete build/connect bodies cause a null VIF before traffic."
+  pending_validation: "Reviewed isolated candidate 8c3c9b820 passes strict 2017/2023 UVM controls and exact selected OTP compile with 0 errors/sorry, 56 existing warnings, and concrete env method bodies. Integrate it and run focused UVM/adjacent checks. DD-089 registration is separate."
+  next_command: "Cherry-pick 8c3c9b820 from the isolated OTP worktree into the shared branch, rebuild/install and run focused UVM controls. Keep the guarded Caliptra HMAC VVP running; defer selected OTP VVP, full JSON/legacy, and 49-target corpus until the memory slot and saved gate failures are addressed."
+  boundary: "No selected OTP DV pass or changed historical 49-target census is inferred from compile or method-body evidence."
+suspended_fixed_2d_lane:
+  blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
+  phase: "SUSPENDED_PENDING_UNRELATED_GATE_REMEDIATION"
+  last_validated_revision: "d5c7366c3"
+  state: "Integrated 8cffebe38/d5c7366c3; strict affected JSON/legacy focus 8/8 each and make check pass. Full JSON 4097/32, with both new fixed-2D cases passing. The 32 failures have direct family reproducers; broad legacy and application corpus deferred."
+  next_command: "After unrelated JSON failures are repaired, rerun required exact-head integrated gates before declaring fixed-2D complete; nested dynamic ADC remains separate."
 suspended_adc_proxy_lane:
   blocker: "OT-ADC-2CH-FILTER-CONSTRAINT-PROXY"
   phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
