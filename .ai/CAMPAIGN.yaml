@@ -1,16 +1,23 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 70580fdaf
+checkpoint_head: da1a52009
 active_open_titan_lane:
-  blocker: "OT-FLASH-ZERO-TIME-COMBINATIONAL-LOOP"
-  phase: "DV_RUNTIME_TRIAGE"
+  blocker: "OT-OTP-PACKED-FORCE-RHS"
+  phase: "FOCUSED_INTEGRATION"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "70580fdaf"
-  reproducer: "Guarded selected Flash smoke completes memory initialization and init CSR polling, then freezes at 4401.911 ns. PC tracing records 725 million opcodes without time advance, mainly in flash_ctrl_lcmgr and NRZ prim_sync_reqack."
-  pending_validation: "Copy-out strict paired focus passes 4/4 in each harness, selected six-patch compile has zero hard errors and 105 warnings, and indexed VPI 2017/2023 focus passes 2/2. The 16,384-deposit duplicator drops from about 8.89 to 0.11 CPU seconds. No Flash DV pass or current-image 49-core census."
-  next_command: "Build a minimal LC-manager/request-acknowledge reducer and distinguish RTL feedback from Icarus scheduling before any fix or selected Flash replay. The Caliptra 52-case run remains stopped while compiler speed candidates are measured."
+  baseline_head: "da1a52009"
+  reproducer: "Selected OTP original source emits 40 one-shot force RHS notices after a separate typed inside endpoint patch; a banked source form crashes force_link_rval on packed-field offset. Strict 2017/2023 reducers cover packed offset and live RHS semantics."
+  pending_validation: "Integrate force-only packed-offset guard and separate named OTP banked-force/typed-endpoint overlays. Private same-compiler selected A/B compiles with zero hard errors and 40-to-0 force notices; focused banked runtime controls pass. Selected OTP DV remains unrun."
+  next_command: "Build/install the scoped OTP compiler fix, rerun paired registered force controls, and compile exact selected original-versus-banked copied sources with the typed endpoint patch. Preserve the live Caliptra VVP; run OTP selected VVP only after it exits."
   boundary: "Pinned OpenTitan is pristine. Source overlays and selected unsafe-mode results are explicit; exit-zero VVP with UVM_ERROR remains DV failure."
+suspended_flash_lane:
+  blocker: "OT-FLASH-ZERO-TIME-COMBINATIONAL-LOOP"
+  phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
+  last_validated_revision: "d696b6934"
+  evidence: "docs/conformance/session_logs/2026-09-28_ot_flash_port_boundary_runtime.json"
+  state: "The port-boundary fix moved selected Flash past the old 4401.911 ns zero-time stall to 17973.231 ns by a 90-second cap. No selected DV verdict or current 49-target corpus."
+  next_command: "After the live Caliptra VVP and guardian exit, rebuild the saved six-patch Flash selected image on the then-current compiler and run one longer memory/time-guarded smoke to a real DV verdict."
 prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
