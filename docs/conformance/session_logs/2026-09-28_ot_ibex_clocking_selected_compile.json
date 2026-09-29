@@ -1,0 +1,51 @@
+{
+  "target": "lowrisc:dv:ibex_icache_sim:0.1",
+  "pinned_opentitan_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_branch": "agent/ot-compile-blockers-20260927",
+  "compiler_commit": "5f1548266ed16f08c8dc3d46cc49b7bdaea8a86e",
+  "compiler_core_sha256": "3ffd46d56cc345ddb49a14f4f57d8ab28626b3d9e65c2cc1766573298e548b48",
+  "compiler_driver_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "vvp_sha256": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
+  "source_patch": "docs/conformance/release_overlays/opentitan/ibex_icache_fcov_iff_parentheses.patch",
+  "source_patch_sha256": "96a2b56d0783facb80b87869c492c472aea678cf3410085b8b0e60553f66896a",
+  "selected_provider": "lowrisc:ibex:bus_params_pkg",
+  "selected_filelist_sha256": "4581b556691a51a30aa058424b6683d3e8f7d4bd3e433c445a0aba9ea244241a",
+  "coverage_enabled": true,
+  "focused_validation": "8/8 direct strict compiler/VVP checks passed: fixed-array input, selected output, output declaration-only, and opposite-edge output under both -g2017 and -g2023",
+  "selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sibex_icache_fcov_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-ibex-clocking-semantics/ibex_shared_selected.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ibex-generated-covergroup/diagnostic2.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_ibex_icache_sim_0.1/sim-icarus",
+    "exit_code": 0,
+    "error_count": 0,
+    "warning_count": 2,
+    "warnings": [
+      "../src/lowrisc_dv_ibex_icache_env_0.1/ibex_icache_ram_if.sv:113: warning: User function 'gen_tag_err' is being called as a task.",
+      "../src/lowrisc_dv_ibex_icache_env_0.1/ibex_icache_ram_if.sv:119: warning: User function 'gen_data_err' is being called as a task."
+    ],
+    "semantic_debt_notice_count": 0,
+    "image_sha256": "482052fbef52106f8edd46720089e9cf8651d113cf28df99d825ce6d55be7f5f",
+    "log_sha256": "eb0aec724839ebcb4e21360d4bb1bf7a1d2327ddaaa5bd54e5c526e4afb4cbe4"
+  },
+  "dv_runtime_started": false,
+  "qualifies_dv_pass": false,
+  "full_corpus_run": false
+}
