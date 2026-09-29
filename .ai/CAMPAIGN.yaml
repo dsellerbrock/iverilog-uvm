@@ -1,17 +1,24 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 56f4bc756
+checkpoint_head: 8e57f8364
 active_open_titan_lane:
+  blocker: "OT-ROM-CTRL-STARTUP-RSS"
+  phase: "REPRODUCED"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "8e57f8364"
+  installed_ivl_sha256: "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db"
+  installed_vvp_sha256: "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
+  reproducer: "Package-only original-source ROM scrambler mode5 rises from 9.4 MiB at 64 words to 203.9 MiB at 1024; mode1 address S&P alone reaches 139.0 MiB. Corrected-DPI full-top ROM init hits 4 GiB after 8192 words even with final deposit omitted."
+  validation: "PR394 OT build/install and focused JSON 12/12 pass. The small reducer ran under 384 MiB and isolates address/data scrambling; its specific VVP owner remains under investigation. Prior DD-089 broad gates and OTP pass used the older VVP and remain revision-scoped."
+  next_command: "Identify VVP object retention in the small scrambler reducer, fix only the shared lifetime invariant, prove unchanged outputs and bounded RSS, run focused/broad gates, then one guarded selected ROM Control replay when Caliptra releases the host budget. Do not rerun the 49-target corpus yet."
+  boundary: "No ROM Control DV pass or refreshed 49-target census. OTBN coverage-bin triage remains read-only during this blocker."
+completed_dd089_lane:
   blocker: "DD-089"
   phase: "DONE"
-  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "d7d1b1347"
-  installed_ivl_sha256: "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db"
-  reproducer: "Pre-fix paired controls omit typedef-only concrete registry static init for explicit, bare-default, class-scoped, nested and package-qualified aliases; distinct module overrides collide in the package cache. These now pass at 56f4bc756."
-  validation: "Compiler commit 56f4bc756: focused JSON 17/17; full JSON 4117/0, legacy 6875 total/0 failed, VPI 140/140, negatives 154/154 and real-DPI UVM 361/361; selected OTP 282-source compile 0 errors/sorry, 56 warnings, one concrete factory initializer without the registration workaround. Its guarded copied-source unsafe/native-DPI runtime passes with exit 0, one TEST PASSED CHECKS, UVM 0/0/0, and 457 matched TL A/D items. See docs/conformance/session_logs/2026-09-29_ot_otp_typedef_only_static_init.json."
-  next_command: "Retain the completed selected OTP smoke as a revision-scoped compatibility checkpoint. Choose the next unresolved OpenTitan target independently and rerun focused selected DV after future compiler/runtime changes; leave the historical 49-case census unchanged."
-  boundary: "One selected copied-source -gcommercial-unsafe/native-DPI OTP smoke passes; no fresh 49-case OpenTitan census, broader OTP DV qualification, or full IEEE chapter-8 qualification."
+  compiler_head: "56f4bc756"
+  evidence: "docs/conformance/session_logs/2026-09-29_ot_otp_typedef_only_static_init.json; one selected guarded OTP smoke passed with 457 matched TL A/D items."
+  boundary: "Revision-scoped selected compatibility pass; 49-target historical census unchanged."
 completed_port_boundary_signedness_lane:
   blocker: "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD"
   phase: "DONE"
@@ -94,9 +101,9 @@ current_caliptra_continuation:
   selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3, commercial-unsafe mode with named copied-source reset/checker/AXI/SHA/JTAG overlays. Pinned sources remain clean."
   historical_52: "The stopped selected campaign has 20 passes, 16 four-hour timeouts, three assertion failures, two low-swap -9 kills, and 11 cases without a finalized result. Separate 16-hour SHA256 WNTZ and SHA3 passes do not change that aggregate."
   qualified_ecc_pcr: "A separate guarded smoke_test_pcr_zeroize passed on the frozen pre-speedup build: VVP exit zero, one pass marker, no bad diagnostics, no timeout or cap hit, peak physical footprint 1114261160 bytes. Local evidence commit 367a6d0c5; this is not a historical 52-case count change."
-  installed_build: "The Caliptra checkout merged speedup main 56e282592 as 779247d09, rebuilt and installed, then committed AXI and per-word SHA runner selectors at b94979cf5 and 0063219c9. Focused strict compiler and copied-profile checks pass."
+  installed_build: "The Caliptra checkout additionally merged PR394 at 46ec91377, built and installed VVP SHA-256 8e52149af672b227abb68901ba164177fee1bcea2b7763a367410610c1fdb657; six focused tests pass sequentially and in the two-shard JSON runner."
   active_selected_replay: "The per-word patched pv_hash_zeroize, sampled-busy patched HMAC, and original-cadence smoke_test_trng selected replays passed outside the historical 52-case aggregate. TRNG used an 8 GiB cap and 57600-second timeout; VVP exited 0 with one pass marker, zero bad diagnostics, 138353 cycles, and 1282671936 bytes peak physical footprint. Caliptra evidence commit 044e4cbc2 records its source and image fingerprints."
-  next_command: "Integrate merged PR394 runtime speedups into the Caliptra branch after preserving the completed TRNG image, then use one 8 GiB/57600-second guarded smoke_test_mlkem_locked_api replay to classify its prior low-swap kill. Do not start a 52-case corpus before resolving current blockers."
+  next_command: "Collect the active 8 GiB/57600-second guarded smoke_test_mlkem_locked_api replay under PR394 VVP, classify its prior low-swap kill, and preserve its source/image provenance. Do not start a 52-case corpus before resolving current blockers."
 prior_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
