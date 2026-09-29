@@ -3859,3 +3859,43 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `evidence/opentitan-matrix-smoke-selection-20260929/selected-result.json` and the selected compile log path recorded there.
 - **Reproducer status:** selected pinned-source compile and runtime; no minimal reducer for these five notices yet.
 - **Triage status:** record-only under the harness ticket. Preserve the SPI Device DEBT verdict until each semantic notice is resolved or justified.
+
+### DD-099 — Entropy Source UVM real-field macro passes 4096 bits to `$bitstoreal`
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, during the frozen 49-target census.
+- **Observation:** The official Entropy Source smoke stops at two `$bitstoreal` calls on a 4096-bit UVM bitstream. A disposable one-line UVM macro patch selects bits `[63:0]` and removes both errors, but does not make the DV target pass.
+- **File/function:** Pinned UVM 1.2 `uvm_object_defines.svh:999`, `UVM_SETINT`; Icarus `vpi/sys_convert.c:166` enforces exactly 64 bits.
+- **Possible clause:** IEEE 1800-2017/2023 §20.5 defines `$bitstoreal` on a real bit pattern; wider-argument behavior is not explicit in the checked wording.
+- **Evidence:** `/private/tmp/ot-entropy-bitstoreal-selected-20260929/HANDOFF.md`, paired reducer and hash-guarded selected replay.
+- **Reproducer status:** confirmed; selected patch removes the specific error on the same installed image.
+- **Triage status:** untriaged source-compatibility correction; do not count Entropy Source as passing.
+
+### DD-100 — Entropy Source event-sensitive `ref` binding stops selected replay
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, after the isolated DD-099 source correction.
+- **Observation:** With the wide `$bitstoreal` arguments corrected, selected runtime reaches `event-sensitive ref binding has an unsupported non-integral whole-variable actual` and fails. Four pre-existing covergroup width warnings also remain.
+- **File/function:** Icarus `vvp_net_sig.cc` event-sensitive reference binding; exact OpenTitan call site is in the selected runtime log.
+- **Possible clause:** IEEE 1800-2017/2023 `ref` actual binding and lifetime; exact subclause pending.
+- **Evidence:** `/private/tmp/ot-entropy-bitstoreal-selected-20260929/HANDOFF.md` and selected result.
+- **Reproducer status:** selected application replay; no minimal compiler reducer yet.
+- **Triage status:** untriaged. Keep Entropy Source RUNTIME_FAIL.
+
+### DD-101 — OTBN smoke runner omits the required pre-run ELF mode
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, during the frozen 49-target census.
+- **Observation:** The runner records OpenTitan's `build_otbn_smoke_binary_mode` but does not execute it or supply `+otbn_elf_dir`, so OTBN fails at time zero. A bounded selected replay with the real generated ELF and `REPO_TOP` advances to 25.7 us, then reports `noOutstandingReqsAtEndOfSim_A` and `TEST FAILED CHECKS`; it remains a DV failure.
+- **File/function:** `scripts/opentitan_matrix.py` runtime option resolution; pinned `otbn_sim_cfg.hjson` pre-run mode.
+- **Possible clause:** N/A; application setup and later TLUL protocol assertion.
+- **Evidence:** `/private/tmp/otbn-smoke-selected-20260929/HANDOFF.md`, ELF hash, selected result and runtime log.
+- **Reproducer status:** confirmed in the corpus and one guarded selected replay.
+- **Triage status:** untriaged runner setup gap and separate TLUL DV error. Do not substitute a dummy ELF path or claim OTBN PASS.
+
+### DD-102 — Pwrmgr parallel runner exception before simulator launch
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, during the frozen 49-target census.
+- **Observation:** FuseSoC setup and Icarus compilation complete, then the parallel worker reports `[Errno 1] Operation not permitted` before recording a runtime command or log. The exact failed syscall is unconfirmed; this row is `MATRIX_ERROR`, not a DV verdict.
+- **File/function:** `scripts/opentitan_matrix.py` runtime launch after compile; the concurrent worker exception is caught at `future.result()`.
+- **Possible clause:** N/A; macOS runner/process-launch reliability.
+- **Evidence:** `/private/tmp/ot-corpus-after-fixes-20260929/result-final.json` pwrmgr row and its `work-final/runtime/lowrisc_dv_pwrmgr_sim_0.1/` setup/compile logs. The earlier raw census ran Pwrmgr and failed `EscClkStopEscTimeout_A`.
+- **Reproducer status:** one parallel-run exception; a single-core same-image replay is pending after the corpus finishes.
+- **Triage status:** untriaged. Do not count Pwrmgr as PASS based on successful compilation or on a prior separate checker-patched DEBT result.
