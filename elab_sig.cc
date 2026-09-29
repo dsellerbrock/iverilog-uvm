@@ -920,7 +920,12 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			     << "it keeps the alias behavior." << endl;
 			continue;
 		  }
-		  if (raw->pin_count() != 1 || raw->unpacked_dimensions() > 0) {
+		  bool fixed_array_input = is_in && !is_out
+		    && raw->unpacked_dimensions() == 1;
+		  bool fixed_array_output = is_out && !is_in
+		    && raw->unpacked_dimensions() == 1;
+		  if ((raw->pin_count() != 1 || raw->unpacked_dimensions() > 0)
+		      && !fixed_array_input && !fixed_array_output) {
 			cerr << cb->get_fileline() << ": sorry: clocking "
 			     << "signal `" << *sig_it << "' of block `"
 			     << cb->name << "' is an array; it keeps the "
@@ -945,6 +950,17 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			 << *sig_it << "' has no resolvable type." << endl;
 		    des->errors += 1;
 		    continue;
+		  }
+		  if (fixed_array_input) {
+		    PExpr*skew_delay = nullptr;
+		    if (cb->input_skew(*sig_it, skew_delay)
+			== Module::PClocking::SKEW_DELAY) {
+		      cerr << cb->get_fileline() << ": sorry: numeric input "
+			   << "skew on fixed clocking array `" << *sig_it
+			   << "' is not supported." << endl;
+		      des->errors += 1;
+		      continue;
+		    }
 		  }
 
 		    /* Input edge-qualified skews are still unsupported. Output
@@ -973,7 +989,10 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			perm_string smp_name = lex_strings.make(sname.c_str());
 			if (!scope->find_signal(smp_name)) {
 			      NetNet*smp;
-			      if (vt) {
+			      if (fixed_array_input) {
+				    smp = new NetNet(scope, smp_name, NetNet::REG,
+						     raw->unpacked_dims(), raw->net_type());
+			      } else if (vt) {
 				    smp = new NetNet(scope, smp_name, NetNet::REG, vt);
 			      } else {
 				    netvector_t*vec = new netvector_t(raw->data_type(),
@@ -1021,7 +1040,10 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			perm_string obuf_name = lex_strings.make(bname.c_str());
 			if (!scope->find_signal(obuf_name)) {
 			      NetNet*obuf;
-			      if (vt) {
+			      if (fixed_array_output) {
+				    obuf = new NetNet(scope, obuf_name, NetNet::REG,
+						      raw->unpacked_dims(), raw->net_type());
+			      } else if (vt) {
 				    obuf = new NetNet(scope, obuf_name, NetNet::REG, vt);
 			      } else {
 				    netvector_t*vec = new netvector_t(raw->data_type(),
@@ -1036,7 +1058,10 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			perm_string opend_name = lex_strings.make(pname.c_str());
 			if (!scope->find_signal(opend_name)) {
 			      NetNet*opend;
-			      if (vt) {
+			      if (fixed_array_output) {
+				    opend = new NetNet(scope, opend_name, NetNet::REG,
+						       raw->unpacked_dims(), raw->net_type());
+			      } else if (vt) {
 				    opend = new NetNet(scope, opend_name, NetNet::REG, vt);
 			      } else {
 				    netvector_t*pvec = new netvector_t(raw->data_type(),

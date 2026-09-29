@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_fixed_array_output_decl.v:23: $finish called at 6000 (1ps)

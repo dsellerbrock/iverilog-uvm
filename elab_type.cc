@@ -803,9 +803,12 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 		  if (rt->base_type() != IVL_VT_LOGIC
 		      && rt->base_type() != IVL_VT_BOOL)
 			continue;
+		  const netuarray_t*fixed_array =
+		    dynamic_cast<const netuarray_t*>(rt);
 		  if (dynamic_cast<const netdarray_t*>(rt)
-		      || dynamic_cast<const netuarray_t*>(rt)
-		      || dynamic_cast<const netqueue_t*>(rt))
+		      || dynamic_cast<const netqueue_t*>(rt)
+		      || (fixed_array && ((is_in && is_out)
+				    || fixed_array->static_dimensions().size() != 1)))
 			continue;
 		  if (is_in) {
 			string sname = string("_ivl_smp$") + cur->first.str()
