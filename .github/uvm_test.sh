@@ -285,24 +285,29 @@ run_test() {
     echo $? >"/tmp/uvm_rc_${name}"
 }
 
-for sv in $TESTS/*.sv; do
-    name=$(basename "$sv" .sv)
+# Run one test and print its report. The verdict (PASS, FAIL or SKIP) goes
+# to $RESULT_DIR/<name>.status so the totals can be counted whether the tests
+# ran one at a time or in parallel.
+process_test() {
+    local name="$1"
+    local status="$RESULT_DIR/${name}.status"
     printf "  %-30s " "$name"
 
     # Skip known pre-existing failures
     if echo "$KNOWN_FAIL" | grep -qw "$name"; then
         echo "SKIP (known)"
-        SKIP=$((SKIP+1))
-        continue
+        echo SKIP >"$status"
+        return
     fi
 
     if ! compile_test "$name" 2>"/tmp/uvm_compile_${name}.log"; then
         echo "COMPILE_FAIL"
         sed 's/^/      | /' "/tmp/uvm_compile_${name}.log" | head -6
-        FAIL=$((FAIL+1))
-        continue
+        echo FAIL >"$status"
+        return
     fi
 
+    local out
     out=$(run_test "$name")
     # Failure evidence is checked BEFORE any PASS marker, so a test that
     # prints "PASS" for one sub-check cannot mask a real error emitted
@@ -318,10 +323,10 @@ for sv in $TESTS/*.sv; do
     if echo "$out" | grep -qE "$FAIL_RE"; then
         echo "FAIL"
         echo "$out" | grep -E "$FAIL_RE" | head -3
-        FAIL=$((FAIL+1))
+        echo FAIL >"$status"
     elif echo "$out" | grep -qE "$PASS_RE"; then
         echo "PASS"
-        PASS=$((PASS+1))
+        echo PASS >"$status"
     else
         # No PASS marker AND no error: the test produced nothing we can
         # verify. A silent no-output run must NOT score as a pass — that
@@ -344,9 +349,44 @@ for sv in $TESTS/*.sv; do
             echo "      > per-test DPI build:"
             sed 's/^/      | /' "/tmp/uvm_dpi_${name}.buildlog" | head -4
         fi
-        FAIL=$((FAIL+1))
+        echo FAIL >"$status"
+    fi
+}
+
+# UVM_JOBS=N runs N tests at once. Every per-test file above is named after
+# its test, and the tests do no file I/O of their own, so concurrent tests do
+# not share state. Reports are printed in the usual order either way. The
+# job limit polls `jobs' rather than using `wait -n', which the macOS
+# system bash (3.2) lacks.
+UVM_JOBS="${UVM_JOBS:-1}"
+RESULT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/uvm_results.XXXXXX")"
+NAMES=""
+for sv in $TESTS/*.sv; do
+    name=$(basename "$sv" .sv)
+    NAMES="$NAMES $name"
+    if [ "$UVM_JOBS" -gt 1 ]; then
+        while [ "$(jobs -rp | wc -l)" -ge "$UVM_JOBS" ]; do
+            sleep 0.2
+        done
+        process_test "$name" >"$RESULT_DIR/${name}.out" 2>&1 &
+    else
+        process_test "$name"
     fi
 done
+wait
+
+for name in $NAMES; do
+    [ "$UVM_JOBS" -gt 1 ] && cat "$RESULT_DIR/${name}.out"
+    case "$(cat "$RESULT_DIR/${name}.status" 2>/dev/null)" in
+        PASS) PASS=$((PASS+1)) ;;
+        SKIP) SKIP=$((SKIP+1)) ;;
+        *)
+            # A test that stopped without recording a verdict failed.
+            [ -s "$RESULT_DIR/${name}.status" ] || echo "  $name: no verdict recorded"
+            FAIL=$((FAIL+1)) ;;
+    esac
+done
+rm -rf "$RESULT_DIR"
 
 echo ""
 # Restate the DPI mode next to the summary so it is always visible in a
