@@ -823,6 +823,9 @@ class CommandResult:
     output: str
     duration_seconds: float
     timed_out: bool = False
+    memory_limit_hit: bool = False
+    peak_physical_footprint_bytes: int | None = None
+    memory_monitor_error: str | None = None
 
 
 ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
@@ -856,7 +859,13 @@ def command_result(
     cwd: Path,
     env: dict[str, str],
     timeout: int,
+    memory_limit_bytes: int | None = None,
 ) -> CommandResult:
+    if memory_limit_bytes is not None:
+        return memory_guarded_command_result(
+            command, cwd=cwd, env=env, timeout=timeout,
+            memory_limit_bytes=memory_limit_bytes,
+        )
     started = time.monotonic()
     process = subprocess.Popen(
         list(command),
@@ -898,6 +907,93 @@ def command_result(
     finally:
         with ACTIVE_PROCESSES_LOCK:
             ACTIVE_PROCESSES.discard(process)
+
+
+def memory_guarded_command_result(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+    memory_limit_bytes: int,
+) -> CommandResult:
+    """Stop one runtime process group when macOS reports excessive footprint."""
+    started = time.monotonic()
+    peak = 0
+    timed_out = False
+    memory_limit_hit = False
+    monitor_error = None
+    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8", errors="replace") as output_file:
+        process = subprocess.Popen(
+            list(command), cwd=cwd, env=env, stdout=output_file,
+            stderr=subprocess.STDOUT, text=True, start_new_session=True,
+        )
+        with ACTIVE_PROCESSES_LOCK:
+            ACTIVE_PROCESSES.add(process)
+        try:
+            while process.poll() is None:
+                if time.monotonic() - started >= timeout:
+                    timed_out = True
+                    break
+                try:
+                    sample = subprocess.run(
+                        ["/usr/bin/footprint", "--noCategories", "--swapped",
+                         "-f", "bytes", "-p", str(process.pid)],
+                        capture_output=True, text=True, timeout=10, check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    monitor_error = "footprint sampling timed out"
+                    break
+                if process.poll() is not None and sample.returncode != 0:
+                    break
+                match = re.search(r"^\s*phys_footprint:\s*(\d+) B\s*$",
+                                  sample.stdout, re.MULTILINE)
+                if sample.returncode != 0 or match is None:
+                    monitor_error = (
+                        sample.stderr.strip() or "footprint output had no phys_footprint"
+                    )
+                    break
+                peak = max(peak, int(match.group(1)))
+                if peak > memory_limit_bytes:
+                    memory_limit_hit = True
+                    break
+                time.sleep(min(1, max(0, timeout - (time.monotonic() - started))))
+            if timed_out or memory_limit_hit or monitor_error:
+                signal_command_tree(process, signal.SIGTERM)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    signal_command_tree(process, signal.SIGKILL)
+                    process.wait()
+            output_file.seek(0)
+            output = output_file.read()
+            if memory_limit_hit:
+                output += (f"\nmatrix runtime memory limit: {peak} > "
+                           f"{memory_limit_bytes} physical-footprint bytes\n")
+            if monitor_error:
+                output += f"\nmatrix runtime memory monitor failed: {monitor_error}\n"
+            return CommandResult(
+                list(command),
+                124 if timed_out else 125 if memory_limit_hit else 126 if monitor_error
+                else process.returncode,
+                output,
+                time.monotonic() - started,
+                timed_out,
+                memory_limit_hit,
+                peak or None,
+                monitor_error,
+            )
+        except KeyboardInterrupt:
+            signal_command_tree(process, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                signal_command_tree(process, signal.SIGKILL)
+                process.wait()
+            raise
+        finally:
+            with ACTIVE_PROCESSES_LOCK:
+                ACTIVE_PROCESSES.discard(process)
 
 
 def short_command(command: Sequence[str]) -> str:
@@ -2716,6 +2812,10 @@ def run_job(
         cwd=source_list.parent,
         env={**env, "IVL_SVA_NFA": "1"},
         timeout=args.runtime_timeout,
+        memory_limit_bytes=(
+            args.runtime_memory_mib * 1024 * 1024
+            if args.runtime_memory_mib else None
+        ),
     )
     runtime_log = work_root / "matrix-runtime.log"
     write_log(runtime_log, "OpenTitan UVM runtime", runtime_result)
@@ -2753,6 +2853,15 @@ def run_job(
             "runtime_returncode": runtime_result.returncode,
             "runtime_duration_seconds": round(runtime_result.duration_seconds, 3),
             "runtime_timed_out": runtime_result.timed_out,
+            "runtime_memory_limit_bytes": (
+                args.runtime_memory_mib * 1024 * 1024
+                if args.runtime_memory_mib else None
+            ),
+            "runtime_memory_limit_hit": runtime_result.memory_limit_hit,
+            "runtime_peak_physical_footprint_bytes": (
+                runtime_result.peak_physical_footprint_bytes
+            ),
+            "runtime_memory_monitor_error": runtime_result.memory_monitor_error,
             "runtime_log": str(runtime_log),
             "runtime_error_count": len(runtime_errors),
             "runtime_errors": runtime_errors[: args.diagnostic_limit],
@@ -2767,7 +2876,11 @@ def run_job(
             ],
         }
     )
-    if runtime_result.timed_out:
+    if runtime_result.memory_monitor_error:
+        record["status"] = "RUNTIME_MEMORY_MONITOR_FAIL"
+    elif runtime_result.memory_limit_hit:
+        record["status"] = "RUNTIME_MEMORY_LIMIT"
+    elif runtime_result.timed_out:
         record["status"] = "RUNTIME_TIMEOUT"
     elif runtime_result.returncode != 0 or runtime_errors:
         record["status"] = "RUNTIME_FAIL"
@@ -3454,6 +3567,33 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             pass
         else:
             raise AssertionError("timed-out command left a descendant running")
+    if sys.platform == "darwin":
+        memory_probe = command_result(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import subprocess,sys,time; "
+                    "p=subprocess.Popen([sys.executable,'-c',"
+                    "'import time; time.sleep(30)']); "
+                    "print(p.pid,flush=True); "
+                    "data=bytearray(128*1024*1024); time.sleep(30)"
+                ),
+            ],
+            cwd=Path.cwd(), env=os.environ.copy(), timeout=15,
+            memory_limit_bytes=64 * 1024 * 1024,
+        )
+        assert memory_probe.memory_limit_hit, memory_probe
+        assert not memory_probe.timed_out
+        assert memory_probe.returncode == 125
+        assert memory_probe.peak_physical_footprint_bytes > 64 * 1024 * 1024
+        descendant_pid = int(memory_probe.output.strip().splitlines()[0])
+        try:
+            os.kill(descendant_pid, 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise AssertionError("memory-limited command left a descendant running")
     print("opentitan_matrix self-test: PASS")
 
 
@@ -3499,6 +3639,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--setup-timeout", type=int, default=600)
     result.add_argument("--compile-timeout", type=int, default=600)
     result.add_argument("--runtime-timeout", type=int, default=300)
+    result.add_argument(
+        "--runtime-memory-mib", type=int, default=0,
+        help="per-vvp macOS physical-footprint cap in MiB (0 disables)",
+    )
     result.add_argument("--runtime-arg", action="append", default=[])
     result.add_argument(
         "--commercial-unsafe", action="store_true",
@@ -3544,6 +3688,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser().error("--opentitan-root, --build-root, and --iverilog are required")
     if args.jobs < 1:
         parser().error("--jobs must be at least 1")
+    if args.runtime_memory_mib < 0:
+        parser().error("--runtime-memory-mib must be nonnegative")
+    if args.runtime_memory_mib and sys.platform != "darwin":
+        parser().error("--runtime-memory-mib requires macOS footprint")
     dpi_libraries = [path.expanduser().resolve() for path in args.dpi_library]
     missing_dpi_libraries = [path for path in dpi_libraries if not path.is_file()]
     if missing_dpi_libraries:
@@ -3658,6 +3806,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "uvm_runtime_compile_profile": (
             "commercial-unsafe" if args.commercial_unsafe else "default"
         ),
+        "matrix_jobs": args.jobs,
+        "runtime_timeout_seconds": args.runtime_timeout,
+        "runtime_memory_mib": args.runtime_memory_mib,
         "matrix_provider_core_root": str(matrix_core_root),
         "englishbreakfast_mapping_sha256": hashlib.sha256(
             ENGLISHBREAKFAST_MAPPING_CORE.encode()
@@ -3808,6 +3959,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "COMPILE_TIMEOUT",
         "FAIL",
         "RUNTIME_TIMEOUT",
+        "RUNTIME_MEMORY_LIMIT",
+        "RUNTIME_MEMORY_MONITOR_FAIL",
         "RUNTIME_FAIL",
         "RUNTIME_CONFIG_MISSING",
         "MATRIX_ERROR",
