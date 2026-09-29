@@ -3161,6 +3161,55 @@ static void show_stmt_assign_sig_darray_queue_mux(ivl_statement_t net)
       }
 }
 
+/* A packed concatenation may select several dynamic-array elements. */
+static int show_stmt_assign_concat_darray_(ivl_statement_t net)
+{
+      unsigned lvals = ivl_stmt_lvals(net);
+      unsigned has_darray = 0;
+      if (lvals < 2)
+            return -1;
+      for (unsigned i = 0; i < lvals; i += 1) {
+            ivl_signal_t sig = ivl_lval_sig(ivl_stmt_lval(net, i));
+            if (sig && ivl_signal_data_type(sig) == IVL_VT_DARRAY)
+                  has_darray = 1;
+      }
+      if (!has_darray)
+            return -1;
+
+      /* Validate the entire destination before emitting any stores. */
+      for (unsigned i = 0; i < lvals; i += 1) {
+            ivl_lval_t lval = ivl_stmt_lval(net, i);
+            ivl_signal_t sig = ivl_lval_sig(lval);
+            ivl_type_t container = sig ? ivl_signal_net_type(sig) : 0;
+            ivl_type_t element = container ? ivl_type_element(container) : 0;
+            ivl_variable_type_t kind = element ? ivl_type_base(element) : IVL_VT_NO_TYPE;
+            if (ivl_stmt_opcode(net) != 0 || !sig
+                || ivl_signal_data_type(sig) != IVL_VT_DARRAY
+                || ivl_signal_dimensions(sig) != 0
+                || !ivl_lval_idx(lval) || ivl_lval_part_off(lval)
+                || ivl_lval_nest(lval) || ivl_lval_property_idx(lval) >= 0
+                || (kind != IVL_VT_BOOL && kind != IVL_VT_LOGIC)
+                || ivl_lval_width(lval) != ivl_type_packed_width(element)) {
+                  fprintf(stderr, "%s:%u: sorry: this dynamic-array "
+                          "concatenation destination is not yet supported.\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  return 1;
+            }
+      }
+
+      draw_eval_vec4(ivl_stmt_rval(net));
+      resize_vec4_wid(ivl_stmt_rval(net), ivl_stmt_lwidth(net));
+      for (unsigned i = 0; i < lvals; i += 1) {
+            ivl_lval_t lval = ivl_stmt_lval(net, i);
+            ivl_signal_t sig = ivl_lval_sig(lval);
+            if (i + 1 < lvals)
+                  fprintf(vvp_out, "    %%split/vec4 %u;\n", ivl_lval_width(lval));
+            draw_eval_expr_into_integer(ivl_lval_idx(lval), 3);
+            fprintf(vvp_out, "    %%store/dar/vec4 v%p_0;\n", sig);
+      }
+      return 0;
+}
+
 static int show_stmt_assign_sig_darray(ivl_statement_t net)
 {
       int errors = 0;
@@ -6763,6 +6812,12 @@ int show_stmt_assign(ivl_statement_t net)
 	    int concat_object_errors = show_stmt_assign_concat_cobject_(net);
 	    if (concat_object_errors >= 0)
 		  return concat_object_errors;
+      }
+
+      {
+            int concat_array_errors = show_stmt_assign_concat_darray_(net);
+            if (concat_array_errors >= 0)
+                  return concat_array_errors;
       }
 
 	/* Assignment of a function returning an unpacked array into an
