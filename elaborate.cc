@@ -40662,6 +40662,59 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  };
 
 			  eval_with = [&](PExpr*with_expr, const std::vector<unsigned>&idx, size_t ub) -> int {
+				  // The default `matches 1` policy needs only existence. For
+				  // relational comparisons over unsigned integral bin ranges,
+				  // extrema or range overlap decide that without enumerating
+				  // the full product of values.
+				  if (PEBinary*rel = dynamic_cast<PEBinary*>(with_expr)) {
+					char op = rel->get_op();
+					PEIdent*left = dynamic_cast<PEIdent*>(rel->get_left());
+					PEIdent*right = dynamic_cast<PEIdent*>(rel->get_right());
+					if ((op == '<' || op == '>' || op == 'e')
+					    && left && right && left->path().size() == 1
+					    && right->path().size() == 1) {
+					  size_t li = idx.size(), ri = idx.size();
+					  for (size_t k = 0; k < idx.size(); k++) {
+						if (cross.cp_labels[k] == peek_tail_name(left->path())) li = k;
+						if (cross.cp_labels[k] == peek_tail_name(right->path())) ri = k;
+					  }
+					  if (li < idx.size() && ri < idx.size() && li != ri) {
+						auto bounds = [&](size_t dim, uint64_t&low,
+								  uint64_t&high) -> bool {
+						  unsigned cpi = cp_indexes[dim];
+						  unsigned width = cp_value_widths[cpi];
+						  const xbin_desc_t&d = cp_value_bins[cpi][idx[dim]];
+						  if (width == 0 || width > 63
+						      || cp_value_signedness[cpi] || d.ranges.empty()
+						      || d.wildcard || d.dyn_family >= 0
+						      || d.transition_prop >= 0
+						      || d.transition_family >= 0) return false;
+						  uint64_t mask = ((uint64_t)1 << width) - 1;
+						  low = UINT64_MAX;
+						  high = 0;
+						  for (const auto&r : d.ranges) {
+							if (r.first > r.second || r.second > mask)
+							  return false;
+							if (r.first < low) low = r.first;
+							if (r.second > high) high = r.second;
+						  }
+						  return true;
+						};
+						uint64_t lmin, lmax, rmin, rmax;
+						if (bounds(li, lmin, lmax) && bounds(ri, rmin, rmax)) {
+						  if (op == '<') return lmin < rmax;
+						  if (op == '>') return lmax > rmin;
+						  const xbin_desc_t&ld = cp_value_bins[cp_indexes[li]][idx[li]];
+						  const xbin_desc_t&rd = cp_value_bins[cp_indexes[ri]][idx[ri]];
+						  for (const auto&lr : ld.ranges)
+						    for (const auto&rr : rd.ranges)
+						      if (lr.first <= rr.second && rr.first <= lr.second)
+							return 1;
+						  return 0;
+						}
+					  }
+					}
+				  }
 				  std::vector<std::vector<uint64_t>> dimension_values(idx.size());
 				  uint64_t value_tuple_count = 1;
 				  bool values_ok = true;
