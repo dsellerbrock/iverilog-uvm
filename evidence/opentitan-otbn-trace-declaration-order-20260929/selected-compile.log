@@ -1,0 +1,7 @@
+../src/lowrisc_dv_otbn_sim_0.1/tb.sv:86: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+iverilog: note: wrote DPI export C stubs to /private/tmp/ot-census-speedups-overlays-20260929/otbn-selected.dpiexport.c (compile it into your DPI object).

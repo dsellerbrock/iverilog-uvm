@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-OTBN-TRACE-DECL-ORDER — source assignment precedes its packed-struct declaration
+
+- **State:** DONE for the selected compile blocker. After DD-095, the prior guarded OTBN compile had two bind/r-value errors at `otbn_trace_if.sv:375`; the declaration is at line 382. [Strict paired Icarus/Slang controls](session_logs/2026-09-28_ot_otbn_trace_decl_order.json) reject that order and accept the [named patch](release_overlays/opentitan/otbn_trace_forward_ref_order.patch).
+- **Cause and correction:** IEEE 1800-2017/2023 §6.5 requires this explicit packed-struct variable to be declared before use. Move its unchanged assignment after the declaration in a disposable pinned-source copy.
+- **Boundary:** Both exact-hash named patches on a disposable source copy make the [guarded selected OTBN compile](../../evidence/opentitan-otbn-trace-declaration-order-20260929/focus.json) exit zero with no hard or semantic notices, producing a VVP image. No compiler/unsafe waiver was added, and no OTBN DV pass or refreshed 49-target count is claimed.
+
 ### OT-OTBN-SAMPLE-FORMAL-UNPACKED-ARRAY — preserve sample array shape and values
 
 - **State:** DD-095 DONE for its bounded compiler fix. Paired strict 2017/2023 focused JSON and legacy tests pass 10/10 each; exact-image JSON 4,129/0, legacy 6,880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, and negatives 154/154 pass. The [guarded OTBN compile](../../evidence/opentitan-otbn-dynamic-sample-formal-20260929/focus.json) reduces 30 hard errors to two original tracer declaration-order errors, with no new diagnostic line.

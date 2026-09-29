@@ -1,18 +1,24 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: f74236aca
+checkpoint_head: 1a2c24d13
 active_open_titan_lane:
-  blocker: "DD-095"
+  blocker: "OT-OTBN-TRACE-DECL-ORDER"
   phase: "DONE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "f74236aca"
+  baseline_head: "1a2c24d13"
   installed_ivl_sha256: "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4"
   installed_vvp_sha256: "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
-  reproducer: "work/otbn-flag-select-20260929/flag_select.sv: direct dynamic unpacked array/packed flag selections fail in strict 2017/2023; scalarized controls sample distinct values and Slang accepts direct forms."
-  validation: "DD-095 final candidate passes make check and strict paired focused JSON/legacy 10/10 each; independent review found no further scoped issue. Guarded selected OTBN compile on stable installed image removes 28 of 30 hard errors, leaving only two original tracer declaration-order errors and no VVP image. Exact-image local gates pass: JSON 4129/0, legacy 6880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, negative 154/154. The 49-target census remains historical."
-  next_command: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2017 -s top -DMEMBER -o /private/tmp/otbn-dd095-repro.vvp /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn-flag-select-20260929/flag_select.sv"
-  boundary: "DD-095 focused scope is complete and awaiting local commit. No OTBN DV pass or refreshed 49-target census. Caliptra selected ML-KEM guard remains active separately."
+  reproducer: "DD-095 guarded selected OTBN compile leaves only two otbn_trace_if.sv:375 use-before-declaration errors; saved strict 2017/2023 Icarus and Slang reducer confirms pinned source invalid."
+  validation: "Both named patches apply with exact pinned hashes. Strict paired original/moved controls reject/accept as expected. Guarded selected current-compiler OTBN compile exits 0 in 4.793 s at 971 MiB sampled peak RSS, with no hard/semantic notices and a VVP image; no DV verdict."
+  next_command: "Prepare and run the requested full overlaid OpenTitan runtime corpus with parallel jobs and a per-simulator memory guard; Caliptra remains paused."
+  boundary: "OTBN compile success is not a DV pass. The 49-target census remains historical. Caliptra work is paused by user request."
+completed_dd095_lane:
+  blocker: "DD-095"
+  phase: "DONE"
+  compiler_head: "1a2c24d13"
+  evidence: "evidence/opentitan-otbn-dynamic-sample-formal-20260929/focus.json; exact-image JSON 4129/0, legacy 6880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, negative 154/154."
+  boundary: "Selected OTBN compile has only the two independent tracer errors; no VVP/DV pass or 49-target update."
 completed_dd094_lane:
   blocker: "DD-094"
   phase: "DONE"
