@@ -4697,6 +4697,10 @@ sv_constraint_caller_method_local_2023 normal,-g2023,-s,top ivltests gold=sv_con
 sv_constraint_caller_method_collision CE,-g2017,-s,top ivltests gold=sv_constraint_caller_method_collision.gold
 sv_constraint_caller_method_collision_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_caller_method_collision.gold
 
+# Boolean comparison operands in bitwise class constraints.
+sv_constraint_bitwise_bool_operand normal,-g2017,-s,top ivltests gold=sv_constraint_bitwise_bool_operand.gold
+sv_constraint_bitwise_bool_operand_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_bitwise_bool_operand.gold
+
 # Whole fixed rand arrays in solve...before.
 sv_constraint_solve_before_fixed_array normal,-g2017,-s,top ivltests
 sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests

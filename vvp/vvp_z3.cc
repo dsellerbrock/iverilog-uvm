@@ -4202,6 +4202,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast right = build_z3_atom(par, b);
 	    if (typed) leave_typed_context_(b, saved_width, saved_sign);
 	    par.skip_ws(); par.expect(')');
+	    /* A nested comparison or logical expression is an integral one-bit
+	     * operand in SystemVerilog, even though Z3 represents it as Bool. */
+	    left = bool_to_bv1(b.ctx, left);
+	    right = bool_to_bv1(b.ctx, right);
 	    unsigned sw = b.sv_of(left);
 	    if (b.sv_of(right) > sw) sw = b.sv_of(right);
 	    if (typed) sw = typed_width;
