@@ -1,0 +1,211 @@
+--- a/hw/ip/adc_ctrl/dv/env/adc_ctrl_env_pkg.sv
++++ b/hw/ip/adc_ctrl/dv/env/adc_ctrl_env_pkg.sv
+@@ -88,6 +88,14 @@
+     bit en;  // Enable
+   } adc_ctrl_filter_cfg_t;
+ 
++  // Keep the packed layout while allowing indexed solver field constraints.
++  typedef struct packed {
++    adc_ctrl_filter_cond_e cond;
++    int unsigned min_v;
++    int unsigned max_v;
++    bit en;
++  } adc_ctrl_filter_solver_cfg_t;
++
+   // Constants
+   // Filter defaults - applies to all channels
+   const
+@@ -102,6 +110,17 @@
+       '{min_v: 186, max_v: 279, cond: ADC_CTRL_FILTER_COND_IN, en: 1},
+       '{min_v: 116, max_v: 954, cond: ADC_CTRL_FILTER_COND_OUT, en: 1}
+   };
++  // The constraint solver can read 66-bit scalar package constants, but not
++  // elements of a 66-bit package array. These aliases retain the one source
++  // of default values above.
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_0 = FILTER_CFG_DEFAULTS[0];
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_1 = FILTER_CFG_DEFAULTS[1];
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_2 = FILTER_CFG_DEFAULTS[2];
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_3 = FILTER_CFG_DEFAULTS[3];
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_4 = FILTER_CFG_DEFAULTS[4];
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_5 = FILTER_CFG_DEFAULTS[5];
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_6 = FILTER_CFG_DEFAULTS[6];
++  const adc_ctrl_filter_cfg_t FILTER_CFG_DEFAULT_7 = FILTER_CFG_DEFAULTS[7];
+   // functions and tasks
+ 
+   // package sources
+--- a/hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv
++++ b/hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv
+@@ -37,7 +37,9 @@
+   rand int wakeup_time;
+ 
+   // Filter values filter_cfg[channel][filter]
+-  rand adc_ctrl_filter_cfg_t filter_cfg[][];
++  adc_ctrl_filter_cfg_t filter_cfg[][];
++  rand adc_ctrl_filter_solver_cfg_t filter_cfg_ch0[ADC_CTRL_NUM_FILTERS];
++  rand adc_ctrl_filter_solver_cfg_t filter_cfg_ch1[ADC_CTRL_NUM_FILTERS];
+ 
+   // Debouncing sample counts for normal and low power modes
+   rand int np_sample_cnt;
+@@ -85,16 +87,6 @@
+   endfunction
+ 
+   // Constraints
+-  // Set the size of the filter_cfg array
+-  constraint filter_cfg_size_c {
+-    // Size of first dimension
+-    filter_cfg.size == ADC_CTRL_CHANNELS;
+-
+-    // Size of second dimension
+-    foreach (filter_cfg[channel]) {filter_cfg[channel].size == ADC_CTRL_NUM_FILTERS;}
+-
+-  }
+-
+   // Valid values
+   constraint valid_c {
+     pwrup_time inside {[0 : 2 ** 4 - 1]};
+@@ -116,12 +108,35 @@
+ 
+     // Default filter configuration
+     // This is the one assumed for normal use
+-    foreach (filter_cfg[channel]) {
+-      foreach (filter_cfg[channel][filter]) {
+-        soft filter_cfg[channel][filter] == FILTER_CFG_DEFAULTS[filter];
+-      }
+-    }
++    soft filter_cfg_ch0[0] == FILTER_CFG_DEFAULT_0;
++    soft filter_cfg_ch0[1] == FILTER_CFG_DEFAULT_1;
++    soft filter_cfg_ch0[2] == FILTER_CFG_DEFAULT_2;
++    soft filter_cfg_ch0[3] == FILTER_CFG_DEFAULT_3;
++    soft filter_cfg_ch0[4] == FILTER_CFG_DEFAULT_4;
++    soft filter_cfg_ch0[5] == FILTER_CFG_DEFAULT_5;
++    soft filter_cfg_ch0[6] == FILTER_CFG_DEFAULT_6;
++    soft filter_cfg_ch0[7] == FILTER_CFG_DEFAULT_7;
++    soft filter_cfg_ch1[0] == FILTER_CFG_DEFAULT_0;
++    soft filter_cfg_ch1[1] == FILTER_CFG_DEFAULT_1;
++    soft filter_cfg_ch1[2] == FILTER_CFG_DEFAULT_2;
++    soft filter_cfg_ch1[3] == FILTER_CFG_DEFAULT_3;
++    soft filter_cfg_ch1[4] == FILTER_CFG_DEFAULT_4;
++    soft filter_cfg_ch1[5] == FILTER_CFG_DEFAULT_5;
++    soft filter_cfg_ch1[6] == FILTER_CFG_DEFAULT_6;
++    soft filter_cfg_ch1[7] == FILTER_CFG_DEFAULT_7;
+   }
++
++  function void post_randomize();
++    super.post_randomize();
++    if (ADC_CTRL_CHANNELS != 2 || ADC_CTRL_NUM_FILTERS != 8)
++      $fatal(1, "ADC filter proxy requires two channels and eight filters");
++    filter_cfg = new[ADC_CTRL_CHANNELS];
++    foreach (filter_cfg[channel]) filter_cfg[channel] = new[ADC_CTRL_NUM_FILTERS];
++    foreach (filter_cfg_ch0[filter]) begin
++      filter_cfg[0][filter] = filter_cfg_ch0[filter];
++      filter_cfg[1][filter] = filter_cfg_ch1[filter];
++    end
++  endfunction
+ 
+   // Wait for an ADC push pull item received event.
+   virtual task wait_adc_rx_event(int channel);
+@@ -162,6 +177,8 @@
+ 
+     // Implement filter_cfg
+     filter_cfg = rhs_.filter_cfg;
++    filter_cfg_ch0 = rhs_.filter_cfg_ch0;
++    filter_cfg_ch1 = rhs_.filter_cfg_ch1;
+   endfunction
+ 
+ endclass
+--- a/hw/ip/adc_ctrl/dv/env/adc_ctrl_env_var_filter_cfg.sv
++++ b/hw/ip/adc_ctrl/dv/env/adc_ctrl_env_var_filter_cfg.sv
+@@ -58,45 +58,39 @@
+   }
+ 
+   constraint filters_values_c {
+-    solve max_val, min_val, apply_max_v before filter_cfg;
+-    foreach (filter_cfg[channel]) {
+-      foreach (filter_cfg[channel][filter]) {
+-        // Set valid values
+-        filter_cfg[channel][filter].min_v inside {[0 : MAX_VALUE]};
+-        filter_cfg[channel][filter].max_v inside {[0 : MAX_VALUE]};
+-        filter_cfg[channel][filter].max_v >= filter_cfg[channel][filter].min_v;
++    solve max_val, min_val, apply_max_v before
++      filter_cfg_ch0[0], filter_cfg_ch0[1], filter_cfg_ch0[2], filter_cfg_ch0[3],
++      filter_cfg_ch0[4], filter_cfg_ch0[5], filter_cfg_ch0[6], filter_cfg_ch0[7],
++      filter_cfg_ch1[0], filter_cfg_ch1[1], filter_cfg_ch1[2], filter_cfg_ch1[3],
++      filter_cfg_ch1[4], filter_cfg_ch1[5], filter_cfg_ch1[6], filter_cfg_ch1[7];
++    foreach (filter_cfg_ch0[filter]) {
++      // The unsigned solver fields have the same bit pattern as the signed
++      // output fields because these ranges admit only nonnegative values.
++      filter_cfg_ch0[filter].min_v inside {[0 : MAX_VALUE]};
++      filter_cfg_ch0[filter].max_v inside {[0 : MAX_VALUE]};
++      filter_cfg_ch0[filter].max_v >= filter_cfg_ch0[filter].min_v;
++      filter_cfg_ch1[filter].min_v inside {[0 : MAX_VALUE]};
++      filter_cfg_ch1[filter].max_v inside {[0 : MAX_VALUE]};
++      filter_cfg_ch1[filter].max_v >= filter_cfg_ch1[filter].min_v;
+ 
+-        // Set first channel to about 1/8 full range so 3/32 to 5/32
+-        // then make others within 1/64 range of it so there is some overlap
+-        if (channel == 0) {
+-          // Channel 0
+-          // Make this a soft constraint as it can be broken by minimum and maximum values
+-          // If min_v == full range then so must max_v, if max_v == 0 then so must min_v
+-          soft (filter_cfg[channel][filter].max_v - filter_cfg[channel][filter].min_v) inside {
+-                [THREE_THIRTYSECONDTHS:FIVE_THIRTYSECONDTHS]};
+-          // Set maximum/minimum values
+-          if (max_val[filter]) {
+-            if (apply_max_v[filter]) {
+-              filter_cfg[channel][filter].max_v == MAX_VALUE;
+-            } else {
+-              filter_cfg[channel][filter].min_v == MAX_VALUE;
+-            }
+-          }
+-          if (min_val[filter]) {
+-            if (apply_max_v[filter]) {
+-              filter_cfg[channel][filter].max_v == 0;
+-            } else {
+-              filter_cfg[channel][filter].min_v == 0;
+-            }
+-          }
+-        } else {
+-          // Other channels within 1/64
+-          (filter_cfg[channel][filter].min_v - filter_cfg[0][filter].min_v) inside
+-            {[-ONE_SIXTYFOURTH : ONE_SIXTYFOURTH]};
+-          (filter_cfg[channel][filter].max_v - filter_cfg[0][filter].max_v) inside
+-            {[-ONE_SIXTYFOURTH : ONE_SIXTYFOURTH]};
+-        }
++      // Channel 0 width is soft so selected endpoints can override it.
++      soft (filter_cfg_ch0[filter].max_v - filter_cfg_ch0[filter].min_v) inside {
++            [THREE_THIRTYSECONDTHS:FIVE_THIRTYSECONDTHS]};
++      if (max_val[filter]) {
++        if (apply_max_v[filter]) filter_cfg_ch0[filter].max_v == MAX_VALUE;
++        else filter_cfg_ch0[filter].min_v == MAX_VALUE;
+       }
++      if (min_val[filter]) {
++        if (apply_max_v[filter]) filter_cfg_ch0[filter].max_v == 0;
++        else filter_cfg_ch0[filter].min_v == 0;
++      }
++
++      // Cast back to signed int before subtraction so negative deltas retain
++      // the original ADC constraint meaning.
++      (int'(filter_cfg_ch1[filter].min_v) - int'(filter_cfg_ch0[filter].min_v)) inside
++        {[-ONE_SIXTYFOURTH : ONE_SIXTYFOURTH]};
++      (int'(filter_cfg_ch1[filter].max_v) - int'(filter_cfg_ch0[filter].max_v)) inside
++        {[-ONE_SIXTYFOURTH : ONE_SIXTYFOURTH]};
+     }
+   }
+ 
+@@ -105,12 +99,10 @@
+     $onehot(~mirror_controls);
+   }
+   constraint filters_control_c {
+-    foreach (filter_cfg[channel]) {
+-      foreach (filter_cfg[channel][filter]) {
+-        if (mirror_controls[filter]) {
+-          filter_cfg[channel][filter].cond == filter_cfg[0][filter].cond;
+-          filter_cfg[channel][filter].en == filter_cfg[0][filter].en;
+-        }
++    foreach (filter_cfg_ch0[filter]) {
++      if (mirror_controls[filter]) {
++        filter_cfg_ch1[filter].cond == filter_cfg_ch0[filter].cond;
++        filter_cfg_ch1[filter].en == filter_cfg_ch0[filter].en;
+       }
+     }
+   }

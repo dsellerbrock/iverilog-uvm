@@ -1,0 +1,163 @@
+{
+  "blocker": "OT-ADC-2CH-FILTER-CONSTRAINT-PROXY",
+  "file_hashes": {
+    "hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv": {
+      "candidate_sha256": "7c56a6b6ddf0fb5caf71892e584ea58459a3e592a2d59793c8dc93ca765599a2",
+      "original_sha256": "4fe8ec8bc262d3d6f9462561bfd26445a877f76f0c40c7d8a54cb538ead8ec8a"
+    },
+    "hw/ip/adc_ctrl/dv/env/adc_ctrl_env_pkg.sv": {
+      "candidate_sha256": "ee191a3d2cb7bf7cdcc15a576e7db5099b933f3e792022218e0fce07b81b7816",
+      "original_sha256": "cd75b9cc5bf3a11d03dc586520e2129b0b49f1e5f8fa6126b8f341aec39d2efa"
+    },
+    "hw/ip/adc_ctrl/dv/env/adc_ctrl_env_var_filter_cfg.sv": {
+      "candidate_sha256": "5e54283c174597239b218b62fec4242245514c90062ba5f8e10d3cd7a8addcab",
+      "original_sha256": "0752f5961e198d554ba6348826b20838e22a785d2ca8bc8f45001d57bc74e640"
+    }
+  },
+  "patch_sha256": "eded6736c6e1a3ca52982711620ffa25e9b8882d3c2f9f734230e66a7c20d357",
+  "pinned_opentitan_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "qualification": "copied-source selected compile only; no ADC DV pass or update to the historical 49-case census",
+  "review": {
+    "all_16_weighted_clauses_retained_in_compiled_ir": true,
+    "failed_randomization_rollback_proved": false,
+    "order_ir_names_all_16_proxy_elements": true,
+    "runtime_1_to_29_distribution_equivalence_proved": false,
+    "selected_adc_uvm_runtime": "not run",
+    "whole_array_solve_before_equivalence_proved": false
+  },
+  "selected_compile": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sadc_ctrl_bind",
+      "-sadc_ctrl_cov_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc-selected-compile-20260928/build/matrix-uvm.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc-selected-compile-20260928/build/matrix-iverilog.scr"
+    ],
+    "compile_exit": 0,
+    "compile_log_sha256": "ba3dbeda763cd22cd825fcf348081a5c3729cd931f17bc025ab3d523afc6dcb9",
+    "compiler_git_head": "5aae3ee0ce85665673ad54d7c73e5b7bb74d32c3",
+    "compiler_sha256": {
+      "bin/iverilog": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+      "lib/ivl/ivl": "80d46ba33e85b5c5add971a881839200029f8f6d987ddf28c14565210b93ae44",
+      "lib/ivl/ivlpp": "74d03b6964b3c3c9edaae5e68a5630babd099b11da2710032929f67ce9240411",
+      "lib/ivl/vvp.tgt": "84f6a6d6fb653bb0983d4a01bca0ad99600c26e7e3eaa9d67e2fcf4a62687d84"
+    },
+    "cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc-selected-compile-20260928/build/sim-icarus",
+    "hard_error_count": 0,
+    "hard_errors": [],
+    "memory_capped": false,
+    "notices": [
+      "iverilog: note: wrote DPI export C stubs to /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc-selected-compile-20260928/build/matrix-uvm.dpiexport.c (compile it into your DPI object)."
+    ],
+    "output_vvp_bytes": 64682150,
+    "output_vvp_sha256": "9366811bfbffbabac825a9e602a2537563a34c6340a14eece27689ceaa68ffe4",
+    "peak_group_rss_mib": 511.6,
+    "provenance_sha256": "e9835e637fa7d598f941d8b90443abe2e475b01a1f2d39dd1d43ee1ef6b7a2cf",
+    "solver_warning_count": 0,
+    "solver_warnings": [],
+    "source_tree_sha256": "8fab03480a5733f1c4cfa935735870eb8f6a7500ad0f1526e5346de1f9ab4ca0",
+    "timed_out": false,
+    "vvp_executed": false,
+    "wall_seconds": 2.223,
+    "warning_count": 28,
+    "warnings_by_kind": {
+      "input_port_coercion": 1,
+      "nonblocking_in_always_comb": 27,
+      "other": 0
+    }
+  },
+  "strict_2x8_endpoint_probe": {
+    "editions": {
+      "2017": {
+        "all_assertions_passed": true,
+        "channel0_min": 920,
+        "compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2017 -gno-icarus-misc -gno-xtypes -s reducer -o /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe_2017.vvp /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe.sv",
+        "compile_diagnostic_count": 0,
+        "compile_exit": 0,
+        "forced_max_endpoint": 1023,
+        "image_sha256": "7c15ca36af067434b6ade9c21806eb9ada62af271f7de76927dfcda6f20608df",
+        "log_sha256": "7bdf0a46c97e28b823e76b5fe00bd885b6d387566f49e018625182e293fcd6d9",
+        "run_command": "env MAX_RSS_MIB=1024 python3 /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-device-dv-smoke/run_bounded.py 120 /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe_2017.log /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe_2017.vvp",
+        "signed_channel1_minus_channel0_min": -1,
+        "wrapper_result": {
+          "exit": 0,
+          "memory_capped": false,
+          "timed_out": false,
+          "wall_seconds": 26.818
+        }
+      },
+      "2023": {
+        "all_assertions_passed": true,
+        "channel0_min": 920,
+        "compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2023 -gno-icarus-misc -gno-xtypes -s reducer -o /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe_2023.vvp /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe.sv",
+        "compile_diagnostic_count": 0,
+        "compile_exit": 0,
+        "forced_max_endpoint": 1023,
+        "image_sha256": "a51defeb3052f2176b4577c56d1531153bffbf26561cb86bd3dd39691b3e5295",
+        "log_sha256": "7bdf0a46c97e28b823e76b5fe00bd885b6d387566f49e018625182e293fcd6d9",
+        "run_command": "env MAX_RSS_MIB=1024 python3 /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-device-dv-smoke/run_bounded.py 120 /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe_2023.log /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/adc_named_overlay_2x8_endpoint_probe_2023.vvp",
+        "signed_channel1_minus_channel0_min": -1,
+        "wrapper_result": {
+          "exit": 0,
+          "memory_capped": false,
+          "timed_out": false,
+          "wall_seconds": 25.79
+        }
+      }
+    },
+    "git_head_at_evidence_write": "5aae3ee0ce85665673ad54d7c73e5b7bb74d32c3",
+    "iverilog_sha256": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+    "source_sha256": "31c57bcaa673208c200cb8b5905235c60c24a4c4b94a242e67501ea09ff00c3c",
+    "vvp_sha256": "c27fe7141773adb9fa1b38d7f9a1263b70b2f61d0c8511afaa675fd6a430c77f"
+  },
+  "strict_2x8_probe": {
+    "editions": {
+      "2017": {
+        "base_soft_defaults_pass": true,
+        "image_sha256": "96aa5a2c5179c6e4b547f338e98a92230e6a8566431fd85333c86ecd6af40d05",
+        "log_sha256": "a80cbd045526e2fe9669de74d6eecb3a0b6b06343c6d99d294d810ac9ccf2294",
+        "selected_max_min_bits": "00000000",
+        "variable_hard_soft_pass": true,
+        "wrapper_result": {
+          "exit": 0,
+          "memory_capped": false,
+          "timed_out": false,
+          "wall_seconds": 25.016
+        }
+      },
+      "2023": {
+        "base_soft_defaults_pass": true,
+        "image_sha256": "fb1cbd5f55dfc07f6dbf4a80a4b739efa2de3dc2b50b1b50ec5caaf2878edca4",
+        "log_sha256": "a80cbd045526e2fe9669de74d6eecb3a0b6b06343c6d99d294d810ac9ccf2294",
+        "selected_max_min_bits": "00000000",
+        "variable_hard_soft_pass": true,
+        "wrapper_result": {
+          "exit": 0,
+          "memory_capped": false,
+          "timed_out": false,
+          "wall_seconds": 25.794
+        }
+      }
+    },
+    "source_sha256": "11bf36b078dff1a178a1687f4b9f8add069711cfd60a796f648d13530ba48951"
+  }
+}
