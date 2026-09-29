@@ -410,3 +410,101 @@ Compile and load, for the UVM testbench:
   single-core changes shrink the parallel share first. The per-instance
   macro-task argument still stands for Adams Bridge after loop
   specialization.
+
+## Addendum (2026-09-29, later): interpreter, native-code spike, scale-out
+
+The user chose three directions:
+- interpreter upgrades;
+- a native-code feasibility spike;
+- running regressions on several cores.
+
+A hybrid with Verilator was ruled out.
+
+### Scale-out (PR #394)
+
+- `scripts/ivtest-parallel.sh -j 4` runs the unmodified JSON harness on
+  round-robin shards, each in a private copy of `ivtest/`.
+- `.github/uvm_test.sh` gains `UVM_JOBS`.
+- On this 4-core container:
+  - JSON ivtest: `Ran 3820, Failed 0` in 363 s wall;
+  - UVM: 358/358 with real DPI in 374 s wall.
+
+`ivtest-parallel.sh` leaves a `vsim` out of its shard copies. That file
+is left behind by an interrupted legacy run, and its presence changes
+the output of `pr2509349a`.
+
+### Interpreter round 3
+
+Two commits of changes that each compute exactly what the old code
+computed; only the work to get there changes.
+
+| Change | What it does |
+|---|---|
+| word-wide `%xor`, `%xnor`, `%nand`, `%nor` | new `vvp_vector4_t::operator^=` with the `vvp_bit4_t ^` truth table; the negated forms are `&=`, `\|=` or `^=` followed by `invert()`. They used to loop per bit through `value()`/`set_bit()` |
+| `ensure_write_context_` early exit | returns 0 at once for a thread with neither `wt_context` nor `owned_context`, which is the only case in which it found none before; skips `resolve_context_scope` on every static store |
+| overlay guard | `vthread_s::may_have_call_overlay()` lets `%load/vec4`, the part loads and `%store/vec4` skip the static-call and staged-randomize overlay lookups for a thread that is not a call child and has no static-call setup or randomize call, where they found nothing |
+| untraced dispatch loop | with no `IVL_STEP_TRACE`, `IVL_PC_HOTTRACE` or `IVL_PC_PROGRESS`, `vthread_run` runs opcodes back to back until one pauses or requests a trampoline switch |
+| inline stack accessors | `peek_vec4()`/`push_vec4()` keep only the hot path inline; the empty-stack report and the `IVL_PUSH1_TRACE` hook move out of line |
+| one-word vectors | the `(size, bit)` constructor fills a vector of at most one word inline instead of calling `allocate_words_` |
+| x/z immediates | `get_immediate_rval` writes the a/b planes of the lowest word instead of a `set_bit()` loop (`'bx`/`'bz` defaults) |
+| run pins | `vthread_run` keeps its pins in a small inline list, not a `std::vector` allocated per thread run |
+| run-entry context sync | the context scope is resolved only for a thread with exactly one of its read and write contexts, the only case the synchronization acts on |
+| empty event flush | `flush_event_source_transaction_` returns at once when no work is queued |
+
+Instruction counts against `main` (`56e28259`), same bytecode:
+
+| Workload | main | round 3 | Change |
+|---|---:|---:|---:|
+| `tb_sha256` (800 SHA-256 blocks) | 20.35G | 13.89G | −31.7% |
+| `pico` | 65.22G | 45.96G | −29.5% |
+| `uvmnone` | 10.79G | 10.59G | −1.8% |
+
+Paired CPU medians against a `main` `vvp` built with the same flags
+(`timing_round3.log`):
+
+| Workload | Ratio |
+|---|---:|
+| sha | 2.11× |
+| pico | 1.39× |
+| a2b | 1.14× |
+| uvmnone | 0.99× |
+| uvm | 1.02× |
+
+Outputs are identical on every workload. The UVM runs are dominated by
+class, call and randomization machinery that these changes do not
+touch.
+
+Gates on the final build:
+
+| Gate | Result |
+|---|---|
+| JSON ivtest (`scripts/ivtest-parallel.sh -j 4`) | `Ran 3822, Failed 0` |
+| legacy `vvp_reg.pl` | 6699 passed, 0 failed, 2 not implemented, 3 expected fail |
+| `vpi_reg.pl` | 131/131 |
+| negative | 155/155 |
+| `UVM_JOBS=4 .github/uvm_test.sh` | 358/358, real DPI |
+
+`ivtest/ivltests/vvp_bitwise_4state_words.v` (2017 and 2023) checks all
+16 operand bit pairs of the four bitwise operators at 16, 64, 80 and 128
+bits. A mutation that drops the x output of `^=` fails it.
+
+### Native-code spike
+
+The details are in `evidence/vvp-native-spike-20260929/README.md`.
+Always-block bodies were translated to C++ over 4-state a/b words, with
+exact deoptimization back to the interpreter.
+
+- **Results:** SHA-256 2.0× and SHA-512 plus SHA-256 2.1×; picorv32
+  1.38×; Adams Bridge A2B 1.05×. Output is identical on all four.
+- **Correctness:** 188 ivtest programs with translatable threads gave
+  identical output, with no mismatches.
+- **Conclusions:**
+  - Native values must be 4-state: x values flow through ordinary RTL.
+  - Net propagation, edge detection and wakeups bound the gain to about
+    2× until they are compiled too.
+  - Task calls need a native call mechanism.
+- The spike is not merged. A production version would be a large
+  program:
+  - emit native code from `tgt-vvp` (or JIT the bytecode);
+  - cover `%fork` calls, automatic frames and wide values;
+  - then attack propagation.

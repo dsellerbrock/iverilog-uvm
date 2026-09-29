@@ -1,0 +1,20 @@
+  sha pair1 base=3.216 new=1.476
+  sha pair2 base=3.581 new=1.933
+  sha pair3 base=3.440 new=1.628
+sha ratios: 2.178 1.852 2.113 median=2.113 output=same
+  pico pair1 base=6.538 new=4.428
+  pico pair2 base=6.071 new=4.800
+  pico pair3 base=6.161 new=4.428
+pico ratios: 1.476 1.264 1.391 median=1.391 output=same
+  a2b pair1 base=5.940 new=5.197
+  a2b pair2 base=5.839 new=5.111
+  a2b pair3 base=5.257 new=4.997
+a2b ratios: 1.142 1.142 1.052 median=1.142 output=same
+  uvmnone pair1 base=2.598 new=2.367
+  uvmnone pair2 base=2.537 new=2.550
+  uvmnone pair3 base=2.386 new=2.520
+uvmnone ratios: 1.097 .994 .946 median=.994 output=same
+  uvm pair1 base=11.870 new=11.605
+  uvm pair2 base=12.767 new=11.539
+  uvm pair3 base=11.638 new=11.448
+uvm ratios: 1.022 1.106 1.016 median=1.022 output=same
