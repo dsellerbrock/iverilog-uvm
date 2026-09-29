@@ -1,0 +1,9 @@
+# SPI Upload checked transactions
+
+The frozen `lowrisc:dv:spid_upload_sim:0.1` row compiled and ran seven commands but failed DV classification because its directed bench printed FIFO and SRAM values without comparing them. The [named patch](../../docs/conformance/release_overlays/opentitan/spid_upload_checked_transactions.patch) applies after the existing upload compatibility overlays to the exact copied-source SHA-256 in `source-hashes.json`. It preserves the host's seven transactions and snapshots their payloads before transmission. The SW checker compares all seven complete command FIFO words, six addresses, C7/52 no-payload metadata, and the valid bytes, depth, overflow, and start index of all five program payloads. It checks that both FIFOs are empty after host and checker completion, and makes the watchdog fatal. The pinned source remains unchanged.
+
+The fresh one-core selected matrix run is **PASS**: compile exit 0 with zero hard/semantic debt; guarded VVP exit 0 in 4.077 seconds with exactly one `TEST PASSED CHECKS`, seven checked commands, six addresses, zero runtime errors/debt, and 68,157,872 B peak footprint. The 2 GiB cap and 120-second timeout did not fire. See `selected-result.json` and the raw selected logs. An independent application of the patch reproduces the staged source hash exactly.
+
+`negative-controls.json` records five one-change copies and their raw logs. Changing a transmitted byte, dropping the last command, adding an eighth command, setting a command flag bit, and corrupting no-payload metadata all compile cleanly and exit 1 with the expected fatal and zero pass banners. None hits the runner's memory or time guard.
+
+This is a selected copied-source pre-DV result with `-gcommercial-unsafe`, the existing upload interface/automatic-ref overlays, and the saved timescale. The frozen OpenTitan census remains **23 PASS / 49**; no full corpus was rerun.

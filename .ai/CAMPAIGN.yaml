@@ -1,7 +1,18 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 41ea19ec4
+checkpoint_head: a918bc7da
+completed_spid_upload_checked_transactions_lane:
+  blocker: "OT-SPID-UPLOAD-TRANSACTION-CHECKER"
+  phase: "DONE"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "a918bc7da"
+  reproducer: "Frozen upload row compiles cleanly and exits zero after seven commands, but the bench prints unverified FIFO/SRAM values and has no checked pass banner."
+  allowed_scope: "One exact-hash source patch on a new disposable OpenTitan copy, one-core guarded selected replay, and focused negative controls."
+  validation: "Selected compile zero hard/semantic debt; VVP PASS in 4.077s with one banner/zero errors/debt under2GiB/120s. Five changed-byte, dropped-command, extra-command, command-flags, and no-payload-metadata controls each exit1/no banner with expected fatal."
+  evidence: "evidence/opentitan-spid-upload-checked-transactions-20260929/ and docs/conformance/release_overlays/opentitan/spid_upload_checked_transactions.patch"
+  next_command: "Select one independent blocker from frozen 49-target corpus; Keymgr RAL_T fallback needs a current-image guarded compile-only replay, and trial1 setup/metadata debt is still open."
+  boundary: "No pinned source edit or classifier-only pass, no broad 49-target rerun, no multi-hour Caliptra run; frozen 23/49 remains immutable."
 completed_spid_passthrough_checked_calls_lane:
   blocker: "OT-SPID-PASSTHROUGH-TESTBENCH-CHECKED-CALLS"
   phase: "DONE"

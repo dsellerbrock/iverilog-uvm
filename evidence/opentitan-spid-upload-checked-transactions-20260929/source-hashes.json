@@ -1,0 +1,19 @@
+{
+  "opentitan_pinned_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_relative_path": "hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv",
+  "before_sha256": "48c140f9baebf84698e35c8a70e992cf55fcec8007187218b40ae05aed0fe79b",
+  "after_sha256": "ef4d4682824be13ec2d9906d93f074e5019e403594fcea6977339496d4eedfa6",
+  "patch_sha256": "4787af21ebafcdc951f340518196b4fe438c554600f8c71ca55bd21cc68cff35",
+  "independent_patch_apply_sha256": "ef4d4682824be13ec2d9906d93f074e5019e403594fcea6977339496d4eedfa6",
+  "staged_selected_source_sha256": "ef4d4682824be13ec2d9906d93f074e5019e403594fcea6977339496d4eedfa6",
+  "selected_vvp_sha256": "4b11f8737d1374ec7e3d013626e050f9ac44b78602f44f8ad1b7686857242978",
+  "installed_iverilog_sha256": "7427219cfcf964d35119fb738f237596083f41aa3214219bf6a24071c37c5013",
+  "installed_vvp_sha256": "5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3",
+  "negative_source_sha256": {
+    "corrupt-byte": "20606633b1ebe378ab194e10c3ce578218fc5be79d577b974f11cbc153d7346d",
+    "drop-last": "9017ae2c5850980ea47521a9237a50e9006e5975bc73be15b49a39d45532870e",
+    "extra-command": "4c339256fee2ebcf55f3096f5964af086b9dac11fa4f69a91b7931282556b244",
+    "command-flags": "11b0fb5321967efec03df465a770266aa4b14f40b2da0581c213aec826a46a03",
+    "no-payload-metadata": "30a55f2e7fbad3befc4d374b50eedd06c6668789888e437beced91e7e75322c1"
+  }
+}
