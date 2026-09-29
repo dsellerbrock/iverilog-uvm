@@ -1,21 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: bcf6924b3
+checkpoint_head: c0abdfa48
 active_open_titan_lane:
   blocker: "OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX"
-  phase: "VALIDATED_READY_TO_COMMIT"
+  phase: "DONE"
+  implementation_commit: "c0abdfa48"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "c4199e5cb"
   installed_ivl_sha256: "7427219cfcf964d35119fb738f237596083f41aa3214219bf6a24071c37c5013"
   installed_vvp_sha256: "5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3"
   reproducer: "CSRNG cmd_flag0_previous[app] treats a packed element index as a class property slot and asserts in get_vec4; paired 2017/2023 reducer is red for read and write."
   validation: "Final742 focus28/28 JSON and16/16 official legacy, full JSON4147/0, real-DPI UVM362/362, legacy6898PASS/0FAIL/2NI/3EF of6903, VPI140/140, negatives154/154, and make check PASS. Selected CSRNG under6GiB PASS92.528s, zero hard/semantic/runtime debt, 4076064032B peak. Exact raw gates, selected result/logs, and earlier failed candidates are archived at evidence/opentitan-csrng-packed-property-20260929/. Historical 49-target count remains23PASS/49."
-  next_command: "Review the final742 evidence and commit the validated CSRNG compiler/tests/docs; then select one independent residual corpus blocker. DD-103 exact partial clipping remains a separate follow-on. Caliptra stays on bounded readiness checks, with no multi-hour regressions."
-  boundary: "One compiler blocker active; the 49-target corpus completed and its frozen-image evidence is committed at bcf6924b3. Caliptra is authorized only for short readiness/targeted checks while this compiler blocker closes."
+  next_command: "Select the next concrete corpus blocker in ACTIVE_WORK before implementation; directed SPI triage is recorded in projectless work/spid-directed-triage.md. DD-103 exact partial clipping remains a separate follow-on. Caliptra stays on bounded readiness checks, with no multi-hour regressions."
+  boundary: "CSRNG completed at c0abdfa48; select one next implementation blocker; the 49-target corpus completed and its frozen-image evidence is committed at bcf6924b3. Caliptra is authorized only for short readiness/targeted checks without expensive regressions."
 caliptra_bounded_readiness_lane:
   state: "Resumed by explicit user request; no expensive multi-hour regressions."
-  scope: "Read pinned caliptra-rtl README UVM steps, audit external dependencies, and run minimal original-UVM1.1d real-DPI smoke if possible in private outputs. 120-second timeout per process. No full L0/top RTL corpus."
+  scope: "Read pinned caliptra-rtl README UVM steps, audit external dependencies, original-UVM1.1d real-DPI smoke passed; public dependency acquisition and independent VIP replacement feasibility assessed in projectless notes. 120-second timeout per process. No full L0/top RTL corpus."
   evidence: "Projectless outputs/CALIPTRA-UVM-README-NOTES.md and work/caliptra-uvm-readiness-20260929/. The52 selectedL0 cases remain distinct from CaliptraUVM."
 completed_postfix_census_lane:
   blocker: "OT-49-POST-FIXES-CENSUS"
