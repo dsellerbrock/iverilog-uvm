@@ -1,0 +1,53 @@
+{
+  "scope": "one selected OpenTitan sysrst_ctrl_sim compile and strict focused reducers; no DV runtime or 49-target rerun",
+  "target": "lowrisc:dv:sysrst_ctrl_sim:0.1",
+  "pinned_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_worktree_base": "3a00f648f4d9ee9f8b130d148851a9ebe1529d16",
+  "source_patch": "docs/conformance/release_overlays/opentitan/sysrst_ctrl_named_vif_cross_coverpoints.patch",
+  "source_patch_sha256": "5c43e9669788abfb7be773e186ba6c299689d32810caa9c399fa5f1f3b5180e1",
+  "source_unpatched_sha256": "c733bc231dddcb12dd486c367a422cb3de3e39bc3bb64ecddcad9449a35fa0b2",
+  "source_patched_sha256": "7e005c04aa20bf679ed68ad76d7eb8bc4829e49a66b6c131767598d27b10e480",
+  "standards": [
+    "IEEE 1800-2017 19.6 Syntax 19-4 and Annex A.9.3: cross/binsof require a coverpoint or simple variable identifier",
+    "IEEE 1800-2023 19.6 Syntax 19-4 and Annex A.9.3: same restriction",
+    "IEEE 1800-2017/2023 9.3.4 and 9.6.2: disable a named block, including a fork child"
+  ],
+  "saved_original_compile": {
+    "exit": 4,
+    "syntax_errors": 4,
+    "ignored_cross_body_items": 4,
+    "first": "sysrst_ctrl_in_out_inverted_vseq.sv:60"
+  },
+  "source_patch_only_compile": {
+    "exit": 1,
+    "remaining_hard_error": "sysrst_ctrl_ultra_low_pwr_vseq.sv:234: Cannot find scope z3_wakeup_check"
+  },
+  "named_fork_reducer_before_fix": "strict class-task compile failed: Cannot find scope named_child in $unit.worker.run",
+  "named_fork_reducer_after_fix": {
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "runtime": "PASSED in both",
+    "legacy_focus": "1/1",
+    "json_focus_with_adjacent_tests": "7/7"
+  },
+  "cross_reducer": {
+    "original_2017_exit": 1,
+    "original_2023_exit": 1,
+    "named_coverpoints_2017_exit": 0,
+    "named_coverpoints_2023_exit": 0
+  },
+  "selected_compile_after_both_fixes": {
+    "exit": 0,
+    "hard_errors": 0,
+    "semantic_debt_notices": 0,
+    "warnings": 39,
+    "ivl_sha256": "37d74c6b597bc5748929a2b5df20f4f42b303951e91654da5ea3352eea5c52a6",
+    "vvp_sha256": "6a0fa74ab19ee8a6b3a2be9ca1e5f367e287c8071020b752bb64106aa1e9e0fe",
+    "image_sha256": "4c0fbe81b826473ee244ec7c761403bc3e4222c5659e74b78cf4ff0574511d56",
+    "log_sha256": "d07d1c2b203b390325839e1994c613cc6db8ecbcd87c74153274fc0e866689c6"
+  },
+  "qualifies_dv_pass": false,
+  "qualifies_49_target_census_update": false
+}
