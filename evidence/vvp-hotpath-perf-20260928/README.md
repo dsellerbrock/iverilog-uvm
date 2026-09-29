@@ -30,3 +30,12 @@ This directory backs
     time them in interleaved pairs.
 - `timing_round1.log` and `timing_round2.log`: raw paired CPU times.
   Round 2 is after the flat symbol-table fix.
+
+## Interpreter round 3 (2026-09-29, later)
+
+- `timing_round3.log`: paired CPU times, `main` (`56e28259`) `vvp`
+  against the round-3 `vvp`, both built with `-g0 -O2`, on the same
+  `main`-compiled bytecode.
+- `workloads/timeit_round3.sh`: the timing script. `WL` names the
+  directory holding the compiled `new_<workload>.vvp` images.
+- The native-code spike is in `../vvp-native-spike-20260929/`.
