@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 8b16887cb
+checkpoint_head: b27957d8d
 active_open_titan_lane:
   blocker: "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION"
-  phase: "SELECTED_ISOLATED_CANDIDATE_REVIEWED"
+  phase: "FOCUSED_INTEGRATED_PENDING_DV"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "8b16887cb"
   reproducer: "Strict paired UVM 1.2 direct test#(CFG, env) factory case dispatches only inherited base env build_phase on shared compiler; explicit env#(CFG) typedef control works. The missing OTP concrete build/connect bodies cause a null VIF before traffic."
-  pending_validation: "Reviewed isolated candidate 8c3c9b820 passes strict 2017/2023 UVM controls and exact selected OTP compile with 0 errors/sorry, 56 existing warnings, and concrete env method bodies. Integrate it and run focused UVM/adjacent checks. DD-089 registration is separate."
-  next_command: "Cherry-pick 8c3c9b820 from the isolated OTP worktree into the shared branch, rebuild/install and run focused UVM controls. Keep the guarded Caliptra HMAC VVP running; defer selected OTP VVP, full JSON/legacy, and 49-target corpus until the memory slot and saved gate failures are addressed."
+  pending_validation: "Integrated b27957d8d passes strict 2017/2023 bare/explicit controls 4/4, focused real-DPI UVM 1/1, make check, and exact selected OTP compile with zero errors/sorry, 56 warnings, and concrete build/connect bodies. Selected OTP DV awaits Caliptra HMAC. DD-089 registration remains separate."
+  next_command: "After Caliptra HMAC exits, run one guarded selected OTP DV replay using the exact compiler-fixed image. Meanwhile repair the 32 classified JSON gate failures with minimal controls before rerunning broad JSON/legacy or the 49-target corpus."
   boundary: "No selected OTP DV pass or changed historical 49-target census is inferred from compile or method-body evidence."
 suspended_fixed_2d_lane:
   blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
