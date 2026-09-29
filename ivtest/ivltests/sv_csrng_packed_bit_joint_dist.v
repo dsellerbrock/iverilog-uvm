@@ -43,6 +43,8 @@ module csrng_packed_bit_joint_dist_repro;
     int mixed_count;
     control = new;
     cfg = new;
+    mixed_count = 0;
+    for (int i = 0; i < 3; i++) bit_ones[i] = 0;
 
     if (!control.randomize() || control.read_enable !== 3'b111 ||
         control.child.seen !== 1'b1)
