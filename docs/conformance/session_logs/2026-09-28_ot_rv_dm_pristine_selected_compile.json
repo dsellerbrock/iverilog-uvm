@@ -1,0 +1,33 @@
+{
+  "case": "lowrisc:dv:rv_dm_sim:0.1",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_edit": "none; original FuseSoC-generated source from pinned checkout",
+  "source_list": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_dv_rv_dm_sim_0.1/sim-icarus/lowrisc_dv_rv_dm_sim_0.1.scr",
+  "source_list_sha256": "898a1dbe28fd8b5e3989c2ee253c92976b5c63fb0dfee12851071dbd24d83ac1",
+  "compiler_image_sha256": {
+    "driver": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "elaborator": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+    "vvp_target": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+  },
+  "command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -srv_dm_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=64 -DUVM_REG_BYTENABLE_WIDTH=8 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/rv_dm_pristine_current.vvp -c /private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_dv_rv_dm_sim_0.1/matrix-iverilog.scr",
+  "cwd": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_dv_rv_dm_sim_0.1/sim-icarus",
+  "selected_compile": {
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 0,
+    "warning_lines": 5,
+    "log": "/private/tmp/rv_dm_pristine_current.log",
+    "log_sha256": "4cd4565fe6afe3e95068595e7fb3e4be43cf68b4725b0a1505b94f891aaa6fa8",
+    "elapsed_seconds": 3.188
+  },
+  "saved_old_image": {
+    "compile_exit_code": 4,
+    "diagnostic_lines": 4,
+    "patterns": [
+      "inline constraint call through cfg.m_jtag_agent_cfg.jtag_dtm_ral.idcode.get_n_bits()",
+      "whole fixed-array std::randomize(words)"
+    ]
+  },
+  "runtime": "not run while capped Caliptra observer is active",
+  "aggregate_49_case_census": "unchanged; selected compile only"
+}
