@@ -1,0 +1,31 @@
+{
+  "case": "lowrisc:dv:i2c_sim:0.1",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_patches": [
+    "docs/conformance/release_overlays/opentitan/i2c_constraint_and_queue_compat.patch",
+    "docs/conformance/release_overlays/opentitan/i2c_coverage_and_state_solve_compat.patch"
+  ],
+  "followup_patch_sha256": "46538f1bb599f8eed82c9d33d4d6fc6c299c2f7bdd3831ccfa8d3091e9968184",
+  "patch_order": "constraint_and_queue, then coverage_and_state_solve; composed copied files match selected compile source",
+  "installed_compiler_sha256": {
+    "driver": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "elaborator": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+    "vvp_target": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+  },
+  "selected_copied_source_compile": {
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 0,
+    "warning_lines": 31,
+    "log": "/private/tmp/ot-i2c-constraint-period-20260928/selected-all-debt-corrected-compile.log",
+    "log_sha256": "f3cc6f9c66fdb4069be07e9895bf83ef1be8f50d031c4b723d6a8018066e98ef"
+  },
+  "focused_reducers": {
+    "state_solve_before": "original compiles but randomize fails in strict 2017/2023; removing redundant ordering passes across 3, 6, and 9 MHz",
+    "fifo_level_ranges": "explicit marked/other ranges compile and sample in strict 2017/2023",
+    "acq_transition_bins": "impossible transition stays uncovered; ACK/STOP and NACK/RSTART reach both bins in strict 2017/2023"
+  },
+  "remaining_notice": "i2c_monitor detached-fork function copy-out warning remains; runtime semantics unverified",
+  "runtime": "not run while capped Caliptra observer is active",
+  "aggregate_49_case_census": "unchanged"
+}

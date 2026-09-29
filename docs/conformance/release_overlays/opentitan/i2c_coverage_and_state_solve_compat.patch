@@ -1,0 +1,41 @@
+diff --git a/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv b/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
+--- a/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
++++ b/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
+@@ -30,7 +30,6 @@
+   // Ensure the input clock frequency is high enough to meet minimum thigh and
+   // tlow cycle counts for a given mode (i.e. 125 ns or 8 MHz)
+   constraint min_peri_clk_period_c {
+-    solve cfg.clk_freq_mhz before speed_mode;
+     if (cfg.clk_freq_mhz < 4) {
+       speed_mode == Standard;
+     } else if (cfg.clk_freq_mhz < 8) {
+diff --git a/hw/ip/i2c/dv/env/i2c_env_cov.sv b/hw/ip/i2c/dv/env/i2c_env_cov.sv
+--- a/hw/ip/i2c/dv/env/i2c_env_cov.sv
++++ b/hw/ip/i2c/dv/env/i2c_env_cov.sv
+@@ -106,7 +106,7 @@
+   cp_irq: coverpoint irq;
+   cp_fifolvl: coverpoint fifolvl {
+     bins lvl[] = {1, 4, 8, 16};
+-    bins others = {[0:fifo_depth]} with (!(item inside {1, 4, 8, 16}));
++    bins others = {0, [2:3], [5:7], [9:15], [17:fifo_depth]};
+   }
+   cp_fifo_threshold_cross : cross cp_fifolvl, cp_irq {
+     ignore_bins reserved_values = binsof(cp_fifolvl.others);
+@@ -275,14 +275,9 @@
+   cp_target_read_ack_nack: coverpoint {signal, rw_ack_nack} {
+                                     // Read request start   // request termination
+     bins read_req_ack_before_stop    = ({2'b01, 1'b1} => {2'b10, 1'b0});
+-    bins read_req_nack_before_rstart = ({2'b01, 1'b1} => {2'b11, 1'b0});
+-    // This scenario is not possible to achieve since in target mode, DUT will recieve NACK/ACK
+-    // from external host.
+-    // With ACK, SDA will be driven low, but RStart requires SDA transition from high to low
+-    ignore_bins read_req_ack_before_rstart = ({2'b01, 1'b1} => {2'b11, 1'b0});
+-    // Similar to above bin, Stop requires SDA low to high transition,
+-    // but during NACK SDA is driven high
+-    ignore_bins read_req_nack_before_stop = ({2'b01, 1'b1} => {2'b10, 1'b0});
++    bins read_req_nack_before_rstart = ({2'b01, 1'b1} => {2'b11, 1'b1});
++    // ACK before RSTART and NACK before STOP are physically impossible, so
++    // neither is an explicit transition bin.
+   }
+ endgroup : i2c_acq_fifo_cg
+ // Cover different back to back transactions issued by or received by DUT
