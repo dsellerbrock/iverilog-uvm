@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "vvp_bitwise_4state_words.v",
+    "iverilog-args" : [ "-g2023" ]
+}
