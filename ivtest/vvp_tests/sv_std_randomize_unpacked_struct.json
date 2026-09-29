@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_std_randomize_unpacked_struct.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_std_randomize_unpacked_struct"],
+  "gold": "sv_std_randomize_unpacked_struct"
+}

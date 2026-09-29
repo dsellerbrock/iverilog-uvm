@@ -5017,5 +5017,7 @@ sv_sva_cover_match_item_arg_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ss
 # Scope randomization of fixed unpacked integral arrays.
 sv_std_randomize_fixed_array normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array ivltests gold=sv_std_randomize_fixed_array.gold
 sv_std_randomize_fixed_array_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array ivltests gold=sv_std_randomize_fixed_array.gold
+sv_std_randomize_unpacked_struct normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
+sv_std_randomize_unpacked_struct_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
 sv_std_randomize_fixed_array_with_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
 sv_std_randomize_fixed_array_with_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
