@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-UNSAFE-INTERFACE-DRIVER-ALIAS-GUARD — distinguish guarded VIF writes from static conflicts
+
+- **State:** Focused candidate on `525642475`, awaiting exact-head broad gates. The [revision-scoped evidence](session_logs/2026-09-29_ot_unsafe_interface_driver_alias_guard.json) records paired 2017/2023 controls, the selected copied-source SPI Host compile, and the compiler/VVP fingerprints. No selected SPI DV runtime ran.
+- **Cause and correction:** A full-width continuous drive made `elaborate.cc` waive every interface-property writer in `-gcommercial-unsafe`. The correction preserves that opt-in waiver only for an unresolved ordinary VIF property whose name maps directly to the physical member and whose actual alias is checked by VVP. A resolved module-port write, a named modport alias, and a generated virtual clocking-output write remain compile errors because their conflicts are definite or their current VVP slot does not guard the raw member. Ref writers and unreachable-task rules retain their existing checks.
+- **Boundary:** Strict 2017/2023 modes reject all possible same-member continuous/procedural overlaps under §6.5. Unsafe runtime-selected ordinary and simple-modport VIF writes compile; an actual alias fails with the exact VVP driver error, while a disjoint receiver preserves both interfaces' values. The named modport and virtual clocking-output forms remain conservative compile errors even if a particular runtime binding could be disjoint. This compatibility behavior is not an IEEE qualification claim. The historical `4097/32` full JSON result remains unchanged until an exact-head rerun.
+
 ### OT-FLASH-CONSTRAINT-NESTED-QUEUE-CONTENT — randomize queue elements below fixed property ranks
 
 - **State:** Next prerequisite candidate, pending explicit campaign resume after the user-requested pause. The saved patched-copy Flash compile has ten warnings for independent `foreach` constraints on `rand_info[i][j][k]` and `mp_info_pages[i][j][k]`; each says `randomize()` will fail. Strict 2017/2023 tiny controls with nonempty fixed-array-of-queue content reproduce the warning and failure. No new Flash source-list compile followed this triage.

@@ -55,6 +55,10 @@ module disjoint_port_uncertain_receiver_illegal;
     if ($test$plusargs("OTHER")) vif = other;
     else vif = driven;
     vif.count = 1'b1;
+    #1;
+    if (driven.count !== 1'b0 || other.count !== 1'b1)
+      $fatal(1, "different-instance VIF drive failed");
+    $display("PASSED");
   end
 endmodule
 
@@ -127,5 +131,9 @@ module disjoint_modport_task_dynamic_receiver_illegal;
     if ($test$plusargs("OTHER")) vif = other.drive_sd_out;
     else vif = bus.drive_sd_out;
     drive(vif);
+    #1;
+    if (bus.sd_out !== 1'b1 || other.sd_out !== 1'b0)
+      $fatal(1, "different-instance modport drive failed");
+    $display("PASSED");
   end
 endmodule

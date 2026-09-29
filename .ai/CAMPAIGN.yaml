@@ -1,16 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 6497dcd3e
+checkpoint_head: 525642475
 active_open_titan_lane:
-  blocker: "OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT"
+  blocker: "OT-UNSAFE-INTERFACE-DRIVER-ALIAS-GUARD"
   phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "6497dcd3e"
-  reproducer: "sv_constraint_fixed_queue_leaf_size ×2017/2023 fails only its function argument leaf identity check; generated dependency is SIZE/property 0/leaf 1, and VVP rejects it before planning."
-  pending_validation: "The one-condition SIZE-only guard narrowing passes strict paired positive, fixed-element negative and size-conflict controls 6/6 with exact gold on build-tree VVP; make check and independent review pass. Exact-head broad gate remains pending."
-  next_command: "Select the 12 unsafe-driver cases, then run the exact-head JSON gate. Keep Caliptra HMAC guarded and application DV deferred."
-  boundary: "No application DV or changed 4097/32 historical JSON count is inferred from focused repair."
+  baseline_head: "525642475"
+  reproducer: "Twelve saved 2017/2023 unsafe JSON CE cases compile: direct static port, named modport alias, virtual clocking output, and runtime-selected ordinary VIF writes."
+  pending_validation: "Exact 6 RE/6 CE saved unsafe classification; focused JSON VIF 40/40, port/ref 28/28, clocking 40/40, interface task 40/40; legacy port/ref 28/28, clocking 36/36, interface task 34/34; paired tiny SPI disjoint/alias pass; copied-source SPI Host compiles with 0 errors/15 warnings; make check and independent review pass. Broad gates remain."
+  next_command: "After committing the focused repair, run the exact-head full JSON gate, then required broader integrated gates."
+  boundary: "No full suite, 49-case corpus, pinned source edit, or high-memory VVP until this focused review."
+suspended_fixed_queue_lane:
+  blocker: "OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT"
+  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  last_validated_revision: "525642475"
+  state: "One-condition SIZE guard narrowing passes paired positive, fixed-element negative and size-conflict controls 6/6, make check and independent review."
+  next_command: "Run the required exact-head full JSON gate after unsafe-driver repairs; retain old 4097/32 as historical."
 suspended_partinfo_lane:
   blocker: "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK"
   phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"

@@ -1,5 +1,5 @@
 {
-  "type": "RE",
+  "type": "normal",
   "source": "sv_vif_disjoint_property_writer.v",
   "iverilog-args": [
     "-g2017",
@@ -7,5 +7,8 @@
     "-s",
     "disjoint_port_uncertain_receiver_illegal"
   ],
-  "gold": "sv_vif_disjoint_property_writer_runtime_alias"
+  "vvp-args": [
+    "+OTHER"
+  ],
+  "gold": "sv_vif_disjoint_property_writer_pass"
 }

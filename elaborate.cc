@@ -2727,11 +2727,15 @@ static bool interface_member_has_ref_property_writer_(
 }
 
 static bool interface_member_has_property_writer_(
-		const NetNet*member, const netclass_t*interface_type)
+		const NetNet*member, const netclass_t*interface_type,
+		bool*runtime_guardable = nullptr)
 {
+      if (runtime_guardable)
+	*runtime_guardable = false;
       if (interface_member_has_ref_property_writer_(member, interface_type))
 	return true;
 
+      bool guardable_writer = false;
       for (const NetAssign_*lval : NetAssign_::interface_member_lvals()) {
 	if (lval->is_force_lval())
 	  continue;
@@ -2763,7 +2767,15 @@ static bool interface_member_has_property_writer_(
 		member);
 	  if (clocking_write == 0)
 	    continue;
-	  if (clocking_write >= -1)
+	  /* An ordinary property with the member's own name is resolved by
+	   * the direct-slot check below. Generated clocking properties and
+	   * uncertain clocking aliases do not reach that run-time guard. */
+	  bool ordinary_member = clocking_write == 1
+		&& lex_strings.make(owner_type->get_prop_name(
+		     static_cast<size_t>(lval->get_property_idx())))
+		   == member->name()
+		&& interface_member_declaration_(lval).found;
+	  if (clocking_write >= -1 && !ordinary_member)
 	    return true;
 	}
 
@@ -2792,12 +2804,22 @@ static bool interface_member_has_property_writer_(
 	      }
 	      if (written != member->name())
 		continue;
+	      /* Only an ordinary, directly named VIF property reaches the raw
+	       * signal slot checked by vvp_vinterface::reject_continuous_write.
+	       * Keep looking: another writer may be statically resolved or may
+	       * use a named modport/clocking alias that this guard cannot see. */
+	      if (runtime_guardable) {
+		guardable_writer = true;
+		continue;
+	      }
 	    }
 	  }
 	}
 	return true;
       }
-      return false;
+      if (runtime_guardable)
+	*runtime_guardable = guardable_writer;
+      return guardable_writer;
 }
 
 static void finalize_interface_ref_actuals_()
@@ -2964,11 +2986,14 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	for (unsigned bit = 0;
 	     completely_driven && bit < pending.signal->vector_width(); ++bit)
 	  completely_driven = pending.signal->test_part_driven(bit, bit);
+	bool runtime_guardable = false;
+	bool property_writer = interface_member_has_property_writer_(
+	      pending.signal, nullptr, &runtime_guardable);
 	if (pending.signal->has_unsafe_ref_actual_write()
-	    || interface_member_has_ref_property_writer_(pending.signal, nullptr)
 	    || static_clocking_output_writers_.count(pending.signal)
-	    || (interface_member_has_property_writer_(pending.signal, nullptr)
-		&& !(gn_commercial_unsafe_flag && completely_driven))) {
+	    || (property_writer
+		&& !(gn_commercial_unsafe_flag && completely_driven
+		     && runtime_guardable))) {
 	  cerr << pending.location->get_fileline()
 	       << ": error: Variable '" << pending.signal->name()
 	       << "' cannot have continuous and procedural drivers on the"
