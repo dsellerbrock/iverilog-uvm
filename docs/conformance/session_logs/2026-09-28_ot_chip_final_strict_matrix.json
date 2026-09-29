@@ -1,0 +1,425 @@
+{
+  "compiler_sha256": {
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
+    "/Users/danielellerbrock/oss-cad-suite/bin/slang": "c38c0fc380ac4c7c48434daa9245d18ad2638b23cd47e14aa82a4a4e7a783ab4"
+  },
+  "cases": [
+    {
+      "edition": "2017",
+      "case": "pmp_direct",
+      "source_sha256": "ff456008c6ed458b6f6d48c93290ec39869eee3e738d60d4eb6a232d0f3f8321",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-pmp_direct.vvp",
+          "-DDIRECT",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 1,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv:34: sorry: this container slice/index chain is not yet supported.\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv:34: Unable to elaborate statement in task top.pmp_checker.check at /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv:32.\n1 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "-DDIRECT",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      }
+    },
+    {
+      "edition": "2017",
+      "case": "pmp_helper",
+      "source_sha256": "ff456008c6ed458b6f6d48c93290ec39869eee3e738d60d4eb6a232d0f3f8321",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-pmp_helper.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-pmp_helper.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS"
+      }
+    },
+    {
+      "edition": "2017",
+      "case": "digest_methods",
+      "source_sha256": "084e0568bedf1325521d9d4c0cf4e101c7571f943d39b2f6a90f1248154461b7",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-digest_methods.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 1,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv:25: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.\n1 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      }
+    },
+    {
+      "edition": "2017",
+      "case": "digest_cached",
+      "source_sha256": "084e0568bedf1325521d9d4c0cf4e101c7571f943d39b2f6a90f1248154461b7",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-digest_cached.vvp",
+          "-DCACHE",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "-DCACHE",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-digest_cached.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS addr=1020"
+      }
+    },
+    {
+      "edition": "2017",
+      "case": "debug_queue_foreach",
+      "source_sha256": "d3b8241a4bfa3b5c21b34a5a78115fa8843c76a9e636343dd31b357306ed9861",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-debug_queue_foreach.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_queue_randomize.sv"
+        ],
+        "exit": 1,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_queue_randomize.sv:35: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.\n1 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_queue_randomize.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      }
+    },
+    {
+      "edition": "2017",
+      "case": "debug_scalar",
+      "source_sha256": "b52c83fe579a5aa4786afd1994c3dbc4ff91cfd6ca938fa46761b26155134d5f",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-debug_scalar.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_scalar_randomize.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_scalar_randomize.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2017-debug_scalar.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS size=12 first=40600288"
+      }
+    },
+    {
+      "edition": "2023",
+      "case": "pmp_direct",
+      "source_sha256": "ff456008c6ed458b6f6d48c93290ec39869eee3e738d60d4eb6a232d0f3f8321",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-pmp_direct.vvp",
+          "-DDIRECT",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 1,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv:34: sorry: this container slice/index chain is not yet supported.\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv:34: Unable to elaborate statement in task top.pmp_checker.check at /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv:32.\n1 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "-DDIRECT",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      }
+    },
+    {
+      "edition": "2023",
+      "case": "pmp_helper",
+      "source_sha256": "ff456008c6ed458b6f6d48c93290ec39869eee3e738d60d4eb6a232d0f3f8321",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-pmp_helper.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/pmp_virtual_if_index_slice.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-pmp_helper.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS"
+      }
+    },
+    {
+      "edition": "2023",
+      "case": "digest_methods",
+      "source_sha256": "084e0568bedf1325521d9d4c0cf4e101c7571f943d39b2f6a90f1248154461b7",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-digest_methods.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 1,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv:25: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.\n1 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      }
+    },
+    {
+      "edition": "2023",
+      "case": "digest_cached",
+      "source_sha256": "084e0568bedf1325521d9d4c0cf4e101c7571f943d39b2f6a90f1248154461b7",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-digest_cached.vvp",
+          "-DCACHE",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "-DCACHE",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_digest_randomize_methods.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-digest_cached.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS addr=1020"
+      }
+    },
+    {
+      "edition": "2023",
+      "case": "debug_queue_foreach",
+      "source_sha256": "d3b8241a4bfa3b5c21b34a5a78115fa8843c76a9e636343dd31b357306ed9861",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-debug_queue_foreach.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_queue_randomize.sv"
+        ],
+        "exit": 1,
+        "output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_queue_randomize.sv:35: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.\n1 error(s) during elaboration."
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_queue_randomize.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      }
+    },
+    {
+      "edition": "2023",
+      "case": "debug_scalar",
+      "source_sha256": "b52c83fe579a5aa4786afd1994c3dbc4ff91cfd6ca938fa46761b26155134d5f",
+      "icarus": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "top",
+          "-o",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-debug_scalar.vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_scalar_randomize.sv"
+        ],
+        "exit": 0,
+        "output": ""
+      },
+      "slang": {
+        "command": [
+          "/Users/danielellerbrock/oss-cad-suite/bin/slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "top",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/rom_debug_scalar_randomize.sv"
+        ],
+        "exit": 0,
+        "output": "Top level design units:\n    top\n\n\nBuild succeeded: 0 errors, 0 warnings"
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/strict-2023-debug_scalar.vvp"
+        ],
+        "exit": 0,
+        "output": "PASS size=12 first=40600288"
+      }
+    }
+  ]
+}

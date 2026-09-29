@@ -1,0 +1,35 @@
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_jtag_debug_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_jtag_debug_vseq.sv
+@@ -226,6 +226,8 @@
+     byte status;
+     logic [BUS_DW-1:0] test_addrs[$];
+     logic [BUS_DW-1:0] test_data[$];
++    logic [BUS_DW-1:0] test_addr;
++    int unsigned num_test_addrs;
+     addr_range_t sram_main = '{
+         start_addr: top_earlgrey_pkg::TOP_EARLGREY_SRAM_CTRL_MAIN_RAM_BASE_ADDR,
+         end_addr: top_earlgrey_pkg::TOP_EARLGREY_SRAM_CTRL_MAIN_RAM_BASE_ADDR +
+@@ -239,14 +241,15 @@
+ 
+     };
+ 
+-    `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(test_addrs,
+-        test_addrs.size() inside {[5:20]};
+-        foreach (test_addrs[i]) {
+-          test_addrs[i] inside {[sram_main.start_addr:sram_main.end_addr]} ||
+-          test_addrs[i] inside {[sram_ret.start_addr:sram_ret.end_addr]};
+-          test_addrs[i][1:0] == '0;
+-        }
+-    )
++    `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(num_test_addrs,
++        num_test_addrs inside {[5:20]};)
++    repeat (num_test_addrs) begin
++      `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(test_addr,
++          (test_addr inside {[sram_main.start_addr:sram_main.end_addr]}) ||
++          (test_addr inside {[sram_ret.start_addr:sram_ret.end_addr]});
++          test_addr[1:0] == '0;)
++      test_addrs.push_back(test_addr);
++    end
+     `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(test_data, test_data.size() == test_addrs.size();)
+     foreach (test_addrs[i]) begin
+       logic [BUS_DW-1:0] value_q[$];

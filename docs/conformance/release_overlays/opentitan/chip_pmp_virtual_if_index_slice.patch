@@ -1,0 +1,65 @@
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv
+@@ -23,6 +23,13 @@
+ 
+   function logic [31:0] epmp_addr_tor(logic [31:0] addr);
+     return (addr >> 2);
++  endfunction
++
++  // Read the whole packed entry before selecting the access bits.
++  function automatic logic [2:0] pmp_access(int unsigned idx);
++    ibex_pkg::pmp_cfg_t entry;
++    entry = cfg.chip_vif.pmp_cfg[idx];
++    return {entry.exec, entry.write, entry.read};
+   endfunction
+ 
+   virtual task body();
+@@ -103,31 +110,31 @@
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[1].lock)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[2].lock)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[11].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[1][2:0], EPMP_ACCESS_RX)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[2][2:0], EPMP_ACCESS_RO)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[11][2:0], EPMP_ACCESS_RW)
++    `DV_CHECK_EQ(pmp_access(1), EPMP_ACCESS_RX)
++    `DV_CHECK_EQ(pmp_access(2), EPMP_ACCESS_RO)
++    `DV_CHECK_EQ(pmp_access(11), EPMP_ACCESS_RW)
+ 
+     // ePMP regions for RAM
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[14].mode, ibex_pkg::PMP_MODE_NA4)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[15].mode, ibex_pkg::PMP_MODE_NAPOT)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[14].lock)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[15].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[14][2:0], EPMP_ACCESS_NONE)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[15][2:0], EPMP_ACCESS_RW)
++    `DV_CHECK_EQ(pmp_access(14), EPMP_ACCESS_NONE)
++    `DV_CHECK_EQ(pmp_access(15), EPMP_ACCESS_RW)
+ 
+     // ePMP regions for Flash
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[4].mode, ibex_pkg::PMP_MODE_OFF)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[5].mode, ibex_pkg::PMP_MODE_NAPOT)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[5].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[5][2:0], EPMP_ACCESS_RO)
++    `DV_CHECK_EQ(pmp_access(5), EPMP_ACCESS_RO)
+ 
+     // ePMP regions for Debug (only enabled in non-prod states)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[13].mode, ibex_pkg::PMP_MODE_NAPOT)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[13].lock)
+     if (lc_state inside {LcStProd, LcStProdEnd}) begin
+-      `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[13][2:0], EPMP_ACCESS_NONE)
++      `DV_CHECK_EQ(pmp_access(13), EPMP_ACCESS_NONE)
+     end else begin
+-      `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[13][2:0], EPMP_ACCESS_RWX)
++      `DV_CHECK_EQ(pmp_access(13), EPMP_ACCESS_RWX)
+     end
+ 
+     // ePMP address entries
+@@ -172,7 +179,7 @@
+     // ePMP is unlocked for flash once the signature verification succeeds.
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[4].mode, ibex_pkg::PMP_MODE_TOR)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[4].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[4][2:0], EPMP_ACCESS_RX)
++    `DV_CHECK_EQ(pmp_access(4), EPMP_ACCESS_RX)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_addr[3], epmp_addr_tor(FLASH_TEXT_START_ADDRESS))
+   endtask
+ 
