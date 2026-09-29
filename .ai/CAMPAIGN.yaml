@@ -1,18 +1,34 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: f5d9c4308
+checkpoint_head: c4199e5cb
 active_open_titan_lane:
+  blocker: "OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX"
+  phase: "ROOT_CAUSED"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "c4199e5cb"
+  installed_ivl_sha256: "64fee51caec391de5e5667a97273cbac67b29553e4f2fa87a1e13f61b88a3316"
+  installed_vvp_sha256: "5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3"
+  reproducer: "CSRNG cmd_flag0_previous[app] treats a packed element index as a class property slot and asserts in get_vec4; paired 2017/2023 reducer is red for read and write."
+  validation: "Route packed property read/write through existing packed-select helpers, retain one class slot, pass paired and adjacent controls, then integrated gates and selected CSRNG replay."
+  next_command: "Implement the narrow elab_expr.cc/elab_lval.cc routing in the in-tree image while the frozen installed image finishes the 49-target corpus."
+  boundary: "One compiler blocker active; current 49-target corpus is running with three jobs, 4 GiB/runtime cap and 1800-second timeout. Do not replace its installed compiler image; Caliptra remains paused."
+completed_ibex_solver_lane:
+  blocker: "OT-IBEX-ICACHE-ORDERED-DIST-RANDOMIZE"
+  phase: "DONE"
+  implementation_commit: "78eff3fc4"
+  evidence: "evidence/opentitan-ibex-ordered-dist-20260929/: paired red/green, integrated gates green, selected official smoke advances past config solve but times out at 1800 seconds without DV pass."
+completed_i2c_queue_lane:
+  blocker: "OT-I2C-QUEUE-LAST-ELABORATION"
+  phase: "DONE"
+  implementation_commit: "c4199e5cb"
+  evidence: "evidence/opentitan-i2c-queue-last-20260929/: selected I2C hard errors fall 18 to 15; independent coverage and constraint gaps remain."
+completed_ibex_provider_lane:
   blocker: "OT-IBEX-ICACHE-BUS-PARAMS-PROVIDER"
   phase: "DONE"
-  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "2eae29172"
-  installed_ivl_sha256: "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4"
-  installed_vvp_sha256: "a3dc04b0409f8572d73d6d5daf982af42206a5c04a083ddb91cc52196a4d0a2e"
-  reproducer: "Raw Ibex I-cache generated file list contains both ibex and OpenTitan bus_params_pkg providers; compile exits 1 on a duplicate package declaration."
-  validation: "Paired 2017/2023 package reducer red/green, hash-guarded patch, one-provider generated file list, and selected Ibex compile exit 0 with no hard or semantic diagnostics. Runtime fails at cfg.randomize() with a separate ordered-distribution solver error."
-  next_command: "Open a separate Ibex solver blocker and use a minimal reducer before modifying the compiler or source; Caliptra stays paused."
-  boundary: "Provider implementation committed at f5d9c4308; raw 49-target census unchanged. No Caliptra or full OpenTitan corpus under this completed ticket."
+  implementation_commit: "f5d9c4308"
+  checkpoint_commit: "cdd8bd57a"
+  evidence: "evidence/opentitan-ibex-provider-20260929/: one-provider setup, clean selected compile, time-zero solver runtime failure."
 completed_smoke_selection_lane:
   blocker: "OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION"
   phase: "DONE"

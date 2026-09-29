@@ -1,8 +1,21 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX — packed element becomes property slot
+
+- **State:** ROOT_CAUSED and selected in `.ai/ACTIVE_WORK.yaml`. The 49-target replay reaches `csrng_scoreboard.sv:634`, where a packed 12-bit class property indexed by `app` is emitted as `%prop/v/i 67,4`. Element index 1 or 2 is then misread as a class property slot and VVP asserts in `property_logic::get_vec4`. The paired 2017/2023 read/write reducer reproduces the assertion; the write opcode has the same slot/index confusion. The narrow front-end repair is in progress. CSRNG DV remains **RUNTIME_FAIL**.
+
+### OT-I2C-QUEUE-LAST-ELABORATION — class queue `[$]` access
+
+- **State:** DONE at `c4199e5cb` for the three queue-last elaboration errors, with paired edition controls and integrated regression gates green. Selected I2C hard errors fall from 18 to 15; coverage bins, `std::randomize` dynamic-array constraints, and random-dependent constraint functions still block compilation. I2C DV remains **FAIL**. See [focused evidence](../../evidence/opentitan-i2c-queue-last-20260929/README.md).
+
+### OT-IBEX-ICACHE-ORDERED-DIST-RANDOMIZE — time-zero config solve
+
+- **State:** DONE at `78eff3fc4`. The solver now applies complete-range requirements only to components that actually have ordering; paired 2017/2023 red/green controls and integrated regression gates pass. The official `ibex_icache_smoke` advances through `cfg.randomize()` and starts the base test, but times out at 1,800 seconds without a DV pass banner. Ibex DV remains **RUNTIME_TIMEOUT** pending a separate runtime diagnosis. See [focused evidence](../../evidence/opentitan-ibex-ordered-dist-20260929/README.md).
+- **Boundary:** The solver fix does not qualify the long smoke sequence. Keep its official transaction count and UVM checks intact; Caliptra remains paused.
+
 ### OT-IBEX-ICACHE-BUS-PARAMS-PROVIDER — one provider for `bus_params_pkg`
 
-- **State:** DONE for package-provider setup. The raw Ibex I-cache compile failed after 0.207 seconds on a duplicate `bus_params_pkg`; a hash-guarded one-line `.core` patch leaves exactly the OpenTitan provider already required by `dv_lib`. Selected compile exits 0 with no hard errors or semantic notices. Its official `ibex_icache_smoke` then fails at time zero in `cfg.randomize()` with an ordered-distribution solver error. Ibex DV remains **RUNTIME_FAIL**; see the [focused evidence](../../evidence/opentitan-ibex-provider-20260929/README.md).
+- **State:** DONE for package-provider setup. The raw Ibex I-cache compile failed after 0.207 seconds on a duplicate `bus_params_pkg`; a hash-guarded one-line `.core` patch leaves exactly the OpenTitan provider already required by `dv_lib`. Selected compile exits 0 with no hard errors or semantic notices. The later solver correction advances the official smoke beyond config randomization, but it times out after 1,800 seconds. See the [provider evidence](../../evidence/opentitan-ibex-provider-20260929/README.md) and [current runtime result](../../evidence/opentitan-ibex-ordered-dist-20260929/README.md).
 - **Boundary:** The pinned source and raw 49-target census are unchanged. The solver failure is a separate blocker; no unsafe flag or suppressed package diagnostic is involved.
 
 ### OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION — honor the named smoke regression
