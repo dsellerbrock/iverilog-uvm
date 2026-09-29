@@ -2591,7 +2591,8 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
       part_off_ex = ivl_lval_part_off(lval);
 	/* This should be verified in force_vector_to_lval() which is called
 	 * before this procedure. */
-      if (part_off_ex) {
+      /* A force link uses the offset already evaluated by %force/vec4/off. */
+      if (part_off_ex && ivl_statement_type(net) != IVL_ST_FORCE) {
 	    assert(number_is_immediate(part_off_ex, IMM_WID, 0));
 	    assert(! number_is_unknown(part_off_ex));
       }
