@@ -1,0 +1,20 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
+@@ -620,7 +620,7 @@
+     .sram_rerror_i (bus_mem_rerror)
+   );
+ 
+-  static task read_sram(
++  task automatic read_sram(
+     ref       sram_l2m_t l2m,
+     const ref sram_m2l_t m2l,
+     input logic [SramAw-1:0] addr,
+@@ -659,7 +659,7 @@
+     data = result;
+   endtask : read_sram
+ 
+-  static task read_sram_wrap(
++  task automatic read_sram_wrap(
+     ref       sram_l2m_t      l2m,
+     const ref sram_m2l_t      m2l,
+     input logic [SramAw-1:0]  BaseAddr, // Buffer Base Address
