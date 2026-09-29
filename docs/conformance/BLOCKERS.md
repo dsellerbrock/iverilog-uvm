@@ -345,6 +345,12 @@
 - **Cause and evidence:** `pexpr_to_constraint_ir` restricted the selected packed-struct member branch to one fixed dimension and manually flattened one index. Reusing the existing checked fixed-array leaf helper supports multidimensional fixed arrays, while a signed cast preserves member type. The [paired focused record](session_logs/2026-09-29_ot_adc_fixed_2d_struct_member.json) includes baseline failure, candidate success, and 8/8 in each focused regression harness.
 - **Boundary:** This repair covers fixed arrays. The pinned ADC configuration uses nested dynamic arrays, whose indexed inner `.size` and whole-array ordering remain separate gaps. Its copied-source selected compile and queued DV replay are unchanged; no ADC DV pass is established.
 
+### OT-SDF-INTERCONNECT-PORT-BOUNDARY — annotate variable-driven input ports
+
+- **State:** The VPI boundary fix passes strict 2017/2023 one-edge reg, `always_comb`, and wire controls with the exact 20 ps delay; focused SDF JSON passes 15/15, including the three saved failures, singleton guard, and selected-resolver neighbors. `make check` passes. The original 4,097/32 gate remains historical. See [the focused evidence](session_logs/2026-09-29_ot_sdf_interconnect_port_boundary_focus.json).
+- **Cause and expected behavior:** `vvp/vpi_priv.cc` recognizes only `vvp_fun_buft` as a delayable interconnect port; `d696b6934d` correctly introduced BUFZ and `.sample` to preserve settled variable-port semantics. Extend recognition only for the same physical port-boundary connectivity, preserving its existing checks.
+- **Boundary:** Prove exact 20 ps in strict paired tiny controls and run only the SDF interconnect and singleton-guard neighbors before another broad JSON gate. No application DV pass follows from SDF regression repair.
+
 ### OT-JSON-STALE-EXPECTATIONS-11 — correct obsolete JSON gate fixtures
 
 - **State:** Focused 11/11 corrected JSON entries pass together on the unchanged installed compiler. Family JSON lists pass 5/5, 7/7, and 11/11; corresponding legacy lists pass 5/5, 7/7, and 10/10 with legal and fail-closed neighbors. The original exact 4,097/32 gate remains historical. See [the focused session](session_logs/2026-09-29_ot_json_stale_expectations_focus.json).

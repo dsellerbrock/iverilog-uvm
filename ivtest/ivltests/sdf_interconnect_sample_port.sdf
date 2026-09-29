@@ -1,0 +1,12 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "dut")
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "dut")
+    (INSTANCE)
+    (DELAY (ABSOLUTE
+      (INTERCONNECT a u.in (0.020:0.020:0.020) (0.020:0.020:0.020))
+    ))
+  )
+)

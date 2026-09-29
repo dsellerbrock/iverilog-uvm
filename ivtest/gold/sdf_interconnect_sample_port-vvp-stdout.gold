@@ -1,0 +1,6 @@
+t=0 src=x result=x
+t=5000 src=0 result=x
+t=5020 src=0 result=0
+t=15000 src=1 result=0
+t=15020 src=1 result=1
+ivltests/sdf_interconnect_sample_port.v:24: $finish called at 16000 (1ps)
