@@ -453,7 +453,41 @@ NetESFunc* make_std_randomize_simple_expr(
 		      for (NetExpr*old : args) delete old;
 		      return nullptr;
 		}
-		args.push_back(arg);
+		NetESignal*sig = dynamic_cast<NetESignal*>(arg);
+		const netstruct_t*record =
+		  dynamic_cast<const netstruct_t*>(arg->net_type());
+		if (record && !record->packed()) {
+		      // Scope randomization writes VPI lvalues. An unpacked struct
+		      // is an object-backed aggregate, so pass its integral members.
+		      bool integral_members = sig && !record->union_flag()
+			&& !record->members().empty();
+		      for (const netstruct_t::member_t&member : record->members()) {
+			ivl_variable_type_t base = member.data_type();
+			if (!member.net_type->packed()
+			    || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC)
+			    || dynamic_cast<const netenum_t*>(member.net_type))
+			      integral_members = false;
+		      }
+		      if (!integral_members) {
+			cerr << parm.parm->get_fileline() << ": sorry: "
+			     << "std::randomize() of this unpacked struct "
+			     << "requires a direct variable with integral members."
+			     << endl;
+			des->errors += 1;
+			delete arg;
+			for (NetExpr*old : args) delete old;
+			return nullptr;
+		      }
+		      NetNet*net = sig->sig();
+		      delete arg;
+		      for (size_t idx = 0; idx < record->members().size(); ++idx) {
+			NetEProperty*member = new NetEProperty(net, idx);
+			member->set_line(*parm.parm);
+			args.push_back(member);
+		      }
+		} else {
+		      args.push_back(arg);
+		}
 	    }
       }
       NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
