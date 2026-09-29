@@ -131,7 +131,23 @@
     "missing_prince_symbol_errors": 40960,
     "note": "Initial invocation omitted -d and is excluded from the A/B conclusion; corrected-DPI replay reports zero DPI errors."
   },
-  "conclusion": "The corrected-DPI baseline and urandom replacement both hit the 4 GiB cap after ROM init complete (4135.9 and 4141.2 MiB); per-word std::randomize is not the dominant cause in this bounded comparison. Omitting the whole encrypted-write call exits at 2768.8 MiB but reports KmacDataODataKnown_A and TEST FAILED CHECKS. Omitting only final write39integ still hits the cap at 4115.5 MiB; work earlier in rom_encrypt_write32_integ is implicated, but its specific allocator and residual memory growth remain unresolved. Both write variants are functionally invalid diagnostics.",
+  "package_only_reducer": {
+    "directory": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/scrambler-reducer",
+    "rss_cap_mib": 384,
+    "peak_rss_mib_at_1024_words": {"local_arrays": 3.2, "address_sp": 139.0, "ecc": 2.9, "direct_prince_dpi": 17.6, "data_scrambler": 69.8, "full_predeposit": 203.9},
+    "full_predeposit_peak_rss_mib_at_64_words": 9.4,
+    "probe": "VPI cbEndOfSimulation before VVP final cleanup; macOS malloc zone statistics and VVP live-object counter",
+    "end_of_sim_samples": [
+      {"mode": "address_sp", "words": 1, "live_vvp_objects": 22, "malloc_blocks_in_use": 2100, "malloc_bytes_in_use": 1627920, "default_zone_bytes_allocated": 20938752},
+      {"mode": "address_sp", "words": 256, "live_vvp_objects": 22, "malloc_blocks_in_use": 2100, "malloc_bytes_in_use": 1656208, "default_zone_bytes_allocated": 54493184},
+      {"mode": "full_predeposit", "words": 1, "live_vvp_objects": 38, "malloc_blocks_in_use": 2240, "malloc_bytes_in_use": 1657648, "default_zone_bytes_allocated": 20938752},
+      {"mode": "full_predeposit", "words": 256, "live_vvp_objects": 38, "malloc_blocks_in_use": 2240, "malloc_bytes_in_use": 1722288, "default_zone_bytes_allocated": 71270400}
+    ],
+    "probe_log_sha256": {"mode-1-1-object-probe.log": "6561686b4dba9f26d7d2af8cd87510ac6738f1b8824c041cafa367a5ca0594cd", "mode-1-256-object-probe.log": "8b23cba04278ac63774b6e9a506d7e09e80bbcccdf6487a2853dce5fe53adc5c", "mode-5-1-object-probe.log": "d02f02532765ebc3e6d825c3fa42bb69fbc476c5d2e44a4893a12d2d3583cac8", "mode-5-256-object-probe.log": "1cbefd9a19bb29e9e9b928de455b13bd11eb0ee6ef49df93b5137445de6cfe09"},
+    "cross_checks": "Four-word context trace shows automatic frames recycled. macOS leaks reports the same 1698 live nodes/1621 KiB at 32 and 256 address words, while physical footprint rises from 11.5 to 46.3 MiB. MallocNanoZone=0 lowers one address-only run but does not reliably lower the full pre-deposit path.",
+    "interpretation": "Temporary array-copy churn raises macOS allocator allocated footprint; a VVP ownership leak is not demonstrated. No semantic-safe VVP patch was established. Integrated ROM residual growth and selected DV remain unresolved."
+  },
+  "conclusion": "The corrected-DPI baseline and urandom replacement both hit the 4 GiB cap after ROM init complete (4135.9 and 4141.2 MiB); per-word std::randomize is not the dominant cause in this bounded comparison. Omitting the whole encrypted-write call exits at 2768.8 MiB but reports KmacDataODataKnown_A and TEST FAILED CHECKS. Omitting only final write39integ still hits the cap at 4115.5 MiB; work earlier in rom_encrypt_write32_integ is implicated. The package-only reducer shows allocator high-water growth during array-copy work, but the integrated residual growth remains unresolved. Both write variants are functionally invalid diagnostics.",
   "selected_dv_pass": false,
   "selected_dv_status": "0/1; no passing selected ROM Control DV replay or pass marker",
   "census_49_unchanged": true
