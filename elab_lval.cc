@@ -3209,15 +3209,10 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    }
 
 		    const index_component_t&root_index = base_index.back();
-		    if (root_index.sel == index_component_t::SEL_BIT_LAST) {
-			  cerr << get_fileline() << ": sorry: "
-			       << "Last element select of dynamic/queue class l-value roots is not supported."
-			       << endl;
-			  des->errors += 1;
-			  return 0;
-		    }
-		    if (root_index.msb == 0 || root_index.lsb != 0
-			|| root_index.sel != index_component_t::SEL_BIT) {
+		    if ((root_index.sel == index_component_t::SEL_BIT
+			 && (root_index.msb == 0 || root_index.lsb != 0))
+			|| (root_index.sel != index_component_t::SEL_BIT
+			 && root_index.sel != index_component_t::SEL_BIT_LAST)) {
 			  cerr << get_fileline() << ": sorry: "
 			       << "Only simple index selects of dynamic/queue class l-value roots are supported."
 			       << endl;
@@ -3225,8 +3220,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			  return 0;
 		    }
 
-		    NetExpr*root_word_index = elab_assoc_index(
-			  des, scope, root_index.msb, sig->queue_type());
+		    NetExpr*root_word_index = elab_lval_container_index_(
+			  des, scope, *this, root_index, sig);
 		    if (!root_word_index)
 			  return 0;
 
@@ -4120,16 +4115,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      }
 
 			      const index_component_t&index_tail = *idx_it;
-			      if (index_tail.sel == index_component_t::SEL_BIT_LAST) {
-				    cerr << get_fileline() << ": sorry: "
-					 << "Last-element select of dynamic/queue class "
-					 << "properties is not supported." << endl;
-				    des->errors += 1;
-				    delete lv;
-				    return 0;
-			      }
-			      if (!index_tail.msb || index_tail.lsb
-				  || index_tail.sel != index_component_t::SEL_BIT) {
+			      if (index_tail.sel != index_component_t::SEL_BIT_LAST
+				  && (!index_tail.msb || index_tail.lsb
+				      || index_tail.sel != index_component_t::SEL_BIT)) {
 				    cerr << get_fileline() << ": sorry: "
 					 << "Part-select of dynamic/queue class properties "
 					 << "is not supported." << endl;
@@ -4152,7 +4140,51 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				list<index_component_t>fixed_index(1, index_tail);
 				idx_expr = make_canonical_property_lval_index_(
 				      des, scope, this, fixed_index, fixed, false);
-			      } else {
+			      } else if (index_tail.sel == index_component_t::SEL_BIT_LAST) {
+			const netqueue_t*queue = dynamic_cast<const netqueue_t*>(ptype);
+			if (!queue || queue->assoc_compat()) {
+			      cerr << get_fileline()
+				   << ": error: `$' requires a positional queue." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+			PEIdent*queue_ref = clone_for_reference();
+			queue_ref->set_line(*this);
+			while (queue_ref->path_.name.size()
+			       > path_.name.size() - member_path.size())
+			      queue_ref->path_.name.pop_back();
+			auto&indices = queue_ref->path_.name.back().index;
+			while (indices.size() > idx_pos) indices.pop_back();
+			/* ponytail: non-$ indexed receivers fail closed; capture the
+			 * receiver once to support them without duplicate side effects. */
+			for (const auto&comp : queue_ref->path_.name)
+			      for (const auto&index : comp.index)
+				    if (index.sel != index_component_t::SEL_BIT_LAST) {
+					  cerr << get_fileline() << ": sorry: queue `[$]'"
+					       << " property write through a non-`$' indexed"
+					       << " receiver is not supported." << endl;
+					  des->errors += 1;
+					  delete queue_ref;
+					  delete lv;
+					  return 0;
+				    }
+			NetExpr*queue_expr = queue_ref->elaborate_expr(
+			      des, scope, 0u, 0u);
+			delete queue_ref;
+			if (!queue_expr) {
+			      delete lv;
+			      return 0;
+			}
+			NetESFunc*size = new NetESFunc("$ivl_queue_method$size",
+						 &netvector_t::atom2u32, 1);
+			size->set_line(*this);
+			size->parm(0, queue_expr);
+			NetEConst*one = make_const_val(1);
+			one->set_line(*this);
+			idx_expr = new NetEBAdd('-', size, one, 32, true);
+			idx_expr->set_line(*this);
+		      } else {
 				idx_expr = elab_assoc_index(
 				      des, scope, index_tail.msb, ptype);
 			      }

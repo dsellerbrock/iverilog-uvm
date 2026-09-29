@@ -1,5 +1,9 @@
 class last_value;
   int value;
+  int q[$];
+endclass
+class last_outer;
+  last_value inner;
 endclass
 module test;
   string words[$];
@@ -7,6 +11,7 @@ module test;
   real reals[$];
   last_value objects[$];
   last_value a,b;
+  last_outer outer_obj;
   int removed;
   task automatic local_queue(input int n);
     int local_values[$];
@@ -29,6 +34,14 @@ module test;
     a=new; b=new; a.value=11; b.value=22;
     objects.push_back(a); objects.push_back(a); objects[$]=b;
     if(objects[0]!=a || objects[1]!=b || objects[1].value!=22) $fatal(1,"object last");
+    a.q.push_back(1); a.q[$]=2;
+    b.q.push_back(3); objects[$].q[$]=4;
+    if(a.q[0]!=2 || b.q[0]!=4 || objects[$].value!=22)
+      $fatal(1,"class queue last");
+    outer_obj=new; outer_obj.inner=a; outer_obj.inner.q[$]=5;
+    if(a.q[0]!=5) $fatal(1,"nested class queue last");
+    b.q.delete(); b.q[$]=6;
+    if(b.q.size()!=0) $fatal(1,"empty class queue last");
     local_queue(7); local_queue(19);
     $display("PASSED"); $finish(0);
   end

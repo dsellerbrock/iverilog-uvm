@@ -13880,12 +13880,16 @@ static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
 
 	      const index_component_t&root_index = base_index.back();
 	      if (root_index.sel == index_component_t::SEL_BIT_LAST) {
-		    cerr << li->get_fileline() << ": sorry: "
-			 << "Last element select of dynamic/queue class object access is not supported."
-			 << endl;
-		    des->errors += 1;
-		    delete base_expr;
-		    return 0;
+		    const netqueue_t*queue = net->queue_type();
+		    if (!queue || queue->assoc_compat()) {
+			  cerr << li->get_fileline() << ": error: `$' requires a positional queue." << endl;
+			  des->errors += 1;
+			  delete base_expr;
+			  return 0;
+		    }
+		    NetExpr*last = make_last_queue_element_expr_(*li, base_expr, queue);
+		    out_type = queue->element_type();
+		    return last;
 	      }
 	      if (root_index.msb == 0 || root_index.lsb != 0
 		  || root_index.sel != index_component_t::SEL_BIT) {
