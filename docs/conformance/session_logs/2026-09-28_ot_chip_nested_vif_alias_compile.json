@@ -1,0 +1,201 @@
+{
+  "target": "lowrisc:dv:chip_sim:0.1",
+  "pinned_opentitan_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "classification": "Icarus accepts nested virtual-interface child handles and method calls but rejects direct procedural lvalue writes through a child of virtual chip_if; IEEE 1800-2017/2023 \u00a725.9 and strict Slang accept the source. Six exact-typed child VIF aliases are a disposable workaround while the compiler lvalue path lacks nested-interface receiver support.",
+  "standards": [
+    "IEEE 1800-2017 \u00a725.9 pp.769\u2013770",
+    "IEEE 1800-2023 \u00a725.9 pp.801\u2013802"
+  ],
+  "saved_unpatched_compile": {
+    "compiler_core_sha256": "56fe5718f2a7db3ea2075a588d1bbe82a49ecde8827536cde35897eebe6dfb6e",
+    "log": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_chip_sim_0.1/matrix-compile.log",
+    "exit_code": 62,
+    "recorded_hard_error_count": 61,
+    "nested_child_lvalue_errors": 40
+  },
+  "minimal_reducers": {
+    "sources": [
+      {
+        "path": "docs/conformance/repros/nested_vif.sv",
+        "sha256": "802fe4b815239ab4205491e51898c68d5542453b959d06062f888b24dfbe1578"
+      },
+      {
+        "path": "docs/conformance/repros/nested_vif_workaround.sv",
+        "sha256": "69bf88d6e73bc4f824572913ffb7bcd11f2446af7486fd331d446cfe943ca33a"
+      },
+      {
+        "path": "docs/conformance/repros/parameterized_alias.sv",
+        "sha256": "e05fcbee7484f696347db50bc0ad882b9800b6a6ec4e51a54222d45d19a34971"
+      }
+    ],
+    "matrix": [
+      {
+        "compiler": "Icarus",
+        "edition": "2017",
+        "case": "nested_vif",
+        "compile_exit": 1
+      },
+      {
+        "compiler": "Slang",
+        "edition": "2017",
+        "case": "nested_vif",
+        "compile_exit": 0
+      },
+      {
+        "compiler": "Icarus",
+        "edition": "2017",
+        "case": "nested_vif_workaround",
+        "compile_exit": 0,
+        "runtime_exit": 0
+      },
+      {
+        "compiler": "Slang",
+        "edition": "2017",
+        "case": "nested_vif_workaround",
+        "compile_exit": 0
+      },
+      {
+        "compiler": "Icarus",
+        "edition": "2017",
+        "case": "parameterized_alias",
+        "compile_exit": 0,
+        "runtime_exit": 0
+      },
+      {
+        "compiler": "Slang",
+        "edition": "2017",
+        "case": "parameterized_alias",
+        "compile_exit": 0
+      },
+      {
+        "compiler": "Icarus",
+        "edition": "2023",
+        "case": "nested_vif",
+        "compile_exit": 1
+      },
+      {
+        "compiler": "Slang",
+        "edition": "2023",
+        "case": "nested_vif",
+        "compile_exit": 0
+      },
+      {
+        "compiler": "Icarus",
+        "edition": "2023",
+        "case": "nested_vif_workaround",
+        "compile_exit": 0,
+        "runtime_exit": 0
+      },
+      {
+        "compiler": "Slang",
+        "edition": "2023",
+        "case": "nested_vif_workaround",
+        "compile_exit": 0
+      },
+      {
+        "compiler": "Icarus",
+        "edition": "2023",
+        "case": "parameterized_alias",
+        "compile_exit": 0,
+        "runtime_exit": 0
+      },
+      {
+        "compiler": "Slang",
+        "edition": "2023",
+        "case": "parameterized_alias",
+        "compile_exit": 0
+      }
+    ],
+    "diagnostic": "Both Icarus editions reject only the direct nested lvalue, reporting `Class parent_if does not have a property child`; Slang 2017/2023 accepts it with zero warnings. Both Icarus editions compile and run the child-alias and exact-parameterized controls, with PASS markers and physical-child readback; Slang accepts both controls with zero warnings."
+  },
+  "source_overlay": {
+    "patch": "docs/conformance/release_overlays/opentitan/chip_nested_vif_lvalue_alias_workaround.patch",
+    "sha256": "50988f3e21e8de1e69b33126467a94fc10c342f5fce4b39596cbc7f48c592696",
+    "applies_to_pinned_copy": true,
+    "scope": "Declare and bind six exact-typed child VIF aliases after chip_vif is retrieved; use them for the 40 direct lvalue writes in eight sequences. Nested reads and calls remain untouched.",
+    "pinned_tree_pristine_after_selected_compile": true
+  },
+  "selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sclkmgr_bind",
+      "-spwrmgr_bind",
+      "-srstmgr_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-sspi_host_bind",
+      "-stop_earlgrey_bind",
+      "-stop_earlgrey_error_injection_ifs_bind",
+      "-sxbar_main_bind",
+      "-sxbar_peri_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=64",
+      "-DUVM_REG_BYTENABLE_WIDTH=8",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "-DTOP_LEVEL_DV",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-nested-vif/chip-selected.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-nested-vif/chip-selected-outer.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_chip_sim_0.1/sim-icarus",
+    "compiler_fingerprints_before": {
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/ivl": "db1999fa8d97f48d5b70a19b333914c79d58271e2c5761ef626096406825abb2",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp.tgt": "072c8c4608f5ba0a076444a767e743290ca3c3295e67dead1c05a0c7a9aa7129",
+      "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_chip_sim_0.1/sim-icarus/lowrisc_dv_chip_sim_0.1.scr": "2710f5ccee16cfa35c75a5f998ee6c365e38b0c2fe64dc192c3a7475f5ece109",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-nested-vif/chip-selected.scr": "3ed6a774b010e112600025850a71f0ef2d84d04f12d59a0dc30992228157d668",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-nested-vif/chip-selected-outer.scr": "ad247eb7a66d5137c665684317bc1ce87b1bf0a3113b676b01476fc88fbfac6d"
+    },
+    "compiler_fingerprints_after": {
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/ivl": "db1999fa8d97f48d5b70a19b333914c79d58271e2c5761ef626096406825abb2",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp.tgt": "072c8c4608f5ba0a076444a767e743290ca3c3295e67dead1c05a0c7a9aa7129"
+    },
+    "elapsed_seconds": 25.626,
+    "timed_out": false,
+    "exit_code": 18,
+    "errors": [
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv:62: error: streaming concatenation provides a 32-bit stream, which does not fill the 64-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv:62: error: streaming concatenation provides a 32-bit stream, which does not fill the 64-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv:49: error: streaming concatenation provides a 32-bit stream, which does not fill the 64-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_passthrough_vseq.sv:141: error: streaming concatenation provides a 28-bit stream, which does not fill the 32-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv:205: error: streaming concatenation provides a 28-bit stream, which does not fill the 32-bit unpacked-array target (IEEE 1800-2017 11.4.14.3).",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_shutdown_output_vseq.sv:16: error: This assignment requires an explicit cast.",
+      "../src/lowrisc_dv_sw_logger_if_0/sw_logger_if.sv:366: error: Variable sw_logs[sw][addr] does not have a field named: str_arg_idx[i]."
+    ],
+    "unsupported": [
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_ctrl_integrity_check_vseq.sv:81: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:107: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:108: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:109: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:116: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:117: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:123: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:129: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:131: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:176: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_jtag_debug_vseq.sv:250: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened."
+    ],
+    "error_count": 7,
+    "unsupported_count": 11,
+    "nested_child_lvalue_error_count": 0,
+    "warning_count": 458,
+    "log_sha256": "e277b23585545d71e4228b7abddd87defaeca48af07bde91d3597fe7ac1b23f0",
+    "timescale_source_list_option": "+timescale+1ns/1ps"
+  },
+  "dv_runtime_started": false,
+  "qualifies_dv_pass": false,
+  "full_corpus_run": false
+}
