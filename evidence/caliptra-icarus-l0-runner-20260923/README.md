@@ -72,3 +72,16 @@ Use a fresh output directory for each invocation. The first unsafe case failed a
 With the interval-aware sensitivity and Preponed fixes, the [pre-PIC pinned first case](../caliptra-icarus-l0-unsafe-final-first-20260924/summary.json) compiled with zero sampling warnings and advanced to 43.865 us with 621 instruction-trace entries. It was **0/1**: the TLU, `soc_ifc_reg` `ERR_HWIF_IN`, and Veer store-buffer assertions fired, VVP exited 1, no `TESTCASE PASSED` marker appeared, and 17,467 error diagnostics disqualified the run. The missing final CSR dump meant `retired_instructions` and `cycles` were recorded as zero; 621 was an execution-trace count. An earlier [copied-reset diagnostic](../caliptra-icarus-l0-diagnostic-aesfix-first-20260923/summary.json) reached the same time and failed separately.
 
 After the PIC packed partial-driver repair and its null guard, the [exact first compatibility replay](../caliptra-icarus-l0-unsafe-pic-nullguard-first-20260924/smoke_test_veer/result.json) completed firmware and simulation with exit 0, one `TESTCASE PASSED` marker, zero fail markers, 633 retired instructions, 4,348 cycles, and 634 trace commits. It still **failed 0/1** with 51 unrun because 17,863 bad diagnostics violated the unchanged zero-error gate. The old 43.865 us terminal SOC/TLU/LSU fatal was absent. Repeated messages from checker functions with false antecedents are documented in [paired evidence](../caliptra-post-aes-sva-triage-20260923/README.md); all diagnostics remain disqualifying. No L0 pass is established, and the remaining 51 compatibility cases are unrun pending a checked first-case pass. The [strict null-guard top compile](../caliptra-icarus-l0-strict-pic-nullguard-20260924/summary.json) still exits 46 on genuine mixed drivers with zero sampling warnings; it remains conformance-guard evidence. The [fresh VIF-install first case](../caliptra-icarus-l0-unsafe-vif-first-20260924/README.md) repeats nonstandard compatibility 0/1 with 51 unrun and 17,863 diagnostics despite a pass marker and 633 retired instructions. Independent review also found a called-task virtual-dispatch false waiver in `-gcommercial-unsafe`; broad qualification and PR review are on hold pending that separate soundness fix.
+
+## Opt-in SHA-512 per-word diagnostic
+
+The runner accepts `--sha512-perword-observer-overlay` only with
+`--case pv_hash_zeroize --commercial-unsafe --sim-memory-gib 8 --timeout 57600`.
+It verifies the pinned `sha512.sv` and both local patch hashes, applies the
+[per-word stability assertion](caliptra-sha512-block-stability-per-word.patch)
+and then the [control observer](sha512_perword_observer_addon.patch) to one
+disposable source copy, and replaces the single SHA profile entry. Copied-source
+hashes, patch order, profile composition, selector rejection, and `--help`
+passed focused checks. The AXI and SHA overlays also compose in one copied
+profile. No VVP was launched for this integration, so `pv_hash_zeroize` has no
+new runtime verdict and the historical 52-case aggregate is unchanged.
