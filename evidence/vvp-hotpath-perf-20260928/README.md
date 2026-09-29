@@ -16,3 +16,17 @@ This directory backs
   index.
 - `unpacked_slice_output_port.sv`, `two_state_oob_part_select.sv` and
   `discovered_debt_repro.log`: reproduce DD-064 and DD-065.
+
+## Common-workload survey (2026-09-29)
+
+- `workloads/`: testbenches and scripts.
+  - `tb_sha.sv` drives the Caliptra v2.1.2 secworks SHA cores.
+  - `tb_pico.v` is picorv32 `testbench_ez` with a checksum;
+    `tb_pico_dump.v` adds `$dumpvars`.
+  - `uvm_alu*.sv` are the UVM environments with different constraint
+    sets.
+  - `fst_ctl.v` exercises every dump control task.
+  - `build.sh` and `timeit.sh` build the baseline and new images and
+    time them in interleaved pairs.
+- `timing_round1.log` and `timing_round2.log`: raw paired CPU times.
+  Round 2 is after the flat symbol-table fix.

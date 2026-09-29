@@ -318,3 +318,95 @@ full-top effect of anything below is **not measured**.
 - For item 5: the opt-in VVP profiler output restricted to the adder
   processes after item 2, plus the serial NBA-intent log for one edge, to
   count per-instance certified work.
+
+## Addendum (2026-09-29): common workloads and multithreading
+
+Revision-scoped to the branch's later commits. Same Linux container; CPU
+ratios are medians of three interleaved baseline/new pairs, and the
+baseline is `7a04009f` `vvp` and `vvp.tgt` with the same `ivl`.
+
+### Workloads
+
+| Workload | What it exercises |
+|---|---|
+| `sha` | Caliptra v2.1.2 secworks `sha512_core` and `sha256_core`, 400 chained blocks each; named `always` blocks and wide datapaths |
+| `pico` | picorv32 `testbench_ez` for 300k cycles, with its per-access `$display` replaced by a checksum; CPU-style RTL and task calls |
+| `a2b` | The Adams Bridge A2B reducer above, 150 cycles |
+| `uvmnone` | A UVM ALU environment (sequence, driver, monitor, scoreboard with a reference model), 200 transactions, no constraints |
+| `uvm` | The same environment with a `dist` on `op` and an implication coupling `op` to the 32-bit `b` |
+
+The UVM runs report `checked=200 errors=0`, with no UVM errors or fatals.
+
+### Results
+
+| Workload | Round 1 median | Round 2 median | Output |
+|---|---:|---:|---|
+| sha | 1.86× | 1.86× | same |
+| pico | 1.35× | 1.23× | same |
+| a2b | 1.55× | 1.28× | same |
+| uvmnone | 1.20× | 1.22× | same |
+| uvm | 0.96× | 1.03× | same |
+
+The two rounds differ by host noise. Round 1's 0.96× on `uvm` came from
+the first hash-map symbol table. Instruction counts stayed within 0.2%,
+but the map made one heap allocation per symbol while the design loaded,
+and the solver-heavy run then lost about 3%. The flat open-addressed
+table fixed it (five interleaved runs: median 11.31 s against 12.18 s).
+
+Compile and load, for the UVM testbench:
+- Compile CPU dropped from 6.66 s to 2.87 s.
+- `vvp` load instructions dropped from 10.8G to 5.1G. Load is only about
+  1 s of wall time.
+
+### Where the remaining time goes
+
+- **Constrained randomization dominates constrained UVM.** Per
+  transaction, over 200 transactions:
+
+  | Constraints | ms/txn |
+  |---|---:|
+  | none | 3.6 |
+  | `op < 5` | 9.0 |
+  | `dist` only | 12.7 |
+  | `dist` plus the implication onto a 32-bit field | 55 |
+
+  About 171M instructions per call are in `Z3_optimize_check`, reached
+  from the `bvxor` minimization used for sampling (`vvp_z3.cc`). Changing
+  that is a redesign of the sampling method with probability-exactness
+  obligations (AGENTS.md "Randomization invariants"). It is out of scope
+  for a performance patch and ranks first for UVM workloads.
+- **UVM method calls cost thread churn.** Every task and function call
+  creates and deletes a thread, about 5.5K instructions each: three
+  `std::deque`s, a `vvp_process` registered in a live-object `std::set`,
+  and scope and registry set insertions. Automatic frames add
+  `%alloc`/`%free` context-chain work. Each class-property store also
+  notifies every handle that aliases the object.
+- **Compile time left.** Elaboration's `dynamic_cast` chains over
+  `data_type_t` and `ivl_type_s` are about 31% of the remaining compile,
+  spread across dozens of type-resolution helpers.
+
+### Multithreading findings
+
+- **FST dumping (done):** the GTKWave FST writer's background-thread
+  mode was compiled out. It is now enabled when pthreads exist.
+  - Files are byte-identical in every FST mode tested.
+  - The `-lxt2-speed` packing mode was already nondeterministic between
+    two serial runs.
+  - About 10% less wall time on a picorv32 full-signal dump. Most
+    dumping cost stays on the simulation thread, in value-change
+    callbacks.
+- **VCD dumping:** costs about 2.8 s on a 6.2 s picorv32 run, almost all
+  CPU in callbacks and formatting (0.14 s of system time). A writer
+  thread would need `sys_vcd.c` to queue raw values. That is a moderate
+  change for at most about half the cost; not done.
+- **Compiler:** elaboration (64% of the remaining compile) mutates one
+  global `Design` and specializes classes in order, and parsing is one
+  include tree. Only code emission (about 21%) could be split, and
+  `tgt-vvp`'s global label, register and flag allocators would all have
+  to become per-thread with deterministic merging. That is a large
+  change for at most about 1.2× on compile. Not recommended before the
+  `dynamic_cast` work.
+- **Simulation threads:** unchanged from the ranking above. The
+  single-core changes shrink the parallel share first. The per-instance
+  macro-task argument still stands for Adams Bridge after loop
+  specialization.
