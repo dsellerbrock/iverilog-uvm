@@ -1,0 +1,28 @@
+{
+  "case": "lowrisc:dv:i2c_sim:0.1",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_branch_head_at_compile": "3a00f648f4d9ee9f8b130d148851a9ebe1529d16",
+  "installed_elaborator_sha256": "db1999fa8d97f48d5b70a19b333914c79d58271e2c5761ef626096406825abb2",
+  "source_patch": "docs/conformance/release_overlays/opentitan/i2c_constraint_and_queue_compat.patch",
+  "source_patch_sha256": "22c9e3fdba532322b087a65444999bbe496448160fc7ffb2e25e64376257a373",
+  "selected_compile": {
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 3,
+    "warning_lines": 32,
+    "log": "/private/tmp/ot-i2c-constraint-period-20260928/selected-compile.log"
+  },
+  "minimal_reducers": {
+    "nested_property_function_argument": "exit 1 with dependency diagnostic",
+    "cached_period_function_argument": "compile exit 0, simulation PASS",
+    "dynamic_array_sum_constraint": "compile exit 1 with fail-closed sorry",
+    "partition_property": "compile and simulation PASS, 4272 cases"
+  },
+  "remaining_notices": [
+    "three coverage bins dropped",
+    "min_peri_clk_period_c constraint item is not representable; i2c_host_perf_vseq randomize() may fail",
+    "detached-fork ref copy-out warnings in i2c_monitor"
+  ],
+  "runtime": "not run; Caliptra observer remains active",
+  "aggregate_49_case_census": "unchanged"
+}
