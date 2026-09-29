@@ -1,16 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: b27957d8d
+checkpoint_head: 5f9abaf37
 active_open_titan_lane:
+  blocker: "OT-JSON-STALE-EXPECTATIONS-11"
+  phase: "FOCUSED_TESTED_PENDING_REVIEW"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "d5c7366c3"
+  reproducer: "Eleven stale fixture cases in the saved 4097/32 JSON gate; each has a direct source/diagnostic probe and family triage in projectless work/json-* notes."
+  pending_validation: "The 11 corrected former failures pass focused JSON 11/11; family JSON 5/5, 7/7, 11/11 and legacy 5/5, 7/7, 10/10 with legal and fail-closed neighbors pass. Independent diff review and commit remain; other 21 failures are separate."
+  next_command: "Complete independent fixture diff review, commit this checkpoint, and select the next classified JSON blocker. Defer full JSON/legacy and the 49-target corpus until the saved error corpus is repaired."
+  boundary: "Fixture maintenance is not a new compiler semantic gain; older JSON and 49-target counts remain unchanged until an exact-head rerun."
+suspended_otp_method_lane:
   blocker: "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION"
   phase: "FOCUSED_INTEGRATED_PENDING_DV"
-  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "8b16887cb"
-  reproducer: "Strict paired UVM 1.2 direct test#(CFG, env) factory case dispatches only inherited base env build_phase on shared compiler; explicit env#(CFG) typedef control works. The missing OTP concrete build/connect bodies cause a null VIF before traffic."
-  pending_validation: "Integrated b27957d8d passes strict 2017/2023 bare/explicit controls 4/4, focused real-DPI UVM 1/1, make check, and exact selected OTP compile with zero errors/sorry, 56 warnings, and concrete build/connect bodies. Selected OTP DV awaits Caliptra HMAC. DD-089 registration remains separate."
-  next_command: "After Caliptra HMAC exits, run one guarded selected OTP DV replay using the exact compiler-fixed image. Meanwhile repair the 32 classified JSON gate failures with minimal controls before rerunning broad JSON/legacy or the 49-target corpus."
-  boundary: "No selected OTP DV pass or changed historical 49-target census is inferred from compile or method-body evidence."
+  last_validated_revision: "5f9abaf37"
+  state: "Fix b27957d8d integrated; strict paired bare/explicit controls 4/4, adjacent ten, real-DPI UVM 1/1, make check and selected OTP 282-source compile pass with concrete build/connect bodies. No OTP DV verdict."
+  next_command: "After guarded Caliptra HMAC VVP exits, run the exact selected OTP image under a memory/time guard and require pass marker plus zero UVM errors/fatals. DD-089 registration workaround remains."
 suspended_fixed_2d_lane:
   blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
   phase: "SUSPENDED_PENDING_UNRELATED_GATE_REMEDIATION"

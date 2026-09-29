@@ -8,4 +8,5 @@ ivltests/sv_covergroup_wide_reject_unsupported.v:3: error: wide covergroup bin '
 ivltests/sv_covergroup_wide_reject_unsupported.v:3: error: wide coverpoint binsof intersect is not represented.
 error: cross bin 'intersection' uses a binsof select form that could not be evaluated; the bin selects nothing.
 ivltests/sv_covergroup_wide_reject_unsupported.v:3: error: wide coverpoint binsof intersect is not represented.
-10 error(s) during elaboration.
+ivltests/sv_covergroup_wide_reject_unsupported.v:22: error: wide covergroup bin 'unsupported_width' requires unsigned packed exact constant values (up to 256 bits); the bin cannot be represented.
+11 error(s) during elaboration.

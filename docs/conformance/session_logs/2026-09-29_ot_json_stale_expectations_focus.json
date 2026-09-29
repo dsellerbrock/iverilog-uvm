@@ -1,0 +1,44 @@
+{
+  "blocker": "OT-JSON-STALE-EXPECTATIONS-11",
+  "baseline_gate": {
+    "head": "d5c7366c3",
+    "json_run": 4097,
+    "json_failed": 32,
+    "stale_fixture_failures": 11
+  },
+  "current_compiler": {
+    "head_before_fixture_edits": "5f9abaf37",
+    "installed_ivl_sha256": "50d3fe54f03c1d29b12d3f55cec2fc93cf09b45c611210acebed367250285cfe",
+    "implementation_files_changed": 0
+  },
+  "corrected_cases": {
+    "fixed_queue_leaf_element": 2,
+    "selected_illegal_const_ref": 2,
+    "object_method_false_guard": 2,
+    "covergroup_ctor_wide_bin": 2,
+    "associative_fixed_child_foreach": 1,
+    "unpacked_clocking_output_diagnostic": 1,
+    "randc_object_rng_oracle": 1
+  },
+  "focused_results": {
+    "former_failed_json_entries_together": "11 passed, 0 failed",
+    "json_family_lists": [
+      "5/5",
+      "7/7",
+      "11/11"
+    ],
+    "legacy_family_lists": [
+      "5/5",
+      "7/7",
+      "10/10"
+    ],
+    "neighbors": "legal static-property/unpacked-element const ref, exact wide covergroup, associative fixed-child foreach, and fail-closed wide-bin/indexed-prefix cases pass"
+  },
+  "remaining_prior_gate_failures": {
+    "unsafe_interface_driver": 12,
+    "sdf_interconnect": 3,
+    "queue_size_function_argument": 2,
+    "partinfo_duplicate_diagnostic": 4
+  },
+  "boundary": "No full JSON or legacy gate was rerun after fixture correction; older 49-target OpenTitan aggregate and Caliptra 52-case aggregate are unchanged. The selected Caliptra HMAC VVP replay remains guarded and active."
+}

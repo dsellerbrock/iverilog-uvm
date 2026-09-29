@@ -18,4 +18,11 @@ class wide_bad_cov;
     }
   endgroup
 endclass
-module top; endmodule
+module top;
+  covergroup cg_wide(logic [64:0] limit)
+      with function sample(logic [64:0] value);
+    cp: coverpoint value {
+      bins unsupported_width = {[limit:limit]};
+    }
+  endgroup
+endmodule

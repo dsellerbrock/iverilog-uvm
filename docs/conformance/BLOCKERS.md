@@ -345,6 +345,12 @@
 - **Cause and evidence:** `pexpr_to_constraint_ir` restricted the selected packed-struct member branch to one fixed dimension and manually flattened one index. Reusing the existing checked fixed-array leaf helper supports multidimensional fixed arrays, while a signed cast preserves member type. The [paired focused record](session_logs/2026-09-29_ot_adc_fixed_2d_struct_member.json) includes baseline failure, candidate success, and 8/8 in each focused regression harness.
 - **Boundary:** This repair covers fixed arrays. The pinned ADC configuration uses nested dynamic arrays, whose indexed inner `.size` and whole-array ordering remain separate gaps. Its copied-source selected compile and queued DV replay are unchanged; no ADC DV pass is established.
 
+### OT-JSON-STALE-EXPECTATIONS-11 — correct obsolete JSON gate fixtures
+
+- **State:** Focused 11/11 corrected JSON entries pass together on the unchanged installed compiler. Family JSON lists pass 5/5, 7/7, and 11/11; corresponding legacy lists pass 5/5, 7/7, and 10/10 with legal and fail-closed neighbors. The original exact 4,097/32 gate remains historical. See [the focused session](session_logs/2026-09-29_ot_json_stale_expectations_focus.json).
+- **Expected behavior:** Keep nonempty supported queue/associative checks positive; preserve compile-negative checks for illegal reference actuals and unsupported wide covergroup bins; verify true-guard null/X state failure and rollback while a false guard succeeds; compare object RNG against an object-RNG oracle. The clocking drive remains fail-closed with its current specific diagnostic.
+- **Boundary:** This is test maintenance, not a compiler capability claim. Only the affected ivtest sources/configs/golds/manifests may change. The other 21 saved JSON failures require separate fixes before a new broad gate, and the 49-target OpenTitan count is unchanged.
+
 ### OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION — concrete environment override bodies
 
 - **State:** Integrated `b27957d8d` passes strict paired 2017/2023 UVM direct/explicit-typedef controls, ten adjacent specialization controls, focused real-DPI UVM 1/1, and `make check`. The exact 282-source selected OTP compile exits zero with no errors/sorry and 56 warnings; its image contains concrete `build_phase` and `connect_phase` bodies. OTP DV runtime remains pending. See [focused evidence](session_logs/2026-09-29_ot_otp_nested_type_method_integration.json).

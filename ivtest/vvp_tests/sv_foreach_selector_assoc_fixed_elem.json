@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_foreach_selector_assoc_fixed_elem.v",
+    "iverilog-args": [
+        "-g2012"
+    ],
+    "gold": "sv_foreach_selector_assoc_fixed_elem"
+}
