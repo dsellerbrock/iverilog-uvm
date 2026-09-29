@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_variable_input_port_signedness.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_variable_input_port_signedness" ]
+}

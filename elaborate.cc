@@ -6640,7 +6640,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			connect(tmp->pin(1), sig->pin(0));
 
 			const netvector_t*tmp2_vec = new netvector_t(sig->data_type(),
-			                                             sig->vector_width()-1,0);
+			                                             sig->vector_width()-1,0,
+			                                             sig->get_signed());
 			NetNet*tmp2 = new NetNet(inner_scope, inner_scope->local_symbol(),
 			                         NetNet::WIRE, tmp2_vec);
 			tmp2->local_flag(true);

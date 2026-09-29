@@ -1,40 +1,40 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 525642475
+checkpoint_head: 8eab751d9
 active_open_titan_lane:
-  blocker: "OT-UNSAFE-INTERFACE-DRIVER-ALIAS-GUARD"
+  blocker: "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD"
   phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "525642475"
-  reproducer: "Twelve saved 2017/2023 unsafe JSON CE cases compile: direct static port, named modport alias, virtual clocking output, and runtime-selected ordinary VIF writes."
-  pending_validation: "Exact 6 RE/6 CE saved unsafe classification; focused JSON VIF 40/40, port/ref 28/28, clocking 40/40, interface task 40/40; legacy port/ref 28/28, clocking 36/36, interface task 34/34; paired tiny SPI disjoint/alias pass; copied-source SPI Host compiles with 0 errors/15 warnings; make check and independent review pass. Broad gates remain."
-  next_command: "After committing the focused repair, run the exact-head full JSON gate, then required broader integrated gates."
-  boundary: "No full suite, 49-case corpus, pinned source edit, or high-memory VVP until this focused review."
+  baseline_head: "8eab751d9"
+  reproducer: "Exact-head legacy gate ran 6873 with four failures: pr2121536, pr2121536b, implicit_cast12, and structurally stale vcd-dup gold."
+  pending_validation: "Signedness fix and paired strict reducer pass; focused JSON SDF/settled/input 9/9 and legacy port/cast/VCD 19/19 pass. Fixed VCD has 23/23 equal named ordered event streams and three unchanged duplicate warnings; static date header retained. make check, diff check, and independent review pass. Exact-head broad gates remain."
+  next_command: "Run exact-head JSON/legacy and required integrated gates after this focused commit."
+  boundary: "No full suite, 49-case corpus, pinned source edit, or high-memory VVP during this focused ticket."
 suspended_fixed_queue_lane:
   blocker: "OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT"
-  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  phase: "BROAD_JSON_PASSED"
   last_validated_revision: "525642475"
   state: "One-condition SIZE guard narrowing passes paired positive, fixed-element negative and size-conflict controls 6/6, make check and independent review."
-  next_command: "Run the required exact-head full JSON gate after unsafe-driver repairs; retain old 4097/32 as historical."
+  next_command: "Exact 8eab751d9 JSON passed 4105/0; include this fix in the next current-head integrated gate. Retain old 4097/32 as historical."
 suspended_partinfo_lane:
   blocker: "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK"
-  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  phase: "BROAD_JSON_PASSED"
   last_validated_revision: "6497dcd3e"
   state: "The four saved CE golds again match one specific diagnostic; focused PartInfo JSON 18/18, legacy 18/18 and make check pass."
-  next_command: "After the remaining saved JSON failures are repaired, run the exact-head full JSON gate."
+  next_command: "Exact 8eab751d9 JSON passed 4105/0; include this fix in the next current-head integrated gate."
 suspended_sdf_lane:
   blocker: "OT-SDF-INTERCONNECT-PORT-BOUNDARY"
-  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  phase: "BROAD_JSON_PASSED"
   last_validated_revision: "04d73e889"
   state: "BUFZ and .sample port-boundary SDF support passes six strict tiny controls, focused SDF JSON 15/15 and make check; old 4097/32 gate remains historical."
-  next_command: "After the other 18 saved JSON failures are repaired, run the required exact-head full JSON gate."
+  next_command: "Exact 8eab751d9 JSON passed 4105/0; include this fix in the next current-head integrated gate."
 suspended_json_stale_fixture_lane:
   blocker: "OT-JSON-STALE-EXPECTATIONS-11"
-  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  phase: "BROAD_JSON_PASSED"
   last_validated_revision: "cdc7fa586"
   state: "The 11 corrected old JSON entries pass 11/11 together; family JSON 5/5, 7/7, 11/11 and legacy 5/5, 7/7, 10/10 pass with neighbors. No implementation source changed."
-  next_command: "After the other 21 classified JSON failures are repaired, run required exact-head full JSON and legacy gates; do not relabel the old 4097/32 result."
+  next_command: "Exact 8eab751d9 JSON passed 4105/0; its legacy gate had four separate port-boundary/gold failures. Retain old 4097/32 as historical."
 suspended_otp_method_lane:
   blocker: "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION"
   phase: "FOCUSED_INTEGRATED_PENDING_DV"
@@ -43,10 +43,10 @@ suspended_otp_method_lane:
   next_command: "After guarded Caliptra HMAC VVP exits, run the exact selected OTP image under a memory/time guard and require pass marker plus zero UVM errors/fatals. DD-089 registration workaround remains."
 suspended_fixed_2d_lane:
   blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
-  phase: "SUSPENDED_PENDING_UNRELATED_GATE_REMEDIATION"
+  phase: "BROAD_JSON_PASSED_PENDING_APPLICATION_DV"
   last_validated_revision: "d5c7366c3"
-  state: "Integrated 8cffebe38/d5c7366c3; strict affected JSON/legacy focus 8/8 each and make check pass. Full JSON 4097/32, with both new fixed-2D cases passing. The 32 failures have direct family reproducers; broad legacy and application corpus deferred."
-  next_command: "After unrelated JSON failures are repaired, rerun required exact-head integrated gates before declaring fixed-2D complete; nested dynamic ADC remains separate."
+  state: "Integrated 8cffebe38/d5c7366c3; strict affected JSON/legacy focus 8/8 each and make check pass. The old full JSON ran 4097/32; later exact 8eab751d9 JSON passed 4105/0. Application corpus remains deferred."
+  next_command: "Run current-head integrated gates after the port-boundary fix, then resume application qualification separately; nested dynamic ADC remains separate."
 suspended_adc_proxy_lane:
   blocker: "OT-ADC-2CH-FILTER-CONSTRAINT-PROXY"
   phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
