@@ -1,10 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: e7f2665ab
+checkpoint_head: 41ea19ec4
+completed_spid_passthrough_checked_calls_lane:
+  blocker: "OT-SPID-PASSTHROUGH-TESTBENCH-CHECKED-CALLS"
+  phase: "DONE"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "41ea19ec4"
+  reproducer: "Official readbasic runs its comparison and banner but 9 compile notices/2 runtime warnings record unobserved randomize and plusargs results plus an implicit static initializer."
+  allowed_scope: "Named guarded testbench patch on a new disposable copied OpenTitan source, paired call-guard controls, and selected guarded replay/negative selectors."
+  validation: "Exact-hash named patch reproduces both copied-source files; paired 2017/2023 focus 12/12; selected readbasic matrix PASS with compile zero semantic debt and VVP exit0/one banner/zero runtime debt in 4.090s under2GiB/120s; two selector negatives exit1; addr4b/wel neighbors pass."
+  evidence: "evidence/opentitan-spid-passthrough-checked-calls-20260929/ and docs/conformance/release_overlays/opentitan/spid_passthrough_checked_calls.patch"
+  next_command: "Select one independent blocker; upload still needs a real checker, Keymgr RAL_T fallback needs a red reducer, and passthrough program/upload modes remain unqualified."
+  boundary: "No compiler/unsafe-flag change or warning allowlist, no full 49-target rerun, no multi-hour Caliptra run; frozen 23/49 remains immutable."
 completed_spid_passthrough_selection_lane:
   blocker: "OT-SPID-PASSTHROUGH-SMOKE-RUN-OPTS"
   phase: "DONE"
+  implementation_commit: "41ea19ec4"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "e7f2665ab"
   reproducer: "Pinned passthrough smoke config lists readbasic first with +TESTNAME=readbasic; frozen matrix metadata omits it, so the directed bench exits without running a test."
