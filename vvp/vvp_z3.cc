@@ -9889,7 +9889,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               }
                               const char*failure = nullptr;
                               set<Z3_ast> weighted;
-                              vector<Z3_ast> active_subjects;
                               for (const auto&binding : bindings) {
                                     if (binding.stage != stage) continue;
                                     int active = guard_active(binding);
@@ -9899,7 +9898,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     }
                                     if (!active) continue;
                                     weighted.insert(binding.spec->subject);
-                                    active_subjects.push_back(binding.spec->subject);
                                     uint64_t ignored = 0;
                                     if (!z3_resolve_dist_exact(ctx, base, opt,
                                           *binding.spec,
@@ -9909,7 +9907,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                           break;
                                     }
                               }
-                              if (!failure && active_subjects.size() > 1) {
+                              if (!failure && weighted.size() > 1) {
                                     Z3_solver residual = Z3_mk_simple_solver(ctx);
                                     Z3_solver_inc_ref(ctx, residual);
                                     Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
@@ -9935,7 +9933,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     } else {
                                           for (const auto&factor : factors) {
                                                 unsigned due = 0;
-                                                for (Z3_ast subject : active_subjects)
+                                                for (Z3_ast subject : weighted)
                                                       due += find(factor.begin(), factor.end(), subject)
                                                             != factor.end();
                                                 if (due > 1) {
