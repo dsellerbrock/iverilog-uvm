@@ -1,0 +1,81 @@
+{
+  "target": "lowrisc:dv:spi_tpm_sim:0.1",
+  "pinned_opentitan_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_tb_path": "hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv",
+  "pinned_tb_sha256": "8cf326b4bba4e538fe3b61fe03a4d540436bbb70cc8046bfb5c8a1db2fc9c254",
+  "compiler_commit_at_compile": "79760316c35be76c2466d79138b2b3aaa06837cc",
+  "compiler_driver_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "compiler_core_sha256": "db1999fa8d97f48d5b70a19b333914c79d58271e2c5761ef626096406825abb2",
+  "vvp_sha256": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
+  "classification": "Pinned pre-DV testbench interfaces drifted from the pinned spi_tpm RTL; strict rejection is correct, so this is a disposable source overlay rather than a compiler unsafe-flag change.",
+  "standards": [
+    "IEEE 1800-2017 and 1800-2023 6.20.4: localparam cannot be overridden by instance parameter assignments",
+    "IEEE 1800-2017 and 1800-2023 23.3.2.2: a named port must name a port declared by the module"
+  ],
+  "saved_unpatched_compile": {
+    "log": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-compile.log",
+    "exit_code": 3,
+    "hard_errors": 3,
+    "errors": [
+      "RdDataFifoSize is not a spi_tpm parameter",
+      "RdFifoDepth is a spi_tpm localparam",
+      "WrFifoDepth is a spi_tpm localparam"
+    ]
+  },
+  "minimal_reducer": {
+    "source": "docs/conformance/repros/spi_tpm_stale_interface.sv",
+    "source_sha256": "79033c50859ad651b6ebde326f0d44e33c6ea1c7ac5993ca1adf5ee76b146d48",
+    "matrix": "Icarus and Slang, both 2017 and 2023, each reject the stale parameter and stale port cases and accept current named connections",
+    "matched_expectations": 12,
+    "total_cases": 12,
+    "matrix_sha256": "3f785bc10578ebf2b2508f07a49f8ab2ee2e7df17bf04d4723fe8c74a1c5a05f"
+  },
+  "source_overlay": {
+    "patch": "docs/conformance/release_overlays/opentitan/spi_tpm_current_interface_compile_only.patch",
+    "sha256": "aa86aa64355fe898c5ddabafa1d848ff0d4b50568ed01f85e40c379287dde42d",
+    "applies_to_pinned_copy": true,
+    "reconstructed_patched_copy_matches": true,
+    "scope": "Remove three stale parameter overrides and eight stale named ports, connect the present resets/SRAM/control ports, and use the current 32-bit read-FIFO input width."
+  },
+  "selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-sspi_tpm_tb",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-tpm-interface/selected.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-tpm-interface/selected-compiler-list.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_spi_tpm_sim_0.1/sim-icarus",
+    "source_list_sha256": "53180998c8c4043858e0419644384cbda917c74cbd17a19cc64d5d632474280d",
+    "compiler_source_list_sha256": "634681f9ee7431c2c0d7ce32d657c0637c142b778cb87d03927a35cd26e873e9",
+    "exit_code": 0,
+    "hard_error_count": 0,
+    "warning_count": 0,
+    "semantic_notice_count": 0,
+    "dpi_export_note_count": 1,
+    "image_sha256": "511e8f29f04b50ea05389ab82be11f5e6fc7d21ecba3b8508687b43f3fffafa1",
+    "log_sha256": "6a78e0ca9c0737dc3f4ebea499bbe1be99d046c0709ec64a0ef1033ecfe9b411",
+    "timescale_source_list_option": "+timescale+1ns/1ps"
+  },
+  "dv_runtime_started": false,
+  "qualifies_dv_pass": false,
+  "runtime_caveats": [
+    "The compile-only overlay ties both SRAM responses to zero and does not grant the system SRAM port; a working memory backend remains to be modeled.",
+    "The old software-side write-FIFO signals and read task are no longer driven by RTL ports; software must read the current SRAM interface.",
+    "The read-FIFO input is now 32 bits; the old byte-at-a-time writer is only zero-extended for compilation and must pack bytes into words before runtime."
+  ],
+  "full_corpus_run": false
+}
