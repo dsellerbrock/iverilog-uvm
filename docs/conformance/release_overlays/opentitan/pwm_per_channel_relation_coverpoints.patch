@@ -1,0 +1,32 @@
+--- a/hw/ip/pwm/dv/env/pwm_env_cov.sv
++++ b/hw/ip/pwm/dv/env/pwm_env_cov.sv
+@@ -127,7 +127,14 @@
+       bins a_eq_b = (binsof(duty_cycle_a_cp) && binsof(duty_cycle_b_cp))
+                       with (duty_cycle_a_cp == duty_cycle_b_cp);
+     }
+-    dc_a_b_cross_per_channel_cross_cp: cross dc_a_b_cross_cp, channels_cp;
++    // A cross item must be a coverpoint. Sample the actual relation per channel.
++    dc_a_b_relation_cp: coverpoint {duty_cycle_a < duty_cycle_b,
++                                    duty_cycle_a > duty_cycle_b} {
++      bins a_lt_b = {2'b10};
++      bins a_gt_b = {2'b01};
++      bins a_eq_b = {2'b00};
++    }
++    dc_a_b_cross_per_channel_cross_cp: cross dc_a_b_relation_cp, channels_cp;
+ 
+     // blink parameter
+     blink_x_cp: coverpoint blink_x {
+@@ -156,7 +163,12 @@
+       bins x_eq_y = (binsof(blink_x_cp) && binsof(blink_y_cp))
+                       with (blink_x_cp == blink_y_cp);
+     }
+-    blink_x_y_cross_per_channel_cross_cp: cross blink_x_y_cross_cp, channels_cp;
++    blink_relation_cp: coverpoint {blink_x < blink_y, blink_x > blink_y} {
++      bins x_lt_y = {2'b10};
++      bins x_gt_y = {2'b01};
++      bins x_eq_y = {2'b00};
++    }
++    blink_x_y_cross_per_channel_cross_cp: cross blink_relation_cp, channels_cp;
+   endgroup : pwm_per_channel_cg
+ 
+   covergroup lowpower_cg with function sample(bit tl_clk_gate,

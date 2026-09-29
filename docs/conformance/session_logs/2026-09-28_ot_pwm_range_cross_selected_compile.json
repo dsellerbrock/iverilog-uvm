@@ -1,0 +1,48 @@
+{
+  "target": "lowrisc:dv:pwm_sim:0.1",
+  "pinned_opentitan_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_pwm_cov_sha256": "2f6ad3b8de907f66419e2127f516eed76b6f18142e6cf972ebf4233138788633",
+  "compiler_fix_commit": "a286aeb3f",
+  "private_built_elaborator_sha256": "26e8c2b56069957b86e227a5b26146aad3e601ce43c354225f45fb6591c08c70",
+  "standards_basis": [
+    "IEEE 1800-2017/2023 19.6.1.2: omitted matches defaults to one satisfying value tuple, so unsigned range comparisons can be decided from extrema or exact range overlap",
+    "IEEE 1800-2017/2023 19.6: cross items are coverpoints or variables; a cross identifier is not a valid second-level cross item"
+  ],
+  "saved_original_compile": {
+    "exit_code": 6,
+    "hard_errors": 6,
+    "cause": "six relational with predicates over 16-bit range bins exceeded the 65536-value-tuple exhaustive guard"
+  },
+  "strict_reducers": {
+    "range_values_2017": "compile and simulation PASS",
+    "range_values_2023": "compile and simulation PASS",
+    "existing_65536_boundary_2017_2023": "compile and simulation PASS in both editions",
+    "unoptimized_65537_negative_2017_2023": "compile exit 1 with the expected value-tuple-limit diagnostic in both editions",
+    "per_channel_relation_coverpoint_2017_2023": "compile and simulation PASS in both editions"
+  },
+  "selected_unpatched_source_compile": {
+    "exit_code": 0,
+    "hard_errors": 0,
+    "semantic_sorry_lines": 2,
+    "warning_lines": 27,
+    "log_sha256": "8d38b2d02ef782c361e0984ae19cb8ce87b80d48893633b48da4fce8788c628d",
+    "remaining_issue": "two second-level crosses sample constant zero because their cross labels are not coverpoint values"
+  },
+  "source_overlay": {
+    "path": "docs/conformance/release_overlays/opentitan/pwm_per_channel_relation_coverpoints.patch",
+    "sha256": "4542d4bcfb0268a5859f2d989deae62ad30d0ec010d3174fc83e6862b189ff12",
+    "applies_to_pinned_source": true,
+    "scope": "add explicit sampled less/greater/equal coverpoints for duty cycle and blink values, then cross each with channel"
+  },
+  "selected_patched_copy_compile": {
+    "exit_code": 0,
+    "hard_errors": 0,
+    "semantic_sorry_lines": 0,
+    "warning_lines": 25,
+    "log_sha256": "5e48ccef89fbdcedb5df6dbe132e7de753650ab4154519d5b2198ccf9d2c5c3c",
+    "method": "private -B compiler with copied pwm_env_cov.sv and copied package include, saved FuseSoC source list",
+    "remaining_warnings": "one rst_n input-port coercion and 24 nonblocking assignments in PWM CSR assertions"
+  },
+  "dv_runtime_started": false,
+  "full_49_target_census_rerun": false
+}
