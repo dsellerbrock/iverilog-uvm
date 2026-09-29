@@ -413,7 +413,8 @@ NetEUReduce* NetEUReduce::dup_expr() const
 
 NetECast* NetECast::dup_expr() const
 {
-      NetECast*tmp = new NetECast(op_, expr_->dup_expr(), expr_width(), has_sign());
+      NetECast*tmp = new NetECast(op_, expr_->dup_expr(), expr_width(),
+				     has_sign(), net_type());
       ivl_assert(*this, tmp);
       tmp->set_line(*this);
       return tmp;

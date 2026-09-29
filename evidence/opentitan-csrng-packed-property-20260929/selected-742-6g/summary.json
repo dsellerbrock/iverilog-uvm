@@ -1,0 +1,33 @@
+{
+  "status": "PASS",
+  "core": "lowrisc:dv:csrng_sim:0.1",
+  "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "opentitan_source_copy_dirty": true,
+  "ivl_sha256": "7427219cfcf964d35119fb738f237596083f41aa3214219bf6a24071c37c5013",
+  "vvp_sha256": "5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3",
+  "profile": "commercial-unsafe",
+  "matrix_jobs": 1,
+  "runtime_timeout_seconds": 1800,
+  "runtime_memory_mib": 6144,
+  "setup_returncode": 0,
+  "compile_returncode": 0,
+  "hard_error_count": 0,
+  "semantic_debt_count": 0,
+  "runtime_returncode": 0,
+  "runtime_duration_seconds": 92.528,
+  "runtime_peak_physical_footprint_bytes": 4076064032,
+  "runtime_memory_limit_bytes": 6442450944,
+  "runtime_memory_limit_hit": false,
+  "runtime_timed_out": false,
+  "runtime_error_count": 0,
+  "runtime_debt_count": 0,
+  "runtime_pass_banner": true,
+  "result_sha256": "f8ff1fa31d05a700f7febf1010c0e93a4f9ef062a411342acfb512e23696f1a3",
+  "logs_tar_sha256": "c4404f9f0dfc21ee8b813b1dbc7cf9392ae2f05618b3e5ef8805eef026d555cd",
+  "raw_log_sha256": {
+    "setup_log": "6e81fabd35b7c72087ff91d0cc68c62c4370a62ee521a317c999a0b1da2c32c2",
+    "compile_log": "36d1779fec97b3dc8c70027d795a41664866d2aff2fd4176519e3b1cd73444cb",
+    "dpi_build_log": "71fc74a4d6fa21d88cfeddb8a931aeaf90740bff0f7c3bc4b19b7eb68fd73dac",
+    "runtime_log": "cb171d5b9e17e81039cd02ca8d1f13fbd4f00d0b1f521b73b9042e7ec9d726f3"
+  }
+}

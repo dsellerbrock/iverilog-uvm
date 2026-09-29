@@ -3459,9 +3459,12 @@ ivl_variable_type_t NetEUReduce::expr_type() const
 	    ? IVL_VT_LOGIC : IVL_VT_BOOL;
 }
 
-NetECast::NetECast(char op__, NetExpr*ex, unsigned wid, bool signed_flag)
+NetECast::NetECast(char op__, NetExpr*ex, unsigned wid, bool signed_flag,
+		   ivl_type_t result_type)
 : NetEUnary(op__, ex, wid, signed_flag)
 {
+      if (result_type)
+	    set_net_type(result_type);
 }
 
 NetECast::~NetECast()

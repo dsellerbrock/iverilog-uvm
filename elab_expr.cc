@@ -13364,7 +13364,7 @@ static void set_scoped_class_parameter_result_(
 }
 
 /*
- * R-value select of a PACKED VECTOR property (IEEE 1800-2017 11.5.1):
+ * R-value select of a PACKED property (IEEE 1800-2017 11.5.1):
  * `r.v[3]`, `r.v[7:4]`, `r.v[i +: 4]`, `r.m[1][5]` where the property is a
  * (possibly multi-dimensional) packed vector, NOT an unpacked array. Such a
  * select must read the whole property and part-select the result — it must
@@ -13391,16 +13391,22 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 
 	// Canonicalize one source-space index expression against a range to
 	// an LSB-0 element offset expression. Constants fold to NetEConst.
-      auto c32 = [](long v) -> NetEConst* {
-	    return new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)v, 32));
+      auto cwidth = [](long v, unsigned width) -> NetEConst* {
+	    return new NetEConst(verinum(static_cast<uint64_t>(v), width));
+      };
+      auto c32 = [&](long v) -> NetEConst* {
+	    return cwidth(v, 32);
       };
       auto canon1 = [&](NetExpr*e, const netrange_t&r) -> NetExpr* {
 	    bool desc = r.get_msb() >= r.get_lsb();
 	    if (NetEConst*ec = dynamic_cast<NetEConst*>(e)) {
-		  if (!ec->value().is_defined())
+		  if (!ec->value().is_defined()) {
+			delete e;
 			return nullptr;
+		  }
 		  long i = ec->value().as_long();
 		  long off = desc ? (i - r.get_lsb()) : (r.get_lsb() - i);
+		  delete e;
 		  return c32(off);
 	    }
 	      // Widen before making any normalization arithmetic signed. An
@@ -13410,13 +13416,17 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	      // range. The subtraction result below is signed where a negative
 	      // canonical offset is possible; a zero-offset descending range can
 	      // retain the index's original signedness directly.
-	    e = pad_to_width(e, 32, e->has_sign(), *li);
+	    const unsigned arith_width = max(32u, e->expr_width());
+	    e = pad_to_width(e, arith_width, e->has_sign(), *li);
 	    if (desc) {
 		  if (r.get_lsb() == 0)
 			return e;
-		  return new NetEBAdd('-', e, c32(r.get_lsb()), 32, true);
+		  return new NetEBAdd('-', e,
+				cwidth(r.get_lsb(), arith_width),
+				arith_width, true);
 	    }
-	    return new NetEBAdd('-', c32(r.get_lsb()), e, 32, true);
+	    return new NetEBAdd('-', cwidth(r.get_lsb(), arith_width),
+			       e, arith_width, true);
       };
 
 	// Strides: stride[k] = product of widths of dims k+1..n-1 (bits per
@@ -13432,16 +13442,22 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       bool done = false;
 
       auto add_off = [&](NetExpr*e, long mult) {
-	    if (NetEConst*ec = dynamic_cast<NetEConst*>(e)) {
+	    NetEConst*ec = dynamic_cast<NetEConst*>(e);
+	    if (ec && ec->value().is_defined()) {
 		  const_off += ec->value().as_long() * mult;
 		  delete e;
 		  return;
 	    }
 	    NetExpr*scaled = (mult == 1) ? e
-		  : new NetEBMult('*', e, c32(mult), 32, true);
+		  : scale_index_to_bits(e, (unsigned long)mult, *li);
 	    off_expr = off_expr
-		  ? new NetEBAdd('+', off_expr, scaled, 32, true)
+		  ? make_packed_offset_sum(li, off_expr, scaled)
 		  : scaled;
+      };
+	// A later dimension may fail after earlier offsets have been built.
+      auto fail = [&]() -> NetExpr* {
+	    delete off_expr;
+	    return nullptr;
       };
 
       size_t n_comp = indices.size();
@@ -13449,17 +13465,18 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       for (const index_component_t&ic : indices) {
 	    ci += 1;
 	    if (done)
-		  return nullptr; // components after the width-fixing select
+		  return fail(); // components after the width-fixing select
 	    if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
 		  if (depth >= dims.size())
-			return nullptr;
-		  NetExpr*e = elab_and_eval(des, scope, ic.msb, -1, false);
-		  if (!e)
-			return nullptr;
-		  NetExpr*c = canon1(e, dims[depth]);
+			return fail();
+		  list<index_component_t>one_index(1, ic);
+		  netranges_t one_dim(1, dims[depth]);
+		  NetExpr*c = make_checked_canonical_packed_prefix(
+			des, scope, li, one_index, one_dim,
+			(unsigned long)stride[depth], false);
 		  if (!c)
-			return nullptr;
-		  add_off(c, stride[depth]);
+			return fail();
+		  add_off(c, 1);
 		  depth += 1;
 		    // A full chain of bit indices selects a single bit; a
 		    // partial chain selects a slice.
@@ -13469,6 +13486,9 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	    } else if (ic.sel == index_component_t::SEL_PART
 		       && ic.msb && ic.lsb && ci == n_comp
 		       && depth < dims.size()) {
+		  if (depth != 0 && !check_packed_property_tail_range(
+			  des, scope, li, ic, dims[depth]))
+			return fail();
 		    // Constant [msb:lsb] on the current packed dimension.
 		    // A slice of an OUTER dimension selects complete inner
 		    // elements, so both its offset and width are scaled by the
@@ -13478,12 +13498,17 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		  NetEConst*mec = dynamic_cast<NetEConst*>(me);
 		  NetEConst*lec = dynamic_cast<NetEConst*>(le);
 		  if (!mec || !lec || !mec->value().is_defined()
-		      || !lec->value().is_defined())
-			return nullptr;
+		      || !lec->value().is_defined()) {
+			delete me;
+			delete le;
+			return fail();
+		  }
 		  const netrange_t&r = dims[depth];
 		  bool desc = r.get_msb() >= r.get_lsb();
 		  long mv = mec->value().as_long();
 		  long lv = lec->value().as_long();
+		  delete me;
+		  delete le;
 		  long ca = desc ? (mv - r.get_lsb()) : (r.get_lsb() - mv);
 		  long cb = desc ? (lv - r.get_lsb()) : (r.get_lsb() - lv);
 		  const_off += (ca < cb ? ca : cb) * stride[depth];
@@ -13494,43 +13519,77 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 			|| ic.sel == index_component_t::SEL_IDX_DO)
 		       && ic.msb && ic.lsb && ci == n_comp
 		       && depth < dims.size()) {
+		  if (depth != 0 && !check_packed_property_tail_range(
+			  des, scope, li, ic, dims[depth]))
+			return fail();
 		    // [base +: w] / [base -: w] on the current packed
 		    // dimension; outer-dimension selections span complete inner
 		    // elements and therefore use the packed stride.
 		  NetExpr*we = elab_and_eval(des, scope, ic.lsb, -1, false);
 		  NetEConst*wec = dynamic_cast<NetEConst*>(we);
 		  if (!wec || !wec->value().is_defined()
-		      || wec->value().as_long() <= 0)
-			return nullptr;
+		      || wec->value().as_long() <= 0) {
+			delete we;
+			return fail();
+		  }
 		  long w = wec->value().as_long();
+		  delete we;
 		  NetExpr*be = elab_and_eval(des, scope, ic.msb, -1, false);
 		  if (!be)
-			return nullptr;
+			return fail();
 		  NetExpr*c = canon1(be, dims[depth]);
 		  if (!c)
-			return nullptr;
-		  if (ic.sel == index_component_t::SEL_IDX_DO && w > 1)
-			c = new NetEBAdd('-', c, c32(w-1), 32, true);
+			return fail();
+	      const bool descending =
+		  dims[depth].get_msb() >= dims[depth].get_lsb();
+	      const bool adjust_base =
+		  (ic.sel == index_component_t::SEL_IDX_UP && !descending)
+		  || (ic.sel == index_component_t::SEL_IDX_DO && descending);
+	      if (adjust_base && w > 1)
+			c = new NetEBAdd('-', c, cwidth(w-1, c->expr_width()),
+				      c->expr_width(), true);
 		  add_off(c, stride[depth]);
 		  wid = (unsigned)(w * stride[depth]);
 		  done = true;
 	    } else {
-		  return nullptr;
+		  return fail();
 	    }
       }
 
       if (wid == 0)
-	    return nullptr;
+	    return fail();
 
       NetExpr*base = off_expr
-	    ? (const_off ? new NetEBAdd('+', off_expr, c32(const_off), 32, true)
+	    ? (const_off ? make_packed_offset_sum(li, off_expr, c32(const_off))
 		         : off_expr)
 	    : c32(const_off);
 
-      const bool enum_bool = dynamic_cast<const netenum_t*>(pvec)
-	    && pvec->base_type() == IVL_VT_BOOL;
-      netvector_t*res_type = new netvector_t(pvec->base_type(),
-					     (long)wid - 1, 0);
+      ivl_type_t res_type = nullptr;
+	ivl_type_t leaf_type = pvec;
+	while (const netparray_t*array =
+	       dynamic_cast<const netparray_t*>(leaf_type))
+	    leaf_type = array->element_type();
+	// An index into a packed array retains the exact element (or remaining
+	// array) type. In particular, an enum element must not turn into an
+	// untyped vector merely because the array is stored in a class property.
+      if (const netparray_t*array = dynamic_cast<const netparray_t*>(pvec)) {
+	    const netranges_t&array_dims = array->static_dimensions();
+	    bool element_indices = true;
+	    for (const index_component_t&ic : indices)
+		  element_indices &= ic.sel == index_component_t::SEL_BIT;
+	    if (element_indices) {
+		  res_type = packed_type_after_dims(pvec, indices.size());
+		  if (!res_type && indices.size() < array_dims.size()) {
+			netranges_t remaining(array_dims.begin() + indices.size(),
+					      array_dims.end());
+			res_type = new netparray_t(remaining, array->element_type());
+		  }
+	    }
+      }
+	if (!res_type)
+	    res_type = new netvector_t(pvec->base_type(), (long)wid - 1, 0);
+	const bool enum_bool = pvec->base_type() == IVL_VT_BOOL
+	    && dynamic_cast<const netenum_t*>(leaf_type);
 	/* A two-state enum still needs the packed select evaluated with 4-state
 	 * address semantics before converting its result to the enum base type
 	 * (11.5.1). Keep that conversion local to this exact enum carrier; a broad
@@ -13542,7 +13601,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       sel->set_line(*li);
       out_type = res_type;
       if (enum_bool) {
-	    NetECast*cast = new NetECast('2', sel, wid, false);
+	    NetECast*cast = new NetECast('2', sel, wid, false, res_type);
 	    cast->set_line(*li);
 	    return cast;
       }
@@ -13738,19 +13797,22 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    return slice;
       }
 
-	// Select of a plain packed-vector property in a chained base
+	// Select of a packed property in a chained base
 	// (`o.inner.v[3:0]`): part-select the whole-property read. The old
 	// path silently DROPPED the select and returned the whole vector.
-      if (const netvector_t*prop_vec =
-	      dynamic_cast<const netvector_t*>(prop_type)) {
+	if (dynamic_cast<const netvector_t*>(prop_type)
+	    || dynamic_cast<const netparray_t*>(prop_type)) {
+	    unsigned errors_before = des->errors;
 	    NetExpr*sel = make_vector_property_select_(des, scope, li,
-						       prop_expr, prop_vec,
-						       comp.index, out_type);
+					       prop_expr, prop_type,
+					       comp.index, out_type);
 	    if (!sel) {
-		  cerr << li->get_fileline() << ": sorry: this form of "
-		       << "select on packed vector property is not yet"
-		       << " supported." << endl;
-		  des->errors += 1;
+		  if (des->errors == errors_before) {
+			cerr << li->get_fileline() << ": sorry: this form of "
+			     << "select on packed vector property is not yet"
+			     << " supported." << endl;
+			des->errors += 1;
+		  }
 		  delete prop_expr;
 		  return 0;
 	    }
@@ -14412,15 +14474,18 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				      dynamic_cast<const netvector_t*>(use_type)) {
 				    std::list<index_component_t> rest(idx_it, indices.end());
 				    ivl_type_t sel_type = nullptr;
+				    unsigned errors_before = des->errors;
 				    NetExpr*sel = make_vector_property_select_(
 					  des, scope, this, cur_expr, vec_t,
 					  rest, sel_type);
 				    if (!sel) {
-					  cerr << get_fileline() << ": sorry: "
-					       << "this form of select on a packed"
-					       << " vector member is not yet"
-					       << " supported." << endl;
-					  des->errors += 1;
+					  if (des->errors == errors_before) {
+						cerr << get_fileline() << ": sorry: "
+						     << "this form of select on a packed"
+						     << " vector member is not yet"
+						     << " supported." << endl;
+						des->errors += 1;
+					  }
 					  return false;
 				    }
 				    cur_expr = sel;
@@ -15241,7 +15306,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			if (!canon_index)
 			      return nullptr;
 		  }
-		  } else if (const netarray_t *tmp_arr = dynamic_cast<const netarray_t*>(tmp_type)) {
+		  } else if (dynamic_cast<const netarray_t*>(tmp_type)
+			     && !dynamic_cast<const netparray_t*>(tmp_type)) {
 			const index_component_t&idx_comp = comp.index.front();
 			if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
 			      NetESignal*base_expr = new NetESignal(sr.net);
@@ -15262,7 +15328,6 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      if (!canon_index)
 			      return nullptr;
 		  } else {
-			(void) tmp_arr;
 			canon_index = elab_assoc_index(des, scope, idx_comp.msb,
 			                               tmp_type, false);
 			if (!canon_index)
@@ -15274,8 +15339,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			++it;
 			trailing_indices.assign(it, comp.index.end());
 		  }
-	    } else if (const netvector_t*prop_vec =
-		       dynamic_cast<const netvector_t*>(tmp_type)) {
+	    } else if (dynamic_cast<const netvector_t*>(tmp_type)
+		       || dynamic_cast<const netparray_t*>(tmp_type)) {
 		    // A select of a plain packed-vector property is a bit/
 		    // part-select of the property VALUE, not an array element
 		    // access. Read the whole property and select from it; the
@@ -15297,15 +15362,18 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  }
 		  NetEProperty*whole = new NetEProperty(base_expr, pidx, nullptr);
 		  whole->set_line(*this);
+		  unsigned errors_before = des->errors;
 		  NetExpr*sel = make_vector_property_select_(des, scope, this,
-							     whole, prop_vec,
+							     whole, tmp_type,
 							     comp.index, sel_type);
 		  if (!sel) {
-			cerr << get_fileline() << ": sorry: this form of "
-			     << "select on packed vector property "
-			     << class_type->get_prop_name(pidx)
-			     << " is not yet supported." << endl;
-			des->errors += 1;
+			if (des->errors == errors_before) {
+			      cerr << get_fileline() << ": sorry: this form of "
+				   << "select on packed vector property "
+				   << class_type->get_prop_name(pidx)
+				   << " is not yet supported." << endl;
+			      des->errors += 1;
+			}
 			delete whole;
 			return nullptr;
 		  }

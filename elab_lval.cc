@@ -3842,7 +3842,49 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	    NetExpr *word_index = nullptr;
 	    bool applied_multi_dyn_word_index = false;
 	    if (!member_cur.index.empty()) {
-		  if (const netsarray_t *stype = dynamic_cast<const netsarray_t*>(ptype)) {
+		  if (const netparray_t*packed =
+			    dynamic_cast<const netparray_t*>(ptype)) {
+			// A packed array occupies one property slot. Its indices are
+			// bit offsets within that slot, not property word indices.
+			NetExpr*part_off = nullptr;
+			unsigned long part_wid = 0;
+			const netranges_t packed_dims = packed->slice_dimensions();
+			if (!collapse_checked_packed_property_indices(
+			      des, scope, this, packed_dims, member_cur.index,
+			      (unsigned long)packed->packed_width(),
+			      part_off, part_wid)) {
+			      delete lv;
+			      return 0;
+			}
+			if (part_wid == 0 || part_wid > UINT_MAX) {
+			      cerr << get_fileline() << ": error: packed property "
+				   << "select width is out of range." << endl;
+			      des->errors += 1;
+			      delete part_off;
+			      delete lv;
+			      return 0;
+			}
+			ivl_type_t part_type = nullptr;
+			const netranges_t&dims = packed->static_dimensions();
+			bool element_indices = true;
+			for (const index_component_t&ic : member_cur.index)
+			      element_indices &= ic.sel == index_component_t::SEL_BIT;
+			if (element_indices) {
+			      part_type = packed_type_after_dims(
+				    packed, member_cur.index.size());
+			      if (!part_type && member_cur.index.size() < dims.size()) {
+				    netranges_t remaining(
+					  dims.begin() + member_cur.index.size(),
+					  dims.end());
+				    part_type = new netparray_t(
+					  remaining, packed->element_type());
+			      }
+			}
+			if (!part_type)
+			      part_type = new netvector_t(
+				    packed->base_type(), (long)part_wid - 1, 0);
+			lv->set_part(part_off, part_type);
+		  } else if (const netsarray_t *stype = dynamic_cast<const netsarray_t*>(ptype)) {
 			  // Element access + bit/part-select of a packed-vector
 			  // element (c.arr[i][m:l] = v): leading indices address
 			  // the element (word index), the trailing select becomes
@@ -4237,13 +4279,25 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 			NetExpr*canonical_off = 0;
 			unsigned long canonical_wid = 0;
-			if (collapse_packed_member_indices(
+			unsigned errors_before = des->errors;
+			if (collapse_checked_packed_property_indices(
 			      des, scope, this, dims, member_cur.index,
+			      (unsigned long)pvec->packed_width(),
 			      canonical_off, canonical_wid)) {
 			      lv->set_part(canonical_off,
 				    new netvector_t(pvec->base_type(),
 						     (long)canonical_wid - 1, 0));
 			} else {
+			      const index_component_t&tail = member_cur.index.back();
+			      bool mixed_range = member_cur.index.size() > 1
+				    && dims.size() > 1
+				    && (tail.sel == index_component_t::SEL_PART
+					|| tail.sel == index_component_t::SEL_IDX_UP
+					|| tail.sel == index_component_t::SEL_IDX_DO);
+			      if (mixed_range && des->errors > errors_before) {
+				    delete lv;
+				    return 0;
+			      }
 			{
 			      bool handled = false;
 

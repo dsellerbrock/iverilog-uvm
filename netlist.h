@@ -6178,7 +6178,8 @@ class NetEUReduce : public NetEUnary {
 class NetECast : public NetEUnary {
 
     public:
-      NetECast(char op, NetExpr*ex, unsigned wid, bool signed_flag);
+      NetECast(char op, NetExpr*ex, unsigned wid, bool signed_flag,
+	       ivl_type_t result_type = nullptr);
       ~NetECast() override;
 
       virtual NetNet* synthesize(Design*, NetScope*scope, NetExpr*root) override;

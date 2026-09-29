@@ -1,0 +1,56 @@
+[
+  {
+    "image": "read-write-red-2017.vvp",
+    "returncode": -6,
+    "stdout": "",
+    "stderr": "Assertion failed: (idx < array_size_), function get_vec4, file class_type.cc, line 1181.\n"
+  },
+  {
+    "image": "read-write-green-2017.vvp",
+    "returncode": 0,
+    "stdout": "PASSED\n",
+    "stderr": ""
+  },
+  {
+    "image": "read-write-green-2023.vvp",
+    "returncode": 0,
+    "stdout": "PASSED\n",
+    "stderr": ""
+  },
+  {
+    "image": "packed-property-2d-oob-red-2017.vvp",
+    "returncode": 1,
+    "stdout": "FATAL: /private/tmp/ot-csrng-index-20260929/packed_property_2d_oob.sv:9: bad inner read aliased 2\n       Time: 0  Scope: $unit::holder.check\n",
+    "stderr": ""
+  },
+  {
+    "image": "packed-property-2d-oob-red-2023.vvp",
+    "returncode": 1,
+    "stdout": "FATAL: /private/tmp/ot-csrng-index-20260929/packed_property_2d_oob.sv:9: bad inner read aliased 2\n       Time: 0  Scope: $unit::holder.check\n",
+    "stderr": ""
+  },
+  {
+    "image": "packed-property-2d-oob-green-2017.vvp",
+    "returncode": 0,
+    "stdout": "PASSED\n",
+    "stderr": ""
+  },
+  {
+    "image": "packed-property-2d-oob-green-2023.vvp",
+    "returncode": 0,
+    "stdout": "PASSED\n",
+    "stderr": ""
+  },
+  {
+    "image": "reducer-2023.vvp",
+    "returncode": -6,
+    "stdout": "",
+    "stderr": "Assertion failed: (idx < array_size_), function get_vec4, file class_type.cc, line 1181.\n"
+  },
+  {
+    "image": "perm-red-2023.vvp",
+    "returncode": -6,
+    "stdout": "",
+    "stderr": "Assertion failed: (idx < array_size_), function get_vec4, file class_type.cc, line 1181.\n"
+  }
+]
