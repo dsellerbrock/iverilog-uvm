@@ -369,6 +369,12 @@
 - **Cause and expected behavior:** `vvp/vpi_priv.cc` recognizes only `vvp_fun_buft` as a delayable interconnect port; `d696b6934d` correctly introduced BUFZ and `.sample` to preserve settled variable-port semantics. Extend recognition only for the same physical port-boundary connectivity, preserving its existing checks.
 - **Boundary:** Prove exact 20 ps in strict paired tiny controls and run only the SDF interconnect and singleton-guard neighbors before another broad JSON gate. No application DV pass follows from SDF regression repair.
 
+### OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD — retain input actual signedness
+
+- **State:** DONE at compiler commit `0db31d850` and test-only commit `ebbb14df9`. The [revision-scoped gate record](session_logs/2026-09-29_ot_port_boundary_broad_gate.json) has JSON 4107/0, legacy 6875 total/0 failed, VPI 140/140, real-DPI UVM 361/361, negatives 154/154, and SVA dual-run 62/62.
+- **Cause and correction:** The variable-input BUFZ temporary defaulted unsigned, so signed actuals zero-extended. It now carries source signedness. The refreshed `vcd-dup` gold retains all 23 named ordered value streams and duplicate warnings; only identifier aliases changed.
+- **Boundary:** These gates belong to the cited commits. The 49-case OpenTitan corpus and OTP DV runtime have no new verdict; clauses 11 and 23 remain partial/provisional.
+
 ### OT-JSON-STALE-EXPECTATIONS-11 — correct obsolete JSON gate fixtures
 
 - **State:** Focused 11/11 corrected JSON entries pass together on the unchanged installed compiler. Family JSON lists pass 5/5, 7/7, and 11/11; corresponding legacy lists pass 5/5, 7/7, and 10/10 with legal and fail-closed neighbors. The original exact 4,097/32 gate remains historical. See [the focused session](session_logs/2026-09-29_ot_json_stale_expectations_focus.json).
@@ -379,8 +385,15 @@
 
 - **State:** Integrated `b27957d8d` passes strict paired 2017/2023 UVM direct/explicit-typedef controls, ten adjacent specialization controls, focused real-DPI UVM 1/1, and `make check`. The exact 282-source selected OTP compile exits zero with no errors/sorry and 56 warnings; its image contains concrete `build_phase` and `connect_phase` bodies. OTP DV runtime remains pending. See [focused evidence](session_logs/2026-09-29_ot_otp_nested_type_method_integration.json).
 - **Requirement:** A concrete default-parameterized environment used as a type actual of a concrete parameterized UVM test must have its overriding `build_phase` and `connect_phase` bodies emitted; generic masters and false generate branches remain lazy. Confirm exact IEEE 1800-2017/2023 clause references before qualification.
-- **Cause and evidence:** `NetScope::evaluate_type_parameter_` resolves bare `ENV=env` through a type-only class reference, so the concrete environment carrier lacks its methods. The explicit typedef control requests ordinary elaboration and works. The integrated fix requests that elaboration for a non-deferred bare type actual in a concrete specialization. The selected original parameterized OTP environment now emits its concrete `build_phase` and `connect_phase` bodies; the pre-fix image does not. DD-089, concrete test registration from typedef-only use, is separate and the named source workaround remains.
-- **Boundary:** Compilation and method emission do not establish an OTP DV pass. The selected OTP replay waits for the guarded Caliptra HMAC VVP to release the memory slot; the older historical 49-case count is unchanged.
+- **Cause and evidence:** `NetScope::evaluate_type_parameter_` resolves bare `ENV=env` through a type-only class reference, so the concrete environment carrier lacks its methods. The explicit typedef control requests ordinary elaboration and works. The integrated fix requests that elaboration for a non-deferred bare type actual in a concrete specialization. The selected original parameterized OTP environment now emits its concrete `build_phase` and `connect_phase` bodies; the pre-fix image does not. DD-089 is now fixed for the selected compile: its concrete registry initializer is emitted without the named source workaround; OTP DV runtime remains pending.
+- **Boundary:** Compilation and method emission do not establish an OTP DV pass. The selected OTP replay waits for the guarded Caliptra TRNG VVP to release the memory slot; the older historical 49-case count is unchanged.
+
+### DD-089 — typedef-only concrete class static initialization
+
+- **State:** DONE at `56f4bc756`. Paired 2017/2023 reducers pass for explicit, bare-default, class-scoped, nested, package-qualified and later-used aliases; generic masters and false-generate branches stay lazy. Exact-image gates pass JSON 4117/0, legacy 6875 total/0 failed, VPI 140/140, negative 154/154 and real-DPI UVM 361/361. See the [revision-scoped record](session_logs/2026-09-29_ot_otp_typedef_only_static_init.json).
+- **Requirement:** IEEE 1800-2017/2023 §§8.25, 8.9, 6.8 and 10.5 require a concrete parameterized specialization to have distinct static members and initialize its static properties once before procedural execution, even when a typedef is its only use.
+- **Cause and fix:** `NetScope::add_typedefs` indexed typedefs without reaching their concrete class types. The post-root sweep now elaborates concrete explicit, default and class-scoped aliases, revisits newly created specializations before releasing static initializers, and retains caller identity for package-qualified overrides in distinct module instances. Late class-property repair preserves UVM method return types; the `randc` cap warning stays once per declaration and effective width.
+- **Boundary:** The 282-source selected OTP compile emits one concrete `otp_ctrl_base_test` registry initializer without the explicit-registration overlay (0 errors/sorry, 56 warnings). VVP has not run on that image; there is no OTP DV pass or fresh 49-case census. Chapter 8 remains PARTIAL.
 
 ### OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH — sparse caller-owned command keys
 

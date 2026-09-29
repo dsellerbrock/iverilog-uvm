@@ -1,0 +1,9 @@
+{
+  "blocker": "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD",
+  "status": "DONE",
+  "compiler_commit": "0db31d850",
+  "test_only_commit": "ebbb14df9",
+  "gate_record": "2026-09-29_ot_port_boundary_broad_gate.json",
+  "review": "Saved gate log hashes match the record; all 23 named VCD timestamp/value streams match before and after the alias-only gold update.",
+  "qualification": "Revision-scoped compiler regression closure; OpenTitan application DV and full IEEE clauses 11 and 23 remain unqualified."
+}
