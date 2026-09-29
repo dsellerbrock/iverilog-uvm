@@ -1,0 +1,52 @@
+{
+  "target": "lowrisc:ip:trial1_sim:0.1",
+  "pinned_opentitan_commit": "a78922f14",
+  "saved_first_failure": "prim_onehot_check.sv:153 AssertConnected_A at time 0; first readback at trial1_test.sv:136 expects 00bc614e and receives ffffffff at 215 ns",
+  "root_cause": [
+    "trial1_test.sv initializes tl_h2d.a_user to 16'h0, whose instr_type=0 is an invalid MuBi4 codeword; TL adapter rejects reads/writes",
+    "tb.sv sends raw a_user integrity fields into an always-on tlul_cmd_intg_chk; valid codeword alone still yields integrity error without tlul_cmd_intg_gen",
+    "tb.sv omits the ERR assertion hookup that must drive prim_onehot_check.unused_assert_connected"
+  ],
+  "patch": "trial1_tl_user_and_assertion.patch",
+  "patch_sha256": "c42e0e0594b21dba115305e1a9e7f53384308ae03900c9f659034a1ba9d222f0",
+  "pinned_sources_sha256": {
+    "trial1_test.sv": "8ef765e5d1a685c56e40ddafc129d08117f8225f16422e1d865a5c0f569c9025",
+    "tb.sv": "72273b1b5f70c03338d1d6aabc670e17dec0e49f6efcf00c0dc9a2229eacd59e"
+  },
+  "git_apply_check": "PASS against pinned OpenTitan worktree",
+  "selected_compile": {
+    "file_count": 187,
+    "editions": [
+      "2012",
+      "2017",
+      "2023"
+    ],
+    "all_exit_code": 0,
+    "diagnostics": 0,
+    "runtime": "not run",
+    "filelist": "generated trial1_sim.core filelist with the two pinned DV files replaced by patched disposable copies",
+    "compile_options": "-g{2012,2017,2023} -DSIMULATION -stb -c <patched-source-list>"
+  },
+  "focused_no_uvm_actual_rtl": {
+    "sources": "selected trial1 RTL and tlul_cmd_intg_gen, no UVM runtime",
+    "edition": "2017",
+    "invalid_user": "d_error=1, d_data=ffffffff, RWTYPE0 unchanged",
+    "valid_user_with_generated_integrity": "d_error=0, readback=deadbeef, RWTYPE0=deadbeef",
+    "security_assertion_hookup": "AssertConnected_A absent",
+    "result": "PASS at 115 ns",
+    "repro": "docs/conformance/repros/trial1_tl_user_rtl_repro.sv",
+    "filelist": "generated trial1_sim.core filelist with trial1_test.sv and tb.sv removed and this repro appended",
+    "compile_options": "-g2017 -DSIMULATION -s trial1_tl_user_rtl_repro -c <reduced-source-list>"
+  },
+  "control_without_integrity_generator": {
+    "edition": "2017",
+    "result": "expected failure: valid MuBi4False write has d_error=1 at 86 ns",
+    "compile_option": "-DTRIAL1_BYPASS_CMD_INTG"
+  },
+  "whole_trial1_dv_runtime": "not run; no DV pass claimed",
+  "compiler_head_before_evidence_commit": "5e27010a9c6bbb601dc7b038159121d1cbcb1d05",
+  "compiler_bin_sha256": {
+    "iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "vvp": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba"
+  }
+}

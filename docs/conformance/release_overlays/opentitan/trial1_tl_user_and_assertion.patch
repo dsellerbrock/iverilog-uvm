@@ -1,0 +1,50 @@
+--- a/hw/ip/trial1/dv/trial1_test.sv
++++ b/hw/ip/trial1/dv/trial1_test.sv
+@@ -473,7 +473,7 @@
+     my_rotype1_d = 32'hxxxxxxxx;
+     tl_h2d.a_valid = 1'b0;
+     tl_h2d.a_opcode = Get;
+-    tl_h2d.a_user = 16'h0;
++    tl_h2d.a_user = TL_A_USER_DEFAULT;
+     repeat(20) @(posedge clk);
+      ///////
+     //
+--- a/hw/ip/trial1/dv/tb.sv
++++ b/hw/ip/trial1/dv/tb.sv
+@@ -1,6 +1,8 @@
+ // Copyright lowRISC contributors (OpenTitan project).
+ // Licensed under the Apache License, Version 2.0, see LICENSE for details.
+ // SPDX-License-Identifier: Apache-2.0
++
++`include "prim_assert_sec_cm.svh"
+ 
+ module tb;
+ 
+@@ -28,6 +30,8 @@
+ 
+   // BUS interface
+   tl_h2d_t tl_h2d;
++  tl_h2d_t tl_h2d_intg;
++  tlul_cmd_intg_gen u_cmd_intg_gen (.tl_i(tl_h2d), .tl_o(tl_h2d_intg));
+   tl_d2h_t tl_d2h;
+ 
+   //logic bus_reg_valid;
+@@ -46,7 +50,7 @@
+     .clk_i  (clk),
+     .rst_ni (rst_n),
+ 
+-    .tl_i   (tl_h2d),
++    .tl_i   (tl_h2d_intg),
+     .tl_o   (tl_d2h),
+     //.bus_reg_valid,
+     //.bus_reg_ready,
+@@ -59,6 +63,9 @@
+     .reg2hw,
+     .hw2reg
+   );
++
++  `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ERR(Trial1RegWe, dut,
++                                                dut.intg_err_o, 0, 2, clk, !rst_n)
+ 
+   trial1_test test (
+     .clk,
