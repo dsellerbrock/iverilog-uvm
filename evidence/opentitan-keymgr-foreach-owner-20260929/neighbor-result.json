@@ -1,0 +1,74 @@
+[
+  {
+    "mode": "2017",
+    "source": "sv_foreach_inherited_class_type_scope",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "mode": "2017",
+    "source": "sv_foreach_hierarchical_target",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "mode": "2017",
+    "source": "sv_assoc_nested_member_foreach1",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "mode": "2017",
+    "source": "sv_foreach_selected_prefix_assoc",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_foreach_selected_prefix_assoc.v:52: $finish called at 0 (1s)\n",
+    "runtime_stderr": ""
+  },
+  {
+    "mode": "2023",
+    "source": "sv_foreach_inherited_class_type_scope",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "mode": "2023",
+    "source": "sv_foreach_hierarchical_target",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "mode": "2023",
+    "source": "sv_assoc_nested_member_foreach1",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "runtime_stderr": ""
+  },
+  {
+    "mode": "2023",
+    "source": "sv_foreach_selected_prefix_assoc",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_foreach_selected_prefix_assoc.v:52: $finish called at 0 (1s)\n",
+    "runtime_stderr": ""
+  }
+]

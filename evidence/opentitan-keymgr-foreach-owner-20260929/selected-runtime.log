@@ -1,0 +1,122 @@
+tb.dut.u_lfsr.p_randomize_default_seed: DefaultSeed = 0x22d326255bd24320, DefaultSeedLocal = 0x782580c54dacc8c3
+UVM_INFO @ 0 ps: reporter [RNTST] Running test keymgr_base_test...
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @   2308653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StReset, OpAdvance is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @   3348653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StInit, OpGenSwOut is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @   6508653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StInit, OpAdvance is issued
+UVM_INFO @   8348653 ps: (dv_base_reg.sv:329) [keymgr_reg_block.sw_binding_regwen] lock_lockable_flds          1 val
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @   9138653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StCreatorRootKey, OpGenId is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  11898653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StCreatorRootKey, OpAdvance is issued
+UVM_INFO @  13168653 ps: (dv_base_reg.sv:329) [keymgr_reg_block.sw_binding_regwen] lock_lockable_flds          1 val
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  13828653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StOwnerIntKey, OpGenId is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  16768653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StOwnerIntKey, OpAdvance is issued
+UVM_INFO @  18498653 ps: (dv_base_reg.sv:329) [keymgr_reg_block.sw_binding_regwen] lock_lockable_flds          1 val
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  19528653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StOwnerKey, OpGenId is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  21648653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StOwnerKey, OpAdvance is issued
+UVM_INFO @  22878653 ps: (dv_base_reg.sv:329) [keymgr_reg_block.sw_binding_regwen] lock_lockable_flds          1 val
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  23708653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StDisabled, OpGenSwOut is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  27448653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StDisabled, OpAdvance is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  29938653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StDisabled, OpGenId is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  32418653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StDisabled, OpAdvance is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  34318653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StDisabled, OpGenId is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  36318653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StDisabled, OpAdvance is issued
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+cindydebygljakljel control_shadowed
+UVM_INFO @  38568653 ps: (keymgr_scoreboard.sv:558) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] At StDisabled, OpGenId is issued
+UVM_INFO @  49558653 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @  49558653 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count :     0 of     1
+** Report counts by severity
+UVM_INFO :   22
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[keymgr_reg_block.sw_binding_regwen]     4
+[uvm_test_top.env.scoreboard]    16
+
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 49558653 (1ps)

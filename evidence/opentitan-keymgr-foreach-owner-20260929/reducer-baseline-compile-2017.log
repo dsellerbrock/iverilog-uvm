@@ -1,0 +1,2 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_foreach_inherited_class_type_scope.v:10: warning: Can not find the scope type definition `RAL_T' (compile-progress fallback).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_foreach_inherited_class_type_scope.v:10: warning: Can not find the scope type definition `RAL_T' (compile-progress fallback).

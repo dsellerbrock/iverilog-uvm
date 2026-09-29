@@ -1,0 +1,16 @@
+[
+  {
+    "mode": "2017",
+    "compile_exit": 0,
+    "ral_t_warnings": 2,
+    "runtime_exit": 1,
+    "runtime_output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_foreach_inherited_class_type_scope.v:40: bad foreach counts 4 0\n       Time: 0  Scope: $unit::actual_cov.check\n"
+  },
+  {
+    "mode": "2023",
+    "compile_exit": 0,
+    "ral_t_warnings": 2,
+    "runtime_exit": 1,
+    "runtime_output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_foreach_inherited_class_type_scope.v:40: bad foreach counts 4 0\n       Time: 0  Scope: $unit::actual_cov.check\n"
+  }
+]

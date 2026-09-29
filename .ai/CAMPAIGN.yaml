@@ -1,7 +1,17 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: a918bc7da
+checkpoint_head: 2cc0a7ad0
+active_keymgr_ral_scope_lane:
+  blocker: "OT-KEYMGR-RAL-TYPE-PARAM-FALLBACK"
+  phase: "DOCUMENTED"
+  baseline_head: "2cc0a7ad0"
+  candidate_image: "Private ivl SHA-256 0d50ec5d7b92ad405fdf44b36aacd9723dec1795a34c4d561d2aa249b5e09d62; installed ivl unchanged."
+  root_cause: "Foreach selected-path inference found inherited dv_base_env_cfg.ral but elaborated its RAL_T type parameter in the unrelated keymgr_env_cov.build_phase scope."
+  validation: "Paired 2017/2023 registered focus 2/2; eight neighboring direct checks pass. Exact copied-source Keymgr VVP compile exit0/zero RAL_T fallback. Selected keymgr_smoke_vseq with IVL_SVA_NFA=1 exit0/one checked banner/16 scoreboard operations/zero bad diagnostics under 4 GiB/1800s."
+  evidence: "evidence/opentitan-keymgr-foreach-owner-20260929/ and projectless work/keymgr-ivtest-focus/."
+  next_command: "All local gates passed: JSON 4149/0, standalone legacy 6903 total/0 failed, isolated VPI 140/140, negatives 154/154, real-DPI UVM 362/362, and make check. Installed ivl matches tested private SHA 0d50ec5d, and exact Keymgr compile exits zero without RAL_T fallback. Commit the scoped fix and select Trial1 setup debt next. The first legacy/VPI overlap was invalid because both runners use ivtest/vsim. Preserve frozen 23/49."
+  boundary: "No pinned source edit, unsafe warning waiver, full OpenTitan corpus or Caliptra multi-hour run while this ticket remains active."
 completed_spid_upload_checked_transactions_lane:
   blocker: "OT-SPID-UPLOAD-TRANSACTION-CHECKER"
   phase: "DONE"

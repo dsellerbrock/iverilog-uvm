@@ -1911,14 +1911,13 @@ static const data_type_t* find_foreach_wire_index_type_(
 }
 
 static const data_type_t* find_foreach_simple_class_property_index_type_(
-		NetScope*scope, perm_string name, size_t index_depth)
+		NetScope*scope, perm_string name, NetScope*&owner_scope)
 {
 	// Look up `name` in the immediate class scope, walking up the super
 	// class chain when the property is inherited (a derived class's pform
 	// only contains its own declarations, not those of its base classes).
       const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
       const netclass_t*search_class = class_scope ? class_scope->class_def() : 0;
-      (void)index_depth;
       while (search_class) {
             const NetScope*sc = search_class->class_scope();
             const PClass*pclass = sc ? sc->class_pform() : 0;
@@ -1926,12 +1925,14 @@ static const data_type_t* find_foreach_simple_class_property_index_type_(
                   std::map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
                         pclass->type->properties.find(name);
                   if (pcur != pclass->type->properties.end()
-                      && pcur->second.type.get())
+                      && pcur->second.type.get()) {
+                        owner_scope = const_cast<NetScope*>(sc);
                         // Return the property's full data_type_t; the caller
                         // (find_foreach_class_property_index_type_) extracts
                         // the index dimension via
                         // find_foreach_assoc_index_type_in_data_type_.
                         return pcur->second.type.get();
+                  }
             }
             search_class = search_class->get_super();
       }
@@ -1948,8 +1949,8 @@ static const data_type_t* find_foreach_simple_class_property_index_type_(
 	    if (pcur == pclass->type->properties.end())
 		  continue;
 
-	    return find_foreach_assoc_index_type_in_data_type_(
-		  pcur->second.type.get(), index_depth);
+	    owner_scope = cur;
+	    return pcur->second.type.get();
       }
 
       return 0;
@@ -2030,7 +2031,8 @@ static bool find_foreach_path_root_type_(Design*des, NetScope*scope,
 // a base class's pform (derived adds no new properties of its own).
 static const class_type_t::prop_info_t*
 find_class_property_via_inheritance_(const netclass_t*cur_class,
-                                     perm_string prop_name)
+                                     perm_string prop_name,
+                                     NetScope*&owner_scope)
 {
       while (cur_class) {
             const NetScope*class_scope = cur_class->class_scope();
@@ -2039,8 +2041,10 @@ find_class_property_via_inheritance_(const netclass_t*cur_class,
                   map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
                         pclass->type->properties.find(prop_name);
                   if (pcur != pclass->type->properties.end()
-                      && pcur->second.type.get())
+                      && pcur->second.type.get()) {
+                        owner_scope = const_cast<NetScope*>(class_scope);
                         return &pcur->second;
+                  }
             }
             cur_class = cur_class->get_super();
       }
@@ -2048,7 +2052,8 @@ find_class_property_via_inheritance_(const netclass_t*cur_class,
 }
 
 static const data_type_t* find_foreach_selected_path_type_(
-		Design*des, NetScope*scope, const vector<perm_string>&target_path)
+		Design*des, NetScope*scope, const vector<perm_string>&target_path,
+		NetScope*&owner_scope)
 {
       if (target_path.size() < 2)
 	    return 0;
@@ -2062,15 +2067,19 @@ static const data_type_t* find_foreach_selected_path_type_(
 	    if (!cur_class)
 		  return 0;
 
+	    NetScope*prop_scope = 0;
 	    const class_type_t::prop_info_t*prop =
-		  find_class_property_via_inheritance_(cur_class, target_path[idx]);
+		  find_class_property_via_inheritance_(cur_class, target_path[idx],
+					     prop_scope);
 	    if (!prop)
 		  return 0;
 
-	    if (idx + 1 == target_path.size())
+	    if (idx + 1 == target_path.size()) {
+		  owner_scope = prop_scope;
 		  return prop->type.get();
+	    }
 
-	    cur_type = const_cast<data_type_t*>(prop->type.get())->elaborate_type(des, scope);
+	    cur_type = const_cast<data_type_t*>(prop->type.get())->elaborate_type(des, prop_scope);
 	    if (!cur_type)
 		  return 0;
       }
@@ -2080,15 +2089,17 @@ static const data_type_t* find_foreach_selected_path_type_(
 
 static const data_type_t* find_foreach_class_property_index_type_(
 		Design*des, NetScope*scope,
-		const vector<perm_string>&target_path, size_t index_depth)
+		const vector<perm_string>&target_path, size_t index_depth,
+		NetScope*&owner_scope)
 {
       const data_type_t*type_pf = 0;
 
       if (target_path.size() == 1)
 	    type_pf = find_foreach_simple_class_property_index_type_(
-		  scope, target_path.front(), index_depth);
+		  scope, target_path.front(), owner_scope);
       else
-	    type_pf = find_foreach_selected_path_type_(des, scope, target_path);
+	    type_pf = find_foreach_selected_path_type_(des, scope, target_path,
+						owner_scope);
 
       if (!type_pf)
 	    return 0;
@@ -2139,10 +2150,11 @@ ivl_type_t foreach_index_type_t::elaborate_type_raw(Design*des, NetScope*scope) 
       const PWire*array_wire = scope ? find_foreach_array_placeholder_(scope, names) : 0;
       const data_type_t*wire_index_type =
 	    array_wire ? find_foreach_wire_index_type_(array_wire, index_depth) : 0;
+      NetScope*class_prop_scope = 0;
       const data_type_t*class_prop_index_type =
 	    (!array_wire && scope)
 	      ? find_foreach_class_property_index_type_(
-		    des, scope, names, index_depth)
+		    des, scope, names, index_depth, class_prop_scope)
 	      : 0;
       string target_path_string = foreach_target_path_string_(names);
       if (trace && *trace) {
@@ -2171,12 +2183,13 @@ ivl_type_t foreach_index_type_t::elaborate_type_raw(Design*des, NetScope*scope) 
       }
 
       if (class_prop_index_type) {
+	    ivl_assert(*this, class_prop_scope);
 	    if (trace && *trace)
 		  cerr << "foreach-type: class property assoc index type resolved for "
 		       << target_path_string << "[" << index_depth << "]"
 		       << " kind=" << typeid(*class_prop_index_type).name() << endl;
 	    ivl_type_t index_type =
-		  const_cast<data_type_t*>(class_prop_index_type)->elaborate_type(des, scope);
+		  const_cast<data_type_t*>(class_prop_index_type)->elaborate_type(des, class_prop_scope);
 	    if (trace && *trace) {
 		  cerr << "foreach-type: elaborate_type for " << target_path_string << " returned ";
 		  if (index_type)
