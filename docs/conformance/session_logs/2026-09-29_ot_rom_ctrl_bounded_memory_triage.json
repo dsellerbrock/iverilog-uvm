@@ -1,0 +1,138 @@
+{
+  "blocker": "OT-ROM-CTRL-STARTUP-RSS",
+  "target": "lowrisc:dv:rom_ctrl_sim:0.1",
+  "scope": "One selected copied-source ROM Control smoke and three diagnostic-only A/B runs; no corpus rerun or pinned-source edit",
+  "ot_branch_head_before_record": "ab07c8284ff5ffbf1319b97b992f8720b5a26fa1",
+  "shared_run": {
+    "rss_cap_mib": 4096,
+    "timeout_seconds": 10,
+    "vvp_flags": [
+      "-n",
+      "-d",
+      "+UVM_NO_RELNOTES",
+      "+UVM_VERBOSITY=UVM_LOW",
+      "+cdc_instrumentation_enabled=1",
+      "+smoke_test=1",
+      "+UVM_TESTNAME=rom_ctrl_base_test",
+      "+UVM_TEST_SEQ=rom_ctrl_smoke_vseq"
+    ],
+    "vvp_sha256": "e978a84bff1268ab70970eb6c5977f9f0f834d73c93ae9267d09125d2d40745b",
+    "prince_dpi_path": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_rom_ctrl_sim_0.1/matrix-dpi.so",
+    "prince_dpi_sha256": "e9863a82c00242ebc85d88c4fd234dccacb525860e2a87d0590a14c43322b7ef"
+  },
+  "corrected_dpi_baseline": {
+    "change": "Instrumented, functionally unchanged copied source",
+    "status_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-env-dpi-4g.json",
+    "status_sha256": "70d9dca6015901e5b2591806c87a47e9a1ebbefa9226a4fa1fd1a5e2ae2e1e96",
+    "log_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-env-dpi-4g.log",
+    "log_sha256": "1a30cc6cab30f698f5b38d7a03f1b0ddcf5c95894b9529d8311287ff4656030b",
+    "image_sha256": "bf5924de79cef4b2683626f315f7deea3a93a248b516e53596d20b29c23fe6ab",
+    "reason": "rss_cap",
+    "exit_code": -9,
+    "elapsed_seconds": 6.166,
+    "peak_rss_mib": 4135.9,
+    "last_marker": "ROM_TRIAGE rom init complete"
+  },
+  "urandom": {
+    "change": "Replace only std::randomize(rnd_data) with rnd_data = $urandom; keep encrypted writes",
+    "status_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-urandom-dpi-4g.json",
+    "status_sha256": "b6a89d0ad3a1f1e58f06e9f76ad3c946a638383d4a8fd26f798adc72bba38921",
+    "log_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-urandom-dpi-4g.log",
+    "log_sha256": "1a30cc6cab30f698f5b38d7a03f1b0ddcf5c95894b9529d8311287ff4656030b",
+    "image_sha256": "68bd6033b8b210f8f730d0efeb716a047670f8c6e9519f8bbafa71e0634a71e0",
+    "reason": "rss_cap",
+    "exit_code": -9,
+    "elapsed_seconds": 6.066,
+    "peak_rss_mib": 4141.2,
+    "last_marker": "ROM_TRIAGE rom init complete",
+    "copied_source": "rom_ctrl_base_vseq.sv",
+    "original_source_sha256": "86b54a13a14776e570fd69c36200f3b0eabea61084743b7115f7e6c28f9222b1",
+    "patched_source_sha256": "ee739d3d59e794e6ea80fe7f29096ca714b3ca995d4c37ca5765edc56bfb7653"
+  },
+  "no_write_call": {
+    "change": "Keep 8192 std::randomize calls; omit only rom_encrypt_write32_integ call",
+    "status_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-no-write-dpi-4g.json",
+    "status_sha256": "6e80357edb5a2318b3e210c8182131e18c82e9d99716df46b5ee38bf5b81e923",
+    "log_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-no-write-dpi-4g.log",
+    "log_sha256": "2e605b1833fb6df485ea464952189689ded4c797cc39a947b9c71db65f2cfbc6",
+    "image_sha256": "9c0adcfc7ce8d7ba74c632b36443f0a1b6cfb193eb5141159ea4639630e45681",
+    "reason": "exit",
+    "exit_code": 0,
+    "elapsed_seconds": 3.09,
+    "peak_rss_mib": 2768.8,
+    "last_marker": "ROM_TRIAGE rom init complete",
+    "rss_milestones": [
+      {
+        "threshold_mib": 512,
+        "rss_mib": 530.5,
+        "last_marker": "ROM_TRIAGE rom env after super build"
+      },
+      {
+        "threshold_mib": 1024,
+        "rss_mib": 1084.7,
+        "last_marker": "ROM_TRIAGE rom env after super build"
+      },
+      {
+        "threshold_mib": 2048,
+        "rss_mib": 2131.2,
+        "last_marker": "ROM_TRIAGE rom init complete"
+      }
+    ],
+    "copied_source": "rom_ctrl_base_vseq.sv",
+    "original_source_sha256": "86b54a13a14776e570fd69c36200f3b0eabea61084743b7115f7e6c28f9222b1",
+    "patched_source_sha256": "f34f62fff09fb7cce9cbb51114c88c10e93b9d23b0282e237be09112d0df1640"
+  },
+  "skip_final_deposit": {
+    "change": "Keep encryption, ECC, arrays, DPI and 8192 calls; omit only final write39integ deposit",
+    "status_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-skip-deposit-dpi-4g.json",
+    "status_sha256": "d0ea3ab984107ae45e4fe45f6666ed86428a83cf57a0537fabc3e7dde116672d",
+    "log_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-skip-deposit-dpi-4g.log",
+    "log_sha256": "1a30cc6cab30f698f5b38d7a03f1b0ddcf5c95894b9529d8311287ff4656030b",
+    "image_sha256": "0fcb7c5ca4e08b7ca803a60c5d61bfcd203807c25bef9781eefee3350ae18f26",
+    "reason": "rss_cap",
+    "exit_code": -9,
+    "elapsed_seconds": 6.014,
+    "peak_rss_mib": 4115.5,
+    "last_marker": "ROM_TRIAGE rom init complete",
+    "rss_milestones": [
+      {
+        "threshold_mib": 512,
+        "rss_mib": 524.0,
+        "last_marker": "ROM_TRIAGE rom env after super build"
+      },
+      {
+        "threshold_mib": 1024,
+        "rss_mib": 1101.4,
+        "last_marker": "ROM_TRIAGE rom env after super build"
+      },
+      {
+        "threshold_mib": 2048,
+        "rss_mib": 2056.3,
+        "last_marker": "ROM_TRIAGE rom init i=3328"
+      },
+      {
+        "threshold_mib": 3072,
+        "rss_mib": 3093.2,
+        "last_marker": "ROM_TRIAGE rom init complete"
+      },
+      {
+        "threshold_mib": 4096,
+        "rss_mib": 4115.5,
+        "last_marker": "ROM_TRIAGE rom init complete"
+      }
+    ],
+    "copied_source": "mem_bkdr_util__rom.sv",
+    "original_source_sha256": "0836ed6c44596b0ebed6cbc33cbf98de000921dc6fe476c5855626b920fe36e6",
+    "patched_source_sha256": "cd989ecf9e94d76b4546d0f26f70b0c453a43bf5320998e63be2d06d9550d2ef"
+  },
+  "initial_diagnostic_correction": {
+    "invalid_status_path": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/romctrl-memory-triage-20260929/replay-env-4g.json",
+    "invalid_status_sha256": "a871679a54a1b39f6f78de16e6a08a6843a994b1eac3277b45c47ee15003c0df",
+    "missing_prince_symbol_errors": 40960,
+    "note": "Initial invocation omitted -d and is excluded from the A/B conclusion; corrected-DPI replay reports zero DPI errors."
+  },
+  "conclusion": "The corrected-DPI baseline and urandom replacement both hit the 4 GiB cap after ROM init complete (4135.9 and 4141.2 MiB); per-word std::randomize is not the dominant cause in this bounded comparison. Omitting the whole encrypted-write call exits at 2768.8 MiB but reports KmacDataODataKnown_A and TEST FAILED CHECKS. Omitting only final write39integ still hits the cap at 4115.5 MiB; work earlier in rom_encrypt_write32_integ is implicated, but its specific allocator and residual memory growth remain unresolved. Both write variants are functionally invalid diagnostics.",
+  "selected_dv_pass": false,
+  "selected_dv_status": "0/1; no passing selected ROM Control DV replay or pass marker",
+  "census_49_unchanged": true
+}
