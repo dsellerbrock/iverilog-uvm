@@ -175,6 +175,9 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_dpi_export_output_logic_default.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_scalar_inout_logic_actual.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_dpi_disable_protocol.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \

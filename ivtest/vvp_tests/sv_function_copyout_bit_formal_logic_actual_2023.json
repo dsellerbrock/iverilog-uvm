@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_function_copyout_bit_formal_logic_actual.v",
+    "iverilog-args": [ "-g2023", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_function_copyout_bit_formal_logic_actual" ],
+    "gold": "sv_function_copyout_bit_formal_logic_actual"
+}

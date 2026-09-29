@@ -1335,6 +1335,26 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 	    return;
       }
 
+      /* A bit formal passed a whole logic variable is wrapped in a
+	 two-state conversion for copy-in. The wrapper is not the copy-out
+	 destination: copy back to its original variable. */
+      if (ivl_expr_type(actual) == IVL_EX_UNARY
+	  && ivl_expr_opcode(actual) == '2'
+	  && ivl_signal_data_type(port) == IVL_VT_BOOL
+	  && ivl_expr_width(actual) == ivl_signal_width(port)) {
+	ivl_expr_t source = ivl_expr_oper1(actual);
+	ivl_signal_t source_sig = source
+	  && ivl_expr_type(source) == IVL_EX_SIGNAL
+	  ? ivl_expr_signal(source) : 0;
+	if (source_sig && ivl_signal_dimensions(source_sig) == 0
+	    && !ivl_expr_oper1(source)
+	    && ivl_expr_width(source) == ivl_expr_width(actual)
+	    && (ivl_signal_data_type(source_sig) == IVL_VT_LOGIC
+	        || ivl_signal_data_type(source_sig) == IVL_VT_BOOL)
+	    && ivl_signal_width(source_sig) == ivl_signal_width(port))
+	  actual = source;
+      }
+
       if (!function_argument_actual_signal_(actual, &sig, &word)) {
 	    /* Phase 63b/B6: surface the file:line of the call site so
 	       users can find and rewrite affected callers.  The runtime
