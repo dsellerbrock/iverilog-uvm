@@ -3809,3 +3809,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Exact-head direct tests and first-error traces in projectless `work/json-eight-direct-20260929/triage.md`.
 - **Reproducer status:** confirmed paired 2017/2023 negative tests; positive rand-index controls await a scoped fix.
 - **Triage status:** separate diagnostic ticket. Skip selector fallback only when constant folding adds an error; continue symbolic fallback when it returns empty without an error.
+
+### DD-094 — OTBN packed coverage bins use mutable class fields
+
+- **Discovered while working:** OT-ROM-CTRL-STARTUP-RSS.
+- **Observation:** The saved 49-target compile log for `lowrisc:dv:otbn_sim:0.1` has 178 errors because packed mnemonic and CSR bin bounds are initialized mutable class fields. Making them `const` removes that error but still fails wide-bin lowering; class `localparam` bounds compile and sample in tiny strict 2017/2023 controls.
+- **File/function:** Pinned OpenTitan `hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv`, `DEF_MNEM` and `DEF_CSR` macros at lines 17 and 114.
+- **Possible clause:** IEEE 1800-2017/2023 §19.5, covergroup bin value expressions.
+- **Evidence:** Saved `work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-compile.log` under `/private/tmp/ot-census-blockers-head-20260927/`; projectless `work/otbn-coverage-bin-reducer-20260929/otbn_packed_bin_pkg.sv` compiles and prints `PASS OTBN package packed coverage bins` in both strict editions.
+- **Reproducer status:** confirmed with tiny packed-width compile/runtime controls; no full OTBN source-list replay.
+- **Triage status:** source-fix candidate deferred until OT-ROM-CTRL-STARTUP-RSS closes; a copied-source two-macro `localparam` patch needs a selected OTBN compile. No OTBN target pass or 49-target census update is claimed.
