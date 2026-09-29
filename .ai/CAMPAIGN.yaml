@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 72578a893
+checkpoint_head: de31d5696
 active_open_titan_lane:
   blocker: "OT-ADC-2CH-FILTER-CONSTRAINT-PROXY"
-  phase: "FOCUSED_INTEGRATION"
+  phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "72578a893"
+  baseline_head: "de31d5696"
   reproducer: "Pinned ADC Control nested rand filter_cfg[][] constraints fail on indexed inner .size and 2D packed-struct fields. The projectless exact 2x8 1D proxy passes strict 2017/2023 hard/soft and forced endpoint controls, and a disposable selected UVM compile exits zero with no hard or solver warnings."
-  pending_validation: "Integrate one named three-file copied-source patch with pinned hashes and explicit 1:29 distribution/whole-array solve-order caveats. Hold selected ADC VVP until the active Caliptra SHA case exits."
-  next_command: "Review the projectless ADC candidate manifest and endpoint controls, then commit the named release overlay and compile evidence. Do not run another high-memory VVP while Caliptra runs."
+  pending_validation: "The named three-file copied-source patch and selected compile evidence are committed as de31d5696. Audit concrete UVM test registration, then hold selected ADC VVP until the active Caliptra SHA case exits. The 1:29 distribution and whole-array solve-order equivalence remain unproved."
+  next_command: "Audit saved selected images for UVM test factory registration, and monitor the Caliptra SHA result. Do not run another high-memory VVP while Caliptra runs."
   boundary: "The proxy changes the solver representation and rematerializes the original 2D interface after successful randomization. Compile-only is no DV pass; the old 49-target aggregate is unchanged."
 suspended_otp_lane:
   blocker: "OT-UVM-PARAMETERIZED-REGISTRY-STATIC-INIT"
