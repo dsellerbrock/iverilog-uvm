@@ -1,0 +1,56 @@
+[
+  {
+    "edition": "2017",
+    "variant": "red_duplicate",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2017",
+      "-tnull",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/top_earlgrey/rtl/top_pkg.sv",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/vendor/lowrisc_ibex/dv/uvm/bus_params_pkg/bus_params_pkg.sv",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/dv/sv/bus_params_pkg/bus_params_pkg.sv"
+    ],
+    "returncode": 1,
+    "output": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/dv/sv/bus_params_pkg/bus_params_pkg.sv:5: error: Package bus_params_pkg was already declared here: /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/vendor/lowrisc_ibex/dv/uvm/bus_params_pkg/bus_params_pkg.sv:6\n"
+  },
+  {
+    "edition": "2017",
+    "variant": "green_single",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2017",
+      "-tnull",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/top_earlgrey/rtl/top_pkg.sv",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/dv/sv/bus_params_pkg/bus_params_pkg.sv"
+    ],
+    "returncode": 0,
+    "output": ""
+  },
+  {
+    "edition": "2023",
+    "variant": "red_duplicate",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2023",
+      "-tnull",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/top_earlgrey/rtl/top_pkg.sv",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/vendor/lowrisc_ibex/dv/uvm/bus_params_pkg/bus_params_pkg.sv",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/dv/sv/bus_params_pkg/bus_params_pkg.sv"
+    ],
+    "returncode": 1,
+    "output": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/dv/sv/bus_params_pkg/bus_params_pkg.sv:5: error: Package bus_params_pkg was already declared here: /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/vendor/lowrisc_ibex/dv/uvm/bus_params_pkg/bus_params_pkg.sv:6\n"
+  },
+  {
+    "edition": "2023",
+    "variant": "green_single",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2023",
+      "-tnull",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/top_earlgrey/rtl/top_pkg.sv",
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/dv/sv/bus_params_pkg/bus_params_pkg.sv"
+    ],
+    "returncode": 0,
+    "output": ""
+  }
+]

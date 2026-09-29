@@ -1,0 +1,11 @@
+--- a/hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/env/ibex_icache_env.core
++++ b/hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/env/ibex_icache_env.core
+@@ -11,7 +11,7 @@ filesets:
+       - lowrisc:dv:ibex_icache_core_agent
+       - lowrisc:dv:ibex_icache_mem_agent
+       - lowrisc:dv:push_pull_agent
+-      - lowrisc:ibex:bus_params_pkg
++      - lowrisc:opentitan:bus_params_pkg
+     files:
+       - ibex_icache_env_pkg.sv
+       - ibex_icache_ram_if.sv

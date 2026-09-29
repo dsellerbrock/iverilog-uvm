@@ -1,5 +1,10 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-IBEX-ICACHE-BUS-PARAMS-PROVIDER — one provider for `bus_params_pkg`
+
+- **State:** DONE for package-provider setup. The raw Ibex I-cache compile failed after 0.207 seconds on a duplicate `bus_params_pkg`; a hash-guarded one-line `.core` patch leaves exactly the OpenTitan provider already required by `dv_lib`. Selected compile exits 0 with no hard errors or semantic notices. Its official `ibex_icache_smoke` then fails at time zero in `cfg.randomize()` with an ordered-distribution solver error. Ibex DV remains **RUNTIME_FAIL**; see the [focused evidence](../../evidence/opentitan-ibex-provider-20260929/README.md).
+- **Boundary:** The pinned source and raw 49-target census are unchanged. The solver failure is a separate blocker; no unsafe flag or suppressed package diagnostic is involved.
+
 ### OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION — honor the named smoke regression
 
 - **State:** DONE for smoke selection. A direct pre-fix discovery check failed for both targets. The corrected discovery chooses `rv_timer_random` and `spi_device_flash_mode` from their pinned smoke regressions; the other 47 census target selections are unchanged, and the matrix self-test passes. Selected RV Timer is **PASS**; selected SPI Device prints `TEST PASSED CHECKS` but remains **DEBT** from five separate compile-time semantic notices. See the [focused evidence](../../evidence/opentitan-matrix-smoke-selection-20260929/README.md).
