@@ -1,0 +1,18 @@
+--- a/hw/dv/sv/i2c_agent/seq_lib/i2c_base_seq.sv
++++ b/hw/dv/sv/i2c_agent/seq_lib/i2c_base_seq.sv
+@@ -172,12 +172,9 @@
+   virtual task send_host_mode_txn();
+     req = REQ::type_id::create("req");
+     start_item(req);
+-    `DV_CHECK_RANDOMIZE_WITH_FATAL(req,
+-      data_q.size() == local::data_q.size();
+-      foreach (data_q[i]) {
+-        data_q[i] == local::data_q[i];
+-      }
+-    )
++    req.data_q = data_q;
++    req.num_data = data_q.size();
++    `DV_CHECK_RANDOMIZE_FATAL(req)
+     finish_item(req);
+     get_response(rsp);
+   endtask : send_host_mode_txn
