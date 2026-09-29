@@ -107,18 +107,22 @@ Module::PClocking::input_skew(perm_string sig_name, PExpr*&delay) const
       return SKEW_DELAY;
 }
 
+/* An item's output skew overrides the block default. */
+const pform_clocking_skew_t* Module::PClocking::output_skew(
+      perm_string sig_name) const
+{
+      std::map<perm_string,pform_clocking_skew_t>::const_iterator cur =
+	    out_skews.find(sig_name);
+      if (cur != out_skews.end())
+	    return &cur->second;
+      return default_out_set ? &default_out : nullptr;
+}
+
 /* The effective output skew delay expression, or nullptr for the
    default #0 (land at the clocking event). */
 PExpr* Module::PClocking::output_skew_delay(perm_string sig_name) const
 {
-      const pform_clocking_skew_t*sk = nullptr;
-      std::map<perm_string,pform_clocking_skew_t>::const_iterator cur =
-	    out_skews.find(sig_name);
-      if (cur != out_skews.end())
-	    sk = &cur->second;
-      else if (default_out_set)
-	    sk = &default_out;
-
+      const pform_clocking_skew_t*sk = output_skew(sig_name);
       if (!sk || sk->one_step)
 	    return nullptr;
       return sk->delay;

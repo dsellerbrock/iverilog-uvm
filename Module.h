@@ -86,6 +86,7 @@ class Module : public PScopeExtra, public PNamedItem {
 		 block `default input/output` skews. */
 	    enum skew_kind_t { SKEW_1STEP, SKEW_DELAY };
 	    skew_kind_t input_skew(perm_string sig_name, PExpr*&delay) const;
+	    const pform_clocking_skew_t* output_skew(perm_string sig_name) const;
 	    PExpr* output_skew_delay(perm_string sig_name) const;
 	    void set_default_skews(const pform_clocking_skew_t*in_skew,
 				   const pform_clocking_skew_t*out_skew);

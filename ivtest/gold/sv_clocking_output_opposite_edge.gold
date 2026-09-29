@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_clocking_output_opposite_edge.v:51: $finish called at 22000 (1ps)
