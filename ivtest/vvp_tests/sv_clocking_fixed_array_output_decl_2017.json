@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_clocking_fixed_array_output_decl.v",
+  "iverilog-args": ["-g2017", "-s", "sv_clocking_fixed_array_output_decl"],
+  "gold": "sv_clocking_fixed_array_output_decl"
+}
