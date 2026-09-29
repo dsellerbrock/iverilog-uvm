@@ -218,6 +218,9 @@ SETUP_ALLOWLIST = (
     # sources, provider mapping, compiler invocation, or HDL semantics.
     re.compile(r"This backend is deprecated .* migrate to the flow API", re.I),
 )
+NATIVE_SOURCE_SETUP_WARNING_RE = re.compile(
+    r"^WARNING: (?P<path>.+) has unknown file type '(?:cSource|cppSource)'$"
+)
 NO_TOPLEVEL_RE = re.compile(r"Target '[^']+' has no toplevel", re.I)
 MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|macromodule)\s+(?:automatic\s+|static\s+)?([A-Za-z_][\w$]*)",
@@ -1879,6 +1882,43 @@ def actionable_setup_lines(output: str) -> list[str]:
     return findings
 
 
+def verified_native_setup_warnings(
+    findings: Sequence[str],
+    source_list: Path,
+    native_sources: Sequence[str],
+    skipped_sources: Sequence[str],
+    native_library: Path | None,
+    loaded_libraries: Sequence[Path],
+    *,
+    runtime_passed: bool,
+) -> tuple[list[str], list[str]]:
+    """Classify FuseSoC native-source notices after independent DPI proof."""
+    if (
+        not runtime_passed or not native_sources or skipped_sources
+        or native_library is None or not native_library.is_file()
+        or native_library not in loaded_libraries
+    ):
+        return list(findings), []
+    try:
+        native_hashes = {file_sha256(Path(path)) for path in native_sources}
+    except OSError:
+        return list(findings), []
+    actionable = []
+    benign = []
+    for line in findings:
+        match = NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+        if match:
+            staged = source_list.parent / match.group("path")
+            try:
+                if staged.is_file() and file_sha256(staged) in native_hashes:
+                    benign.append(line)
+                    continue
+            except OSError:
+                pass
+        actionable.append(line)
+    return actionable, benign
+
+
 def matching_lines(
     output: str,
     patterns: Sequence[re.Pattern[str]],
@@ -2575,13 +2615,14 @@ def run_job(
     )
     dpi_libraries = list(args.dpi_library)
     native_sources = job.simulation.native_sources if job.simulation else ()
+    native_library = work_root / "matrix-dpi.so" if native_sources else None
+    skipped_sources = []
     if native_sources:
-        library = work_root / "matrix-dpi.so"
+        library = native_library
         stubs = executable.with_suffix(".dpiexport.c")
         build_log = work_root / "matrix-dpi-build.log"
         build_output = []
         build_failed = False
-        skipped_sources = []
         commands = native_dpi_commands(
             native_sources,
             job.simulation.native_include_dirs,
@@ -2654,6 +2695,18 @@ def run_job(
     runtime_benign_diagnostics = matching_lines(
         runtime_result.output, RUNTIME_DEBT_ALLOWLIST
     )
+    actionable_setup_findings, native_setup_benign = verified_native_setup_warnings(
+        setup_findings,
+        source_list,
+        native_sources,
+        skipped_sources,
+        native_library,
+        dpi_libraries,
+        runtime_passed=(
+            not runtime_result.timed_out and runtime_result.returncode == 0
+            and runtime_pass_banner and not runtime_errors
+        ),
+    )
     record.update(
         {
             "runtime_command": short_command(runtime_command),
@@ -2667,6 +2720,8 @@ def run_job(
             "runtime_pass_banner": runtime_pass_banner,
             "runtime_debt_count": len(runtime_debt),
             "runtime_debt": runtime_debt[: args.diagnostic_limit],
+            "setup_actionable_warnings": actionable_setup_findings,
+            "setup_benign_diagnostics": native_setup_benign,
             "runtime_benign_diagnostic_count": len(runtime_benign_diagnostics),
             "runtime_benign_diagnostics": runtime_benign_diagnostics[
                 : args.diagnostic_limit
@@ -2677,7 +2732,7 @@ def run_job(
         record["status"] = "RUNTIME_TIMEOUT"
     elif runtime_result.returncode != 0 or runtime_errors:
         record["status"] = "RUNTIME_FAIL"
-    elif setup_findings or semantic_debt or runtime_debt:
+    elif actionable_setup_findings or semantic_debt or runtime_debt:
         record["status"] = "DEBT"
     else:
         record["status"] = "PASS"
@@ -3228,6 +3283,36 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
         "signatures will not be checked."
     )
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        staged = root / "src" / "native_core" / "util.c"
+        staged.parent.mkdir(parents=True)
+        staged.write_text("int native_value(void) { return 1; }\n")
+        native = root / "native" / "util.c"
+        native.parent.mkdir()
+        native.write_bytes(staged.read_bytes())
+        library = root / "matrix-dpi.so"
+        library.write_bytes(b"linked")
+        source_list = root / "sim-icarus" / "core.scr"
+        source_list.parent.mkdir()
+        warning = "WARNING: ../src/native_core/util.c has unknown file type 'cSource'"
+        findings = [warning]
+        args = (findings, source_list, (str(native),), (), library, (library,))
+        assert verified_native_setup_warnings(*args, runtime_passed=True) == (
+            [], findings
+        )
+        assert findings == [warning]  # Keep the original setup record intact.
+        assert verified_native_setup_warnings(
+            findings, source_list, (str(native),), (str(native),),
+            library, (library,), runtime_passed=True,
+        ) == (findings, [])  # SRAM-like skipped source stays debt.
+        assert verified_native_setup_warnings(
+            *args, runtime_passed=False
+        ) == (findings, [])
+        staged.write_text("int native_value(void) { return 2; }\n")
+        assert verified_native_setup_warnings(
+            *args, runtime_passed=True
+        ) == (findings, [])  # Same basename without same contents is insufficient.
     if os.name == "posix":
         with tempfile.TemporaryDirectory() as directory:
             test_root = Path(directory)
