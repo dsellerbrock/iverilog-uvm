@@ -1,0 +1,3337 @@
+{
+  "metadata": {
+    "generated_at": "2026-09-29T17:53:14.937457+00:00",
+    "opentitan_root": "/private/tmp/ot-census-speedups-overlays-20260929/source",
+    "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "opentitan_dirty": true,
+    "iverilog": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+    "iverilog_sha256": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+    "iverilog_version": "Icarus Verilog version 13.0 (devel) ()",
+    "compiler_fingerprint": {
+      "components": {
+        "driver": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+          "sha256": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1"
+        },
+        "compiler_engine": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/ivl",
+          "sha256": "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4"
+        },
+        "vvp_target": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp.tgt",
+          "sha256": "c7009aa09565ac121b265d37352e66db43dd956482fba344488f2f596d12e29c"
+        },
+        "vvp_runtime": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+          "sha256": "a3dc04b0409f8572d73d6d5daf982af42206a5c04a083ddb91cc52196a4d0a2e"
+        },
+        "normal_config": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp.conf",
+          "sha256": "7a6caba0421d8eb8d3b72e0507376d0a43b5980f2ce4c14247a5c303e9080a7e"
+        },
+        "synthesis_config": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp-s.conf",
+          "sha256": "cc7b2c7caa89ea1e398765da227978ce0258780f9e67b1fe942520bfa6089b69"
+        },
+        "uvm_dpi": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/uvm_dpi.vpi",
+          "sha256": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0"
+        }
+      },
+      "uvm_sources": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+      }
+    },
+    "fusesoc": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc",
+    "fusesoc_real_executable": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc",
+    "fusesoc_sha256": "b47cc98c6613f59ab3ba41c432c1556711c4fa7049214cb438fda7c5f51cc469",
+    "fusesoc_version": "0.5.dev0",
+    "fusesoc_python": {
+      "executable": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python",
+      "fusesoc_version": "0.5.dev0",
+      "hjson_version": "3.1.0",
+      "python_version": "3.13.15",
+      "command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python",
+      "real_executable": "/opt/homebrew/Cellar/python@3.13/3.13.15/Frameworks/Python.framework/Versions/3.13/bin/python3.13",
+      "sha256": "1988a0dd685f91bbaf20b5267046e13cb78859dbb3b5f030e89b448c1fbfe8d4"
+    },
+    "top_mapping": "auto",
+    "uvm_runtime_compile_profile": "commercial-unsafe",
+    "matrix_jobs": 1,
+    "runtime_timeout_seconds": 1800,
+    "runtime_memory_mib": 8192,
+    "matrix_provider_core_root": "/private/tmp/ot-otbn-scope-fixed-20260929/work/matrix-provider-cores",
+    "englishbreakfast_mapping_sha256": "fa57b7aeb0386b430d644fbaae1c2a9e1a9095487105a05769fb84abaef06bfc",
+    "prim_generic_mapping_sha256": "090b0fd417fb367ac2a23bd06e3b052d1db2597237575b963c1fce5cbad55dd4",
+    "native_pkg_config": {
+      "packages": [
+        "libelf"
+      ],
+      "executable": "/opt/homebrew/Cellar/pkgconf/3.0.7/bin/pkgconf",
+      "executable_sha256": "1f3beefb56b473037af764da65297c3527e50533294891a07dfe91f0279150fd",
+      "commands": {
+        "cflags": [
+          "/opt/homebrew/bin/pkg-config",
+          "--cflags",
+          "libelf"
+        ],
+        "libs": [
+          "/opt/homebrew/bin/pkg-config",
+          "--libs",
+          "libelf"
+        ]
+      },
+      "cflags": [
+        "-I/opt/homebrew/Cellar/libelf/0.8.13_1/include/libelf",
+        "-I/opt/homebrew/Cellar/libelf/0.8.13_1/include"
+      ],
+      "libs": [
+        "-L/opt/homebrew/Cellar/libelf/0.8.13_1/lib",
+        "-lelf"
+      ],
+      "environment": {}
+    },
+    "fusesoc_sim_target_count": 59,
+    "fusesoc_sim_category_counts": {
+      "uvm": 35,
+      "directed": 14,
+      "verilator": 7,
+      "elaboration": 3
+    },
+    "fusesoc_sim_targets_sha256": "c4ec39b557491ad45d12dadde62ec9fc8442735c08fe9188e1920022f6b7957d",
+    "fusesoc_sim_targets": [
+      {
+        "vlnv": "lowrisc:dv:adc_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/adc_ctrl/dv/adc_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=adc_ctrl_base_test",
+          "+UVM_TEST_SEQ=adc_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/adc_ctrl/dv/adc_ctrl_sim_cfg.hjson",
+        "dvsim_test": "adc_ctrl_smoke",
+        "uvm_test": "adc_ctrl_base_test",
+        "uvm_test_seq": "adc_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:aes_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/aes/dv/aes_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+uvm_set_verbosity=uvm_test_top.env.scoreboard,_ALL_,UVM_MEDIUM,run",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=aes_smoke_test",
+          "+UVM_TEST_SEQ=aes_stress_vseq"
+        ],
+        "dvsim_config": "hw/ip/aes/dv/aes_masked_sim_cfg.hjson",
+        "dvsim_test": "aes_smoke",
+        "uvm_test": "aes_smoke_test",
+        "uvm_test_seq": "aes_stress_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "-I{scratch_root}/{branch}/aes_masked-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:model:aes:1.0\" | tr ':' '_'",
+          "-lcrypto",
+          "+define+EN_MASKING=1",
+          "+define+SBOX_IMPL=aes_pkg::SBoxImplDom"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/dv/aes_model_dpi/aes_model_dpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model/crypto.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model/aes.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/dv/aes_model_dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:aon_timer_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/aon_timer/dv/aon_timer_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=aon_timer_base_test",
+          "+UVM_TEST_SEQ=aon_timer_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/aon_timer/dv/aon_timer_sim_cfg.hjson",
+        "dvsim_test": "aon_timer_smoke",
+        "uvm_test": "aon_timer_base_test",
+        "uvm_test_seq": "aon_timer_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:chip_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/dv/chip_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/dv/chip_sim_cfg.hjson",
+        "dvsim_test": "xbar_smoke",
+        "uvm_test": "xbar_base_test",
+        "uvm_test_seq": "xbar_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": "xbar_build_mode",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=64",
+          "+define+UVM_REG_BYTENABLE_WIDTH=8",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+TOP_LEVEL_DV",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:otbn_memutil:0\" | tr ':' '_'",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/lowrisc_ip_otbn_tracer_0/cpp",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi:0\" | tr ':' '_'/cpp",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi_scrambled:0\" | tr ':' '_'/cpp",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:secded_enc:0\" | tr ':' '_'",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:scramble_model:0\" | tr ':' '_'",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'",
+          "-lelf",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:model:aes:1.0\" | tr ':' '_'",
+          "-lcrypto",
+          "-CFLAGS -I{scratch_root}/{branch}/chip_earlgrey_asic-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_dpi:tcp_server:0.1\" | tr ':' '_'",
+          "-lutil"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:gpiodpi:0.1",
+          "lowrisc:dv_dpi_sv:uartdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:model:aes:1.0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_stream.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_test.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_crc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_monitor.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_transfer.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_utils.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/uartdpi/uartdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/gpiodpi/gpiodpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/dv/aes_model_dpi/aes_model_dpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model/crypto.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model/aes.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/gpiodpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/uartdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/dv/aes_model_dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:chip_verilator_sim:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "chip_sim_tb"
+        ],
+        "core_file": "hw/top_earlgrey/dv/verilator/chip_sim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:chip_verilator_sim:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:chip_verilator_sim:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:dmidpi:0.1",
+          "lowrisc:dv_dpi_sv:gpiodpi:0.1",
+          "lowrisc:dv_dpi_sv:jtagdpi:0.1",
+          "lowrisc:dv_dpi_sv:spidpi:0.1",
+          "lowrisc:dv_dpi_sv:uartdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/top_earlgrey/dv/verilator/chip_sim_tb.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilator_sim_ctrl.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilated_toplevel.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/verilator_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_stream.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_test.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_crc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_monitor.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_transfer.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_utils.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/uartdpi/uartdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/spidpi/spidpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/spidpi/monitor_spi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/jtagdpi/jtagdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/common/tcp_server/tcp_server.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/gpiodpi/gpiodpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/dmidpi/dmidpi.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/common/tcp_server",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/dmidpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/gpiodpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/jtagdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/spidpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/uartdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/top_earlgrey/dv/verilator"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:clkmgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/clkmgr/dv/clkmgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+do_clear_all_interrupts=0",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=clkmgr_base_test",
+          "+UVM_TEST_SEQ=clkmgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/clkmgr/dv/clkmgr_sim_cfg.hjson",
+        "dvsim_test": "clkmgr_smoke",
+        "uvm_test": "clkmgr_base_test",
+        "uvm_test_seq": "clkmgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:csrng_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/csrng/dv/csrng_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=csrng_smoke_test",
+          "+UVM_TEST_SEQ=csrng_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/csrng/dv/csrng_sim_cfg.hjson",
+        "dvsim_test": "csrng_smoke",
+        "uvm_test": "csrng_smoke_test",
+        "uvm_test_seq": "csrng_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "-I{scratch_root}/{branch}/csrng-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:model:aes:1.0\" | tr ':' '_'",
+          "-lcrypto"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:aes_model_dpi:0",
+          "lowrisc:model:aes:1.0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/dv/aes_model_dpi/aes_model_dpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model/crypto.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model/aes.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/dv/aes_model_dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/aes/model"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:edn_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/edn/dv/edn_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=edn_smoke_test",
+          "+UVM_TEST_SEQ=edn_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/edn/dv/edn_sim_cfg.hjson",
+        "dvsim_test": "edn_smoke",
+        "uvm_test": "edn_smoke_test",
+        "uvm_test_seq": "edn_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:entropy_src_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/entropy_src/dv/entropy_src_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=entropy_src_smoke_test",
+          "+UVM_TEST_SEQ=entropy_src_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/entropy_src/dv/entropy_src_sim_cfg.hjson",
+        "dvsim_test": "entropy_src_smoke",
+        "uvm_test": "entropy_src_smoke_test",
+        "uvm_test_seq": "entropy_src_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:flash_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/flash_ctrl/dv/flash_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=flash_ctrl_base_test",
+          "+UVM_TEST_SEQ=flash_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/flash_ctrl/dv/flash_ctrl_sim_cfg.hjson",
+        "dvsim_test": "flash_ctrl_smoke",
+        "uvm_test": "flash_ctrl_base_test",
+        "uvm_test_seq": "flash_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "-CFLAGS -I{scratch_root}/{branch}/flash_ctrl-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:gpio_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/gpio/dv/gpio_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=gpio_base_test",
+          "+UVM_TEST_SEQ=gpio_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/gpio/dv/gpio_sim_cfg.hjson",
+        "dvsim_test": "gpio_smoke",
+        "uvm_test": "gpio_base_test",
+        "uvm_test_seq": "gpio_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:hmac_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/hmac/dv/hmac_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=hmac_base_test",
+          "+UVM_TEST_SEQ=hmac_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/hmac/dv/hmac_sim_cfg.hjson",
+        "dvsim_test": "hmac_smoke",
+        "uvm_test": "hmac_base_test",
+        "uvm_test_seq": "hmac_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:cryptoc_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:cryptoc_dpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/util.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha256.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha384.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha512.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac_wrap.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/cryptoc_dpi.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/hmac/dv/cryptoc_dpi"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:i2c_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/i2c/dv/i2c_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=i2c_base_test",
+          "+UVM_TEST_SEQ=i2c_host_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/i2c/dv/i2c_sim_cfg.hjson",
+        "dvsim_test": "i2c_host_smoke",
+        "uvm_test": "i2c_base_test",
+        "uvm_test_seq": "i2c_host_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:ibex_icache_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/ibex_icache_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+test_timeout_ns=1000000000",
+          "+enable_icache_fcov=1",
+          "+UVM_TESTNAME=ibex_icache_base_test",
+          "+UVM_TEST_SEQ=ibex_icache_base_vseq"
+        ],
+        "dvsim_config": "hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/ibex_icache_sim_cfg.hjson",
+        "dvsim_test": "ibex_icache_smoke",
+        "uvm_test": "ibex_icache_base_test",
+        "uvm_test_seq": "ibex_icache_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:keymgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/keymgr/dv/keymgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=keymgr_base_test",
+          "+UVM_TEST_SEQ=keymgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/keymgr/dv/keymgr_sim_cfg.hjson",
+        "dvsim_test": "keymgr_smoke",
+        "uvm_test": "keymgr_base_test",
+        "uvm_test_seq": "keymgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:kmac_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/kmac/dv/kmac_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+enable_masking=1",
+          "+sw_key_masked=0",
+          "+UVM_TESTNAME=kmac_base_test",
+          "+UVM_TEST_SEQ=kmac_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/kmac/dv/kmac_masked_sim_cfg.hjson",
+        "dvsim_test": "{name}_smoke",
+        "uvm_test": "kmac_base_test",
+        "uvm_test_seq": "kmac_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+EN_MASKING=1",
+          "+define+SW_KEY_MASKED=0"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:kmac_env:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:lc_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/lc_ctrl/dv/lc_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=lc_ctrl_base_test",
+          "+UVM_TEST_SEQ=lc_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/lc_ctrl/dv/lc_ctrl_volatile_unlock_disabled_sim_cfg.hjson",
+        "dvsim_test": "lc_ctrl_smoke",
+        "uvm_test": "lc_ctrl_base_test",
+        "uvm_test_seq": "lc_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=64",
+          "+define+UVM_REG_BYTENABLE_WIDTH=8",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+SEC_VOLATILE_RAW_UNLOCK_EN=0"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:otbn_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/otbn/dv/uvm/otbn_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=0",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=otbn_base_test",
+          "+UVM_TEST_SEQ=otbn_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/otbn/dv/uvm/otbn_sim_cfg.hjson",
+        "dvsim_test": "otbn_smoke",
+        "uvm_test": "otbn_base_test",
+        "uvm_test_seq": "otbn_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:otbn_memutil:0\" | tr ':' '_'",
+          "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/lowrisc_ip_otbn_tracer_0/cpp",
+          "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi:0\" | tr ':' '_'/cpp",
+          "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi_scrambled:0\" | tr ':' '_'/cpp",
+          "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'",
+          "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:scramble_model:0\" | tr ':' '_'",
+          "-lelf"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:otbn_env:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ip:otbn_tracer:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:otbn_env:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:otbn_model_agent:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ip:otbn_tracer:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [
+          "+otbn_elf_dir={scratch_root}/{branch}/otbn-sim-xcelium/{index}.{test}/latest/otbn-binaries"
+        ],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/memutil/otbn_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/uvm/env/otbn_test_helpers.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/otbn_model.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/iss_wrapper.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/otbn_trace_checker.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/otbn_trace_entry.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/cpp/otbn_trace_source.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/cpp/log_trace_listener.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/memutil",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/uvm/env",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:otp_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/otp_ctrl/dv/otp_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=otp_ctrl_base_test",
+          "+UVM_TEST_SEQ=otp_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/otp_ctrl/dv/otp_ctrl_sim_cfg.hjson",
+        "dvsim_test": "otp_ctrl_smoke",
+        "uvm_test": "otp_ctrl_base_test",
+        "uvm_test_seq": "otp_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "-CFLAGS -I{scratch_root}/{branch}/otp_ctrl-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:pattgen_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/pattgen/dv/pattgen_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pattgen_base_test",
+          "+UVM_TEST_SEQ=pattgen_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/pattgen/dv/pattgen_sim_cfg.hjson",
+        "dvsim_test": "pattgen_smoke",
+        "uvm_test": "pattgen_base_test",
+        "uvm_test_seq": "pattgen_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_alert_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_alert_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_alert/prim_alert_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_alert/prim_alert_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_alert_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_esc_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_esc_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_esc/prim_esc_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_esc/prim_esc_sim_cfg.hjson",
+        "dvsim_test": "prim_esc_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_esc_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_flop_2sync_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/prim/pre_dv/prim_flop_2sync/prim_flop_2sync_sim.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/pre_dv/prim_flop_2sync/prim_flop_2sync_sim_cfg.hjson",
+        "dvsim_test": "unit_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_lfsr_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_lfsr_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_lfsr/prim_lfsr_sim.core",
+        "runtime_args": [
+          "+prim_lfsr_use_default_seed=0",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_lfsr/prim_lfsr_sim_cfg.hjson",
+        "dvsim_test": "prim_lfsr_gal_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": "prim_lfsr_dw_8_gal",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_lfsr_tb.dut",
+          "+define+MAX_LFSR_DW=8"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_present_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_present_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_present/prim_present_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_present/prim_present_sim_cfg.hjson",
+        "dvsim_test": "prim_present_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_present_tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:prim_prince_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "prim_prince_tb"
+        ],
+        "core_file": "hw/ip/prim/dv/prim_prince/prim_prince_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/prim/dv/prim_prince/prim_prince_sim_cfg.hjson",
+        "dvsim_test": "prim_prince_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=prim_prince_tb.dut",
+          "-CFLAGS -I{scratch_root}/{branch}/prim_prince-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:pwm_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/pwm/dv/pwm_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+uvm_set_verbosity=uvm_test_top.env.scoreboard,_ALL_,UVM_HIGH,run",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwm_base_test",
+          "+UVM_TEST_SEQ=pwm_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/pwm/dv/pwm_sim_cfg.hjson",
+        "dvsim_test": "pwm_smoke",
+        "uvm_test": "pwm_base_test",
+        "uvm_test_seq": "pwm_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:pwrmgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/pwrmgr/dv/pwrmgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/pwrmgr/dv/pwrmgr_sim_cfg.hjson",
+        "dvsim_test": "pwrmgr_smoke",
+        "uvm_test": "pwrmgr_base_test",
+        "uvm_test_seq": "pwrmgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:rom_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/rom_ctrl/dv/rom_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rom_ctrl_base_test",
+          "+UVM_TEST_SEQ=rom_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/rom_ctrl/dv/rom_ctrl_32kB_sim_cfg.hjson",
+        "dvsim_test": "rom_ctrl_smoke",
+        "uvm_test": "rom_ctrl_base_test",
+        "uvm_test_seq": "rom_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+ROM_BYTE_ADDR_WIDTH=15",
+          "-CFLAGS -I{scratch_root}/{branch}/rom_ctrl_32kB-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:rstmgr_cnsty_chk_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/rstmgr/dv/rstmgr_cnsty_chk/rstmgr_cnsty_chk_sim.core",
+        "runtime_args": [
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip_templates/rstmgr/dv/rstmgr_cnsty_chk/rstmgr_cnsty_chk_sim_cfg.hjson",
+        "dvsim_test": "rstmgr_cnsty_chk_test",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:rstmgr_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/rstmgr/dv/rstmgr_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rstmgr_base_test",
+          "+UVM_TEST_SEQ=rstmgr_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip_templates/rstmgr/dv/rstmgr_sim_cfg.hjson",
+        "dvsim_test": "rstmgr_smoke",
+        "uvm_test": "rstmgr_base_test",
+        "uvm_test_seq": "rstmgr_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:rv_dm_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/rv_dm/dv/rv_dm_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rv_dm_base_test",
+          "+UVM_TEST_SEQ=rv_dm_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/rv_dm/dv/rv_dm_sim_cfg.hjson",
+        "dvsim_test": "rv_dm_smoke",
+        "uvm_test": "rv_dm_base_test",
+        "uvm_test_seq": "rv_dm_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=64",
+          "+define+UVM_REG_BYTENABLE_WIDTH=8",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:rv_timer_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/rv_timer/dv/rv_timer_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=rv_timer_base_test",
+          "+UVM_TEST_SEQ=rv_timer_base_vseq"
+        ],
+        "dvsim_config": "hw/ip/rv_timer/dv/rv_timer_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": "rv_timer_base_test",
+        "uvm_test_seq": "rv_timer_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spi_device_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_device/dv/spi_device_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=spi_device_base_test",
+          "+UVM_TEST_SEQ=spi_device_base_vseq"
+        ],
+        "dvsim_config": "hw/ip/spi_device/dv/spi_device_1r1w_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": "spi_device_base_test",
+        "uvm_test_seq": "spi_device_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+SRAM_TYPE=spi_device_pkg::SramType1r1w"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spi_host_sim:1.0",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_host/dv/spi_host_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=spi_host_base_test",
+          "+UVM_TEST_SEQ=spi_host_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/spi_host/dv/spi_host_sim_cfg.hjson",
+        "dvsim_test": "spi_host_smoke",
+        "uvm_test": "spi_host_base_test",
+        "uvm_test_seq": "spi_host_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spi_tpm_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spi_tpm_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spi_tpm_sim.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spi_tpm_sim_cfg.hjson",
+        "dvsim_test": "spi_tpm_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spi_tpm_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_jedec_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spid_jedec_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_jedec.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_jedec_sim_cfg.hjson",
+        "dvsim_test": "spid_jedec_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spid_jedec_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_passthrough_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_passthrough.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_passthrough_sim_cfg.hjson",
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_readcmd_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_readcmd.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_readcmd_sim_cfg.hjson",
+        "dvsim_test": "spid_readcmd_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_status_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spid_status_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_status.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_status_sim_cfg.hjson",
+        "dvsim_test": "spid_status_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spid_status_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:spid_upload_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "spid_upload_tb"
+        ],
+        "core_file": "hw/ip/spi_device/pre_dv/spid_upload.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/spi_device/pre_dv/spid_upload_sim_cfg.hjson",
+        "dvsim_test": "spid_upload_smoke",
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=spid_upload_tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:sram_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/sram_ctrl/dv/sram_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+test_timeout_ns=1000000000",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=sram_ctrl_base_test",
+          "+UVM_TEST_SEQ=sram_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/sram_ctrl/dv/sram_ctrl_main_sim_cfg.hjson",
+        "dvsim_test": "{name}_smoke",
+        "uvm_test": "sram_ctrl_base_test",
+        "uvm_test_seq": "sram_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut",
+          "+define+SRAM_ADDR_WIDTH=15",
+          "+define+INSTR_EXEC=1",
+          "+define+NUM_PRINCE_ROUNDS_HALF=2",
+          "-CFLAGS -I{scratch_root}/{branch}/sram_ctrl_main-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi:0\" | tr ':' '_'/cpp",
+          "-CFLAGS -I{scratch_root}/{branch}/sram_ctrl_main-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi_scrambled:0\" | tr ':' '_'/cpp",
+          "-CFLAGS -I{scratch_root}/{branch}/sram_ctrl_main-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:secded_enc:0\" | tr ':' '_'",
+          "-CFLAGS -I{scratch_root}/{branch}/sram_ctrl_main-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:scramble_model:0\" | tr ':' '_'",
+          "-CFLAGS -I{scratch_root}/{branch}/sram_ctrl_main-sim-vcs/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'",
+          "-lelf"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_dpi_present:0.1",
+          "lowrisc:dv:crypto_dpi_prince:0.1",
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:digestpp_dpi:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_present/crypto_dpi_present",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:dv:sysrst_ctrl_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/sysrst_ctrl/dv/sysrst_ctrl_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=sysrst_ctrl_base_test",
+          "+UVM_TEST_SEQ=sysrst_ctrl_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/sysrst_ctrl/dv/sysrst_ctrl_sim_cfg.hjson",
+        "dvsim_test": "sysrst_ctrl_smoke",
+        "uvm_test": "sysrst_ctrl_base_test",
+        "uvm_test_seq": "sysrst_ctrl_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:tl_agent_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/dv/sv/tl_agent/dv/tl_agent_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=tl_agent_base_test",
+          "+UVM_TEST_SEQ=tl_agent_base_vseq"
+        ],
+        "dvsim_config": "hw/dv/sv/tl_agent/dv/tl_agent_sim_cfg.hjson",
+        "dvsim_test": "tl_agent_smoke",
+        "uvm_test": "tl_agent_base_test",
+        "uvm_test_seq": "tl_agent_base_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [
+          "-covg_disable_cg"
+        ],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:top_earlgrey_xbar_main_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "xbar_tb_top"
+        ],
+        "core_file": "hw/top_earlgrey/ip/xbar_main/dv/autogen/xbar_main_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/ip/xbar_main/dv/autogen/xbar_main_sim_cfg.hjson",
+        "dvsim_test": "xbar_smoke",
+        "uvm_test": "xbar_base_test",
+        "uvm_test_seq": "xbar_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": "xbar_build_mode",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "xbar_tb_top"
+        ],
+        "core_file": "hw/top_earlgrey/ip/xbar_peri/dv/autogen/xbar_peri_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/ip/xbar_peri/dv/autogen/xbar_peri_sim_cfg.hjson",
+        "dvsim_test": "xbar_smoke",
+        "uvm_test": "xbar_base_test",
+        "uvm_test_seq": "xbar_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": "xbar_build_mode",
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:uart_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/uart/dv/uart_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=uart_base_test",
+          "+UVM_TEST_SEQ=uart_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/uart/dv/uart_sim_cfg.hjson",
+        "dvsim_test": "uart_smoke",
+        "uvm_test": "uart_base_test",
+        "uvm_test_seq": "uart_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:dv:usbdev_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/usbdev/dv/usbdev_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=usbdev_base_test",
+          "+UVM_TEST_SEQ=usbdev_smoke_vseq"
+        ],
+        "dvsim_config": "hw/ip/usbdev/dv/usbdev_sim_cfg.hjson",
+        "dvsim_test": "usbdev_smoke",
+        "uvm_test": "usbdev_base_test",
+        "uvm_test_seq": "usbdev_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [
+          "lowrisc:dv_dpi_c:usbdpi:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_stream.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_test.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_crc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_monitor.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_transfer.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_utils.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:ibex:ibex_riscv_compliance:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "ibex_riscv_compliance"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/riscv_compliance/ibex_riscv_compliance.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_riscv_compliance:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:ibex:ibex_riscv_compliance:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": false,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/riscv_compliance/ibex_riscv_compliance.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilator_sim_ctrl.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilated_toplevel.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/verilator_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/riscv_compliance"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:ibex:ibex_simple_system_cosim:0",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "ibex_simple_system"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/verilator/simple_system_cosim/ibex_simple_system_cosim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:cosim:0",
+          "lowrisc:dv:cosim_dpi:0",
+          "lowrisc:ibex:ibex_simple_system_cosim:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:cosim:0",
+          "lowrisc:dv:cosim_dpi:0",
+          "lowrisc:ibex:ibex_simple_system_cosim:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": false,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/verilator/simple_system_cosim/simple_system_cosim.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/cosim/cosim_dpi.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/cosim/spike_cosim.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/cosim",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/verilator/simple_system_cosim"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:ibex:tb_cs_registers:0",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "tb_cs_registers"
+        ],
+        "core_file": "hw/vendor/lowrisc_ibex/dv/cs_registers/tb_cs_registers.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:tb_cs_registers:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:ibex:tb_cs_registers:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": false,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/cs_registers/tb/tb_cs_registers.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilator_sim_ctrl.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilated_toplevel.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/vendor/lowrisc_ibex/dv/cs_registers/tb"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:ip:otbn_top_sim:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "otbn_top_sim"
+        ],
+        "core_file": "hw/ip/otbn/dv/verilator/otbn_top_sim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ip:otbn_top_sim:0.1",
+          "lowrisc:ip:otbn_tracer:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:otbn_memutil:0",
+          "lowrisc:dv:otbn_model:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ip:otbn_top_sim:0.1",
+          "lowrisc:ip:otbn_tracer:0",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/verilator/otbn_top_sim.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilator_sim_ctrl.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilated_toplevel.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/verilator_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/memutil/otbn_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/cpp/otbn_trace_source.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/cpp/log_trace_listener.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/otbn_model.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/iss_wrapper.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/otbn_trace_checker.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model/otbn_trace_entry.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/memutil",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/model",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/verilator",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:ip:trial1_sim:0.1",
+        "category": "directed",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/ip/trial1/dv/trial1_sim.core",
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "dvsim_config": "hw/ip/trial1/dv/trial1_sim_cfg.hjson",
+        "dvsim_test": "trial1_smoke",
+        "uvm_test": "trial1_smoke",
+        "uvm_test_seq": null,
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [
+          "dvsim declares UVM test metadata but the FuseSoC source closure contains no run_test()"
+        ],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1",
+        "category": "uvm",
+        "default_tool": "vcs",
+        "toplevels": [
+          "tb"
+        ],
+        "core_file": "hw/top_earlgrey/ip_autogen/alert_handler/dv/alert_handler_sim.core",
+        "runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=alert_handler_base_test",
+          "+UVM_TEST_SEQ=alert_handler_smoke_vseq"
+        ],
+        "dvsim_config": "hw/top_earlgrey/ip_autogen/alert_handler/dv/alert_handler_sim_cfg.hjson",
+        "dvsim_test": "alert_handler_smoke",
+        "uvm_test": "alert_handler_base_test",
+        "uvm_test_seq": "alert_handler_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "build_mode": null,
+        "build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": "1ns/1ps",
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:prim:crc32_sim:0",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "prim_crc32_sim"
+        ],
+        "core_file": "hw/ip/prim/pre_dv/prim_crc32/prim_crc32_sim.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:prim:crc32_sim:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:prim:crc32_sim:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": false,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/pre_dv/prim_crc32/prim_crc32_sim.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilator_sim_ctrl.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilated_toplevel.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/pre_dv/prim_crc32"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:systems:ast:0.1",
+        "category": "elaboration",
+        "default_tool": "vcs",
+        "toplevels": [
+          "ast"
+        ],
+        "core_file": "hw/top_earlgrey/ip/ast/ast.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true,
+        "native_sources": [],
+        "native_include_dirs": []
+      },
+      {
+        "vlnv": "lowrisc:systems:chip_englishbreakfast_verilator:0.1",
+        "category": "verilator",
+        "default_tool": "verilator",
+        "toplevels": [
+          "chip_englishbreakfast_verilator"
+        ],
+        "core_file": "hw/top_englishbreakfast/chip_englishbreakfast_verilator.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:systems:chip_englishbreakfast_verilator:0.1"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_dpi:tcp_server:0.1",
+          "lowrisc:dv_dpi_c:dmidpi:0.1",
+          "lowrisc:dv_dpi_c:gpiodpi:0.1",
+          "lowrisc:dv_dpi_c:jtagdpi:0.1",
+          "lowrisc:dv_dpi_c:spidpi:0.1",
+          "lowrisc:dv_dpi_c:uartdpi:0.1",
+          "lowrisc:dv_dpi_c:usbdpi:0.1",
+          "lowrisc:dv_dpi_sv:dmidpi:0.1",
+          "lowrisc:dv_dpi_sv:gpiodpi:0.1",
+          "lowrisc:dv_dpi_sv:jtagdpi:0.1",
+          "lowrisc:dv_dpi_sv:spidpi:0.1",
+          "lowrisc:dv_dpi_sv:uartdpi:0.1",
+          "lowrisc:dv_dpi_sv:usbdpi:0.1",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:dv_verilator:memutil_verilator:0",
+          "lowrisc:dv_verilator:simutil_verilator:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0",
+          "lowrisc:systems:chip_englishbreakfast_verilator:0.1"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/top_englishbreakfast/chip_englishbreakfast_verilator.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilator_sim_ctrl.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp/verilated_toplevel.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/verilator_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_stream.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usbdpi_test.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_crc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_monitor.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_transfer.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi/usb_utils.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/uartdpi/uartdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/spidpi/spidpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/spidpi/monitor_spi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/jtagdpi/jtagdpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/common/tcp_server/tcp_server.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/gpiodpi/gpiodpi.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/dmidpi/dmidpi.c"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/common/tcp_server",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/dmidpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/gpiodpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/jtagdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/spidpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/uartdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/dpi/usbdpi",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/simutil_verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/top_englishbreakfast"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:systems:top_earlgrey:0.1",
+        "category": "elaboration",
+        "default_tool": "icarus",
+        "toplevels": [
+          "top_earlgrey"
+        ],
+        "core_file": "hw/top_earlgrey/top_earlgrey.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded"
+        ]
+      },
+      {
+        "vlnv": "lowrisc:systems:top_englishbreakfast:0.1",
+        "category": "elaboration",
+        "default_tool": "icarus",
+        "toplevels": [
+          "top_englishbreakfast"
+        ],
+        "core_file": "hw/top_englishbreakfast/top_englishbreakfast.core",
+        "runtime_args": [],
+        "dvsim_config": null,
+        "dvsim_test": null,
+        "uvm_test": null,
+        "uvm_test_seq": null,
+        "dvsim_regression": null,
+        "build_mode": null,
+        "build_options": [],
+        "native_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0"
+        ],
+        "dpi_dependencies": [
+          "lowrisc:dv:crypto_prince_ref:0.1",
+          "lowrisc:dv:scramble_model:0",
+          "lowrisc:dv:secded_enc:0",
+          "lowrisc:dv_verilator:memutil_dpi:0",
+          "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+          "lowrisc:ibex:ibex_core:0.1",
+          "lowrisc:prim:util_get_scramble_params:0"
+        ],
+        "orchestration_requirements": [],
+        "unresolved_runtime_options": [],
+        "metadata_warnings": [],
+        "timescale": null,
+        "requires_uvm_library": true,
+        "native_sources": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/scrambled_ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/dpi_memutil.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/ecc32_mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/mem_area.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp/sv_scoped.cc",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded/secded_enc.c",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp/scramble_model.cc"
+        ],
+        "native_include_dirs": [
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/dv/verilator/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_ram_scr/cpp",
+          "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/prim/dv/prim_secded"
+        ]
+      }
+    ],
+    "uvm_runtime_configured_target_count": 35
+  },
+  "results": [
+    {
+      "lane": "runtime",
+      "core": "lowrisc:dv:otbn_sim:0.1",
+      "description": "",
+      "target": "sim",
+      "work_root": "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1",
+      "provider_mappings": [
+        "local:matrix:prim_generic_all:0.1",
+        "lowrisc:systems:top_earlgrey:0.1"
+      ],
+      "status": "DEBT",
+      "simulation_category": "uvm",
+      "simulation_default_tool": "vcs",
+      "simulation_toplevels": [
+        "tb"
+      ],
+      "simulation_core_file": "hw/ip/otbn/dv/uvm/otbn_sim.core",
+      "dvsim_config": "hw/ip/otbn/dv/uvm/otbn_sim_cfg.hjson",
+      "dvsim_test": "otbn_smoke",
+      "uvm_test": "otbn_base_test",
+      "uvm_test_seq": "otbn_smoke_vseq",
+      "dvsim_regression": "smoke",
+      "dvsim_runtime_args": [
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=0",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=otbn_base_test",
+        "+UVM_TEST_SEQ=otbn_smoke_vseq"
+      ],
+      "dvsim_build_mode": null,
+      "dvsim_build_options": [
+        "+define+UVM",
+        "+define+UVM_NO_DEPRECATED",
+        "+define+UVM_REGEX_NO_DPI",
+        "+define+UVM_REG_ADDR_WIDTH=32",
+        "+define+UVM_REG_DATA_WIDTH=32",
+        "+define+UVM_REG_BYTENABLE_WIDTH=4",
+        "+define+SIMULATION",
+        "+define+DUT_HIER=tb.dut",
+        "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:otbn_memutil:0\" | tr ':' '_'",
+        "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/lowrisc_ip_otbn_tracer_0/cpp",
+        "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi:0\" | tr ':' '_'/cpp",
+        "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv_verilator:memutil_dpi_scrambled:0\" | tr ':' '_'/cpp",
+        "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:crypto_prince_ref:0.1\" | tr ':' '_'",
+        "-I{scratch_root}/{branch}/otbn-sim-xcelium/{build_mode}/src/{eval_cmd} echo \"lowrisc:dv:scramble_model:0\" | tr ':' '_'",
+        "-lelf"
+      ],
+      "dvsim_timescale": "1ns/1ps",
+      "native_dependencies": [
+        "lowrisc:dv:crypto_dpi_present:0.1",
+        "lowrisc:dv:crypto_dpi_prince:0.1",
+        "lowrisc:dv:crypto_prince_ref:0.1",
+        "lowrisc:dv:digestpp_dpi:0.1",
+        "lowrisc:dv:otbn_env:0.1",
+        "lowrisc:dv:otbn_memutil:0",
+        "lowrisc:dv:otbn_model:0.1",
+        "lowrisc:dv:scramble_model:0",
+        "lowrisc:dv:secded_enc:0",
+        "lowrisc:dv_verilator:memutil_dpi:0",
+        "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+        "lowrisc:ip:otbn_tracer:0"
+      ],
+      "dpi_dependencies": [
+        "lowrisc:dv:crypto_dpi_present:0.1",
+        "lowrisc:dv:crypto_dpi_prince:0.1",
+        "lowrisc:dv:crypto_prince_ref:0.1",
+        "lowrisc:dv:digestpp_dpi:0.1",
+        "lowrisc:dv:otbn_env:0.1",
+        "lowrisc:dv:otbn_memutil:0",
+        "lowrisc:dv:otbn_model:0.1",
+        "lowrisc:dv:otbn_model_agent:0.1",
+        "lowrisc:dv:scramble_model:0",
+        "lowrisc:dv:secded_enc:0",
+        "lowrisc:dv_verilator:memutil_dpi:0",
+        "lowrisc:dv_verilator:memutil_dpi_scrambled:0",
+        "lowrisc:ip:otbn_tracer:0",
+        "lowrisc:prim:util_get_scramble_params:0"
+      ],
+      "orchestration_requirements": [
+        "en_run_modes"
+      ],
+      "unresolved_runtime_options": [
+        "+otbn_elf_dir={scratch_root}/{branch}/otbn-sim-xcelium/{index}.{test}/latest/otbn-binaries"
+      ],
+      "simulation_metadata_warnings": [],
+      "setup_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/private/tmp/ot-census-speedups-overlays-20260929/source run --target=sim --tool=icarus --setup --build-root=/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1 --flag=fileset_ip lowrisc:dv:otbn_sim:0.1",
+      "setup_returncode": 0,
+      "setup_duration_seconds": 1.847,
+      "setup_timed_out": false,
+      "setup_log": "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-setup.log",
+      "setup_warnings": [
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_secded_enc_0/secded_enc.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_dv_scramble_model_0/scramble_model.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/dpi_memutil.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/sv_scoped.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_scrambled_0/cpp/scrambled_ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_memutil_0/otbn_memutil.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_ip_otbn_tracer_0/cpp/otbn_trace_source.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_ip_otbn_tracer_0/cpp/log_trace_listener.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_model.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/iss_wrapper.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_trace_checker.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_trace_entry.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_env_0.1/otbn_test_helpers.cc has unknown file type 'cppSource'"
+      ],
+      "top_selection_notes": [
+        "also rooted bind-carrying module(s) ['otbn_bind', 'sec_cm_prim_count_bind', 'sec_cm_prim_double_lfsr_bind', 'sec_cm_prim_onehot_check_bind', 'sec_cm_prim_sparse_fsm_flop_bind']: nothing instantiates them, so an explicit root would drop their bind directives"
+      ],
+      "source_list": "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/sim-icarus/lowrisc_dv_otbn_sim_0.1.scr",
+      "compiler_source_list": "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-iverilog.scr",
+      "top_options": [
+        "-stb",
+        "-sotbn_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind"
+      ],
+      "compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -sotbn_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-runtime.vvp -c /private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-iverilog.scr",
+      "compile_returncode": 0,
+      "compile_duration_seconds": 4.835,
+      "compile_timed_out": false,
+      "compile_log": "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-compile.log",
+      "hard_error_count": 0,
+      "hard_errors": [],
+      "compile_benign_diagnostic_count": 6,
+      "compile_benign_diagnostics": [
+        "../src/lowrisc_dv_otbn_sim_0.1/tb.sv:86: warning: input port rst_n is coerced to inout.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_otbn_csr_assert_0/otbn_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process."
+      ],
+      "semantic_debt_count": 0,
+      "semantic_debt": [],
+      "output_sha256": "71869d1533199938a50b8930ee294b1536423f8b5463d71dfe83e304321af1d8",
+      "dpi_build_log": "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-dpi-build.log",
+      "dpi_skipped_sources": [],
+      "runtime_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp -n -d /private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-dpi.so /private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-runtime.vvp +otbn_elf_dir=/private/tmp/otbn-smoke-elf-20260929 +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=0 +smoke_test=1 +UVM_TESTNAME=otbn_base_test +UVM_TEST_SEQ=otbn_smoke_vseq",
+      "runtime_dpi_libraries": [
+        "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-dpi.so"
+      ],
+      "runtime_returncode": 0,
+      "runtime_duration_seconds": 123.04,
+      "runtime_timed_out": false,
+      "runtime_memory_limit_bytes": 8589934592,
+      "runtime_memory_limit_hit": false,
+      "runtime_peak_physical_footprint_bytes": 2544897720,
+      "runtime_memory_monitor_error": null,
+      "runtime_log": "/private/tmp/ot-otbn-scope-fixed-20260929/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-runtime.log",
+      "runtime_error_count": 0,
+      "runtime_errors": [],
+      "runtime_pass_banner": true,
+      "runtime_debt_count": 1,
+      "runtime_debt": [
+        "WARNING: Destroying OtbnTraceChecker object with an unfinished operation."
+      ],
+      "setup_actionable_warnings": [],
+      "setup_benign_diagnostics": [
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_secded_enc_0/secded_enc.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_dv_crypto_dpi_prince_0.1/crypto_dpi_prince.c has unknown file type 'cSource'",
+        "WARNING: ../src/lowrisc_dv_scramble_model_0/scramble_model.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/dpi_memutil.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/sv_scoped.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_scrambled_0/cpp/scrambled_ecc32_mem_area.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_memutil_0/otbn_memutil.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_ip_otbn_tracer_0/cpp/otbn_trace_source.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_ip_otbn_tracer_0/cpp/log_trace_listener.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_model.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/iss_wrapper.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_trace_checker.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_model_0.1/otbn_trace_entry.cc has unknown file type 'cppSource'",
+        "WARNING: ../src/lowrisc_dv_otbn_env_0.1/otbn_test_helpers.cc has unknown file type 'cppSource'"
+      ],
+      "runtime_benign_diagnostic_count": 0,
+      "runtime_benign_diagnostics": []
+    }
+  ]
+}

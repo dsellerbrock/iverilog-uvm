@@ -3839,3 +3839,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [DD-096 reducer and paired red logs](../../evidence/opentitan-covergroup-xz-bin-debt-20260929/); the original projectless files remain under `work/dd095-xz-coverage-debt-20260929/`.
 - **Reproducer status:** paired strict editions compile and fail the runtime check; first X sample already reports 50% instead of 0%.
 - **Triage status:** separate coverage-runtime blocker. Exclude X/Z samples from the DD-095 array-shape success fixture; do not infer four-state bin qualification from known-value passes.
+
+### DD-097 — OTBN trace checker ends with an unfinished operation
+
+- **Discovered while working:** OT-OTBN-DPI-IMPORT-SCOPE.
+- **Observation:** The scope-corrected selected OTBN smoke prints `TEST PASSED CHECKS` and zero UVM warnings/errors/fatals, then native `OtbnTraceChecker` warns on destruction that an operation remains unfinished. Its `Finish()` routine checks unmatched RTL/ISS trace entries, so the selected result stays DEBT rather than a clean DV pass.
+- **File/function:** Pinned OpenTitan `hw/ip/otbn/dv/model/otbn_trace_checker.cc` destructor at lines 28–34 and `Finish()` at line 213; caller in `otbn_model.cc` at line 463.
+- **Possible clause:** N/A; application trace-verification completeness.
+- **Evidence:** `evidence/opentitan-otbn-dpi-import-scope-20260929/selected-result.json` and `selected-runtime.log`.
+- **Reproducer status:** confirmed in one selected pinned-source smoke with real libelf DPI and the generated smoke ELF; no minimal reducer yet.
+- **Triage status:** untriaged. Keep OTBN DEBT until the trace operation is finished and checked; do not suppress the warning under the DPI scope ticket.

@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-OTBN-DPI-IMPORT-SCOPE — context import exposes its declaration instance
+
+- **State:** DONE for the DPI scope semantics. A paired strict IEEE 1800-2017/2023 two-instance reducer passes for imported functions and tasks; neighboring export and disable controls pass. Exact-image gates pass: JSON 4,129/0 across four shards, legacy 6,880 passed/0 failed (6,885 total), real-DPI UVM 362/362, VPI 131/131, and negatives 154/154. The selected OTBN smoke with real libelf DPI and its ELF reaches `TEST PASSED CHECKS` with zero UVM warnings/errors/fatals; the harness reports DEBT for one native trace-checker teardown warning.
+- **Cause and correction:** VVP published the imported function/task scope instead of its declaration instance and returned a leaf name from `svGetNameFromScope`, contrary to IEEE 1800-2017/2023 Annex H.9. The synchronous and coroutine import paths now publish the instance, and the name API returns its full hierarchical name. Multi-instance export dispatch accepts an enclosing parent only for legacy function/task handles.
+- **Boundary:** The [original selected abort and raw 49-target census](../../evidence/opentitan-49-parallel-census-20260929/README.md) remain historical. The corrected selected OTBN result is a UVM-checks pass with trace-checker debt (DD-097), not a clean DV PASS or full-suite qualification. Independent source review found no scope-fix defect.
+
 ### OT-OTBN-TRACE-DECL-ORDER — source assignment precedes its packed-struct declaration
 
 - **State:** DONE for the selected compile blocker. After DD-095, the prior guarded OTBN compile had two bind/r-value errors at `otbn_trace_if.sv:375`; the declaration is at line 382. [Strict paired Icarus/Slang controls](session_logs/2026-09-28_ot_otbn_trace_decl_order.json) reject that order and accept the [named patch](release_overlays/opentitan/otbn_trace_forward_ref_order.patch).

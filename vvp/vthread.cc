@@ -1920,9 +1920,9 @@ __vpiScope* vthread_scope(struct vthread_s*thr)
 
 struct vthread_s*running_thread = 0;
 
-/* DPI active scope (IEEE 1800-2017 H.9 svGetScope/svSetScope). Set to the
- * calling scope while a %dpi/call runs into C; svSetScope may override it
- * for the duration of a C call chain. */
+/* DPI active scope (IEEE 1800-2017/2023 H.9 svGetScope/svSetScope). Set to
+ * the import declaration's instance during a C call. svSetScope may override
+ * it for the duration of a C call chain. */
 static __vpiScope*dpi_active_scope_ = 0;
 
 /* IEEE 1800-2017/2023 35.9 disable protocol for one active imported DPI
@@ -2050,9 +2050,9 @@ static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp,
       coro->sv_caller = thr;
       coro->cp = cp;
 	// Initial DPI context for the C body: RWSYNC (so svGetScopeFromName
-	// works from C) and the caller's scope as the active svScope.
+	// works from C) and the declaration instance as the active svScope.
       coro->saved_mode = VPI_MODE_RWSYNC;
-      coro->saved_scope = thr->parent_scope;
+      coro->saved_scope = thr->parent_scope ? thr->parent_scope->scope : 0;
       coro->saved_call_state = dpi_import_call_current_;
       coro->import_kind = import_kind;
 #if defined(IVL_DPI_CORO_UCONTEXT)
@@ -16558,15 +16558,15 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	      // On marshaling failure vvp_dpi_call() has already
 	      // printed a diagnostic; fall through to push a default
 	      // result so the thread keeps a consistent stack.
-	      // Publish the calling scope as the active DPI scope for the
-	      // duration of the C call (svGetScope, H.9); restore after so
+	      // Publish the import declaration's instance as the active DPI
+	      // scope for the C call (svGetScope, H.9); restore after so
 	      // nested/sibling calls see the right context. Also enter a
 	      // valid VPI mode so DPI C may legitimately call VPI/svScope
 	      // routines (svGetScopeFromName -> vpi_handle_by_name), which
 	      // otherwise assert on VPI_MODE_NONE.
 	    __vpiScope*saved_dpi_scope = dpi_active_scope_;
 	    vpi_mode_t saved_vpi_mode = vpi_mode_flag;
-	    dpi_active_scope_ = thr->parent_scope;
+	    dpi_active_scope_ = thr->parent_scope ? thr->parent_scope->scope : 0;
 	    if (vpi_mode_flag == VPI_MODE_NONE)
 		  vpi_mode_flag = VPI_MODE_RWSYNC;
 	    dpi_import_call_current_ = &call_state;
@@ -19572,13 +19572,10 @@ static void dpi_export_copy_out_(const struct dpi_export_info_s&info,
 // Multi-instance export selection (H.9 / 35.5.2). Among the N records
 // registered for a C name (one per instance of a multiply-instantiated
 // module), pick the one whose enclosing instance matches the active
-// svScope. The active scope is either an explicit svSetScope target (the
-// instance scope itself) or — when a `context' import calls the export
-// with no svSetScope — the import's own function scope, whose parent is
-// the instance ("context-relative" default, 35.5.2). We therefore match
-// the export's parent-instance scope (fs->scope) against the active scope
-// AND against the active scope's parent, so both forms resolve. With no
-// active scope or no match, fall back to instance 0 (warning once); a
+// svScope. The active scope is the import declaration's instance or an
+// explicit svSetScope target. Older function/task scope handles may also
+// identify an enclosing instance. With no active scope or no match, fall
+// back to instance 0 (warning once); a
 // single-instance export always uses index 0 with no svScope needed.
 static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 {
@@ -19587,8 +19584,9 @@ static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 	    active = running_thread->parent_scope;
 
       if (active) {
-	    __vpiScope*active_inst = active->scope; // enclosing instance of a
-						    // context import's fn scope
+	    __vpiScope*active_inst =
+		(active->get_type_code() == vpiFunction
+		 || active->get_type_code() == vpiTask) ? active->scope : 0;
 	    for (unsigned i = 0 ; i < n ; i += 1) {
 		  struct dpi_export_info_s info;
 		  if (! dpi_export_lookup(cname, i, &info))
@@ -20003,9 +20001,9 @@ extern "C" void svAckDisabledState(void)
 }
 
 /*
- * svScope API (IEEE 1800-2017 H.9). A svScope is a vpiHandle to an
+ * svScope API (IEEE 1800-2017/2023 H.9). A svScope is a vpiHandle to an
  * instance/package scope. svGetScope returns the scope currently active
- * for DPI — the caller of the DPI import on the C stack, or the last
+ * for DPI — the import declaration's instance on the C stack, or the last
  * value set with svSetScope.
  */
 extern "C" void*svGetScope(void)
@@ -20033,7 +20031,7 @@ extern "C" const char*svGetNameFromScope(void*scope)
 {
       if (scope == 0)
 	    return 0;
-      return vpi_get_str(vpiName, reinterpret_cast<vpiHandle>(scope));
+      return vpi_get_str(vpiFullName, reinterpret_cast<vpiHandle>(scope));
 }
 
 extern "C" const char*svGetFullNameFromScope(void*scope)
