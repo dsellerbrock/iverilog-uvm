@@ -127,6 +127,12 @@ dep:
 	$(CC) $(CPPFLAGS) $(CFLAGS) @DEPENDENCY_FLAG@ -c $< -o $*.o
 	mv $*.d dep
 
+# The FST writer's parallel mode needs its own configuration macros,
+# both in the library and where it is enabled.
+fstapi.o sys_fst.o: %.o: %.c vpi_config.h
+	$(CC) $(CPPFLAGS) @FST_PARALLEL_FLAGS@ $(CFLAGS) @DEPENDENCY_FLAG@ -c $< -o $*.o
+	mv $*.d dep
+
 %.o: %.cc vpi_config.h
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) @DEPENDENCY_FLAG@ -c $< -o $*.o
 	mv $*.d dep
