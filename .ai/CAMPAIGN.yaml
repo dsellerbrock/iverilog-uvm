@@ -1,18 +1,30 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 1a2c24d13
+checkpoint_head: 3f98f9de1
 active_open_titan_lane:
-  blocker: "OT-OTBN-TRACE-DECL-ORDER"
-  phase: "DONE"
+  blocker: "OT-AES-RUNTIME-CLASSIFIER-FALSE-POSITIVE"
+  phase: "ROOT_CAUSED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "1a2c24d13"
+  baseline_head: "3f98f9de1"
   installed_ivl_sha256: "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4"
   installed_vvp_sha256: "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
-  reproducer: "DD-095 guarded selected OTBN compile leaves only two otbn_trace_if.sv:375 use-before-declaration errors; saved strict 2017/2023 Icarus and Slang reducer confirms pinned source invalid."
-  validation: "Both named patches apply with exact pinned hashes. Strict paired original/moved controls reject/accept as expected. Guarded selected current-compiler OTBN compile exits 0 in 4.793 s at 971 MiB sampled peak RSS, with no hard/semantic notices and a VVP image; no DV verdict."
-  next_command: "Prepare and run the requested full overlaid OpenTitan runtime corpus with parallel jobs and a per-simulator memory guard; Caliptra remains paused."
-  boundary: "OTBN compile success is not a DV pass. The 49-target census remains historical. Caliptra work is paused by user request."
+  reproducer: "Selected AES with OpenSSL DPI returns rc 0 and TEST PASSED CHECKS, but the matrix flags `Configuration error: FALSE` as a runtime failure."
+  validation: "Completed 49-target parallel corpus and separate AES selected replay preserved; exact false-positive root cause isolated."
+  next_command: "Add one exact runtime-only false-value allowlist with a red/green self-check, then replay AES with --native-pkg-config openssl."
+  boundary: "No other classifier/DPI/JEDEC or compiler fixes under this ticket. Caliptra remains paused."
+completed_parallel_census_lane:
+  blocker: "OT-49-OVERLAID-PARALLEL-CENSUS"
+  phase: "DONE"
+  evidence: "evidence/opentitan-49-parallel-census-20260929/: complete 49-row result, 46-operation exact-hash overlay manifest, matrix logs, selected replays. Raw 18 PASS/3 DEBT/12 RUNTIME_FAIL/9 RUNTIME_MEMORY_LIMIT/5 compile FAIL/1 MATRIX_ERROR/1 RUNTIME_TIMEOUT; 3 jobs, 4 GiB cap, 1800 s runtime cap."
+  selected_followup: "Separately, LC Control and both Xbars pass at 8/12/16 GiB guards; Clock Manager passes retry. AES checks pass but classifier false-positive remains. OTBN reaches a DPI scope failure after dependencies are provided."
+  boundary: "The 49-row raw census is immutable and is not a 49/49 pass claim. Caliptra was not run."
+completed_otbn_tracer_lane:
+  blocker: "OT-OTBN-TRACE-DECL-ORDER"
+  phase: "DONE"
+  evidence_head: "2dbfdeb92"
+  evidence: "evidence/opentitan-otbn-trace-declaration-order-20260929/focus.json; guarded selected OTBN compile exits 0, no hard/semantic notices, VVP image emitted."
+  boundary: "No OTBN DV runtime or refreshed 49-target census."
 completed_dd095_lane:
   blocker: "DD-095"
   phase: "DONE"
