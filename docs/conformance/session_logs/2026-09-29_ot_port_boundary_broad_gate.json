@@ -1,0 +1,20 @@
+{
+  "blocker": "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD",
+  "status": "broad compiler gates passed; documentation review pending",
+  "compiler_head": "0db31d850",
+  "test_only_head": "ebbb14df9",
+  "test_only_change": "Removed obsolete tests/negative/sva_match_item_cover.sv fixture; compiler source is unchanged after 0db31d850.",
+  "installed_ivl_path": "local-install/lib/ivl/ivl",
+  "installed_ivl_sha256": "531587ed04d1c80b990548c639e7e007ab29402f70df0a48d735adba6c9980bc",
+  "installed_vvp_sha256": "e978a84bff1268ab70970eb6c5977f9f0f834d73c93ae9267d09125d2d40745b",
+  "log_directory": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work",
+  "gates": {
+    "json": {"head": "0db31d850", "run": 4107, "failed": 0, "log": "ot-json-0db31d850.log", "log_sha256": "2ac37df646fcffaead2a95f66e7b419130c7ec17b643af88cd7cedd7c5d4487c"},
+    "legacy": {"head": "0db31d850", "total": 6875, "passed": 6870, "failed": 0, "not_implemented": 2, "expected_fail": 3, "log": "ot-legacy-0db31d850.log", "log_sha256": "018240b191490f93e195897f797eff5bc88cd1c8f69672229909fa040a682156"},
+    "vpi": {"head": "0db31d850", "total": 140, "passed": 140, "failed": 0, "log": "ot-vpi-0db31d850.log", "log_sha256": "ba46a2acf967a6e63dee2331866c660e259772c6f3d3d65a8b2d801b0f2253bc"},
+    "negative": {"head": "ebbb14df9", "passed": 154, "failed": 0, "log": "ot-negative-ebbb14df9.log", "log_sha256": "069925694d7d3b5320d80e961f6a002d4deacb59d0d31dcdf65bfec4a82547d9"},
+    "sva_dual": {"head": "ebbb14df9", "passed": 62, "failed": 0, "log": "ot-sva-nfa-ebbb14df9.log", "log_sha256": "4361f46788d8f74a473b2706f662d5b1b553d7d900edda44f96f852e8f5a8aa6"},
+    "full_real_dpi_uvm": {"head": "0db31d850", "exit_code": 0, "passed": 361, "failed": 0, "skipped": 0, "dpi_mode": "REAL DPI umbrella loaded", "log": "ot-uvm-0db31d850.log", "log_sha256": "e1f341e5abb0b9f4db032bfafb8fdc23d7546b452afc4e837337ec048cee75ec"}
+  },
+  "qualification_boundary": "No fresh 49-case OpenTitan corpus or selected OTP DV runtime verdict."
+}

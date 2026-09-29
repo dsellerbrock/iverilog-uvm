@@ -1,52 +1,54 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 8eab751d9
+checkpoint_head: ebbb14df9
 active_open_titan_lane:
   blocker: "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD"
-  phase: "FOCUSED_TESTED_PENDING_BROAD_GATE"
+  phase: "REGRESSION_TESTED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "8eab751d9"
+  compiler_head: "0db31d850"
+  test_only_head: "ebbb14df9"
   reproducer: "Exact-head legacy gate ran 6873 with four failures: pr2121536, pr2121536b, implicit_cast12, and structurally stale vcd-dup gold."
-  pending_validation: "Signedness fix and paired strict reducer pass; focused JSON SDF/settled/input 9/9 and legacy port/cast/VCD 19/19 pass. Fixed VCD has 23/23 equal named ordered event streams and three unchanged duplicate warnings; static date header retained. make check, diff check, and independent review pass. Exact-head broad gates remain."
-  next_command: "Run exact-head JSON/legacy and required integrated gates after this focused commit."
-  boundary: "No full suite, 49-case corpus, pinned source edit, or high-memory VVP during this focused ticket."
+  pending_validation: "On exact compiler head 0db31d850, JSON 4107/0, legacy 6875 total/6870 passed/0 failed/2 NI/3 EF, VPI 140/140, and real-DPI UVM 361 passed/0 failed/0 skipped pass. On test-only ebbb14df9, negatives pass 154/154 after removing an obsolete fixture and SVA dual-run passes 62/62. Documentation review remains; see docs/conformance/session_logs/2026-09-29_ot_port_boundary_broad_gate.json."
+  next_command: "Review the gate evidence and documentation diff, then decide blocker closure."
+  boundary: "The 49-case OpenTitan corpus and selected application DV runtimes remain separate qualification."
 suspended_fixed_queue_lane:
   blocker: "OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT"
   phase: "BROAD_JSON_PASSED"
   last_validated_revision: "525642475"
   state: "One-condition SIZE guard narrowing passes paired positive, fixed-element negative and size-conflict controls 6/6, make check and independent review."
-  next_command: "Exact 8eab751d9 JSON passed 4105/0; include this fix in the next current-head integrated gate. Retain old 4097/32 as historical."
+  next_command: "Exact 0db31d850 JSON passes 4107/0 and real-DPI UVM passes 361/361; retain old 4097/32 as historical."
 suspended_partinfo_lane:
   blocker: "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK"
   phase: "BROAD_JSON_PASSED"
   last_validated_revision: "6497dcd3e"
   state: "The four saved CE golds again match one specific diagnostic; focused PartInfo JSON 18/18, legacy 18/18 and make check pass."
-  next_command: "Exact 8eab751d9 JSON passed 4105/0; include this fix in the next current-head integrated gate."
+  next_command: "Exact 0db31d850 JSON passes 4107/0 and real-DPI UVM passes 361/361."
 suspended_sdf_lane:
   blocker: "OT-SDF-INTERCONNECT-PORT-BOUNDARY"
   phase: "BROAD_JSON_PASSED"
   last_validated_revision: "04d73e889"
   state: "BUFZ and .sample port-boundary SDF support passes six strict tiny controls, focused SDF JSON 15/15 and make check; old 4097/32 gate remains historical."
-  next_command: "Exact 8eab751d9 JSON passed 4105/0; include this fix in the next current-head integrated gate."
+  next_command: "Exact 0db31d850 JSON passes 4107/0 and real-DPI UVM passes 361/361."
 suspended_json_stale_fixture_lane:
   blocker: "OT-JSON-STALE-EXPECTATIONS-11"
   phase: "BROAD_JSON_PASSED"
   last_validated_revision: "cdc7fa586"
   state: "The 11 corrected old JSON entries pass 11/11 together; family JSON 5/5, 7/7, 11/11 and legacy 5/5, 7/7, 10/10 pass with neighbors. No implementation source changed."
-  next_command: "Exact 8eab751d9 JSON passed 4105/0; its legacy gate had four separate port-boundary/gold failures. Retain old 4097/32 as historical."
+  next_command: "Exact 0db31d850 JSON passes 4107/0, legacy has zero failures, and real-DPI UVM passes 361/361; retain old 4097/32 as historical."
 suspended_otp_method_lane:
   blocker: "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION"
   phase: "FOCUSED_INTEGRATED_PENDING_DV"
   last_validated_revision: "5f9abaf37"
   state: "Fix b27957d8d integrated; strict paired bare/explicit controls 4/4, adjacent ten, real-DPI UVM 1/1, make check and selected OTP 282-source compile pass with concrete build/connect bodies. No OTP DV verdict."
-  next_command: "After guarded Caliptra HMAC VVP exits, run the exact selected OTP image under a memory/time guard and require pass marker plus zero UVM errors/fatals. DD-089 registration workaround remains."
+  next_command: "When the high-memory slot is available, run the exact 0db31d850 selected OTP image under a memory/time guard and require pass marker plus zero UVM errors/fatals. DD-089 registration workaround remains."
 suspended_fixed_2d_lane:
   blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
   phase: "BROAD_JSON_PASSED_PENDING_APPLICATION_DV"
   last_validated_revision: "d5c7366c3"
   state: "Integrated 8cffebe38/d5c7366c3; strict affected JSON/legacy focus 8/8 each and make check pass. The old full JSON ran 4097/32; later exact 8eab751d9 JSON passed 4105/0. Application corpus remains deferred."
-  next_command: "Run current-head integrated gates after the port-boundary fix, then resume application qualification separately; nested dynamic ADC remains separate."
+  next_command: "Exact 0db31d850 real-DPI UVM passes 361/361; resume application qualification separately after blocker review. Nested dynamic ADC remains separate."
 suspended_adc_proxy_lane:
   blocker: "OT-ADC-2CH-FILTER-CONSTRAINT-PROXY"
   phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
@@ -57,8 +59,8 @@ suspended_otp_lane:
   phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
   last_validated_revision: "72578a893"
   evidence: "evidence/opentitan-otp-factory-registration-20260929/selected_compile.json"
-  state: "The selected copied-source OTP image with banked force, typed timeout, and explicit base-test registration compiles with zero hard errors and the same 56 warnings; strict 2017/2023 controls register once. The first pre-registration replay ended at time zero with INVTST. Compiler type-only specialization debt DD-089 remains."
-  next_command: "After Caliptra VVP and guardian exit, run the registered OTP selected image under a 6 GiB/900-second guard; require a pass marker and zero UVM errors/fatals, not wrapper exit alone."
+  state: "The exact 282-source selected OTP image rebuilt on installed compiler head 0db31d850 has zero errors/sorry and 56 warnings. Its SHA-256 is e92da877c8b09b61385d616d46a656f0e6c28ba4339aed8e8d4f81978c94c4b0; concrete environment build/connect methods and explicit base-test registration are present. Runtime has not run. DD-089 remains separate."
+  next_command: "Run the exact 0db31d850 selected OTP image under a 6 GiB/900-second guard when the high-memory slot is available; require a pass marker and zero UVM errors/fatals."
 suspended_flash_lane:
   blocker: "OT-FLASH-ZERO-TIME-COMBINATIONAL-LOOP"
   phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
