@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OpenTitan 49-target post-fix census — 2026-09-29
+
+- **Frozen-image result:** **23 PASS / 49** on the pinned OpenTitan source with selected exact-hash overlays and native DPI, up from 18 PASS in the previous raw census. The other 26 are 3 DEBT, 4 compile FAIL, 9 RUNTIME_FAIL, 7 RUNTIME_MEMORY_LIMIT, 2 RUNTIME_TIMEOUT, and 1 MATRIX_ERROR. The [complete 49-row evidence](../../evidence/opentitan-49-post-fixes-20260929/README.md) includes source/compiler hashes and logs.
+- **Parallel execution:** The merged interpreter speedups were active. The runner used three concurrent single-core VVP jobs, a 4 GiB limit per runtime, and a 1,800-second timeout on a 10-logical-core, 24 GiB host. Memory and host load constrained target concurrency; JSON regression used four shards separately. Both raw censuses used the speedups, so this is not an A/B speed measurement.
+- **Separate follow-ups:** A same-image Pwrmgr replay resolves the raw `EPERM` infrastructure row to `EscClkStopEscTimeout_A` DV failure. A real-ELF OTBN replay reaches 25,733,094 ps but fails `noOutstandingReqsAtEndOfSim_A` and times out at 180 seconds. Neither selected replay changes the immutable raw 49 rows. Caliptra was not run.
+
 ### OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX — packed element becomes property slot
 
 - **State:** ROOT_CAUSED and selected in `.ai/ACTIVE_WORK.yaml`. The 49-target replay reaches `csrng_scoreboard.sv:634`, where a packed 12-bit class property indexed by `app` is emitted as `%prop/v/i 67,4`. Element index 1 or 2 is then misread as a class property slot and VVP asserts in `property_logic::get_vec4`. The paired 2017/2023 read/write reducer reproduces the assertion; the write opcode has the same slot/index confusion. The narrow front-end repair is in progress. CSRNG DV remains **RUNTIME_FAIL**.

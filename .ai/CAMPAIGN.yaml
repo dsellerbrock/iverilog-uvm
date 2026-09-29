@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: c4199e5cb
+checkpoint_head: bcf6924b3
 active_open_titan_lane:
   blocker: "OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX"
   phase: "ROOT_CAUSED"
@@ -10,9 +10,15 @@ active_open_titan_lane:
   installed_ivl_sha256: "64fee51caec391de5e5667a97273cbac67b29553e4f2fa87a1e13f61b88a3316"
   installed_vvp_sha256: "5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3"
   reproducer: "CSRNG cmd_flag0_previous[app] treats a packed element index as a class property slot and asserts in get_vec4; paired 2017/2023 reducer is red for read and write."
-  validation: "Route packed property read/write through existing packed-select helpers, retain one class slot, pass paired and adjacent controls, then integrated gates and selected CSRNG replay."
-  next_command: "Implement the narrow elab_expr.cc/elab_lval.cc routing in the in-tree image while the frozen installed image finishes the 49-target corpus."
-  boundary: "One compiler blocker active; current 49-target corpus is running with three jobs, 4 GiB/runtime cap and 1800-second timeout. Do not replace its installed compiler image; Caliptra remains paused."
+  validation: "Route packed property read/write through existing packed-select helpers, retain one class slot and exact enum element type, pass paired and adjacent controls, then integrated gates and selected CSRNG replay."
+  next_command: "Finish checked per-dimension packed-property selection, nested enum typing, and shared multi-dimensional trailing-range validation in netmisc.cc/h; re-review, run focused and broad gates, then replay selected CSRNG."
+  boundary: "One compiler blocker active; the 49-target corpus completed and its frozen-image evidence is committed at bcf6924b3. Caliptra remains paused."
+completed_postfix_census_lane:
+  blocker: "OT-49-POST-FIXES-CENSUS"
+  phase: "DONE"
+  evidence_commit: "bcf6924b3"
+  evidence: "evidence/opentitan-49-post-fixes-20260929/: immutable 49-row result, source/compiler pins, logs, separate Pwrmgr and real-ELF OTBN follow-ups. Raw 23 PASS/3 DEBT/4 compile FAIL/9 RUNTIME_FAIL/7 RUNTIME_MEMORY_LIMIT/2 RUNTIME_TIMEOUT/1 MATRIX_ERROR; 3 jobs, 4 GiB cap, 1800-second runtime cap."
+  boundary: "The merged interpreter speedups are active, but this memory-limited corpus uses three single-core simulations concurrently. The previous raw corpus also used the merged speedups, so this is no speedup A/B test. Caliptra was not run."
 completed_ibex_solver_lane:
   blocker: "OT-IBEX-ICACHE-ORDERED-DIST-RANDOMIZE"
   phase: "DONE"
