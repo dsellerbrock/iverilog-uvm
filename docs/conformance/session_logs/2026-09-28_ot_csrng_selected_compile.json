@@ -1,0 +1,80 @@
+{
+  "target": "OpenTitan lowrisc:dv:csrng_sim:0.1 selected compile",
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "generated_source_from": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_csrng_sim_0.1/src",
+  "intr_source_exactly_matches_pinned_before_patch": true,
+  "pinned_intr_sha256": "ed3820429677250a7c769c6505599e60d149b1e4772d780319a7cbc4b78ed065",
+  "patched_intr_sha256": "6c4c83f06a698808d6053d91dbd6efcf08ec4f2f9560f20965b3147b86d4d030",
+  "named_patch": "docs/conformance/release_overlays/opentitan/csrng_intr_checked_randomize.patch",
+  "patch_sha256": "19514ddcc111be0936a5eef20c707229e26f54ef498394ac2d47ea96015650d9",
+  "patch_dry_run_against_pinned_source": "pass",
+  "installed_iverilog": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+  "installed_iverilog_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "joint_dist_reproducer": {
+    "source": "evidence/opentitan-csrng-cfg-joint-dist-20260923/csrng_macro_guard_red.sv",
+    "check": "Invert the historical RED expectation so root.randomize() must succeed; assert a.code == b.code.",
+    "2017": {
+      "compile_exit": 0,
+      "run_exit": 0,
+      "result": "PASS guarded joint-dist solve"
+    },
+    "2023": {
+      "compile_exit": 0,
+      "run_exit": 0,
+      "result": "PASS guarded joint-dist solve"
+    }
+  },
+  "selected_compile": {
+    "cwd": "/private/tmp/ot-csrng-selected-20260928/sim-icarus",
+    "filelist": "/private/tmp/ot-csrng-selected-20260928/matrix-iverilog.scr",
+    "filelist_text": "+timescale+1ns/1ps\n-c /private/tmp/ot-csrng-selected-20260928/sim-icarus/lowrisc_dv_csrng_sim_0.1.scr\n",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-scsrng_bind",
+      "-scsrng_cov_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "<case>.vvp",
+      "-c",
+      "/private/tmp/ot-csrng-selected-20260928/matrix-iverilog.scr"
+    ],
+    "baseline": {
+      "exit": 0,
+      "warnings": 28,
+      "hard_errors": 0,
+      "sorry": 0,
+      "unchecked_randomize_warnings": 6,
+      "log_sha256": "6a208a3d982aac859492067822d5466e3981a72b77ee45d71bdcd27a733bfaa1"
+    },
+    "patched": {
+      "exit": 0,
+      "warnings": 22,
+      "hard_errors": 0,
+      "sorry": 0,
+      "unchecked_randomize_warnings": 0,
+      "log_sha256": "28eea538c1227f2ef6d4ee7679d10d7a91752cfa3c283e366d5a1aa66ebe5c42"
+    },
+    "remaining_warning_groups": {
+      "unchecked_uvm_hdl_force_release_function_calls": 8,
+      "reset_port_coerced_inout": 1,
+      "nonblocking_assignment_in_always_comb": 13
+    }
+  },
+  "qualification_limit": "No CSRNG UVM runtime and no 49-target corpus rerun. The older time-zero joint-dist failure remains a historical result until a selected UVM runtime is replayed."
+}
