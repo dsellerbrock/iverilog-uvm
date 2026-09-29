@@ -1,5 +1,25 @@
 --- a/hw/ip/trial1/dv/trial1_test.sv
 +++ b/hw/ip/trial1/dv/trial1_test.sv
+@@ -343,8 +343,8 @@
+     test_reg("MIXTYPE0", 12'h228, expdata & 32'h0fffffff);  // [31:28] is write-only
+     // hold value
+     repeat(5) @(posedge clk);
+-    // [31:28] is write-only, [27:24] is read-clear
+-    test_reg("MIXTYPE0", 12'h228, expdata & 32'h00ffffff);
++    // [31:28] is write-only; [27:24] is read-write
++    test_reg("MIXTYPE0", 12'h228, expdata & 32'h0fffffff);
+     // test q
+     test_q("MIXTYPE0.field0", reg2hw.mixtype0.field0.q, expdata[3:0]);
+     test_q("MIXTYPE0.field1", reg2hw.mixtype0.field1.q, expdata[7:4]);
+@@ -352,7 +352,7 @@
+     test_q("MIXTYPE0.field3", reg2hw.mixtype0.field3.q, expdata[15:12]);
+     test_q("MIXTYPE0.field4", reg2hw.mixtype0.field4.q, expdata[19:16]);
+     test_q("MIXTYPE0.field5", reg2hw.mixtype0.field5.q, expdata[23:20]);
+-    test_q("MIXTYPE0.field6", reg2hw.mixtype0.field6.q, 4'h0); // read-clear
++    test_q("MIXTYPE0.field6", reg2hw.mixtype0.field6.q, expdata[27:24]);
+     test_q("MIXTYPE0.field7", reg2hw.mixtype0.field7.q, expdata[31:28]);
+   endtask
+ 
 @@ -473,7 +473,7 @@
      my_rotype1_d = 32'hxxxxxxxx;
      tl_h2d.a_valid = 1'b0;
@@ -9,6 +29,83 @@
      repeat(20) @(posedge clk);
       ///////
      //
+@@ -1004,14 +1004,12 @@
+     // default value is 0x87654321
+     hold_q = 32'h87654321;
+     test_mixtype0(hold_q);
+-    // read cleared bits [27:24]
+-    hold_q  &= 32'hf0ffffff;
+     // write value
+     hold_wd = 32'h55555555;
+     send_wr(12'h228, hold_wd);
+     @(posedge clk);
+     hold_q = { hold_wd[31:28],                  // write-only
+-                                hold_q[27:24],  // read-only-clear
++                                hold_wd[27:24], // rw
+                hold_wd[23:20] | hold_q[23:20],  // rw1s
+               ~hold_wd[19:16] & hold_q[19:16],  // rw1c
+                                 hold_q[15:12],  // ro
+@@ -1024,7 +1022,7 @@
+     send_wr(12'h228, hold_wd);
+     @(posedge clk);
+     hold_q = { hold_wd[31:28],                  // write-only
+-                                hold_q[27:24],  // read-only-clear
++                                hold_wd[27:24], // rw
+                hold_wd[23:20] | hold_q[23:20],  // rw1s
+               ~hold_wd[19:16] & hold_q[19:16],  // rw1c
+                                 hold_q[15:12],  // ro
+@@ -1085,7 +1083,6 @@
+       @(posedge clk);
+       hold_q = {hold_q[31:28],hold_wd[27:24],hold_q[23:0]};
+       test_mixtype0(hold_q);
+-      hold_q &= 32'hf0ffffff; // read-clear
+     end
+     // try and get both the we and the de's at the same time, we should win
+     repeat(2) begin
+@@ -1123,7 +1120,7 @@
+       join
+       @(posedge clk);
+       hold_q = { hold_wd[31:28],                  // write-only
+-                                  hold_q[27:24],  // read-only-clear
++                                  hold_wd[27:24], // rw
+                  hold_wd[23:20] | hold_q[23:20],  // rw1s
+                 ~hold_wd[19:16] & hold_q[19:16],  // rw1c
+                                   hold_q[15:12],  // ro
+@@ -1135,7 +1132,7 @@
+      ///////
+     //
+     // test RWTYPE5, RW + HRW + HWQE
+-    // test that only sw writes effect captured value
++    // both software and hardware writes update the captured value
+     //
+     // default value is 0xbabababa
+     test_rwtype5(32'hbabababa);
+@@ -1150,7 +1147,6 @@
+     test_rwtype5(hold_wd);
+     test_rwtype5_capture(hold_wd);
+     // write from HW side
+-    hold_q = hold_wd;
+     hold_wd = $urandom;
+     hw2reg.rwtype5.de <= 1'b1;
+     hw2reg.rwtype5.d  <= hold_wd;
+@@ -1159,7 +1155,7 @@
+     hw2reg.rwtype5.d  <= 32'hxxxxxxxx;
+     @(posedge clk);
+     test_rwtype5(hold_wd);
+-    test_rwtype5_capture(hold_q);
++    test_rwtype5_capture(hold_wd);
+     // write from HW side inverted
+     hold_wd = ~hold_wd;
+     hw2reg.rwtype5.de <= 1'b1;
+@@ -1169,7 +1165,7 @@
+     hw2reg.rwtype5.d  <= 32'hxxxxxxxx;
+     @(posedge clk);
+     test_rwtype5(hold_wd);
+-    test_rwtype5_capture(hold_q);
++    test_rwtype5_capture(hold_wd);
+     // try and get both the we and the de at the same time, we should win
+     hold_wd = 32'haaaaaaaa;
+     fork
 --- a/hw/ip/trial1/dv/tb.sv
 +++ b/hw/ip/trial1/dv/tb.sv
 @@ -1,6 +1,8 @@
