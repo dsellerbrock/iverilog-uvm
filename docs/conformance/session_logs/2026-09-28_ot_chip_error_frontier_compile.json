@@ -1,0 +1,145 @@
+{
+  "target": "lowrisc:dv:chip_sim:0.1",
+  "pinned_opentitan_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_driver_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "compiler_core_sha256": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+  "standards": [
+    "IEEE 1800-2017 and 1800-2023 \u00a711.4.14: narrower RHS streams widen by zero fill on the right; \u00a711.4.14.2 specifies partial-byte slicing",
+    "IEEE 1800-2017 and 1800-2023 \u00a712.7.3: foreach loop-variable type follows the array index type",
+    "IEEE 1800-2017 and 1800-2023 \u00a7\u00a77.2, 7.8: struct members and associative arrays are legal procedural objects"
+  ],
+  "source_overlays_in_order": [
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_nested_vif_lvalue_alias_workaround.patch",
+      "sha256": "50988f3e21e8de1e69b33126467a94fc10c342f5fce4b39596cbc7f48c592696",
+      "previously_committed": true
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_stream_widths.patch",
+      "sha256": "043f8fd8a6f7b35d5103952e11b96b61e623f8fa057e656018c62399f7ff42db",
+      "purpose": "Widen two 32-bit UART values to 64 bits and two 28-bit SPI filter values to 32 bits before reversing bytes. The original widths are legal SystemVerilog but the SPI partial byte otherwise occupies the high nibble of its last byte rather than the software symbol's low nibble."
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_sw_logger_nested_aa_value_copy.patch",
+      "sha256": "f3e64c8e9f167a244705b132194a249c065bf2bcb34c246751c67a758ad7d9cd",
+      "purpose": "Copy one nested associative-array struct value locally for indexed packed/dynamic member accesses, then store it after all arguments arrive."
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_rom_enum_foreach_cast_compile_only.patch",
+      "sha256": "34db724ef9b3520c4e9444551a2622db094de1cdca8a5c135b48633645f0c1c4",
+      "purpose": "Explicitly cast the qualified cross-package foreach index to its declared 320-bit enum type for one method call. This only clears a compile diagnostic."
+    }
+  ],
+  "minimal_reducers": [
+    {
+      "path": "docs/conformance/repros/chip_stream_widths.sv",
+      "sha256": "ef5e82af740ade5c58de2210b249bccb4fa2afb7ff165a008c452e5bb1693638"
+    },
+    {
+      "path": "docs/conformance/repros/nested_aa_struct_bit_select.sv",
+      "sha256": "3187f36eb014774f46d54120ddcf583e33bf0bff310ad9e2ae0088fc89086fb2"
+    },
+    {
+      "path": "docs/conformance/repros/nested_aa_struct_bit_select_alias.sv",
+      "sha256": "25c28ad9956a5ad38d242ef0a275f4183ba7dcdbe13acee82d04249264991901"
+    },
+    {
+      "path": "docs/conformance/repros/nested_aa_struct_dynamic_write.sv",
+      "sha256": "7ba953d01fd7edc01cc328dbe59b480788e792d149ad84864afe80797536bea6"
+    },
+    {
+      "path": "docs/conformance/repros/nested_aa_struct_dynamic_write_copy.sv",
+      "sha256": "0ebc8762b6c75885347c2383bc9cb57c62a646a1e370adaf3c980183b79b22ca"
+    },
+    {
+      "path": "docs/conformance/repros/enum_aa_foreach_package.sv",
+      "sha256": "14a77c11195f3499f5a69060a24d3016156b8f2d5f5efe6f538fd0879149a2fd"
+    },
+    {
+      "path": "docs/conformance/repros/enum_aa_foreach_package_cast.sv",
+      "sha256": "0806b2f419250cde845d9809e1d053ad086162ccd3de9479e4e22196e211696f"
+    }
+  ],
+  "strict_2017_2023_controls": {
+    "stream_widths": "Icarus original exits 3 in both editions on two 32\u219264 and one 28\u219232 stream assignments; -DWIDEN compiles and VVP checks UART 00 c2 01 00 00 00 00 00 and SPI 34 12 bc 0a. Slang accepts original and widened source in both editions with zero warnings.",
+    "logger_bit_select": "Icarus rejects direct logs[name][addr].str_arg_idx[i] in both editions with the exact selected error; a local packed-field alias compiles and runs. Slang accepts both with zero warnings.",
+    "logger_dynamic_write": "Icarus rejects direct logs[name][addr].arg[i] in both editions with the selected unsupported-dynamic-root diagnostic; local whole-value copy/writeback compiles and runs. Slang accepts both with zero warnings.",
+    "rom_enum_foreach": "Icarus rejects an enum-typed method argument from a qualified cross-package associative-array foreach in both editions with `This assignment requires an explicit cast`; the explicit enum cast compiles. Slang accepts both with zero warnings. A tiny casted Icarus VVP replay reached a 1.025-second wall cap and was terminated without a PASS marker; the ROM cast has no runtime qualification."
+  },
+  "selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sclkmgr_bind",
+      "-spwrmgr_bind",
+      "-srstmgr_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-sspi_host_bind",
+      "-stop_earlgrey_bind",
+      "-stop_earlgrey_error_injection_ifs_bind",
+      "-sxbar_main_bind",
+      "-sxbar_peri_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=64",
+      "-DUVM_REG_BYTENABLE_WIDTH=8",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "-DTOP_LEVEL_DV",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/chip-combined.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/chip-combined-outer.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_chip_sim_0.1/sim-icarus",
+    "source_list_sha256": "1fe0b3fa8ace72b15c2420a6f8017c6d4cf48d03513c612939ed2fa9e21c06a0",
+    "compiler_source_list_sha256": "c7b39aaa4c34552a913aa30ba0ddb11cc66feacff87575268dff01f52e735bfc",
+    "timescale_source_list_option": "+timescale+1ns/1ps",
+    "elapsed_seconds": 27.316,
+    "exit_code": 11,
+    "error_count": 0,
+    "unsupported_count": 11,
+    "unsupported": [
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_ctrl_integrity_check_vseq.sv:81: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:107: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:108: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:109: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:116: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:117: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:123: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:129: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:131: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv:176: sorry: this container slice/index chain is not yet supported.",
+      "../src/lowrisc_dv_chip_env_0.1/seq_lib/chip_sw_rom_e2e_jtag_debug_vseq.sv:250: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened."
+    ],
+    "warning_count": 458,
+    "log_sha256": "62e21885879a50c39527173b4fb5f94c90a9b26250283efe5a9f2adee3b589df",
+    "compiler_fingerprints_before": {
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/ivl": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp.tgt": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+    },
+    "compiler_fingerprints_after": {
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/ivl": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp.tgt": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+    }
+  },
+  "runtime_caveats": [
+    "No chip DV runtime was started. The ROM enum cast only clears a compile diagnostic and the tiny runtime control timed out.",
+    "The logger workaround stores its local log record after all arguments arrive; a reset mid-record discards partial intermediate updates that the original code left in the global record."
+  ],
+  "pinned_tree_pristine": true,
+  "dv_runtime_started": false,
+  "qualifies_dv_pass": false,
+  "full_corpus_run": false
+}
