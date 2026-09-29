@@ -35035,8 +35035,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cls && constraint_inline_function_slots_ && value_slots
 		&& !constraint_ir_state_calls_ctx_ && !call->receiver_expr()
 		&& !call->path().package && !call->has_scoped_type_prefix()
-		&& cpath.size() == 2 && cpath.front().index.empty()
-		&& cpath.back().index.empty() && call->with_constraints().empty()) {
+		&& cpath.size() >= 2
+		&& all_of(cpath.begin(), cpath.end(),
+		  [](const name_component_t&part) { return part.index.empty(); })
+		&& call->with_constraints().empty()) {
 		  const netclass_t*target_owner = nullptr;
 		  pform_name_t::const_iterator target_component;
 		  if (!constraint_target_path_begin_(call->path(), cls,
