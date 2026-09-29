@@ -9,9 +9,9 @@ active_open_titan_lane:
   baseline_head: "d7d1b1347"
   installed_ivl_sha256: "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db"
   reproducer: "Pre-fix paired controls omit typedef-only concrete registry static init for explicit, bare-default, class-scoped, nested and package-qualified aliases; distinct module overrides collide in the package cache. These now pass at 56f4bc756."
-  validation: "Compiler commit 56f4bc756: focused JSON 17/17; full JSON 4117/0, legacy 6875 total/0 failed, VPI 140/140, negatives 154/154 and real-DPI UVM 361/361; selected OTP 282-source compile 0 errors/sorry, 56 warnings, one concrete factory initializer without the registration workaround. See docs/conformance/session_logs/2026-09-29_ot_otp_typedef_only_static_init.json."
-  next_command: "After guarded Caliptra TRNG writes a terminal result, run the prepared capped selected OTP VVP from projectless work/run_otp_dd089_guarded.py; verify the pass marker, zero UVM bad diagnostics and checked TL traffic. Do not start a 49-target corpus before current blockers are addressed."
-  boundary: "No fresh 49-case OpenTitan census, OTP DV verdict, or full IEEE chapter-8 qualification."
+  validation: "Compiler commit 56f4bc756: focused JSON 17/17; full JSON 4117/0, legacy 6875 total/0 failed, VPI 140/140, negatives 154/154 and real-DPI UVM 361/361; selected OTP 282-source compile 0 errors/sorry, 56 warnings, one concrete factory initializer without the registration workaround. Its guarded copied-source unsafe/native-DPI runtime passes with exit 0, one TEST PASSED CHECKS, UVM 0/0/0, and 457 matched TL A/D items. See docs/conformance/session_logs/2026-09-29_ot_otp_typedef_only_static_init.json."
+  next_command: "Retain the completed selected OTP smoke as a revision-scoped compatibility checkpoint. Choose the next unresolved OpenTitan target independently and rerun focused selected DV after future compiler/runtime changes; leave the historical 49-case census unchanged."
+  boundary: "One selected copied-source -gcommercial-unsafe/native-DPI OTP smoke passes; no fresh 49-case OpenTitan census, broader OTP DV qualification, or full IEEE chapter-8 qualification."
 completed_port_boundary_signedness_lane:
   blocker: "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD"
   phase: "DONE"
@@ -45,10 +45,10 @@ suspended_json_stale_fixture_lane:
   next_command: "Exact 0db31d850 JSON passes 4107/0, legacy has zero failures, and real-DPI UVM passes 361/361; retain old 4097/32 as historical."
 suspended_otp_method_lane:
   blocker: "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION"
-  phase: "FOCUSED_INTEGRATED_PENDING_DV"
+  phase: "FOCUSED_INTEGRATED_SELECTED_DV_PASS"
   last_validated_revision: "5f9abaf37"
-  state: "Fix b27957d8d integrated; strict paired bare/explicit controls 4/4, adjacent ten, real-DPI UVM 1/1, make check and selected OTP 282-source compile pass with concrete build/connect bodies. No OTP DV verdict."
-  next_command: "After guarded Caliptra TRNG ends, run projectless work/run_otp_dd089_guarded.py on the 56f4bc756 selected image without the registration workaround; require checked DV traffic and a pass marker."
+  state: "Fix b27957d8d integrated; strict paired bare/explicit controls 4/4, adjacent ten, real-DPI UVM 1/1, make check pass; the selected OTP 282-source compile has concrete build/connect bodies, and the same no-workaround image passed one guarded selected unsafe/native-DPI OTP smoke."
+  next_command: "Preserve the selected pass evidence in docs/conformance/session_logs/2026-09-29_ot_otp_typedef_only_static_init.json; recheck on any later compiler/runtime image before extending the claim."
 suspended_fixed_2d_lane:
   blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
   phase: "BROAD_JSON_PASSED_PENDING_APPLICATION_DV"
@@ -62,11 +62,11 @@ suspended_adc_proxy_lane:
   state: "The named three-file copied-source patch compiles ADC UVM with zero hard/solver warnings; the saved image has one concrete factory initializer. A 6-GiB/750-second selected replay is queued. The 1:29 distribution and whole-array solve-order equivalence remain unproved."
 suspended_otp_lane:
   blocker: "OT-UVM-PARAMETERIZED-REGISTRY-STATIC-INIT"
-  phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
+  phase: "SELECTED_COMPATIBILITY_DV_PASS"
   last_validated_revision: "72578a893"
   evidence: "evidence/opentitan-otp-factory-registration-20260929/selected_compile.json"
-  state: "Historical 0db31d850 selected OTP image used the named copied-source registration workaround and was not run. The newer 56f4bc756 compiler emits one concrete base-test registry initializer without that workaround; its selected runtime remains pending."
-  next_command: "After guarded Caliptra TRNG ends, run projectless work/run_otp_dd089_guarded.py on the no-workaround 56f4bc756 selected image under its 6 GiB/900-second guard; require a pass marker, zero UVM bad diagnostics and checked TL traffic."
+  state: "Historical 0db31d850 selected OTP image used the named copied-source registration workaround and was not run. The newer 56f4bc756 compiler emits one concrete base-test registry initializer without that workaround; its selected 282-source image passed the guarded OTP smoke (exit 0, one pass marker, UVM 0/0/0, 457 matched TL A/D items, peak 6158439080 bytes below 6 GiB)."
+  next_command: "Keep the older workaround compile separate from the new no-workaround selected runtime pass; rerun a bounded selected OTP case after future compiler/runtime changes before broadening the DV claim."
 suspended_flash_lane:
   blocker: "OT-FLASH-ZERO-TIME-COMBINATIONAL-LOOP"
   phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
@@ -95,8 +95,8 @@ current_caliptra_continuation:
   historical_52: "The stopped selected campaign has 20 passes, 16 four-hour timeouts, three assertion failures, two low-swap -9 kills, and 11 cases without a finalized result. Separate 16-hour SHA256 WNTZ and SHA3 passes do not change that aggregate."
   qualified_ecc_pcr: "A separate guarded smoke_test_pcr_zeroize passed on the frozen pre-speedup build: VVP exit zero, one pass marker, no bad diagnostics, no timeout or cap hit, peak physical footprint 1114261160 bytes. Local evidence commit 367a6d0c5; this is not a historical 52-case count change."
   installed_build: "The Caliptra checkout merged speedup main 56e282592 as 779247d09, rebuilt and installed, then committed AXI and per-word SHA runner selectors at b94979cf5 and 0063219c9. Focused strict compiler and copied-profile checks pass."
-  active_selected_replay: "The per-word patched pv_hash_zeroize and sampled-busy patched HMAC selected replays passed outside the historical 52-case aggregate. A guarded original-cadence smoke_test_trng is active in the projectless work/caliptra-trng-16h-20260929 directory under an 8 GiB footprint cap and 57600-second timeout; no result.json or DV verdict yet."
-  next_command: "Monitor the guarded TRNG result and progress. Do not launch another high-memory VVP or a 52-case corpus until it exits. Then run selected guarded OTP and Caliptra follow-ups, classifying timeout, cap, assertion, and DV outcome separately."
+  active_selected_replay: "The per-word patched pv_hash_zeroize, sampled-busy patched HMAC, and original-cadence smoke_test_trng selected replays passed outside the historical 52-case aggregate. TRNG used an 8 GiB cap and 57600-second timeout; VVP exited 0 with one pass marker, zero bad diagnostics, 138353 cycles, and 1282671936 bytes peak physical footprint. Caliptra evidence commit 044e4cbc2 records its source and image fingerprints."
+  next_command: "Integrate merged PR394 runtime speedups into the Caliptra branch after preserving the completed TRNG image, then use one 8 GiB/57600-second guarded smoke_test_mlkem_locked_api replay to classify its prior low-swap kill. Do not start a 52-case corpus before resolving current blockers."
 prior_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/

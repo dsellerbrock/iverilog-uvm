@@ -1,0 +1,22 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_jedec_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_jedec_tb.sv
+@@ -84,8 +84,7 @@
+     fork
+       begin
+         #20us
+-        $display("TEST TIMED OUT!!");
+-        $finish();
++        $fatal(1, "TEST TIMED OUT!!");
+       end
+       host();
+       sw();
+@@ -105,7 +104,7 @@
+ 
+     // Expect 5 continuous codes and jedec ID
+     spiflash_readjedec(tb_sif, CmdJedecId, ContinuousCode, num_cc, jedec_id);
+-    assert(num_cc == 5)
+-      else $display("Num_CC count (%2d) does not match to 5", num_cc);
++    if (num_cc !== 5 || jedec_id !== 24'hBEA55A)
++      $fatal(1, "JEDEC mismatch: num_cc=%0d id=%h", num_cc, jedec_id);
+ 
+     $display("SPI Flash Read JEDEC ID Tested!!:");

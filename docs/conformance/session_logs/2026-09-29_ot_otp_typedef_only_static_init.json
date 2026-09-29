@@ -1,6 +1,6 @@
 {
   "blocker": "DD-089",
-  "status": "final-image compiler gates passed; selected OTP runtime separate",
+  "status": "final-image compiler gates passed; selected OTP runtime passed",
   "baseline_head": "d7d1b1347",
   "installed_ivl_sha256": "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db",
   "installed_vvp_sha256": "e978a84bff1268ab70970eb6c5977f9f0f834d73c93ae9267d09125d2d40745b",
@@ -61,9 +61,33 @@
     "concrete_test_classes": 1,
     "matching_registry_initializers": 1,
     "explicit_registration_workaround": false,
-    "vvp_runtime_executed": false
+    "vvp_runtime_executed": true
   },
-  "qualification_boundary": "No selected OTP DV runtime verdict or fresh 49-case OpenTitan census.",
+  "selected_otp_runtime": {
+    "profile": "pinned copied-source OpenTitan OTP, -gcommercial-unsafe, native DPI",
+    "command_file": "work/otp-dd089-scoped-runtime-20260929/command.json",
+    "result_file": "work/otp-dd089-scoped-runtime-20260929/result.json",
+    "log_file": "work/otp-dd089-scoped-runtime-20260929/run.log",
+    "log_sha256": "4a273bb39138cd5e3972b44f4fc4eb0149a02379cff07f31e0b5f12e112e972a",
+    "image_sha256": "82821822c92ed1f40562dfcdbe06eb6f400933dc839a2b65d03e4bef37564a82",
+    "explicit_registration_workaround": false,
+    "exit_code": 0,
+    "timed_out": false,
+    "memory_limit_hit": false,
+    "timeout_seconds": 900,
+    "physical_memory_cap_gib": 6,
+    "peak_physical_footprint_bytes": 6158439080,
+    "test_passed_checks_markers": 1,
+    "uvm_warnings": 0,
+    "uvm_errors": 0,
+    "uvm_fatals": 0,
+    "scoreboard_tl_a_items": 457,
+    "scoreboard_tl_d_items": 457,
+    "core_tl_a_d_pairs": 437,
+    "prim_tl_a_d_pairs": 20,
+    "expected_negative_prim_d_error_responses": 20
+  },
+  "qualification_boundary": "One selected copied-source -gcommercial-unsafe/native-DPI OTP smoke passes without the explicit-registration workaround; no fresh 49-case OpenTitan census, broader OTP DV qualification, or full IEEE chapter-8 qualification.",
   "compiler_commit": "56f4bc756",
   "log_directory": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work",
   "standards": "IEEE 1800-2017/2023 \u00a7\u00a78.25, 8.9, 6.8, 10.5"

@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+    "-n",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-jedec-check-20260929/spid_jedec_checked.vvp"
+  ],
+  "exit_code": 0,
+  "timed_out": false,
+  "memory_limit_hit": false,
+  "peak_physical_footprint_bytes": null,
+  "pass_markers": 1,
+  "bad_lines": [],
+  "log_sha256": "b0b121806e7e7da8957bfb45ac2875e204a9fb7ed928e1729ea4fe85933a5028",
+  "pass": true
+}
