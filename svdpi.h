@@ -42,6 +42,10 @@ typedef struct {
       uint32_t bval;
 } svLogicVecVal;
 
+/* Packed bit-select utilities; index 0 is the LSB. */
+extern svBit svGetBitselBit(const svBitVecVal* s, int i);
+extern void svPutBitselBit(svBitVecVal* d, int i, svBit s);
+
 /* Scope handle (H.9). A svScope is an opaque handle to a SystemVerilog
  * instance scope; in this implementation it is a vpiHandle for the
  * scope object. */

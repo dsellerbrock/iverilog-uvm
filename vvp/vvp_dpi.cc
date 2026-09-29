@@ -556,6 +556,17 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
  */
 extern "C" {
 
+svBit svGetBitselBit(const svBitVecVal*s, int i)
+{
+      return (s[i / 32] >> (i % 32)) & 1u;
+}
+
+void svPutBitselBit(svBitVecVal*d, int i, svBit s)
+{
+      const svBitVecVal mask = (svBitVecVal)1u << (i % 32);
+      d[i / 32] = (d[i / 32] & ~mask) | ((svBitVecVal)(s & 1u) << (i % 32));
+}
+
 /* M10B-md: walk one level of a multidim open array: the outer word at
    idx is itself a dynamic array. Returns null when out of range or not
    multidim. */
