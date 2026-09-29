@@ -1,0 +1,27 @@
+{
+  "blocker": "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT",
+  "baseline_head": "b2822b177",
+  "standards": [
+    "IEEE 1800-2017 7.4.1, 18.3, 18.5.8.1",
+    "IEEE 1800-2023 7.4.1, 18.3, 18.5.7.1"
+  ],
+  "reproducer": "ivtest/ivltests/sv_constraint_fixed_2d_struct_member.sv",
+  "baseline": "Strict 2017 and 2023 compile with fail-closed constraint warnings; randomize() fails before checking array contents.",
+  "candidate": "Strict 2017 and 2023 compile without diagnostics; runtime verifies all signed, unsigned, and bit fields at descending 2D indices plus UNSAT rollback.",
+  "implementation": "elaborate.cc reuses constraint_fixed_queue_leaf_ for checked fixed-array index flattening and casts signed packed member slices to their declared type.",
+  "focused_gates": {
+    "json": "8 passed, 0 failed",
+    "legacy": "8 passed, 0 failed",
+    "multidimensional_invalid_indices": "X and out-of-range selected index fail closed in both strict editions",
+    "neighbors": [
+      "existing 1D packed-struct member",
+      "signed member with unknown index fails closed",
+      "unknown index of unsigned member fails closed"
+    ]
+  },
+  "pending": [
+    "shared integration and required broad compiler gates",
+    "selected OpenTitan ADC runtime after the Caliptra VVP slot is free"
+  ],
+  "qualification_boundary": "The pinned ADC filter_cfg is a nested dynamic array; this fixed-array repair alone does not qualify ADC DV or remove its copied-source proxy."
+}

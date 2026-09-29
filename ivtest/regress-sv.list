@@ -3396,6 +3396,8 @@ sv_constraint_function_foreach_packed_argument normal,-g2017,-s,test ivltests go
 sv_constraint_function_foreach_packed_argument_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_foreach_packed_argument.gold
 sv_constraint_fixed_array_packed_member normal,-g2017,-s,test ivltests gold=sv_constraint_fixed_array_packed_member.gold
 sv_constraint_fixed_array_packed_member_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_fixed_array_packed_member.gold
+sv_constraint_fixed_2d_struct_member normal,-g2017,-s,test ivltests gold=sv_constraint_fixed_2d_struct_member.gold
+sv_constraint_fixed_2d_struct_member_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_fixed_2d_struct_member.gold
 sv_constraint_fixed_array_packed_member_x_index normal,-g2017,-s,test ivltests gold=sv_constraint_fixed_array_packed_member_x_index.gold
 sv_constraint_fixed_array_packed_member_x_index_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_fixed_array_packed_member_x_index.gold
 sv_constraint_fixed_array_packed_member_signed_fail normal,-g2017,-s,test ivltests gold=sv_constraint_fixed_array_packed_member_signed_fail.gold

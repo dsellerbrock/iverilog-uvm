@@ -1,7 +1,7 @@
 typedef struct packed { bit signed [3:0] en; } region_t;
 class signed_member;
   rand region_t regions[2];
-  constraint c { regions[0].en == -4'sd2; }
+  constraint c { regions[1'bx].en == -4'sd2; }
 endclass
 module test;
   signed_member item;

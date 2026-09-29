@@ -338,6 +338,13 @@
 - **Evidence:** The [paired reducer and pinned-source assessment](../../evidence/opentitan-adc-class-resize-triage-20260923/assessment.md) shows that `filter_cfg` is a nested dynamic array of packed structs, not class handles. VVP's `class-handle collection` error applies an overbroad guard to this type. The outer size reaches solver IR, but typed resize/write-back is missing; the indexed inner `.size` constraint is separately dropped during elaboration ([DD-047](DISCOVERED_DEBT.md)).
 - **Closure:** Finish indexed inner resize and nested size/element constraints with correct retention and rollback in both IEEE editions; keep actual class-handle growth semantics distinct. Rerun pinned ADC DV only after these semantics pass focused positive, negative, and boundary tests. No ADC DV pass is established.
 
+### OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT — selected fields in fixed arrays
+
+- **State:** An isolated compiler candidate passes the strict 2017/2023 reducer and neighboring focused regressions; shared integration and full compiler gates remain pending.
+- **Requirement:** IEEE 1800-2017 §§7.4.1, 18.3, 18.5.8.1 and 2023 §§7.4.1, 18.3, 18.5.7.1 require constraint `foreach` over each declared fixed-array dimension to bind the selected packed-struct field of the corresponding rand element. Signed fields retain signed comparisons, and failed randomization preserves old values.
+- **Cause and evidence:** `pexpr_to_constraint_ir` restricted the selected packed-struct member branch to one fixed dimension and manually flattened one index. Reusing the existing checked fixed-array leaf helper supports multidimensional fixed arrays, while a signed cast preserves member type. The [paired focused record](session_logs/2026-09-29_ot_adc_fixed_2d_struct_member.json) includes baseline failure, candidate success, and 8/8 in each focused regression harness.
+- **Boundary:** This repair covers fixed arrays. The pinned ADC configuration uses nested dynamic arrays, whose indexed inner `.size` and whole-array ordering remain separate gaps. Its copied-source selected compile and queued DV replay are unchanged; no ADC DV pass is established.
+
 ### OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH — sparse caller-owned command keys
 
 - **State:** Locally integrated at `c64b1791f`; [paired focused evidence](session_logs/2026-09-23_parallel_compiler_followon_focus.json) covers the released SPI shape. Full SPI Device DV and broad compiler qualification remain open.
