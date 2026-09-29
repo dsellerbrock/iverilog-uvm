@@ -1,16 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: da1a52009
+checkpoint_head: 39b014c52
 active_open_titan_lane:
-  blocker: "OT-OTP-PACKED-FORCE-RHS"
-  phase: "FOCUSED_INTEGRATION"
+  blocker: "OT-UVM-PARAMETERIZED-REGISTRY-STATIC-INIT"
+  phase: "REPRODUCED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "da1a52009"
-  reproducer: "Selected OTP original source emits 40 one-shot force RHS notices after a separate typed inside endpoint patch; a banked source form crashes force_link_rval on packed-field offset. Strict 2017/2023 reducers cover packed offset and live RHS semantics."
-  pending_validation: "Integrate force-only packed-offset guard and separate named OTP banked-force/typed-endpoint overlays. Private same-compiler selected A/B compiles with zero hard errors and 40-to-0 force notices; focused banked runtime controls pass. Selected OTP DV remains unrun."
-  next_command: "Build/install the scoped OTP compiler fix, rerun paired registered force controls, and compile exact selected original-versus-banked copied sources with the typed endpoint patch. Preserve the live Caliptra VVP; run OTP selected VVP only after it exits."
-  boundary: "Pinned OpenTitan is pristine. Source overlays and selected unsafe-mode results are explicit; exit-zero VVP with UVM_ERROR remains DV failure."
+  baseline_head: "39b014c52"
+  reproducer: "A bounded selected OTP replay ends at time zero with INVTST: otp_ctrl_base_test is not registered. Saved and freshly recompiled images include the class and registry Tname but no startup initializer. A tiny parameterized registry reached through a generate typedef emits the initializer on old 4c45450a4 and omits it on the installed compiler."
+  pending_validation: "Locate the first bad compiler change, preserve one-time concrete specialization initialization without reviving generic-master duplicates, add a strict paired minimal regression, then recompile the exact selected OTP source and replay singly when no Caliptra VVP is active. The prior banked-force compile fix remains complete."
+  next_command: "Use the tiny compile gate on adjacent commits around b2c3baf39; inspect class static-init deferral and generate-typedef reachability. Do not rerun the OTP full image before the registration call appears."
+  boundary: "The old OTP wrapper returned zero despite one UVM_FATAL and 512 teardown assertions; this is no DV pass. Pinned OpenTitan is pristine; the 49-target aggregate is unchanged."
 suspended_flash_lane:
   blocker: "OT-FLASH-ZERO-TIME-COMBINATIONAL-LOOP"
   phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
@@ -35,13 +35,12 @@ prior_open_titan_lane:
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
 current_caliptra_continuation:
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924"
-  selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3 selected 52-case copied-source diagnostic with unsafe mode, reset/checker source overlays, and ephemeral JTAG port. Pristine qualification is separate."
-  prior_completed: "Final read-only monitor snapshot at 2026-09-28 13:21 UTC: 39 of 52 finalized, 18 selected-profile passes and 21 failures; no aggregate 52-case pass. Monitoring is paused at user request."
-  continuation: "At that snapshot, smoke_test_doe_rand, smoke_test_doe_scan, and smoke_test_zeroize_crypto had active fresh logs; ten cases had not started. Unified exec session 20675 was preserved, not terminated. Resume evidence: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924/evidence/caliptra-icarus-l0-main-52-resume-20260927/."
-  observed_failure: "pv_hash_zeroize exited on ERR_SHA_BLOCK_NOT_STABLE at 597595 ns; a one-line SHA512 patch remains a candidate pending full validation. smoke_test_pcr_zeroize exited on ERR_ECC_PRIVKEY_NOT_STABLE at 632545 ns just after its second PCR_SIGN command; the first busy-edge key-load/checker boundary is under read-only triage, not a proven RTL key mutation or patched case."
-  patches: "Completed smoke_test_hw_config used its named hash-checked C patch on a disposable copy. Pending smoke_test_hmac_errortrigger will receive its named C patch only when launched. A one-line SHA512 assertion source patch is a dry-run-validated candidate for pv_hash_zeroize, not yet used in a full case. Pinned Caliptra and Adams Bridge checkouts remain clean."
-  hmac_candidate_replay: "At 2026-09-28 13:21 UTC the named patched-copy single-case HMAC replay remained running, process PID 96605, unified exec session 94598, without a verdict. Result: projectless work/caliptra-hmac-sampled-busy-single-20260928/root-replay-result.json; log: sibling run-root-replay/exec.log. It was preserved, not terminated."
-  next_command: "Only after explicit resume: inspect result files for preserved selected-run session 20675 and HMAC replay session 94598 before polling or restarting anything. Keep timeout, patched-source, pristine, and assertion outcomes distinct."
+  selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3, commercial-unsafe mode with named copied-source reset/checker/AXI/SHA/JTAG overlays. Pinned sources remain clean."
+  historical_52: "The stopped selected campaign has 20 passes, 16 four-hour timeouts, three assertion failures, two low-swap -9 kills, and 11 cases without a finalized result. Separate 16-hour SHA256 WNTZ and SHA3 passes do not change that aggregate."
+  qualified_ecc_pcr: "A separate guarded smoke_test_pcr_zeroize passed on the frozen pre-speedup build: VVP exit zero, one pass marker, no bad diagnostics, no timeout or cap hit, peak physical footprint 1114261160 bytes. Local evidence commit 367a6d0c5; this is not a historical 52-case count change."
+  installed_build: "The Caliptra checkout merged speedup main 56e282592 as 779247d09, rebuilt and installed, then committed AXI and per-word SHA runner selectors at b94979cf5 and 0063219c9. Focused strict compiler and copied-profile checks pass."
+  active_selected_replay: "One pv_hash_zeroize replay was launched under an 8 GiB footprint cap and 57600-second timeout into evidence/caliptra-pv-hash-zeroize-perword-selected-20260929. It uses reset, pure checker, AXI RUSER allocation, per-word SHA observer, and ephemeral JTAG copied-source overlays. It reached VVP firmware traffic with no early failure marker; no DV verdict yet."
+  next_command: "Monitor that single case's result.json and sim.log. Do not launch another high-memory VVP or a 52-case corpus until it exits; classify timeout, cap, assertion, and ordinary DV outcome separately."
 prior_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
