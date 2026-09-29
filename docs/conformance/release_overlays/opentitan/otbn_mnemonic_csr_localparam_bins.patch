@@ -1,0 +1,20 @@
+--- a/hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv
++++ b/hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv
+@@ -15,7 +15,7 @@
+   // least) complains if you put an uncast string literal in a position where it expects an integral
+   // value.
+ `define DEF_MNEM(MNEM_NAME, MNEMONIC) \
+-  mnem_str_t MNEM_NAME = mnem_str_t'(MNEMONIC)
++  localparam mnem_str_t MNEM_NAME = mnem_str_t'(MNEMONIC)
+   `DEF_MNEM(mnem_add,           "add");
+   `DEF_MNEM(mnem_addi,          "addi");
+   `DEF_MNEM(mnem_lui,           "lui");
+@@ -112,7 +112,7 @@
+   // Equivalents of DEF_MNEM and DEF_MNEM_BINp, but for external CSRs. Again, we want to use the CSR
+   // names as bins in coverpoints and need sized literals.
+ `define DEF_CSR(CSR_NAME, STR) \
+-  csr_str_t CSR_NAME = csr_str_t'(STR)
++  localparam csr_str_t CSR_NAME = csr_str_t'(STR)
+   `DEF_CSR(csr_load_checksum, "load_checksum");
+   `DEF_CSR(csr_ctrl, "ctrl");
+ `undef DEF_CSR

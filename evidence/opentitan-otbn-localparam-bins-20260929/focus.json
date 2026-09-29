@@ -1,0 +1,141 @@
+{
+  "blocker": "DD-094",
+  "status": "focused_reducer_passed_selected_compile_deferred",
+  "compiler_head": "370059c845359e80be8ead76767585c3329e3b2e",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_source": "hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv",
+  "source_hashes": {
+    "pinned_sha256": "1028ed5cc5aebc4a14f47a6ae40f0fadf856fbeac5e7961e9ed660513c9bd02e",
+    "saved_corpus_sha256": "1028ed5cc5aebc4a14f47a6ae40f0fadf856fbeac5e7961e9ed660513c9bd02e",
+    "patch_sha256": "c22e0d9d7284e6d63b3d38d31ca31c46639e8c735a79aa8a03c7ccc83bf07656",
+    "copied_patched_sha256": "ab13517ccd79dc34ec41b3f253670bac43265c401d20f639fdf8488ea2cf2d70",
+    "saved_source_list_sha256": "1908eae1ad09f25f805cf058b85d7946e421d29906b90c52ac1e5b6a74de7273",
+    "selected_source_list_sha256": "1908eae1ad09f25f805cf058b85d7946e421d29906b90c52ac1e5b6a74de7273",
+    "selected_outer_filelist_sha256": "25a37f8ee165e65bb6d79bbda98ec101bbba5de5f13e26f4d2d7b3878acfb981"
+  },
+  "patch_check": "Applied to disposable copy with patch -F 0 -p1; only DEF_MNEM and DEF_CSR declaration lines changed, retaining casts and literal arguments.",
+  "source_copy_root": "/private/tmp/otbn-dd094-20260929/selected",
+  "pinned_checkout_clean": true,
+  "tool_hashes": {
+    "iverilog_sha256": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+    "ivl_sha256": "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db",
+    "vvp_sha256": "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
+  },
+  "strict_reducer": {
+    "2017": {
+      "positive_compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/otbn-dd094-20260929/durable-positive-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/localparam_bins.sv"
+      ],
+      "positive_compile_exit": 0,
+      "positive_run_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+        "/private/tmp/otbn-dd094-20260929/durable-positive-2017.vvp"
+      ],
+      "positive_run_exit": 0,
+      "positive_run_stdout": "PASS OTBN package packed coverage bins",
+      "mutable_compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/otbn-dd094-20260929/durable-mutable-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv"
+      ],
+      "mutable_compile_exit": 4,
+      "mutable_diagnostic_count": 2,
+      "mutable_diagnostics": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:31: warning: Static variable initialization requires explicit lifetime in this context.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:21: error: covergroup bin `add' range expression references mutable enclosing-class property `mnem_add'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:22: error: covergroup bin `load_checksum' range expression references mutable enclosing-class property `csr_load_checksum'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:5: error: wide covergroup bin 'add' requires unsigned packed exact constant values (up to 256 bits); the bin cannot be represented.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:5: error: wide covergroup bin 'load_checksum' requires unsigned packed exact constant values (up to 256 bits); the bin cannot be represented.",
+        "4 error(s) during elaboration."
+      ]
+    },
+    "2023": {
+      "positive_compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/otbn-dd094-20260929/durable-positive-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/localparam_bins.sv"
+      ],
+      "positive_compile_exit": 0,
+      "positive_run_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+        "/private/tmp/otbn-dd094-20260929/durable-positive-2023.vvp"
+      ],
+      "positive_run_exit": 0,
+      "positive_run_stdout": "PASS OTBN package packed coverage bins",
+      "mutable_compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/otbn-dd094-20260929/durable-mutable-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv"
+      ],
+      "mutable_compile_exit": 4,
+      "mutable_diagnostic_count": 2,
+      "mutable_diagnostics": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:31: warning: Static variable initialization requires explicit lifetime in this context.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:21: error: covergroup bin `add' range expression references mutable enclosing-class property `mnem_add'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:22: error: covergroup bin `load_checksum' range expression references mutable enclosing-class property `csr_load_checksum'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:5: error: wide covergroup bin 'add' requires unsigned packed exact constant values (up to 256 bits); the bin cannot be represented.",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-otbn-localparam-bins-20260929/mutable_bins.sv:5: error: wide covergroup bin 'load_checksum' requires unsigned packed exact constant values (up to 256 bits); the bin cannot be represented.",
+        "4 error(s) during elaboration."
+      ]
+    }
+  },
+  "saved_baseline": {
+    "compile_exit": 208,
+    "mutable_class_bin_errors": 178,
+    "all_hard_diagnostic_lines": 236,
+    "other_hard_diagnostic_lines": 58,
+    "log": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_dv_otbn_sim_0.1/matrix-compile.log"
+  },
+  "selected_compile": {
+    "status": "deferred",
+    "reason": "Caliptra ML-KEM VVP occupies about 1.56 GiB; /bin/ps process accounting is unavailable in this sandbox, so the existing process-group RSS guard fails before launching the compiler. No unguarded selected compile was started.",
+    "rss_cap_mib_required": 4096,
+    "cwd": "/private/tmp/otbn-dd094-20260929/selected/sim-icarus",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sotbn_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/private/tmp/otbn-dd094-20260929/selected-otbn.vvp",
+      "-c",
+      "/private/tmp/otbn-dd094-20260929/selected/matrix-iverilog.scr"
+    ],
+    "option_note": "The historical selected command already contains -gcommercial-unsafe; no new waiver was added.",
+    "target_result": "unknown; saved baseline has other hard diagnostics, so no OTBN compile or DV pass is claimed."
+  },
+  "scope": "One named copied-source patch and strict packed-width controls; 49-target census unchanged."
+}
