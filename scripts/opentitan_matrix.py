@@ -1623,7 +1623,14 @@ for config_path, config in loaded_configs:
     tests_by_name = {
         substitute(test["name"], context): test
         for test in tests
-        if isinstance(test.get("name"), str) and test.get("uvm_test_seq")
+        if isinstance(test.get("name"), str)
+        and (
+            test.get("uvm_test_seq")
+            or any(
+                re.fullmatch(r"\+TESTNAME=[^{}%\s]+", str(option))
+                for option in test.get("run_opts", []) or []
+            )
+        )
     }
     regression_smoke = next(
         (

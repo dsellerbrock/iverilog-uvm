@@ -1,10 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: c0abdfa48
+checkpoint_head: e7f2665ab
+completed_spid_passthrough_selection_lane:
+  blocker: "OT-SPID-PASSTHROUGH-SMOKE-RUN-OPTS"
+  phase: "DONE"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "e7f2665ab"
+  reproducer: "Pinned passthrough smoke config lists readbasic first with +TESTNAME=readbasic; frozen matrix metadata omits it, so the directed bench exits without running a test."
+  allowed_scope: "Matrix metadata selection for directed run_opts-only smoke tests, focused controls, and one guarded selected replay."
+  validation: "Pre-fix metadata omitted TESTNAME; post-fix only passthrough among 49 rows changes to readbasic/+TESTNAME=readbasic, UVM metadata unaffected. Self-test PASS. One-core VVP exit0/one pass banner/zero runtime errors in 4.073s under 2 GiB/120s; verdict DEBT from nine compile semantic notices and two runtime warnings."
+  evidence: "evidence/opentitan-spid-passthrough-smoke-selection-20260929/"
+  next_command: "Select a separate blocker; investigate passthrough source warnings or Keymgr RAL_T fallback with a red minimal reproducer before fixing."
+  boundary: "Pinned OpenTitan and frozen 23/49 unchanged; do not count the DEBT row as PASS. No full corpus or multi-hour Caliptra run."
 completed_spid_jedec_lane:
   blocker: "OT-SPID-JEDEC-DIRECTED-RESULT-CLASSIFIER"
   phase: "DONE"
+  implementation_commit: "e7f2665ab"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "954423741"
   reproducer: "Frozen JEDEC directed simulation exits zero and prints exact post-check marker, but the generic UVM-only banner regex classifies it RUNTIME_FAIL."

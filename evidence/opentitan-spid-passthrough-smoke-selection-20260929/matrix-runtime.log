@@ -1,0 +1,57 @@
+OpenTitan UVM runtime
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp -n /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-passthrough-matrix-20260929/runtime/lowrisc_dv_spid_passthrough_sim_0.1/matrix-runtime.vvp +TESTNAME=readbasic +smoke_test=1
+returncode: 0
+duration_seconds: 4.073
+
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:75: Warning: Calling system function $value$plusargs() as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:75:          The functions return value will be ignored.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_sw.sv:32: Warning: Calling system function $value$plusargs() as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_sw.sv:32:          The functions return value will be ignored.
+UVM_INFO /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh(392) @ 0: reporter [UVM/RELNOTES] 
+----------------------------------------------------------------
+UVM-1.2
+(C) 2007-2014 Mentor Graphics Corporation
+(C) 2007-2014 Cadence Design Systems, Inc.
+(C) 2006-2014 Synopsys, Inc.
+(C) 2011-2013 Cypress Semiconductor Corp.
+(C) 2013-2014 NVIDIA Corporation
+----------------------------------------------------------------
+
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  You are using a version of the UVM library that has been compiled
+  with `UVM_OBJECT_DO_NOT_NEED_CONSTRUCTOR undefined.
+  See http://www.eda.org/svdb/view.php?id=3770 for more details.
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+/////////////////////
+// SPI Flash Model //
+/////////////////////
+
+Configurations:
+  JEDEC ID:  ID(0x1f) CC_NUM ( 7)
+  Capacity:  1MB
+  Fast Read: Enabled/ Dummy Cycle (8)
+  Dual Mode: Enabled/ Dummy Cycle (4)
+  Quad Mode: Enabled/ Dummy Cycle (3)
+Intializing SPI_DEVICE: PassThrough mode
+Status Received: 00
+Received Status: 00h
+SPIFlash: Command(9fh) received
+Jedec ID Received: Manufacturer ID [1f], JEDEC_ID [1234]
+Received Jedec ID: 1fh (CC:  7), Device ID: 1234h
+SPIFlash: Command(5ah) received
+                5177] SPIFlash: SFDP Address 00000000h
+Read SFDP [0x  000000 + 0x00000020]
+SPIFlash: Command(03h) received
+T:9475] SPIFlash: Read Address 00000103h
+Read Cmd [0x00000103 + 0x00000100]
+SPIFlash: Command(6bh) received
+T:38749] SPIFlash: Read Address 00000103h
+Read Cmd [0x00000103 + 0x00000083]
+Read Data size: 256 / 131
+Read Data (1st): '{16, 51, 196, 137, 134, 219, 117, 191, 77, 1, 71, 231, 25, 50, 163, 235, 142, 139, 7, 58, 92, 38, 122, 253, 187, 99, 243, 39, 97, 120, 118, 175, 51, 213, 181, 189, 230, 166, 126, 116, 112, 200, 17, 189, 216, 245, 33, 235, 120, 244, 99, 83, 206, 44, 73, 44, 162, 11, 169, 147, 7, 219, 90, 254, 93, 63, 121, 152, 15, 68, 233, 142, 76, 50, 64, 34, 11, 242, 138, 181, 201, 115, 187, 113, 112, 177, 161, 96, 68, 160, 177, 49, 229, 24, 6, 108, 148, 169, 76, 50, 119, 189, 249, 207, 45, 173, 178, 134, 36, 94, 252, 12, 183, 187, 6, 43, 28, 45, 153, 55, 18, 87, 231, 37, 156, 76, 223, 191, 137, 134, 116, 29, 197, 2, 169, 230, 100, 90, 32, 82, 9, 219, 68, 34, 67, 31, 220, 10, 132, 244, 166, 121, 138, 41, 72, 148, 92, 186, 108, 8, 127, 155, 117, 97, 234, 121, 27, 153, 226, 167, 78, 18, 143, 198, 182, 44, 44, 196, 208, 102, 68, 158, 150, 184, 214, 157, 51, 238, 151, 30, 155, 250, 225, 65, 172, 238, 179, 32, 167, 167, 71, 49, 193, 224, 8, 226, 249, 247, 89, 58, 177, 243, 162, 14, 47, 174, 195, 168, 184, 155, 135, 250, 100, 137, 78, 70, 198, 115, 196, 107, 35, 175, 50, 91, 78, 176, 192, 245, 39, 204, 180, 138, 148, 202, 137, 126, 233, 19, 120, 188, 99, 218, 229, 78, 230, 196}
+Read Data (2nd): '{16, 51, 196, 137, 134, 219, 117, 191, 77, 1, 71, 231, 25, 50, 163, 235, 142, 139, 7, 58, 92, 38, 122, 253, 187, 99, 243, 39, 97, 120, 118, 175, 51, 213, 181, 189, 230, 166, 126, 116, 112, 200, 17, 189, 216, 245, 33, 235, 120, 244, 99, 83, 206, 44, 73, 44, 162, 11, 169, 147, 7, 219, 90, 254, 93, 63, 121, 152, 15, 68, 233, 142, 76, 50, 64, 34, 11, 242, 138, 181, 201, 115, 187, 113, 112, 177, 161, 96, 68, 160, 177, 49, 229, 24, 6, 108, 148, 169, 76, 50, 119, 189, 249, 207, 45, 173, 178, 134, 36, 94, 252, 12, 183, 187, 6, 43, 28, 45, 153, 55, 18, 87, 231, 37, 156, 76, 223, 191, 137, 134, 116}
+TEST PASSED CHECKS
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:113: $finish called at 42738830 (1ps)
