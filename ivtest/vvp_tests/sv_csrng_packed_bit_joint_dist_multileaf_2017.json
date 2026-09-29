@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_csrng_packed_bit_joint_dist_multileaf.v",
+  "iverilog-args": ["-g2017", "-scsrng_packed_bit_joint_dist_multileaf"],
+  "gold": "sv_csrng_packed_bit_joint_dist_multileaf"
+}
