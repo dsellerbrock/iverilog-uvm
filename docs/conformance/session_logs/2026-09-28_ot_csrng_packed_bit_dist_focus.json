@@ -1,0 +1,30 @@
+{
+  "target": "OpenTitan CSRNG time-zero cfg.randomize() blocker",
+  "scope": "Strict IEEE 1800-2017/2023 focused reducer; no selected DV replay",
+  "historical_first_error": "joint dist requires a direct canonical scalar or element subject",
+  "source_shape": "foreach (int_state_read_enable[i]) int_state_read_enable[i] dist {...} on rand bit [2:0] in csrng_env_cfg",
+  "root_cause": "The expanded packed bit-select subject is a one-bit Z3 expression over the rand vector and an equality-pinned signed foreach-index alias. The joint tuple planner previously admitted only direct variables and concatenations, so it rejected the bit-select.",
+  "fix": "Resolve signed occurrence aliases for dependency analysis, then admit one-bit expressions of exactly one active rand leaf as deterministic joint tuple projections. Retain the original subject for all value and weight comparisons.",
+  "red": {
+    "source": "ivtest/ivltests/sv_csrng_packed_bit_joint_dist.v",
+    "2017": {"compile_exit": 0, "run_exit": 1},
+    "2023": {"compile_exit": 0, "run_exit": 1},
+    "runtime_error": "ERROR: global constraint sampling failed: joint dist requires a direct canonical scalar or element subject."
+  },
+  "green": {
+    "2017": {"compile_exit": 0, "run_exit": 0, "stdout": "PASS CSRNG packed bit-select joint dist"},
+    "2023": {"compile_exit": 0, "run_exit": 0, "stdout": "PASS CSRNG packed bit-select joint dist"},
+    "checks": "Nested whole-vector control, 100% and 0% packed-bit weights, 128 draws at 75% per bit, and mixed patterns to check independent bit choices.",
+    "focused_json": "ivtest/regress-csrng-packed-bit-focus-vvp.list: 2 passed, 0 failed",
+    "focused_legacy": "ivtest/regress-csrng-packed-bit-focus-legacy.list: 2 passed, 0 failed",
+    "neighbor_concat_json": "2 passed, 0 failed",
+    "neighbor_concat_legacy": "2 passed, 0 failed"
+  },
+  "boundary": {
+    "source": "evidence/opentitan-csrng-joint-bit-dist-20260928/multileaf.sv",
+    "2017": "compile exit 0; run exit 0 after randomize() fails with the canonical-subject error",
+    "2023": "compile exit 0; run exit 0 after randomize() fails with the canonical-subject error",
+    "reason": "A randomized index produces two independent rand leaves, so it is not admitted as a one-leaf projection."
+  },
+  "qualification": "The installed VVP prefix and selected CSRNG image were not rerun while a Caliptra VVP was active. Full OpenTitan CSRNG DV remains unverified."
+}

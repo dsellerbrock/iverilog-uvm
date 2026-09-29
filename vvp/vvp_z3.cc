@@ -9696,14 +9696,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         // projection of its rand leaves. Include that
                         // projection in the complete tuple table so its
                         // weighted value can be pinned without inventing a
-                        // separate random choice.
+                        // separate random choice. A one-bit expression of
+                        // one rand leaf has the same property; packed
+                        // foreach bit-select subjects use this form.
+                        // Signed literal/cast tags are equality-pinned
+                        // occurrence aliases, not extra random leaves.
+                        Z3_ast unaliased =
+                              builder.resolve_signed_constants(spec.subject);
                         set<Z3_ast> leaves;
-                        if (Z3_get_ast_kind(ctx, spec.subject) == Z3_APP_AST
+                        bool concat = Z3_get_ast_kind(ctx, unaliased)
+                              == Z3_APP_AST
                             && Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx,
-                                  Z3_to_app(ctx, spec.subject))) == Z3_OP_CONCAT
-                            && bv_width(ctx, spec.subject) <= 64
-                            && z3_collect_constants_(ctx, spec.subject, leaves)
+                                  Z3_to_app(ctx, unaliased))) == Z3_OP_CONCAT;
+                        bool one_bit_projection = bv_width(ctx, unaliased) == 1;
+                        if ((concat || one_bit_projection)
+                            && bv_width(ctx, unaliased) <= 64
+                            && z3_collect_constants_(ctx, unaliased, leaves)
                             && !leaves.empty()
+                            && (concat || leaves.size() == 1)
                             && all_of(leaves.begin(), leaves.end(),
                                   [&](Z3_ast leaf) {
                                         return seen.count(leaf)
