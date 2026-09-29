@@ -1844,6 +1844,20 @@ void NetScope::evaluate_type_parameter_(Design *des, param_ref_t cur)
       cur->second.ivl_type = resolve_class_type_reference(des, type_scope, ptype);
       if (!cur->second.ivl_type)
 	    cur->second.ivl_type = ptype->elaborate_type(des, type_scope);
+	/* A bare class used as a type actual of a concrete specialization is a
+	 * concrete default specialization. The circular-handle resolver above
+	 * seeds its type only; request the ordinary class use so its method body
+	 * is emitted as well. Keep generic masters and forwarded actuals lazy. */
+	if (type_ == CLASS && class_def_ && class_def_->specialized_instance()
+	    && !class_def_->generic_body_only()
+	    && !class_type_parameter_is_deferred(des, this, cur->first)) {
+	    const typeref_t*ref = dynamic_cast<const typeref_t*>(ptype);
+	    const netclass_t*actual =
+		  dynamic_cast<const netclass_t*>(cur->second.ivl_type);
+	    if (ref && !ref->parameter_values() && actual
+		&& actual->specialized_instance())
+		  (void) ptype->elaborate_type(des, type_scope);
+	}
       if (!dynamic_cast<const netclass_t*>(cur->second.ivl_type)) {
 	    if (const class_type_t*class_type = dynamic_cast<const class_type_t*>(ptype)) {
 		  if (netclass_t*cls = ensure_visible_class_type(des, type_scope,
