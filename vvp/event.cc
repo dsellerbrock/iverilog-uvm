@@ -74,6 +74,12 @@ static void flush_event_source_transaction_()
 {
       if (event_source_flushing_)
             return;
+        // Nothing queued: the loop below would find nothing to run.
+      if (event_source_transaction_.comb.empty()
+          && event_source_transaction_.valid.empty()
+          && event_source_transaction_.edge.empty()
+          && event_source_transaction_.replay.empty())
+            return;
       event_source_flushing_ = true;
       for (;;) {
             while (!event_source_transaction_.comb.empty()) {

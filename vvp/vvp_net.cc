@@ -2038,6 +2038,27 @@ vvp_vector4_t& vvp_vector4_t::operator |= (const vvp_vector4_t&that)
       return *this;
 }
 
+vvp_vector4_t& vvp_vector4_t::operator ^= (const vvp_vector4_t&that)
+{
+	// A bit is x if either operand bit is x or z, otherwise the
+	// exclusive or of the two bits (the vvp_bit4_t operator ^).
+      if (size_ <= BITS_PER_WORD) {
+	    unsigned long xz = bbits_val_ | that.bbits_val_;
+	    abits_val_ = (abits_val_ ^ that.abits_val_) | xz;
+	    bbits_val_ = xz;
+
+      } else {
+	    unsigned words = (size_ + BITS_PER_WORD - 1) / BITS_PER_WORD;
+	    for (unsigned idx = 0; idx < words ; idx += 1) {
+		  unsigned long xz = bbits_ptr_[idx] | that.bbits_ptr_[idx];
+		  abits_ptr_[idx] = (abits_ptr_[idx] ^ that.abits_ptr_[idx]) | xz;
+		  bbits_ptr_[idx] = xz;
+	    }
+      }
+
+      return *this;
+}
+
 /*
 * Add an integer to the vvp_vector4_t in place, bit by bit so that
 * there is no size limitations.
