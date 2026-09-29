@@ -1,17 +1,17 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 072de981c
+checkpoint_head: 1d944ef8d
 active_open_titan_lane:
   blocker: "DD-094"
-  phase: "REPRODUCED"
+  phase: "FOCUSED_TESTED"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
   baseline_head: "072de981c"
   installed_ivl_sha256: "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db"
   installed_vvp_sha256: "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
   reproducer: "Saved OTBN compile has 178 mutable class-field bin errors. Exact 128/160-bit packed reducer fails for mutable and const fields, while class localparams compile and sample in strict 2017/2023."
-  validation: "Reducer and saved error corpus only; no copied-source OTBN patch or target compile yet. ROM allocator high-water diagnosis is preserved and suspended without VVP source change or ROM DV pass."
-  next_command: "Create a named copied-source OTBN patch changing only DEF_MNEM/DEF_CSR to class localparams; verify hashes, strict reducer and one selected OTBN compile. Triage remaining errors before any corpus rerun."
+  validation: "Two-macro copied-source patch and hash provenance committed at 1d944ef8d; strict packed 2017/2023 positive controls compile and sample, mutable negatives fail as expected. Selected OTBN source-list compile remains deferred; ROM allocator diagnosis is suspended without VVP patch or DV pass."
+  next_command: "After the Caliptra ML-KEM run releases the host budget, verify a <=4 GiB parent-side RSS guard and run the exact selected OTBN copied-source compile recorded in evidence/opentitan-otbn-localparam-bins-20260929/focus.json. Triage remaining errors before any 49-target corpus rerun."
   boundary: "No fresh OTBN target pass or refreshed 49-target census. Caliptra selected ML-KEM guard is active separately."
 suspended_rom_memory_lane:
   blocker: "OT-ROM-CTRL-STARTUP-RSS"
