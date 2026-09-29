@@ -68,11 +68,11 @@ char*symbol_table_s::key_strdup_(const char*str)
  */
 
 /*
- * The table is a hash map from the key strings to their values. Lookups
- * vastly outnumber insertions while a design loads, and nothing needs the
- * keys in order.
+ * The table is an open-addressed hash table from the key strings to
+ * their values. Lookups vastly outnumber insertions while a design loads,
+ * and nothing needs the keys in order.
  */
-size_t symbol_table_s::key_hash_::operator()(const char*key) const
+static size_t symbol_key_hash_(const char*key)
 {
 	// FNV-1a
       size_t hash = static_cast<size_t>(14695981039346656037ULL);
@@ -86,37 +86,83 @@ size_t symbol_table_s::key_hash_::operator()(const char*key) const
 
 symbol_table_s::symbol_table_s()
 {
+      table_size_ = 64;
+      table_used_ = 0;
+      table_ = new entry_s[table_size_];
+      for (size_t idx = 0 ; idx < table_size_ ; idx += 1)
+	    table_[idx].key = 0;
+
       str_chunk = new key_strings;
       str_chunk->next = 0;
       str_used = 0;
 }
 
+/*
+ * Return the slot that holds KEY, or the empty slot where it belongs.
+ */
+symbol_table_s::entry_s* symbol_table_s::find_slot_(const char*key)
+{
+      size_t mask = table_size_ - 1;
+      size_t idx = symbol_key_hash_(key) & mask;
+      while (table_[idx].key && strcmp(table_[idx].key, key) != 0)
+	    idx = (idx + 1) & mask;
+      return table_ + idx;
+}
+
+void symbol_table_s::grow_()
+{
+      entry_s*old_table = table_;
+      size_t old_size = table_size_;
+
+      table_size_ = 2 * old_size;
+      table_ = new entry_s[table_size_];
+      for (size_t idx = 0 ; idx < table_size_ ; idx += 1)
+	    table_[idx].key = 0;
+
+      for (size_t idx = 0 ; idx < old_size ; idx += 1) {
+	    if (old_table[idx].key == 0)
+		  continue;
+	    *find_slot_(old_table[idx].key) = old_table[idx];
+      }
+      delete[]old_table;
+}
+
 void symbol_table_s::sym_set_value(const char*key, symbol_value_t val)
 {
-      auto cur = map_.find(key);
-      if (cur != map_.end()) {
-	    cur->second = val;
+      entry_s*slot = find_slot_(key);
+      if (slot->key == 0) {
+	    slot->key = key_strdup_(key);
+	    table_used_ += 1;
+	    slot->val = val;
+	      /* Keep the table at most half full. */
+	    if (2 * table_used_ > table_size_)
+		  grow_();
 	    return;
       }
-      map_.emplace(key_strdup_(key), val);
+      slot->val = val;
 }
 
 symbol_value_t symbol_table_s::sym_get_value(const char*key)
 {
-      auto cur = map_.find(key);
-      if (cur != map_.end())
-	    return cur->second;
+      entry_s*slot = find_slot_(key);
+      if (slot->key)
+	    return slot->val;
 
 	/* Create the missing key with a zero value, as the table always
 	   has, and return that value. */
       symbol_value_t def;
       def.ptr = 0;
-      map_.emplace(key_strdup_(key), def);
+      slot->key = key_strdup_(key);
+      slot->val = def;
+      table_used_ += 1;
+      if (2 * table_used_ > table_size_)
+	    grow_();
       return def;
 }
 
 symbol_table_s::~symbol_table_s()
 {
+      delete[]table_;
       while (str_chunk) {
 	    key_strings*tmp = str_chunk;
 	    str_chunk = tmp->next;
