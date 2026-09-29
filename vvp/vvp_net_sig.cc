@@ -279,14 +279,14 @@ template <class T> vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_(const T&val
 	    }
 
 	    if (propagate_flag) {
-		  { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+		  run_vpi_callbacks_in_boundary();
 		  return REPL;
 	    } else {
 		  return STOP;
 	    }
 
       } else {
-	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+	    run_vpi_callbacks_in_boundary();
 	    return PROP;
       }
 }
@@ -296,10 +296,10 @@ template <class T> vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_(T&val, T fo
 
       if (test_force_mask(0)) {
 	    val = force;
-	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+	    run_vpi_callbacks_in_boundary();
 	    return REPL;
       }
-      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+      run_vpi_callbacks_in_boundary();
       return PROP;
 }
 
@@ -321,6 +321,14 @@ template <class T> vvp_net_fil_t::prop_t vvp_net_fil_t::filter_input_mask_(const
 
 vvp_signal_value::~vvp_signal_value()
 {
+}
+
+void vvp_signal_value::vec4_part_value(vvp_vector4_t&val, unsigned base,
+                                       unsigned wid) const
+{
+      vvp_vector4_t tmp;
+      vec4_value(tmp);
+      val = tmp.subvalue(base, wid);
 }
 
 double vvp_signal_value::real_value() const
@@ -1248,9 +1256,9 @@ const std::string&vvp_ref_signal_aa::get_string() const
 
       vvp_fun_signal_string*fun = 0;
       if (slot->target) {
-            fun = dynamic_cast<vvp_fun_signal_string*>(slot->target->fun);
+            fun = vvp_fun_as_signal_string(slot->target->fun);
             if (!fun)
-                  fun = dynamic_cast<vvp_fun_signal_string*>(slot->target->fil);
+                  fun = vvp_fil_as_signal_string(slot->target->fil);
       }
       if (!fun) {
             string_cache_.clear();
@@ -1385,7 +1393,7 @@ void vvp_ref_signal_aa::recv_object(vvp_net_ptr_t, vvp_object_t bit,
 static vvp_signal_value* ref_read_target_(const ref_aa_slot*slot)
 {
       if (!slot || !slot->target) return 0;
-      return dynamic_cast<vvp_signal_value*> (slot->target->fil);
+      return vvp_fil_signal_value(slot->target->fil);
 }
 
 unsigned vvp_ref_signal_aa::value_size() const
@@ -1510,9 +1518,9 @@ static vvp_fun_signal_object* ref_read_target_object_(const ref_aa_slot*slot)
 {
       if (!slot || !slot->target) return 0;
       vvp_fun_signal_object*fun =
-            dynamic_cast<vvp_fun_signal_object*> (slot->target->fun);
+            vvp_fun_as_signal_object(slot->target->fun);
       if (!fun)
-            fun = dynamic_cast<vvp_fun_signal_object*> (slot->target->fil);
+            fun = vvp_fil_as_signal_object(slot->target->fil);
       return fun;
 }
 
@@ -2943,7 +2951,7 @@ void vvp_wire_vec4::force_fil_vec4(const vvp_vector4_t&val, const vvp_vector2_t&
 		  force4_.set_bit(idx, val.value(idx));
 	    }
       }
-      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+      run_vpi_callbacks_in_boundary();
 }
 
 void vvp_wire_vec4::force_fil_vec8(const vvp_vector8_t&, const vvp_vector2_t&)
@@ -2964,7 +2972,7 @@ void vvp_wire_vec4::release(vvp_net_ptr_t ptr, bool net_flag)
             release_mask(mask);
 	    needs_init_ = ! force4_ .eeq(bits4_);
 	    ptr.ptr()->send_vec4(bits4_, 0);
-	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+	    run_vpi_callbacks_in_boundary();
       } else {
 	      // Variables keep the current value.
 	    vvp_vector4_t res (bits4_.size());
@@ -2989,7 +2997,7 @@ void vvp_wire_vec4::release_pv(vvp_net_ptr_t ptr, unsigned base, unsigned wid, b
 	    needs_init_ = ! force4_.subvalue(base,wid) .eeq(bits4_.subvalue(base,wid));
 	    ptr.ptr()->send_vec4_pv(bits4_.subvalue(base,wid),
 				    base, bits4_.size(), 0);
-	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+	    run_vpi_callbacks_in_boundary();
       } else {
 	      // Variables keep the current value.
 	    vvp_vector4_t res (wid);
@@ -3031,6 +3039,18 @@ void vvp_wire_vec4::vec4_value(vvp_vector4_t&val) const
 
       for (unsigned idx = 0 ; idx < bits4_.size() ; idx += 1)
 	    val.set_bit(idx, filtered_value_(idx));
+}
+
+void vvp_wire_vec4::vec4_part_value(vvp_vector4_t&val, unsigned base,
+                                    unsigned wid) const
+{
+      assert(base + wid <= bits4_.size());
+      val = bits4_.subvalue(base, wid);
+      if (test_force_mask_is_zero())
+	    return;
+
+      for (unsigned idx = 0 ; idx < wid ; idx += 1)
+	    val.set_bit(idx, filtered_value_(base+idx));
 }
 
 vvp_bit4_t vvp_wire_vec4::driven_value(unsigned idx) const
@@ -3153,7 +3173,7 @@ void vvp_wire_vec8::force_fil_vec8(const vvp_vector8_t&val, const vvp_vector2_t&
 		  force8_.set_bit(idx, val.value(idx));
 	    }
       }
-      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+      run_vpi_callbacks_in_boundary();
 }
 
 void vvp_wire_vec8::force_fil_real(double, const vvp_vector2_t&)
@@ -3192,7 +3212,7 @@ void vvp_wire_vec8::release_pv(vvp_net_ptr_t ptr, unsigned base, unsigned wid, b
 	    needs_init_ = !force8_.subvalue(base,wid) .eeq((bits8_.subvalue(base,wid)));
 	    ptr.ptr()->send_vec8_pv(bits8_.subvalue(base,wid),
 				    base, bits8_.size());
-	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+	    run_vpi_callbacks_in_boundary();
       } else {
 	// Variable do not know about strength so this should not be able
 	// to happen. If for some reason it can then it should not be too
@@ -3306,7 +3326,7 @@ void vvp_wire_real::force_fil_real(double val, const vvp_vector2_t&mask)
       if (mask.value(0))
 	    force_ = val;
 
-      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
+      run_vpi_callbacks_in_boundary();
 }
 
 void vvp_wire_real::release(vvp_net_ptr_t ptr, bool net_flag)

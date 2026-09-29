@@ -122,7 +122,7 @@ static void real_var_get_value(vpiHandle ref, s_vpi_value*vp)
       assert(rfp);
 
       vvp_signal_value*fil
-	    = dynamic_cast<vvp_signal_value*>(rfp->net->fil);
+	    = vvp_fil_signal_value(rfp->net->fil);
 
       fil->get_signal_value(vp);
 }

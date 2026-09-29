@@ -1515,8 +1515,7 @@ extern "C" int vpip_get_port_component(vpiHandle ref, unsigned idx,
       assert(scope);
 
       if (component->fixture_ref && !component->fixture_handle) {
-            vvp_signal_value *value = dynamic_cast<vvp_signal_value*>(
-                  component->fixture_ref->fil);
+            vvp_signal_value *value = vvp_fil_signal_value(component->fixture_ref->fil);
             if (value && value->value_size())
                   component->fixture_handle = vpip_make_net4(
                         scope, "$ivl_evcd_fixture",
@@ -1524,8 +1523,7 @@ extern "C" int vpip_get_port_component(vpiHandle ref, unsigned idx,
                         component->fixture_ref);
       }
       if (component->dut_ref && !component->dut_handle) {
-            vvp_signal_value *value = dynamic_cast<vvp_signal_value*>(
-                  component->dut_ref->fil);
+            vvp_signal_value *value = vvp_fil_signal_value(component->dut_ref->fil);
             if (value && value->value_size())
                   component->dut_handle = vpip_make_net4(
                         scope, "$ivl_evcd_dut",

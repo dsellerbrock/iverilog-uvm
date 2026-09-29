@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "vvp_named_block_inline.v",
+    "iverilog-args" : [ "-g2023" ]
+}

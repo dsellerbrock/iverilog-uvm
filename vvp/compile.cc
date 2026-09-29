@@ -462,6 +462,9 @@ static const struct opcode_table_s opcode_table[] = {
       { "%load/str",   of_LOAD_STR,  1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/stra",  of_LOAD_STRA, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%load/vec4",  of_LOAD_VEC4, 1,{OA_FUNC_PTR,OA_NONE,  OA_NONE} },
+      { "%load/vec4/part/s", of_LOAD_VEC4_PART_S, 2,{OA_FUNC_PTR,OA_BIT1, OA_NONE} },
+      { "%load/vec4/part/u", of_LOAD_VEC4_PART_U, 2,{OA_FUNC_PTR,OA_BIT1, OA_NONE} },
+      { "%load/vec4/parti",  of_LOAD_VEC4_PARTI,  3,{OA_FUNC_PTR,OA_BIT1, OA_BIT2} },
       { "%load/vec4a", of_LOAD_VEC4A,2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%max/wr", of_MAX_WR, 0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       /* Mailbox opcodes (alphabetical within %mbx/) */

@@ -216,6 +216,7 @@ struct named_event_aa_state_s : waitable_state_s {
 class vvp_fun_edge : public vvp_net_fun_t, public waitable_hooks_s {
 
     public:
+      waitable_hooks_s*as_waitable() override { return this; }
       typedef unsigned short edge_t;
       explicit vvp_fun_edge(edge_t e);
       virtual ~vvp_fun_edge() override;
@@ -322,6 +323,7 @@ class anyedge_value;
 class vvp_fun_anyedge : public vvp_net_fun_t, public waitable_hooks_s {
 
     public:
+      waitable_hooks_s*as_waitable() override { return this; }
       explicit vvp_fun_anyedge(bool object_handle_change = false);
       virtual ~vvp_fun_anyedge() override;
 
@@ -415,6 +417,7 @@ class vvp_fun_anyedge_aa : public vvp_fun_anyedge, public automatic_hooks_s {
 class vvp_fun_event_or : public vvp_net_fun_t, public waitable_hooks_s {
 
     public:
+      waitable_hooks_s*as_waitable() override { return this; }
       explicit vvp_fun_event_or(vvp_net_t*base_net);
       ~vvp_fun_event_or() override;
 
@@ -482,6 +485,7 @@ class vvp_fun_event_or_aa : public vvp_fun_event_or, public automatic_hooks_s {
 class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
 
     public:
+      waitable_hooks_s*as_waitable() override { return this; }
       explicit vvp_named_event(class __vpiHandle*eh);
       ~vvp_named_event() override;
 

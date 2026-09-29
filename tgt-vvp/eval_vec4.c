@@ -1169,6 +1169,100 @@ static void draw_property_vec4(ivl_expr_t expr)
 	    clr_flag(idx_in_range_flag);
 }
 
+/*
+ * True when evaluating EXPR can neither write a variable nor call
+ * anything. Such an expression may be evaluated before a load that it
+ * would otherwise follow without changing either value. This is a
+ * conservative whitelist: any expression kind or operator it does not
+ * name is treated as possibly effectful.
+ */
+static int expr_is_effect_free_(ivl_expr_t expr)
+{
+      if (expr == 0)
+	    return 1;
+
+      switch (ivl_expr_type(expr)) {
+	  case IVL_EX_NUMBER:
+	  case IVL_EX_ULONG:
+	    return 1;
+
+	  case IVL_EX_SIGNAL:
+	    if (ivl_expr_value(expr) != IVL_VT_LOGIC
+		&& ivl_expr_value(expr) != IVL_VT_BOOL)
+		  return 0;
+	    return expr_is_effect_free_(ivl_expr_oper1(expr));
+
+	  case IVL_EX_SELECT:
+	    if (ivl_expr_value(expr) != IVL_VT_LOGIC
+		&& ivl_expr_value(expr) != IVL_VT_BOOL)
+		  return 0;
+	    return expr_is_effect_free_(ivl_expr_oper1(expr))
+		&& expr_is_effect_free_(ivl_expr_oper2(expr));
+
+	  case IVL_EX_BINARY:
+	    switch (ivl_expr_opcode(expr)) {
+		case 'a': case 'o': case '+': case '-': case '*': case '/':
+		case '%': case 'p': case '&': case '|': case '^': case 'A':
+		case 'O': case 'X': case 'e': case 'E': case 'n': case 'N':
+		case 'w': case 'W': case 'G': case 'L': case '>': case '<':
+		case 'l': case 'r': case 'R':
+		  break;
+		default:
+		  return 0;
+	    }
+	    return expr_is_effect_free_(ivl_expr_oper1(expr))
+		&& expr_is_effect_free_(ivl_expr_oper2(expr));
+
+	  case IVL_EX_UNARY:
+	    switch (ivl_expr_opcode(expr)) {
+		case '-': case '~': case '!': case '&': case '|': case '^':
+		case 'A': case 'N': case 'X':
+		  break;
+		default:
+		  return 0;
+	    }
+	    return expr_is_effect_free_(ivl_expr_oper1(expr));
+
+	  case IVL_EX_TERNARY:
+	    return expr_is_effect_free_(ivl_expr_oper1(expr))
+		&& expr_is_effect_free_(ivl_expr_oper2(expr))
+		&& expr_is_effect_free_(ivl_expr_oper3(expr));
+
+	  default:
+	    return 0;
+      }
+}
+
+/*
+ * A part select of a whole, dimensionless vec4 variable can be read with
+ * %load/vec4/part*, which copies only the selected bits instead of loading
+ * the entire variable and then selecting from it. That reorders the load
+ * after the base evaluation, so the base must be effect free. An event
+ * expression recipe may need the loaded subexpression itself saved, so it
+ * keeps the general form.
+ */
+static int select_loads_part_(ivl_expr_t subexpr, ivl_expr_t base)
+{
+      if (event_expr_recipe_active())
+	    return 0;
+      if (ivl_expr_type(subexpr) != IVL_EX_SIGNAL || ivl_expr_oper1(subexpr))
+	    return 0;
+      if (ivl_expr_value(subexpr) != IVL_VT_LOGIC
+	  && ivl_expr_value(subexpr) != IVL_VT_BOOL)
+	    return 0;
+
+      ivl_signal_t sig = ivl_expr_signal(subexpr);
+      if (ivl_signal_dimensions(sig) != 0 || signal_is_return_value(sig))
+	    return 0;
+      if (ivl_signal_data_type(sig) != IVL_VT_LOGIC
+	  && ivl_signal_data_type(sig) != IVL_VT_BOOL)
+	    return 0;
+      if (ivl_signal_width(sig) != ivl_expr_width(subexpr))
+	    return 0;
+
+      return expr_is_effect_free_(base);
+}
+
 static void draw_select_vec4(ivl_expr_t expr)
 {
 	// This is the sub-expression to part-select.
@@ -1328,6 +1422,27 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2;\n");
 
+	    return;
+      }
+
+      if (select_loads_part_(subexpr, base)) {
+	    ivl_signal_t sig = ivl_expr_signal(subexpr);
+	    if (test_immediate_vec4_ok(base)) {
+		  unsigned long val0, valx;
+		  unsigned base_wid;
+		  make_immediate_vec4_words(base, &val0, &valx, &base_wid);
+		  int negative = ivl_expr_signed(base)
+			&& base_wid > 0 && base_wid <= 32
+			&& (val0 & (1UL << (base_wid-1)));
+		  if (valx == 0 && !negative && val0 <= 0xffffffffUL) {
+			fprintf(vvp_out, "    %%load/vec4/parti v%p_0, %u, %lu;\n",
+				sig, wid, val0);
+			return;
+		  }
+	    }
+	    draw_eval_vec4(base);
+	    fprintf(vvp_out, "    %%load/vec4/part/%c v%p_0, %u;\n",
+		    sign_suff, sig, wid);
 	    return;
       }
 

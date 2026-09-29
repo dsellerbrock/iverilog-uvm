@@ -199,6 +199,8 @@ void NetCase::prune()
 NetDisable::NetDisable(NetScope*tgt, bool flow_control)
 : target_(tgt), flow_control_(flow_control)
 {
+      if (target_)
+	    target_->set_disable_target();
 }
 
 NetDisable::~NetDisable()

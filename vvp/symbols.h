@@ -70,13 +70,22 @@ class symbol_table_s {
       symbol_value_t sym_get_value(const char*key);
 
     private:
-      struct tree_node_*root;
+	// An open-addressed hash table of key/value pairs. The keys point
+	// into the key_strings chunks, which live as long as the table.
+	// A flat array (no allocation per symbol) keeps a design load from
+	// scattering hundreds of thousands of small blocks across the heap.
+      struct entry_s {
+	    const char*key;
+	    symbol_value_t val;
+      };
+      entry_s*table_;
+      size_t table_size_; // a power of two
+      size_t table_used_;
       struct key_strings*str_chunk;
       unsigned str_used;
 
-      symbol_value_t find_value_(struct tree_node_*cur,
-				 const char*key, symbol_value_t val,
-				 bool force_flag);
+      entry_s*find_slot_(const char*key);
+      void grow_();
       char*key_strdup_(const char*str);
 };
 

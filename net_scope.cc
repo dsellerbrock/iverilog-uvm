@@ -124,6 +124,7 @@ NetScope::NetScope(NetScope*up, const hname_t&n, NetScope::TYPE t, NetScope*in_u
       events_ = 0;
       lcounter_ = 0;
       is_auto_ = false;
+      is_disable_target_ = false;
       auto_frame_ = true;
       is_cell_ = false;
       calls_stask_ = false;

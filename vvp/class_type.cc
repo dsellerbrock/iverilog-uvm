@@ -82,7 +82,7 @@ static vvp_signal_value* static_property_signal_value_(vvp_net_t*net)
 {
       if (!net)
 	    return 0;
-      vvp_signal_value*value = dynamic_cast<vvp_signal_value*>(net->fil);
+      vvp_signal_value*value = vvp_fil_signal_value(net->fil);
       if (!value)
 	    value = dynamic_cast<vvp_signal_value*>(net->fun);
       return value;
@@ -92,9 +92,9 @@ static vvp_fun_signal_real* static_property_real_fun_(vvp_net_t*net)
 {
       if (!net)
 	    return 0;
-      vvp_fun_signal_real*fun = dynamic_cast<vvp_fun_signal_real*>(net->fun);
+      vvp_fun_signal_real*fun = vvp_fun_as_signal_real(net->fun);
       if (!fun)
-	    fun = dynamic_cast<vvp_fun_signal_real*>(net->fil);
+	    fun = vvp_fil_as_signal_real(net->fil);
       return fun;
 }
 
@@ -102,9 +102,9 @@ static vvp_fun_signal_string* static_property_string_fun_(vvp_net_t*net)
 {
       if (!net)
 	    return 0;
-      vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*>(net->fun);
+      vvp_fun_signal_string*fun = vvp_fun_as_signal_string(net->fun);
       if (!fun)
-	    fun = dynamic_cast<vvp_fun_signal_string*>(net->fil);
+	    fun = vvp_fil_as_signal_string(net->fil);
       return fun;
 }
 
@@ -112,9 +112,9 @@ static vvp_fun_signal_object* static_property_object_fun_(vvp_net_t*net)
 {
       if (!net)
 	    return 0;
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(net->fun);
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(net->fun);
       if (!fun)
-	    fun = dynamic_cast<vvp_fun_signal_object*>(net->fil);
+	    fun = vvp_fil_as_signal_object(net->fil);
       return fun;
 }
 
