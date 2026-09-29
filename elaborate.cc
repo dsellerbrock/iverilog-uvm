@@ -19868,6 +19868,28 @@ NetProc* PDisable::elaborate(Design*des, NetScope*scope) const
       list<hname_t> spath = eval_scope_path(des, scope, scope_);
 
       NetScope*target = des->find_scope(scope, spath);
+      // A join_none/any fork inside a routine retains its generated
+      // $unm_blk scope so its children get separate process contexts.
+      // That internal scope must not hide a named child from `disable`.
+      if (target == 0 && spath.size() == 1) {
+	for (NetScope*lex = scope; lex && !target; lex = lex->parent()) {
+	    for (const auto&child : lex->children()) {
+		NetScope*fork = child.second;
+		if (fork->type() != NetScope::FORK_JOIN
+		    || strncmp(fork->basename().str(), "$unm_blk_", 9) != 0)
+		      continue;
+		if (NetScope*found = fork->child(spath.front())) {
+		    if (target) {
+			cerr << get_fileline() << ": error: Ambiguous named block "
+			     << scope_ << " in " << scope_path(scope) << endl;
+			des->errors += 1;
+			return 0;
+		    }
+		    target = found;
+		}
+	    }
+	}
+      }
 	// A task named from a class method may be inherited: resolve it
 	// through the class hierarchy like any other member name.
       if (target == 0 && spath.size() == 1 && scope->get_class_scope()) {

@@ -1,0 +1,59 @@
+--- a/hw/ip/sysrst_ctrl/dv/env/seq_lib/sysrst_ctrl_in_out_inverted_vseq.sv
++++ b/hw/ip/sysrst_ctrl/dv/env/seq_lib/sysrst_ctrl_in_out_inverted_vseq.sv
+@@ -45,28 +45,40 @@
+     cp_bat_disable: coverpoint bat_disable;
+     cp_lid_open: coverpoint lid_open;
+     cp_z3_wakeup: coverpoint z3_wakeup;
++    cp_vif_key0_in: coverpoint cfg.vif.key0_in;
++    cp_vif_key0_out: coverpoint cfg.vif.key0_out;
++    cp_vif_key1_in: coverpoint cfg.vif.key1_in;
++    cp_vif_key1_out: coverpoint cfg.vif.key1_out;
++    cp_vif_key2_in: coverpoint cfg.vif.key2_in;
++    cp_vif_key2_out: coverpoint cfg.vif.key2_out;
++    cp_vif_pwrb_in: coverpoint cfg.vif.pwrb_in;
++    cp_vif_pwrb_out: coverpoint cfg.vif.pwrb_out;
++    cp_vif_ac_present: coverpoint cfg.vif.ac_present;
++    cp_vif_bat_disable: coverpoint cfg.vif.bat_disable;
++    cp_vif_lid_open: coverpoint cfg.vif.lid_open;
++    cp_vif_z3_wakeup: coverpoint cfg.vif.z3_wakeup;
+ 
+-    key0_inXval: cross cp_key0_in, cfg.vif.key0_in;
+-    key0_outXval: cross cp_key0_out, cfg.vif.key0_out;
+-    key1_inXval: cross cp_key1_in, cfg.vif.key1_in;
+-    key1_outXval: cross cp_key1_out, cfg.vif.key1_out;
+-    key2_inXval: cross cp_key2_in, cfg.vif.key2_in;
+-    key2_outXval: cross cp_key2_out, cfg.vif.key2_out;
+-    pwrb_inXval: cross cp_pwrb_in, cfg.vif.pwrb_in;
+-    pwrb_outXval: cross cp_pwrb_out, cfg.vif.pwrb_out;
+-    ac_presentXval: cross cp_ac_present, cfg.vif.ac_present;
+-    bat_disableXval: cross cp_bat_disable, cfg.vif.bat_disable {
++    key0_inXval: cross cp_key0_in, cp_vif_key0_in;
++    key0_outXval: cross cp_key0_out, cp_vif_key0_out;
++    key1_inXval: cross cp_key1_in, cp_vif_key1_in;
++    key1_outXval: cross cp_key1_out, cp_vif_key1_out;
++    key2_inXval: cross cp_key2_in, cp_vif_key2_in;
++    key2_outXval: cross cp_key2_out, cp_vif_key2_out;
++    pwrb_inXval: cross cp_pwrb_in, cp_vif_pwrb_in;
++    pwrb_outXval: cross cp_pwrb_out, cp_vif_pwrb_out;
++    ac_presentXval: cross cp_ac_present, cp_vif_ac_present;
++    bat_disableXval: cross cp_bat_disable, cp_vif_bat_disable {
+       ignore_bins invalid0 = binsof(cp_bat_disable) intersect {0} &&
+-                             binsof(cfg.vif.bat_disable) intersect {1};
++                             binsof(cp_vif_bat_disable) intersect {1};
+       ignore_bins invalid1 = binsof(cp_bat_disable) intersect {1} &&
+-                             binsof(cfg.vif.bat_disable) intersect {0};
++                             binsof(cp_vif_bat_disable) intersect {0};
+     }
+-    lid_openXval: cross cp_lid_open, cfg.vif.lid_open;
+-    z3_wakeupXval: cross cp_z3_wakeup, cfg.vif.z3_wakeup {
++    lid_openXval: cross cp_lid_open, cp_vif_lid_open;
++    z3_wakeupXval: cross cp_z3_wakeup, cp_vif_z3_wakeup {
+       ignore_bins invalid0 = binsof(cp_z3_wakeup) intersect {0} &&
+-                             binsof(cfg.vif.z3_wakeup) intersect {1};
++                             binsof(cp_vif_z3_wakeup) intersect {1};
+       ignore_bins invalid1 = binsof(cp_z3_wakeup) intersect {1} &&
+-                             binsof(cfg.vif.z3_wakeup) intersect {0};
++                             binsof(cp_vif_z3_wakeup) intersect {0};
+     }
+ 
+   endgroup // sysrst_ctrl_key_invert_ctl_cg
