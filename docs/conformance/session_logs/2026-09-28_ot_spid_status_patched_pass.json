@@ -1,0 +1,66 @@
+{
+  "scope": "one selected OpenTitan spid_status pre-DV test; no 49-target rerun",
+  "target": "lowrisc:dv:spid_status_sim:0.1",
+  "pinned_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "patch_order": [
+    {
+      "name": "docs/conformance/release_overlays/opentitan/spid_cmdinfo_read_pipeline.patch",
+      "sha256": "0de41341c4fe7ab119d30d40eb66279e18e0668b556ae1cddc2601f78f0a0589"
+    },
+    {
+      "name": "docs/conformance/release_overlays/opentitan/spid_status_stale_ports.patch",
+      "sha256": "9ac04fbe170ab6b799db53283f24583848cf8fc042dcbeb478a57917a6e7bff6"
+    },
+    {
+      "name": "docs/conformance/release_overlays/opentitan/spid_status_current_control_and_checks.patch",
+      "sha256": "30566e3e21b02071a37a1f7d20e3a92eacfc3ba42d256d31ef7411f21e6e5399"
+    }
+  ],
+  "pinned_testbench_sha256": "fc72a6486c07d09993aed6e20945fa5020abdda1f1b5b38c9ce18c595563e0f8",
+  "patched_testbench_sha256": "f70368d7d7fc02b219883e401cc9f8e0ef82c6e9a07b1372aa98dc6588804b9e",
+  "compiler_binary_sha256": "110b022733a7287c8628d05c5f9c7965a86910ae09b2d3721e90a99b2a118aff",
+  "vvp_binary_sha256": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
+  "image_sha256": "78259fd866cf09168c7b9d041547099748c3115fd6bfd8a172fcc8884999cc17",
+  "selected_compile": {
+    "exit_code": 0,
+    "hard_diagnostics": 0
+  },
+  "discarded_stale_wiring_run": {
+    "observed_errors": 2,
+    "pass_marker": 1,
+    "reason": "old testbench reports pass despite immediate assertions failing",
+    "log_sha256": "17132ae01cfde2f62b537999e7082bbf0f9088ced183b3219d7e7b94d89e3867"
+  },
+  "selected_runtime": {
+    "wall_cap_seconds": 120,
+    "rss_cap_mib": 1024,
+    "wall_seconds": 1.291,
+    "runner_exit": 0,
+    "timed_out": false,
+    "memory_capped": false,
+    "pass_markers": 1,
+    "error_lines": 0,
+    "uvm_warning": 0,
+    "uvm_error": 0,
+    "uvm_fatal": 0,
+    "status_bytes": [
+      "ec",
+      "be",
+      "ad",
+      "ee",
+      "ec",
+      "d0",
+      "d0"
+    ],
+    "log_sha256": "f0704ff6170f98148b20b324a838a6b7a128297931fbfb12540e6742de5cd126"
+  },
+  "negative_control": {
+    "mutation": "final expected status byte D0 to D1",
+    "process_exit": 1,
+    "fatal_lines": 1,
+    "pass_markers": 0,
+    "log_sha256": "27c87da107be8607e024a887cde36b45cb9fd4d53cc14c2ef64437955d7ecd7b"
+  },
+  "qualifies_selected_test_pass": true,
+  "qualifies_49_target_census_update": false
+}
