@@ -1,7 +1,7 @@
 {
   "target": "lowrisc:ip:trial1_sim:0.1",
   "pinned_opentitan_commit": "a78922f14",
-  "status": "focused source-overlay validation; selected DV replay pending coordinator review",
+  "status": "selected patched-source Trial1 register bench passes under bounded strict-2017 replay",
   "before": {
     "selected_vvp_exit": 0,
     "selected_dv_errors": 56,
@@ -179,5 +179,26 @@
       "stderr": ""
     }
   ],
-  "selected_vvp_after_patch": "Not run. A bounded replay is reserved for the coordinator after review."
+  "selected_vvp_after_patch": {
+    "image_sha256": "64897b18a72a23092e0b4945f6ec9f2d8909465dc1cbfaa7988a60d35ed1cadc",
+    "log_sha256": "74c327508235ca52cc483d6d2034c7b8cb68fede9368344c14880f53655e00cb",
+    "command": [
+      "MAX_RSS_MIB=512",
+      "python3",
+      "/private/tmp/ot-trial1-bounded-20260928/run_capped.py",
+      "60",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/trial1_field6/trial1_selected_replay.log",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/trial1_field6/trial1_selected_2017.vvp"
+    ],
+    "wrapper_exit": 0,
+    "wall_seconds": 0.302,
+    "timed_out": false,
+    "memory_capped": false,
+    "test_errors": 0,
+    "test_passed_checks": true,
+    "error_or_fatal_lines": 0,
+    "sim_finish_ps": 100035000,
+    "scope": "selected Trial1 register bench on named patched source copies; not the 49-target OpenTitan corpus"
+  }
 }
