@@ -37,9 +37,12 @@ CHECKER_PATCH_SHA256 = "b3cdf87a5c819820fbb02d8b183e6209ab7f5fdb062228046ba27cda
 CHECKER_PATCHED_SHA256 = "6e67d67966b030931ec222aacfd0863086c7d35b5e916acd5f358a90ed538654"
 ECC_PCR_SOURCE = SOURCE / "src/ecc/rtl/ecc_dsa_ctrl.sv"
 ECC_PCR_PATCH = RELEASE_PATCHES / "caliptra-ecc-pcr-sign-key-start-boundary.patch"
+ECC_PCR_OBSERVER_PATCH = HERE / "ecc_pcr_internal_observer.patch"
 ECC_PCR_SOURCE_SHA256 = "bfe41f23b8002cc18e22c2f1fe8045fd0fb9c026d966154e3c6e845f9b24989b"
 ECC_PCR_PATCH_SHA256 = "537078de950ee50f9030e375f7eeb716501a5af0139b5da29e89b23729abba04"
 ECC_PCR_PATCHED_SHA256 = "65a3883afa5e784a1bdc513cdcd9658624fb265f71edd5940c025153d8901a79"
+ECC_PCR_OBSERVER_PATCH_SHA256 = "0bf5b0a6af12e74f26442ab6ad30a1aa90c707dc834fb2613de7b5e942df8623"
+ECC_PCR_OBSERVED_SHA256 = "0402b4cd6a169ea89cf174357a0911949b1668b6277b7317272565ced480ab4a"
 JTAG_TOP = SOURCE / "src/integration/tb/caliptra_top_tb.sv"
 JTAG_TOP_SHA256 = "c212c32da99e90cd3991da65e653998cac3e945d7479abfd640b9d82f47659f9"
 JTAG_EPHEMERAL_TOP_SHA256 = "df8d51cc7ad84000288f5d7c19641f433d59ae213314fa81b9d9e5f8a6b76c6e"
@@ -196,7 +199,7 @@ def prepare_checker_source_overlay(profile):
     return overlay_profile, patched
 
 
-def prepare_ecc_pcr_overlay(profile):
+def prepare_ecc_pcr_overlay(profile, observer=False):
     if sha256(ECC_PCR_SOURCE) != ECC_PCR_SOURCE_SHA256 or sha256(ECC_PCR_PATCH) != ECC_PCR_PATCH_SHA256:
         raise RuntimeError("Pinned ECC source or frozen PCR checker patch hash mismatch")
     overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-ecc-pcr-", dir="/tmp"))
@@ -211,6 +214,15 @@ def prepare_ecc_pcr_overlay(profile):
     subprocess.run(command, check=True, capture_output=True, text=True)
     if sha256(patched) != ECC_PCR_PATCHED_SHA256:
         raise RuntimeError("PCR checker overlay produced unexpected source")
+    if observer:
+        if sha256(ECC_PCR_OBSERVER_PATCH) != ECC_PCR_OBSERVER_PATCH_SHA256:
+            raise RuntimeError("ECC observer patch hash mismatch")
+        command[-1] = str(ECC_PCR_OBSERVER_PATCH)
+        subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                       capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        if sha256(patched) != ECC_PCR_OBSERVED_SHA256:
+            raise RuntimeError("ECC observer overlay produced unexpected source")
     original_entry = "${CALIPTRA_ROOT}/" + str(relative)
     source_list = profile.read_text()
     if source_list.splitlines().count(original_entry) != 1:
@@ -449,6 +461,8 @@ def main():
                         help="use a hash-guarded copied checker with pure KV/MLDSA predicates")
     parser.add_argument("--ecc-pcr-key-boundary-overlay", action="store_true",
                         help="patch copied ECC checker source for smoke_test_pcr_zeroize only")
+    parser.add_argument("--ecc-pcr-internal-observer", action="store_true",
+                        help="trace ECC private-key write controls on the copied checker source")
     parser.add_argument("--ephemeral-jtag-port", action="store_true",
                         help="use a hash-guarded copied top with JTAG ListenPort 0")
     parser.add_argument("--output", type=Path, help="new isolated results directory")
@@ -468,6 +482,8 @@ def main():
         parser.error(f"unknown released L0 test: {args.case}")
     if args.ecc_pcr_key_boundary_overlay and (args.all or args.case != "smoke_test_pcr_zeroize"):
         parser.error("--ecc-pcr-key-boundary-overlay requires --case smoke_test_pcr_zeroize")
+    if args.ecc_pcr_internal_observer and not args.ecc_pcr_key_boundary_overlay:
+        parser.error("--ecc-pcr-internal-observer requires --ecc-pcr-key-boundary-overlay")
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
     if args.sim_memory_gib is not None:
@@ -503,7 +519,7 @@ def main():
     if args.checker_source_overlay:
         profile, checker_overlay = prepare_checker_source_overlay(profile)
     if args.ecc_pcr_key_boundary_overlay:
-        profile, ecc_pcr_overlay = prepare_ecc_pcr_overlay(profile)
+        profile, ecc_pcr_overlay = prepare_ecc_pcr_overlay(profile, args.ecc_pcr_internal_observer)
     if args.ephemeral_jtag_port:
         profile, jtag_top_overlay, jtag_port_provenance = prepare_ephemeral_jtag_port(profile)
     checker_overlay_provenance = ({
@@ -519,6 +535,9 @@ def main():
         "source_sha256_before": sha256(ECC_PCR_SOURCE),
         "patch": str(ECC_PCR_PATCH),
         "patch_sha256": sha256(ECC_PCR_PATCH),
+        "observer_patch": str(ECC_PCR_OBSERVER_PATCH) if args.ecc_pcr_internal_observer else None,
+        "observer_patch_sha256": (sha256(ECC_PCR_OBSERVER_PATCH)
+                                   if args.ecc_pcr_internal_observer else None),
         "copied_source": str(ecc_pcr_overlay),
         "source_sha256_after": sha256(ecc_pcr_overlay),
     } if ecc_pcr_overlay else None)
@@ -535,6 +554,8 @@ def main():
         fingerprints_before["ecc_pcr_source"] = sha256(ECC_PCR_SOURCE)
         fingerprints_before["ecc_pcr_overlay"] = sha256(ecc_pcr_overlay)
         fingerprints_before["ecc_pcr_patch"] = sha256(ECC_PCR_PATCH)
+        if args.ecc_pcr_internal_observer:
+            fingerprints_before["ecc_pcr_observer_patch"] = sha256(ECC_PCR_OBSERVER_PATCH)
     if jtag_top_overlay:
         fingerprints_before["jtag_top_source"] = sha256(JTAG_TOP)
         fingerprints_before["jtag_top_overlay"] = sha256(jtag_top_overlay)
@@ -557,6 +578,7 @@ def main():
         (args.reset_overlay, "reset"),
         (args.checker_source_overlay, "checker_source"),
         (args.ecc_pcr_key_boundary_overlay, "ecc_pcr_key_boundary"),
+        (args.ecc_pcr_internal_observer, "ecc_pcr_internal_observer"),
         (args.ephemeral_jtag_port, "ephemeral_jtag_port"),
     ) if enabled]
     qualification = (f"diagnostic_{'_'.join(diagnostic_overlays)}_overlay"
@@ -570,6 +592,7 @@ def main():
         "checker_source_overlay": args.checker_source_overlay,
         "checker_overlay_provenance": checker_overlay_provenance,
         "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+        "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
         "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
         "ephemeral_jtag_port": args.ephemeral_jtag_port,
         "jtag_port_provenance": jtag_port_provenance,
@@ -597,6 +620,7 @@ def main():
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
             "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+            "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
             "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
             "ephemeral_jtag_port": args.ephemeral_jtag_port,
             "jtag_port_provenance": jtag_port_provenance,
@@ -621,6 +645,7 @@ def main():
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
             "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+            "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
             "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
             "ephemeral_jtag_port": args.ephemeral_jtag_port,
             "jtag_port_provenance": jtag_port_provenance,
@@ -692,6 +717,7 @@ def main():
                   "checker_source_overlay": args.checker_source_overlay,
                   "checker_overlay_provenance": checker_overlay_provenance,
                   "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+                  "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
                   "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
                   "ephemeral_jtag_port": args.ephemeral_jtag_port,
                   "jtag_port_provenance": jtag_port_provenance,
@@ -737,6 +763,8 @@ def main():
         fingerprints_after["ecc_pcr_source"] = sha256(ECC_PCR_SOURCE)
         fingerprints_after["ecc_pcr_overlay"] = sha256(ecc_pcr_overlay)
         fingerprints_after["ecc_pcr_patch"] = sha256(ECC_PCR_PATCH)
+        if args.ecc_pcr_internal_observer:
+            fingerprints_after["ecc_pcr_observer_patch"] = sha256(ECC_PCR_OBSERVER_PATCH)
     if jtag_top_overlay:
         fingerprints_after["jtag_top_source"] = sha256(JTAG_TOP)
         fingerprints_after["jtag_top_overlay"] = sha256(jtag_top_overlay)
@@ -782,6 +810,7 @@ def main():
                                                        "checker_source_overlay": args.checker_source_overlay,
                                                        "checker_overlay_provenance": checker_overlay_provenance,
                                                        "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+                                                       "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
                                                        "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
                                                        "ephemeral_jtag_port": args.ephemeral_jtag_port,
                                                        "jtag_port_provenance": jtag_port_provenance,
