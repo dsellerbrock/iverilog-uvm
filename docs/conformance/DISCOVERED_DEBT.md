@@ -3817,5 +3817,15 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** Pinned OpenTitan `hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv`, `DEF_MNEM` and `DEF_CSR` macros at lines 17 and 114.
 - **Possible clause:** IEEE 1800-2017/2023 §19.5, covergroup bin value expressions.
 - **Evidence:** [DD-094 focused evidence](../../evidence/opentitan-otbn-localparam-bins-20260929/focus.json) records the historical log, exact copied-source/tool hashes, strict 2017/2023 controls, and paired selected compile commands/results. Raw paired logs and their SHA-256 values remain under `/private/tmp/otbn-dd094-20260929/`.
-- **Reproducer status:** confirmed with tiny packed-width compile/runtime controls and a paired current-compiler OTBN source-list compile under a verified 4 GiB process-group RSS guard.
+- **Reproducer status:** confirmed with tiny packed-width compile/runtime controls and a paired current-compiler OTBN source-list compile under a sampled 4 GiB process-group RSS watchdog.
 - **Triage status:** the two-macro `localparam` overlay is committed. Relative to the unpatched copy, it clears 178 mutable-bin errors, 178 wide-bin errors, and 2,927 dropped-empty-cross notices without changing any other diagnostic line. The selected target still fails with 30 independent errors; no OTBN VVP/DV pass or 49-target census update is claimed.
+
+### DD-095 — OTBN dynamic unpacked flag selection fails in coverpoint expressions
+
+- **Discovered while working:** DD-094 paired selected OTBN compile.
+- **Observation:** A non-ref covergroup sample formal containing `flags_t flags[2]` rejects `flags[fg].C`, `flags[fg][0]`, and `flags[fg][idx]` in strict 2017/2023. Scalarized controls compile and sample two distinct group values; Slang accepts the direct forms.
+- **File/function:** Icarus `parse.y` covergroup sample-formal capture near line 3795 stores only `PWire::data_type()`, omitting `unpacked_indices()`; `elaborate.cc` then builds scalar formal placeholders/call slots. The `elab_expr.cc` and `netmisc.cc` failures are downstream symptoms.
+- **Possible clause:** IEEE 1800-2017 §7.4.6 and IEEE 1800-2023 §7.4.5 for array indexing; both editions §19.5 for coverpoint sample expressions.
+- **Evidence:** Projectless `work/otbn-flag-select-20260929/flag_select.sv` and `results.json`; DD-094 patched selected compile retains 25 sample-index and 3 packed-member internal errors.
+- **Reproducer status:** confirmed strict paired direct failures and scalarized runtime controls; direct Icarus runtime awaits compiler repair.
+- **Triage status:** selected as the next compiler blocker. No source workaround or unsafe-flag addition is accepted as a semantic fix.
