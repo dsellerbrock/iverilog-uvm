@@ -834,12 +834,10 @@ ACTIVE_PROCESSES_LOCK = threading.Lock()
 
 def signal_command_tree(process: subprocess.Popen[str], sig: int) -> None:
     """Signal a command and every child in the session created for it."""
-    if process.poll() is not None:
-        return
     try:
         if os.name == "posix":
             os.killpg(process.pid, sig)
-        else:
+        elif process.poll() is None:
             process.send_signal(sig)
     except ProcessLookupError:
         pass
@@ -944,6 +942,12 @@ def memory_guarded_command_result(
                 except subprocess.TimeoutExpired:
                     monitor_error = "footprint sampling timed out"
                     break
+                except OSError as exc:
+                    monitor_error = f"footprint launch failed: {exc}"
+                    break
+                if time.monotonic() - started >= timeout:
+                    timed_out = True
+                    break
                 if process.poll() is not None and sample.returncode != 0:
                     break
                 match = re.search(r"^\s*phys_footprint:\s*(\d+) B\s*$",
@@ -958,13 +962,16 @@ def memory_guarded_command_result(
                     memory_limit_hit = True
                     break
                 time.sleep(min(1, max(0, timeout - (time.monotonic() - started))))
+            if time.monotonic() - started >= timeout:
+                timed_out = True
             if timed_out or memory_limit_hit or monitor_error:
                 signal_command_tree(process, signal.SIGTERM)
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    signal_command_tree(process, signal.SIGKILL)
-                    process.wait()
+                    pass
+                signal_command_tree(process, signal.SIGKILL)
+                process.wait()
             output_file.seek(0)
             output = output_file.read()
             if memory_limit_hit:
@@ -988,8 +995,9 @@ def memory_guarded_command_result(
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                signal_command_tree(process, signal.SIGKILL)
-                process.wait()
+                pass
+            signal_command_tree(process, signal.SIGKILL)
+            process.wait()
             raise
         finally:
             with ACTIVE_PROCESSES_LOCK:
@@ -3568,6 +3576,8 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         else:
             raise AssertionError("timed-out command left a descendant running")
     if sys.platform == "darwin":
+        from unittest import mock
+
         memory_probe = command_result(
             [
                 sys.executable,
@@ -3575,7 +3585,9 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
                 (
                     "import subprocess,sys,time; "
                     "p=subprocess.Popen([sys.executable,'-c',"
-                    "'import time; time.sleep(30)']); "
+                    "'import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                    "print(1,flush=True); time.sleep(30)'],"
+                    "stdout=subprocess.PIPE,text=True); p.stdout.readline(); "
                     "print(p.pid,flush=True); "
                     "data=bytearray(128*1024*1024); time.sleep(30)"
                 ),
@@ -3588,12 +3600,34 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         assert memory_probe.returncode == 125
         assert memory_probe.peak_physical_footprint_bytes > 64 * 1024 * 1024
         descendant_pid = int(memory_probe.output.strip().splitlines()[0])
+        for _ in range(50):
+            try:
+                os.kill(descendant_pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            raise AssertionError("memory-limited command left a descendant running")
+        sampled_pid = []
+
+        def fail_footprint(command: Sequence[str], **_kwargs: object) -> None:
+            sampled_pid.append(int(command[-1]))
+            raise OSError("injected footprint launch error")
+
+        with mock.patch.object(subprocess, "run", side_effect=fail_footprint):
+            monitor_probe = command_result(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                cwd=Path.cwd(), env=os.environ.copy(), timeout=15,
+                memory_limit_bytes=64 * 1024 * 1024,
+            )
+        assert monitor_probe.returncode == 126
+        assert "injected footprint launch error" in monitor_probe.memory_monitor_error
         try:
-            os.kill(descendant_pid, 0)
+            os.kill(sampled_pid[0], 0)
         except ProcessLookupError:
             pass
         else:
-            raise AssertionError("memory-limited command left a descendant running")
+            raise AssertionError("monitor failure left a runtime process running")
     print("opentitan_matrix self-test: PASS")
 
 
