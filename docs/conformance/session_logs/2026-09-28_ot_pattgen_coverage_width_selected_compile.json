@@ -1,0 +1,48 @@
+{
+  "case": "lowrisc:dv:pattgen_sim:0.1",
+  "scope": "selected compile only; pattgen_smoke_vseq; no VVP or aggregate rerun",
+  "compiler_git_head": "a9098b868603d27b4b7f0e7340a4d347d9798791",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_image_sha256": {
+    "driver": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+    "elaborator": "80d46ba33e85b5c5add971a881839200029f8f6d987ddf28c14565210b93ae44",
+    "vvp_target": "84f6a6d6fb653bb0983d4a01bca0ad99600c26e7e3eaa9d67e2fcf4a62687d84"
+  },
+  "named_patches_sha256": {
+    "docs/conformance/release_overlays/opentitan/pattgen_weighted_data_word_compat.patch": "5005de70ba021bc8949043c1af7247a86230a9100ba2b23de0f8a020f736b3e8",
+    "docs/conformance/release_overlays/opentitan/pattgen_cov_signal_widths.patch": "fd297a0c12a37c688b20f867176f8a55de5eef43945742394a94c8b02d6f0a55"
+  },
+  "source_sha256": {
+    "pinned_pattgen_base_vseq": "0f6ec964e84900bd0def59b7d93112af82cb48d696de84f5c3ee7a038e655ab5",
+    "pinned_pattgen_cov_if": "26a9d60addf6be6b717567bbd4b6487f158d437483fd50e69f208adef530f3e1",
+    "weighted_word_copy": "92725f43f3ab31d33a865933e782730c431511f5de653cbf9f100bd0c75ec196",
+    "combined_pattgen_base_vseq": "92725f43f3ab31d33a865933e782730c431511f5de653cbf9f100bd0c75ec196",
+    "combined_pattgen_cov_if": "48183688f7efa11db7e570f6a060062583db4185eced7a881fb6b67a7a4a23f8"
+  },
+  "patch_check": "Both named patches apply cleanly to disposable copies of the pinned files; the existing weighted-word FuseSoC copy byte-matches the named patch. The pinned checkout was unchanged.",
+  "compile_command": "local-install/bin/iverilog -g2012 -stb -spattgen_bind -spattgen_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o <case>/selected.vvp -c <case>/matrix-iverilog.scr",
+  "matrix_source_list": "Each disposable matrix-iverilog.scr adds +timescale+1ns/1ps and includes its copied sim-icarus/lowrisc_dv_pattgen_sim_0.1.scr; compiler cwd is that sim-icarus directory.",
+  "selected_compile": {
+    "weighted_word_only": {
+      "exit_code": 0,
+      "hard_error_lines": 0,
+      "sorry_lines": 0,
+      "warning_lines": 37,
+      "warning_categories": {"coverage_out_of_range": 24, "rst_n_port_coercion": 1, "always_comb_nba": 12, "other": 0},
+      "log": "/private/tmp/ot-pattgen-cov-width-selected-_yy6dw8w/weighted_only/compile.log",
+      "log_sha256": "360d906de7afcd9e9cf07067bc14e80c04880170e631c32b43dbdd92ec5e7b19"
+    },
+    "weighted_word_and_coverage_width": {
+      "exit_code": 0,
+      "hard_error_lines": 0,
+      "sorry_lines": 0,
+      "warning_lines": 13,
+      "warning_categories": {"coverage_out_of_range": 0, "rst_n_port_coercion": 1, "always_comb_nba": 12, "other": 0},
+      "log": "/private/tmp/ot-pattgen-cov-width-selected-_yy6dw8w/weighted_and_coverage/compile.log",
+      "log_sha256": "f4dd47f385f449e4c5199885f3a660e39fd37d0116c4667e53747a142569ccac"
+    }
+  },
+  "unchanged_warnings": "The remaining 13 warning lines match byte-for-byte: tb.sv:33 rst_n port coercion and pattgen_csr_assert_fpv.sv:91-103 twelve always_comb nonblocking assignments.",
+  "source_reason": "Twelve scalar aliases in pattgen_cov_if sampled 32-, 10-, or 6-bit Pattgen channel RTL signals, clipping coverage bins and counter comparisons to one bit. The patch types the aliases to their connected RTL widths.",
+  "runtime": "No selected Pattgen DV VVP was run; no DV pass is claimed."
+}
