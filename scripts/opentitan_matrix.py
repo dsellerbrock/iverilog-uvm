@@ -2283,6 +2283,39 @@ def compile_command(
 NATIVE_CXX_SUFFIXES = {".cc", ".cpp", ".cxx"}
 
 
+def native_pkg_config_flags(
+    packages: Sequence[str], env: dict[str, str], cwd: Path, timeout: int
+) -> tuple[list[str], list[str], dict[str, object]]:
+    """Resolve explicit native build dependencies before any matrix job runs."""
+    pkg_config = shutil.which("pkg-config", path=env.get("PATH"))
+    if not pkg_config:
+        raise RuntimeError("--native-pkg-config requires pkg-config on PATH")
+    if any(not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*", name) for name in packages):
+        raise RuntimeError("--native-pkg-config needs plain package names")
+    commands = {}
+    flags = {}
+    for option, label in (("--cflags", "cflags"), ("--libs", "libs")):
+        command = [pkg_config, option, *packages]
+        try:
+            result = subprocess.run(command, cwd=cwd, env=env, capture_output=True,
+                                    text=True, timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(f"pkg-config {option} failed: {exc}") from exc
+        if result.returncode:
+            raise RuntimeError(f"pkg-config {option} failed: {result.stderr.strip()}")
+        commands[label] = command
+        flags[label] = shlex.split(result.stdout)
+    resolved = Path(pkg_config).resolve()
+    provenance = {
+        "packages": list(packages), "executable": str(resolved),
+        "executable_sha256": file_sha256(resolved),
+        "commands": commands, "cflags": flags["cflags"], "libs": flags["libs"],
+        "environment": {name: env[name] for name in (
+            "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_SYSROOT_DIR") if name in env},
+    }
+    return flags["cflags"], flags["libs"], provenance
+
+
 def native_dpi_commands(
     sources: Sequence[str],
     include_dirs: Sequence[str],
@@ -2290,6 +2323,8 @@ def native_dpi_commands(
     output: Path,
     export_stubs: Path | None,
     platform: str = sys.platform,
+    cflags: Sequence[str] = (),
+    libs: Sequence[str] = (),
 ) -> list[list[str]]:
     """Commands that build a job's native DPI sources into one library.
 
@@ -2309,9 +2344,9 @@ def native_dpi_commands(
         else:
             compiler = ["cc"]
         commands.append(
-            [*compiler, "-O1", "-fPIC", *includes, "-c", source, "-o", str(obj)]
+            [*compiler, "-O1", "-fPIC", *includes, *cflags, "-c", source, "-o", str(obj)]
         )
-    link = ["c++", "-shared", "-o", str(output), *objects]
+    link = ["c++", "-shared", "-o", str(output), *objects, *libs]
     if platform == "darwin":
         link[2:2] = ["-undefined", "dynamic_lookup"]
     commands.append(link)
@@ -2436,6 +2471,8 @@ def run_job(
     iverilog: Path,
     vvp: Path,
     env: dict[str, str],
+    native_cflags: Sequence[str] = (),
+    native_libs: Sequence[str] = (),
 ) -> dict[str, object]:
     work_root = build_root / job.lane / safe_name(job.core.vlnv)
     work_root.mkdir(parents=True, exist_ok=True)
@@ -2629,6 +2666,8 @@ def run_job(
             iverilog,
             library,
             stubs if stubs.is_file() else None,
+            cflags=native_cflags,
+            libs=native_libs,
         )
         # A closure can carry native sources for other tools (Verilator's
         # ELF loader needs libelf). Build what compiles; if the testbench
@@ -3056,6 +3095,43 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert dpi_build[1][0] == "cc" and dpi_build[2][0] == "cc"
     assert "-I/opt/ivl/include/iverilog" in dpi_build[0]
     assert dpi_build[-1][:4] == ["c++", "-shared", "-undefined", "dynamic_lookup"]
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        pkg_config = root / "pkg-config"
+        pkg_config.write_text(
+            "#!/bin/sh\ncase \"$1\" in\n"
+            "  --cflags) printf '%s\\n' '-I/pkg/include -DOPENSSL_TEST=1';;\n"
+            "  --libs) printf '%s\\n' '-L/pkg/lib -lssl -lcrypto';;\n"
+            "esac\n"
+        )
+        pkg_config.chmod(0o755)
+        cflags, libs, provenance = native_pkg_config_flags(
+            ("openssl",), {"PATH": str(root)}, root, 5
+        )
+        assert cflags == ["-I/pkg/include", "-DOPENSSL_TEST=1"]
+        assert libs == ["-L/pkg/lib", "-lssl", "-lcrypto"]
+        assert provenance["executable_sha256"] == file_sha256(pkg_config)
+        enabled_build = native_dpi_commands(
+            ("/src/crypto.c",), (), Path("/opt/ivl/bin/iverilog"),
+            Path("/work/matrix-dpi.so"), None, cflags=cflags, libs=libs,
+        )
+        assert enabled_build[0][4:6] == cflags
+        assert enabled_build[-1][-3:] == libs
+        assert all(flag not in dpi_build[0] for flag in cflags)
+        assert all(flag not in dpi_build[-1] for flag in libs)
+        try:
+            native_pkg_config_flags(("openssl",), {"PATH": str(root / "missing")}, root, 5)
+        except RuntimeError as exc:
+            assert "requires pkg-config" in str(exc)
+        else:
+            raise AssertionError("missing pkg-config was accepted")
+        pkg_config.write_text("#!/bin/sh\necho 'missing package' >&2\nexit 1\n")
+        try:
+            native_pkg_config_flags(("openssl",), {"PATH": str(root)}, root, 5)
+        except RuntimeError as exc:
+            assert "missing package" in str(exc)
+        else:
+            raise AssertionError("missing native package was accepted")
     regex_uvm_target = dataclasses.replace(
         uvm_target,
         build_options=(
@@ -3435,6 +3511,10 @@ def parser() -> argparse.ArgumentParser:
         default=[],
         help="repeat to load a native DPI shared library with vvp -d",
     )
+    result.add_argument(
+        "--native-pkg-config", action="append", default=[], metavar="PACKAGE",
+        help="repeat to apply pkg-config C flags and link libraries to native DPI builds",
+    )
     result.add_argument("--diagnostic-limit", type=int, default=100)
     result.add_argument("--result-json", type=Path)
     result.add_argument("--result-md", type=Path)
@@ -3548,6 +3628,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("No OpenTitan cores matched the requested lanes and filters", file=sys.stderr)
         return 2
 
+    native_cflags: list[str] = []
+    native_libs: list[str] = []
+    native_pkg_config = None
+    if args.native_pkg_config:
+        try:
+            native_cflags, native_libs, native_pkg_config = native_pkg_config_flags(
+                args.native_pkg_config, env, opentitan_root, args.setup_timeout
+            )
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
 
     metadata: dict[str, object] = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -3575,6 +3666,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             PRIM_MAPPING_CORE.encode()
         ).hexdigest(),
     }
+    if native_pkg_config is not None:
+        metadata["native_pkg_config"] = native_pkg_config
     if formal_targets is not None:
         formal_listing = "\n".join(sorted(formal_targets)) + "\n"
         metadata["fusesoc_formal_target_count"] = len(formal_targets)
@@ -3621,6 +3714,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             iverilog=iverilog,
             vvp=vvp,
             env=env,
+            native_cflags=native_cflags,
+            native_libs=native_libs,
         )
 
     indexed_results: list[tuple[int, dict[str, object]]] = []
