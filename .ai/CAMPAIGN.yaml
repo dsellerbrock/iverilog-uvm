@@ -1,23 +1,29 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 3f98f9de1
+checkpoint_head: 7796f1a93
 active_open_titan_lane:
-  blocker: "OT-AES-RUNTIME-CLASSIFIER-FALSE-POSITIVE"
-  phase: "ROOT_CAUSED"
+  blocker: "OT-OTBN-DPI-IMPORT-SCOPE"
+  phase: "DONE"
   worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
-  baseline_head: "3f98f9de1"
+  baseline_head: "e6cb26d0a"
   installed_ivl_sha256: "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4"
-  installed_vvp_sha256: "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
-  reproducer: "Selected AES with OpenSSL DPI returns rc 0 and TEST PASSED CHECKS, but the matrix flags `Configuration error: FALSE` as a runtime failure."
-  validation: "Completed 49-target parallel corpus and separate AES selected replay preserved; exact false-positive root cause isolated."
-  next_command: "Add one exact runtime-only false-value allowlist with a red/green self-check, then replay AES with --native-pkg-config openssl."
-  boundary: "No other classifier/DPI/JEDEC or compiler fixes under this ticket. Caliptra remains paused."
+  installed_vvp_sha256: "a3dc04b0409f8572d73d6d5daf982af42206a5c04a083ddb91cc52196a4d0a2e"
+  reproducer: "OTBN selected runtime with libelf/ELF/REPO_TOP aborts at about 4 us because svGetScope publishes the imported subroutine, then relative sibling lookup constructs otbn_model_step.dut.u_dmem."
+  validation: "IEEE 1800-2017/2023 Annex H.9 paired two-instance function/task reducer and neighboring export/disable checks pass. Exact-image JSON 4129/0 in four shards, legacy 6880 passed/0 failed, real-DPI UVM 362/362, VPI 131/131, negatives 154/154. Selected OTBN prints TEST PASSED CHECKS but is DEBT due DD-097 unfinished native trace operation."
+  next_command: "Stop this completed scope ticket; select a new concrete OpenTitan blocker only after coordinator review of the remaining corpus. Caliptra stays paused."
+  boundary: "Raw 49-target census is immutable. Selected OTBN is not a clean DV pass; preserve DD-097 and do not run Caliptra or another full OpenTitan corpus under this completed ticket."
+completed_aes_classifier_lane:
+  blocker: "OT-AES-RUNTIME-CLASSIFIER-FALSE-POSITIVE"
+  phase: "DONE"
+  commit: "e6cb26d0a"
+  evidence: "evidence/opentitan-49-parallel-census-20260929/selected/aes-classifier-fixed.json: native DPI complete, rc 0, TEST PASSED CHECKS, zero runtime errors/debt, PASS. Exact FALSE allowlist preserves TRUE and UVM errors; independent review clear."
+  boundary: "Harness verdict correction only; raw 49-row corpus remains unchanged."
 completed_parallel_census_lane:
   blocker: "OT-49-OVERLAID-PARALLEL-CENSUS"
   phase: "DONE"
   evidence: "evidence/opentitan-49-parallel-census-20260929/: complete 49-row result, 46-operation exact-hash overlay manifest, matrix logs, selected replays. Raw 18 PASS/3 DEBT/12 RUNTIME_FAIL/9 RUNTIME_MEMORY_LIMIT/5 compile FAIL/1 MATRIX_ERROR/1 RUNTIME_TIMEOUT; 3 jobs, 4 GiB cap, 1800 s runtime cap."
-  selected_followup: "Separately, LC Control and both Xbars pass at 8/12/16 GiB guards; Clock Manager passes retry. AES checks pass but classifier false-positive remains. OTBN reaches a DPI scope failure after dependencies are provided."
+  selected_followup: "Separately, LC Control and both Xbars pass at 8/12/16 GiB guards; Clock Manager passes retry. AES selected PASS after e6cb26d0a. OTBN selected DEBT after 7796f1a93 because its native trace checker reports an unfinished operation."
   boundary: "The 49-row raw census is immutable and is not a 49/49 pass claim. Caliptra was not run."
 completed_otbn_tracer_lane:
   blocker: "OT-OTBN-TRACE-DECL-ORDER"
