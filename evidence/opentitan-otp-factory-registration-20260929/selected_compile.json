@@ -1,0 +1,35 @@
+{
+  "blocker": "OT-UVM-PARAMETERIZED-REGISTRY-STATIC-INIT",
+  "combined_copied_tb_sha256": "5ee73f7d57c4df336b9f1020288965b5a831a5bfce40cb80bd685758403369a5",
+  "current_ivl_sha256": "80d46ba33e85b5c5add971a881839200029f8f6d987ddf28c14565210b93ae44",
+  "first_bad_tiny_gate_commit": "b2c3baf39373a2a8a9007b32c8845fe4a184ca87",
+  "minimal_runtime_controls": {
+    "2017": {
+      "bare_generate_typedef_registrations": 0,
+      "explicit_get_type_registrations": 1
+    },
+    "2023": {
+      "bare_generate_typedef_registrations": 0,
+      "explicit_get_type_registrations": 1
+    }
+  },
+  "named_patch_sha256": "8580200741b0b51ec185299b9c2abd5b1eed043e17e091e02847b65098f3d9eb",
+  "other_diagnostics_identical_after_path_normalization": true,
+  "pinned_opentitan_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_tb_sha256": "9ae010405678fbaad44c83143793345af6e5aa1e0152bd2e06a9c838f3d63f1a",
+  "pre_patch_selected_runtime": {
+    "pass_marker_count": 0,
+    "simulated_time": "0 ps",
+    "teardown_assertion_count": 512,
+    "uvm_fatal_count": 1,
+    "wrapper_exit": 0
+  },
+  "qualification": "selected_compile_only; OTP UVM runtime pending until the active 8-GiB-capped Caliptra VVP ends",
+  "selected_compile_errors": 0,
+  "selected_compile_exit": 0,
+  "selected_compile_sorry": 0,
+  "selected_compile_warnings": 56,
+  "selected_image_has_concrete_class": true,
+  "selected_image_has_one_named_registry_startup_initializer": true,
+  "selected_image_sha256": "8fa6e32c1e70dd1232863ef8346acb19ebed453b5fe20b1d40ef746f6c669ade"
+}

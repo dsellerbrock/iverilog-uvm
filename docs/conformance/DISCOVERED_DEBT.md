@@ -3759,3 +3759,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Reducer](../../evidence/opentitan-otp-force-rhs-20260928/packed_partial_release_repro.sv) and [focused OTP evidence](../../evidence/opentitan-otp-force-rhs-20260928/README.md). Strict `-g2017` and `-g2023`, each with `-gstrict-expr-width`, both exit 134 at the assertion on the private force-corrected VVP target.
 - **Reproducer status:** confirmed paired compile-time assertion; no selected OTP runtime implicated.
 - **Triage status:** separate targeted ticket; do not broaden the OTP force-RHS correction to partial release.
+
+### DD-089 — type-only parameterized OTP test specialization is not registered
+
+- **Discovered while working:** OT-UVM-PARAMETERIZED-REGISTRY-STATIC-INIT.
+- **Observation:** The pinned OTP testbench names a concrete parameterized base test only through a typedef in a true generate block. The current compiler emits its generic master and registry but no concrete registration initializer; UVM reports `INVTST` at time zero. Old compiler 4c45450a4 emitted a registry initializer, but that path also registered the generic master. A tiny adjacent compile gate places the change at b2c3baf39; a concrete handle or explicit `get_type()` causes exactly one registration in strict 2017/2023 controls.
+- **File/function:** `elab_scope.cc` parameterized-class specialization reachability and `release_deferred_static_inits`; `elaborate.cc` class static-init emission.
+- **Possible clause:** IEEE 1800-2017/2023 §8.25 parameterized classes and static-property initialization; establish the exact obligation for a typedef-only concrete specialization before changing the compiler.
+- **Evidence:** [Selected compile and tiny controls](../../evidence/opentitan-otp-factory-registration-20260929/selected_compile.json); the [named OTP source workaround](release_overlays/opentitan/otp_ctrl_explicit_test_registration.patch) calls the intended concrete specialization before `run_test()`.
+- **Reproducer status:** confirmed in the small compile gate and selected OTP image; full patched-source OTP runtime pending.
+- **Triage status:** compiler fix remains open. Do not restore generic-master registration because it can duplicate factory names and break concrete UVM casts.

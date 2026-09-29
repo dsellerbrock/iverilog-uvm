@@ -1,0 +1,12 @@
+--- a/hw/ip/otp_ctrl/dv/tb.sv
++++ b/hw/ip/otp_ctrl/dv/tb.sv
+@@ -232,6 +232,9 @@
+ 
+     uvm_config_db#(virtual otp_ctrl_if)::set(null, "*.env", "otp_ctrl_vif", otp_ctrl_if);
+     $timeformat(-12, 0, " ps", 12);
++    if (`PRIM_DEFAULT_IMPL == prim_pkg::ImplGeneric)
++      void'(otp_ctrl_base_test#(.CFG_T(otp_ctrl_env_cfg),
++                                 .ENV_T(otp_ctrl_env))::get_type());
+     run_test();
+   end
+ 
