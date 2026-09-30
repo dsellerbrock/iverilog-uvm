@@ -1192,12 +1192,7 @@ bool anyedge_vec4_value::recv_vec4(const vvp_vector4_t&bit,
 	    }
 
       } else {
-	    for (unsigned idx = 0 ;  idx < bit.size() ;  idx += 1) {
-		  if (old_bits.value(idx) != bit.value(idx)) {
-			flag = true;
-			break;
-		  }
-	    }
+	    flag = !old_bits.eeq(bit);
       }
 
       if (flag) {

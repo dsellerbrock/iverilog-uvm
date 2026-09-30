@@ -14070,7 +14070,11 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       if (trampoline_callf_enabled_()) {
             child->is_trampoline_child = 1;
             child->i_am_in_function = 1;
-            child->delay_delete = 1;
+              /* No delay_delete: the dispatch run pin keeps this frame
+                 alive through its do_join, and the unpin frees it at
+                 once. A deferred DEL_THREAD delete never ran while
+                 zero-time work kept refilling the active region, so
+                 every finished call leaked its thread. */
             callf_scope_stack.pop_back();
             callf_depth--;
             if (trampoline_call_stack.size() >= TRAMPOLINE_MAX_DEPTH) {
@@ -14250,15 +14254,20 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 
 	      if (child->i_have_ended) {
-		    trace_context_event_("callf-before-join", thr, child->parent_scope,
+		    __vpiScope*child_scope = child->parent_scope;
+		    trace_context_event_("callf-before-join", thr, child_scope,
 		                         child->wt_context);
+		      /* The caller is done inspecting the child, so let
+		         do_join's reap free it now instead of queueing a
+		         DEL_THREAD event that zero-time work can starve. */
+		    if (!child->delete_pending)
+			  child->delay_delete = 0;
 		    do_join(thr, child);
-                    if (!(child->parent_scope
-                          && child->parent_scope->has_automatic_context())) {
+                    if (!(child_scope
+                          && child_scope->has_automatic_context())) {
                           ensure_write_context_(thr, "callf-join");
                     }
-		    trace_context_event_("callf-after-join", thr, child->parent_scope,
-		                         child->wt_context);
+		    trace_context_event_("callf-after-join", thr, child_scope, 0);
 		    callf_scope_stack.pop_back();
 		    callf_depth--;
 		    return true;
@@ -33321,6 +33330,10 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
       running_thread = thr;
 
       if (child->i_have_ended) {
+	      /* Free the finished call at do_join's reap; a queued
+	         DEL_THREAD delete is starved by zero-time activity. */
+	    if (!child->delete_pending)
+		  child->delay_delete = 0;
 	    do_join(thr, child);
             return true;
       } else {

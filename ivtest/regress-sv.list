@@ -2353,6 +2353,7 @@ sv_ch20_coverage_bad_domain normal,-g2012 ivltests gold=sv_ch20_coverage_bad_dom
 sv_ch20_coverage_call_fail CE,-g2012 ivltests gold=sv_ch20_coverage_call_fail.gold
 
 # Bounded reclamation of completed zero-time named-block activations
+sv_vthread_zero_time_callf_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_callf_reclaim.gold
 sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
 
 # IEEE 1800-2017 10.3.3 net declaration delays and 23.3.3.7 port dominance
@@ -5066,3 +5067,5 @@ sv_std_randomize_unpacked_struct normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv
 sv_std_randomize_unpacked_struct_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
 sv_std_randomize_fixed_array_with_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
 sv_std_randomize_fixed_array_with_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
+sv_bitstoreal_wide_arg normal,-g2017,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
+sv_bitstoreal_wide_arg_2023 normal,-g2023,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
