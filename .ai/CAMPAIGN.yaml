@@ -1,16 +1,27 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 384f77bcf
-active_trial1_core_layout_lane:
-  blocker: "OT-TRIAL1-CORE-FILE-LAYOUT"
+checkpoint_head: 62e3f9c3f
+active_pwrmgr_seed3_esc_lane:
+  blocker: "OT-PWRMGR-SEED3-ESC-TIMEOUT"
   phase: "DOCUMENTED"
+  baseline_head: "62e3f9c3f"
+  reproducer: "Frozen Pwrmgr row EPERM; same-image selected replay RUNTIME_FAIL at EscClkStopEscTimeout_A, 20,631,414 ps, clean compile. Existing checker_repro.sv proves active phase-shifted versus stopped-clock behavior."
+  allowed_scope: "The existing timestamp patch was hash-guarded on copied source and passed runtime but added a timescale compile notice. New named edge-counter patch touches only the same two checker files and is validated by active/stopped/faster controls, one guarded selected replay, and explicit seed 3."
+  validation: "Exact pre/post checker hashes; 248-file ordered closure changes only generated checker. Reducer level-active fails, edge-counter active/stopped/faster pass. Selected matrix PASS, setup zero actionable warnings, compile zero hard/semantic debt, runtime exit0/one banner/43 scoreboard reads/zero bad diagnostics/666,011,232-byte peak under 4 GiB/120s. Explicit seed3 same image exit0/one banner/28 reads/zero UVM or assertion failures."
+  evidence: "evidence/opentitan-pwrmgr-clock-edge-count-20260929/, docs/conformance/release_overlays/opentitan/pwrmgr_clock_edge_count.patch, docs/conformance/repros/pwrmgr_clock_activity/checker_edge_count_repro.sv"
+  next_command: "Finish independent review, force-add ignored .patch with explicit staging, locally commit scoped files, then select the next blocker. Frozen 23/49 unchanged."
+  boundary: "No pinned edits, compiler/unsafe change, broad OT corpus, or multi-hour Caliptra run; frozen 23/49 unchanged."
+completed_trial1_core_layout_lane:
+  blocker: "OT-TRIAL1-CORE-FILE-LAYOUT"
+  phase: "DONE"
+  implementation_commit: "62e3f9c3f"
   baseline_head: "384f77bcf"
   reproducer: "Frozen lowrisc:ip:trial1_sim:0.1 is DEBT solely from two FuseSoC ../rtl file-location warnings; compile and directed runtime checks pass."
   allowed_scope: "One exact-hash named core-file move on a fresh disposable pinned OpenTitan copy, preserved source hashes, one guarded selected replay, and a negative layout control."
   validation: "Red --setup-only SETUP_DEBT with exactly two actionable ../rtl warnings. Named exact-hash overlay self-check passes. With PYTHONHASHSEED=2, selected one-core PASS: zero actionable setup warnings, compiler hard/semantic debt zero, runtime exit0/one banner/zero debt, 665 checked messages and ordered 187-file content closure matching frozen, 4,440,424-byte peak under 4 GiB/120s."
   evidence: "evidence/opentitan-trial1-core-layout-20260929/ and docs/conformance/release_overlays/opentitan/trial1_core_layout_overlay.py"
-  next_command: "Finish independent overlay/evidence review, commit explicit Trial1 files, then select the next blocker. Keep frozen 23/49 unchanged."
+  next_command: "Closed at 62e3f9c3f after independent review found no blocker. Pwrmgr checker failure is selected next; preserve frozen 23/49."
   boundary: "No pinned source edit, compiler/unsafe change, full 49-target corpus, or multi-hour Caliptra run; frozen 23/49 unchanged."
 completed_keymgr_ral_scope_lane:
   blocker: "OT-KEYMGR-RAL-TYPE-PARAM-FALLBACK"

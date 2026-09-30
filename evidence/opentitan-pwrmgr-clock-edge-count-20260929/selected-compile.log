@@ -1,0 +1,17 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -spwrmgr_bind -spwrmgr_cov_bind -spwrmgr_unit_only_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/ot-pwrmgr-checker-20260929/selected-counter/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-runtime.vvp -c /private/tmp/ot-pwrmgr-checker-20260929/selected-counter/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-iverilog.scr
+returncode: 0
+duration_seconds: 2.032
+
+../src/lowrisc_dv_pwrmgr_sim_0.1/tb.sv:42: warning: input port rst_n is coerced to inout.
+../src/lowrisc_dv_pwrmgr_sim_0.1/tb.sv:58: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+iverilog: note: wrote DPI export C stubs to /private/tmp/ot-pwrmgr-checker-20260929/selected-counter/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-runtime.dpiexport.c (compile it into your DPI object).

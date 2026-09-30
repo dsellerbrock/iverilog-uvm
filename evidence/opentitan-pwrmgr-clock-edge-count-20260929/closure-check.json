@@ -1,0 +1,27 @@
+{
+  "file_count": 248,
+  "ordered_path_entries_equal": true,
+  "changed_content": [
+    {
+      "index": 244,
+      "file": "../src/lowrisc_dv_pwrmgr_sva_0.1/pwrmgr_sec_cm_checker_assert.sv",
+      "frozen_sha256": "b95a1df7eea88d4e0837f9fb4e01f5daf344cb2fe2d9a7659ba2b0d08ba15f02",
+      "selected_sha256": "786c82cab5f253355f15338d330789c1237b55534ab01b12a7ffa0bada2d7761"
+    }
+  ],
+  "timescale_wrapper": "+timescale+1ns/1ps",
+  "result": {
+    "status": "PASS",
+    "setup_actionable_warnings": [],
+    "hard_errors": 0,
+    "semantic_debt": 0,
+    "runtime_exit": 0,
+    "runtime_errors": 0,
+    "runtime_debt": 0,
+    "peak_physical_footprint_bytes": 666011232,
+    "one_pass_banner": true,
+    "scoreboard_reads": 43,
+    "actual_uvm_error_lines": 0,
+    "actual_uvm_fatal_lines": 0
+  }
+}

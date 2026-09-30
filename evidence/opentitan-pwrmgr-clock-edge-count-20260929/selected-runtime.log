@@ -1,0 +1,86 @@
+OpenTitan UVM runtime
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp -n /private/tmp/ot-pwrmgr-checker-20260929/selected-counter/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +test_timeout_ns=1000000 +smoke_test=1 +UVM_TESTNAME=pwrmgr_base_test +UVM_TEST_SEQ=pwrmgr_smoke_vseq
+returncode: 0
+duration_seconds: 4.089
+
+UVM_INFO @ 0 ps: reporter [RNTST] Running test pwrmgr_base_test...
+UVM_INFO @   7418108 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.wake_status
+UVM_INFO @   7455146 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.reset_status
+UVM_INFO @   7603298 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7640336 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7677374 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7714412 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7751450 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7788488 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7825526 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7862564 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7899602 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7936640 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   7973678 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   8010716 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   8047754 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   8084792 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   8121830 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @   8158868 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  16659089 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000024 from pwrmgr_reg_block.wake_status
+UVM_INFO @  16696127 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.reset_status
+UVM_INFO @  16733165 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.intr_state
+UVM_INFO @  16770203 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.intr_enable
+UVM_INFO @  16918355 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  16955393 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  16992431 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17029469 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17066507 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17103545 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17140583 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17177621 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17214659 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17251697 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17288735 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17325773 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17362811 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17399849 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17436887 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  17473925 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.cfg_cdc_sync
+UVM_INFO @  18955445 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.reset_status
+UVM_INFO @  18992483 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.wake_status
+UVM_INFO @  20399927 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.intr_state
+UVM_INFO @  20436965 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000001 from pwrmgr_reg_block.intr_enable
+UVM_INFO @  32863214 ps: (pwrmgr_scoreboard.sv:345) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Reading 0x00000000 from pwrmgr_reg_block.intr_state
+UVM_INFO @  32863214 ps: (pwrmgr_base_vseq.sv:185) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.pwrmgr_smoke_vseq] all local objections are done
+UVM_INFO @  37863214 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @  37863214 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count :     0 of     1
+** Report counts by severity
+UVM_INFO :   46
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[uvm_test_top.env.scoreboard]    43
+[uvm_test_top.env.virtual_sequencer.pwrmgr_smoke_vseq]     1
+
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 37863214 (1ps)

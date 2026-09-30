@@ -4,7 +4,7 @@
 
 - **Frozen-image result:** **23 PASS / 49** on the pinned OpenTitan source with selected exact-hash overlays and native DPI, up from 18 PASS in the previous raw census. The other 26 are 3 DEBT, 4 compile FAIL, 9 RUNTIME_FAIL, 7 RUNTIME_MEMORY_LIMIT, 2 RUNTIME_TIMEOUT, and 1 MATRIX_ERROR. The [complete 49-row evidence](../../evidence/opentitan-49-post-fixes-20260929/README.md) includes source/compiler hashes and logs.
 - **Parallel execution:** The merged interpreter speedups were active. The runner used three concurrent single-core VVP jobs, a 4 GiB limit per runtime, and a 1,800-second timeout on a 10-logical-core, 24 GiB host. Memory and host load constrained target concurrency; JSON regression used four shards separately. Both raw censuses used the speedups, so this is not an A/B speed measurement.
-- **Separate follow-ups:** A same-image Pwrmgr replay resolves the raw `EPERM` infrastructure row to `EscClkStopEscTimeout_A` DV failure. A real-ELF OTBN replay reaches 25,733,094 ps but fails `noOutstandingReqsAtEndOfSim_A` and times out at 180 seconds. Neither selected replay changes the immutable raw 49 rows. Caliptra was not run.
+- **Separate follow-ups:** A same-image Pwrmgr replay resolves the raw `EPERM` infrastructure row to `EscClkStopEscTimeout_A` DV failure; a later copied-source edge-counter checker replay [passes](../../evidence/opentitan-pwrmgr-clock-edge-count-20260929/README.md). A real-ELF OTBN replay reaches 25,733,094 ps but fails `noOutstandingReqsAtEndOfSim_A` and times out at 180 seconds. These selected replays do not change the immutable raw 49 rows. Caliptra was not run.
 
 ### OT-SPID-JEDEC-DIRECTED-RESULT-CLASSIFIER — checked directed completion
 
@@ -3971,10 +3971,10 @@ IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector ch
 
 ### OT-PWRMGR-SEED3-ESC-TIMEOUT — valid seed; upstream checker defect confirmed
 
-- **State:** Minimal checker correction validated in a separate overlay; pristine-release failure remains visible.
-- **Evidence:** [Current revalidation](session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json) records valid randomized clock phases, fresh positive/negative checks and seed replays. [Original signal trace](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json) and [earlier correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) remain historical evidence.
+- **State:** Selected current-image copied-source **PASS** with the [edge-counter patch](release_overlays/opentitan/pwrmgr_clock_edge_count.patch). The 138-sample checker contract remains: the focused active and faster-clock controls pass, while a stopped clock still triggers at the expected sample. The one-core matrix run has zero actionable setup warnings, zero hard or semantic compile debt, one checked runtime banner, 43 scoreboard reads, zero UVM/assertion errors or runtime debt, and 666,011,232-byte peak under 4 GiB/120 seconds. An explicit seed-3 replay of the same image also passes with 28 scoreboard reads. Eleven pre-existing benign compiler warnings remain visible; the earlier timestamp overlay adds one mixed-timescale semantic notice and is retained only for historical evidence.
+- **Evidence:** [Current selected replay and reducer](../../evidence/opentitan-pwrmgr-clock-edge-count-20260929/README.md); [prior seed-3 revalidation](session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json); [original signal trace](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json).
 - **Upstream confirmation:** [OpenTitan PR28474](https://github.com/lowRISC/opentitan/pull/28474) fixes this exact sampled-clock failure. Its subsequent port-connection correction is required when evaluating that backport. No VCS differential or VCS-specific defect is established.
-- **Boundary:** User authorizes necessary downstream repair. Preserve the pristine stable corpus and report checker-overlay runs separately. The minimal activity correction retains the original assertion contract. The stronger official heartbeat/`until` backport passes smoke but exposes a separate continuation negative-test failure requiring investigation before full validation.
+- **Boundary:** Pinned OpenTitan and the frozen 23 PASS / 49 corpus remain unchanged; report this checker-overlay run separately. The stronger official heartbeat/`until` backport exposes a separate continuation negative-test failure and is not selected here.
 
 ### OT-WHOLE-FUNCTION-CLASS-EVENT — class-method event dependencies
 
