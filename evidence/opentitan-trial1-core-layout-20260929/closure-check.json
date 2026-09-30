@@ -1,0 +1,29 @@
+{
+  "frozen_file_count": 187,
+  "selected_file_count": 187,
+  "frozen_closure_sha256": "5dc69dbe8fef96d37da9de37a05c53854f3ccae9318608815a5d61a4ff31c92e",
+  "selected_closure_sha256": "5dc69dbe8fef96d37da9de37a05c53854f3ccae9318608815a5d61a4ff31c92e",
+  "ordered_content_equal": true,
+  "trial1_hdl_hashes": [
+    "e2f790f845069eaa76addd17dae212444c3a8055811f0e95c91e683ff601f587",
+    "59e70c359d80a55c74c57fb7197ce26775cae6cc863e7258b62648e4776557a6",
+    "8f7871844dcc795a0f08ea571cf0c19fb01114e890ad3989957e52a317cb154f",
+    "a4fb7971640785ebe12b78e5dd23cf21505cd61d4c198ee4f8773373979bb28e",
+    "feffd0710819f45c313f9166073675342f9448f036b198de3ba486b1ce3a8e42"
+  ],
+  "status": "PASS",
+  "setup_returncode": 0,
+  "setup_actionable_warnings": [],
+  "compile_returncode": 0,
+  "hard_error_count": 0,
+  "semantic_debt_count": 0,
+  "runtime_returncode": 0,
+  "runtime_timed_out": false,
+  "runtime_memory_limit_hit": false,
+  "runtime_peak_physical_footprint_bytes": 4440424,
+  "runtime_pass_banner_count": 1,
+  "runtime_error_count": 0,
+  "runtime_debt_count": 0,
+  "selected_checked_messages": 665,
+  "checked_messages_match_frozen": true
+}

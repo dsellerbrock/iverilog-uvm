@@ -1,0 +1,15 @@
+# Trial1 FuseSoC core layout
+
+Pinned OpenTitan `a78922f14a8cc20c7ee569f322a04626f2ac6127`, copied source with the existing census overlays, installed `ivl` SHA-256 `0d50ec5d7b92ad405fdf44b36aacd9723dec1795a34c4d561d2aa249b5e09d62`, and VVP SHA-256 `5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3`.
+
+The [frozen Trial1 row](../opentitan-49-post-fixes-20260929/result.json) was DEBT only because FuseSoC reported `../rtl/trial1_reg_pkg.sv` and `../rtl/trial1_reg_top.sv` outside the directory containing `hw/ip/trial1/dv/trial1_sim.core`. A fresh, unpatched one-core `--setup-only` reproduces **SETUP_DEBT** with those two actionable warnings in [red-result.json](red-result.json) and [red-setup.log](red-setup.log).
+
+The [named exact-hash overlay](../../docs/conformance/release_overlays/opentitan/trial1_core_layout_overlay.py) moves only the `.core` file to `hw/ip/trial1/` and adjusts its five HDL paths. It requires preimage SHA-256 `813a80976210fa4f7fcdecc9652fdf29c8d5c9e457cd82b664b2aaa3194fb010`, verifies postimage `bc7ddd308b293338a8669618cd1bb42c770040097f66abb4cae8cf38db8c5a37`, refuses a checkout containing `.git`, and passes its changed-preimage self-check. Pinned source was not edited.
+
+The guarded one-core replay with `PYTHONHASHSEED=2` is **PASS**: FuseSoC setup exit 0 with zero actionable warnings, compiler exit 0 with zero hard errors or semantic debt, and VVP exit 0 in 1.022 seconds with one `TEST PASSED CHECKS`, zero runtime errors/debt, and 665 checked read/value messages. Its peak physical footprint is 4,440,424 bytes under a 4 GiB/120-second guard. [Raw result](selected-result.json), [setup](selected-setup.log), [compile](selected-compile.log), and [runtime](selected-runtime.log) are saved here. One sandboxed attempt was invalid because macOS denied `footprint` process inspection; its [result](sandbox-monitor-result.json) records the monitor error, and the successful guard ran with permission to inspect its child.
+
+The ordered content hashes of all **187** staged HDL files match the frozen row exactly; the five Trial1 RTL/DV files are byte-identical, and the 665 checked messages match the frozen runtime in order. See [closure-check.json](closure-check.json). OpenTitan's `primgen.py` iterates a Python set when generating `prim_pkg.sv`; `PYTHONHASHSEED=2` reproduces the frozen enum order. Without a fixed seed, only that generated file changed order, so its earlier passing run was not used for the exact-closure claim.
+
+Replay: copy the frozen overlaid source without `.git`; run `trial1_core_layout_overlay.py --self-check <copy>`, then `trial1_core_layout_overlay.py <copy>`. Use `PYTHONHASHSEED=2` with `scripts/opentitan_matrix.py --opentitan-root <copy> --build-root <new-work> --iverilog <installed-iverilog> --uvm-home <pinned-UVM-1.2-src> --fusesoc <pinned-fusesoc> --fusesoc-python <pinned-python> --lane runtime --core lowrisc:ip:trial1_sim:0.1 --commercial-unsafe --jobs 1 --setup-timeout 120 --compile-timeout 120 --runtime-timeout 120 --runtime-memory-mib 4096`.
+
+This selected pass is outside the immutable historical **23 PASS / 49** OpenTitan corpus.
