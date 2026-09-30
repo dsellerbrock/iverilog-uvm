@@ -162,13 +162,16 @@ static PLI_INT32 sys_convert_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
     /* In Icarus if we have an argv we have at least one argument. */
     arg  = vpi_scan(argv);
 
-    /* Validate the argument. Only $bitstoreal and $bitstoshortreal for now. */
-    if (!strcmp("$bitstoreal", name) && vpi_get(vpiSize, arg) != 64) {
-	error_message(callh, "%s requires a 64-bit argument.\n");
+    /* Validate the argument. Only $bitstoreal and $bitstoshortreal for now.
+       A wider vector is accepted and its low bits are converted, as the
+       calltf functions read only the first words. UVM's uvm_field_real
+       macro passes its 4096-bit bitstream to $bitstoreal. */
+    if (!strcmp("$bitstoreal", name) && vpi_get(vpiSize, arg) < 64) {
+	error_message(callh, "%s requires at least a 64-bit argument.\n");
 	return 0;
     }
-    if (!strcmp("$bitstoshortreal", name) && vpi_get(vpiSize, arg) != 32) {
-	error_message(callh, "%s requires a 32-bit argument.\n");
+    if (!strcmp("$bitstoshortreal", name) && vpi_get(vpiSize, arg) < 32) {
+	error_message(callh, "%s requires at least a 32-bit argument.\n");
 	return 0;
     }
 

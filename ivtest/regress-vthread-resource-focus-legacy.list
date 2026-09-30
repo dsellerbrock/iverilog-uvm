@@ -4,3 +4,4 @@ sv_class_recursive_find_wrapper1 normal,-g2012 ivltests gold=sv_class_recursive_
 fork_disable_detached_grandchild normal,-g2012 ivltests gold=fork_disable_detached_grandchild.gold
 sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
 sv_process_kill_join_reducer normal,-g2012 ivltests gold=sv_process_kill_join_reducer.gold
+sv_vthread_zero_time_callf_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_callf_reclaim.gold

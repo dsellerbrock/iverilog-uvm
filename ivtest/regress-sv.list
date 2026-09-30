@@ -2308,6 +2308,7 @@ sv_ch20_coverage_bad_domain normal,-g2012 ivltests gold=sv_ch20_coverage_bad_dom
 sv_ch20_coverage_call_fail CE,-g2012 ivltests gold=sv_ch20_coverage_call_fail.gold
 
 # Bounded reclamation of completed zero-time named-block activations
+sv_vthread_zero_time_callf_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_callf_reclaim.gold
 sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
 
 # IEEE 1800-2017 10.3.3 net declaration delays and 23.3.3.7 port dominance
@@ -4849,3 +4850,107 @@ sv_covergroup_packed_bitwise_shape_wide_unsupported normal,-g2017,-s,test ivltes
 sv_covergroup_packed_bitwise_shape_wide_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_packed_bitwise_shape_wide_unsupported.gold
 sv_covergroup_bitwise_real_operand_unsupported normal,-g2017,-s,test ivltests gold=sv_covergroup_bitwise_real_operand_unsupported.gold
 sv_covergroup_bitwise_real_operand_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_bitwise_real_operand_unsupported.gold
+sv_const_ref_forward normal,-g2017,-s,sv_const_ref_forward ivltests gold=sv_const_ref_forward.gold
+sv_const_ref_forward_writable_fail CE,-g2017,-s,sv_const_ref_forward_writable_fail ivltests gold=sv_const_ref_forward_writable_fail.gold
+sv_const_ref_forward_write_fail CE,-g2017,-s,sv_const_ref_forward_write_fail ivltests gold=sv_const_ref_forward_write_fail.gold
+sv_const_ref_forward_packed_select_fail CE,-g2017,-s,sv_const_ref_forward_packed_select_fail ivltests gold=sv_const_ref_forward_packed_select_fail.gold
+sv_const_ref_forward_type_fail CE,-g2017,-s,sv_const_ref_forward_type_fail ivltests gold=sv_const_ref_forward_type_fail.gold
+sv_const_ref_forward_function_type_fail CE,-g2017,-s,sv_const_ref_forward_function_type_fail ivltests gold=sv_const_ref_forward_function_type_fail.gold
+sv_const_ref_forward_expr_fail CE,-g2017,-s,sv_const_ref_forward_expr_fail ivltests gold=sv_const_ref_forward_expr_fail.gold
+sv_const_ref_forward_packed_property_fail CE,-g2017,-s,sv_const_ref_forward_packed_property_fail ivltests gold=sv_const_ref_forward_packed_property_fail.gold
+
+# Flash mixed fixed/runtime foreach whole-target traversal.
+sv_foreach_mixed_fixed_runtime_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_runtime.gold
+sv_foreach_mixed_fixed_excess_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_excess_fail.gold
+sv_foreach_mixed_fixed_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_runtime.gold
+sv_foreach_mixed_fixed_excess_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_excess_fail.gold
+
+# Flash two-dimensional packed struct fields through a virtual interface.
+sv_vif_packed_struct_field_runtime_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_runtime.gold
+sv_vif_packed_struct_field_missing_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_missing_fail.gold
+sv_vif_packed_struct_field_partial_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_partial_fail.gold
+sv_vif_packed_struct_field_range_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_range_fail.gold
+sv_vif_packed_struct_field_string_index_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_string_index_fail.gold
+sv_vif_packed_struct_field_real_index_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_real_index_fail.gold
+sv_vif_packed_struct_field_enum_method_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_enum_method_fail.gold
+sv_vif_packed_struct_field_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_runtime.gold
+sv_vif_packed_struct_field_missing_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_missing_fail.gold
+sv_vif_packed_struct_field_partial_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_partial_fail.gold
+sv_vif_packed_struct_field_range_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_range_fail.gold
+sv_vif_packed_struct_field_string_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_string_index_fail.gold
+sv_vif_packed_struct_field_real_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_real_index_fail.gold
+sv_vif_packed_struct_field_enum_method_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_enum_method_fail.gold
+
+# Skipped associative rank with a fixed bank child.
+sv_foreach_omitted_assoc_fixed_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_fixed.gold
+sv_foreach_omitted_assoc_excess_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_excess_fail.gold
+sv_foreach_omitted_assoc_indexed_prefix_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix_fail.gold
+sv_foreach_omitted_assoc_fixed_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_fixed.gold
+sv_foreach_omitted_assoc_excess_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_excess_fail.gold
+sv_foreach_omitted_assoc_indexed_prefix_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix_fail.gold
+
+# Constant indexed part-selects in randomize constraints.
+sv_constraint_indexed_part_inline_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_inline.gold
+sv_constraint_indexed_part_class_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_class.gold
+sv_constraint_indexed_part_unsupported_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_unsupported.gold
+sv_constraint_indexed_part_inline_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_inline.gold
+sv_constraint_indexed_part_class_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_class.gold
+sv_constraint_indexed_part_unsupported_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_unsupported.gold
+
+# Named coverpoint and cross coverage methods through nested class properties.
+sv_covergroup_nested_item_method normal,-g2017 ivltests gold=sv_covergroup_nested_item_method.gold
+sv_covergroup_nested_item_method_2023 normal,-g2023 ivltests gold=sv_covergroup_nested_item_method.gold
+sv_covergroup_item_method_modes normal,-g2017 ivltests gold=sv_covergroup_item_method_modes.gold
+sv_covergroup_item_method_modes_2023 normal,-g2023 ivltests gold=sv_covergroup_item_method_modes.gold
+sv_covergroup_nested_item_method_fail CE,-g2017 ivltests gold=sv_covergroup_nested_item_method_fail.gold
+sv_covergroup_nested_item_method_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_nested_item_method_fail.gold
+
+# Fixed-array indexed rand queue sizes and explicit unsupported boundaries.
+sv_constraint_fixed_queue_leaf_size normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_size.gold
+sv_constraint_fixed_queue_leaf_size_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_size.gold
+sv_constraint_fixed_queue_leaf_size_conflict normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_size_conflict.gold
+sv_constraint_fixed_queue_leaf_size_conflict_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_size_conflict.gold
+sv_constraint_fixed_queue_leaf_element_fail normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_element_fail.gold
+sv_constraint_fixed_queue_leaf_element_fail_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_element_fail.gold
+sv_constraint_fixed_queue_leaf_bad_index CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_bad_index.gold
+sv_constraint_fixed_queue_leaf_bad_index_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_bad_index.gold
+sv_constraint_fixed_queue_content normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_content.gold
+sv_constraint_fixed_queue_content_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_content.gold
+sv_constraint_fixed_queue_content_boundaries normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_content_boundaries.gold
+sv_constraint_fixed_queue_content_boundaries_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_content_boundaries.gold
+sv_constraint_fixed_queue_signed_member normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_signed_member.gold
+sv_constraint_fixed_queue_signed_member_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_signed_member.gold
+sv_constraint_fixed_queue_function_stage_foreach normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage.gold
+sv_constraint_fixed_queue_function_stage_foreach_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage.gold
+sv_constraint_fixed_queue_function_stage_direct normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage.gold
+sv_constraint_fixed_queue_function_stage_direct_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage.gold
+sv_constraint_parameter_array_psel normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_parameter_array_psel.gold
+sv_constraint_parameter_array_psel_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_parameter_array_psel.gold
+sv_constraint_fixed_queue_function_stage_argument_fail normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage_argument_fail.gold
+sv_constraint_fixed_queue_function_stage_argument_fail_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage_argument_fail.gold
+sv_constraint_state_fixed_queue_size_foreach normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_state_fixed_queue_size_foreach.gold
+sv_constraint_state_fixed_queue_size_foreach_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_state_fixed_queue_size_foreach.gold
+sv_contassign_reduction_strength normal,-g2017,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold
+sv_contassign_reduction_strength_2023 normal,-g2023,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold
+sv_joint_concat_dist_owned_class normal,-g2017,-ssv_joint_concat_dist_owned_class ivltests gold=sv_joint_concat_dist_owned_class.gold
+sv_joint_concat_dist_owned_class_2023 normal,-g2023,-Iivltests,-ssv_joint_concat_dist_owned_class ivltests gold=sv_joint_concat_dist_owned_class.gold
+sv_csrng_packed_bit_joint_dist normal,-g2017,-scsrng_packed_bit_joint_dist_repro ivltests gold=sv_csrng_packed_bit_joint_dist.gold
+sv_csrng_packed_bit_joint_dist_2023 normal,-g2023,-Iivltests,-scsrng_packed_bit_joint_dist_repro ivltests gold=sv_csrng_packed_bit_joint_dist.gold
+sv_csrng_packed_bit_joint_dist_multileaf normal,-g2017,-scsrng_packed_bit_joint_dist_multileaf ivltests gold=sv_csrng_packed_bit_joint_dist_multileaf.gold
+sv_csrng_packed_bit_joint_dist_multileaf_2023 normal,-g2023,-Iivltests,-scsrng_packed_bit_joint_dist_multileaf ivltests gold=sv_csrng_packed_bit_joint_dist_multileaf.gold
+
+# Sequence match-item subroutine calls on cover endpoints.
+sv_sva_cover_match_item_runtime normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
+sv_sva_cover_match_item_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
+sv_sva_cover_match_item_arg_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
+sv_sva_cover_match_item_arg_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
+
+# Scope randomization of fixed unpacked integral arrays.
+sv_std_randomize_fixed_array normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array ivltests gold=sv_std_randomize_fixed_array.gold
+sv_std_randomize_fixed_array_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array ivltests gold=sv_std_randomize_fixed_array.gold
+sv_std_randomize_unpacked_struct normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
+sv_std_randomize_unpacked_struct_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
+sv_std_randomize_fixed_array_with_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
+sv_std_randomize_fixed_array_with_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
+sv_bitstoreal_wide_arg normal,-g2017,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
+sv_bitstoreal_wide_arg_2023 normal,-g2023,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_bitstoreal_wide_arg.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_bitstoreal_wide_arg"
+}
