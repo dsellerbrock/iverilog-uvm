@@ -856,8 +856,9 @@ def signal_command_tree(process: subprocess.Popen[str], sig: int) -> None:
             os.killpg(process.pid, sig)
         elif process.poll() is None:
             process.send_signal(sig)
-    except ProcessLookupError:
-        pass
+    except (ProcessLookupError, PermissionError):
+        if process.poll() is None:
+            process.send_signal(sig)
 
 
 def terminate_active_commands() -> None:
@@ -3644,6 +3645,19 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             raise AssertionError("timed-out command left a descendant running")
     if sys.platform == "darwin":
         from unittest import mock
+
+        signal_probe = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            start_new_session=True,
+        )
+        try:
+            with mock.patch.object(os, "killpg", side_effect=PermissionError("injected")):
+                signal_command_tree(signal_probe, signal.SIGTERM)
+            assert signal_probe.wait(timeout=5) != 0
+        finally:
+            if signal_probe.poll() is None:
+                signal_probe.kill()
+                signal_probe.wait()
 
         memory_probe = command_result(
             [

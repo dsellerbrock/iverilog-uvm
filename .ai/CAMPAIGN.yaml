@@ -1,16 +1,25 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 62e3f9c3f
-active_pwrmgr_seed3_esc_lane:
+checkpoint_head: 7e553b433
+active_hmac_status_mirror_lane:
+  blocker: "OT-HMAC-STATUS-MIRROR-MISMATCH"
+  phase: "DONE"
+  baseline_head: "7e553b433"
+  reproducer: "Frozen HMAC smoke compiles cleanly, then status scoreboard compares hardware 0x2 against mirror 0x10 at 7,973,565 ps and emits TEST FAILED CHECKS. Eight actionable cSource setup warnings are separate packaging debt."
+  allowed_scope: "Trace first status read against RTL hw2reg and scoreboard FIFO counters in a minimal copied-source run; one fresh current-compiler guarded HMAC selection; patch only a proven cause without weakening checks."
+  next_command: "Closed: exact-hash live-counter overlay; selected current-image PASS (22 sequences, one banner, zero errors/debt, 482.6 MB/191.8 s under 4 GiB/300 s). cSource warnings classified benign (all eight built into matrix-dpi.so). Evidence evidence/opentitan-hmac-status-live-counters-20260929/. Select the next blocker; preserve frozen 23/49."
+  boundary: "No pinned edits, warning allowlist, broad OT corpus, or multi-hour Caliptra run; frozen 23/49 unchanged."
+completed_pwrmgr_seed3_esc_lane:
   blocker: "OT-PWRMGR-SEED3-ESC-TIMEOUT"
-  phase: "DOCUMENTED"
+  phase: "DONE"
+  implementation_commit: "7e553b433"
   baseline_head: "62e3f9c3f"
   reproducer: "Frozen Pwrmgr row EPERM; same-image selected replay RUNTIME_FAIL at EscClkStopEscTimeout_A, 20,631,414 ps, clean compile. Existing checker_repro.sv proves active phase-shifted versus stopped-clock behavior."
   allowed_scope: "The existing timestamp patch was hash-guarded on copied source and passed runtime but added a timescale compile notice. New named edge-counter patch touches only the same two checker files and is validated by active/stopped/faster controls, one guarded selected replay, and explicit seed 3."
   validation: "Exact pre/post checker hashes; 248-file ordered closure changes only generated checker. Reducer level-active fails, edge-counter active/stopped/faster pass. Selected matrix PASS, setup zero actionable warnings, compile zero hard/semantic debt, runtime exit0/one banner/43 scoreboard reads/zero bad diagnostics/666,011,232-byte peak under 4 GiB/120s. Explicit seed3 same image exit0/one banner/28 reads/zero UVM or assertion failures."
   evidence: "evidence/opentitan-pwrmgr-clock-edge-count-20260929/, docs/conformance/release_overlays/opentitan/pwrmgr_clock_edge_count.patch, docs/conformance/repros/pwrmgr_clock_activity/checker_edge_count_repro.sv"
-  next_command: "Finish independent review, force-add ignored .patch with explicit staging, locally commit scoped files, then select the next blocker. Frozen 23/49 unchanged."
+  next_command: "Closed at 7e553b433 after independent review and local commit. HMAC first status mismatch is selected next; preserve frozen 23/49."
   boundary: "No pinned edits, compiler/unsafe change, broad OT corpus, or multi-hour Caliptra run; frozen 23/49 unchanged."
 completed_trial1_core_layout_lane:
   blocker: "OT-TRIAL1-CORE-FILE-LAYOUT"
