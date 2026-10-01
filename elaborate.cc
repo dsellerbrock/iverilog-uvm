@@ -32037,6 +32037,38 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
 		  add(dependency_t::PROP, pid);
 		  return true;
 	    }
+	    /* A member read through a non-rand object handle of the receiver
+	     * (cfg.seq_cfg.value) samples state of another object. It is not a
+	     * random variable of this class, so it establishes no priority; only
+	     * index expressions along the chain can still depend on one. A rand
+	     * handle keeps the conservative rejection below. */
+	    {
+		  const NetEProperty*link = property;
+		  bool through_handle = false;
+		  for (;;) {
+			const NetESignal*link_base =
+			      dynamic_cast<const NetESignal*>(link->get_base());
+			if (link->get_sig() == receiver
+			    || (link_base && link_base->sig() == receiver)) {
+			      size_t hpid = link->property_idx();
+			      through_handle = link != property
+				    && !link->get_index()
+				    && dynamic_cast<const netclass_t*>(
+					 cls->get_prop_type(hpid))
+				    && !cls->get_prop_qual(hpid).test_rand();
+			      break;
+			}
+			link = dynamic_cast<const NetEProperty*>(link->get_base());
+			if (!link) break;
+		  }
+		  if (through_handle) {
+			for (const NetEProperty*step = property; step;
+			     step = dynamic_cast<const NetEProperty*>(step->get_base()))
+			      if (!constraint_call_dependencies_(step->get_index(), cls,
+				    receiver, dependencies)) return false;
+			return true;
+		  }
+	    }
 	    if (const NetEProperty*outer =
 		  dynamic_cast<const NetEProperty*>(property->get_base())) {
 		  const NetESignal*outer_base =
