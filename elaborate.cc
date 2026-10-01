@@ -22137,6 +22137,45 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			}
 		  }
 	    }
+	    if (tmp == 0 && expr_.size() > 1
+		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
+		  /* A clocking block named in a longer event list
+		   * (`@(vif.cbn or negedge vif.rst_n)'). The single-term
+		   * control above knows how to wait on a clocking event, so
+		   * elaborate this term alone and merge the events it
+		   * produced into this list. */
+		  static bool in_term_fallback = false;
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[idx]->expr());
+		  if (id && !in_term_fallback) {
+			PEIdent*copy = id->path().package
+			      ? new PEIdent(id->path().package, id->path().name,
+					    id->lexical_pos())
+			      : new PEIdent(id->path().name, id->lexical_pos());
+			copy->set_line(*this);
+			std::vector<PEEvent*> one;
+			one.push_back(new PEEvent(PEEvent::ANYEDGE, copy));
+			PEventStatement single(one);
+			single.set_line(*this);
+			in_term_fallback = true;
+			NetBlock*placeholder = new NetBlock(NetBlock::SEQU, nullptr);
+			NetProc*sub = single.elaborate_st(des, scope, placeholder);
+			in_term_fallback = false;
+			NetEvWait*sub_wait = dynamic_cast<NetEvWait*>(sub);
+			if (sub_wait && sub_wait->nevents() > 0) {
+			      std::vector<NetEvent*> merged;
+			      for (unsigned ev_idx = 0; ev_idx < sub_wait->nevents(); ev_idx += 1)
+				    merged.push_back(sub_wait->event(ev_idx));
+			        /* Register the events with this wait first: deleting the
+				 * old wait would otherwise free an event that no
+				 * other wait references. */
+			      for (NetEvent*merged_event : merged)
+				    wa->add_event(merged_event);
+			      delete sub_wait;
+			      continue;
+			}
+			delete sub;
+		  }
+	    }
 	    if (tmp == 0) {
 		  // Compile-progress: clocking block or complex VIF event references
 		  // (e.g. @(vif.mp.cb)) may not yet be resolvable. Warn and skip.
@@ -22220,7 +22259,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	     * class property indices. Keep that exact receiver on the probe so
 	     * the VIF wait selects the child's public clocking tick at arm time. */
 	    if (gn_system_verilog()
-		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
+		&& (expr_[idx]->type() == PEEvent::ANYEDGE
+		    || expr_[idx]->type() == PEEvent::POSEDGE
+		    || expr_[idx]->type() == PEEvent::NEGEDGE)) {
 	      const NetEProperty*prop = dynamic_cast<const NetEProperty*>(tmp);
 	      const NetESFunc*child = prop
 		? dynamic_cast<const NetESFunc*>(prop->get_base()) : nullptr;
@@ -22228,9 +22269,15 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		? dynamic_cast<const netclass_t*>(child->net_type()) : nullptr;
 	      const char*member_name = child_type
 		? child_type->get_prop_name(prop->property_idx()) : nullptr;
+		/* Any plain member of the nested child (a signal reached as
+		 * vif.child.sig, not only the clocking tick) is waited on the
+		 * same way; edges need the member itself, not a select of it. */
+	      const bool tick_member = member_name
+		&& strncmp(member_name, "_ivl_cbtick$", 12) == 0;
 	      if (child && strcmp(child->name(), "$ivl_vif_nested_value") == 0
 		  && child_type && child_type->is_interface()
-		  && member_name && strncmp(member_name, "_ivl_cbtick$", 12) == 0) {
+		  && member_name
+		  && (tick_member || !prop->get_index())) {
 		NexusSet*roots = child->nex_input();
 		if (!roots || roots->size() != 1) {
 		  cerr << get_fileline() << ": error: nested virtual-interface "
@@ -22240,11 +22287,22 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  delete tmp;
 		  continue;
 		}
+		const NetEvProbe::edge_t nested_edge =
+		      expr_[idx]->type() == PEEvent::POSEDGE ? NetEvProbe::POSEDGE
+		    : expr_[idx]->type() == PEEvent::NEGEDGE ? NetEvProbe::NEGEDGE
+		    : NetEvProbe::ANYEDGE;
 		NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(),
-						 ev, NetEvProbe::ANYEDGE, 1);
+						 ev, nested_edge, 1);
 		connect(roots->at(0).lnk, probe->pin(0));
-		probe->set_vif_anyedge_path(std::vector<unsigned>(),
-					    prop->property_idx());
+		if (nested_edge == NetEvProbe::POSEDGE)
+		      probe->set_vif_posedge_path(std::vector<unsigned>(),
+						  prop->property_idx());
+		else if (nested_edge == NetEvProbe::NEGEDGE)
+		      probe->set_vif_negedge_path(std::vector<unsigned>(),
+						  prop->property_idx());
+		else
+		      probe->set_vif_anyedge_path(std::vector<unsigned>(),
+						  prop->property_idx());
 		probe->set_vif_root_pin(0);
 		probe->set_vif_object_expr(child);
 		des->add_node(probe);
