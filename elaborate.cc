@@ -40437,22 +40437,36 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (auto&source_term : source_terms) {
 						  trans_term_t term;
 						  if (!eval_ranges(source_term.ranges, term.ranges,
-							     cp_value_width, cp_value_signed,
-							     bin.name.str())
-						      || term.ranges.empty()) {
-							cerr << "sorry: covergroup transition terms must "
-							     << "be nonempty constant sets; bin '"
-							     << bin.name << "' is dropped." << endl;
-							bad = true;
-							break;
-						  } else {
+					     cp_value_width, cp_value_signed,
+					     bin.name.str())) {
+							term.dynamic = true;
+							constructor_dependent = true;
 							for (auto&r : source_term.ranges) {
+							      ctor_range_shape_t ls = ctor_range_shape(r.first);
+							      ctor_range_shape_t hs = ctor_range_shape(r.second);
 							      std::string li = ctor_range_ir(r.first);
 							      std::string hi = ctor_range_ir(r.second);
-							      if (li.empty() || hi.empty()) { bad = true; break; }
+							      if (!ls.first || !hs.first || li.empty() || hi.empty()) {
+								    bad = true;
+								    break;
+							      }
 							      term.ir_ranges.push_back(std::make_pair(li, hi));
 							}
-							if (bad) break;
+							if (bad || term.ir_ranges.empty()) {
+							      cerr << "error: covergroup transition term in bin '"
+								   << bin.name << "' has an unsupported "
+								      "constructor expression; the bin is dropped."
+								   << endl;
+							      des->errors += 1;
+							      bad = true;
+							      break;
+							}
+						  } else if (term.ranges.empty()) {
+							cerr << "sorry: covergroup transition terms must be "
+							     << "nonempty constant sets; bin '" << bin.name
+							     << "' is dropped." << endl;
+							bad = true;
+							break;
 						  }
 						  std::sort(term.ranges.begin(), term.ranges.end());
 						  std::vector<std::pair<uint64_t,uint64_t>> merged;
@@ -40544,6 +40558,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (unsigned sq = 0; sq < programs.size(); sq++)
 					    for (unsigned st = 0; st < programs[sq].size(); st++) {
 						  trans_term_t&term = programs[sq][st];
+						    // A static term in a constructor-dependent
+						    // family ships as constant endpoints in the
+						    // value's encoded width; open ends ($) were
+						    // already resolved by eval_ranges.
+						  if (!term.dynamic) {
+							std::string tag = std::to_string(cp_value_width)
+							      + (cp_value_signed ? ":s" : "");
+							for (auto&r : term.ranges)
+							      term.ir_ranges.push_back(std::make_pair(
+								    "c:" + std::to_string(r.first) + ":" + tag,
+								    "c:" + std::to_string(r.second) + ":" + tag));
+						  }
 						  for (auto&r : term.ir_ranges)
 							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 4u,
 							      family, bin.arrayed ? 0 : ~(uint64_t)0,
