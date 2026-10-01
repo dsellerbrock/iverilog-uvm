@@ -5667,6 +5667,163 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
       return true;
 }
 
+/* IEEE 1800-2017 11.4.5: == != === !== on two unpacked structures (and on
+ * fixed unpacked arrays held in a struct member or class property) compare
+ * element by element. Such a value is an object, so the generic compare read
+ * its handle as a vector: struct operands crashed vvp and array members
+ * compared equal whenever both were present. Rewrite a comparison of two
+ * plain identifiers (variable or member paths) as the conjunction of the
+ * element comparisons, recursing into nested structs and arrays, and let the
+ * ordinary operators compare each leaf (integral, real, string, queues...).
+ * Only identifier operands are handled so nothing with side effects is
+ * evaluated more than once. */
+static PEIdent* aggregate_operand_with_(const PEIdent*base,
+					const name_component_t*member,
+					const index_component_t*select,
+					const LineInfo&li)
+{
+      pform_name_t path = base->path().name;
+      if (member)
+	    path.push_back(*member);
+      if (select)
+	    path.back().index.push_back(*select);
+      PEIdent*id = base->path().package
+	    ? new PEIdent(base->path().package, path, base->lexical_pos())
+	    : new PEIdent(path, base->lexical_pos());
+      id->set_line(li);
+      return id;
+}
+
+static PExpr* aggregate_compare_(const PEIdent*left, const PEIdent*right,
+				 ivl_type_t type, char leaf_op,
+				 const LineInfo&li)
+{
+      auto join = [&](PExpr*result, PExpr*term) -> PExpr* {
+	    if (!result) return term;
+	    PEBLogic*both = new PEBLogic('a', result, term);
+	    both->set_line(li);
+	    return both;
+      };
+      auto leaf = [&](const PEIdent*l, const PEIdent*r) -> PExpr* {
+	    PExpr*cmp = new PEBComp(leaf_op, aggregate_operand_with_(l, nullptr, nullptr, li),
+				    aggregate_operand_with_(r, nullptr, nullptr, li));
+	    cmp->set_line(li);
+	    return cmp;
+      };
+
+      if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(type)) {
+	    if (st->packed())
+		  return leaf(left, right);
+	    PExpr*result = nullptr;
+	    for (const netstruct_t::member_t&member : st->members()) {
+		  name_component_t comp(member.name);
+		  PEIdent*l = aggregate_operand_with_(left, &comp, nullptr, li);
+		  PEIdent*r = aggregate_operand_with_(right, &comp, nullptr, li);
+		  PExpr*term = aggregate_compare_(l, r, member.net_type,
+						  leaf_op, li);
+		  delete l;
+		  delete r;
+		  result = join(result, term);
+	    }
+	    return result;
+      }
+
+      if (const netsarray_t*arr = dynamic_cast<const netsarray_t*>(type)) {
+	    const netranges_t&dims = arr->static_dimensions();
+	    if (dims.empty())
+		  return leaf(left, right);
+	    std::vector<long> position(dims.size(), 0);
+	    PExpr*result = nullptr;
+	    for (;;) {
+		  const PEIdent*cur_l = left;
+		  const PEIdent*cur_r = right;
+		  std::vector<PEIdent*> made;
+		  for (size_t dim = 0; dim < dims.size(); ++dim) {
+			const long msb = dims[dim].get_msb();
+			const long lsb = dims[dim].get_lsb();
+			const long index = msb >= lsb ? msb - position[dim]
+						      : msb + position[dim];
+			index_component_t select;
+			select.sel = index_component_t::SEL_BIT;
+			select.msb = new PENumber(new verinum((int64_t)index, 32U));
+			select.msb->set_line(li);
+			PEIdent*l = aggregate_operand_with_(cur_l, nullptr, &select, li);
+			index_component_t select_r;
+			select_r.sel = index_component_t::SEL_BIT;
+			select_r.msb = new PENumber(new verinum((int64_t)index, 32U));
+			select_r.msb->set_line(li);
+			PEIdent*r = aggregate_operand_with_(cur_r, nullptr, &select_r, li);
+			made.push_back(l);
+			made.push_back(r);
+			cur_l = l;
+			cur_r = r;
+		  }
+		  PExpr*term = aggregate_compare_(cur_l, cur_r, arr->element_type(),
+						  leaf_op, li);
+		  result = join(result, term);
+		  for (PEIdent*id : made)
+			delete id;
+		  size_t dim = dims.size();
+		  while (dim > 0) {
+			--dim;
+			if (++position[dim] < (long)dims[dim].width())
+			      break;
+			position[dim] = 0;
+			if (dim == 0) return result;
+		  }
+	    }
+      }
+      return leaf(left, right);
+}
+
+/* The aggregate type of a comparison operand that needs the expansion above:
+ * a direct unpacked-structure variable, or a struct/class member path that
+ * ends in an unpacked structure or a fixed unpacked array. Plain fixed-array
+ * variables keep their own comparison path. */
+static ivl_type_t unpacked_aggregate_operand_type_(Design*des, NetScope*scope,
+						   const PEIdent*id)
+{
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.net)
+	    return nullptr;
+      ivl_type_t cur = sr.net->net_type();
+      if (sr.path_tail.empty()) {
+	    const netstruct_t*direct = dynamic_cast<const netstruct_t*>(cur);
+	    if (direct && !direct->packed() && sr.net->unpacked_dimensions() == 0)
+		  return direct;
+	    return nullptr;
+      }
+      for (const name_component_t&comp : sr.path_tail) {
+	    if (!comp.index.empty())
+		  return nullptr;
+	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(cur)) {
+		  int pidx = cls->property_idx_from_name(comp.name);
+		  if (pidx < 0)
+			return nullptr;
+		  cur = cls->get_prop_type((size_t)pidx);
+	    } else if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(cur)) {
+		  if (st->packed())
+			return nullptr;
+		  ivl_type_t found = nullptr;
+		  for (const netstruct_t::member_t&member : st->members())
+			if (member.name == comp.name)
+			      found = member.net_type;
+		  if (!found)
+			return nullptr;
+		  cur = found;
+	    } else {
+		  return nullptr;
+	    }
+      }
+      if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(cur))
+	    return st->packed() ? nullptr : cur;
+      if (dynamic_cast<const netsarray_t*>(cur)
+	  && !dynamic_cast<const netdarray_t*>(cur))
+	    return cur;
+      return nullptr;
+}
+
 static NetScope* visible_interface_instance_array_(
 		Design*des, NetScope*scope, perm_string name,
 		unsigned lexical_pos);
@@ -6162,6 +6319,39 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       const netclass_t*right_instance_type = right_instance
 	    ? elaborate_interface_instance_type(
 		  des, right_instance, right_instance_modport) : nullptr;
+
+      if (!left_instance && !right_instance && gn_system_verilog()
+	  && (op_ == 'e' || op_ == 'n' || op_ == 'E' || op_ == 'N')) {
+	    const PEIdent*lid = dynamic_cast<const PEIdent*>(left_);
+	    const PEIdent*rid = dynamic_cast<const PEIdent*>(right_);
+	    ivl_type_t ltype = lid
+		  ? unpacked_aggregate_operand_type_(des, scope, lid) : nullptr;
+	    ivl_type_t rtype = rid
+		  ? unpacked_aggregate_operand_type_(des, scope, rid) : nullptr;
+	    if (ltype && rtype) {
+		  if (!ltype->type_compatible(rtype)) {
+			cerr << get_fileline() << ": error: operands of an "
+			     << "aggregate comparison must have equivalent "
+			     << "types (IEEE 1800-2017 11.4.5)." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  const bool equal_op = (op_ == 'e' || op_ == 'E');
+		  const char leaf_op = equal_op ? op_ : (op_ == 'n' ? 'e' : 'E');
+		  PExpr*chain = aggregate_compare_(lid, rid, ltype, leaf_op, *this);
+		  if (!chain)
+			return 0;
+		  if (!equal_op) {
+			PEUnary*negated = new PEUnary('!', chain);
+			negated->set_line(*this);
+			chain = negated;
+		  }
+		  NetExpr*expanded = elab_and_eval(des, scope, chain, expr_wid,
+						   false);
+		  delete chain;
+		  return expanded;
+	    }
+      }
 
       if (!left_instance && !right_instance) {
 	    NetExpr*array_comparison = 0;
