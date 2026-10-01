@@ -33788,6 +33788,56 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				? "(cast c:" + to_string(width) + " c:1 "
 				  + slice + ")" : slice;
 			}
+			/* A packed member of one element of a rand dynamic array or
+			 * queue is a slice of that element's delem solver variable.
+			 * The index may be the symbolic loop token of an enclosing
+			 * dynamic foreach, so the slice is taken on the template. */
+			const netdarray_t*dyn_outer =
+			      dynamic_cast<const netdarray_t*>(ptype);
+			const netqueue_t*dyn_queue =
+			      dynamic_cast<const netqueue_t*>(ptype);
+			if (pidx >= 0 && dyn_outer
+			    && !(dyn_queue && dyn_queue->assoc_compat())
+			    && outer_element && outer_element->packed()
+			    && comp->index.size() == 1
+			    && outer_tail != id->path().name.end()
+			    && target_owner->get_prop_qual((size_t)pidx).test_rand()) {
+			      pform_name_t::const_iterator after = outer_tail;
+			      ++after;
+			      const index_component_t&dic = comp->index.front();
+			      if (!outer_tail->index.empty()
+				  || after != id->path().name.end()
+				  || !dic.msb || dic.lsb
+				  || dic.sel != index_component_t::SEL_BIT)
+				    return "";
+			      unsigned long offset = 0;
+			      const netstruct_t::member_t*member =
+				    outer_element->packed_member(outer_tail->name, offset);
+			      ivl_type_t mtype = member ? member->net_type : nullptr;
+			      unsigned ewidth = outer_element->packed_width();
+			      unsigned mwidth = mtype ? mtype->packed_width() : 0;
+			      if (!mtype || dynamic_cast<const netstruct_t*>(mtype)
+				  || (mtype->base_type() != IVL_VT_BOOL
+				      && mtype->base_type() != IVL_VT_LOGIC)
+				  || !mwidth || !ewidth
+				  || offset > ewidth || mwidth > ewidth - offset)
+				    return "";
+			      string idx_ir = pexpr_to_constraint_ir(dic.msb, cls,
+				    value_slots, scope, loop_env);
+			      if (idx_ir.empty()) return "";
+			      string base = "(delem " + to_string(pidx) + ":"
+				    + to_string(ewidth)
+				    + (outer_element->get_signed() ? ":s" : "")
+				    + " " + idx_ir + ")";
+			      string slice = mwidth == 1
+				    ? "(bit " + base + " c:" + to_string(offset) + ")"
+				    : "(part " + base + " c:"
+				      + to_string(offset + mwidth - 1) + " c:"
+				      + to_string(offset) + ")";
+			      return mtype->get_signed()
+				    ? "(cast c:" + to_string(mwidth) + " c:1 "
+				      + slice + ")" : slice;
+			}
 			/* A member of one fixed packed-struct array element is a
 			 * slice of that element's e: solver variable. Resolve the
 			 * root here so an unsupported tail cannot bind an unrelated

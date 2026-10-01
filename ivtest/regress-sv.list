@@ -5077,3 +5077,4 @@ sv_randomize_joint_fixed_var_coupling normal,-g2017,-s,main ivltests gold=sv_ran
 sv_randomize_joint_fixed_var_coupling_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_joint_fixed_var_coupling.gold
 sv_vif_event_variable_index normal,-g2017,-s,main ivltests gold=sv_vif_event_variable_index.gold
 sv_constraint_function_arg_object_state normal,-g2017,-s,main ivltests gold=sv_constraint_function_arg_object_state.gold
+sv_constraint_dynarray_packed_struct_member normal,-g2017,-s,main ivltests gold=sv_constraint_dynarray_packed_struct_member.gold
