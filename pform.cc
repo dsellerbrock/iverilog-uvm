@@ -3396,6 +3396,68 @@ static void pform_set_net_range(PWire *wire,
  * `event arr[3];`), or null for an ordinary scalar event; ownership
  * transfers to the PEvent.
  */
+/*
+ * A named event declared directly in an interface cannot be named through a
+ * virtual interface handle (IEEE 1800-2017 25.9, 15.5): `@(vif.ev)' and
+ * `->vif.ev' have no signal for the existing virtual-interface machinery to
+ * address. Give the event two ordinary one-bit members that a handle can
+ * reach, bridged by two always processes:
+ *
+ *   logic _ivl_evt_done_ev = 0, _ivl_evt_req_ev = 0;
+ *   always @(ev)                  _ivl_evt_done_ev = ~_ivl_evt_done_ev;
+ *   always @(_ivl_evt_req_ev)     -> ev;
+ *
+ * Elaboration rewrites a failing `vif.ev' wait to the done member and a
+ * `->vif.ev' to a toggle of the req member (see PTrigger::elaborate).
+ * Triggers from either side reach waiters on both, one delta later.
+ */
+static void pform_interface_event_bridge_(const struct vlltype&loc,
+					  perm_string name)
+{
+      const std::string base = name.str();
+      perm_string done = lex_strings.make(("_ivl_evt_done_" + base).c_str());
+      perm_string req = lex_strings.make(("_ivl_evt_req_" + base).c_str());
+
+      for (perm_string var : { done, req }) {
+	    std::list<decl_assignment_t*>*decls = new std::list<decl_assignment_t*>;
+	    decl_assignment_t*decl = new decl_assignment_t;
+	    decl->name = pform_ident_t(var, loc.lexical_pos);
+	    PENumber*zero = new PENumber(new verinum(verinum::V0, 1));
+	    FILE_NAME(zero, loc);
+	    decl->expr.reset(zero);
+	    decls->push_back(decl);
+	    vector_type_t*vtype = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	    FILE_NAME(vtype, loc);
+	    pform_make_var(loc, decls, vtype, nullptr, false);
+      }
+
+      auto ident = [&](perm_string id_name) {
+	    PEIdent*id = new PEIdent(id_name, UINT_MAX);
+	    FILE_NAME(id, loc);
+	    return id;
+      };
+
+      PEEvent*on_event = new PEEvent(PEEvent::ANYEDGE, ident(name));
+      PEventStatement*mirror = new PEventStatement(on_event);
+      FILE_NAME(mirror, loc);
+      PEUnary*flip = new PEUnary('~', ident(done));
+      FILE_NAME(flip, loc);
+      PAssign*toggle = new PAssign(ident(done), flip);
+      FILE_NAME(toggle, loc);
+      mirror->set_statement(toggle);
+      pform_make_behavior(IVL_PR_ALWAYS, mirror, nullptr);
+
+      PEEvent*on_req = new PEEvent(PEEvent::ANYEDGE, ident(req));
+      PEventStatement*forward = new PEventStatement(on_req);
+      FILE_NAME(forward, loc);
+      pform_name_t event_path;
+      event_path.push_back(name_component_t(name));
+      PTrigger*fire = new PTrigger(nullptr, event_path, UINT_MAX);
+      FILE_NAME(fire, loc);
+      forward->set_statement(fire);
+      pform_make_behavior(IVL_PR_ALWAYS, forward, nullptr);
+}
+
 static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 			      std::list<pform_range_t>*array_dims,
 			      ivl_lifetime_t lifetime)
@@ -3407,6 +3469,11 @@ static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 
       add_local_symbol(lexical_scope, name.first, event);
       lexical_scope->events[name.first] = event;
+
+      if (!array_dims && !pform_cur_module.empty()
+	  && pform_cur_module.front()->is_interface
+	  && lexical_scope == static_cast<LexicalScope*>(pform_cur_module.front()))
+	    pform_interface_event_bridge_(loc, name.first);
 }
 
 void pform_make_events(const struct vlltype&loc,

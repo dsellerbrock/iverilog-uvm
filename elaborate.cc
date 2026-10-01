@@ -21368,6 +21368,39 @@ static NetExpr*vif_definite_truth_(const NetExpr*expr, bool truth)
       return new NetEBComp('E', boolean, vif_valid_const_(truth));
 }
 
+/* `vif.ev' where EV is a named event of an interface: the interface carries
+   the bridge members _ivl_evt_done_EV / _ivl_evt_req_EV (see
+   pform_interface_event_bridge_). Return `vif.<PREFIX>EV' as a new identifier,
+   or null when PATH is not an interface-event reference. The caller owns it. */
+static PEIdent* make_vif_event_bridge_ident_(Design*des, NetScope*scope,
+					     const LineInfo&li,
+					     const pform_name_t&path,
+					     unsigned lexical_pos,
+					     const char*prefix)
+{
+      if (path.size() < 2 || !path.back().index.empty())
+	    return nullptr;
+      pform_name_t base = path;
+      base.pop_back();
+      PEIdent receiver(base, lexical_pos);
+      receiver.set_line(li);
+      unique_ptr<NetExpr> handle(elab_and_eval(des, scope, &receiver, -1));
+      if (!handle)
+	    return nullptr;
+      const netclass_t*iface = dynamic_cast<const netclass_t*>(handle->net_type());
+      if (!iface || !iface->is_interface())
+	    return nullptr;
+      perm_string hidden = lex_strings.make(
+	    (string(prefix) + path.back().name.str()).c_str());
+      if (iface->property_idx_from_name(hidden) < 0)
+	    return nullptr;
+      pform_name_t bridge = base;
+      bridge.push_back(name_component_t(hidden));
+      PEIdent*id = new PEIdent(bridge, lexical_pos);
+      id->set_line(li);
+      return id;
+}
+
 static NetExpr*build_vif_validity_expr_(
       const NetExpr*expr,
       const map<const NetEProperty*,NetNet*>&leaves,
@@ -22092,6 +22125,18 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  && !prepared[idx].preserve_pform
 		  ? prepared[idx].expr.release()
 		  : elab_and_eval(des, scope, expr_[idx]->expr(), -1);
+	    if (tmp == 0 && expr_[idx]->type() == PEEvent::ANYEDGE) {
+		  /* @(vif.ev) on an interface's named event: wait for a change
+		   * of its bridge member instead. */
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[idx]->expr())) {
+			if (PEIdent*bridge = make_vif_event_bridge_ident_(
+				  des, scope, *this, id->path().name,
+				  id->lexical_pos(), "_ivl_evt_done_")) {
+			      tmp = elab_and_eval(des, scope, bridge, -1);
+			      delete bridge;
+			}
+		  }
+	    }
 	    if (tmp == 0) {
 		  // Compile-progress: clocking block or complex VIF event references
 		  // (e.g. @(vif.mp.cb)) may not yet be resolvable. Warn and skip.
@@ -25698,6 +25743,27 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 
       NetEvent*eve = resolve_named_event_member_from_search_(sr);
       if (!eve) {
+	    /* ->vif.ev on an interface's named event: toggle its request
+	     * member; the interface forwards that to the event. */
+	    if (!event_.package) {
+		  PEIdent*req = make_vif_event_bridge_ident_(
+			des, scope, *this, event_.name, lexical_pos_,
+			"_ivl_evt_req_");
+		  PEIdent*cur = make_vif_event_bridge_ident_(
+			des, scope, *this, event_.name, lexical_pos_,
+			"_ivl_evt_req_");
+		  if (req && cur) {
+			PEUnary*flip = new PEUnary('~', cur);
+			flip->set_line(*this);
+			PAssign*toggle = new PAssign(req, flip);
+			toggle->set_line(*this);
+			NetProc*proc = toggle->elaborate(des, scope);
+			delete toggle;
+			return proc;
+		  }
+		  delete req;
+		  delete cur;
+	    }
 	    cerr << get_fileline() << ": error:  <" << event_ << ">"
 		 << " is not a named event." << endl;
 	    des->errors += 1;
@@ -25754,6 +25820,26 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 
       NetEvent*eve = resolve_named_event_member_from_search_(sr);
       if (eve == 0) {
+	    /* ->>vif.ev: toggle the interface's request member. */
+	    PEIdent*req = make_vif_event_bridge_ident_(
+		  des, scope, *this, event_, lexical_pos_, "_ivl_evt_req_");
+	    PEIdent*cur = make_vif_event_bridge_ident_(
+		  des, scope, *this, event_, lexical_pos_, "_ivl_evt_req_");
+	    if (req && cur) {
+		  PEUnary*flip = new PEUnary('~', cur);
+		  flip->set_line(*this);
+		  PAssignNB*toggle = dly_ ? new PAssignNB(req, dly_, flip)
+					  : new PAssignNB(req, flip);
+		  toggle->set_line(*this);
+		  NetProc*proc = toggle->elaborate(des, scope);
+		    /* The delay expression stays owned by this statement, so a
+		       delayed toggle is left allocated rather than risk a double
+		       free. */
+		  if (!dly_) delete toggle;
+		  return proc;
+	    }
+	    delete req;
+	    delete cur;
 	    cerr << get_fileline() << ": error:  <" << event_ << ">"
 		 << " is not a named event." << endl;
 	    des->errors += 1;
