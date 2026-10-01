@@ -1,0 +1,2 @@
+./ivltests/sv_joint_ordered_independent_randc_illegal_order_fail.v:4: error: 'randc' variables cannot be used in 'solve before' constraints.
+1 error(s) during elaboration.

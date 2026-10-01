@@ -1,0 +1,51 @@
+status: active
+branch: agent/compiler-campaign-after-l95-20260915
+current_blocker: PARALLEL-L104-L105
+phase: locally_qualified_awaiting_publication
+mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
+selected_work: .ai/ACTIVE_WORK.yaml
+current_evidence_index: docs/conformance/CURRENT_WORK.md
+history: docs/conformance/session_logs/2026-09-15_campaign_through_l100_archive.yaml
+integrated_since_last_broad_batch:
+  count: 10
+  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
+latest_broad_qualification:
+  integration_revision: 053e07d373c0fbd94f16eddae63b7ccc0327000c
+  semantic_revision: 366ef2bf1
+  record: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
+  scope: Ten local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
+current_candidate:
+  semantic_revision: 366ef2bf1
+  compiler_sources: All ten L96-L105 fixes integrated; sources and fixtures frozen for broad qualification.
+  build: Final serial build/install passed; FPGA target installation refreshed before broad JSON gate.
+  toolchain: DEVELOPER_DIR=/Library/Developer/CommandLineTools; Apple clang21.0.0; Homebrew Bison3.8.2; /usr/bin/flex.
+  fingerprints: evidence/batch-20260915-after-l95/l105-final-fingerprints.json
+  build_log: evidence/batch-20260915-after-l95/l105-string-rejection-build.log
+  install_log: evidence/batch-20260915-after-l95/l105-string-rejection-install.log
+  focused_records: [docs/conformance/session_logs/2026-09-15_constant_mixed_equality_validation.json, docs/conformance/session_logs/2026-09-15_nonlocal_constant_function_values_validation.json]
+  broad_evidence: evidence/batch-20260915-after-l95/qualification-retry1
+  broad_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
+  shared_process: none; orchestrator93732 completed all remaining gates with exit0 and final fingerprint audit passed.
+coordination:
+  agents: [/root/constraint_abi, /root/constraint_wide]
+  coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
+  next_action: Publish qualified coherent PR against main, then select two independent next blockers from preserved array-initializer and first_match assessments. No new implementation currently authorized.
+  exact_next_command: git push -u origin agent/compiler-campaign-after-l95-20260915
+  next_build: Use DEVELOPER_DIR=/Library/Developer/CommandLineTools with make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install, only after agent source freeze.
+  broad_gate_policy: Run required suites near ten integrated fixes, including clean toolchain provenance; see docs/conformance/REGRESSION_POLICY.md and previous qualification record for commands.
+publication:
+  pr285: https://github.com/dsellerbrock/iverilog-uvm/pull/285
+  pr285_status: Externally squashed to agent/string-return-uppercase-20260914 at abe72cd12; published head5726ab0eb.
+  pr284_status: Externally squashed to agent/typed-array-return-20260914 at93b763204.
+  pr283_status: Externally squashed to main at874e00680.
+  ancestry_verification: Refreshed origin/main tree equals ancestor9f79ff51c exactly. Local ancestry-only merge preserves every later integrated change.
+  main_content: Only L65-L74 batch propagated to main in the observed stack merges; L75 onward remains preserved here.
+  next_pr: Publish coherent qualified changes against main, including preserved later batches unless main advances first; remote merge remains unrequested.
+  ci_run: 34973595268
+  ci_observation: All six platform jobs completed successfully in run34973595268; prior batch evidence only. Current batch seven local gates also passed at053e07d37; new publication CI is pending.
+worktrees:
+  created_this_batch: none
+  cleanup: No eligible campaign-created completed tree; active/other-owner trees retained under established safeguards.
+completion:
+  full_mission: incomplete
+  remaining_feature_total: Not reliably enumerated; batch IDs and test counts are not a whole-standard feature inventory.

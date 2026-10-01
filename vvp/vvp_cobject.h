@@ -38,6 +38,13 @@ struct covgrp_dyn_state_t {
       bool valid = true;
 };
 
+struct covgrp_dyn_trans_state_t {
+      const class_type::cov_dyn_bin_t*meta = 0;
+      std::vector<class_type::cov_bin_t> records;
+      std::vector<uint64_t> type_bins;
+      bool valid = true;
+};
+
 // One per-instance logical choice for a dimension of a dynamic cross. Fixed
 // and transition terms contribute one choice; a constructor-dependent family
 // contributes one choice for each logical bin resolved for this object.
@@ -243,6 +250,11 @@ class vvp_cobject : public vvp_object {
 			   bool complete = true)
 	{ cov_dyn_states_.swap(states); cov_dyn_resolved_ = complete;
 	  cov_cross_states_.clear(); cov_cross_resolved_ = false; }
+      const std::map<unsigned,covgrp_dyn_trans_state_t>& cov_dyn_trans_states() const
+      { return cov_dyn_trans_states_; }
+      void cov_dyn_trans_resolve(
+            std::map<unsigned,covgrp_dyn_trans_state_t>&states)
+      { cov_dyn_trans_states_.swap(states); }
       uint64_t cov_dyn_hits(unsigned family, unsigned at_least) const
       { uint64_t hits = 0;
 	for (auto&entry : cov_dyn_counts_)
@@ -332,7 +344,8 @@ class vvp_cobject : public vvp_object {
 				  std::vector<bool>*&history) const;
       std::map<uint64_t, uint64_t> cov_trans_;
 	std::map<uint64_t, std::vector<cov_trans_state_t>> cov_trans_states_;
-      std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
+	std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
+	std::map<unsigned,covgrp_dyn_trans_state_t> cov_dyn_trans_states_;
       std::map<unsigned,bool> cov_dyn_warned_;
       std::map<unsigned,covgrp_dyn_state_t> cov_dyn_states_;
       bool cov_dyn_resolved_ = false;

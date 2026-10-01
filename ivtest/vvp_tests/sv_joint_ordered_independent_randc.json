@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_joint_ordered_independent_randc.v",
+  "iverilog-args": ["-g2017", "-s", "sv_joint_ordered_independent_randc"],
+  "gold": "sv_joint_ordered_independent_randc"
+}

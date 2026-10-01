@@ -1,0 +1,4 @@
+sv_runtime_root_seed normal,-g2017,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed.gold
+sv_runtime_root_seed_2023 normal,-g2023,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed.gold
+sv_runtime_root_seed_hierarchy normal,-g2017,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed_hierarchy.gold
+sv_runtime_root_seed_hierarchy_2023 normal,-g2023,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed_hierarchy.gold

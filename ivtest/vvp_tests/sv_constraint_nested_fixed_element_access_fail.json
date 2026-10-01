@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_constraint_nested_fixed_element_access_fail.v","iverilog-args":["-g2017"],"gold":"sv_constraint_nested_fixed_element_access_fail"}

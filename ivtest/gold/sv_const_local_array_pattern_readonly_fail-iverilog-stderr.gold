@@ -1,0 +1,2 @@
+ivltests/sv_const_local_array_pattern_readonly_fail.v:4: error: Assignment to const signal `words` is not allowed.
+1 error(s) during elaboration.

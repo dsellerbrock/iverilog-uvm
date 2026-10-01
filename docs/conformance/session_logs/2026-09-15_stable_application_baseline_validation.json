@@ -1,0 +1,338 @@
+{
+  "scope": "Stable release switch; Caliptra power2round runtime only; OpenTitan setup incomplete",
+  "identity": [
+    {
+      "command": [
+        "git",
+        "-C",
+        "../clean-corpora/opentitan-7a3ad34",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit": 0,
+      "stdout": "a78922f14a8cc20c7ee569f322a04626f2ac6127\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../clean-corpora/opentitan-7a3ad34",
+        "describe",
+        "--tags",
+        "--exact-match"
+      ],
+      "exit": 0,
+      "stdout": "Earlgrey-PROD-M6\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../clean-corpora/opentitan-7a3ad34",
+        "status",
+        "--porcelain=v1"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../clean-corpora/opentitan-7a3ad34",
+        "submodule",
+        "status"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit": 0,
+      "stdout": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl",
+        "describe",
+        "--tags",
+        "--exact-match"
+      ],
+      "exit": 0,
+      "stdout": "v2.1.2\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl",
+        "status",
+        "--porcelain=v1"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl",
+        "submodule",
+        "status"
+      ],
+      "exit": 0,
+      "stdout": " b77e3d899e828d626cfc2a0d26a6b5704cc121e0 submodules/adams-bridge (v2.0.3)\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl/submodules/adams-bridge",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit": 0,
+      "stdout": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl/submodules/adams-bridge",
+        "describe",
+        "--tags",
+        "--exact-match"
+      ],
+      "exit": 0,
+      "stdout": "v2.0.3\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl/submodules/adams-bridge",
+        "status",
+        "--porcelain=v1"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "../caliptra-rtl/submodules/adams-bridge",
+        "submodule",
+        "status"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "caliptra_unmodified": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2012",
+      "-gassertions",
+      "-s",
+      "power2round_tb",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/stable-baseline/caliptra/test.vvp",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb",
+      "-f",
+      "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+    ],
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:174: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:175: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:176: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79: warning: Port 5 (src_base_addr) of module power2round_top expects 14 bit(s), given 15.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79:        : Pruning 1 high bits of the expression.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79: warning: Port 6 (skmem_dest_base_addr) of module power2round_top expects 14 bit(s), given 15.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79:        : Pruning 1 high bits of the expression.\n",
+    "include_plan": {
+      "roots": [
+        "power2round_tb"
+      ],
+      "providers": [
+        "abr_defines",
+        "abr_prim_pkg",
+        "abr_libs",
+        "power2round_pkg",
+        "power2round",
+        "power2round_tb"
+      ],
+      "directories": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb"
+      ],
+      "provenance": [
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl",
+          "provider": "abr_defines"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+          "provider": "abr_prim_pkg"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl",
+          "provider": "abr_libs"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/rtl",
+          "provider": "power2round_pkg"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb",
+          "provider": "power2round_tb"
+        }
+      ],
+      "errors": []
+    },
+    "caliptra": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "adams": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+    "runtime_exit": 0,
+    "stdout": "Start of init\n\n*** Toggle reset.\nEnd of reset\nRead input test vectors from coeff_input.hex\nRead input test vectors from coeff_high.hex\nRead input test vectors from coeff_low.hex\nStarting power2round test\n\nTest done\n\n*** All 2048 test cases completed successfully\n* TESTCASE PASSED\n\n*** ecc simulation done. ***\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:314: $finish called at 5255 (1s)\n",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:183: Warning: Calling system function $system() as a task.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:183:          The functions return value will be ignored.\n",
+    "source_hashes": {
+      "src/power2round/tb/power2round_tb.sv": "67a8fbfd675a6a694431976df6c2f98aca8787ec4625986f961c72b21dce5ba0",
+      "src/power2round/tb/power2round.py": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+      "src/power2round/config/power2round_tb.vf": "124f3be49833cbfa80704d37337900f013a66b6ffdf8afc2e303526fa5c50f51"
+    },
+    "vectors": {
+      "coeff_low.hex": {
+        "records": 2048,
+        "sha256": "ae8aec80056e349f3599302c7540d0067fca12dc625279cbc702d2396e1b679b"
+      },
+      "coeff_input.hex": {
+        "records": 2048,
+        "sha256": "821c26253e805734c8a3eb645a06a47845ecda18b65526106fc96a94894dfc34"
+      },
+      "coeff_high.hex": {
+        "records": 2048,
+        "sha256": "cb9e287fc35746cca26a9b20544bbbeb5a22d33b513468c0fcbdf98a91603b75"
+      }
+    },
+    "tools": {
+      "local-install/lib/ivl/ivl": "6ee57dbff385f5a06bf876f69654fb037494aa771f6d331c385078a13ef4e2a9",
+      "local-install/bin/vvp": "30eca73f22319155c04a919051769faa4b3da62a7eb85e95f399481221a44690"
+    }
+  },
+  "caliptra_observed": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2012",
+      "-gassertions",
+      "-s",
+      "power2round_tb",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/stable-baseline/caliptra/observed/test.vvp",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/rtl",
+      "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb",
+      "-f",
+      "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf",
+      "-s",
+      "power2round_observer",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/stable-baseline/caliptra-patches/power2round_observer.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:174: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:175: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:176: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79: warning: Port 5 (src_base_addr) of module power2round_top expects 14 bit(s), given 15.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79:        : Pruning 1 high bits of the expression.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79: warning: Port 6 (skmem_dest_base_addr) of module power2round_top expects 14 bit(s), given 15.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79:        : Pruning 1 high bits of the expression.\n",
+    "include_plan": {
+      "roots": [
+        "power2round_tb"
+      ],
+      "providers": [
+        "abr_defines",
+        "abr_prim_pkg",
+        "abr_libs",
+        "power2round_pkg",
+        "power2round",
+        "power2round_tb"
+      ],
+      "directories": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/rtl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb"
+      ],
+      "provenance": [
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_top/rtl",
+          "provider": "abr_defines"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+          "provider": "abr_prim_pkg"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl",
+          "provider": "abr_libs"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/rtl",
+          "provider": "power2round_pkg"
+        },
+        {
+          "directory": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb",
+          "provider": "power2round_tb"
+        }
+      ],
+      "errors": []
+    },
+    "caliptra": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "adams": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+    "runtime_exit": 0,
+    "stdout": "Start of init\n\n*** Toggle reset.\nEnd of reset\nRead input test vectors from coeff_input.hex\nRead input test vectors from coeff_high.hex\nRead input test vectors from coeff_low.hex\nStarting power2round test\n\nOBSERVER PASSED: 256 writes, 2048 case-exact pk comparisons, case-exact skmem\nTest done\n\n*** All 2048 test cases completed successfully\n* TESTCASE PASSED\n\n*** ecc simulation done. ***\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:314: $finish called at 5255 (1s)\n",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:183: Warning: Calling system function $system() as a task.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:183:          The functions return value will be ignored.\n",
+    "source_hashes": {
+      "src/power2round/tb/power2round_tb.sv": "67a8fbfd675a6a694431976df6c2f98aca8787ec4625986f961c72b21dce5ba0",
+      "src/power2round/tb/power2round.py": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+      "src/power2round/config/power2round_tb.vf": "124f3be49833cbfa80704d37337900f013a66b6ffdf8afc2e303526fa5c50f51"
+    }
+  },
+  "observer": {
+    "source": "// Non-driving confidence checker for the unmodified Adams Bridge v2.0.3\n// power2round_tb. Compile this as a second top beside power2round_tb.\nmodule power2round_observer;\n  integer writes = 0;\n  integer checked = 0;\n\n  always @(posedge power2round_tb.clk_tb) begin\n    if (power2round_tb.reset_n_tb && power2round_tb.pk_t1_wren_tb) begin\n      if (power2round_tb.pk_t1_wr_addr_tb !== writes[7:0])\n        $fatal(1, \"OBSERVER pk address: expected %0d got %0h\", writes,\n               power2round_tb.pk_t1_wr_addr_tb);\n      for (integer lane = 0; lane < 8; lane = lane + 1) begin\n        if (power2round_tb.pk_t1_wrdata_tb[lane] !==\n            power2round_tb.coeff_high[8*writes+lane])\n          $fatal(1, \"OBSERVER pk data: write %0d lane %0d expected %0h got %0h\",\n                 writes, lane, power2round_tb.coeff_high[8*writes+lane],\n                 power2round_tb.pk_t1_wrdata_tb[lane]);\n        checked = checked + 1;\n      end\n      writes = writes + 1;\n    end\n  end\n\n  initial begin\n    wait (power2round_tb.done_tb === 1'b1);\n    @(posedge power2round_tb.clk_tb);\n    if (writes != 256)\n      $fatal(1, \"OBSERVER incomplete pk writes: expected 256 got %0d\", writes);\n    if (checked != 2048)\n      $fatal(1, \"OBSERVER incomplete pk comparisons: expected 2048 got %0d\", checked);\n    if (power2round_tb.tc_ctr !== 32'd2048)\n      $fatal(1, \"OBSERVER tb count: expected 2048 got %0h\", power2round_tb.tc_ctr);\n    if (power2round_tb.error_ctr !== 32'd0)\n      $fatal(1, \"OBSERVER tb errors: expected 0 got %0h\", power2round_tb.error_ctr);\n    if (power2round_tb.skmem_data !== power2round_tb.coeff_low)\n      $fatal(1, \"OBSERVER secret-key memory mismatch or unknown bit\");\n    $display(\"OBSERVER PASSED: 256 writes, 2048 case-exact pk comparisons, case-exact skmem\");\n  end\nendmodule\n"
+  },
+  "observed_vectors": {
+    "coeff_low.hex": {
+      "sha256": "c6ed59ac68ae6671ab9d90a6f3b6b561c6e7a2e1c4c36265ac3495998803ba22",
+      "records": 2048
+    },
+    "coeff_input.hex": {
+      "sha256": "93f55ec3246309a22128f1a26ac924844d8b99af8910f68d6f1944d417b991a2",
+      "records": 2048
+    },
+    "coeff_high.hex": {
+      "sha256": "039380f1dbbcb0c8f03c6c5dacae4ac9227b856aef2dacc656bf2b2c78820723",
+      "records": 2048
+    }
+  }
+}

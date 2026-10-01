@@ -7731,6 +7731,8 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 		  if (!args) { delete copy; goto unsupported; }
 		  copy->set_leading_type_args(args);
 	    }
+	    if (call->has_scoped_type_prefix())
+		  copy->set_scoped_type_prefix();
 	    std::vector<PExpr*> with;
 	    for (PExpr*src : call->with_constraints()) {
 		  PExpr*dst = sva_clone_subst_(src, subst);
@@ -9740,6 +9742,8 @@ static PCallTask* sva_clone_match_call_(
 	    parms.push_back(arg);
       }
       PCallTask*out = new PCallTask(source->path(), parms);
+      if (source->has_scoped_type_prefix())
+	    out->set_scoped_type_prefix();
       out->set_lineno(source->get_lineno());
       out->set_file(source->get_file());
       return out;
@@ -11037,6 +11041,8 @@ static Statement* sva_clone_stmt_(Statement*st)
 	    PCallTask*out = ct->package()
 		  ? new PCallTask(ct->package(), ct->path(), parms)
 		  : new PCallTask(ct->path(), parms);
+	    if (ct->has_scoped_type_prefix())
+		  out->set_scoped_type_prefix();
 	    out->set_lineno(ct->get_lineno());
 	    out->set_file(ct->get_file());
 	    return out;
@@ -17339,6 +17345,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			args.push_back(arg);
 		  }
 		  PCallTask*call = new PCallTask((*match_calls)[c]->path(), args);
+		  if ((*match_calls)[c]->has_scoped_type_prefix())
+			call->set_scoped_type_prefix();
 		  call->set_lineno((*match_calls)[c]->get_lineno());
 		  call->set_file((*match_calls)[c]->get_file());
 		  actions.push_back(call);
@@ -19224,7 +19232,8 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
    general same-clock NFA engine owns repetitions, locals, and first_match. */
 static bool sva_mc_bounded_chain_nfa_(
 		const std::vector<sva_seq_step_t>&steps, sva_nfa_t&nfa,
-		long&depth, bool&accepts_empty, bool require_ranged = true)
+		long&depth, bool&accepts_empty, bool require_ranged = true,
+		bool allow_first_match = false)
 {
       bool ranged = false;
       accepts_empty = false;
@@ -19236,7 +19245,8 @@ static bool sva_mc_bounded_chain_nfa_(
 			|| st.rep_hi < st.rep_lo || st.rep_hi < 0))
 		|| (st.grouped_repeat && !st.group_repeat_start
 		    && !st.group_repeat_end && steps.size() == 1)
-		|| st.lv_rhs || st.fm || !st.match_calls.empty())
+		|| st.lv_rhs || (st.fm && !allow_first_match)
+		|| !st.match_calls.empty())
 		  return false;
 	    PExpr*probe = sva_clone_expr_(st.expr);
 	    if (!probe) return false;
@@ -19265,6 +19275,27 @@ static bool sva_mc_bounded_chain_nfa_(
 	    }
       }
 	return terminal || accepts_empty;
+}
+
+/* The multiclock source transport can implement a direct finite first_match
+   prefix. A whole-chain wrapper closes at its first accepting tick. A
+   wrapper followed by a finite source-clock suffix cuts the still-pending
+   wrapper paths at the earliest exit and lets every tied exit continue. */
+static bool sva_mc_direct_first_match_(
+		const std::vector<sva_seq_step_t>&steps)
+{
+      if (steps.empty()) return false;
+      bool left_wrapper = false;
+      for (size_t i = 0; i < steps.size(); ++i) {
+	    const sva_seq_step_t&st = steps[i];
+	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
+		|| st.rep_kind || st.rep_tail || st.grouped_repeat
+		|| st.lv_rhs || !st.match_calls.empty())
+		  return false;
+	    if (!st.fm) left_wrapper = true;
+	    else if (left_wrapper) return false;
+      }
+      return steps[0].fm;
 }
 
 /* Absolute-key producer storage for L86's cross-clock record stream.
@@ -19383,6 +19414,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       bool antecedent_accepts_empty = false;
       bool consequence_accepts_empty = false;
       bool ranged_antecedent = false;
+      bool source_first_match = false;
+      bool source_first_match_suffix = false;
+      bool source_first_match_whole = false;
+      bool source_has_first_match = false;
       bool consequence_nfa_mode = false;
       long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
@@ -19391,14 +19426,27 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->mc_prefix)
 		  sva_splice_sequences_(loc, *prop->mc_prefix);
 	    sva_splice_sequences_(loc, *prop->seq);
+	    const std::vector<sva_seq_step_t>*source_steps = prop->antecedent
+		  ? prop->antecedent : (plain ? prop->mc_prefix : nullptr);
+	    if (source_steps)
+		  for (size_t k = 0; k < source_steps->size(); ++k)
+			source_has_first_match |= (*source_steps)[k].fm;
+	    source_first_match = source_steps
+		  && sva_mc_direct_first_match_(*source_steps);
+	    source_first_match_suffix = source_first_match
+		  && !source_steps->back().fm;
+	    source_first_match_whole = source_first_match
+		  && !source_first_match_suffix;
 	    if (prop->antecedent)
 		  ranged_antecedent = sva_mc_bounded_chain_nfa_(
 			*prop->antecedent, a_nfa, a_depth,
-			antecedent_accepts_empty);
+			antecedent_accepts_empty, !source_first_match,
+			source_first_match);
             else if (plain && prop->mc_prefix)
                   ranged_antecedent = sva_mc_bounded_chain_nfa_(
                         *prop->mc_prefix, a_nfa, a_depth,
-                        antecedent_accepts_empty);
+			antecedent_accepts_empty, !source_first_match,
+			source_first_match);
 	    bool antecedent_group = false;
 	    if (prop->antecedent)
 		  for (size_t k = 0; k < prop->antecedent->size(); ++k)
@@ -19460,6 +19508,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		     || b_slots.size() + b_window > 64))
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
+	    if (source_has_first_match && !source_first_match)
+		  why = "a multiclocked first-clock `first_match' outside the "
+			"direct finite Boolean-chain subset";
       }
       if (!why && plain && ranged_antecedent && antecedent_accepts_empty)
             why = "a plain multiclocked sequence whose first-clock maximal "
@@ -20058,9 +20109,34 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					 allocate, nullptr));
 
 		  /* Advance every live parent from the old NFA state.  Each
-		     terminal edge emits its own MATCH record; the restricted
-		     linear-window subset has no same-tick path coalescing. */
+		     terminal edge emits its own MATCH record. For first_match,
+		     publish all tied earliest matches before closing the parent. */
 		  for (size_t k = 0; k < ran_slots; ++k) {
+			PExpr*first_match_hit = source_first_match_whole
+			      ? sva_bit_(loc, 0) : nullptr;
+			PExpr*first_match_exit_hit = source_first_match_suffix
+			      ? sva_bit_(loc, 0) : nullptr;
+			if (source_first_match_suffix) {
+			      for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
+				    const sva_nfa_edge_t&ed = a_nfa.edges[i];
+				    if (!ed.first_match_exit) continue;
+				    PExpr*hit = sva_id_(loc, ran_state[k][ed.from]);
+				    for (size_t g = 0;
+				         g < ed.first_match_guards.size(); ++g) {
+					  std::map<PExpr*,perm_string>::iterator it =
+						ran_guard.find(ed.first_match_guards[g]);
+					  if (it == ran_guard.end()) {
+						delete hit; hit = sva_bit_(loc, 0); break;
+					  }
+					  hit = sva_logic_(loc, 'a', hit,
+						sva_id_(loc, it->second));
+				    }
+				    hit = sva_logic_(loc, 'a',
+					sva_id_(loc, ran_live[k]), hit);
+				    first_match_exit_hit = sva_logic_(loc, 'o',
+					  first_match_exit_hit, hit);
+			      }
+			}
 			for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
 			      const sva_nfa_edge_t&ed = a_nfa.edges[i];
 			      if (ed.to != a_nfa.accept) continue;
@@ -20076,6 +20152,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      hit = sva_logic_(loc, 'a',
 				    sva_id_(loc, ran_live[k]), hit);
+			      if (source_first_match_whole) {
+				    PExpr*copy = sva_clone_expr_(hit);
+				    ivl_assert(loc, copy);
+				    first_match_hit = sva_logic_(loc, 'o',
+					  first_match_hit, copy);
+			      }
 			      Statement*endpoint;
 			      if (prefix_stages) {
 				    std::vector<Statement*>start_prefix;
@@ -20091,8 +20173,19 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      body1.push_back(sva_if_(loc, hit, endpoint, nullptr));
 			}
+			if (source_first_match_whole) {
+			      std::vector<Statement*>cut;
+			      cut.push_back(emit_record(
+				    2, sva_id_(loc, ran_parent[k]), nullptr));
+			      cut.push_back(sva_assign_(loc, ran_live[k],
+					 sva_bit_(loc, 0)));
+			      body1.push_back(sva_if_(loc, first_match_hit,
+				    sva_block_(loc, cut), nullptr));
+			}
 			for (unsigned j = 0; j < a_nfa.nstates; ++j) {
 			      PExpr*next = sva_bit_(loc, 0);
+			      PExpr*cut_next = source_first_match_suffix
+				    ? sva_bit_(loc, 0) : nullptr;
 			      for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
 				    const sva_nfa_edge_t&ed = a_nfa.edges[i];
 				    if (ed.to != j) continue;
@@ -20106,12 +20199,25 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					  term = sva_logic_(loc, 'a', term,
 						       sva_id_(loc, it->second));
 				    }
+				    if (source_first_match_suffix && ed.first_match_exit) {
+					  PExpr*copy = sva_clone_expr_(term);
+					  ivl_assert(loc, copy);
+					  cut_next = sva_logic_(loc, 'o', cut_next, copy);
+				    }
 				    next = sva_logic_(loc, 'o', next, term);
+			      }
+			      if (source_first_match_suffix) {
+				    PExpr*cut = sva_clone_expr_(first_match_exit_hit);
+				    ivl_assert(loc, cut);
+				    PETernary*choose = new PETernary(cut, cut_next, next);
+				    FILE_NAME(choose, loc);
+				    next = choose;
 			      }
 			      body1.push_back(sva_assign_(loc, ran_next[k][j], next));
 			      body1.push_back(sva_assign_nb_(loc,
 				    ran_state[k][j], sva_id_(loc, ran_next[k][j])));
 			}
+			delete first_match_exit_hit;
 			PEBinary*age = new PEBinary(
 			      '+', sva_id_(loc, ran_age[k]), sva_num32_(loc, 1));
 			FILE_NAME(age, loc);
