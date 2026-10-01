@@ -741,6 +741,9 @@ static void do_compile_net(vvp_net_t*node, vvp_array_t array,
 	    assert(vsig);
 	    node->fil = vsig;
       }
+      if (vpi_type_code == vpiIntVar)
+	    if (vvp_wire_vec4*wire4 = dynamic_cast<vvp_wire_vec4*>(vsig))
+		  wire4->set_two_state();
 
       vpiHandle obj = 0;
       if (! local_flag) {

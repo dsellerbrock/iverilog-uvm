@@ -3089,6 +3089,26 @@ void vvp_wire_vec4::vec4_preponed_value(vvp_vector4_t&val) const
 vvp_net_fil_t::prop_t vvp_wire_vec4::filter_vec4(const vvp_vector4_t&bit, vvp_vector4_t&rep,
 						 unsigned base, unsigned vwid)
 {
+      if (two_state_) {
+	    if (base == 0 && vwid == 0) {
+		  vvp_vector4_t zeros (bits4_.size(), BIT4_0);
+		  prop_t r = filter_vec4(zeros, rep, 0, bits4_.size());
+		  if (r == PROP) { rep = zeros; return REPL; }
+		  return r;
+	    }
+	    if (bit.has_xz()) {
+		    // The cleaned value must also be what the net propagates.
+		  vvp_vector4_t clean (bit);
+		  for (unsigned idx = 0 ; idx < clean.size() ; idx += 1) {
+			vvp_bit4_t b = clean.value(idx);
+			if (b != BIT4_0 && b != BIT4_1)
+			      clean.set_bit(idx, BIT4_0);
+		  }
+		  prop_t r = filter_vec4(clean, rep, base, vwid);
+		  if (r == PROP) { rep = clean; return REPL; }
+		  return r;
+	    }
+      }
 	// Special case! the input bit is 0 wid. Interpret this as a
 	// vector of BIT4_X to match the width of the bits4_ vector.
 	// FIXME! This is a hack to work around some buggy gate

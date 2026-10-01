@@ -5344,8 +5344,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 					  : std::set<Z3Builder::VarRef>(), dspec.priority
 		  };
 		  dspec.fallback.push_back(sa);
-		  // Scope std::randomize still uses its existing weighted-soft
-		  // implementation; class randomize schedules the structural group
+		  // Scope std::randomize also keeps the weighted-soft group as the
+		  // fallback; class randomize schedules the structural group
 		  // below and attempts exact sampling first.
 		  if (b.collect_preferences && b.defn == nullptr)
 			b.pending_soft.push_back(sa);
@@ -5359,7 +5359,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  && !dspec.branches.empty();
 	    dspec.exact_supported = dspec.exact_supported_without_guard
 		  && b.soft_guards.empty();
-	    if (b.collect_preferences && b.defn != nullptr
+	      // Scope std::randomize keeps its weighted soft group as the
+	      // fallback, but resolves each exact-capable dist by a draw first.
+	    if (b.collect_preferences
 		&& (!dspec.fallback.empty() || !dspec.state_weights))
 		  b.dist_specs.push_back(dspec);
 	    if (hard_clauses.empty())
@@ -6725,12 +6727,23 @@ enum z3_pass_status { Z3PASS_FAILED = 0, Z3PASS_SAT_APPLIED = 1,
 class z3_rng_stream_t {
     public:
       explicit z3_rng_stream_t(vvp_cobject*cobj) : cobj_(cobj) { }
+	/* Scope randomization has no object to own a generator: derive the
+	   stream from the caller's already-random targets instead. */
+      explicit z3_rng_stream_t(uint64_t seed)
+      : cobj_(nullptr), seed_(seed ? seed : UINT64_C(0x9e3779b97f4a7c15)) { }
 
       uint32_t next()
       {
 	    if (cursor_ < words_.size())
 		  return words_[cursor_++];
-	    uint32_t word = cobj_->rng_next();
+	    uint32_t word;
+	    if (cobj_) word = cobj_->rng_next();
+	    else {
+		  seed_ ^= seed_ << 13;
+		  seed_ ^= seed_ >> 7;
+		  seed_ ^= seed_ << 17;
+		  word = (uint32_t)(seed_ >> 16);
+	    }
 	    words_.push_back(word);
 	    cursor_ += 1;
 	    return word;
@@ -6766,6 +6779,7 @@ class z3_rng_stream_t {
 
     private:
       vvp_cobject*cobj_;
+      uint64_t seed_ = 0;
       vector<uint32_t> words_;
       size_t cursor_ = 0;
 };
@@ -7938,7 +7952,15 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
       };
 
       if (spec.requires_large_exact) {
+            /* Set once the subject is known; tried the first time the exact
+               interval/coupled paths give up. See rejection_draw below. */
+            std::function<bool()> rejection_draw;
+            bool rejection_tried = false;
             auto unsupported = [&]() -> bool {
+                  if (rejection_draw && !rejection_tried) {
+                        rejection_tried = true;
+                        if (rejection_draw()) return true;
+                  }
                   if (indeterminate) *indeterminate = true;
                   return false;
             };
@@ -7999,6 +8021,110 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                   if (positive) Z3_solver_dec_ref(ctx, positive);
                   return result;
             };
+            /* Large ranges (`base_addr dist { [0:15] :/ 1,
+               [16:32'hfffffff0] :/ 2, ... }' with `!base_addr[0]'): choose
+               an item by its declared weight among the items that still
+               contain a feasible value, then draw a value uniformly inside it
+               until one is jointly feasible. This is the same item-then-value
+               semantics as the small-span path below, without enumerating the
+               item. Giving up after a run of misses (sparse feasible set)
+               falls through to the bounded exact paths. */
+            rejection_draw = [&]() -> bool {
+                  if (validate_only || require_complete_ranges) return false;
+                  struct DrawItem {
+                        const Z3Builder::DistBranch* branch;
+                        uint64_t first;
+                        uint64_t last;
+                        uint64_t weight;
+                  };
+                  vector<DrawItem> draws;
+                  for (const auto&br : spec.branches) {
+                        if (!br.weight) continue;
+                        if (br.value_width == 0 || br.value_width > 64
+                            || physical_width > br.value_width
+                            || br.comparison_signed) return false;
+                        uint64_t span = 1;
+                        uint64_t first = br.lo;
+                        uint64_t last = br.is_range ? br.hi : br.lo;
+                        if (br.is_range) {
+                              if (br.hi < br.lo) continue;
+                              span = br.hi - br.lo + 1;
+                              if (!span) return false;
+                        }
+                        uint64_t weight = (uint64_t)br.weight;
+                        if (br.range_weight_per_value) {
+                              if (span > UINT64_MAX / weight) return false;
+                              weight *= span;
+                        }
+                        uint64_t image_hi = physical_width == 64 ? UINT64_MAX
+                              : (((uint64_t)1 << physical_width) - 1);
+                        if (last > image_hi) last = image_hi;
+                        if (first > last) continue;
+                        draws.push_back({&br, first, last, weight});
+                  }
+                  auto range_feasible = [&](const DrawItem&item) -> Z3_lbool {
+                        Z3_sort sort = Z3_mk_bv_sort(ctx,
+                              item.branch->value_width);
+                        Z3_ast sx = spec.subject;
+                        unsigned sw = Z3_get_bv_sort_size(ctx,
+                              Z3_get_sort(ctx, sx));
+                        if (sw < item.branch->value_width)
+                              sx = Z3_mk_zero_ext(ctx,
+                                    item.branch->value_width - sw, sx);
+                        Z3_ast bounds[2] = {
+                              Z3_mk_bvuge(ctx, sx,
+                                    Z3_mk_unsigned_int64(ctx, item.first, sort)),
+                              Z3_mk_bvule(ctx, sx,
+                                    Z3_mk_unsigned_int64(ctx, item.last, sort))};
+                        Z3_ast range = Z3_mk_and(ctx, 2, bounds);
+                        return Z3_solver_check_assumptions(ctx, base, 1, &range);
+                  };
+                  static const unsigned DRAW_TRIALS = 256;
+                  while (!draws.empty()) {
+                        uint64_t total = 0;
+                        for (const auto&item : draws) {
+                              if (total > UINT64_MAX - item.weight) return false;
+                              total += item.weight;
+                        }
+                        uint64_t ticket = rng.uniform_u64(total);
+                        size_t idx = draws.size() - 1;
+                        for (size_t i = 0; i < draws.size(); ++i) {
+                              if (ticket < draws[i].weight) { idx = i; break; }
+                              ticket -= draws[i].weight;
+                        }
+                        const DrawItem item = draws[idx];
+                        Z3_lbool any = range_feasible(item);
+                        if (any == Z3_L_UNDEF) return false;
+                        if (any == Z3_L_FALSE) {
+                              draws.erase(draws.begin() + idx);
+                              continue;
+                        }
+                        uint64_t span = item.last - item.first + 1;
+                        for (unsigned trial = 0; trial < DRAW_TRIALS; ++trial) {
+                              uint64_t coordinate = span == 1 ? item.first
+                                    : item.first + (span ? rng.uniform_u64(span)
+                                                         : rng.uniform_u64(UINT64_MAX));
+                              Z3_ast pin = candidate_pin(coordinate,
+                                    item.branch->value_width, false);
+                              Z3_lbool feasible = Z3_solver_check_assumptions(
+                                    ctx, base, 1, &pin);
+                              if (feasible == Z3_L_UNDEF) return false;
+                              if (feasible != Z3_L_TRUE) continue;
+                              Z3_solver_assert(ctx, base, pin);
+                              Z3_optimize_assert(ctx, opt, pin);
+                              chosen = coordinate;
+                              return true;
+                        }
+                        return false;
+                  }
+                  return false;
+            };
+
+            /* Cheapest first: unless the feasible set is sparse, a few draws
+               succeed, where the interval search below spends hundreds of
+               solver calls per sample. */
+            rejection_tried = true;
+            if (rejection_draw()) return finish(true);
             auto subject_coordinate = [&](const Z3Builder::DistBranch&br)
                   -> Z3_ast {
                   Z3_ast sx = sampling_subject;
@@ -12484,6 +12610,48 @@ bool vvp_z3_randomize_scope(const string&ir,
 	    }
 	    return out;
       };
+
+	/* A dist is a weighted draw, not an optimization target: the soft
+	   group above alone always lands on the heaviest value. Draw it
+	   exactly (IEEE 1800-2017/2023 18.5.4), like a class randomize(). */
+      if (!builder.dist_specs.empty()) {
+	    uint64_t seed = UINT64_C(0xcbf29ce484222325);
+	    for (const string&target : targets)
+		  for (char ch : target)
+			seed = (seed ^ (unsigned char)ch) * UINT64_C(0x100000001b3);
+	    for (uint64_t slot : slot_vals)
+		  seed = (seed ^ slot) * UINT64_C(0x100000001b3);
+	    z3_rng_stream_t dist_rng(seed);
+	    Z3_solver base = Z3_mk_simple_solver(ctx);
+	    Z3_solver_inc_ref(ctx, base);
+	    Z3_solver_assert(ctx, base, assertion);
+	    if (any_state_error)
+		  Z3_solver_assert(ctx, base, Z3_mk_not(ctx, any_state_error));
+	    std::set<Z3_ast> resolved;
+	    bool dist_failed = false;
+	    for (const auto&spec : builder.dist_specs) {
+		  if (!(spec.exact_supported || spec.requires_large_exact)
+		      || resolved.count(spec.subject)) continue;
+		  bool indeterminate = false;
+		  uint64_t chosen = 0;
+		  if (z3_resolve_dist_exact(ctx, base, opt, spec, dist_rng, chosen,
+					    false, false, &indeterminate))
+			resolved.insert(spec.subject);
+		  else if (spec.requires_large_exact && indeterminate) {
+			fprintf(stderr, "ERROR: exact dist sampling failed: the large-range "
+				"feasible set cannot be resolved exactly for this subject "
+				"and constraint shape.\n");
+			dist_failed = true;
+			break;
+		  }
+	    }
+	    Z3_solver_dec_ref(ctx, base);
+	    if (dist_failed) {
+		  Z3_optimize_dec_ref(ctx, opt);
+		  Z3_del_context(ctx);
+		  return false;
+	    }
+      }
 
       for (auto&pv : builder.prop_vars) {
 	    string target = pv.idx < targets.size() ? targets[pv.idx] : "0";

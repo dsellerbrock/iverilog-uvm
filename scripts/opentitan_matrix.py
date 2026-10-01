@@ -1575,6 +1575,12 @@ def load_config(config_path, inherited=None, stack=()):
         imported_path = Path(imported_path)
         if not imported_path.is_absolute():
             imported_path = config_path.parent / imported_path
+        # Ibex vendors lowrisc_ip as `<ibex>/vendor/lowrisc_ip`, a link that
+        # does not exist inside OpenTitan; the same files live at hw/ there.
+        if not imported_path.is_file() and "/vendor/lowrisc_ip/" in str(imported_path):
+            relocated = root / "hw" / str(imported_path).split("/vendor/lowrisc_ip/", 1)[1]
+            if relocated.is_file():
+                imported_path = relocated
         imported_configs.add(imported_path.resolve())
         merged = merge_configs(
             merged,

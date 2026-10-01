@@ -772,11 +772,16 @@ class vvp_wire_vec4 : public vvp_wire_base {
       void enable_sample_hist() { hist_enabled_ = true; }
       void vec4_preponed_value(vvp_vector4_t&val) const;
 
+	// A net of a 2-state type (`bit', `int', ...) driven by a continuous
+	// assignment holds X/Z as 0 (IEEE 1800-2017/2023 6.8, 10.10).
+      void set_two_state() { two_state_ = true; }
+
     private:
       vvp_bit4_t filtered_value_(unsigned idx) const;
       void hist_snapshot_();
 
     private:
+      bool two_state_ = false;
       bool needs_init_;
       vvp_vector4_t bits4_; // The tracked driven value
       vvp_vector4_t force4_; // the value being forced
