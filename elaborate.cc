@@ -32965,6 +32965,126 @@ static string constraint_fixed_chained_locator_count_ir_(
       return count.empty() ? "c:0:32:s" : "(trunc:32:s " + count + ")";
 }
 
+
+/* True if EXPR mentions the identifier NAME, looking through the operators a
+ * constraint index normally uses. */
+static bool constraint_expr_mentions_name_(const PExpr*expr, perm_string name)
+{
+      if (!expr) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    if (id->path().package) return false;
+	    for (const name_component_t&comp : id->path().name) {
+		  if (comp.name == name) return true;
+		  for (const index_component_t&ic : comp.index)
+			if (constraint_expr_mentions_name_(ic.msb, name)
+			    || constraint_expr_mentions_name_(ic.lsb, name))
+			      return true;
+	    }
+	    return false;
+      }
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+	    return constraint_expr_mentions_name_(binary->get_left(), name)
+		|| constraint_expr_mentions_name_(binary->get_right(), name);
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+	    return constraint_expr_mentions_name_(unary->get_expr(), name);
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr))
+	    return constraint_expr_mentions_name_(ternary->get_cond(), name)
+		|| constraint_expr_mentions_name_(ternary->get_true(), name)
+		|| constraint_expr_mentions_name_(ternary->get_false(), name);
+      return false;
+}
+
+/* IEEE 1800-2017 18.7.1: local::name[index] names an element of the
+ * randomize() caller's array. When INDEX uses an iterator of an enclosing
+ * constraint foreach, the iterator is not visible in the caller's scope, so
+ * capturing the whole expression as a call-site value left it unbound and the
+ * element silently read as zero. Resolve the index with the constraint
+ * iterators instead:
+ *   - a constant (unrolled foreach) captures the element at that literal
+ *     index at the call site;
+ *   - a symbolic index (dynamic foreach) reads the caller array captured as
+ *     an object slot, selected by (qelem qe:<slot>:<width>[:s] <index>).
+ * LOOP_DEPENDENT reports whether INDEX used an iterator at all; a dependent
+ * index that cannot be represented returns "" so the constraint fails loudly
+ * rather than solving a different constraint. */
+static string constraint_local_indexed_ir_(
+      const PEIdent*id, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env, bool&loop_dependent)
+{
+      loop_dependent = false;
+      auto mentions_iterator = [&](const PExpr*e) {
+	    if (loop_env)
+		  for (const auto&binding : *loop_env)
+			if (constraint_expr_mentions_name_(e, binding.first))
+			      return true;
+	    return dynforeach_emit_ctx_
+		  && constraint_expr_mentions_name_(e, dynforeach_emit_ctx_->loop_var);
+      };
+      const pform_name_t&names = id->path().name;
+      for (const name_component_t&comp : names)
+	    for (const index_component_t&ic : comp.index)
+		  if (mentions_iterator(ic.msb) || mentions_iterator(ic.lsb))
+			loop_dependent = true;
+      if (!loop_dependent) return "";
+
+      if (id->path().package || names.size() != 1
+	  || names.front().index.size() != 1) return "";
+      const index_component_t&select = names.front().index.front();
+      if (select.sel != index_component_t::SEL_BIT || !select.msb
+	  || select.lsb) return "";
+      string index_ir = pexpr_to_constraint_ir(select.msb, cls, value_slots,
+					       scope, loop_env);
+      if (index_ir.empty()) return "";
+
+      constraint_const_ir_t constant;
+      if (constraint_parse_const_ir_(index_ir, constant)) {
+	    /* Heap-allocated on purpose: the value slot keeps the pointer until
+	     * the call site elaborates it. */
+	    verinum*literal = new verinum((int64_t)constant.value, 32U);
+	    literal->has_sign(true);
+	    PENumber*number = new PENumber(literal);
+	    number->set_line(*select.msb);
+	    pform_name_t path;
+	    name_component_t root = names.front();
+	    root.index.front().msb = number;
+	    path.push_back(root);
+	    PEIdent*element = new PEIdent(path, UINT_MAX);
+	    element->set_line(*id);
+	    return scope_randomize_value_slot_(element, nullptr, value_slots, 32);
+      }
+
+      if (!dynforeach_emit_ctx_ || !scope_randomize_object_slots_
+	  || !constraint_ir_design_ctx_ || !scope) return "";
+      pform_name_t array_path;
+      name_component_t array_root(names.front().name);
+      array_path.push_back(array_root);
+      PEIdent array_id(array_path, UINT_MAX);
+      array_id.set_line(*id);
+      NetScope*caller = const_cast<NetScope*>(scope);
+      ivl_type_t array_type = array_id.test_type_of_ident(
+	    constraint_ir_design_ctx_, caller);
+      const netdarray_t*array = dynamic_cast<const netdarray_t*>(array_type);
+      ivl_type_t element = array ? array->element_type() : nullptr;
+      ivl_variable_type_t base = element ? element->base_type() : IVL_VT_NO_TYPE;
+      unsigned width = element && element->packed() ? element->packed_width() : 0;
+      if (!array || (dynamic_cast<const netqueue_t*>(array)
+		     && static_cast<const netqueue_t*>(array)->assoc_compat())
+	  || !width || width > 64
+	  || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC)) return "";
+      NetExpr*object = elab_and_eval(constraint_ir_design_ctx_, caller,
+				     &array_id, -1, false);
+      if (!object) return "";
+      unsigned slot = (unsigned)scope_randomize_object_slots_->size();
+      scope_randomize_object_slots_->push_back(object);
+	/* qb: marks 2-state elements, whose out-of-range read is 0 (7.4.6,
+	 * Table 7-1); qe: marks 4-state elements, whose out-of-range or
+	 * X/Z read is an 18.3 state-read error. */
+      return string("(qelem ") + (base == IVL_VT_BOOL ? "qb:" : "qe:")
+	    + to_string(slot) + ":" + to_string(width)
+	    + (element->get_signed() ? ":s" : "") + " " + index_ir + ")";
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -34184,11 +34304,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		       index's pre-randomize value. */
 		  if (!id->path().back().index.empty()) {
 			NetNet*sig = scope_randomize_find_signal_(scope, name);
-			if (!sig || sig->unpacked_dimensions() != 0) {
+			  /* A dynamic array or queue has no unpacked dimension on
+			     its net but its index selects an element, not a bit of
+			     one packed vector. */
+			bool dynamic_container = sig
+			      && dynamic_cast<const netdarray_t*>(sig->net_type());
+			if (!sig || sig->unpacked_dimensions() != 0
+			    || dynamic_container) {
 			      /* Associative/unpacked selections whose index is
 			         ordinary caller state (for example a string-keyed
 			         address-mask table) can be evaluated once at the
-			         call site and passed as a scalar slot. */
+			         call site and passed as a scalar slot. An index
+			         that uses a constraint foreach iterator cannot. */
+			      bool loop_dependent = false;
+			      string element = constraint_local_indexed_ir_(
+				    id, cls, value_slots, scope, loop_env,
+				    loop_dependent);
+			      if (!element.empty() || loop_dependent) return element;
 			      return scope_randomize_value_slot_(
 				    expr, nullptr, value_slots, 32);
 			}
@@ -34210,9 +34342,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // Capture it at the call site instead of emitting a target-class
 	      // property token (which would turn `data == local::data' into
 	      // the tautology `p:data == p:data').
-	    if (local_qualified && value_slots)
+	    if (local_qualified && value_slots) {
+		  bool loop_dependent = false;
+		  string element = constraint_local_indexed_ir_(
+			id, cls, value_slots, scope, loop_env, loop_dependent);
+		  if (!element.empty() || loop_dependent) return element;
 		  return scope_randomize_value_slot_(expr, nullptr,
 					       value_slots, 32);
+	    }
 
 	      // Footnote 43 (IEEE 1800-2017/2023 A.2.11 constraint_block_item):
 	      // "The local:: qualifier shall only appear within the scope of
@@ -34550,6 +34687,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    }
 	    // Non-class-property identifier: treat as caller-scope runtime value.
 	    if (value_slots) {
+		  bool loop_dependent = false;
+		  string element = constraint_local_indexed_ir_(
+			id, cls, value_slots, scope, loop_env, loop_dependent);
+		  if (!element.empty() || loop_dependent) return element;
 		  return scope_randomize_value_slot_(expr, nullptr,
 						 value_slots, 32);
 	    }

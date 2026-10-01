@@ -5835,6 +5835,8 @@ bool vvp_z3_substitute_wide_value_slots(const string&ir,
  * to qbad:W[:s], which the typed inside path turns into a guard-aware 18.3
  * error. Keep qempty:W[:s] so an empty queue is false rather than vacuously
  * true, while retaining its declared type for context sizing. */
+static const unsigned QELEM_MAX_ELEMENTS = 4096;
+
 static string substitute_scope_object_slots(
       const string&ir, const vector<vector<uint64_t> >&object_vals,
       const vector<vector<bool> >&object_known)
@@ -5842,6 +5844,69 @@ static string substitute_scope_object_slots(
       string result;
       const char*p = ir.c_str();
       while (*p) {
+	    if (strncmp(p, "(qelem qe:", 10) == 0
+		|| strncmp(p, "(qelem qb:", 10) == 0) {
+		  /* Element of a captured caller queue/darray at a possibly
+		     symbolic index: an ite chain over its current elements.
+		     A missing or four-state element is 0 for a 2-state array
+		     and xbad:W (an 18.3 error) for a 4-state one. */
+		  bool two_state = p[8] == 'b';
+		  const char*q = p + 10;
+		  unsigned slot = (unsigned)strtoul(q,
+						 const_cast<char**>(&q), 10);
+		  if (*q != ':') { result += *p++; continue; }
+		  q += 1;
+		  unsigned width = (unsigned)strtoul(q,
+						const_cast<char**>(&q), 10);
+		  bool is_signed = false;
+		  if (q[0] == ':' && q[1] == 's') { is_signed = true; q += 2; }
+		  if (*q != ' ' || !width || width > 64) {
+			result += *p++;
+			continue;
+		  }
+		  q += 1;
+		  const char*idx_begin = q;
+		  if (*q == '(') {
+			int depth = 0;
+			do {
+			      if (*q == '(') depth += 1;
+			      else if (*q == ')') depth -= 1;
+			      q += 1;
+			} while (*q && depth > 0);
+		  } else {
+			while (*q && !isspace((unsigned char)*q) && *q != ')')
+			      q += 1;
+		  }
+		  if (*q != ')') { result += *p++; continue; }
+		  string index_ir(idx_begin, q - idx_begin);
+		  string suffix = is_signed ? ":s" : "";
+		  string missing = two_state
+			? "c:0:" + to_string(width) + suffix
+			: "xbad:" + to_string(width) + suffix;
+		  string expanded = missing;
+		  if (slot < object_vals.size()
+		      && object_vals[slot].size() <= QELEM_MAX_ELEMENTS) {
+			const vector<uint64_t>&vals = object_vals[slot];
+			for (size_t i = vals.size() ; i-- > 0 ; ) {
+			      bool known = slot < object_known.size()
+				    && i < object_known[slot].size()
+				    && object_known[slot][i];
+			      uint64_t value = vals[i];
+			      if (width < 64)
+				    value &= (UINT64_C(1) << width) - 1;
+			      string element = known
+				    ? "c:" + to_string(value) + ":"
+				      + to_string(width) + suffix
+				    : missing;
+			      expanded = "(ite (eq " + index_ir + " c:"
+				    + to_string(i) + ":32) " + element + " "
+				    + expanded + ")";
+			}
+		  }
+		  result += expanded;
+		  p = q + 1;
+		  continue;
+	    }
 	    if (strncmp(p, "(qfield qf:", 11) == 0) {
 		  const char*q = p + 11;
 		  unsigned slot = (unsigned)strtoul(q,
@@ -12313,12 +12378,69 @@ bool vvp_z3_randomize_scope(const string&ir,
  * container slot N at their full width (IEEE 1800-2017/2023 11.4.13). An
  * X/Z element becomes qbad (a guard-aware 18.3 error); an empty container
  * stays qempty, which is false rather than vacuously true. */
+/* (qelem qe:<slot>:<width>[:s] <index>) reads one element of a caller
+ * queue/darray captured as an object slot, selected by a possibly symbolic
+ * index (the iterator of a dynamic foreach). Expand it to a chain
+ * (ite (eq <index> c:i:32) <element i> ... c:0) over the container's current
+ * elements. A missing or four-state element selects qbad, which the solver
+ * reports as an 18.3 error rather than inventing a value. Returns false when
+ * P does not start such a form. */
+
+static bool expand_qelem_form_(const char*&p,
+      const vector<vector<vvp_vector4_t> >&object_words, string&result)
+{
+      if (strncmp(p, "(qelem qe:", 10) != 0 && strncmp(p, "(qelem qb:", 10) != 0)
+	    return false;
+      bool two_state = p[8] == 'b';
+      const char*q = p + 10;
+      unsigned slot = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+      if (*q != ':') return false;
+      q += 1;
+      unsigned width = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+      bool is_signed = false;
+      if (q[0] == ':' && q[1] == 's') { is_signed = true; q += 2; }
+      if (*q != ' ' || !width || width > 64) return false;
+      q += 1;
+      const char*index_begin = q;
+      if (*q == '(') {
+	    int depth = 0;
+	    do {
+		  if (*q == '(') depth += 1;
+		  else if (*q == ')') depth -= 1;
+		  q += 1;
+	    } while (*q && depth > 0);
+      } else {
+	    while (*q && !isspace((unsigned char)*q) && *q != ')') q += 1;
+      }
+      if (*q != ')') return false;
+      string index_ir(index_begin, q - index_begin);
+      string suffix = is_signed ? ":s" : "";
+      string missing = two_state ? "c:0:" + to_string(width) + suffix
+				    : "xbad:" + to_string(width) + suffix;
+      string expanded = missing;
+      if (slot < object_words.size()
+	  && object_words[slot].size() <= QELEM_MAX_ELEMENTS) {
+	    const vector<vvp_vector4_t>&words = object_words[slot];
+	    for (size_t i = words.size() ; i-- > 0 ; ) {
+		  string value = words[i].size() && vec4_is_two_state_(words[i])
+			? vec4_ir_constant_(words[i], width, is_signed)
+			: missing;
+		  expanded = "(ite (eq " + index_ir + " c:" + to_string(i)
+			+ ":32) " + value + " " + expanded + ")";
+	    }
+      }
+      result += expanded;
+      p = q + 1;
+      return true;
+}
+
 string vvp_z3_substitute_object_value_slots(const string&ir,
       const vector<vector<vvp_vector4_t> >&object_words)
 {
       string result;
       const char*p = ir.c_str();
       while (*p) {
+	    if (expand_qelem_form_(p, object_words, result)) continue;
 	    bool at_token = p[0] == 'q' && p[1] == 'v' && p[2] == ':'
 		  && (p == ir.c_str() || !isalnum((unsigned char)p[-1]));
 	    if (!at_token) {

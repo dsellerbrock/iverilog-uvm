@@ -6114,7 +6114,7 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 	/* Membership in a caller queue/darray (qv:) is expanded to the
 	 * container's current elements, as for scope randomize. */
       string object_ir;
-      if (object_form && strstr(ir_text, "qv:")) {
+      if (object_form && (strstr(ir_text, "qv:") || strstr(ir_text, "(qelem "))) {
 	    vector<vector<uint64_t> > object_vals;
 	    vector<vector<bool> > object_known;
 	    vector<vector<vvp_vector4_t> > object_words;
@@ -6370,10 +6370,11 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 {
       const unsigned n_vals = code->bit_idx[0];
       const unsigned n_objs = code->bit_idx[1];
-      for (unsigned i = 0; i < n_objs; ++i) {
-	    vvp_object_t ignored;
-	    thr->pop_object(ignored);
-      }
+	/* Caller queue/darray object slots (qelem reads) are read for their
+	 * current elements; they were once popped and rejected here. */
+      vector<vvp_object_t> state_objects(n_objs);
+      for (unsigned i = n_objs; i > 0; --i)
+	    thr->pop_object(state_objects[i - 1]);
       vector<uint64_t> slot_vals(n_vals);
       vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> unknown(n_vals, false);
@@ -6415,13 +6416,15 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
       string rng_state = thread_rng_get_state_(rng_owner);
       uint64_t seed = ((uint64_t)thread_rng_next_(rng_owner) << 32)
 	    | thread_rng_next_(rng_owner);
-      static const vector<vector<uint64_t> > no_objects;
-      static const vector<vector<bool> > no_known;
+      vector<vector<uint64_t> > state_vals;
+      vector<vector<bool> > state_known;
+      if (n_objs)
+	    object_slot_values_(state_objects, code->text, state_vals,
+				state_known);
       bool ok = meta_ok && wide_slots_ok && width > 0 && width <= 65536
-	    && n_objs == 0
 	    && vvp_z3_randomize_scope_queue(ir, (unsigned)width, max_size,
-		  slot_vals, no_objects, no_known, seed, elements);
-      if (!meta_ok || width == 0 || width > 65536 || n_objs != 0)
+		  slot_vals, state_vals, state_known, seed, elements);
+      if (!meta_ok || width == 0 || width > 65536)
 	    fprintf(stderr, "ERROR: unsupported scope queue randomization metadata "
 		    "or object state operand.\n");
       if (ok) {
