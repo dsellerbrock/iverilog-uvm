@@ -109,3 +109,7 @@ Same command as census 1, 49 cores, 3 jobs. Result: **32 PASS**, 6 RUNTIME_FAIL,
 - New PASS vs census 1: `spi_host` (the caller-array iterator and packed-select fixes).
 - `spi_device` moved from DEBT to RUNTIME_MEMORY_LIMIT: it now gets past compile/elaboration and then hits the 4 GiB cap. Not yet diagnosed; check for another reclaim path before assuming a DUT problem.
 - `pwrmgr` is not an overlay-applied run, so its RUNTIME_FAIL is expected here.
+
+### spi_device probe (bounded, 8 min)
+
+The run is alive, not stuck: simulation time advances (about 43 us after 90 s, `IVL_PC_PROGRESS`), no UVM output at UVM_LOW, and RSS grows slowly (about 300 MB at 0 s, 490 MB at 5 min, 620 MB at 8 min). The census run reached the 4 GiB cap at 21 min, so growth accelerates later. Most active scopes are `tb.dut.tlul_assert_device.gen_device_cov` and the register assertions, i.e. throughput of assertion/coverage processes, same family as edn/ibex_icache. Next step is a `heap`/`malloc_history` sample around minute 15, not another full run.
