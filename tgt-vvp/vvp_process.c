@@ -1776,8 +1776,11 @@ static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
       fprintf(vvp_out, "    .scope S_%p;\n", scope);
 
       fprintf(vvp_out, "t_%u %%join;\n", out_id);
-	/* An automatic block dispatches after its %free instead. */
-      if (!ivl_scope_is_auto(subscope))
+	/* An automatic block that owns a frame dispatches after its %free
+	   instead. One collapsed into the enclosing frame (".shared") has no
+	   %free, so it must dispatch here or a break/continue it left
+	   pending would never reach its loop. */
+      if (!ivl_scope_is_auto(subscope) || !ivl_scope_auto_frame(subscope))
 	    draw_nested_flow_dispatch(scope);
 
       return rc;
