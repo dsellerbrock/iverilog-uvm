@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_unpacked_concat_vector_select_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_unpacked_concat_vector_select"
+}

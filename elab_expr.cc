@@ -22829,10 +22829,22 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
 // FIXME: The real array to queue is failing here.
       if (net->unpacked_dimensions() != use_comp.index.size()) {
+	      /* A plain packed vector with bit or part selects (an element of
+	       * an unpacked concatenation such as {q, addr[23:16]}) is not an
+	       * aggregate matching the container context. Its selects are
+	       * packed selects: elaborate them normally instead of treating
+	       * the bracket as a missing array index and dropping it. */
+	    bool packed_select_of_vector = !use_comp.index.empty()
+		  && net->unpacked_dimensions() == 0
+		  && sr.path_tail.empty()
+		  && !net->darray_type() && !net->queue_type()
+		  && net->data_type() != IVL_VT_STRING
+		  && net->data_type() != IVL_VT_CLASS;
 	    if (!use_comp.index.empty()
 		&& net->unpacked_dimensions() == 0
 		&& (net->darray_type() || net->queue_type()
-		    || net->data_type() == IVL_VT_STRING)) {
+		    || net->data_type() == IVL_VT_STRING
+		    || packed_select_of_vector)) {
 		  unsigned expr_wid = expr_width_ ? expr_width_ : 1;
 		  return elaborate_expr_net(des, scope, net, sr.scope,
 					    expr_wid, flags);

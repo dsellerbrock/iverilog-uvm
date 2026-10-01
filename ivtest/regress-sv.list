@@ -5083,3 +5083,5 @@ sv_vif_event_variable_index normal,-g2017,-s,main ivltests gold=sv_vif_event_var
 sv_vif_event_variable_index_2023 normal,-g2023,-s,main ivltests gold=sv_vif_event_variable_index.gold
 sv_randomize_with_caller_array_foreach normal,-g2017,-s,main ivltests gold=sv_randomize_with_caller_array_foreach.gold
 sv_randomize_with_caller_array_foreach_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_with_caller_array_foreach.gold
+sv_unpacked_concat_vector_select normal,-g2017,-s,main ivltests gold=sv_unpacked_concat_vector_select.gold
+sv_unpacked_concat_vector_select_2023 normal,-g2023,-s,main ivltests gold=sv_unpacked_concat_vector_select.gold
