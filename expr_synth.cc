@@ -1041,7 +1041,16 @@ NetNet* NetEConcat::synthesize(Design*des, NetScope*scope, NetExpr*root)
 NetNet *NetEArrayPattern::synthesize(Design *des, NetScope *scope, NetExpr *root)
 {
       const netsarray_t *array_type = dynamic_cast<const netsarray_t *>(net_type());
-      ivl_assert(*this, array_type);
+      if (!array_type) {
+	      /* A structure-valued net (user-defined nettype over an unpacked
+	         struct) has no net representation: report it instead of
+	         aborting the compiler. */
+	    cerr << get_fileline() << ": sorry: an assignment pattern for a "
+		 << "non-array unpacked value cannot be driven onto a net."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 
       if (items_.empty())
 	    return nullptr;

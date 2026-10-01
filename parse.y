@@ -19877,11 +19877,15 @@ udp_reg_opt
   : K_reg  { $$ = true; }
   |        { $$ = false; };
 
+  /* IEEE 1364-2005 29.3: one `input' may name several ports
+     (`input a, b, s'); every port after the output is an input. */
 udp_input_declaration_list
   : K_input IDENTIFIER
       { $$ = list_from_identifier($2, @2.lexical_pos); }
   | udp_input_declaration_list ',' K_input IDENTIFIER
       { $$ = list_from_identifier($1, $4, @4.lexical_pos); }
+  | udp_input_declaration_list ',' IDENTIFIER
+      { $$ = list_from_identifier($1, $3, @3.lexical_pos); }
   ;
 
 udp_primitive

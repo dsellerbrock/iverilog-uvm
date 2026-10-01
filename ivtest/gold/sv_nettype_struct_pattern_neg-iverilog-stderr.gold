@@ -1,0 +1,3 @@
+ivltests/sv_nettype_struct_pattern_neg.v:9: sorry: an assignment pattern for a non-array unpacked value cannot be driven onto a net.
+ivltests/sv_nettype_struct_pattern_neg.v:9: internal error: Failed to synthesize expression: '{1.50000, 32'sd3}
+2 error(s) during elaboration.
