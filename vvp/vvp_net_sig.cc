@@ -792,6 +792,27 @@ class ref_event_relay_s : public vvp_net_fun_t {
             formal_->send_vec4(value_, frame_);
       }
 
+      void recv_object(vvp_net_ptr_t, vvp_object_t bit,
+                       vvp_context_t context) override
+      {
+            if (!accept_(context)) return;
+            formal_->send_object(bit, frame_);
+      }
+
+      void recv_real(vvp_net_ptr_t, double bit,
+                     vvp_context_t context) override
+      {
+            if (!accept_(context)) return;
+            formal_->send_real(bit, frame_);
+      }
+
+      void recv_string(vvp_net_ptr_t, const std::string&bit,
+                       vvp_context_t context) override
+      {
+            if (!accept_(context)) return;
+            formal_->send_string(bit, frame_);
+      }
+
       void recv_vec4_pv(vvp_net_ptr_t, const vvp_vector4_t&bit,
                         unsigned base, unsigned vwid,
                         vvp_context_t context) override
@@ -931,11 +952,19 @@ static void attach_ref_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
           || !formal || formal->out_.nil())
             return;
 
-      vvp_signal_value*source_value = slot->target->fil
-            ? slot->target->fil->as_signal_value() : 0;
-      if (!source_value
-          || !(dynamic_cast<vvp_fun_signal_vec*>(slot->target->fun)
-               || dynamic_cast<vvp_wire_vec4*>(slot->target->fil))) {
+      vvp_fun_signal_object*object_source =
+            dynamic_cast<vvp_fun_signal_object*>(slot->target->fun);
+      vvp_fun_signal_real*real_source =
+            dynamic_cast<vvp_fun_signal_real*>(slot->target->fun);
+      vvp_fun_signal_string*string_source =
+            dynamic_cast<vvp_fun_signal_string*>(slot->target->fun);
+      bool scalar_source = object_source || real_source || string_source;
+      vvp_signal_value*source_value = scalar_source ? 0 : (slot->target->fil
+            ? slot->target->fil->as_signal_value() : 0);
+      if (!scalar_source
+          && (!source_value
+              || !(dynamic_cast<vvp_fun_signal_vec*>(slot->target->fun)
+                   || dynamic_cast<vvp_wire_vec4*>(slot->target->fil)))) {
             fprintf(stderr, "runtime error: event-sensitive ref binding"
                     " has an unsupported non-integral whole-variable actual.\n");
             vpip_set_return_value(1);
@@ -944,9 +973,19 @@ static void attach_ref_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
       }
 
       vvp_vector4_t initial;
+      vvp_object_t initial_object;
+      double initial_real = 0.0;
+      std::string initial_string;
       vthread_ref_ctx_save save;
       vthread_push_ref_context(slot->caller_ctx, &save);
-      source_value->vec4_value(initial);
+      if (object_source)
+            initial_object = object_source->get_object();
+      else if (real_source)
+            initial_real = real_source->real_unfiltered_value();
+      else if (string_source)
+            initial_string = string_source->get_string();
+      else
+            source_value->vec4_value(initial);
       vthread_pop_ref_context(&save);
 
       void*storage = ::operator new(sizeof(vvp_net_t));
@@ -958,7 +997,14 @@ static void attach_ref_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
       slot->target->link(vvp_net_ptr_t(relay, 0));
       slot->relay_source = slot->target;
       slot->relay = relay;
-      formal->send_vec4(initial, frame);
+      if (object_source)
+            formal->send_object(initial_object, frame);
+      else if (real_source)
+            formal->send_real(initial_real, frame);
+      else if (string_source)
+            formal->send_string(initial_string, frame);
+      else
+            formal->send_vec4(initial, frame);
 }
 
 vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid)
