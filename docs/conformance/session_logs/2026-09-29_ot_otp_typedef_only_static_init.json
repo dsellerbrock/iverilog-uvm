@@ -1,0 +1,94 @@
+{
+  "blocker": "DD-089",
+  "status": "final-image compiler gates passed; selected OTP runtime passed",
+  "baseline_head": "d7d1b1347",
+  "installed_ivl_sha256": "72e0d222270f5f489399d4d86af317dfb7a1abb93c1be6734dd8fd52e05374db",
+  "installed_vvp_sha256": "e978a84bff1268ab70970eb6c5977f9f0f834d73c93ae9267d09125d2d40745b",
+  "focus": {
+    "run": 17,
+    "failed": 0,
+    "paired_editions": [
+      "2017",
+      "2023"
+    ],
+    "log": "ot-dd089-scoped-focused-final-20260929.log",
+    "sha256": "df8f138ba17c046f27ce9aba56a0ea0e7e2171e5138e947c79f06f0972420f73"
+  },
+  "gates": {
+    "json": {
+      "log": "ot-dd089-scoped-full-json-20260929.log",
+      "sha256": "48f1f8ed4b17946cc57bcf3463cba0355a461d2b5ff8c52114f1e784dbd2cd04",
+      "run": 4117,
+      "failed": 0
+    },
+    "vpi": {
+      "log": "ot-dd089-scoped-vpi-20260929.log",
+      "sha256": "ba46a2acf967a6e63dee2331866c660e259772c6f3d3d65a8b2d801b0f2253bc",
+      "total": 140,
+      "passed": 140,
+      "failed": 0
+    },
+    "negative": {
+      "log": "ot-dd089-scoped-negative-20260929.log",
+      "sha256": "069925694d7d3b5320d80e961f6a002d4deacb59d0d31dcdf65bfec4a82547d9",
+      "passed": 154,
+      "failed": 0
+    },
+    "uvm": {
+      "log": "ot-dd089-scoped-uvm-20260929.log",
+      "sha256": "e1f341e5abb0b9f4db032bfafb8fdc23d7546b452afc4e837337ec048cee75ec",
+      "passed": 361,
+      "failed": 0,
+      "skipped": 0,
+      "dpi_mode": "REAL DPI umbrella loaded"
+    },
+    "legacy": {
+      "log": "ot-dd089-scoped-legacy-20260929.log",
+      "sha256": "018240b191490f93e195897f797eff5bc88cd1c8f69672229909fa040a682156",
+      "total": 6875,
+      "passed": 6870,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    }
+  },
+  "selected_otp_compile": {
+    "source_count": 282,
+    "errors": 0,
+    "sorry": 0,
+    "warnings": 56,
+    "image_sha256": "82821822c92ed1f40562dfcdbe06eb6f400933dc839a2b65d03e4bef37564a82",
+    "concrete_test_classes": 1,
+    "matching_registry_initializers": 1,
+    "explicit_registration_workaround": false,
+    "vvp_runtime_executed": true
+  },
+  "selected_otp_runtime": {
+    "profile": "pinned copied-source OpenTitan OTP, -gcommercial-unsafe, native DPI",
+    "command_file": "work/otp-dd089-scoped-runtime-20260929/command.json",
+    "result_file": "work/otp-dd089-scoped-runtime-20260929/result.json",
+    "log_file": "work/otp-dd089-scoped-runtime-20260929/run.log",
+    "log_sha256": "4a273bb39138cd5e3972b44f4fc4eb0149a02379cff07f31e0b5f12e112e972a",
+    "image_sha256": "82821822c92ed1f40562dfcdbe06eb6f400933dc839a2b65d03e4bef37564a82",
+    "explicit_registration_workaround": false,
+    "exit_code": 0,
+    "timed_out": false,
+    "memory_limit_hit": false,
+    "timeout_seconds": 900,
+    "physical_memory_cap_gib": 6,
+    "peak_physical_footprint_bytes": 6158439080,
+    "test_passed_checks_markers": 1,
+    "uvm_warnings": 0,
+    "uvm_errors": 0,
+    "uvm_fatals": 0,
+    "scoreboard_tl_a_items": 457,
+    "scoreboard_tl_d_items": 457,
+    "core_tl_a_d_pairs": 437,
+    "prim_tl_a_d_pairs": 20,
+    "expected_negative_prim_d_error_responses": 20
+  },
+  "qualification_boundary": "One selected copied-source -gcommercial-unsafe/native-DPI OTP smoke passes without the explicit-registration workaround; no fresh 49-case OpenTitan census, broader OTP DV qualification, or full IEEE chapter-8 qualification.",
+  "compiler_commit": "56f4bc756",
+  "log_directory": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work",
+  "standards": "IEEE 1800-2017/2023 \u00a7\u00a78.25, 8.9, 6.8, 10.5"
+}

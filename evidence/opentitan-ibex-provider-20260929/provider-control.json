@@ -1,0 +1,11 @@
+{
+  "pinned_source_sha256": "a624eb0dd17ef1ea584f6d391547f706bf70c95e8416d26d7cd8691e82e235a9",
+  "copied_source_sha256": "4921ef8ebfaf4747ee176e16eb7531927aec50f57b54e1a322d12bb4f58cccd7",
+  "patch_sha256": "38976d49b433b780d6b97a2811ff0db5c325e2cd84947d25b601c6d2bcf84e9b",
+  "source_list_providers": {
+    "lowrisc_opentitan_bus_params_pkg_0/bus_params_pkg.sv": 1,
+    "lowrisc_ibex_bus_params_pkg_0/bus_params_pkg.sv": 0
+  },
+  "base_overlay_manifest": "evidence/opentitan-49-parallel-census-20260929/overlay-manifest.json",
+  "selected_core": "lowrisc:dv:ibex_icache_sim:0.1"
+}

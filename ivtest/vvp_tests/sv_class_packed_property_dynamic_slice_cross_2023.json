@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_class_packed_property_dynamic_slice_cross.v",
+  "iverilog-args": ["-g2023", "-s", "sv_class_packed_property_dynamic_slice_cross"],
+  "gold": "sv_class_packed_property_dynamic_slice_cross"
+}

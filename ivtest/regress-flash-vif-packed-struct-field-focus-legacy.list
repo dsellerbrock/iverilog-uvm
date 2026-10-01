@@ -1,0 +1,15 @@
+# Two-dimensional packed struct fields through a virtual interface.
+sv_vif_packed_struct_field_runtime_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_runtime.gold
+sv_vif_packed_struct_field_missing_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_missing_fail.gold
+sv_vif_packed_struct_field_partial_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_partial_fail.gold
+sv_vif_packed_struct_field_range_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_range_fail.gold
+sv_vif_packed_struct_field_string_index_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_string_index_fail.gold
+sv_vif_packed_struct_field_real_index_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_real_index_fail.gold
+sv_vif_packed_struct_field_enum_method_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_enum_method_fail.gold
+sv_vif_packed_struct_field_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_runtime.gold
+sv_vif_packed_struct_field_missing_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_missing_fail.gold
+sv_vif_packed_struct_field_partial_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_partial_fail.gold
+sv_vif_packed_struct_field_range_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_range_fail.gold
+sv_vif_packed_struct_field_string_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_string_index_fail.gold
+sv_vif_packed_struct_field_real_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_real_index_fail.gold
+sv_vif_packed_struct_field_enum_method_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_enum_method_fail.gold

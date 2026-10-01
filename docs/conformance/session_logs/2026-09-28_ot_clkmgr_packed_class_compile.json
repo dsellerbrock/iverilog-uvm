@@ -1,0 +1,29 @@
+{
+  "returncode": 0,
+  "seconds": 4.349,
+  "errors": [],
+  "unsampled": [],
+  "warnings": [
+    "../src/lowrisc_dv_clkmgr_sim_0.1/tb.sv:122: warning: input port rst_n is coerced to inout.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.",
+    "../src/lowrisc_fpv_clkmgr_csr_assert_0/clkmgr_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process."
+  ],
+  "vvp_sha256": "28f26fd5b56dc66ea13d9d30617e68f2a56c317365f93cef0b762a7e6299036b",
+  "case": "lowrisc:dv:clkmgr_sim:0.1",
+  "status": "selected compile PASS; no Clkmgr DV runtime",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_revision": "3d50d0904",
+  "compiler_fixes": [
+    "974746928 selected clocking inputs",
+    "3d50d0904 packed enum class properties"
+  ],
+  "focused_regressions": "38/38 clocking/VIF; 28/28 class property and neighboring class controls",
+  "source_semantics_note": "clkmgr_clk_status_vseq.sv assigns idle='1 after init; this changes only the sequence property, not clkmgr_if.idle_i, and also gives 4'hf rather than MuBi4True per element. A named source correction is under review.",
+  "scope": "One selected compile; the 49-case corpus was not rerun"
+}

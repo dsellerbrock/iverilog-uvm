@@ -1,0 +1,150 @@
+{
+  "target": "OpenTitan top_earlgrey RSTMGR smoke",
+  "scope": "one selected nonabstract rstmgr_base_test/rstmgr_smoke_vseq; no broad corpus",
+  "pinned_opentitan_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_opentitan_status": "clean",
+  "sim_cfg_sha256": "195fab5fc6bbbb7ceaab16ff9ce26a233a4dac02e88d635a17e09cfbaf6d21f6",
+  "disposable_source_copy": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_rstmgr_sim_0.1/sim-icarus",
+  "disposable_source_list_sha256": "4191fdd9c81c59faad3ee2cb08f639cf9a5ed29a090517ae02a4eff22ef21bc7",
+  "source_patch_sha256_from_original_compile": "d533f71059faa4e45ca3ae94db90755698c80cdfabd706fd830b98337cd210a6",
+  "reset_mask_source_intent_patch_applied": false,
+  "compile": {
+    "command": [
+      "/private/tmp/iverilog-ot-rv-dm-array-20260928/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-srstmgr_bind",
+      "-srstmgr_cov_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/rstmgr-core-focused-20260928/rstmgr-struct-fixed.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/rstmgr-core-focused-20260928/compiler-list.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_rstmgr_sim_0.1/sim-icarus",
+    "returncode": 0,
+    "duration_seconds": 3.2501494589960203,
+    "source_list_sha256": "4191fdd9c81c59faad3ee2cb08f639cf9a5ed29a090517ae02a4eff22ef21bc7",
+    "compiler_ivl_sha256": "247a2644b5ca74f091a17a051b9793e7b8b049b6ff8db11085fc66eb04ef8400",
+    "image_sha256": "13e7ef299431fa21db3adbd53593e534590b7e457b2d62ceb0840e91d00a65a2"
+  },
+  "runtime": {
+    "command": [
+      "/private/tmp/iverilog-ot-rv-dm-array-20260928/local-install/bin/vvp",
+      "-i",
+      "-n",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/rstmgr-core-focused-20260928/rstmgr-struct-fixed.vvp",
+      "+ntb_random_seed=1",
+      "+UVM_NO_RELNOTES",
+      "+UVM_VERBOSITY=UVM_LOW",
+      "+cdc_instrumentation_enabled=1",
+      "+smoke_test=1",
+      "+UVM_TESTNAME=rstmgr_base_test",
+      "+UVM_TEST_SEQ=rstmgr_smoke_vseq"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_rstmgr_sim_0.1/sim-icarus",
+    "wall_cap_seconds": 750,
+    "rss_cap_mib": 6144,
+    "runner": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-device-dv-smoke/run_bounded.py",
+    "runner_sha256": "f68382e514ce29dcd56fefd8905d5f404a903cdb6773400ac0e1b871363201a2",
+    "vvp_sha256": "7851a3e7781250458d7fc7228b578527c578857e9ca1450acc907b8dad1fcc7a",
+    "uvm_dpi_sha256": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0",
+    "exit_code": 0,
+    "wall_seconds": 19.265,
+    "timed_out": false,
+    "memory_capped": false,
+    "simulation_end_ps": 125609210,
+    "pass_marker": "TEST PASSED CHECKS",
+    "uvm_counts": {
+      "info": 45,
+      "warning": 0,
+      "error": 0,
+      "fatal": 0
+    },
+    "report_catcher_demoted_and_caught": 0,
+    "vpi_errors": 0,
+    "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/rstmgr-core-focused-20260928/runtime-struct-fixed.log",
+    "log_sha256": "30db07f32c0412005ea137e7aa204cfcc40d23437190bcfaf2ef379091a2c825"
+  },
+  "focused_reproducer": {
+    "source": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/rstmgr-core-focused-20260928/reducer/std_randomize_unpacked_struct.sv",
+    "old_2017_and_2023": "both exit 1: eight vpiClassVar format-9 put errors; struct fields remain zero, scalar control changes",
+    "fixed_2017_and_2023": "both exit 0, PASSED; no VPI errors",
+    "registered_legacy": "2/2 strict 2017/2023 passed",
+    "registered_python": "2/2 strict 2017/2023 passed",
+    "fixed_array_neighbors": "4/4 legacy and 4/4 Python passed",
+    "final_guard_2017_and_2023": "both strict editions pass for flat struct; nested unpacked-array member is rejected at compile time"
+  },
+  "generated_vvp_call": "control_all_clocks:338 invokes $ivl_std_randomize on five &CPV member lvalues (io, io_div2, io_div4, main, usb)",
+  "old_baseline": {
+    "runtime_log_sha256": "5c92482b90392dea4e0fc0df940acbeb1afc1884949d333f5dbd86b781999f41",
+    "exit_code": 0,
+    "simulation_end_ps": 125525876,
+    "vpi_errors": 4,
+    "dropped_handle": "rstmgr_env_pkg::rstmgr_base_vseq.control_all_clocks.delays"
+  },
+  "verdict": "selected smoke passes with all five unpacked-struct delay members writable; no VPI diagnostics",
+  "remaining_source_intent_caveat": "Original rstmgr_smoke_vseq constraint sw_rst_regwen & ~sw_rst_ctrl_n != 0 parses as regwen & (~ctrl_n != 0); saved OpenTitan source-intent patch groups the mask expression but is not applied in this run.",
+  "post_replay_final_guard": {
+    "compiler_commit": "d447b318176a1475cccdf8fe9b93ee555939c3b5",
+    "compiler_ivl_sha256": "6197a1e26d948534f67599fc5b6f86aa992d3a8961587067328519649ed55324",
+    "selected_compile_record": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/rstmgr-core-focused-20260928/compile-struct-final.json",
+    "selected_image_sha256": "69bb9ca00a40b9d410e0b9e879aae2b41c0b8bb6ca8400f8fb9e8894715844ed",
+    "selected_compile_returncode": 0,
+    "generated_call": "same five &CPV member lvalues as runtime-replayed compiler image",
+    "runtime_replayed": false,
+    "change_since_runtime_replay": "admission guard rejects nonpacked nested members; five packed bit[5:0] RSTMGR members still admitted"
+  },
+  "shared_integrated": {
+    "compiler_commit": "79760316c35be76c2466d79138b2b3aaa06837cc",
+    "installed_ivl_sha256": "db1999fa8d97f48d5b70a19b333914c79d58271e2c5761ef626096406825abb2",
+    "selected_compile_exit": 0,
+    "selected_compile_warnings": 21,
+    "selected_compile_errors": 0,
+    "selected_compile_sorry": 0,
+    "selected_image_sha256": "714891f0674080b7edcdb769e424899768312cf0347156e27eb436cd16e2fa5e",
+    "selected_compile_log_sha256": "c54038888369f8194c20a652ddaf703011fa659f125e5c1429466704735607c8",
+    "strict_2017_and_2023": {
+      "2017": {
+        "compile_exit": 0,
+        "run_exit": 0,
+        "output": "PASSED",
+        "diagnostics": ""
+      },
+      "2023": {
+        "compile_exit": 0,
+        "run_exit": 0,
+        "output": "PASSED",
+        "diagnostics": ""
+      }
+    },
+    "runtime_replayed_on_this_exact_build": false,
+    "reason": "the final source change only guards unsupported nested member shapes; RSTMGR five packed members still compile and the earlier same-path runtime replay passed",
+    "nested_member_fail_closed": {
+      "strict_2017_compile_exit": 1,
+      "strict_2023_compile_exit": 1,
+      "diagnostic": "std::randomize() of this unpacked struct requires a direct variable with integral members",
+      "reducer_sha256": "61317b7da4fd7206c05d0acd629cfb46e72d610acb8e6194f47a966730f46d64"
+    }
+  },
+  "reset_mask_source_intent_patch": {
+    "name": "docs/conformance/release_overlays/opentitan/rstmgr_smoke_reset_mask_precedence.patch",
+    "sha256": "7132852a69db3dc3bf7451bf635ba6b9bdba115f7a5cc817eb533bed31a65287",
+    "applied_to_runtime": false,
+    "pinned_apply_check": true
+  }
+}

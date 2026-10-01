@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_foreach_property_partial_fixed_prefix_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_foreach_property_partial_fixed_prefix"
+}

@@ -1,0 +1,45 @@
+OpenTitan UVM runtime
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp -n /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-upload-checker-final2-negative-corrupt-byte-20260929/runtime/lowrisc_dv_spid_upload_sim_0.1/matrix-runtime.vvp +smoke_test=1
+returncode: 1
+duration_seconds: 1.025
+
+UVM_INFO /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh(392) @ 0: reporter [UVM/RELNOTES] 
+----------------------------------------------------------------
+UVM-1.2
+(C) 2007-2014 Mentor Graphics Corporation
+(C) 2007-2014 Cadence Design Systems, Inc.
+(C) 2006-2014 Synopsys, Inc.
+(C) 2011-2013 Cypress Semiconductor Corp.
+(C) 2013-2014 NVIDIA Corporation
+----------------------------------------------------------------
+
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  You are using a version of the UVM library that has been compiled
+  with `UVM_OBJECT_DO_NOT_NEED_CONSTRUCTOR undefined.
+  See http://www.eda.org/svdb/view.php?id=3770 for more details.
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+Chip Erase (c7) is sent
+Cmd c7 is uploaded
+Block Erase (52h) command is sent. 24bit addr (deadbeh)
+Cmd 52 is uploaded
+Addr 00deadbe is received
+Program cmd (02h) to Addr (00adbeefh) is sent.
+Payload           0 : a4h
+Payload           1 : 5ah
+Payload           2 : abh
+Payload           3 : cdh
+Payload           4 : efh
+Payload           5 : deh
+Payload           6 : adh
+Payload           7 : beh
+Payload           8 : efh
+Cmd 02 is uploaded
+Addr 00adbeef is received
+Read Sram @ 00000380: cdab5aa4
+Read Sram @ 00000381: beaddeef
+Read Sram @ 00000382: xxxxxxef
+FATAL: ../src/lowrisc_dv_spid_upload_sim_0.1/tb/spid_upload_tb.sv:421: Upload payload 0 byte 0: got a4 expected a5
+       Time: 4903708  Scope: spid_upload_tb.check_payload

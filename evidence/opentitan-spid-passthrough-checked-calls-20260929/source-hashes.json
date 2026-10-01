@@ -1,0 +1,18 @@
+{
+  "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "patch_sha256": "3cc4a4bb8dc6cc7e93a8b656ac51c11f32a592553514e9d54cac7b66afc79ab1",
+  "source_files": [
+    {
+      "path": "hw/ip/spi_device/pre_dv/program/prog_passthrough_host.sv",
+      "before_sha256": "089242378c8e3b4c4896782c109626c366c6f15e96d0a2a45d88aa110486cb28",
+      "after_sha256": "1eb0a1fcf1a93c469c30809f385c7da22d9dca045fa3a6964453971e531e2aca"
+    },
+    {
+      "path": "hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv",
+      "before_sha256": "c272371e7b5325c008ea82530f9bd983c5b450beb976857bda28809c2f082297",
+      "after_sha256": "014f4d2693da66731d7297034ed684eaf8c4fcd8ea1f2fa923aeeff7f266c1c6"
+    }
+  ],
+  "selected_vvp_sha256": "09aabf31879dbc552efa2eff57c9bfabd9bd654613294d7dcc99c44e4fe0373b",
+  "patch_reproduced_exact_after_files": true
+}

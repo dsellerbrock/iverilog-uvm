@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+    "-n",
+    "-d",
+    "/private/tmp/ot-corpus-after-fixes-20260929/work-final/runtime/lowrisc_dv_otbn_sim_0.1/matrix-dpi.so",
+    "/private/tmp/ot-corpus-after-fixes-20260929/work-final/runtime/lowrisc_dv_otbn_sim_0.1/matrix-runtime.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=0",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=otbn_base_test",
+    "+UVM_TEST_SEQ=otbn_smoke_vseq",
+    "+otbn_elf_dir=/private/tmp/otbn-smoke-selected-20260929/binaries"
+  ],
+  "cwd": "/private/tmp/ot-corpus-after-fixes-20260929/work-final/runtime/lowrisc_dv_otbn_sim_0.1/sim-icarus",
+  "repo_top": "/private/tmp/ot-corpus-after-fixes-20260929/source",
+  "returncode": 124,
+  "duration_seconds": 180.14896758296527,
+  "timed_out": true,
+  "memory_limit_hit": false,
+  "peak_physical_footprint_bytes": 2716076360,
+  "memory_monitor_error": null,
+  "pass_banner": false,
+  "elf_sha256": "e47c6d70669a8b2837e8476b6e3ca1eeaadb98b62bab87321a0ce698348cb827"
+}

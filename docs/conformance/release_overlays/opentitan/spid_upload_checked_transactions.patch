@@ -1,0 +1,187 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
+@@ -143,6 +143,7 @@
+   logic [$clog2(SramAddrFifoDepth+1)-1:0] addrfifo_depth;
+   logic [      $clog2(PayloadByte+1)-1:0] payload_depth;
+   logic [        $clog2(PayloadByte)-1:0] payload_start_idx;
++  spi_queue_t expected_payloads[5];
+ 
+   // Upload module signals
+   logic cfg_addr_4b_en;
+@@ -171,14 +172,19 @@
+ 
+     fork
+       begin
+-        #300us
+-        $display("TEST TIMED OUT!!");
+-        $finish();
++        #300us;
++        $fatal(1, "TEST TIMED OUT!!");
+       end
++    join_none
++    fork
+       host();
+       sw();
+-    join_any
+-
++    join
++    repeat (2) @(posedge clk);
++    if (cmdfifo_depth !== '0 || addrfifo_depth !== '0)
++      $fatal(1, "Upload FIFO has extra entries: cmd %0d addr %0d",
++             cmdfifo_depth, addrfifo_depth);
++    $display("TEST PASSED CHECKS");
+     $finish();
+   end
+ 
+@@ -199,25 +205,26 @@
+ 
+     // Issue Cmd/Addr/Payload command
+     repeat (30) @(sck_clk.cbn);
++    payload = '{
++      8'h A5,
++      8'h 5A,
++      8'h AB,
++      8'h CD,
++      8'h EF,
++      8'h DE,
++      8'h AD,
++      8'h BE,
++      8'h EF
++    };
++    expected_payloads[0] = payload;
+     spiflash_program(
+       sif.tb,
+       8'h 02,         // opcode
+       32'h 00AD_BEEF, // addr
+       1'b 0,          // addr_4b_en
+-
+-      // payload
+-      '{
+-        8'h A5,
+-        8'h 5A,
+-        8'h AB,
+-        8'h CD,
+-        8'h EF,
+-        8'h DE,
+-        8'h AD,
+-        8'h BE,
+-        8'h EF
+-      }
++      payload
+     );
++    payload = {};
+ 
+     // Cmd & Payload : Write Status
+ 
+@@ -226,6 +233,7 @@
+     for (int i = 0 ; i < 255 ; i++) begin
+       payload[i] = i;
+     end
++    expected_payloads[1] = payload;
+     spiflash_program(
+       sif.tb,
+       8'h 02,         // opcode
+@@ -241,6 +249,7 @@
+     for (int i = 0 ; i < 256 ; i++) begin
+       payload[i] = i;
+     end
++    expected_payloads[2] = payload;
+     spiflash_program(
+       sif.tb,
+       8'h 02,         // opcode
+@@ -257,6 +266,7 @@
+     for (int i = 0 ; i < payload_bytes; i++ ) begin
+       payload[i] = i % PayloadByte;
+     end
++    expected_payloads[3] = payload;
+     spiflash_program(
+       sif.tb,
+       8'h 02,         // opcode
+@@ -273,6 +283,7 @@
+     for (int i = 0 ; i < payload_bytes; i++ ) begin
+       payload[i] = i % PayloadByte ^ 8'(i/PayloadByte) ;
+     end
++    expected_payloads[4] = payload;
+     spiflash_program(
+       sif.tb,
+       8'h 02,         // opcode
+@@ -292,9 +303,10 @@
+   static task sw();
+     automatic logic [ 7:0] cmd;
+     automatic logic [31:0] addr;
++    automatic logic [31:0] expected_addr;
+     automatic logic [ 7:0] payload [$];
+ 
+-    forever begin
++    for (int txn = 0; txn < 7; txn++) begin
+       // Check if fifo has entries inside
+       // cmdfifo_notempty asserted when FIFO write happens.
+       // it takes one more cycle to have valid read data
+@@ -302,6 +314,12 @@
+       // Check cmdfifo_rvalid rather than cmdfifo_notempty
+       @(posedge clk iff (cmdfifo_set_pulse == 1'b 1));
+       cmd = cmdfifo_rdata[7:0];
++      if (cmdfifo_rdata !== {8'h00,
++                             ((txn == 0) ? 8'hc7 : (txn == 1) ? 8'h52 : 8'h02)})
++        $fatal(1, "Upload command %0d: got %04x", txn, cmdfifo_rdata);
++      if (txn < 2 && (payload_depth !== '0 || payload_overflow !== 1'b0 ||
++                      payload_start_idx !== '0))
++        $fatal(1, "Upload command %0d unexpectedly has payload metadata", txn);
+       $display("Cmd %x is uploaded", cmd);
+       cmdfifo_rready = 1'b 1;
+       @(posedge clk);
+@@ -318,6 +336,8 @@
+           // Wait until Addr not empty
+           @(posedge clk iff (addrfifo_notempty == 1'b 1));
+           addr = addrfifo_rdata;
++          if (addr !== 32'h00de_adbe)
++            $fatal(1, "Upload erase address: got %08x", addr);
+           $display("Addr %x is received", addr);
+           addrfifo_rready = 1'b 1;
+           @(posedge clk);
+@@ -340,6 +360,11 @@
+           // Wait until Addr not empty
+           @(posedge clk iff (addrfifo_notempty == 1'b 1));
+           addr = addrfifo_rdata;
++          expected_addr = (txn == 2) ? 32'h00ad_beef :
++                          (txn == 3) ? 32'h00ab_cdef : 32'h0;
++          if (addr !== expected_addr)
++            $fatal(1, "Upload program address %0d: got %08x expected %08x",
++                   txn, addr, expected_addr);
+           $display("Addr %x is received", addr);
+           addrfifo_rready = 1'b 1;
+           @(posedge clk);
+@@ -369,12 +394,33 @@
+             read_sram(sw_l2m, sw_m2l,
+               SramPayloadIdx, payload_depth, payload);
+           end
++          check_payload(txn - 2, payload);
+         end
+ 
++        default: $fatal(1, "Unexpected upload command %02x", cmd);
+       endcase
+     end
+ 
+   endtask : sw
++
++  task automatic check_payload(input int unsigned index, input spi_queue_t observed);
++    int unsigned sent, kept;
++    sent = expected_payloads[index].size();
++    kept = (sent > PayloadByte) ? PayloadByte : sent;
++    if (sent == 0 || payload_depth !== kept ||
++        payload_overflow !== (sent > PayloadByte) ||
++        payload_start_idx !== ((sent > PayloadByte) ? (sent % PayloadByte) : 0))
++      $fatal(1, "Upload payload %0d metadata: sent %0d depth %0d overflow %b start %0d",
++             index, sent, payload_depth, payload_overflow, payload_start_idx);
++    if (observed.size() < kept || observed.size() > kept + SramStrbW - 1)
++      $fatal(1, "Upload payload %0d size: got %0d expected %0d valid bytes",
++             index, observed.size(), kept);
++    for (int i = 0; i < kept; i++) begin
++      if (observed[i] !== expected_payloads[index][sent - kept + i])
++        $fatal(1, "Upload payload %0d byte %0d: got %02x expected %02x",
++               index, i, observed[i], expected_payloads[index][sent - kept + i]);
++    end
++  endtask : check_payload
+ 
+   // CSb pulse
+   logic csb_sckin_sync_d, csb_sckin_sync_q, csb_asserted_pulse_sckin;

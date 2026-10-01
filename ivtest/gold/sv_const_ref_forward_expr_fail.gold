@@ -1,0 +1,3 @@
+./ivltests/sv_const_ref_forward_expr_fail.v:7: error: Constant values not allowed in l-value expressions.
+./ivltests/sv_const_ref_forward_expr_fail.v:8: error: A const ref actual must be a variable.
+2 error(s) during elaboration.

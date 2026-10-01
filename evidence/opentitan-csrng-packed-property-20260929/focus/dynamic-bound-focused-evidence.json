@@ -1,0 +1,31 @@
+{
+  "repository": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926",
+  "head": "14cf59e46a30adad09bda1378f0bd8a3dcc63ff9",
+  "installed_red_ivl_sha256": "7c47607b82a089b08d7212b6d6ed3df2f7351155befb93324635ff556d5d2507",
+  "in_tree_green_ivl_sha256": "217a152a6330d79b28bab8acaded0ed36517ecd8c190272f96afed896fada825",
+  "netmisc_cc_sha256": "13a2ef5f64910739d825b93516c99121bb73b7c498e25bae567f963c722af614",
+  "build_command": "make -j8 ivl",
+  "build_log": "/private/tmp/ot-csrng-index-20260929/dynamic-bound-build.log",
+  "red": {
+    "source": "ivtest/ivltests/sv_class_packed_property_dynamic_nested_slice.v",
+    "editions": [2017, 2023],
+    "compile_exit_each": 6,
+    "logs": [
+      "/private/tmp/ot-csrng-index-20260929/three-plus-focus/dynamic-installed7c-2017.log",
+      "/private/tmp/ot-csrng-index-20260929/three-plus-focus/dynamic-installed7c-2023.log"
+    ]
+  },
+  "green": {
+    "json_focus_command": "python3 /private/tmp/ot-csrng-index-20260929/run-three-plus-focus.py",
+    "json_focus": "24/24 PASS",
+    "json_focus_log": "/private/tmp/ot-csrng-index-20260929/dynamic-bound-json-focus.log",
+    "legacy_focus_command": "python3 /private/tmp/ot-csrng-index-20260929/run-dynamic-legacy-focus.py",
+    "legacy_focus": "12/12 PASS",
+    "legacy_focus_log": "/private/tmp/ot-csrng-index-20260929/dynamic-bound-legacy-focus.log",
+    "original_uvm_test": "tests/class_packed_dynamic_nested_slice_test.sv compiled and ran with PASS: class multidimensional dynamic nested slice",
+    "narrow_cast_ast": "/private/tmp/ot-csrng-index-20260929/narrow-cast-shape.netlist (3-bit add of lane+3, then a 2-bit narrowing NetESelect)",
+    "diff_check": "PASS"
+  },
+  "proof_boundary": "Only nonnegative defined constants, unsigned finite-width leaves, zero-extension wrappers, and nonwrapping +/* chains are bounded. Both indexed-range endpoints must remain inside the inner packed dimension. Unproven, crossing, and narrowed-to-invalid forms retain compile errors. Runtime X indices remain no-op for writes in the positive control.",
+  "installation": "Not performed; coordinator owns installed image and broad gates."
+}

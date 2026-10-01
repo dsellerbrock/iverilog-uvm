@@ -1,0 +1,30 @@
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
+@@ -98,11 +98,8 @@
+   }
+ 
+   constraint rand_op_c {
+-    solve fractions before rand_op.addr;
++    solve fractions before rand_op;
+     solve flash_program_data before rand_op;
+-    solve rand_op.partition before rand_op.prog_sel, rand_op.addr;
+-    solve rand_op.addr before rand_op.otf_addr;
+-    solve rand_op.addr before rand_op.num_words;
+ 
+     if (cfg.seq_cfg.op_readonly_on_info_partition) {
+       if (cfg.seq_cfg.avoid_ro_partitions) {
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_legacy_base_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_legacy_base_vseq.sv
+@@ -10,11 +10,8 @@
+   int num, bank;
+ 
+   constraint rand_op_c {
+-    solve fractions before rand_op.addr;
++    solve fractions before rand_op;
+     solve flash_program_data before rand_op;
+-    solve rand_op.partition before rand_op.prog_sel, rand_op.addr;
+-    solve rand_op.addr before rand_op.otf_addr;
+-    solve rand_op.addr before rand_op.num_words;
+     if (cfg.seq_cfg.op_readonly_on_info_partition) {
+       if (cfg.seq_cfg.avoid_ro_partitions) {
+         rand_op.partition != FlashPartInfo;

@@ -456,7 +456,17 @@ extern NetExpr*make_checked_canonical_property_index(
 extern NetExpr*make_checked_canonical_packed_prefix(
       Design*des, NetScope*scope, const LineInfo*loc,
       const std::list<index_component_t>&src, const netranges_t&dims,
-      unsigned long carrier_width);
+      unsigned long carrier_width, bool warn_undefined = true);
+/* A trailing range after a packed-property element index must stay within
+ * its own declared dimension; flattening a crossing range aliases a neighbor.
+ * Until partial crossing ranges are lowered element by element, diagnose them
+ * and run-time indexed bases instead of generating an aliased offset. A
+ * caller that passes RUNTIME_CHECKED lowers an unproven run-time base itself
+ * (select the element, then part-select it) and gets true plus the flag. */
+extern bool check_packed_property_tail_range(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const index_component_t&select, const netrange_t&dim,
+      bool*runtime_checked = nullptr);
 
 /*
  * This function takes as input a NetNet signal and adds a constant
@@ -843,6 +853,15 @@ extern bool collapse_packed_member_indices(Design*des, NetScope*scope,
 					   NetExpr*&off_expr,
 					   unsigned long&sel_wid,
 					   bool quiet = false);
+
+/* Packed class-property l-value offset: check each leading bit dimension
+ * independently and confine a trailing range to its own dimension. */
+extern bool collapse_checked_packed_property_indices(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const netranges_t&pdims,
+      const std::list<index_component_t>&indices,
+      unsigned long packed_width, NetExpr*&off_expr,
+      unsigned long&sel_wid);
 
 extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 				      const LineInfo*loc,

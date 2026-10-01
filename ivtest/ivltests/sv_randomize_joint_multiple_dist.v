@@ -39,6 +39,27 @@ class identical_pair;
   }
 endclass
 
+// OpenTitan rom_ctrl adds a second conditional distribution to a nested
+// push_pull_agent_cfg delay. Both distributions name the same rand subject.
+class conditional_same_subject_leaf;
+  rand bit zero_delays;
+  rand int unsigned device_delay_max;
+  constraint c {
+    solve zero_delays before device_delay_max;
+    if (zero_delays) device_delay_max == 0;
+    else device_delay_max dist {[1:10] :/ 1, [11:50] :/ 4};
+  }
+endclass
+
+class conditional_same_subject_root;
+  rand conditional_same_subject_leaf child;
+  function new(); child = new; endfunction
+  constraint c {
+    if (!child.zero_delays)
+      child.device_delay_max dist {1 :/ 10, 10 :/ 1};
+  }
+endclass
+
 typedef enum bit [1:0] {
   ClkFreqDiffNone,
   ClkFreqDiffSmall,
@@ -80,8 +101,10 @@ module main;
   ordered_pair ordered = new;
   same_subject_pair same_subject = new;
   identical_pair identical = new;
+  conditional_same_subject_root conditional_same_subject = new;
   opentitan_clock_pair clocks[4];
   int ones, identical_ones;
+  int zero_delay_count, nonzero_delay_count;
   bit [63:0] replay[16];
   string state, child_state;
 
@@ -114,6 +137,23 @@ module main;
     end
     if (identical_ones < 1400 || identical_ones > 1700)
       $fatal(1, "identical coupled marginal lost: %0d", identical_ones);
+
+    conditional_same_subject.srandom(32'h524f4d43);
+    repeat (32) begin
+      if (!conditional_same_subject.randomize())
+        $fatal(1, "conditional same-subject distributions failed");
+      if (conditional_same_subject.child.zero_delays) begin
+        zero_delay_count++;
+        if (conditional_same_subject.child.device_delay_max != 0)
+          $fatal(1, "zero-delay constraint violated");
+      end else begin
+        nonzero_delay_count++;
+        if (!(conditional_same_subject.child.device_delay_max inside {1, 10}))
+          $fatal(1, "nested distribution membership violated");
+      end
+    end
+    if (!zero_delay_count || !nonzero_delay_count)
+      $fatal(1, "conditional branches were not both exercised");
 
     for (int mode = 0; mode < 4; ++mode) begin
       clocks[mode] = new;

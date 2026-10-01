@@ -1,0 +1,39 @@
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/util.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-0.o
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-1.o
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha256.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-2.o
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha384.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-3.o
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/sha512.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-4.o
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-5.o
+/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac.c:75:13: warning: incompatible pointer types passing 'LITE_HMAC_CTX *' (aka 'struct LITE_HMAC_CTX *') to parameter of type 'HMAC_CTX *' (aka 'struct HMAC_CTX *') [-Wincompatible-pointer-types]
+   75 |   HMAC_init(ctx, key, len);
+      |             ^~~
+/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac.c:24:33: note: passing argument to parameter 'ctx' here
+   24 | static void HMAC_init(HMAC_CTX *ctx, const void *key, unsigned int len) {
+      |                                 ^
+1 warning generated.
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac_wrap.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-6.o
+/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac_wrap.c:20:27: warning: incompatible pointer types passing 'LITE_HMAC_CTX *' (aka 'struct LITE_HMAC_CTX *') to parameter of type 'HMAC_CTX *' (aka 'struct HMAC_CTX *') [-Wincompatible-pointer-types]
+   20 |   memcpy(hmac, HMAC_final(&ctx), SHA_DIGEST_SIZE);
+      |                           ^~~~
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/secure/_string.h:234:40: note: expanded from macro 'memcpy'
+  234 | #define memcpy(...) __memcpy_chk_func (__VA_ARGS__)
+      |                                        ^~~~~~~~~~~
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/secure/_string.h:127:33: note: expanded from macro '__memcpy_chk_func'
+  127 |                 __builtin___memcpy_chk (dest, __VA_ARGS__, __darwin_obsz0 (dest))
+      |                                               ^~~~~~~~~~~
+/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/hmac.h:42:37: note: passing argument to parameter 'ctx' here
+   42 | const uint8_t *HMAC_final(HMAC_CTX *ctx);
+      |                                     ^
+1 warning generated.
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi/cryptoc_dpi.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-7.o
+
+$ cc -O1 -fPIC -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/include/iverilog -I/private/tmp/ot-hmac-live-counters-selected-20260929/source/hw/ip/hmac/dv/cryptoc_dpi -c /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-runtime.dpiexport.c -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-8.o
+
+$ c++ -shared -undefined dynamic_lookup -o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi.so /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-0.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-1.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-2.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-3.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-4.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-5.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-6.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-7.o /private/tmp/ot-hmac-live-counters-selected-rerun-20260929/work/runtime/lowrisc_dv_hmac_sim_0.1/matrix-dpi-8.o

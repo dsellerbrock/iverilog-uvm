@@ -1,0 +1,46 @@
+{
+  "id": "OT-FLASH-CONSTRAINT-FOREACH-FUNCTION-ARGUMENT",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint with separate exposed blocker",
+  "compiler_base_commit": "a7f5288a076de968da33f62483ca14e8a2e2833d",
+  "compiler_engine_sha256": "8181490bae115633e56b18166158a35d222e10159a6f8b0babc66e3d4dd96886",
+  "root_cause": "A fixed-array constraint foreach unrolls with a known iterator environment, but a pure user-function argument was elaborated in a synthesized wrapper without that iterator binding.",
+  "correction": "Bind each unrolled iterator as a signed constant parameter in the call wrapper before argument elaboration. Choose a generated wrapper name that cannot collide with an existing child method or an active iterator; retain purity and random-dependency checks.",
+  "focused_validation": {
+    "json": "10/10 passed, strict paired 2017/2023",
+    "legacy": "10/10 passed, strict paired 2017/2023",
+    "runtime": "Both selected bit values, contradictory solver outcome, lexical class-property shadowing, nonzero fixed bounds, 4-bit mapped return, generated method/iterator name collisions, and signed negative bound controls pass.",
+    "negative": "A foreach-specific impure function call remains a compile error with exact gold in both editions.",
+    "independent_review": "No selected-ticket blocker on the final image; independently checked generated names, signed negative iterator parameters, purity/dependency path, and exposed Flash warning source.",
+    "diff_check": "make -q ivl and git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 19,
+    "after_hard_diagnostics": 14,
+    "removed_hard_diagnostics": "Exactly five en_mp_regions[i] packed-property select errors",
+    "added_hard_diagnostics": 0,
+    "warnings_before": 134,
+    "warnings_after": 134,
+    "removed_warnings": "Exactly five paired unbound-i warnings",
+    "added_warnings": "Exactly five newly visible mp_regions_c randomize()-will-fail warnings from the independent left-hand-side packed-struct member select gap",
+    "exit_code": 14,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "raw_result": "projectless work/ot-flash-foreach-funcarg-core-20260928/result.json"
+  },
+  "separate_blocker": {
+    "id": "OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER",
+    "reproducer": "projectless work/flash-foreach-function-arg-20260928/packed-member-min.sv",
+    "observation": "Even regions[0].en == 4'h6 warns and fails randomize on a rand fixed array of packed structs, without a function or foreach. Whole packed-struct elements and flat array elements pass. This is an IR projection gap on the left-hand side, not the selected function argument."
+  },
+  "boundaries": [
+    "The 14 remaining hard diagnostics prevent a Flash VVP image and DV runtime.",
+    "The five newly visible class warnings still prevent those randomize calls from succeeding.",
+    "Broad gates, installation, and a fresh 49-core census remain pending.",
+    "Pinned OpenTitan and Caliptra sources were not modified."
+  ]
+}

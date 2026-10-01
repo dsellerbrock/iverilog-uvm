@@ -1,0 +1,39 @@
+{
+  "id": "OT-FLASH-NESTED-COVERPOINT-GET-COVERAGE",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint with remaining application errors",
+  "compiler_base_commit": "ae698ea3d4b9b4b68dcd4aa2de3cf574be882fec",
+  "compiler_engine_sha256": "a5b79780979a53e842f28325bcece2bdda80e42d15220732dee54c372a84025c",
+  "target_sha256": "5b3c31763310a2e354180fb1297bb8185e4763dda80fbd4bbac18c776214087a",
+  "runtime_sha256": "f3a691502444578f84f460c346947738ef6165b34b292b3fc9a97fe971ba74aa",
+  "standard": "IEEE 1800-2017/2023 Table 19-5 and 19.11: named coverpoints and crosses expose type and instance coverage methods, and method results must use the selected item's bins rather than the enclosing group score",
+  "root_cause": "Named coverpoints and crosses lived in covergroup item metadata, but nested method elaboration searched class properties for their names and reported a missing method before target/runtime dispatch.",
+  "correction": "Resolve a named coverage item from its covergroup metadata while retaining the selected covergroup object as receiver. Lower its item index through the VVP opcode and filter existing static, dynamic, and transition-bin scoring by that item. Keep per-item type/instance semantics, instance option weights, cumulative merge, and retired-instance accounting.",
+  "focused_validation": {
+    "legacy": "6/6 passed in strict 2017/2023; focus list SHA-256 7fe8c1e896358fd922b2d8b5f5e25d4ad7de7eea75f3e44b39026a4c5149d48b",
+    "json": "6/6 passed in strict 2017/2023; focus list SHA-256 e6687da12dbc91b3bfcb3eb96e62fbf6214df1fd13a84e3ce880a6c9246248fb",
+    "adjacent_json": "4/4 existing covergroup tests passed; focus list SHA-256 a6b155ad84f1e952494a78dc21e66b7419bdd577e3335336c30e06dec9c08c4a",
+    "positive": "Nested named point differs from group type result (16.667% versus 33.333%), named point instances differ (33.333% versus 0%), a transition bin is counted, and a nested cross reports 25%. Modes cover unequal item versus group weights, retired instances, merged complementary hits, option.get_inst_coverage, and zero-bin point semantics.",
+    "negative": "Missing item, indexed item, unsupported ref-argument form, and invalid receiver each report a distinct hard diagnostic in both editions.",
+    "independent_review": "No selected-ticket blocker; source and VVP paths, item index, type/instance modes, retired accounting, and focused diagnostics reviewed.",
+    "build_checks": "make -q ivl vvp/vvp tgt-vvp/vvp.tgt and git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 14,
+    "after_hard_diagnostics": 13,
+    "removed_hard_diagnostic": "flash_ctrl_rd_buff_evict_vseq.sv:389 missing cov.control_cg.op_evict_cp.get_coverage method",
+    "added_hard_diagnostics": 0,
+    "warnings_before": 125,
+    "warnings_after": 125,
+    "changed_warnings": 0,
+    "exit_code": 13,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "raw_result": "projectless work/ot-flash-coverpoint-core-20260928/result.json"
+  },
+  "boundary": "Two-ref-argument coverage methods diagnose unsupported. Static cg::cp::get_coverage and task-statement forms were outside the nested expression ticket. For a nonempty item whose every instance item weight is zero, the merge=false weighted average has a 0/0 denominator; the current result is 0, and no standard conclusion is claimed. Thirteen other hard errors prevent a Flash VVP image or DV runtime. No integrated gates, installation, current-image 49-core census, or pristine application pass is claimed; pinned sources and unsafe flags remain unchanged."
+}

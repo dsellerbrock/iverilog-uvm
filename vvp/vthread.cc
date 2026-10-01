@@ -1920,9 +1920,9 @@ __vpiScope* vthread_scope(struct vthread_s*thr)
 
 struct vthread_s*running_thread = 0;
 
-/* DPI active scope (IEEE 1800-2017 H.9 svGetScope/svSetScope). Set to the
- * calling scope while a %dpi/call runs into C; svSetScope may override it
- * for the duration of a C call chain. */
+/* DPI active scope (IEEE 1800-2017/2023 H.9 svGetScope/svSetScope). Set to
+ * the import declaration's instance during a C call. svSetScope may override
+ * it for the duration of a C call chain. */
 static __vpiScope*dpi_active_scope_ = 0;
 
 /* IEEE 1800-2017/2023 35.9 disable protocol for one active imported DPI
@@ -2050,9 +2050,9 @@ static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp,
       coro->sv_caller = thr;
       coro->cp = cp;
 	// Initial DPI context for the C body: RWSYNC (so svGetScopeFromName
-	// works from C) and the caller's scope as the active svScope.
+	// works from C) and the declaration instance as the active svScope.
       coro->saved_mode = VPI_MODE_RWSYNC;
-      coro->saved_scope = thr->parent_scope;
+      coro->saved_scope = thr->parent_scope ? thr->parent_scope->scope : 0;
       coro->saved_call_state = dpi_import_call_current_;
       coro->import_kind = import_kind;
 #if defined(IVL_DPI_CORO_UCONTEXT)
@@ -2727,7 +2727,7 @@ static bool copy_ref_binding_to_context_(vpiHandle src_item, vthread_t src_thr,
       if (!have)
             return false;
 
-      dst_ref->write_binding(dst_context, binding);
+      dst_ref->write_binding(dst_net, dst_context, binding);
       return true;
 }
 
@@ -5616,6 +5616,45 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
                   continue;
             }
 
+	      // A fixed array of queues stores one queue object per property
+	      // word. Prefill existing integral words through those objects;
+	      // treating each queue handle as a scalar calls set_vec4 on an
+	      // object property and leaves a spurious unsupported-size warning.
+	    if (!defn->property_dimensions(pid).empty()
+		&& !bt.empty() && bt[0] == 'Q') {
+		  uint64_t count = defn->property_array_size(pid);
+		  bool all_active = sel && pid < sel->size() && (*sel)[pid];
+		  for (uint64_t leaf = 0; leaf < count; ++leaf) {
+			if (!rand_leaf_active_(defn, cobj, sel, pid,
+					   (size_t)leaf)) continue;
+			vvp_object_t object;
+			cobj->get_object(pid, object, (size_t)leaf);
+			vvp_darray*array = object.peek<vvp_darray>();
+			if (!array) continue;
+			for (size_t position = 0; position < array->get_size();
+			     ++position) {
+			      if (!all_active && !array->rand_mode(position)) continue;
+			      vvp_vector4_t value;
+			      array->get_word((unsigned)position, value);
+			      if (value.size() == 0) continue;
+			      if (defn->property_is_randc(pid)
+				  && randomize_randc_container_leaf_(cobj, pid,
+				      (size_t)leaf, position, value, next_random)) {
+				    array->set_word((unsigned)position, value);
+				    continue;
+			      }
+			      for (unsigned bit = 0; bit < value.size(); ++bit)
+				    value.set_bit(bit, (next_random() & 1)
+					  ? BIT4_1 : BIT4_0);
+			      array->set_word((unsigned)position, value);
+			}
+			if (defn->property_is_static(pid))
+			      defn->static_randomize_transaction_mark_dirty(
+				    pid, (size_t)leaf);
+		  }
+		  continue;
+	    }
+
 	      // Fixed integral rand properties randomize every active leaf.
 	      // Object-backed and associative properties were handled above.
 	    if (defn->property_array_size(pid) > 1) {
@@ -6075,7 +6114,7 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 	/* Membership in a caller queue/darray (qv:) is expanded to the
 	 * container's current elements, as for scope randomize. */
       string object_ir;
-      if (object_form && strstr(ir_text, "qv:")) {
+      if (object_form && (strstr(ir_text, "qv:") || strstr(ir_text, "(qelem "))) {
 	    vector<vector<uint64_t> > object_vals;
 	    vector<vector<bool> > object_known;
 	    vector<vector<vvp_vector4_t> > object_words;
@@ -6331,10 +6370,11 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 {
       const unsigned n_vals = code->bit_idx[0];
       const unsigned n_objs = code->bit_idx[1];
-      for (unsigned i = 0; i < n_objs; ++i) {
-	    vvp_object_t ignored;
-	    thr->pop_object(ignored);
-      }
+	/* Caller queue/darray object slots (qelem reads) are read for their
+	 * current elements; they were once popped and rejected here. */
+      vector<vvp_object_t> state_objects(n_objs);
+      for (unsigned i = n_objs; i > 0; --i)
+	    thr->pop_object(state_objects[i - 1]);
       vector<uint64_t> slot_vals(n_vals);
       vector<vvp_vector4_t> slot_words(n_vals);
       vector<bool> unknown(n_vals, false);
@@ -6376,13 +6416,15 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
       string rng_state = thread_rng_get_state_(rng_owner);
       uint64_t seed = ((uint64_t)thread_rng_next_(rng_owner) << 32)
 	    | thread_rng_next_(rng_owner);
-      static const vector<vector<uint64_t> > no_objects;
-      static const vector<vector<bool> > no_known;
+      vector<vector<uint64_t> > state_vals;
+      vector<vector<bool> > state_known;
+      if (n_objs)
+	    object_slot_values_(state_objects, code->text, state_vals,
+				state_known);
       bool ok = meta_ok && wide_slots_ok && width > 0 && width <= 65536
-	    && n_objs == 0
 	    && vvp_z3_randomize_scope_queue(ir, (unsigned)width, max_size,
-		  slot_vals, no_objects, no_known, seed, elements);
-      if (!meta_ok || width == 0 || width > 65536 || n_objs != 0)
+		  slot_vals, state_vals, state_known, seed, elements);
+      if (!meta_ok || width == 0 || width > 65536)
 	    fprintf(stderr, "ERROR: unsupported scope queue randomization metadata "
 		    "or object state operand.\n");
       if (ok) {
@@ -6555,7 +6597,8 @@ bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
 	    ? defn->property_array_size(pid) : 0;
 	// D/Q properties have one class slot containing a run-time-sized
 	// unpacked container; use its live element count, not slot count 1.
-      if (pid < defn->property_count()) {
+      if (pid < defn->property_count()
+	  && defn->property_dimensions(pid).empty()) {
 	    const std::string&bt = defn->property_base_type(pid);
 	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
 		  vvp_object_t container;
@@ -6573,6 +6616,34 @@ bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
 
       for (uint64_t off = 0 ; off < count ; off += 1)
 	    cobj->set_rand_mode(pid, (size_t)((uint64_t)first + off), mode);
+      return true;
+}
+
+/* Select one inner queue element under a canonical fixed-array leaf. */
+bool of_RAND_MODE_P_Q(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p/q", 1, 0, 1))
+	return true;
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || thr->flags[4] != BIT4_0) return true;
+
+      const class_type*defn = cobj->get_defn();
+      size_t pid = (size_t)cp->number;
+      int64_t leaf = thr->words[cp->bit_idx[0]].w_int;
+      int64_t elem = thr->words[cp->bit_idx[1]].w_int;
+      if (pid >= defn->property_count() || !defn->property_is_rand(pid)
+	  || defn->property_dimensions(pid).empty()
+	  || leaf < 0 || (uint64_t)leaf >= defn->property_array_size(pid)
+	  || elem < 0) return true;
+      vvp_object_t container;
+      cobj->get_object(pid, container, (size_t)leaf);
+      vvp_darray*array = container.peek<vvp_darray>();
+      if (!array || !dynamic_cast<vvp_queue*>(array)
+	  || (uint64_t)elem >= array->get_size()) return true;
+      array->set_rand_mode((size_t)elem, mode_vec.value(0) == BIT4_1);
       return true;
 }
 
@@ -7124,58 +7195,20 @@ bool of_SET_RANDSTATE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/*
- * R3/M3B-5 (IEEE 1800-2017 18.13.1): $urandom called from inside a class
- * method draws from THAT OBJECT's generator; $urandom called from an
- * ordinary thread (or a function/task call nested inside one) draws from
- * the enclosing LOGICAL PROCESS's generator (18.13.2). $urandom lives in
- * the vpi/ system module and has its own static generator (the pre-R3
- * global default), so it asks here first.
- *
- * Every thread and object is now always seeded (see the R3 block above
- * thread_rng_srandom_/logical_process_thread_), so this always succeeds
- * once a thread is found; it can only return 0 when there is no running
- * thread context at all (e.g. a $urandom evaluated at compile time,
- * which cannot happen, or a malformed call).
- */
-extern "C" int vpip_object_urandom(unsigned int*val)
+/* System randomization calls use the logical caller's process RNG (IEEE
+ * 1800-2017/2023 18.14). Object RNGs belong exclusively to randomize(). */
+extern "C" int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val)
 {
-	/* Use the thread the VPI call was made ON. `running_thread' is not
-	   reliable here -- during a %vpi_func it can still name an earlier
-	   thread, which sent this lookup to the wrong generator entirely.
-	   vpip_current_vthread is set by vpip_execute_vpi_call for exactly
-	   this purpose. */
+      /* During a %vpi_func, running_thread may still name an earlier thread. */
       vthread_t thr = vpip_current_vthread ? vpip_current_vthread
-					   : running_thread;
+                                           : running_thread;
       if (! (thr && val))
-	    return 0;
-
-	// Walk out through enclosing scopes: $urandom may sit in a
-	// begin/end or a nested block inside the method.
-      for (__vpiScope*scope = thr->parent_scope ; scope ; scope = scope->scope) {
-	    vpiHandle self = lookup_scope_item_(scope, "@");
-	    if (! self)
-		  continue;
-	    vvp_object_t obj;
-	    if (! read_handle_object_in_thread_(self, thr, obj))
-		  continue;
-	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
-	    if (cobj && cobj->rng_seeded()) {
-		  *val = cobj->rng_next();
-		  return 1;
-	    }
-	      // Found `this' but it is not seeded: stop looking outward
-	      // rather than reaching some unrelated enclosing object. The
-	      // thread generator below still applies.
-	    break;
-      }
-
-	// No enclosing object: the PROCESS generator (18.13.2).
-	// logical_process_thread_() resolves straight to the real thread a
-	// callf/fork_v continuation belongs to, which is always seeded.
+            return 0;
       if (vthread_t owner = logical_process_thread_(thr)) {
-	    *val = thread_rng_next_(owner);
-	    return 1;
+            if (seed)
+                  thread_rng_srandom_(owner, *seed);
+            *val = thread_rng_next_(owner);
+            return 1;
       }
       return 0;
 }
@@ -7319,8 +7352,23 @@ static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
 
 // One record's value predicate ('kind & 8' = wildcard).
 static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
-				     uint64_t val)
+				     uint64_t val,
+				     const vvp_vector4_t*wide_val = nullptr)
 {
+      if (bin.kind & 64) {
+	    unsigned width = bin.hi >> 16;
+	    unsigned word = (bin.hi >> 8) & 255;
+	    unsigned bits = bin.hi & 255;
+	    if (!wide_val || width <= 64 || width > 256
+		|| wide_val->size() != width || wide_val->has_xz()
+		|| bits == 0 || bits > 64 || word * 64 + bits > width
+		|| (bits < 64 && (bin.lo >> bits) != 0)) return false;
+	    for (unsigned bit = 0; bit < bits; bit++)
+		if (wide_val->value(word * 64 + bit)
+		    != ((bin.lo >> bit) & 1 ? BIT4_1 : BIT4_0))
+		      return false;
+	    return true;
+      }
       if (bin.kind & 8)
 	    return ((val ^ bin.lo) & bin.hi) == 0;
       return val >= bin.lo && val <= bin.hi;
@@ -7414,6 +7462,88 @@ static uint64_t covgrp_trans_term_rank_(const covgrp_trans_term_t&term,
       return covgrp_trans_sat_add_(offset, word);
 }
 
+static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
+      uint64_t key_prefix, const std::vector<const class_type::cov_bin_t*>&records,
+      uint64_t value)
+{
+      std::map<unsigned,std::map<unsigned,covgrp_trans_term_t>> programs;
+      std::map<unsigned,uint64_t> seq_bases;
+      for (const class_type::cov_bin_t*bin : records) {
+	    unsigned seq = bin->tuple >> 8, term_idx = bin->tuple & 255;
+	    covgrp_trans_term_t&term = programs[seq][term_idx];
+	    term.ranges.push_back(bin); term.repeat = bin->trans_repeat;
+	    term.min = bin->trans_min; term.max = bin->trans_max;
+	    term.alternatives = bin->trans_alt_count;
+	    seq_bases[seq] = bin->trans_base;
+      }
+      std::set<uint64_t> completions;
+      for (auto&seq_entry : programs) {
+	    unsigned seq = seq_entry.first;
+	    auto&term_map = seq_entry.second;
+	    std::vector<covgrp_trans_term_t> terms;
+	    for (unsigned ti = 0; !term_map.empty() && ti <= term_map.rbegin()->first; ti++) {
+		  auto found = term_map.find(ti);
+		  if (found == term_map.end()) { terms.clear(); break; }
+		  terms.push_back(found->second);
+	    }
+	    if (terms.empty()) continue;
+	    uint64_t key = key_prefix | seq;
+	    std::vector<vvp_cobject::cov_trans_state_t> old_states =
+		  cobj->cov_trans_states(key);
+	    std::set<vvp_cobject::cov_trans_state_t> next_states;
+	    auto advance = [&](const vvp_cobject::cov_trans_state_t&state,
+			       uint64_t count, uint64_t word, bool nonconsecutive) {
+		  const covgrp_trans_term_t&term = terms[state.term];
+		  uint64_t rank = covgrp_trans_term_rank_(term, count, word);
+		  uint64_t prefix = covgrp_trans_sat_add_(
+			covgrp_trans_sat_mul_(state.prefix,
+			      covgrp_trans_term_variants_(term)), rank);
+		  if (state.term + 1 == terms.size()) {
+			completions.insert(covgrp_trans_sat_add_(seq_bases[seq], prefix));
+			return;
+		  }
+		  vvp_cobject::cov_trans_state_t out;
+		  out.term = state.term + 1; out.prefix = prefix;
+		  out.waiting = nonconsecutive; out.forbid_term = state.term;
+		  next_states.insert(out);
+	    };
+	    auto consume = [&](const vvp_cobject::cov_trans_state_t&state,
+			       bool allow_nonmatch) {
+		  if (state.term >= terms.size()) return;
+		  const covgrp_trans_term_t&term = terms[state.term];
+		  uint64_t ordinal = 0;
+		  bool matches = covgrp_trans_match_(term, value, ordinal);
+		  if (state.waiting && !matches) {
+			uint64_t unused = 0;
+			if (state.forbid_term < terms.size()
+			    && covgrp_trans_match_(terms[state.forbid_term], value, unused)) return;
+			next_states.insert(state); return;
+		  }
+		  if (!matches) {
+			if (allow_nonmatch || term.repeat == 2 || term.repeat == 3)
+			      next_states.insert(state);
+			return;
+		  }
+		  uint64_t count = state.count + 1;
+		  uint64_t word = covgrp_trans_sat_add_(
+			covgrp_trans_sat_mul_(state.word, term.alternatives), ordinal);
+		  if (count >= term.min) advance(state, count, word, term.repeat == 3);
+		  if (count < term.max) {
+			vvp_cobject::cov_trans_state_t stay = state;
+			stay.count = count; stay.word = word; stay.waiting = false;
+			next_states.insert(stay);
+		  }
+	    };
+	    for (const auto&state : old_states) consume(state, false);
+	    vvp_cobject::cov_trans_state_t fresh;
+	    uint64_t first = 0;
+	    if (covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
+	    auto&stored = cobj->cov_trans_states(key);
+	    stored.assign(next_states.begin(), next_states.end());
+      }
+      return completions;
+}
+
 static unsigned __int128 covgrp_dyn_logical_count_(
       const covgrp_dyn_state_t&state);
 
@@ -7422,9 +7552,65 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 {
 	if (cobj->cov_dyn_resolved()) return cobj->cov_dyn_states();
       std::map<unsigned,covgrp_dyn_state_t> out;
+	std::map<unsigned,covgrp_dyn_trans_state_t> trans_out;
 	bool deferred = false;
       for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri += 1) {
 	    const class_type::cov_dyn_bin_t&rec = defn->covgrp_dyn_bin(ri);
+	    if ((rec.kind & 7) == 4) {
+		  covgrp_dyn_trans_state_t&ts = trans_out[rec.family];
+		  if (!ts.meta) ts.meta = &rec;
+		  uint64_t lo = 0, hi = 0;
+		  unsigned lw = 0, hw = 0;
+		  bool ls = false, hs = false;
+		  if (!defn->covgrp_eval_ir(cobj, rec.lo_ir, lo, lw, ls)
+		      || !defn->covgrp_eval_ir(cobj, rec.hi_ir, hi, hw, hs)) {
+			ts.valid = false;
+			if (cobj->cov_dyn_warn_once(rec.family))
+			      std::cerr << "ERROR: constructor-dependent transition bin '"
+					<< rec.name << "' has an X/Z or invalid endpoint."
+					<< std::endl;
+			vpip_set_return_value(1);
+			if (!schedule_finished()) schedule_finish(0);
+			continue;
+		  }
+		  uint64_t mask = rec.value_width >= 64 ? UINT64_MAX
+			: ((UINT64_C(1) << rec.value_width) - 1);
+		  auto number = [](uint64_t bits, unsigned width, bool sign) -> __int128 {
+			if (width < 64) bits &= (UINT64_C(1) << width) - 1;
+			if (sign && width && (bits & (UINT64_C(1) << (width - 1)))) {
+			      if (width == 64) return (__int128)(int64_t)bits;
+			      return (__int128)bits - ((__int128)1 << width);
+			}
+			return bits;
+		  };
+		  __int128 ln = number(lo, lw, ls), hn = number(hi, hw, hs);
+		  __int128 dmin = rec.value_signed
+			? -((__int128)1 << (rec.value_width - 1)) : 0;
+		  __int128 dmax = rec.value_signed
+			? ((__int128)1 << (rec.value_width - 1)) - 1
+			: rec.value_width == 64 ? (__int128)UINT64_MAX
+			: ((__int128)1 << rec.value_width) - 1;
+		  if (ln > hn || hn < dmin || ln > dmax) continue;
+		  ln = std::max(ln, dmin); hn = std::min(hn, dmax);
+		  auto encoded = [&](const __int128&n) -> uint64_t {
+			return (uint64_t)n & mask;
+		  };
+		  auto append = [&](uint64_t first, uint64_t last) {
+			class_type::cov_bin_t bin;
+			bin.cp_idx = rec.cp_idx; bin.item_idx = rec.item_idx;
+			bin.prop_idx = class_type::COV_NO_PROP;
+			bin.kind = 4; bin.lo = first; bin.hi = last;
+			bin.tuple = (rec.trans_seq << 8) | rec.trans_term;
+			bin.trans_repeat = rec.trans_repeat;
+			bin.trans_min = rec.trans_min; bin.trans_max = rec.trans_max;
+			bin.trans_family = rec.family; bin.guard_idx = rec.guard_idx;
+			ts.records.push_back(bin);
+		  };
+		  if (rec.value_signed && ln < 0 && hn >= 0) {
+			append(encoded(ln), mask); append(0, encoded(hn));
+		  } else append(encoded(ln), encoded(hn));
+		  continue;
+	    }
 	    covgrp_dyn_state_t&state = out[rec.family];
 	    if (state.meta
 		&& (state.meta->cp_idx != rec.cp_idx
@@ -7696,6 +7882,112 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  append(encoded(resolved_lo), encoded(resolved_hi));
 	    }
       }
+
+	// Complete each constructor-resolved transition program atomically.
+	// Alternative ordinals and sequence bases are derived only after every
+	// endpoint has resolved, so no partial program can be sampled.
+	for (auto&entry : trans_out) {
+	      covgrp_dyn_trans_state_t&ts = entry.second;
+	      if (!ts.valid || ts.records.empty()) { ts.valid = false; continue; }
+	      std::map<unsigned,std::map<unsigned,std::vector<size_t>>> groups;
+	      for (size_t i = 0; i < ts.records.size(); i++)
+		    groups[ts.records[i].tuple >> 8][ts.records[i].tuple & 255].push_back(i);
+	      for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri++) {
+		    const auto&decl = defn->covgrp_dyn_bin(ri);
+		    if ((decl.kind & 7) != 4 || decl.family != entry.first) continue;
+		    if (!groups[decl.trans_seq].count(decl.trans_term)) ts.valid = false;
+	      }
+	      uint64_t base = 0;
+	      std::vector<std::vector<uint64_t>> identities;
+	      for (auto&sq : groups) {
+		    std::vector<std::vector<std::vector<uint64_t>>> term_words;
+		    uint64_t sequence_total = 1;
+		    for (unsigned ti = 0; ti <= sq.second.rbegin()->first; ti++) {
+			  auto found = sq.second.find(ti);
+			  if (found == sq.second.end()) { ts.valid = false; break; }
+			  uint64_t alternatives = 0;
+			  std::vector<uint64_t> values;
+			  for (size_t idx : found->second) {
+				class_type::cov_bin_t&bin = ts.records[idx];
+				bin.trans_alt = alternatives;
+				for (uint64_t v = bin.lo;; v++) {
+				      values.push_back(v); alternatives++;
+				      if (v == bin.hi) break;
+				      if (alternatives > 65536) break;
+				}
+			  }
+			  if (alternatives == 0 || alternatives > 65536) {
+				ts.valid = false; break;
+			  }
+			  const class_type::cov_bin_t&head = ts.records[found->second[0]];
+			  for (size_t idx : found->second) {
+				ts.records[idx].trans_alt_count = alternatives;
+				ts.records[idx].trans_base = base;
+			  }
+			  std::vector<std::vector<uint64_t>> words;
+			  for (uint64_t n = head.trans_min; n <= head.trans_max; n++) {
+				uint64_t count = 1;
+				for (uint64_t k = 0; k < n; k++)
+				      count = covgrp_trans_sat_mul_(count, values.size());
+				if (count > 65536 || words.size() > 65536 - count) {
+				      words.resize(65537); break;
+				}
+				std::vector<std::vector<uint64_t>> level(1);
+				for (uint64_t k = 0; k < n; k++) {
+				      std::vector<std::vector<uint64_t>> next;
+				      next.reserve(level.size() * values.size());
+				      for (auto&prefix : level) for (uint64_t v : values) {
+					    std::vector<uint64_t> item = prefix;
+					    item.push_back(v); next.push_back(std::move(item));
+				      }
+				      level.swap(next);
+				}
+				words.insert(words.end(), level.begin(), level.end());
+				if (words.size() > 65536) break;
+			  }
+			  sequence_total = covgrp_trans_sat_mul_(sequence_total, words.size());
+			  term_words.push_back(std::move(words));
+		    }
+		    if (!ts.valid || sequence_total > 65536
+			|| base > 65536 - sequence_total) { ts.valid = false; break; }
+		    std::vector<std::vector<uint64_t>> sequences(1);
+		    unsigned term_number = 0;
+		    for (auto&words : term_words) {
+			  std::vector<std::vector<uint64_t>> next;
+			  for (auto&prefix : sequences) for (auto&word : words) {
+				std::vector<uint64_t> joined = prefix;
+				const class_type::cov_bin_t&head =
+				      ts.records[sq.second[term_number][0]];
+				joined.push_back(UINT64_C(0x5445524d00000000)
+				      | ((uint64_t)head.trans_repeat << 48)
+				      | ((uint64_t)term_number << 32) | word.size());
+				joined.insert(joined.end(), word.begin(), word.end());
+				next.push_back(std::move(joined));
+			  }
+			  sequences.swap(next);
+			  term_number++;
+		    }
+		    identities.insert(identities.end(), sequences.begin(), sequences.end());
+		    base += sequence_total;
+	      }
+	      if (!ts.valid || identities.empty()) {
+		    ts.valid = false;
+		    std::cerr << "ERROR: constructor-dependent transition bin '"
+			      << (ts.meta ? ts.meta->name : std::string())
+			      << "' resolves to an empty or excessive program." << std::endl;
+		    vpip_set_return_value(1);
+		    if (!schedule_finished()) schedule_finish(0);
+		    continue;
+	      }
+	      bool arrayed = ts.meta->array_size == 0;
+	      uint64_t shared = arrayed ? 0
+		    : defn->trans_type_register_bin(entry.first, std::vector<uint64_t>());
+	      for (auto&id : identities) {
+		    ts.type_bins.push_back(arrayed
+			  ? defn->trans_type_register_bin(entry.first, id) : shared);
+	      }
+	}
+	cobj->cov_dyn_trans_resolve(trans_out);
 	// Integral open bin arrays are value-keyed (19.5.1): overlapping ranges
 	// and duplicate set elements create one logical bin for that resolved
 	// value. Fixed [N] arrays deliberately retain occurrence order for their
@@ -8642,6 +8934,7 @@ static bool covgrp_cross_route_matches_(const covgrp_cross_route_t&route,
  */
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
+				const vector<vvp_vector4_t>&wide_vals,
 				const vector<uint64_t>&guards,
 				const vector<uint64_t>&cross_guards,
 				const vector<uint64_t>&bin_guards);
@@ -8695,9 +8988,11 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       }
 
       vector<uint64_t> cp_vals(ncp, 0);
+      vector<vvp_vector4_t> wide_vals(ncp);
       vector<bool> cp_has_xz(ncp, false);
       for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
 	    vvp_vector4_t v = thr->pop_vec4();
+	    if (v.size() > 64) wide_vals[ii] = v;
 	    uint64_t val = 0;
 	    bool xz = false;
 	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1) {
@@ -8717,7 +9012,7 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
-	 covgrp_sample_core_(cobj, ncp, cp_vals, guards, cross_guards,
+	 covgrp_sample_core_(cobj, ncp, cp_vals, wide_vals, guards, cross_guards,
 			     bin_guards);
       return true;
 }
@@ -8726,6 +9021,7 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
  * %covgrp/sample/all (M11-3 event-driven sampling). */
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
+				const vector<vvp_vector4_t>&wide_vals,
 				const vector<uint64_t>&guards,
 				const vector<uint64_t>&cross_guards,
 				const vector<uint64_t>&bin_guards)
@@ -8734,6 +9030,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       size_t nbins = defn->covgrp_bin_count();
       const std::map<unsigned,covgrp_dyn_state_t>&dyn_states =
 	    covgrp_dyn_states_(defn, cobj);
+      const std::map<unsigned,covgrp_dyn_trans_state_t>&dyn_trans_states =
+	    cobj->cov_dyn_trans_states();
       const std::map<unsigned,covgrp_cross_state_t>&cross_states =
 	    covgrp_cross_states_(defn, cobj);
 
@@ -8789,7 +9087,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			continue;
 		  }
 		  bool m = bin_enabled(bin.guard_idx)
-			&& covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+			&& covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
+					       &wide_vals[bin.cp_idx]);
 		  auto it = tuple_ok.find(bin.tuple);
 		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
 		  else it->second = it->second && m;
@@ -8872,7 +9171,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (!item_enabled(bin.item_idx)) continue;
 	    if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx])
 		  continue;
-	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx]))
+	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
+					 &wide_vals[bin.cp_idx]))
 		  cp_suppressed[bin.cp_idx] = true;
       }
       for (auto&entry : dyn_states) {
@@ -8926,147 +9226,30 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  continue;
 	    }
 	    if (k == 4) {
-		    // A bin-level iff is a per-bin count guard (19.5.1), not a
-		    // sampling gate. In particular, a false guard on an
-		    // intermediate sample of a transition must not freeze or reset
-		    // the transition recognizer. Apply it only to completions below.
 		  bool count_enabled = bin_enabled(first.guard_idx);
-		    // Compact transition-program NFA. One active state carries
-		    // the current term, repetition count, and mixed-radix rank;
-		    // bounded ranges therefore cost O(active attempts), not the
-		    // sum of every expanded sequence length.
-		  std::map<unsigned,
-			std::map<unsigned, covgrp_trans_term_t>> programs;
-		  std::map<unsigned, uint64_t> seq_bases;
-		  unsigned cpi = first.cp_idx;
-		  for (size_t bi : recs) {
-			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
-			unsigned seq = bin.tuple >> 8;
-			unsigned term_idx = bin.tuple & 255;
-			covgrp_trans_term_t&term = programs[seq][term_idx];
-			term.ranges.push_back(&bin);
-			term.repeat = bin.trans_repeat;
-			term.min = bin.trans_min;
-			term.max = bin.trans_max;
-			term.alternatives = bin.trans_alt_count;
-			seq_bases[seq] = bin.trans_base;
-			cpi = bin.cp_idx;
-		  }
-		  if (cpi >= ncp || !cp_sampled[cpi] || cp_suppressed[cpi])
-			continue; // transition progress freezes while unsampled/carved
-		  uint64_t value = cp_vals[cpi];
-		  std::set<unsigned> completed_props;
-		  std::set<std::pair<unsigned,uint64_t>> completed_families;
-
-		  for (auto&seq_entry : programs) {
-			unsigned seq = seq_entry.first;
-			std::map<unsigned,covgrp_trans_term_t>&term_map =
-			      seq_entry.second;
-			if (term_map.empty()) continue;
-			std::vector<covgrp_trans_term_t> terms;
-			for (unsigned ti = 0; ti <= term_map.rbegin()->first; ti++) {
-			      auto found = term_map.find(ti);
-			      if (found == term_map.end()) { terms.clear(); break; }
-			      terms.push_back(found->second);
-			}
-			if (terms.empty()) continue;
-
-			uint64_t key = ((uint64_t)kv.first << 32) | seq;
-			std::vector<vvp_cobject::cov_trans_state_t> old_states =
-			      cobj->cov_trans_states(key);
-			std::set<vvp_cobject::cov_trans_state_t> next_states;
-			std::set<uint64_t> sequence_completions;
-
-			auto advance = [&](const vvp_cobject::cov_trans_state_t&state,
-					   uint64_t count, uint64_t word,
-					   bool nonconsecutive) {
-			      const covgrp_trans_term_t&term = terms[state.term];
-			      uint64_t term_rank = covgrp_trans_term_rank_(
-				    term, count, word);
-			      uint64_t prefix = covgrp_trans_sat_add_(
-				    covgrp_trans_sat_mul_(state.prefix,
-					  covgrp_trans_term_variants_(term)),
-				    term_rank);
-			      if (state.term + 1 == terms.size()) {
-				    sequence_completions.insert(covgrp_trans_sat_add_(
-					  seq_bases[seq], prefix));
-				    return;
-			      }
-			      vvp_cobject::cov_trans_state_t out;
-			      out.term = state.term + 1;
-			      out.prefix = prefix;
-			      out.waiting = nonconsecutive;
-			      out.forbid_term = state.term;
-			      next_states.insert(out);
-			};
-
-			auto consume = [&](const vvp_cobject::cov_trans_state_t&state,
-					  bool allow_nonmatch) {
-			      if (state.term >= terms.size()) return;
-			      const covgrp_trans_term_t&term = terms[state.term];
-			      uint64_t ordinal = 0;
-			      bool matches = covgrp_trans_match_(term, value, ordinal);
-			      if (state.waiting && !matches) {
-				    uint64_t unused = 0;
-				    if (state.forbid_term < terms.size()
-					&& covgrp_trans_match_(terms[state.forbid_term],
-							 value, unused))
-					  return;
-				    next_states.insert(state);
-				    return;
-			      }
-			      if (!matches) {
-				    if (allow_nonmatch || term.repeat == 2 || term.repeat == 3)
-					  next_states.insert(state);
-				    return;
-			      }
-			      uint64_t count = state.count + 1;
-			      uint64_t word = covgrp_trans_sat_add_(
-				    covgrp_trans_sat_mul_(state.word,
-					  term.alternatives), ordinal);
-			      if (count >= term.min)
-				    advance(state, count, word, term.repeat == 3);
-			      if (count < term.max) {
-				    vvp_cobject::cov_trans_state_t stay = state;
-				    stay.count = count;
-				    stay.word = word;
-				    stay.waiting = false;
-				    next_states.insert(stay);
-			      }
-			};
-
-			for (const auto&state : old_states)
-			      consume(state, false);
-			vvp_cobject::cov_trans_state_t fresh;
-			uint64_t first_ordinal = 0;
-			if (covgrp_trans_match_(terms[0], value, first_ordinal))
-			      consume(fresh, false);
-
-			std::vector<vvp_cobject::cov_trans_state_t>&stored =
-			      cobj->cov_trans_states(key);
-			stored.assign(next_states.begin(), next_states.end());
-
-			for (uint64_t logical : sequence_completions) {
-			      if (first.trans_family == class_type::COV_NO_FAMILY)
-				    completed_props.insert(kv.first);
-			      else
-				    completed_families.insert(std::make_pair(
-					  first.trans_family, logical));
-			}
-		  }
-
-		  for (unsigned prop : completed_props) {
+		  unsigned cp = first.cp_idx;
+		  if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp])
+			continue;
+		  std::vector<const class_type::cov_bin_t*> records;
+		  for (size_t bi : recs) records.push_back(&defn->covgrp_bin(bi));
+		  std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+			((uint64_t)kv.first << 32), records, cp_vals[cp]);
+		  bool named_hit = false;
+		  for (uint64_t logical : completed) {
 			if (!count_enabled) continue;
-			covgrp_bump_count_(cobj, prop);
-			transition_hits.insert(prop);
+			if (first.trans_family == class_type::COV_NO_FAMILY) {
+			      named_hit = true;
+			} else {
+			      cobj->cov_dyn_bump(first.trans_family, logical);
+			      transition_hits.insert(kv.first);
+			      transition_family_hits.insert(std::make_pair(
+				    first.trans_family, logical));
+			}
 			item_matched[first.item_idx] = true;
 		  }
-		  for (auto&hit : completed_families) {
-			if (!count_enabled) continue;
-			cobj->cov_dyn_bump(hit.first, hit.second);
+		  if (named_hit) {
+			covgrp_bump_count_(cobj, kv.first);
 			transition_hits.insert(kv.first);
-			transition_family_hits.insert(hit);
-			item_matched[first.item_idx] = true;
 		  }
 		  continue;
 	    }
@@ -9092,7 +9275,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		      || cp_suppressed[bin.cp_idx])
 			m = false;
 		  else
-			m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+			m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
+					       &wide_vals[bin.cp_idx]);
 		  auto it = tuple_ok.find(bin.tuple);
 		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
 		  else it->second = it->second && m;
@@ -9103,6 +9287,33 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  covgrp_bump_count_(cobj, kv.first);
 		  item_matched[first.item_idx] = true;
 	    }
+      }
+
+	// Constructor-resolved transition programs share the static NFA engine,
+	// but keep instance-local endpoints and canonical type-bin identities.
+      for (auto&entry : dyn_trans_states) {
+	    const covgrp_dyn_trans_state_t&state = entry.second;
+	    if (!state.valid || !state.meta || state.records.empty()) continue;
+	    unsigned cp = state.meta->cp_idx;
+	    if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp]) continue;
+	    std::vector<const class_type::cov_bin_t*> records;
+	    for (const auto&rec : state.records) records.push_back(&rec);
+	    std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+		  (UINT64_C(1) << 63) | ((uint64_t)entry.first << 16),
+		  records, cp_vals[cp]);
+	    if (!bin_enabled(state.meta->guard_idx)) continue;
+	    bool named_hit = false;
+	    for (uint64_t logical : completed) {
+		  if (logical >= state.type_bins.size()) continue;
+		  uint64_t local = state.meta->array_size == 0 ? logical : 0;
+		  if (state.meta->array_size == 0)
+			cobj->cov_dyn_bump(entry.first, local, state.type_bins[logical]);
+		  else named_hit = true;
+		  transition_family_hits.insert(std::make_pair(entry.first, logical));
+		  item_matched[state.meta->item_idx] = true;
+	    }
+	    if (named_hit && !state.type_bins.empty())
+		  cobj->cov_dyn_bump(entry.first, 0, state.type_bins[0]);
       }
 
 	// Normal constructor-dependent families are sampled after carve-outs.
@@ -9198,10 +9409,12 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
       if (pprop < 0) return true;
       unsigned ncp = defn->covgrp_src_count();
 
-      auto read_u64 = [](vvp_cobject*o, unsigned prop,
-			 uint64_t&val, bool&low_is_1) {
+	      auto read_u64 = [](vvp_cobject*o, unsigned prop,
+			 uint64_t&val, bool&low_is_1,
+			 vvp_vector4_t*wide = nullptr) {
 	    vvp_vector4_t v;
 	    o->get_vec4(prop, v);
+	    if (wide && v.size() > 64) *wide = v;
 	    val = 0;
 	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1)
 		  if (v.value(b) == BIT4_1)
@@ -9220,12 +9433,14 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 	    if (!parent) continue;
 
 	    vector<uint64_t> vals(ncp, 0);
+	    vector<vvp_vector4_t> wide_vals(ncp);
 	    vector<uint64_t> guards(ncp, 1);
 	    for (unsigned ci = 0 ; ci < ncp ; ci += 1) {
 		  uint64_t v; bool low;
 		  int sp = defn->covgrp_srcprop(ci);
 		  if (sp >= 0) {
-			read_u64(parent, (unsigned)sp, v, low);
+			read_u64(parent, (unsigned)sp, v, low,
+				 &wide_vals[ci]);
 			vals[ci] = v;
 		  }
 		  int gp = defn->covgrp_guardsrc(ci);
@@ -9259,7 +9474,7 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 	    // retain the historical enabled recovery rather than silently
 	    // disabling every guarded bin.
 	    vector<uint64_t> bin_guards(nbin_guards, 1);
-	    covgrp_sample_core_(cg, ncp, vals, guards, cross_guards,
+	    covgrp_sample_core_(cg, ncp, vals, wide_vals, guards, cross_guards,
 				 bin_guards);
       }
       return true;
@@ -9358,7 +9573,8 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
  * Ignore records have no counter; illegal and default bins are
  * excluded from both numerator and denominator (19.11 option model).
  */
-double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
+double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
+				    int selected_item)
 {
       if (contributes) *contributes = false;
       double result = 0.0;
@@ -9421,6 +9637,18 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 			      : (long double)cobj->cov_dyn_hits(entry.first,
 				    at_least);
 	    }
+	    const auto&dyn_trans_states = cobj->cov_dyn_trans_states();
+	    for (auto&entry : dyn_trans_states) {
+		  const covgrp_dyn_trans_state_t&state = entry.second;
+		  if (!state.valid || !state.meta) continue;
+		  long double logical = state.meta->array_size == 0
+			? state.type_bins.size() : 1;
+		  item_dyn_total[state.meta->item_idx] += logical;
+		  unsigned at_least = state.meta->item_idx < defn->covgrp_item_count()
+			? defn->covgrp_item_at_least(cobj, state.meta->item_idx) : 1;
+		  item_dyn_hits[state.meta->item_idx] += at_least == 0 ? logical
+			: cobj->cov_dyn_hits(entry.first, at_least);
+	    }
 	    const std::map<unsigned,covgrp_cross_state_t>&cross_states =
 		  covgrp_cross_states_(defn, cobj);
 	    for (auto&entry : cross_states) {
@@ -9443,6 +9671,9 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 
 	    double wsum = 0.0, wcov = 0.0;
 	    for (unsigned item : items) {
+		  if (selected_item >= 0
+		      && item != static_cast<unsigned>(selected_item))
+		    continue;
 		  unsigned at_least = 1, weight = 1;
 		  if (item < defn->covgrp_item_count()) {
 			at_least = defn->covgrp_item_at_least(cobj, item);
@@ -9460,10 +9691,19 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 		  }
 		  if (total == 0.0) continue;
 		  double icov = (double)(100.0L * (long double)hits / total);
+		  if (selected_item >= 0) {
+		    if (contributes) *contributes = true;
+		    return icov;
+		  }
 		  wsum += (double)weight;
 		  wcov += (double)weight * icov;
 	    }
-	    if (wsum > 0.0) {
+	    if (selected_item >= 0) {
+		  unsigned item = static_cast<unsigned>(selected_item);
+		  if (item < defn->covgrp_item_count()
+		      && defn->covgrp_item_weight(cobj, item) == 0)
+		    result = 100.0;
+	    } else if (wsum > 0.0) {
                   result = wcov / wsum;
                   if (contributes) *contributes = true;
             } else if (defn->covgrp_weight(cobj) == 0) {
@@ -9481,6 +9721,37 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
       thr->push_real(cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
             ? cobj->get_defn()->type_coverage(cobj)
             : vvp_covgrp_instance_coverage(cobj));
+      return true;
+}
+
+bool of_COVGRP_ITEM_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      double result = 0.0;
+      if (cobj && code->number <= INT_MAX
+	  && code->number < cobj->get_defn()->covgrp_item_count())
+	    result = cobj->get_defn()->type_coverage(
+		  cobj, nullptr, static_cast<int>(code->number));
+      thr->push_real(result);
+      return true;
+}
+
+bool of_COVGRP_ITEM_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      double result = 0.0;
+      if (cobj && code->number <= INT_MAX
+	  && code->number < cobj->get_defn()->covgrp_item_count()) {
+	    int item = static_cast<int>(code->number);
+	    result = cobj->get_defn()->covgrp_get_inst_coverage(cobj)
+		  ? vvp_covgrp_instance_coverage(cobj, nullptr, item)
+		  : cobj->get_defn()->type_coverage(cobj, nullptr, item);
+      }
+      thr->push_real(result);
       return true;
 }
 
@@ -9826,6 +10097,9 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             if (vvp_fun_signal_object_aa*obj =
                     dynamic_cast<vvp_fun_signal_object_aa*>(scope->item[idx]))
                   obj->clear_current_alias(context);
+            if (vvp_ref_signal_aa*ref =
+                    dynamic_cast<vvp_ref_signal_aa*>(scope->item[idx]))
+                  ref->release_binding(context);
       }
 
       vvp_set_stacked_context(context, 0);
@@ -13967,7 +14241,11 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       if (trampoline_callf_enabled_()) {
             child->is_trampoline_child = 1;
             child->i_am_in_function = 1;
-            child->delay_delete = 1;
+              /* No delay_delete: the dispatch run pin keeps this frame
+                 alive through its do_join, and the unpin frees it at
+                 once. A deferred DEL_THREAD delete never ran while
+                 zero-time work kept refilling the active region, so
+                 every finished call leaked its thread. */
             callf_scope_stack.pop_back();
             callf_depth--;
             if (trampoline_call_stack.size() >= TRAMPOLINE_MAX_DEPTH) {
@@ -14147,15 +14425,20 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 
 	      if (child->i_have_ended) {
-		    trace_context_event_("callf-before-join", thr, child->parent_scope,
+		    __vpiScope*child_scope = child->parent_scope;
+		    trace_context_event_("callf-before-join", thr, child_scope,
 		                         child->wt_context);
+		      /* The caller is done inspecting the child, so let
+		         do_join's reap free it now instead of queueing a
+		         DEL_THREAD event that zero-time work can starve. */
+		    if (!child->delete_pending)
+			  child->delay_delete = 0;
 		    do_join(thr, child);
-                    if (!(child->parent_scope
-                          && child->parent_scope->has_automatic_context())) {
+                    if (!(child_scope
+                          && child_scope->has_automatic_context())) {
                           ensure_write_context_(thr, "callf-join");
                     }
-		    trace_context_event_("callf-after-join", thr, child->parent_scope,
-		                         child->wt_context);
+		    trace_context_event_("callf-after-join", thr, child_scope, 0);
 		    callf_scope_stack.pop_back();
 		    callf_depth--;
 		    return true;
@@ -14804,12 +15087,14 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       string str = thr->pop_str();
 
       const unsigned swid = 8 * str.length();
-      // When the compile-time width is smaller than the actual string width
-      // (e.g. ivl_expr_width returned 1 for a string var in a case selector),
-      // use the runtime string width so case comparisons work correctly.
-      if (wid < swid) wid = swid;
-
-      vvp_vector4_t vec(wid, BIT4_0);
+	// Width 0 is an implicit conversion at the string's natural width
+	// (its compile-time width is nominal); never narrower than one bit.
+      if (wid == 0) wid = swid ? swid : 1;
+	// Pack the whole string, then keep the low `wid' bits: a narrower
+	// target truncates from the left exactly like a string literal (IEEE
+	// 1800-2017 5.9, 6.16). Returning a vector wider than `wid' broke
+	// every consumer that trusts the expression width.
+      vvp_vector4_t vec(swid > wid ? swid : wid, BIT4_0);
       const unsigned use_wid = swid;
       const unsigned use_chars = (use_wid + 7) / 8;
 
@@ -14839,6 +15124,8 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
             }
       }
 
+      if (vec.size() > wid)
+	    vec = vvp_vector4_t(vec, 0, wid);
       thr->push_vec4(vec);
       return true;
 }
@@ -16451,15 +16738,15 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	      // On marshaling failure vvp_dpi_call() has already
 	      // printed a diagnostic; fall through to push a default
 	      // result so the thread keeps a consistent stack.
-	      // Publish the calling scope as the active DPI scope for the
-	      // duration of the C call (svGetScope, H.9); restore after so
+	      // Publish the import declaration's instance as the active DPI
+	      // scope for the C call (svGetScope, H.9); restore after so
 	      // nested/sibling calls see the right context. Also enter a
 	      // valid VPI mode so DPI C may legitimately call VPI/svScope
 	      // routines (svGetScopeFromName -> vpi_handle_by_name), which
 	      // otherwise assert on VPI_MODE_NONE.
 	    __vpiScope*saved_dpi_scope = dpi_active_scope_;
 	    vpi_mode_t saved_vpi_mode = vpi_mode_flag;
-	    dpi_active_scope_ = thr->parent_scope;
+	    dpi_active_scope_ = thr->parent_scope ? thr->parent_scope->scope : 0;
 	    if (vpi_mode_flag == VPI_MODE_NONE)
 		  vpi_mode_flag = VPI_MODE_RWSYNC;
 	    dpi_import_call_current_ = &call_state;
@@ -19465,13 +19752,10 @@ static void dpi_export_copy_out_(const struct dpi_export_info_s&info,
 // Multi-instance export selection (H.9 / 35.5.2). Among the N records
 // registered for a C name (one per instance of a multiply-instantiated
 // module), pick the one whose enclosing instance matches the active
-// svScope. The active scope is either an explicit svSetScope target (the
-// instance scope itself) or — when a `context' import calls the export
-// with no svSetScope — the import's own function scope, whose parent is
-// the instance ("context-relative" default, 35.5.2). We therefore match
-// the export's parent-instance scope (fs->scope) against the active scope
-// AND against the active scope's parent, so both forms resolve. With no
-// active scope or no match, fall back to instance 0 (warning once); a
+// svScope. The active scope is the import declaration's instance or an
+// explicit svSetScope target. Older function/task scope handles may also
+// identify an enclosing instance. With no active scope or no match, fall
+// back to instance 0 (warning once); a
 // single-instance export always uses index 0 with no svScope needed.
 static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 {
@@ -19480,8 +19764,9 @@ static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 	    active = running_thread->parent_scope;
 
       if (active) {
-	    __vpiScope*active_inst = active->scope; // enclosing instance of a
-						    // context import's fn scope
+	    __vpiScope*active_inst =
+		(active->get_type_code() == vpiFunction
+		 || active->get_type_code() == vpiTask) ? active->scope : 0;
 	    for (unsigned i = 0 ; i < n ; i += 1) {
 		  struct dpi_export_info_s info;
 		  if (! dpi_export_lookup(cname, i, &info))
@@ -19896,9 +20181,9 @@ extern "C" void svAckDisabledState(void)
 }
 
 /*
- * svScope API (IEEE 1800-2017 H.9). A svScope is a vpiHandle to an
+ * svScope API (IEEE 1800-2017/2023 H.9). A svScope is a vpiHandle to an
  * instance/package scope. svGetScope returns the scope currently active
- * for DPI — the caller of the DPI import on the C stack, or the last
+ * for DPI — the import declaration's instance on the C stack, or the last
  * value set with svSetScope.
  */
 extern "C" void*svGetScope(void)
@@ -19926,7 +20211,7 @@ extern "C" const char*svGetNameFromScope(void*scope)
 {
       if (scope == 0)
 	    return 0;
-      return vpi_get_str(vpiName, reinterpret_cast<vpiHandle>(scope));
+      return vpi_get_str(vpiFullName, reinterpret_cast<vpiHandle>(scope));
 }
 
 extern "C" const char*svGetFullNameFromScope(void*scope)
@@ -21082,25 +21367,46 @@ static inline void container_value_copy_(vvp_vector4_t&) { }
 static inline void container_value_copy_(double&) { }
 static inline void container_value_copy_(std::string&) { }
 
-static inline void apply_declared_child_container_layout_(
+static inline bool apply_declared_child_container_layout_(
       const vvp_object*parent, vvp_object_t&child)
 {
       if (!parent)
-	    return;
+	    return true;
       const vvp_container_layout_t child_layout =
 	    parent->declared_element_container_layout();
+      if (child_layout && child_layout->kind == VVP_CONTAINER_FIXED) {
+	    vvp_darray*array = child.peek<vvp_darray>();
+	    const int64_t left = child_layout->fixed_left;
+	    const int64_t right = child_layout->fixed_right;
+	    const uint64_t count = static_cast<uint64_t>(
+		  left >= right ? left - right : right - left) + 1;
+	    if (!array || array->get_size() != count) {
+		  cerr << "RUN-TIME ERROR: cannot copy a container of size "
+		       << (array ? array->get_size() : 0)
+		       << " into an unpacked array of size " << count
+		       << " (IEEE 1800-2017/2023 7.6 requires equal element "
+			  "counts); the array is unchanged." << endl;
+		  return false;
+	    }
+      }
       if (vvp_object*value = child.peek<vvp_object>()) {
 	    /* Repeated element mutations normally revisit a bound child. Avoid
 	     * walking its complete populated subtree unless the declaration tail
 	     * actually changes. Whole-container stores call the setter directly
 	     * and deliberately force recursive rebinding. */
-	    if (value->declared_container_layout() != child_layout)
-		  value->set_declared_container_layout(child_layout);
+	if (value->declared_container_layout() != child_layout) {
+		  if (child_layout
+		      && child_layout->kind == VVP_CONTAINER_FIXED)
+			vvp_rebind_fixed_array_value(value, child_layout);
+		  else
+			value->set_declared_container_layout(child_layout);
+	}
       }
+      return true;
 }
 template <typename VALUE>
-static inline void apply_declared_child_container_layout_(
-      const vvp_object*, VALUE&) { }
+static inline bool apply_declared_child_container_layout_(
+      const vvp_object*, VALUE&) { return true; }
 
 template <typename ELEM, class ASSOC>
 static bool aa_store_str(vthread_t thr, unsigned wid=0)
@@ -21112,8 +21418,7 @@ static bool aa_store_str(vthread_t thr, unsigned wid=0)
       string key = thr->pop_str();
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -21136,8 +21441,7 @@ static bool aa_store_obj(vthread_t thr, unsigned wid=0)
 
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -21169,8 +21473,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       vvp_vector4_t key = thr->pop_vec4();
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -21582,8 +21885,7 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
-      if (assoc) {
-	    apply_declared_child_container_layout_(assoc, value);
+      if (assoc && apply_declared_child_container_layout_(assoc, value)) {
             assoc->set(key, value);
 	    notify_mutated_object_signal_(thr, net, "aa-store-sig");
       }
@@ -21606,7 +21908,8 @@ enum aa_viv_spec_code {
       AA_VIV_ASSOC_STRING = 6,
       AA_VIV_ASSOC_OBJECT = 7,
         /* Insert a missing dynamic-array element with its nil default. */
-      AA_VIV_DARRAY_NIL   = 16
+      AA_VIV_DARRAY_NIL   = 16,
+      AA_VIV_FIXED       = 17
 };
 
 static vvp_object_t make_dynamic_container_from_code_(unsigned code)
@@ -21649,14 +21952,24 @@ static vvp_object_t aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
 		     * value, never an alias of the shared fallback object. */
 		  if (have_value)
 			value = value.value_copy_element();
+		  else if (spec == AA_VIV_FIXED)
+			value = vvp_make_fixed_array_value(
+			      assoc->declared_element_container_layout());
 		  else
 			value = make_dynamic_container_from_code_(spec);
-		  assoc->set(key, value);
-		  changed = true;
+		  if (!value.test_nil() || spec == AA_VIV_DARRAY_NIL) {
+			assoc->set(key, value);
+			changed = true;
+		  }
 	    } else if (value.test_nil() && spec != AA_VIV_DARRAY_NIL) {
-		  value = make_dynamic_container_from_code_(spec);
-		  assoc->set(key, value);
-		  changed = true;
+		  value = spec == AA_VIV_FIXED
+			? vvp_make_fixed_array_value(
+			      assoc->declared_element_container_layout())
+			: make_dynamic_container_from_code_(spec);
+		  if (!value.test_nil()) {
+			assoc->set(key, value);
+			changed = true;
+		  }
 	    }
 	    apply_declared_child_container_layout_(assoc, value);
       }
@@ -28005,7 +28318,7 @@ bool of_REF_BIND(vthread_t, vvp_code_t cp)
 	    return true;
       }
 
-      formal->bind(cp->net2, false);
+      formal->bind(cp->net, cp->net2, false);
       return true;
 }
 
@@ -28026,7 +28339,7 @@ bool of_REF_BIND_F(vthread_t, vvp_code_t cp)
 	    return true;
       }
 
-      formal->bind(cp->net2, true);
+      formal->bind(cp->net, cp->net2, true);
       return true;
 }
 
@@ -28050,7 +28363,7 @@ bool of_REF_BIND_PR(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
-      formal->bind_prop(recv, cp->bit_idx[0]);
+      formal->bind_prop(cp->net, recv, cp->bit_idx[0]);
       return true;
 }
 
@@ -28078,7 +28391,7 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
       vvp_object_t container;
       if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net2))
             container = fun->peek_object();
-      formal->bind_elem(container, use_index);
+      formal->bind_elem(cp->net, container, use_index);
       return true;
 }
 
@@ -28102,9 +28415,9 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
       if (!defined || use_index < 0)
-	    formal->bind_word(0, 0);
+        formal->bind_word(cp->net2, 0, 0);
       else
-	    formal->bind_word(cp->array, (unsigned)use_index);
+        formal->bind_word(cp->net2, cp->array, (unsigned)use_index);
       return true;
 }
 
@@ -33188,6 +33501,10 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
       running_thread = thr;
 
       if (child->i_have_ended) {
+	      /* Free the finished call at do_join's reap; a queued
+	         DEL_THREAD delete is starved by zero-time activity. */
+	    if (!child->delete_pending)
+		  child->delay_delete = 0;
 	    do_join(thr, child);
             return true;
       } else {

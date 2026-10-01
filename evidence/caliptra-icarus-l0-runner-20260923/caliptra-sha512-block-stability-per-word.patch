@@ -1,0 +1,15 @@
+--- a/src/sha512/rtl/sha512.sv
++++ b/src/sha512/rtl/sha512.sv
+@@ -538 +538,11 @@
+-`CALIPTRA_ASSERT_STABLE(ERR_SHA_BLOCK_NOT_STABLE, block_reg, clk, (!reset_n || ready_reg) )
++// Each word can be refilled while the core works on a previously captured block.
++for (genvar dword = 0; dword < BLOCK_NUM_DWORDS; dword++) begin : gen_block_stability
++  `CALIPTRA_ASSERT(ERR_SHA_BLOCK_NOT_STABLE,
++      ready_reg || $past(ready_reg) ||
++      ($past(hwif_in.SHA512_BLOCK[dword].BLOCK.we)
++        ? block_reg[dword] == $past(hwif_in.SHA512_BLOCK[dword].BLOCK.next)
++        : $past(hwif_in.SHA512_BLOCK[dword].BLOCK.hwclr)
++          ? block_reg[dword] == '0
++          : $stable(block_reg[dword])),
++      clk, !reset_n)
++end

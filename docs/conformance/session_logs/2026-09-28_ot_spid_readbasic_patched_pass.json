@@ -1,0 +1,83 @@
+{
+  "case": "lowrisc:dv:spid_passthrough_sim:0.1 / readbasic",
+  "scope": "clean copied source; only existing four pre-DV patches plus two named RTL patches; no diagnostic instrumentation",
+  "existing_pre_dv_patches": [
+    {
+      "file": "spid_cmdinfo_read_pipeline.patch",
+      "sha256": "0de41341c4fe7ab119d30d40eb66279e18e0668b556ae1cddc2601f78f0a0589"
+    },
+    {
+      "file": "spid_passthrough_program_input_var.patch",
+      "sha256": "eecb73e4f3c1e11f67a23ac5e36a6a5a96dfd6218a91be7805b5a137573dafee"
+    },
+    {
+      "file": "spid_passthrough_stale_interrupt_ports.patch",
+      "sha256": "859481cce8eddc3bdfd7b2f29fbcea876c9dbdfb1d38bca3af3be45fb7c59cef"
+    },
+    {
+      "file": "spid_passthrough_sram_path.patch",
+      "sha256": "c2ed608865d50151cebb6e70b24fa1b276708018fc1cb05d6cb45898bec08d61"
+    }
+  ],
+  "new_rtl_patches": [
+    {
+      "file": "docs/conformance/release_overlays/opentitan/spi_device_single_assignment_sram_mux.patch",
+      "sha256": "5a0ab92f4f3f9ea6e5d259908ebac3a558136420db90bba2bb689ec060089473"
+    },
+    {
+      "file": "docs/conformance/release_overlays/opentitan/spi_readcmd_single_assignment_address_counter.patch",
+      "sha256": "b90dc45f2e857543916d7154d6dde3dcd8a94c45e3056a8f6c29996d97c5b43d"
+    }
+  ],
+  "source_file_count": 240,
+  "source_manifest_sha256": "28d6dac80f42295331c555209f1d4d7798c3c61704f12136d7ecf276f55f5261",
+  "changes_from_pre_dv_copy": [
+    "src/lowrisc_ip_spi_device_0.1/rtl/spi_device.sv",
+    "src/lowrisc_ip_spi_device_0.1/rtl/spi_readcmd.sv"
+  ],
+  "compiler_binary_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "vvp_binary_sha256": "08aea955de0800ce46cc843405a94098b80352eabe592e37e2dca11294646742",
+  "compile": {
+    "exit_code": 0,
+    "warnings": 9,
+    "errors": 0,
+    "image_sha256": "603fe03dc2ecf00a9e2a2d20531f1d85d706d6714e1a4a30cd59129f0f24e3f1",
+    "log_sha256": "41fe51e06df8a1a152c6ff5a527a8f1f0027b7a2a5649a2a75ae2b076d16c911"
+  },
+  "runtime": {
+    "exit_code": 0,
+    "timed_out": false,
+    "wall_s": 6.1821344590280205,
+    "pass_banner_count": 1,
+    "uvm_info_count": 1,
+    "uvm_warning_count": 0,
+    "uvm_error_count": 0,
+    "uvm_fatal_count": 0,
+    "vvp_runtime_warning_count": 2,
+    "hard_error_count": 0,
+    "log_sha256": "3670c460a376ba3f9eb5b68f0fdaec9af8b6d07ef8458588f481d271da5e282f",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-i",
+      "-n",
+      "work/spid-readbasic-clean/readbasic.vvp",
+      "+TESTNAME=readbasic"
+    ],
+    "cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff"
+  },
+  "pinned_checkout_edited": false,
+  "compiler_source_head_observed_after_run": "705c62147039276d40a8830ea685fe24d6ac29af",
+  "status": "selected patched-source pre-DV PASS; no full SPI Device UVM DV verdict",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_revision": "705c62147039276d40a8830ea685fe24d6ac29af",
+  "focused_reproducers": {
+    "directory": "docs/conformance/repros/spi_device_readbasic",
+    "sram_mux_original": "100 same-time events at t=1; exit 1",
+    "sram_mux_patched": "2 events and completion at t=2; exit 0",
+    "sram_mux_final_value_equivalence": "80 four-state cases; exit 0",
+    "readcmd_original": "100 same-time events at 1 ns; exit 1",
+    "readcmd_patched": "1 event and completion at 2 ns; exit 0",
+    "readcmd_final_value_equivalence": "384 four-state cases; exit 0"
+  },
+  "scope_note": "One pre-DV readbasic run; no 49-target OpenTitan census rerun and no full SPI Device UVM DV pass claimed"
+}

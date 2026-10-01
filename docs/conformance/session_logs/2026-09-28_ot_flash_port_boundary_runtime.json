@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-28",
+  "compiler_commit": "d696b6934",
+  "case": "OpenTitan flash_ctrl_base_test / flash_ctrl_smoke_vseq, guarded selected source list",
+  "root_cause": "A direct variable-driven input port shared its parent's nexus, exposing intermediate always_comb blocking writes to child handshake logic.",
+  "fix": "Keep the input port on a separate BUFZ boundary; VVP samples the settled value for all child consumers.",
+  "focused_checks": {
+    "shared_branch_port_regression": ["2012 PASS", "2017 PASS", "2023 PASS"],
+    "private_branch_compiler_tests": "9 PASS",
+    "private_branch_vpi_tests": "2 PASS",
+    "private_branch_evcd_tests": "2 PASS",
+    "private_branch_four_state_vpi_callback_reducer": "PASS",
+    "selected_compile": "0 hard errors, 105 warnings"
+  },
+  "previous_stall": {
+    "simulation_time_ticks": 4401911,
+    "observed_instructions_without_time_advance_at_least": 725000000
+  },
+  "bounded_replay": {
+    "image_sha256": "a6666cd9d291401363d75fcdd93717ce3fba8df6a5d826b182e2f1a51a6edca1",
+    "wall_seconds": 90.512,
+    "terminated_at_wall_cap": true,
+    "last_simulation_time_ticks": 17973231,
+    "next_time_callbacks": 26810,
+    "milestones": ["all eight memory initialization markers", "init_wip CSR polls complete", "first flash operation started", "backdoor FlashPartData invalidation started"],
+    "uvm_verdict": null,
+    "qualification": "Forward progress past the old zero-time stall, not a DV pass. A cap-triggered process return code of zero is not a success verdict."
+  },
+  "image_cost": {
+    "old_bytes": 94046364,
+    "new_bytes": 94172154,
+    "new_bufz_functors_approximately": 1249,
+    "steady_runtime_cost_measured": false
+  },
+  "scope_limit": "Arrayed instances and implicit-reg actuals are not covered by this narrow guard."
+}

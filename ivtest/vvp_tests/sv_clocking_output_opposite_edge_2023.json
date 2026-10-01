@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_clocking_output_opposite_edge.v",
+  "iverilog-args": ["-g2023", "-s", "sv_clocking_output_opposite_edge"],
+  "gold": "sv_clocking_output_opposite_edge"
+}

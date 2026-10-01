@@ -1,0 +1,19 @@
+--- a/hw/ip/hmac/dv/env/hmac_scoreboard.sv
++++ b/hw/ip/hmac/dv/env/hmac_scoreboard.sv
+@@ -328,10 +328,12 @@
+     if (!write && channel != DataChannel) begin
+       // Update expected status register
+       if (csr_name == "status") begin
+-        hmac_status_data = (hmac_idle       << HmacStaIdle)         |
+-                           (hmac_fifo_empty << HmacStaMsgFifoEmpty) |
+-                           (hmac_fifo_full  << HmacStaMsgFifoFull)  |
+-                           (hmac_fifo_depth << HmacStaMsgFifoDepthLsb);
++        bit [5:0] status_fifo_depth;
++        status_fifo_depth = hmac_wr_cnt - hmac_rd_cnt;
++        hmac_status_data = (hmac_idle << HmacStaIdle) |
++                           ((status_fifo_depth == 0) << HmacStaMsgFifoEmpty) |
++                           ((status_fifo_depth == HMAC_MSG_FIFO_DEPTH_WR) << HmacStaMsgFifoFull) |
++                           (status_fifo_depth << HmacStaMsgFifoDepthLsb);
+         void'(ral.status.predict(.value(hmac_status_data), .kind(UVM_PREDICT_READ)));
+       // Update expected FIFO Empty interrupt register
+       end else if (csr_name == "intr_state") begin

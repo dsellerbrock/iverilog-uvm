@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_param_class_qualified_typedef_instance_registry.v",
+    "iverilog-args" : [ "-g2023", "-gstrict-expr-width" ]
+}

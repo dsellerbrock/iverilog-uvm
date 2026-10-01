@@ -323,6 +323,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%covgrp/get_all", of_COVGRP_GET_ALL, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_coverage", of_COVGRP_GET_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage", of_COVGRP_GET_INST_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%covgrp/item/get_coverage", of_COVGRP_ITEM_GET_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%covgrp/item/get_inst_coverage", of_COVGRP_ITEM_GET_INST_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/options/init", of_COVGRP_OPTIONS_INIT, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/sample",  of_COVGRP_SAMPLE,   2,{OA_NUMBER, OA_BIT1,OA_NONE} },
       { "%covgrp/sample/all", of_COVGRP_SAMPLE_ALL, 1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
@@ -609,6 +611,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%rand_mode/p/a/v",of_RAND_MODE_P_A_V,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%rand_mode/p/i",  of_RAND_MODE_P_I,   3,{OA_NUMBER, OA_BIT1,OA_BIT2} },
       { "%rand_mode/p/last",of_RAND_MODE_P_LAST,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%rand_mode/p/q",  of_RAND_MODE_P_Q,   3,{OA_NUMBER, OA_BIT1,OA_BIT2} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/hook", of_RANDOMIZE_HOOK,  1,{OA_BIT1,   OA_NONE,OA_NONE} },
       { "%randomize/pre", of_RANDOMIZE_PRE, 1,{OA_STRING, OA_NONE,OA_NONE} },
@@ -3198,6 +3201,12 @@ void compile_vpi_func_call(char*label, char*name,
 void compile_thread(char*start_sym, char*flag)
 {
       bool push_flag = false;
+
+      if (!vthread_init_design_root_seed()) {
+	    free(start_sym);
+	    free(flag);
+	    return;
+      }
 
       symbol_value_t tmp = sym_get_value(sym_codespace, start_sym);
       vvp_code_t pc = reinterpret_cast<vvp_code_t>(tmp.ptr);

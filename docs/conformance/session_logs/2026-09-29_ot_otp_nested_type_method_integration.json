@@ -1,0 +1,25 @@
+{
+  "blocker": "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION",
+  "integrated_head": "b27957d8d810482d337e8fb3b6b3e39cdbcbf461",
+  "installed_ivl_sha256": "50d3fe54f03c1d29b12d3f55cec2fc93cf09b45c611210acebed367250285cfe",
+  "selected_image_sha256": "49dec56067c4b7b8f77f7452f286abc3d93c0f60ab45bd117e0e421b70c398b0",
+  "selected_compile_log_sha256": "13f3b6153cd68fc02ed2354dfe03e791c060ca775818fb205db5506f0a5bb5aa",
+  "selected_compile": {
+    "sources": 282,
+    "exit": 0,
+    "errors": 0,
+    "sorry": 0,
+    "warnings": 56,
+    "concrete_env_bodies": [
+      "build_phase",
+      "connect_phase"
+    ]
+  },
+  "focused_checks": {
+    "strict_2017_2023_bare_and_explicit": "4/4 pass",
+    "adjacent_specialization_controls": "10 pass",
+    "real_dpi_uvm": "1/1 pass",
+    "make_check": "pass"
+  },
+  "boundary": "Selected OTP VVP was not run while guarded Caliptra HMAC VVP holds the high-memory slot. DD-089 factory registration still requires the named copied-source workaround. Historical 49-case census is unchanged; full JSON/legacy gates remain deferred pending the classified 32 JSON failures."
+}

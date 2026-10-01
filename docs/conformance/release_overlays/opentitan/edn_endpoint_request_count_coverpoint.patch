@@ -1,0 +1,17 @@
+diff --git a/hw/ip/edn/dv/cov/edn_cov_if.sv b/hw/ip/edn/dv/cov/edn_cov_if.sv
+--- a/hw/ip/edn/dv/cov/edn_cov_if.sv
++++ b/hw/ip/edn/dv/cov/edn_cov_if.sv
+@@ -56,10 +56,10 @@ interface edn_cov_if (
+     option.name         = "edn_endpoints_cg";
+     option.per_instance = 1;
+ 
+-    cp_ep_requests: coverpoint ep_requests {
+-      bins none = { $countones(ep_requests) == 0 };
+-      bins some = { $countones(ep_requests) inside { [1:MAX_NUM_ENDPOINTS - 1] } };
+-      bins all  = { $countones(ep_requests) == MAX_NUM_ENDPOINTS };
++    cp_ep_requests: coverpoint $countones(ep_requests) {
++      bins none = { 0 };
++      bins some = { [1:MAX_NUM_ENDPOINTS - 1] };
++      bins all  = { MAX_NUM_ENDPOINTS };
+     }
+   endgroup : edn_endpoints_cg

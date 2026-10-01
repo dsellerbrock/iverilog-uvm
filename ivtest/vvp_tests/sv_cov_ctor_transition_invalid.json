@@ -1,0 +1,6 @@
+{
+  "type": "EF",
+  "source": "sv_cov_ctor_transition_invalid.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_cov_ctor_transition_invalid"
+}

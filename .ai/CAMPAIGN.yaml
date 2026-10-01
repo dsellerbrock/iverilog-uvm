@@ -1,8 +1,259 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-lc-packed-coverpoint-20260925
-checkpoint_head: 1891f0128627ff0b3124216f0040780087336f82
-active_open_titan_lane:
+branch: agent/ot-compile-blockers-20260927
+checkpoint_head: 70ae3be50
+active_ot_compile_constraint_batch2_lane:
+  blocker: "OT-COMPILE-CONSTRAINT-BATCH2-20261001"
+  phase: "DONE"
+  baseline_head: "edaa19774"
+  head: "70ae3be50"
+  commits: "a6f92578b 0ea1ac8ce 6beb19e21 72e3dd3a9 c97d91eef 70ae3be50"
+  gates: "JSON 4188 run/0 failed; legacy 6942 total/0 failed; UVM 363 passed/0 failed"
+  census: "49-core runtime census 32 -> 33 PASS plus 5 DEBT that reach the pass banner (evidence/opentitan-census-20260930/result-census3.json); chip_sim runs the whole top_earlgrey chip; no frozen PASS lost"
+  next: "flash_ctrl fixed arrays of containers as aggregates; i2c covergroup with-filter at construction and ignore/illegal transition bins; adc_ctrl rand 2-D dynamic arrays; usbdev rx_pid_err; edn/ibex_icache/spi_device throughput; clocking-block event waits; ref actual that is an array element"
+active_runtime_leak_constraint_batch_lane:
+  blocker: "OT-RUNTIME-LEAK-AND-CONSTRAINT-BATCH-20260930"
+  phase: "DONE"
+  baseline_head: "8440da0d7"
+  head: "2b7ad622c"
+  commits: "6b5af6554 de27a7201 99257603b 93b0254b4 3775b025d 5263ed8c8 f70bbc35f 80971ad8f 2b7ad622c"
+  gates: "JSON 4168 run/0 failed; legacy 6922 total/0 failed; UVM 363 passed/0 failed"
+  census: "49-core runtime census 23 -> 32 PASS (evidence/opentitan-census-20260930/); no frozen PASS lost"
+  next: "spi_device RUNTIME_MEMORY_LIMIT; adc_ctrl rand 2-D dynamic arrays; i2c covergroup bins and .sum() in std::randomize with; @(vif.event); concurrent @(sig[idx]) waiters; usbdev rx_pid_err; edn throughput"
+active_hmac_status_mirror_lane:
+  blocker: "OT-HMAC-STATUS-MIRROR-MISMATCH"
+  phase: "DONE"
+  baseline_head: "7e553b433"
+  reproducer: "Frozen HMAC smoke compiles cleanly, then status scoreboard compares hardware 0x2 against mirror 0x10 at 7,973,565 ps and emits TEST FAILED CHECKS. Eight actionable cSource setup warnings are separate packaging debt."
+  allowed_scope: "Trace first status read against RTL hw2reg and scoreboard FIFO counters in a minimal copied-source run; one fresh current-compiler guarded HMAC selection; patch only a proven cause without weakening checks."
+  next_command: "Closed: exact-hash live-counter overlay; selected current-image PASS (22 sequences, one banner, zero errors/debt, 482.6 MB/191.8 s under 4 GiB/300 s). cSource warnings classified benign (all eight built into matrix-dpi.so). Evidence evidence/opentitan-hmac-status-live-counters-20260929/. Select the next blocker; preserve frozen 23/49."
+  boundary: "No pinned edits, warning allowlist, broad OT corpus, or multi-hour Caliptra run; frozen 23/49 unchanged."
+completed_pwrmgr_seed3_esc_lane:
+  blocker: "OT-PWRMGR-SEED3-ESC-TIMEOUT"
+  phase: "DONE"
+  implementation_commit: "7e553b433"
+  baseline_head: "62e3f9c3f"
+  reproducer: "Frozen Pwrmgr row EPERM; same-image selected replay RUNTIME_FAIL at EscClkStopEscTimeout_A, 20,631,414 ps, clean compile. Existing checker_repro.sv proves active phase-shifted versus stopped-clock behavior."
+  allowed_scope: "The existing timestamp patch was hash-guarded on copied source and passed runtime but added a timescale compile notice. New named edge-counter patch touches only the same two checker files and is validated by active/stopped/faster controls, one guarded selected replay, and explicit seed 3."
+  validation: "Exact pre/post checker hashes; 248-file ordered closure changes only generated checker. Reducer level-active fails, edge-counter active/stopped/faster pass. Selected matrix PASS, setup zero actionable warnings, compile zero hard/semantic debt, runtime exit0/one banner/43 scoreboard reads/zero bad diagnostics/666,011,232-byte peak under 4 GiB/120s. Explicit seed3 same image exit0/one banner/28 reads/zero UVM or assertion failures."
+  evidence: "evidence/opentitan-pwrmgr-clock-edge-count-20260929/, docs/conformance/release_overlays/opentitan/pwrmgr_clock_edge_count.patch, docs/conformance/repros/pwrmgr_clock_activity/checker_edge_count_repro.sv"
+  next_command: "Closed at 7e553b433 after independent review and local commit. HMAC first status mismatch is selected next; preserve frozen 23/49."
+  boundary: "No pinned edits, compiler/unsafe change, broad OT corpus, or multi-hour Caliptra run; frozen 23/49 unchanged."
+completed_trial1_core_layout_lane:
+  blocker: "OT-TRIAL1-CORE-FILE-LAYOUT"
+  phase: "DONE"
+  implementation_commit: "62e3f9c3f"
+  baseline_head: "384f77bcf"
+  reproducer: "Frozen lowrisc:ip:trial1_sim:0.1 is DEBT solely from two FuseSoC ../rtl file-location warnings; compile and directed runtime checks pass."
+  allowed_scope: "One exact-hash named core-file move on a fresh disposable pinned OpenTitan copy, preserved source hashes, one guarded selected replay, and a negative layout control."
+  validation: "Red --setup-only SETUP_DEBT with exactly two actionable ../rtl warnings. Named exact-hash overlay self-check passes. With PYTHONHASHSEED=2, selected one-core PASS: zero actionable setup warnings, compiler hard/semantic debt zero, runtime exit0/one banner/zero debt, 665 checked messages and ordered 187-file content closure matching frozen, 4,440,424-byte peak under 4 GiB/120s."
+  evidence: "evidence/opentitan-trial1-core-layout-20260929/ and docs/conformance/release_overlays/opentitan/trial1_core_layout_overlay.py"
+  next_command: "Closed at 62e3f9c3f after independent review found no blocker. Pwrmgr checker failure is selected next; preserve frozen 23/49."
+  boundary: "No pinned source edit, compiler/unsafe change, full 49-target corpus, or multi-hour Caliptra run; frozen 23/49 unchanged."
+completed_keymgr_ral_scope_lane:
+  blocker: "OT-KEYMGR-RAL-TYPE-PARAM-FALLBACK"
+  phase: "DONE"
+  implementation_commit: "384f77bcf"
+  baseline_head: "2cc0a7ad0"
+  installed_image: "ivl SHA-256 0d50ec5d7b92ad405fdf44b36aacd9723dec1795a34c4d561d2aa249b5e09d62; VVP SHA-256 5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3."
+  root_cause: "Foreach selected-path inference found inherited dv_base_env_cfg.ral but elaborated its RAL_T type parameter in the unrelated keymgr_env_cov.build_phase scope."
+  validation: "Paired 2017/2023 registered focus 2/2; eight neighboring direct checks pass. Exact copied-source Keymgr VVP compile exit0/zero RAL_T fallback. Selected keymgr_smoke_vseq with IVL_SVA_NFA=1 exit0/one checked banner/16 scoreboard operations/zero bad diagnostics under 4 GiB/1800s."
+  evidence: "evidence/opentitan-keymgr-foreach-owner-20260929/ and projectless work/keymgr-ivtest-focus/."
+  next_command: "Closed at 384f77bcf after JSON 4149/0, standalone legacy 6903 total/0 failed, isolated VPI 140/140, negatives 154/154, real-DPI UVM 362/362, make check, and installed exact Keymgr compile with zero RAL_T fallback. Trial1 layout is now selected. The first overlapping legacy/VPI run was invalid because both use ivtest/vsim. Preserve frozen 23/49."
+  boundary: "No pinned source edit, unsafe warning waiver, full OpenTitan corpus or Caliptra multi-hour run while this ticket remains active."
+completed_spid_upload_checked_transactions_lane:
+  blocker: "OT-SPID-UPLOAD-TRANSACTION-CHECKER"
+  phase: "DONE"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "a918bc7da"
+  reproducer: "Frozen upload row compiles cleanly and exits zero after seven commands, but the bench prints unverified FIFO/SRAM values and has no checked pass banner."
+  allowed_scope: "One exact-hash source patch on a new disposable OpenTitan copy, one-core guarded selected replay, and focused negative controls."
+  validation: "Selected compile zero hard/semantic debt; VVP PASS in 4.077s with one banner/zero errors/debt under2GiB/120s. Five changed-byte, dropped-command, extra-command, command-flags, and no-payload-metadata controls each exit1/no banner with expected fatal."
+  evidence: "evidence/opentitan-spid-upload-checked-transactions-20260929/ and docs/conformance/release_overlays/opentitan/spid_upload_checked_transactions.patch"
+  next_command: "Select one independent blocker from frozen 49-target corpus; Keymgr RAL_T fallback needs a current-image guarded compile-only replay, and trial1 setup/metadata debt is still open."
+  boundary: "No pinned source edit or classifier-only pass, no broad 49-target rerun, no multi-hour Caliptra run; frozen 23/49 remains immutable."
+completed_spid_passthrough_checked_calls_lane:
+  blocker: "OT-SPID-PASSTHROUGH-TESTBENCH-CHECKED-CALLS"
+  phase: "DONE"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "41ea19ec4"
+  reproducer: "Official readbasic runs its comparison and banner but 9 compile notices/2 runtime warnings record unobserved randomize and plusargs results plus an implicit static initializer."
+  allowed_scope: "Named guarded testbench patch on a new disposable copied OpenTitan source, paired call-guard controls, and selected guarded replay/negative selectors."
+  validation: "Exact-hash named patch reproduces both copied-source files; paired 2017/2023 focus 12/12; selected readbasic matrix PASS with compile zero semantic debt and VVP exit0/one banner/zero runtime debt in 4.090s under2GiB/120s; two selector negatives exit1; addr4b/wel neighbors pass."
+  evidence: "evidence/opentitan-spid-passthrough-checked-calls-20260929/ and docs/conformance/release_overlays/opentitan/spid_passthrough_checked_calls.patch"
+  next_command: "Select one independent blocker; upload still needs a real checker, Keymgr RAL_T fallback needs a red reducer, and passthrough program/upload modes remain unqualified."
+  boundary: "No compiler/unsafe-flag change or warning allowlist, no full 49-target rerun, no multi-hour Caliptra run; frozen 23/49 remains immutable."
+completed_spid_passthrough_selection_lane:
+  blocker: "OT-SPID-PASSTHROUGH-SMOKE-RUN-OPTS"
+  phase: "DONE"
+  implementation_commit: "41ea19ec4"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "e7f2665ab"
+  reproducer: "Pinned passthrough smoke config lists readbasic first with +TESTNAME=readbasic; frozen matrix metadata omits it, so the directed bench exits without running a test."
+  allowed_scope: "Matrix metadata selection for directed run_opts-only smoke tests, focused controls, and one guarded selected replay."
+  validation: "Pre-fix metadata omitted TESTNAME; post-fix only passthrough among 49 rows changes to readbasic/+TESTNAME=readbasic, UVM metadata unaffected. Self-test PASS. One-core VVP exit0/one pass banner/zero runtime errors in 4.073s under 2 GiB/120s; verdict DEBT from nine compile semantic notices and two runtime warnings."
+  evidence: "evidence/opentitan-spid-passthrough-smoke-selection-20260929/"
+  next_command: "Select a separate blocker; investigate passthrough source warnings or Keymgr RAL_T fallback with a red minimal reproducer before fixing."
+  boundary: "Pinned OpenTitan and frozen 23/49 unchanged; do not count the DEBT row as PASS. No full corpus or multi-hour Caliptra run."
+completed_spid_jedec_lane:
+  blocker: "OT-SPID-JEDEC-DIRECTED-RESULT-CLASSIFIER"
+  phase: "DONE"
+  implementation_commit: "e7f2665ab"
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926"
+  baseline_head: "954423741"
+  reproducer: "Frozen JEDEC directed simulation exits zero and prints exact post-check marker, but the generic UVM-only banner regex classifies it RUNTIME_FAIL."
+  allowed_scope: "scripts/opentitan_matrix.py runtime classifier and existing self-test; selected JEDEC evidence and operational docs only."
+  validation: "Runner self-test PASS; frozen output reclassified PASS; exact saved image replay PASS; fresh one-core matrix PASS with compile exit0/zero semantic debt and runtime exit0/zero errors/debt in 1.025s under a 2 GiB/60s guard. Evidence/opentitan-spid-jedec-classifier-20260929/."
+  next_command: "Select one independent residual blocker before implementation. Keymgr RAL_T fallback notice is analyzed read-only in projectless work/keymgr-ral-type-triage-20260929.md; no red reducer yet."
+  boundary: "No pinned OpenTitan source edits or full 49-target rerun; historical raw 23/49 remains unchanged. Caliptra is limited to short focused work."
+completed_csrng_lane:
+  blocker: "OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX"
+  phase: "DONE"
+  implementation_commit: "c0abdfa48"
+  closure_commit: "954423741"
+  evidence: "evidence/opentitan-csrng-packed-property-20260929/; full gates green, selected CSRNG PASS under 6 GiB. DD-103 remains open."
+caliptra_bounded_readiness_lane:
+  state: "Resumed by explicit user request; no expensive multi-hour regressions."
+  scope: "Read pinned caliptra-rtl README UVM steps, audit external dependencies, original-UVM1.1d real-DPI smoke passed; public dependency acquisition and independent VIP replacement feasibility assessed in projectless notes. 120-second timeout per process. No full L0/top RTL corpus."
+  evidence: "Projectless outputs/CALIPTRA-UVM-README-NOTES.md and work/caliptra-uvm-readiness-20260929/. The52 selectedL0 cases remain distinct from CaliptraUVM."
+completed_postfix_census_lane:
+  blocker: "OT-49-POST-FIXES-CENSUS"
+  phase: "DONE"
+  evidence_commit: "bcf6924b3"
+  evidence: "evidence/opentitan-49-post-fixes-20260929/: immutable 49-row result, source/compiler pins, logs, separate Pwrmgr and real-ELF OTBN follow-ups. Raw 23 PASS/3 DEBT/4 compile FAIL/9 RUNTIME_FAIL/7 RUNTIME_MEMORY_LIMIT/2 RUNTIME_TIMEOUT/1 MATRIX_ERROR; 3 jobs, 4 GiB cap, 1800-second runtime cap."
+  boundary: "The merged interpreter speedups are active, but this memory-limited corpus uses three single-core simulations concurrently. The previous raw corpus also used the merged speedups, so this is no speedup A/B test. Caliptra was not run."
+completed_ibex_solver_lane:
+  blocker: "OT-IBEX-ICACHE-ORDERED-DIST-RANDOMIZE"
+  phase: "DONE"
+  implementation_commit: "78eff3fc4"
+  evidence: "evidence/opentitan-ibex-ordered-dist-20260929/: paired red/green, integrated gates green, selected official smoke advances past config solve but times out at 1800 seconds without DV pass."
+completed_i2c_queue_lane:
+  blocker: "OT-I2C-QUEUE-LAST-ELABORATION"
+  phase: "DONE"
+  implementation_commit: "c4199e5cb"
+  evidence: "evidence/opentitan-i2c-queue-last-20260929/: selected I2C hard errors fall 18 to 15; independent coverage and constraint gaps remain."
+completed_ibex_provider_lane:
+  blocker: "OT-IBEX-ICACHE-BUS-PARAMS-PROVIDER"
+  phase: "DONE"
+  implementation_commit: "f5d9c4308"
+  checkpoint_commit: "cdd8bd57a"
+  evidence: "evidence/opentitan-ibex-provider-20260929/: one-provider setup, clean selected compile, time-zero solver runtime failure."
+completed_smoke_selection_lane:
+  blocker: "OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION"
+  phase: "DONE"
+  implementation_commit: "da76bb1d1"
+  checkpoint_commit: "2eae29172"
+  evidence: "evidence/opentitan-matrix-smoke-selection-20260929/: selected RV Timer PASS, selected SPI Device DEBT from DD-098, other 47 target selections unchanged."
+completed_otbn_scope_lane:
+  blocker: "OT-OTBN-DPI-IMPORT-SCOPE"
+  phase: "DONE"
+  implementation_commit: "7796f1a93"
+  checkpoint_commit: "3b9d4bdbc"
+  evidence: "evidence/opentitan-otbn-dpi-import-scope-20260929/: selected OTBN UVM checks pass but status DEBT due DD-097; exact-image JSON 4129/0, legacy 6880 passed/0 failed, real-DPI UVM 362/362, VPI 131/131, negatives 154/154."
+completed_aes_classifier_lane:
+  blocker: "OT-AES-RUNTIME-CLASSIFIER-FALSE-POSITIVE"
+  phase: "DONE"
+  commit: "e6cb26d0a"
+  evidence: "evidence/opentitan-49-parallel-census-20260929/selected/aes-classifier-fixed.json: native DPI complete, rc 0, TEST PASSED CHECKS, zero runtime errors/debt, PASS. Exact FALSE allowlist preserves TRUE and UVM errors; independent review clear."
+  boundary: "Harness verdict correction only; raw 49-row corpus remains unchanged."
+completed_parallel_census_lane:
+  blocker: "OT-49-OVERLAID-PARALLEL-CENSUS"
+  phase: "DONE"
+  evidence: "evidence/opentitan-49-parallel-census-20260929/: complete 49-row result, 46-operation exact-hash overlay manifest, matrix logs, selected replays. Raw 18 PASS/3 DEBT/12 RUNTIME_FAIL/9 RUNTIME_MEMORY_LIMIT/5 compile FAIL/1 MATRIX_ERROR/1 RUNTIME_TIMEOUT; 3 jobs, 4 GiB cap, 1800 s runtime cap."
+  selected_followup: "Separately, LC Control and both Xbars pass at 8/12/16 GiB guards; Clock Manager passes retry. AES selected PASS after e6cb26d0a. OTBN selected DEBT after 7796f1a93 because its native trace checker reports an unfinished operation."
+  boundary: "The 49-row raw census is immutable and is not a 49/49 pass claim. Caliptra was not run."
+completed_otbn_tracer_lane:
+  blocker: "OT-OTBN-TRACE-DECL-ORDER"
+  phase: "DONE"
+  evidence_head: "2dbfdeb92"
+  evidence: "evidence/opentitan-otbn-trace-declaration-order-20260929/focus.json; guarded selected OTBN compile exits 0, no hard/semantic notices, VVP image emitted."
+  boundary: "No OTBN DV runtime or refreshed 49-target census."
+completed_dd095_lane:
+  blocker: "DD-095"
+  phase: "DONE"
+  compiler_head: "1a2c24d13"
+  evidence: "evidence/opentitan-otbn-dynamic-sample-formal-20260929/focus.json; exact-image JSON 4129/0, legacy 6880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, negative 154/154."
+  boundary: "Selected OTBN compile has only the two independent tracer errors; no VVP/DV pass or 49-target update."
+completed_dd094_lane:
+  blocker: "DD-094"
+  phase: "DONE"
+  evidence_head: "f74236aca"
+  evidence: "evidence/opentitan-otbn-localparam-bins-20260929/focus.json; two-line overlay, strict paired controls and paired current-compiler selected compile independently reviewed."
+  boundary: "178 mutable plus 178 wide errors and 2,927 dropped-cross notices removed; 30 independent errors remain, no OTBN VVP/DV pass or 49-target update."
+suspended_rom_memory_lane:
+  blocker: "OT-ROM-CTRL-STARTUP-RSS"
+  phase: "SUSPENDED_ALLOCATOR_HIGH_WATER"
+  evidence: "docs/conformance/session_logs/2026-09-29_ot_rom_ctrl_bounded_memory_triage.json: package reducer and corrected-DPI selected A/B; no VVP patch or DV pass."
+  prerequisite: "A measured semantic-safe allocator strategy or a resource-exclusive guarded ROM replay with a concrete discriminating hypothesis."
+completed_dd089_lane:
+  blocker: "DD-089"
+  phase: "DONE"
+  compiler_head: "56f4bc756"
+  evidence: "docs/conformance/session_logs/2026-09-29_ot_otp_typedef_only_static_init.json; one selected guarded OTP smoke passed with 457 matched TL A/D items."
+  boundary: "Revision-scoped selected compatibility pass; 49-target historical census unchanged."
+completed_port_boundary_signedness_lane:
+  blocker: "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD"
+  phase: "DONE"
+  compiler_head: "0db31d850"
+  test_only_head: "ebbb14df9"
+  evidence: "docs/conformance/session_logs/2026-09-29_ot_port_boundary_broad_gate.json: JSON 4107/0, legacy 6875 total/0 failed, VPI 140/140, real-DPI UVM 361/361, negatives 154/154, SVA dual-run 62/62, and 23/23 equal named VCD streams."
+  boundary: "Revision-scoped compiler result; present installed ivl differs, and the 49-case OpenTitan application census is unchanged."
+suspended_fixed_queue_lane:
+  blocker: "OT-CONSTRAINT-FIXED-QUEUE-SIZE-FUNCTION-ARGUMENT"
+  phase: "BROAD_JSON_PASSED"
+  last_validated_revision: "525642475"
+  state: "One-condition SIZE guard narrowing passes paired positive, fixed-element negative and size-conflict controls 6/6, make check and independent review."
+  next_command: "Exact 0db31d850 JSON passes 4107/0 and real-DPI UVM passes 361/361; retain old 4097/32 as historical."
+suspended_partinfo_lane:
+  blocker: "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK"
+  phase: "BROAD_JSON_PASSED"
+  last_validated_revision: "6497dcd3e"
+  state: "The four saved CE golds again match one specific diagnostic; focused PartInfo JSON 18/18, legacy 18/18 and make check pass."
+  next_command: "Exact 0db31d850 JSON passes 4107/0 and real-DPI UVM passes 361/361."
+suspended_sdf_lane:
+  blocker: "OT-SDF-INTERCONNECT-PORT-BOUNDARY"
+  phase: "BROAD_JSON_PASSED"
+  last_validated_revision: "04d73e889"
+  state: "BUFZ and .sample port-boundary SDF support passes six strict tiny controls, focused SDF JSON 15/15 and make check; old 4097/32 gate remains historical."
+  next_command: "Exact 0db31d850 JSON passes 4107/0 and real-DPI UVM passes 361/361."
+suspended_json_stale_fixture_lane:
+  blocker: "OT-JSON-STALE-EXPECTATIONS-11"
+  phase: "BROAD_JSON_PASSED"
+  last_validated_revision: "cdc7fa586"
+  state: "The 11 corrected old JSON entries pass 11/11 together; family JSON 5/5, 7/7, 11/11 and legacy 5/5, 7/7, 10/10 pass with neighbors. No implementation source changed."
+  next_command: "Exact 0db31d850 JSON passes 4107/0, legacy has zero failures, and real-DPI UVM passes 361/361; retain old 4097/32 as historical."
+suspended_otp_method_lane:
+  blocker: "OT-OTP-NESTED-TYPE-ARGUMENT-METHOD-ELABORATION"
+  phase: "FOCUSED_INTEGRATED_SELECTED_DV_PASS"
+  last_validated_revision: "5f9abaf37"
+  state: "Fix b27957d8d integrated; strict paired bare/explicit controls 4/4, adjacent ten, real-DPI UVM 1/1, make check pass; the selected OTP 282-source compile has concrete build/connect bodies, and the same no-workaround image passed one guarded selected unsafe/native-DPI OTP smoke."
+  next_command: "Preserve the selected pass evidence in docs/conformance/session_logs/2026-09-29_ot_otp_typedef_only_static_init.json; recheck on any later compiler/runtime image before extending the claim."
+suspended_fixed_2d_lane:
+  blocker: "OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT"
+  phase: "BROAD_JSON_PASSED_PENDING_APPLICATION_DV"
+  last_validated_revision: "d5c7366c3"
+  state: "Integrated 8cffebe38/d5c7366c3; strict affected JSON/legacy focus 8/8 each and make check pass. The old full JSON ran 4097/32; later exact 8eab751d9 JSON passed 4105/0. Application corpus remains deferred."
+  next_command: "Exact 0db31d850 real-DPI UVM passes 361/361; resume application qualification separately after blocker review. Nested dynamic ADC remains separate."
+suspended_adc_proxy_lane:
+  blocker: "OT-ADC-2CH-FILTER-CONSTRAINT-PROXY"
+  phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
+  last_validated_revision: "de31d5696"
+  state: "The named three-file copied-source patch compiles ADC UVM with zero hard/solver warnings; the saved image has one concrete factory initializer. A 6-GiB/750-second selected replay is queued. The 1:29 distribution and whole-array solve-order equivalence remain unproved."
+suspended_otp_lane:
+  blocker: "OT-UVM-PARAMETERIZED-REGISTRY-STATIC-INIT"
+  phase: "SELECTED_COMPATIBILITY_DV_PASS"
+  last_validated_revision: "72578a893"
+  evidence: "evidence/opentitan-otp-factory-registration-20260929/selected_compile.json"
+  state: "Historical 0db31d850 selected OTP image used the named copied-source registration workaround and was not run. The newer 56f4bc756 compiler emits one concrete base-test registry initializer without that workaround; its selected 282-source image passed the guarded OTP smoke (exit 0, one pass marker, UVM 0/0/0, 457 matched TL A/D items, peak 6158439080 bytes below 6 GiB)."
+  next_command: "Keep the older workaround compile separate from the new no-workaround selected runtime pass; rerun a bounded selected OTP case after future compiler/runtime changes before broadening the DV claim."
+suspended_flash_lane:
+  blocker: "OT-FLASH-ZERO-TIME-COMBINATIONAL-LOOP"
+  phase: "WAITING_FOR_RESOURCE_EXCLUSIVE_DV"
+  last_validated_revision: "d696b6934"
+  evidence: "docs/conformance/session_logs/2026-09-28_ot_flash_port_boundary_runtime.json"
+  state: "The port-boundary fix moved selected Flash past the old 4401.911 ns zero-time stall to 17973.231 ns by a 90-second cap. No selected DV verdict or current 49-target corpus."
+  next_command: "After the live Caliptra VVP and guardian exit, rebuild the saved six-patch Flash selected image on the then-current compiler and run one longer memory/time-guarded smoke to a real DV verdict."
+prior_open_titan_lane:
   blocker: OT-LC-PACKED-COVERPOINT-SHAPE
   phase: PR376_PUBLISHED_LOCAL_QUALIFIED
   worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-opentitan-lc-coverpoint-20260925
@@ -17,7 +268,15 @@ active_open_titan_lane:
   validation: Final private ivl ab49a9f08784275c53a57ff177e6d7e68afb23718ff04198e473cbf2509fbcad passes paired 10/10 legacy and 10/10 JSON focus, make check, negatives 155/155, SVA dual 62/62, full legacy 6704 total with 6699 ordinary passes and zero failures, VPI 140/140, JSON/VVP 3753/3753, and real-DPI UVM 358/358. Exact pinned unsafe LC_CTRL replay drops neither target bin but retains four hard error sites and 18 debt diagnostics, so remains 0/1 released DV. Prior checked compatibility baseline remains 11/49; no full current-image matrix census.
   next_command: Respond if CI later reports an issue; do not poll CI or merge before required checks pass.
   boundary: OpenTitan-only; leave separate Caliptra agent's processes, tools, files, worktrees, and pinned application sources untouched.
-active_icarus_runs:
+current_caliptra_continuation:
+  worktree: "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-caliptra-l0-20260924"
+  selected_profile: "Caliptra v2.1.2 and Adams Bridge v2.0.3, commercial-unsafe mode with named copied-source reset/checker/AXI/SHA/JTAG overlays. Pinned sources remain clean."
+  historical_52: "The stopped selected campaign has 20 passes, 16 four-hour timeouts, three assertion failures, two low-swap -9 kills, and 11 cases without a finalized result. Separate 16-hour SHA256 WNTZ and SHA3 passes do not change that aggregate."
+  qualified_ecc_pcr: "A separate guarded smoke_test_pcr_zeroize passed on the frozen pre-speedup build: VVP exit zero, one pass marker, no bad diagnostics, no timeout or cap hit, peak physical footprint 1114261160 bytes. Local evidence commit 367a6d0c5; this is not a historical 52-case count change."
+  installed_build: "The Caliptra checkout additionally merged PR394 at 46ec91377, built and installed VVP SHA-256 8e52149af672b227abb68901ba164177fee1bcea2b7763a367410610c1fdb657; six focused tests pass sequentially and in the two-shard JSON runner."
+  active_selected_replay: "The per-word patched pv_hash_zeroize, sampled-busy patched HMAC, and original-cadence smoke_test_trng selected replays passed outside the historical 52-case aggregate. TRNG used an 8 GiB cap and 57600-second timeout; VVP exited 0 with one pass marker, zero bad diagnostics, 138353 cycles, and 1282671936 bytes peak physical footprint. Caliptra evidence commit 044e4cbc2 records its source and image fingerprints."
+  next_command: "Collect the active 8 GiB/57600-second guarded smoke_test_mlkem_locked_api replay under PR394 VVP, classify its prior low-swap kill, and preserve its source/image provenance. Do not start a 52-case corpus before resolving current blockers."
+prior_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
     runner_pid: 86052

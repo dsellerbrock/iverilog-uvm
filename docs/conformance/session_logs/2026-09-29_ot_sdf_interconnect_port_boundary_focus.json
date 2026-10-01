@@ -1,0 +1,32 @@
+{
+  "blocker": "OT-SDF-INTERCONNECT-PORT-BOUNDARY",
+  "old_gate": {
+    "head": "d5c7366c3",
+    "json_run": 4097,
+    "json_failed": 32,
+    "sdf_failures": [
+      "sdf_interconnect1",
+      "sdf_interconnect2",
+      "sdf_interconnect3"
+    ]
+  },
+  "root_cause": "Current variable-driven input ports use BUFZ or .sample; vpi_handle_multi formerly required BUFT before inserting an SDF interconnect delay.",
+  "implementation": "vvp/vpi_priv.cc accepts BUFZ (including BUFT subclass) and vvp_fun_sample at vpiPortInfo boundaries, leaving physical connectivity and unique-path checks intact.",
+  "installed_binaries": {
+    "ivl_sha256": "50d3fe54f03c1d29b12d3f55cec2fc93cf09b45c611210acebed367250285cfe",
+    "vvp_sha256": "52c3279fc9b2c34923403e6cdb058293ed4d5fc2cdd781b3560bccd20b2199f6"
+  },
+  "red_green": "Before: wire BUFT received 20 ps while reg BUFZ and always_comb .sample lost it. After: all three one-edge paths receive 20 ps in strict 2017 and 2023 (6/6).",
+  "permanent_regression": "ivtest/ivltests/sdf_interconnect_sample_port.v and .sdf, paired JSON 2017/2023; existing sdf_interconnect1-3 remain permanent BUFZ reproducers.",
+  "focused_checks": {
+    "sdf_json": "15 passed, 0 failed",
+    "selected_resolver_neighbors": "8 passed",
+    "make_check": "pass"
+  },
+  "remaining_prior_json_failures": {
+    "unsafe_interface_driver": 12,
+    "queue_size_function_argument": 2,
+    "partinfo_duplicate_diagnostic": 4
+  },
+  "qualification_boundary": "No full JSON/legacy gate or OpenTitan 49-target corpus rerun. The historical 4,097/32 gate and 12 PASS/5 DEBT/5 runtime FAIL/27 compile FAIL OpenTitan census remain unchanged."
+}

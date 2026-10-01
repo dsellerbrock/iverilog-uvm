@@ -1294,7 +1294,8 @@ static void draw_select_vec4(ivl_expr_t expr)
 	 * the signal-only branch below, where ivl_expr_signal() of a
 	 * property select yields the CLASS-typed handle signal and the
 	 * data-type assertion aborts. */
-      if (expr_is_dynarray_container_(subexpr) &&
+      if ((expr_is_dynarray_container_(subexpr)
+           || fixed_uarray_expr_type_(subexpr)) &&
           ivl_expr_type(subexpr) != IVL_EX_SIGNAL) {
 	    assert(base);
 	      /* Phase 50f: when the queue container is actually an
@@ -1303,6 +1304,7 @@ static void draw_select_vec4(ivl_expr_t expr)
 	       * numeric queue index reads garbage; emit %aa/load/v/* with
 	       * the proper key type instead. */
 	    ivl_type_t sub_type = receiver_container_type_(subexpr);
+	    ivl_type_t fixed_type = fixed_uarray_expr_type_(subexpr);
 	    if (sub_type && ivl_type_queue_assoc_compat(sub_type)) {
 		  if (expr_is_string_assoc_key_(base)) {
 			draw_eval_object(subexpr);
@@ -1334,7 +1336,9 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    }
 	    draw_eval_object(subexpr);
 	    draw_eval_expr_into_integer(base, 3);
-	    fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
+	    unsigned load_wid = fixed_type
+		  ? ivl_type_packed_width(ivl_type_element(fixed_type)) : wid;
+	    fprintf(vvp_out, "    %%load/qo/v %u;\n", load_wid);
 	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2;\n");
 	    return;
@@ -2040,9 +2044,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    ivl_type_t dest_type = first ? ivl_expr_net_type(first) : 0;
 	    if (!dest_type && first && ivl_expr_signal(first))
 		  dest_type = ivl_signal_net_type(ivl_expr_signal(first));
+	      /* A dynamic array uses the same container solver as a
+	       * queue, with no declared maximum (IEEE 1800-2017 18.12). */
 	    int queue_dest = dest_type
-		&& ivl_type_base(dest_type) == IVL_VT_QUEUE
-		&& !ivl_type_queue_assoc_compat(dest_type);
+		&& ((ivl_type_base(dest_type) == IVL_VT_QUEUE
+		     && !ivl_type_queue_assoc_compat(dest_type))
+		    || ivl_type_base(dest_type) == IVL_VT_DARRAY);
 	    ivl_type_t elem_type = queue_dest
 		? ivl_type_element(dest_type) : 0;
 
@@ -2064,7 +2071,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out,
 		    "    %%std/randomize/queue/with \"%u|%llu|%s\", %u, %u;\n",
 		    ivl_type_packed_width(elem_type),
-		    (unsigned long long)ivl_type_queue_max_size(dest_type),
+		    (unsigned long long)(ivl_type_base(dest_type) == IVL_VT_QUEUE
+					 ? ivl_type_queue_max_size(dest_type) : 0),
 		    ir, n_vals, n_objs);
 	    else
 		  fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
@@ -3492,7 +3500,11 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
             }
       }
       if (ivl_expr_value(expr) == IVL_VT_STRING) {
-            unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+              /* A string's compile-time width is nominal. Convert it at its
+                 natural (runtime) width -- operand 0 -- and let the
+                 consumer pad or select as its context requires. An explicit
+                 cast node carries a real width instead. */
+            unsigned wid = 0;
             switch (ivl_expr_type(expr)) {
                 case IVL_EX_STRING:
                 case IVL_EX_SIGNAL:
@@ -3501,6 +3513,7 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
                 case IVL_EX_SELECT:
                 case IVL_EX_SFUNC:
                 case IVL_EX_UFUNC:
+                case IVL_EX_TERNARY:
                   draw_eval_string(expr);
                   break;
                 default:

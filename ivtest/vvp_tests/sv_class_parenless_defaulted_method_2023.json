@@ -1,0 +1,1 @@
+{"type":"normal","source":"sv_class_parenless_defaulted_method_2023.v","iverilog-args":["-g2023","-Iivltests","-s","main"],"gold":"sv_class_parenless_defaulted_method"}

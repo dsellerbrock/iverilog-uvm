@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_constraint_enum_type_methods.v",
+    "iverilog-args" : [ "-g2023" ]
+}

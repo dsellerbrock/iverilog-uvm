@@ -65,6 +65,8 @@ static bool object_matches_container_layout_(
 		  && value.peek<vvp_queue>() == 0;
       case VVP_CONTAINER_ASSOC:
 	    return value.peek<vvp_assoc_base>() != 0;
+      case VVP_CONTAINER_FIXED:
+	    return false;
       }
       return false;
 }
@@ -836,10 +838,13 @@ void __vpiArrayVthrA::vpi_get_value(p_vpi_value vp)
 	// the object handle as a garbage vector and aborts the formatter.
       if (vpi_array_is_object(array)) {
 	    switch (vp->format) {
-		case vpiObjTypeVal:
-		  vp->format = vpiIntVal;
-		  vp->value.integer = 0;
+		case vpiObjTypeVal: {
+		  vvp_object_t oval;
+		  array->get_word_obj(index, oval);
+		  vp->value.misc = reinterpret_cast<char*>(
+		      oval.peek<vvp_object>());
 		  return;
+		}
 		case vpiBinStrVal:
 		case vpiOctStrVal:
 		case vpiDecStrVal:

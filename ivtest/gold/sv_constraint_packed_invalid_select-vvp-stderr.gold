@@ -1,0 +1,6 @@
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_packed_invalid_select.sv:11 is not supported by the constraint solver; randomize() fails rather than ignore it.
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_packed_invalid_select.sv:15 is not supported by the constraint solver; randomize() fails rather than ignore it.
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_packed_invalid_select.sv:19 is not supported by the constraint solver; randomize() fails rather than ignore it.
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_packed_invalid_select.sv:23 is not supported by the constraint solver; randomize() fails rather than ignore it.
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_packed_invalid_select.sv:27 is not supported by the constraint solver; randomize() fails rather than ignore it.
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_packed_invalid_select.sv:31 is not supported by the constraint solver; randomize() fails rather than ignore it.

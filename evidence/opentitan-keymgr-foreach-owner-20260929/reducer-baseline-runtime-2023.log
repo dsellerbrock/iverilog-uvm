@@ -1,0 +1,2 @@
+FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/sv_foreach_inherited_class_type_scope.v:40: bad foreach counts 4 0
+       Time: 0  Scope: $unit::actual_cov.check

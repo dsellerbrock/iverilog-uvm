@@ -1,0 +1,3 @@
+./ivltests/sv_constraint_solve_before_packed_member_unsafe_strict.v:10: warning: Constraint item in 'k' of class cfg is not representable in the constraint solver; randomize() of this class will fail.
+ERROR: constraint state read: malformed class constraint function capture.
+PASSED

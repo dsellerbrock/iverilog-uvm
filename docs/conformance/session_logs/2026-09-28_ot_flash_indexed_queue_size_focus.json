@@ -1,0 +1,38 @@
+{
+  "id": "OT-FLASH-CONSTRAINT-INDEXED-QUEUE-SIZE",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint with remaining application errors",
+  "compiler_base_commit": "8142f82c7",
+  "compiler_engine_sha256": "923a9b4fd62760a8de1a4a977f92983da72bce64fedc5044b33b2c7bb9e3f308",
+  "runtime_sha256": "8d25235aa0223341ec066aa7996fbac6e305299c2381d36d7feb2363189ad423",
+  "standard": "IEEE 1800-2017/2023 class constraint foreach and queue size semantics, including 7.10 and 18.5.8.2",
+  "root_cause": "Indexed fixed-array-to-queue size calls were rejected during constraint capture. Direct size IR and VVP size variables identified only the class property, so accepting the call without a flat fixed-leaf identity would read and write queue word zero for every leaf.",
+  "correction": "Resolve each defined fixed-array index to its canonical flat word and carry that leaf through size IR, solver variable identity, activity and state pinning, function priority, and queue writeback. Preserve the direct dynamic queue size path. Distinguish fixed queue leaves from their inner elements in rand_mode and random prefill.",
+  "focused_validation": {
+    "legacy": "8/8 passed under strict 2017/2023; focus list SHA-256 b97a9d681aae4f251c9ce51a8e6e7ae8f74e1d98fedf93d6b8da890b5b777aba",
+    "json": "8/8 passed under strict 2017/2023; focus list SHA-256 c46d25838049251f80f953c7d92b1a13e06a665fe37737b34bde2a607630e291",
+    "adjacent": "6/6 existing JSON direct-queue and foreach checks plus one direct queue legacy control passed",
+    "positive": "Distinct 1D/2D queue lengths, nonzero and descending bounds, packed queue readback, fixed one-word array, bare size call, per-leaf and whole-property rand_mode, non-rand state read, and both directions of function size dependency passed; negative signed bounds passed a current-image scratch control.",
+    "negative": "Contradictory same-leaf lengths fail with rollback; X and out-of-bounds selectors hard-error; unsupported nested queue-element constraints warn and make randomize fail; malformed indexed-size VVP token errors rather than crashing.",
+    "independent_review": "No selected-ticket code or test blocker found in the frozen diff and paired fixtures.",
+    "build_checks": "make -q ivl, make -C vvp -q vvp, and git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 13,
+    "after_hard_diagnostics": 3,
+    "removed_indexed_queue_size_errors": 10,
+    "added_hard_diagnostics": 0,
+    "warnings_before": 125,
+    "warnings_after": 135,
+    "added_nested_queue_element_warnings": 10,
+    "exit_code": 3,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "raw_result": "projectless work/ot-flash-indexed-queue-size-20260928/result.json"
+  },
+  "boundary": "The ten new warnings identify independent nested queue-element foreach constraints that remain unrepresentable and will make randomize fail. Two whole-array solve-before errors and one indexed child shuffle error remain hard. Selected randc fixed queue leaves and symbolic/partial selectors remain explicit unsupported forms. This compile produced no VVP image or Flash DV result; broad gates, installation, and a current-image census remain pending. Pinned sources and unsafe flags are unchanged."
+}

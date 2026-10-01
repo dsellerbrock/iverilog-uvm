@@ -1,0 +1,37 @@
+--- a/hw/ip/aes/dv/env/seq_lib/aes_base_vseq.sv
++++ b/hw/ip/aes/dv/env/seq_lib/aes_base_vseq.sv
+@@ -442,13 +442,13 @@
+ 
+       if (wait_on_reseed == 0) begin
+         // inject write to reg if enabled 25% of the time
+-        if (cfg.error_types.mal_inject && $urandom(3)==0 && !manual_operation) begin
++        if (cfg.error_types.mal_inject && $urandom_range(3)==0 && !manual_operation) begin
+           int wr_reg = $urandom_range(3,1);
+           case (wr_reg)
+-            1: csr_wr(.ptr(ral.key_share0[$urandom(7)]), .value($urandom()),
++            1: csr_wr(.ptr(ral.key_share0[$urandom_range(7)]), .value($urandom()),
+                       .blocking(is_blocking));
+-            2: csr_wr(.ptr(ral.iv[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
+-            3: csr_wr(.ptr(ral.data_in[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
++            2: csr_wr(.ptr(ral.iv[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
++            3: csr_wr(.ptr(ral.data_in[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
+             default: `uvm_fatal(`gfn, $sformatf("UNREACHABLE BUT NEEDED DUE TO SYNTAX CHECK"))
+           endcase
+         end
+@@ -630,12 +630,12 @@
+     end else begin
+       add_data(data_item.data_in, cfg_item.do_b2b);
+       // sometimes randomly write a reg while busy
+-      if (!manual_operation && cfg.error_types.mal_inject && ($urandom(3) == 1)) begin
++      if (!manual_operation && cfg.error_types.mal_inject && ($urandom_range(3) == 1)) begin
+         int wr_reg = $urandom_range(3,1);
+         case (wr_reg)
+-          1: csr_wr(.ptr(ral.key_share0[$urandom(7)]), .value($urandom()), .blocking(is_blocking));
+-          2: csr_wr(.ptr(ral.iv[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
+-          3: csr_wr(.ptr(ral.data_in[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
++          1: csr_wr(.ptr(ral.key_share0[$urandom_range(7)]), .value($urandom()), .blocking(is_blocking));
++          2: csr_wr(.ptr(ral.iv[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
++          3: csr_wr(.ptr(ral.data_in[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
+           default: `uvm_fatal(`gfn, $sformatf("UNREACHABLE BUT NEEDED DUE TO SYNTAX CHECK"))
+         endcase
+       end

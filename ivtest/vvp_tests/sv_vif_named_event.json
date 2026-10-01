@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_vif_named_event.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_vif_named_event"
+}

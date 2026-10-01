@@ -1,0 +1,3 @@
+ivltests/sv_constraint_fixed_queue_leaf_bad_index.v:3: error: Function call 'q[1'bx].size' used in a class constraint is unresolved or has an unsupported receiver, argument, or result form.
+ivltests/sv_constraint_fixed_queue_leaf_bad_index.v:3: error: Function call 'q['sd2].size' used in a class constraint is unresolved or has an unsupported receiver, argument, or result form.
+2 error(s) during elaboration.

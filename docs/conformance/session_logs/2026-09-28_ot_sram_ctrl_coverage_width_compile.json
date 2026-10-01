@@ -1,0 +1,33 @@
+{
+  "case": "lowrisc:dv:sram_ctrl_sim:0.1",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "patch": "docs/conformance/release_overlays/opentitan/sram_ctrl_csr_exec_mubi4_width.patch",
+  "patch_sha256": "2b56a00b04c97b4d31c5ac35ce74d073c669e6afa4a78e0fadcec193c16be27c",
+  "source_change": "sample csr_exec as 4 bits, matching the mubi4_t value supplied by sram_ctrl_scoreboard",
+  "source_patch_dry_run": "passes against pinned checkout",
+  "compiler_image_sha256": {
+    "driver": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "elaborator": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+    "vvp_target": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+  },
+  "selected_pristine_compile": {
+    "exit_code": 0,
+    "warning_lines": 12,
+    "out_of_domain_bin_warnings": 3,
+    "log": "/private/tmp/ot_sram_pristine_current.log",
+    "log_sha256": "5389e7b10f73640195eb64fe79b8ae3b00d43e1eec1521baac733ebf09e1ca8b"
+  },
+  "selected_copied_source_compile": {
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 0,
+    "warning_lines": 9,
+    "out_of_domain_bin_warnings": 0,
+    "log": "/private/tmp/ot-sram-coverage-width-20260928/selected-compile.log",
+    "log_sha256": "2000f0658b5aeaab010a1e05d4cd6f9c542f384db451d12eae815687d1166d63"
+  },
+  "minimal_reducer": "3-bit sample loses MuBi4False=0x9 bin; 4-bit sample retains it and reaches 50% on false-only sample; narrow and wide controls compile/run under strict 2017 and 2023",
+  "runtime": "selected DV replay not run while capped Caliptra observer is active",
+  "aggregate_49_case_census": "unchanged",
+  "minimal_reducer_file": "docs/conformance/repros/sram_ctrl_mubi_coverpoint_width.sv"
+}

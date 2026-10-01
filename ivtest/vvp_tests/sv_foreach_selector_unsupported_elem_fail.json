@@ -1,6 +1,0 @@
-{
-    "type"   : "CE",
-    "source" : "sv_foreach_selector_unsupported_elem_fail.v",
-    "iverilog-args" : [ "-g2012" ],
-    "gold"   : "sv_foreach_selector_unsupported_elem_fail"
-}

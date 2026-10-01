@@ -1,0 +1,38 @@
+{
+  "case": "lowrisc:dv:pattgen_sim:0.1",
+  "selected_sequence": "pattgen_smoke_vseq",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_patch": "docs/conformance/release_overlays/opentitan/pattgen_weighted_data_word_compat.patch",
+  "source_patch_sha256": "5005de70ba021bc8949043c1af7247a86230a9100ba2b23de0f8a020f736b3e8",
+  "source_patch_dry_run": "passes against pinned checkout",
+  "compiler_image_sha256": {
+    "driver": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "elaborator": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+    "vvp_target": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+  },
+  "pristine_selected_compile": {
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 0,
+    "warning_lines": 37,
+    "log": "/private/tmp/ot_pattgen_pristine_current.log",
+    "log_sha256": "bbf2ff8aa0d4472a16ed02583f95d5e3c83767bc1a04b00e6138bc98d10ff71b"
+  },
+  "patched_selected_compile": {
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 0,
+    "warning_lines": 37,
+    "log": "/private/tmp/ot-pattgen-scalar-data-dist-20260928/selected-class-word-compile.log",
+    "log_sha256": "a4f1386e56ce2f22775721322b0aa198a746bbaa14ae19b22d75fcada44d106a"
+  },
+  "focused_reducers": {
+    "packed_half_subject": "pattgen_packed_dist_fail_repro.sv: compile 0 and VVP exit 1 with exact large-range error in strict 2017 and 2023",
+    "scope_scalar_warning": "pattgen_scope_dist_collapse_repro.sv: compile 0 and VVP exit 1 because 100 weighted std::randomize draws all select zero in strict 2017 and 2023",
+    "class_word_control": "pattgen_class_word_dist_repro.sv: compile/VVP pass strict 2017 and 2023; 1000 draws yield low zero/max/middle = 806/93/101 and high = 774/116/110"
+  },
+  "saved_runtime_failure": "exact dist sampling failed on packed 64-bit data halves at get_random_channel_config; UVM_FATAL at 1985602 ps",
+  "semantic_review": "pattgen_channel_cfg has no constraint relating data to other fields; each 32-bit helper dist expression preserves its original weights and overlap. Seed-to-result sequence changes.",
+  "runtime": "patched selected UVM DV not run while capped Caliptra observer is active",
+  "aggregate_49_case_census": "unchanged"
+}

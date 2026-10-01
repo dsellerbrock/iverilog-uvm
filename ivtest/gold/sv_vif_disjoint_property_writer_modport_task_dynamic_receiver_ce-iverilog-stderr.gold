@@ -1,0 +1,2 @@
+ivltests/sv_vif_disjoint_property_writer.v:126: error: Variable 'sd_out' cannot have continuous and procedural drivers on the same bits.
+1 error(s) during elaboration.

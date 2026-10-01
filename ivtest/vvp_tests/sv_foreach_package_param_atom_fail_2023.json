@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_foreach_package_param_atom_fail.v",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "sv_foreach_package_param_atom_fail"
+}

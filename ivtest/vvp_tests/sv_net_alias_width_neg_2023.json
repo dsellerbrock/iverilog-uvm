@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_net_alias_width_neg_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "top"
+    ],
+    "gold": "sv_net_alias_width_neg_2023"
+}

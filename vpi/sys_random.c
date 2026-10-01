@@ -385,6 +385,26 @@ static unsigned is_seed_obj(vpiHandle obj, vpiHandle callh, const char *name)
       return rtn;
 }
 
+/* IEEE 1800-2017/2023 18.13.1 permits any integral seed expression. */
+static unsigned is_integral_seed_obj(vpiHandle obj)
+{
+      PLI_INT32 type = vpi_get(vpiType, obj);
+      if (type == vpiConstant || type == vpiParameter) {
+            PLI_INT32 ctype = vpi_get(vpiConstType, obj);
+            return ctype == vpiDecConst || ctype == vpiBinaryConst ||
+                   ctype == vpiOctConst || ctype == vpiHexConst;
+      }
+      if (type == vpiMemoryWord) {
+            s_vpi_value val;
+            val.format = vpiObjTypeVal;
+            vpi_get_value(obj, &val);
+            return val.format == vpiIntVal || val.format == vpiScalarVal ||
+                   val.format == vpiVectorVal || val.format == vpiTimeVal;
+      }
+      return type == vpiRegBit || type == vpiNetBit ||
+             (type != vpiRealVar && is_numeric_obj(obj));
+}
+
 static PLI_INT32 sys_rand_two_args_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -511,6 +531,24 @@ PLI_INT32 sys_random_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 0;
 }
 
+static PLI_INT32 sys_urandom_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+
+      if (argv == 0) return 0;
+      if (!is_integral_seed_obj(vpi_scan(argv))) {
+            vpi_printf("ERROR: %s:%d: %s's seed must be an integral expression.\n",
+                       vpi_get_str(vpiFile, callh),
+                       (int)vpi_get(vpiLineNo, callh), name);
+            vpip_set_return_value(1);
+            vpi_control(vpiFinish, 1);
+            return 0;
+      }
+      check_for_extra_args(argv, callh, name, "one argument", 1);
+      return 0;
+}
+
 static PLI_INT32 sys_random_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
       vpiHandle callh, argv, seed = 0;
@@ -618,27 +656,22 @@ static PLI_INT32 sys_urandom_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
       /* Calculate and return the result. */
       if (seed) {
-            val.value.integer = urandom(&i_seed, UINT32_MAX, 0);
-      } else {
-              /* M3B-5 (IEEE 1800-2017 18.13.1): inside a class method,
-                 $urandom draws from the object's own RNG once that object
-                 has been seeded. Falls through to the generator below when
-                 there is no seeded enclosing object, so unseeded sequences
-                 are unchanged. */
             unsigned int obj_rnd;
-            if (vpip_object_urandom(&obj_rnd))
+            if (vpip_object_urandom(&i_seed, &obj_rnd))
+                  val.value.integer = (PLI_INT32)obj_rnd;
+            else
+                  val.value.integer = urandom(&i_seed, UINT32_MAX, 0);
+      } else {
+              /* System randomization calls use the caller's process RNG. */
+            unsigned int obj_rnd;
+            if (vpip_object_urandom(0, &obj_rnd))
                   val.value.integer = (PLI_INT32)obj_rnd;
             else
                   val.value.integer = urandom(0, UINT32_MAX, 0);
       }
       vpi_put_value(callh, &val, 0, vpiNoDelay);
 
-      /* If it exists send the updated seed back to seed parameter. */
-      if (seed) {
-            val.value.integer = i_seed;
-            vpi_put_value(seed, &val, 0, vpiNoDelay);
-      }
-
+      /* The optional seed is an input expression, not an inout variable. */
       return 0;
 }
 
@@ -679,10 +712,9 @@ static PLI_INT32 sys_urandom_range_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
       /* Calculate and return the result. */
       {
-              /* M3B-5: as $urandom above -- the enclosing object's RNG
-                 when it has been seeded, scaled into [min,max]. */
+              /* As with $urandom, draw from the caller's process RNG. */
             unsigned int obj_rnd;
-            if (vpip_object_urandom(&obj_rnd)) {
+            if (vpip_object_urandom(0, &obj_rnd)) {
                   uint32_t span = i_maxval - i_minval;
                   if (span == UINT32_MAX)
                         val.value.integer = (PLI_INT32)obj_rnd;
@@ -1019,7 +1051,7 @@ void sys_random_register(void)
       tf_data.sysfunctype = vpiSysFuncSized;
       tf_data.tfname = "$urandom";
       tf_data.calltf = sys_urandom_calltf;
-      tf_data.compiletf = sys_random_compiletf;
+      tf_data.compiletf = sys_urandom_compiletf;
       tf_data.sizetf = sys_rand_func_sizetf;
       tf_data.user_data = "$urandom";
       res = vpi_register_systf(&tf_data);

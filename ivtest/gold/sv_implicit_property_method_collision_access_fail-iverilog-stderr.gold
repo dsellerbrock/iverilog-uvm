@@ -1,0 +1,2 @@
+ivltests/sv_implicit_property_method_collision_access_fail.v:8: error: Local property access_collision is not accessible in this context. (scope=$unit.access_owner.run)
+1 error(s) during elaboration.

@@ -1,0 +1,20 @@
+--- a/hw/ip/otp_ctrl/dv/env/seq_lib/otp_ctrl_smoke_vseq.sv
++++ b/hw/ip/otp_ctrl/dv/env/seq_lib/otp_ctrl_smoke_vseq.sv
+@@ -12,6 +12,8 @@
+   `uvm_object_utils(otp_ctrl_smoke_vseq)
+ 
+   `uvm_object_new
++
++  localparam bit [TL_DW-1:0] TimeoutMax = '1;
+ 
+   rand bit                           do_req_keys, do_lc_trans;
+   rand bit                           access_locked_parts;
+@@ -77,7 +79,7 @@
+   }
+ 
+   constraint check_timeout_val_c {
+-    check_timeout_val inside {0, [100_000:'1]};
++    check_timeout_val inside {0, [100_000:TimeoutMax]};
+   }
+ 
+   constraint ecc_otp_err_c {ecc_otp_err == OtpNoEccErr;}

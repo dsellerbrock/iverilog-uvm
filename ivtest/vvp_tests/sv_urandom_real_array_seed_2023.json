@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "sv_urandom_real_array_seed.v",
+  "iverilog-args": ["-g2023", "-gno-icarus-misc", "-gno-xtypes", "-s", "top"],
+  "gold": "sv_urandom_real_array_seed"
+}

@@ -1,0 +1,2 @@
+ivltests/sv_constraint_packed_iterator_reverse_ce.sv:5: error: Array reduction method sum() has a with expression that is not representable in the constraint solver; the constraint was not weakened.
+1 error(s) during elaboration.

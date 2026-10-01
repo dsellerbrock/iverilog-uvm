@@ -1,0 +1,2 @@
+./ivltests/sv_vif_packed_struct_field_enum_method_fail.v:21: sorry: enumeration methods on packed-struct fields selected through a virtual interface are not yet supported.
+1 error(s) during elaboration.

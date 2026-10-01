@@ -129,6 +129,12 @@ bool vvp_cobject::rand_mode(size_t pid) const
 	// contains independently controlled unpacked variables. The aggregate
 	// helper is internal (the IEEE query form still requires one index).
       if (pid < defn_->property_count()) {
+	    if (!defn_->property_dimensions(pid).empty()) {
+		  uint64_t count = defn_->property_array_size(pid);
+		  for (uint64_t leaf = 0; leaf < count; ++leaf)
+			if (!rand_mode(pid, (size_t)leaf)) return false;
+		  return true;
+	    }
 	    const std::string&bt = defn_->property_base_type(pid);
 	    vvp_object_t obj;
 	    const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
@@ -178,7 +184,8 @@ bool vvp_cobject::rand_mode(size_t pid, size_t leaf) const
 {
 	// Sequential dynamic containers use their current positional element
 	// identity. Queue mutation hooks move this state with shifted elements.
-      if (pid < defn_->property_count()) {
+      if (pid < defn_->property_count()
+	  && defn_->property_dimensions(pid).empty()) {
 	    const std::string&bt = defn_->property_base_type(pid);
 	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
 		  vvp_object_t obj;
@@ -202,7 +209,8 @@ bool vvp_cobject::rand_mode(size_t pid, size_t leaf) const
 
 bool vvp_cobject::rand_mode_for_randomization(size_t pid, size_t leaf) const
 {
-      if (pid < defn_->property_count()) {
+      if (pid < defn_->property_count()
+	  && defn_->property_dimensions(pid).empty()) {
 	    const std::string&bt = defn_->property_base_type(pid);
 	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
 		  vvp_object_t obj;
@@ -231,6 +239,12 @@ bool vvp_cobject::rand_mode_for_randomization(size_t pid, size_t leaf) const
 bool vvp_cobject::rand_mode_any(size_t pid) const
 {
       if (pid < defn_->property_count()) {
+	    if (!defn_->property_dimensions(pid).empty()) {
+		  uint64_t count = defn_->property_array_size(pid);
+		  for (uint64_t leaf = 0; leaf < count; ++leaf)
+			if (rand_mode(pid, (size_t)leaf)) return true;
+		  return false;
+	    }
 	    const std::string&bt = defn_->property_base_type(pid);
 	    vvp_object_t obj;
 	    const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
@@ -281,7 +295,8 @@ void vvp_cobject::set_rand_mode(size_t pid, bool mode)
       }
 	// Also update every element that exists now. The stored default on the
 	// container makes elements created later inherit this property-wide mode.
-      if (pid < defn_->property_count()) {
+      if (pid < defn_->property_count()
+	  && defn_->property_dimensions(pid).empty()) {
 	    vvp_object_t obj;
 	    get_object(pid, obj, 0);
 	    if (vvp_darray*array = obj.peek<vvp_darray>())
@@ -294,7 +309,8 @@ void vvp_cobject::set_rand_mode(size_t pid, bool mode)
 void vvp_cobject::set_rand_mode(size_t pid, size_t leaf, bool mode)
 {
 	// Dynamic arrays and queues store the mode with the live container.
-      if (pid < defn_->property_count()) {
+      if (pid < defn_->property_count()
+	  && defn_->property_dimensions(pid).empty()) {
 	    const std::string&bt = defn_->property_base_type(pid);
 	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
 		  vvp_object_t obj;

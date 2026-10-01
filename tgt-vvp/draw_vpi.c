@@ -879,17 +879,21 @@ static int get_vpi_taskfunc_lvalue_arg(struct args_info *result,
       ivl_signal_t sig = expr_signal_base_(expr);
       char buffer[4096];
 
-      if (!sig)
+      if (!sig && ivl_expr_type(expr) != IVL_EX_PROPERTY)
             return 0;
 
       switch (ivl_expr_type(expr)) {
 	  case IVL_EX_SIGNAL:
-	  case IVL_EX_PROPERTY:
 	    if (ivl_signal_dimensions(sig) != 0)
 		  return 0;
 	    snprintf(buffer, sizeof buffer, "v%p_0", sig);
 	    result->text = strdup(buffer);
 	    return 1;
+
+	  case IVL_EX_PROPERTY:
+	    /* The root signal is the containing class handle. $cast needs
+	     * the writable property handle, not that object. */
+	    return get_vpi_taskfunc_signal_arg(result, expr);
 
 	  case IVL_EX_SELECT:
 	    return get_vpi_taskfunc_signal_arg(result, expr);

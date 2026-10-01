@@ -1,0 +1,42 @@
+{
+  "id": "OT-FLASH-CONSTRAINT-CONSTANT-INDEXED-PART-SELECT",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint",
+  "compiler_base_commit": "c30c6e4441db37849477d6edaa6f2f6d8ed8e90e",
+  "compiler_engine_sha256": "07b0df527ff7cbea1ba2ef1a7a63b79b6708017fe8a1096e65d076f0c093633c",
+  "root_cause": "The shared class and inline constraint select lowering handled bit and fixed part selects but returned no IR for indexed +: and -: selections.",
+  "correction": "For constant bounds up to 64 bits on a one-dimensional zero-based 2-state packed vector, fold bounds through ordinary elaboration, check exact range and direction, and emit the existing fixed (part ...) solver IR.",
+  "focused_validation": {
+    "json": "6/6 passed, strict paired 2017/2023",
+    "legacy": "6/6 passed, strict paired 2017/2023",
+    "runtime": "Class packed-field and inline ascending/descending constraints enforce exact selected bits; parameter, bitwise, and arithmetic bounds and contradictory unsatisfiable conditions are checked.",
+    "negative": "Partial out-of-range, X base, symbolic base, four-state vector, zero width, and multirank shapes hard-error in each edition; bounds wider than 64 bits remain unsupported.",
+    "independent_review": "No scoped blocker on the final compiler image; diagnostic multiset diff independently checked.",
+    "diff_check": "make -q ivl and git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 20,
+    "after_hard_diagnostics": 19,
+    "removed_diagnostic": "flash_ctrl_erase_suspend_vseq.sv:300 inline -: constraint translation",
+    "added_hard_diagnostics": 0,
+    "warnings_before": 146,
+    "warnings_after": 134,
+    "removed_warnings": "Exactly 12 named +: address-slice randomize()-will-fail warnings",
+    "added_warnings": 0,
+    "exit_code": 19,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "raw_result": "projectless work/ot-flash-indexed-constraint-core-20260928/result.json"
+  },
+  "boundaries": [
+    "The remaining 19 hard diagnostics prevent a Flash VVP image and DV runtime.",
+    "Four-state vectors, wider bounds, partial out-of-range, unknown or symbolic bounds, and multirank forms are separate compiler gaps.",
+    "Ascending class-property indexed readback is preexisting separate DD-081.",
+    "Broad gates, installation, and a fresh 49-core census remain pending.",
+    "Pinned OpenTitan and Caliptra sources were not modified."
+  ]
+}

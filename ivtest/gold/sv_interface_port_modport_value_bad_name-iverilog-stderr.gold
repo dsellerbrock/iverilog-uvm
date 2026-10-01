@@ -1,0 +1,2 @@
+ivltests/sv_interface_port_modport_value.v:29: error: Class port_modport_if has no property fake.
+1 error(s) during elaboration.

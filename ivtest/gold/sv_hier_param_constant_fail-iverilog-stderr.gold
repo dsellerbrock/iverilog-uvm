@@ -1,0 +1,2 @@
+ivltests/sv_hier_param_constant_fail.v:8: error: A hierarchical reference (`test.u_gen.BlkLen') is not allowed in a constant expression (a hierarchical parameter is accepted only under -gcommercial-unsafe).
+1 error(s) during elaboration.

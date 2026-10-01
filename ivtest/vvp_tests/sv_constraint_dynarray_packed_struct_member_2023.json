@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_dynarray_packed_struct_member_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_constraint_dynarray_packed_struct_member"
+}

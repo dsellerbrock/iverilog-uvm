@@ -1,0 +1,25 @@
+{
+  "blocker": "OT-PARTINFO-CONSTRAINT-DIAGNOSTIC-FALLBACK",
+  "baseline_head": "04d73e889",
+  "baseline": "Two invalid PartInfo sources in 2017/2023 each emitted the intended specific error and one spurious generic fallback error.",
+  "implementation": "At three constant-then-selector branches in elaborate.cc, return after constraint_constant_ir_ has increased Design::errors; preserve empty, error-free symbolic selector fallback and caller value-slot logic.",
+  "installed_ivl_sha256": "b682eaf94760863d2e10cd88c3151091a585d57b5a2d274c15007c9cdba78dab",
+  "direct_result": "Four prior CE compiles each changed from two error diagnostics and exit 2 to one specific diagnostic and exit 1.",
+  "focused_results": {
+    "partinfo_json": "18 passed, 0 failed",
+    "partinfo_legacy": "18 passed, 0 failed",
+    "make_check": "pass",
+    "gold_changes": 0
+  },
+  "covered_neighbors": [
+    "member_range 2017/2023",
+    "rand_index 2017/2023",
+    "rand_index_bad_member 2017/2023",
+    "out-of-bounds bit/logic, negative bounds, and X leaf"
+  ],
+  "remaining_prior_json_failures": {
+    "unsafe_interface_driver": 12,
+    "queue_size_function_argument": 2
+  },
+  "boundary": "The historical full JSON result remains 4,097/32 at d5c7366c3. No full gate or OpenTitan 49-target corpus rerun has followed these focused repairs."
+}

@@ -1,0 +1,234 @@
+--- a/hw/top_earlgrey/dv/env/chip_env_cfg.sv
++++ b/hw/top_earlgrey/dv/env/chip_env_cfg.sv
+@@ -22,6 +22,13 @@
+ 
+   // chip top interfaces
+   virtual chip_if       chip_vif;
++  // Icarus workaround: bind typed handles to chip_if's physical child instances.
++  virtual spi_if spi_host_vif;
++  virtual pins_if #(.Width(top_earlgrey_pkg::MioPadCount), .PullStrength("Weak")) mios_vif;
++  virtual pins_if #(.Width(top_earlgrey_pkg::DioPadCount), .PullStrength("Weak")) dios_vif;
++  virtual pins_if #(.Width(1), .PullStrength("Weak")) pwrb_in_vif;
++  virtual pins_if #(.Width(8), .PullStrength("Weak")) sysrst_ctrl_vif;
++  virtual pins_if #(.Width(NUM_GPIOS), .PullStrength("Weak")) gpios_vif;
+ 
+   // Indicates which clock source to use for chip simulations.
+   chip_clock_source_e   chip_clock_source;
+--- a/hw/top_earlgrey/dv/env/chip_env.sv
++++ b/hw/top_earlgrey/dv/env/chip_env.sv
+@@ -31,6 +31,13 @@
+       `uvm_fatal(`gfn, "failed to get chip_vif from uvm_config_db")
+     end
+ 
++    cfg.spi_host_vif = cfg.chip_vif.spi_host_if;
++    cfg.mios_vif = cfg.chip_vif.mios_if;
++    cfg.dios_vif = cfg.chip_vif.dios_if;
++    cfg.pwrb_in_vif = cfg.chip_vif.pwrb_in_if;
++    cfg.sysrst_ctrl_vif = cfg.chip_vif.sysrst_ctrl_if;
++    cfg.gpios_vif = cfg.chip_vif.gpios_if;
++
+     // Set tl_agent's is_active bit based on the stub_cpu value.
+     cfg.m_tl_agent_cfg.is_active = cfg.chip_vif.stub_cpu;
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_common_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_common_vseq.sv
+@@ -26,7 +26,7 @@
+     void'($value$plusargs("+csr_%0s", csr_test_type));
+     // sio are driven X when csb is inactive, but these pins can be configured as wakeup cause,
+     // assign a known value to avoid X propagation in case that `PINMUX.WKUP_CAUSE` is programmed.
+-    cfg.chip_vif.spi_host_if.sio_out = $urandom;
++    cfg.spi_host_vif.sio_out = $urandom;
+ 
+     // These types of CSR tests are quite long; run them only once.
+     if (csr_test_type inside {"bit_bash", "aliasing"}) num_trans = 1;
+@@ -37,8 +37,8 @@
+     // CSR tests write to chip CSRs, which includes the pinmux registers. Random writes to the
+     // pinmux may inadvertently connect the chip IOs to peripherals, causing Xs to propagate, if
+     // the chip MIOs are not initialized. Hence, we weakly pull down ALL MIOs for these tests.
+-    cfg.chip_vif.mios_if.pins_pd = '1;
+-    cfg.chip_vif.dios_if.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
++    cfg.mios_vif.pins_pd = '1;
++    cfg.dios_vif.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
+                                  top_earlgrey_pkg::DioPadSpiHostD0] = '1;
+ 
+     super.pre_start();
+@@ -55,8 +55,8 @@
+         "tb.dut.top_earlgrey.u_adc_ctrl_aon.u_adc_ctrl_core.u_adc_ctrl_fsm.LpSampleCntCfg_M");
+     $asserton(0,
+         "tb.dut.top_earlgrey.u_adc_ctrl_aon.u_adc_ctrl_core.u_adc_ctrl_fsm.NpSampleCntCfg_M");
+-    cfg.chip_vif.mios_if.pins_pd = '0;
+-    cfg.chip_vif.dios_if.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
++    cfg.mios_vif.pins_pd = '0;
++    cfg.dios_vif.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
+                                  top_earlgrey_pkg::DioPadSpiHostD0] = '0;
+   endtask
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_padctrl_attributes_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_padctrl_attributes_vseq.sv
+@@ -397,18 +397,18 @@
+       pinmux_mio_insel_config();
+       `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph_oe)
+       `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph)
+-      cfg.chip_vif.mios_if.pins_oe = mio_to_periph_oe;
+-      cfg.chip_vif.mios_if.pins_o = mio_to_periph;
++      cfg.mios_vif.pins_oe = mio_to_periph_oe;
++      cfg.mios_vif.pins_o = mio_to_periph;
+       repeat ($urandom_range(4, 20)) begin
+         cfg.chip_vif.io_div4_clk_rst_if.wait_clks($urandom_range(1, 20));
+         randcase
+           1: begin
+             `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph)
+-            cfg.chip_vif.mios_if.pins_o = mio_to_periph;
++            cfg.mios_vif.pins_o = mio_to_periph;
+           end
+           1: begin
+             `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph_oe)
+-            cfg.chip_vif.mios_if.pins_oe = mio_to_periph_oe;
++            cfg.mios_vif.pins_oe = mio_to_periph_oe;
+           end
+         endcase
+         cfg.chip_vif.io_div4_clk_rst_if.wait_clks(1);
+@@ -534,15 +534,15 @@
+   endtask
+ 
+   function void pinmux_dio_drive_inputs();
+-    cfg.chip_vif.dios_if.pins_oe = '0;
++    cfg.dios_vif.pins_oe = '0;
+     void'(cfg.chip_vif.signal_probe_pinmux_periph_to_dio_i_11_0(SignalProbeForce,
+                                                                 periph_to_dio[11:0]));
+     void'(cfg.chip_vif.signal_probe_pinmux_periph_to_dio_i_15_14(SignalProbeForce,
+                                                                  periph_to_dio[15:14]));
+     void'(cfg.chip_vif.signal_probe_pinmux_periph_to_dio_oe_i(SignalProbeForce, periph_to_dio_oe));
+     for (int i = 0; i < DioCount; i++) begin
+-      cfg.chip_vif.dios_if.pins_oe[DioToDioPadMap[i]] = dio_to_periph_oe[i];
+-      cfg.chip_vif.dios_if.pins_o[DioToDioPadMap[i]] = dio_to_periph[i];
++      cfg.dios_vif.pins_oe[DioToDioPadMap[i]] = dio_to_periph_oe[i];
++      cfg.dios_vif.pins_o[DioToDioPadMap[i]] = dio_to_periph[i];
+     end
+   endfunction
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv
+@@ -136,28 +136,28 @@
+ 
+     // High-Z for all ports
+     `uvm_info(`gfn, "Testing Retention Outputs with no pulls", UVM_LOW)
+-    cfg.chip_vif.dios_if.pins_pd = '0;
+-    cfg.chip_vif.dios_if.pins_pu = '0;
+-    cfg.chip_vif.mios_if.pins_pd = '0;
+-    cfg.chip_vif.mios_if.pins_pu = '0;
++    cfg.dios_vif.pins_pd = '0;
++    cfg.dios_vif.pins_pu = '0;
++    cfg.mios_vif.pins_pd = '0;
++    cfg.mios_vif.pins_pu = '0;
+     @(cfg.chip_vif.pwrmgr_low_power_if.cb);
+     check_pad_retention_out();
+ 
+     // Pull-down then check
+     `uvm_info(`gfn, "Testing Retention Outputs with Pull-down", UVM_LOW)
+-    cfg.chip_vif.dios_if.pins_pd = '1;
+-    cfg.chip_vif.dios_if.pins_pu = '0;
+-    cfg.chip_vif.mios_if.pins_pd = '1;
+-    cfg.chip_vif.mios_if.pins_pu = '0;
++    cfg.dios_vif.pins_pd = '1;
++    cfg.dios_vif.pins_pu = '0;
++    cfg.mios_vif.pins_pd = '1;
++    cfg.mios_vif.pins_pu = '0;
+     @(cfg.chip_vif.pwrmgr_low_power_if.cb);
+     check_pad_retention_out();
+ 
+     // Pull-up then check
+     `uvm_info(`gfn, "Testing Retention Outputs with Pull-up", UVM_LOW)
+-    cfg.chip_vif.dios_if.pins_pd = '0;
+-    cfg.chip_vif.dios_if.pins_pu = '1;
+-    cfg.chip_vif.mios_if.pins_pd = '0;
+-    cfg.chip_vif.mios_if.pins_pu = '1;
++    cfg.dios_vif.pins_pd = '0;
++    cfg.dios_vif.pins_pu = '1;
++    cfg.mios_vif.pins_pd = '0;
++    cfg.mios_vif.pins_pu = '1;
+     @(cfg.chip_vif.pwrmgr_low_power_if.cb);
+     check_pad_retention_out();
+   endtask : check_pads_retention_type
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv
+@@ -34,17 +34,17 @@
+     super.pre_start();
+     // Initialize the pad input to 0 to avoid having X values in the initial test phase.
+     // The following correspond to IOR13, IOC7, IOC9 respectively
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[4] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[5] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[4] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[5] = 1;
+   endtask
+ 
+   virtual task post_start();
+     //cfg.chip_vif.pwrb_in_if.disconnect();
+     //cfg.chip_vif.sysrst_ctrl_if.disconnect();
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[4] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[5] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[4] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[5] = 1;
+     super.post_start();
+   endtask
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv
+@@ -31,10 +31,10 @@
+   virtual task pre_start();
+     super.pre_start();
+     // Initialize the pad input to 0 to avoid having X values in the initial test phase.
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey1] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey2] = 1;
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey1] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey2] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
+   endtask
+ 
+   virtual function void write_test_phase(input test_phases_e phase);
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv
+@@ -32,10 +32,10 @@
+   virtual task pre_start();
+     super.pre_start();
+     // Initialize the pad input to 0 to avoid having X values in the initial test phase.
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey1] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey2] = 1;
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey1] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey2] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
+   endtask
+ 
+   virtual function void write_test_phase(input byte phase);
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv
+@@ -23,7 +23,7 @@
+ 
+     // Wait until we reach the SW test state.
+     `DV_WAIT(cfg.sw_test_status_vif.sw_test_status == SwTestStatusInTest)
+-    cfg.chip_vif.spi_host_if.disconnected = 1;
++    cfg.spi_host_vif.disconnected = 1;
+ 
+     // SW uses IOA7=0 to indicate chip is sleeping
+     `DV_WAIT(cfg.sw_logger_vif.printed_log == "Setting SPI_DIO1 to high when sleeping")
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_retention_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_retention_vseq.sv
+@@ -27,7 +27,7 @@
+     cfg.chip_vif.gpios_if.drive_pin(GpioForWakeup, 0);
+ 
+     // Treat test GPIOs as chip outputs.
+-    cfg.chip_vif.gpios_if.pins_oe[GpiosTested-1:0] = '0;
++    cfg.gpios_vif.pins_oe[GpiosTested-1:0] = '0;
+ 
+     for (int round = rounds - 1 ; round >= 0 ; round--) begin
+       logic [GpiosTested-1:0] gpio_exp, gpio_act;

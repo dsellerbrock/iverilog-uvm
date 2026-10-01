@@ -37,6 +37,10 @@ struct sva_nfa_edge_t {
       unsigned to = 0;
       std::vector<PExpr*> guards; // empty = always true; AND otherwise
       bool epsilon = false;       // construction-time only
+      bool first_match_exit = false; // leaves a retained first_match wrapper
+      // Guard conjunction at the wrapper boundary, before a following ##0
+      // source suffix is fused into the full transition guards.
+      std::vector<PExpr*> first_match_guards;
 };
 
 struct sva_nfa_t {
@@ -47,9 +51,11 @@ struct sva_nfa_t {
       std::vector<sva_nfa_edge_t> edges;
 
       unsigned new_state() { return nstates++; }
-      void tick(unsigned f, unsigned t, PExpr*g)
+      void tick(unsigned f, unsigned t, PExpr*g, bool fm_exit = false)
       { sva_nfa_edge_t e; e.from=f; e.to=t;
-	if (g) e.guards.push_back(g); edges.push_back(e); }
+	if (g) e.guards.push_back(g); e.first_match_exit=fm_exit;
+	if (fm_exit) e.first_match_guards=e.guards;
+	edges.push_back(e); }
       void eps(unsigned f, unsigned t)
       { sva_nfa_edge_t e; e.from=f; e.to=t; e.epsilon=true; edges.push_back(e); }
 };

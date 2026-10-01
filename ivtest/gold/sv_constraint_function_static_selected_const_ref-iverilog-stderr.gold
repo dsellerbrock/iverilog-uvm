@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_static_selected_const_ref.v:5: error: A const ref actual must be a variable, class property, or unpacked member or element.
+1 error(s) during elaboration.

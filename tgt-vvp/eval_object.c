@@ -1054,7 +1054,8 @@ static int eval_object_select(ivl_expr_t expr)
 	    ivl_type_t sube_type = receiver_container_type_(sube);
 
 	    if (type_is_runtime_container_(sube_type)
-		|| expr_is_dynarray_container_(sube)) {
+		|| expr_is_dynarray_container_(sube)
+		|| fixed_uarray_expr_type_(sube)) {
 		  draw_eval_object(sube);
 		  if (sube_type
 		      && ivl_type_base(sube_type) == IVL_VT_QUEUE
@@ -1147,7 +1148,8 @@ static int eval_object_select(ivl_expr_t expr)
 	       * fell through to the arrayed-property path below, which
 	       * consumed the element index as a property-ARRAY index
 	       * (assertion idx < array_size_ at runtime). */
-	    if (expr_is_dynarray_container_(sube)) {
+	    if (expr_is_dynarray_container_(sube)
+		|| fixed_uarray_expr_type_(sube)) {
 		  draw_eval_object(sube);
 		  if (index)
 			draw_eval_expr_into_integer(index, 3);
@@ -2543,7 +2545,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 
       /* IEEE 1800-2017 7.12.1 min()/max():
        *   $ivl_darray_method$minmax|<kind>(array, iter, result, idx,
-       *                                    best, bestitem, val)
+       *                                    best, bestitem, val[, recv],
+       *                                    [declared_idx, idx_expr])
        * Walk the array tracking the best per-element value (the with
        * expression, or the element itself) and return a queue holding
        * the single best element — or an empty queue for an empty
@@ -2553,8 +2556,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strncmp(name, "$ivl_darray_method$minmax|", 26) == 0) {
 	    const char*kind = name + 26;
 	    int is_min = (strcmp(kind, "min") == 0);
+	    int is_fixed = parm_count == 9 || parm_count == 10;
+	    int fixed_has_recv = parm_count == 10;
 
-	    if (parm_count < 7) {
+	    if (parm_count < 7 || parm_count > 10) {
 		  fprintf(vvp_out, "    %%null; ; minmax: bad parm count\n");
 		  return 0;
 	    }
@@ -2565,8 +2570,12 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_expr_t best_arg = ivl_expr_parm(expr, 4);
 	    ivl_expr_t bitem_arg = ivl_expr_parm(expr, 5);
 	    ivl_expr_t val = ivl_expr_parm(expr, 6);
-	    ivl_expr_t recv_parm = (parm_count > 7)
+	    ivl_expr_t recv_parm = (parm_count == 8 || fixed_has_recv)
 		  ? ivl_expr_parm(expr, 7) : 0;
+	    ivl_expr_t declared_idx_arg = is_fixed
+		  ? ivl_expr_parm(expr, fixed_has_recv ? 8 : 7) : 0;
+	    ivl_expr_t declared_idx_expr = is_fixed
+		  ? ivl_expr_parm(expr, fixed_has_recv ? 9 : 8) : 0;
 
 	    ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
 	    if (!a_sig
@@ -2580,13 +2589,20 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		|| !ivl_expr_signal(best_arg)
 		|| !bitem_arg || ivl_expr_type(bitem_arg) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(bitem_arg)
-		|| !val) {
+		|| !val
+		|| (is_fixed
+		    && (!declared_idx_arg
+			|| ivl_expr_type(declared_idx_arg) != IVL_EX_SIGNAL
+			|| !ivl_expr_signal(declared_idx_arg)
+			|| !declared_idx_expr))) {
 		  fprintf(vvp_out, "    %%null; ; minmax: bad arg shape\n");
 		  return 0;
 	    }
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+	    ivl_signal_t declared_idx_sig = is_fixed
+		  ? ivl_expr_signal(declared_idx_arg) : 0;
 	    ivl_signal_t best_sig = ivl_expr_signal(best_arg);
 	    ivl_signal_t bitem_sig = ivl_expr_signal(bitem_arg);
 
@@ -2633,6 +2649,11 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    draw_array_elem_load_vec4_(a_sig);
 	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
 		    iter_sig, iter_wid);
+	    if (is_fixed) {
+		draw_eval_vec4(declared_idx_expr);
+		fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
+			declared_idx_sig);
+	    }
 
 	      /* value on the stack; the first element is always taken */
 	    draw_eval_vec4(val);
@@ -3230,7 +3251,11 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 {
       unsigned nparm = ivl_expr_parms(expr);
       ivl_type_t etype = ivl_type_element(agg_type);
-      int is_darray = ivl_type_base(agg_type) == IVL_VT_DARRAY;
+      int is_fixed = type_is_fixed_uarray_property_(agg_type);
+      int reverse_fixed = is_fixed
+	    && ivl_type_packed_msb(agg_type, 0)
+	       > ivl_type_packed_lsb(agg_type, 0);
+      int is_darray = ivl_type_base(agg_type) == IVL_VT_DARRAY || is_fixed;
       int darray_via_queue = 0;
       char enc[32];
       int errors = 0;
@@ -3278,7 +3303,13 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
       }
 
       for (idx = 0; idx < nparm; idx += 1) {
-	    ivl_expr_t parm = ivl_expr_parm(expr, idx);
+	      /* The frontend supplies fixed-pattern operands in canonical
+	       * numeric-low-first order. Container value assignment is
+	       * left-to-right, so export descending fixed patterns in that
+	       * order before binding them to destination storage. */
+	    unsigned parm_idx = reverse_fixed && is_darray
+		  ? nparm - 1 - idx : idx;
+	    ivl_expr_t parm = ivl_expr_parm(expr, parm_idx);
 	    if (!parm)
 		  continue;
 	      /* A same-shape collection operand splices element-wise
@@ -3407,7 +3438,8 @@ static int eval_object_array_pattern(ivl_expr_t expr)
 
       agg_type = ivl_expr_net_type(expr);
       if (agg_type && (ivl_type_base(agg_type) == IVL_VT_QUEUE
-		       || ivl_type_base(agg_type) == IVL_VT_DARRAY))
+		       || ivl_type_base(agg_type) == IVL_VT_DARRAY
+		       || type_is_fixed_uarray_property_(agg_type)))
 	    return eval_object_container_pattern_(expr, agg_type);
 
       if (nparm == 0) {
@@ -3605,7 +3637,8 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
          * pattern to its first element. */
       if (rvt == IVL_EX_ARRAY_PATTERN && element_type
 	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
-	      || ivl_type_base(element_type) == IVL_VT_QUEUE))
+	      || ivl_type_base(element_type) == IVL_VT_QUEUE
+	      || type_is_fixed_uarray_property_(element_type)))
 	    return eval_object_container_pattern_(ex, element_type);
 
       if (is_value_container && rval_aliases) {

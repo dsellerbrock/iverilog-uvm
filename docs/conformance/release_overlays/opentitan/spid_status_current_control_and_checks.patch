@@ -1,0 +1,129 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spid_status_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_status_tb.sv
+@@ -47,7 +47,19 @@
+   logic rst_spi_n;
+   assign rst_spi_n = sck_rst_n && ~sif.csb;
+ 
+-  sel_datapath_e dut_sel_dp;
++  sel_datapath_e dut_sel_dp, cmd_only_dp_sel;
++  logic sck_status_busy;
++  logic sys_csb_deasserted_pulse, csb_sys_q, csb_sys_qq;
++  always_ff @(posedge clk or negedge rst_n) begin
++    if (!rst_n) begin
++      csb_sys_q <= 1'b1;
++      csb_sys_qq <= 1'b1;
++    end else begin
++      csb_sys_q <= sif.csb;
++      csb_sys_qq <= csb_sys_q;
++    end
++  end
++  assign sys_csb_deasserted_pulse = csb_sys_q && !csb_sys_qq;
+   // Command info for Read Status
+   // CmdReadStauts1, CmdReadStatus2, CmdReadStatus3
+   logic [CmdInfoIdxW-1:0] cmd_info_idx;
+@@ -120,7 +132,7 @@
+     // Read back and check
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+ 
+-    assert(data[1] == 1'b 1);
++    assert(data[1] == 1'b 1) else $fatal(1, "WREN did not set WEL");
+ 
+     repeat(20) @(sck_clk.cbn);
+ 
+@@ -131,28 +143,26 @@
+     // Read back and check
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+ 
+-    assert(data[1] == 1'b 0);
++    assert(data[1] == 1'b 0) else $fatal(1, "WEL should remain clear");
+ 
+     repeat(20) @(sck_clk.cbn);
+     ->wel_test_complete;
+ 
+     @(wel_update_done);
+ 
+-    // Expect SW to set WEL again.
+-    // The SW request is comitted after a SPI transaction is received.
+-    // Sending read status command but expect WEL still 0.
+-    // Then next Read Status will return the correct value (WEL == 1)
++    // Software can update status bits but cannot set WEL, which is HW-set.
++    // The new status value is visible on the next Read Status transaction.
+ 
+     @(sck_clk.cbn);
+     // This should return 0 for WEL
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+-    assert(data[1] == 1'b 0);
++    assert(data[1] == 1'b 0) else $fatal(1, "WEL should remain clear");
+     repeat(20) @(sck_clk.cbn);
+ 
+-    // This should return 1 for WEL
++    // SW wrote 0xD2; the current status block keeps WEL clear (0xD0).
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+ 
+-    assert(data[1] == 1'b 1);
++    assert(data == 8'h D0) else $fatal(1, "SW status update was not returned");
+     repeat(20) @(sck_clk.cbn);
+ 
+ 
+@@ -177,8 +187,7 @@
+ 
+     // Host has issued WREN then WRDI then read back the STATUS and checked if
+     // HW updates the value correctly.
+-    // Now, SW reverts WEL bit (to 1), then informs host system to read back
+-    // the STATUS
++    // Now, SW writes the other status bits; WEL remains HW-controlled.
+ 
+     @(posedge clk);
+ 
+@@ -207,13 +216,15 @@
+     .rst_ni (rst_spi_n),
+ 
+     .clk_out_i (gated_sck_inverted),
++    .rst_out_ni (rst_spi_n),
+ 
+     .clk_csb_i (sif.csb),
+ 
+     .sys_clk_i  (clk),
+     .sys_rst_ni (rst_n),
+ 
+-    .sys_csb_deasserted_pulse_i (sys_csb_deasserted_pulse), // TODO
++    .sys_csb_deasserted_pulse_i (sys_csb_deasserted_pulse),
++    .sys_update_clr_i (1'b0),
+ 
+     .sys_status_we_i (sys_status_we ),
+     .sys_status_i    (sys_status_in ),
+@@ -233,6 +244,10 @@
+ 
+     .inclk_we_set_i (sck_we_set),
+     .inclk_we_clr_i (sck_we_clr),
++    .inclk_status_commit_i (s2p_valid),
++    .sck_status_busy_o (sck_status_busy),
++    .scan_rst_ni (1'b1),
++    .scanmode_i (prim_mubi_pkg::MuBi4False),
+ 
+     .csb_busy_broadcast_o () // SCK domain
+   );
+@@ -247,10 +262,12 @@
+     .spi_mode_i   (spi_mode),
+ 
+     .cmd_info_i   (spid_common::CmdInfo),
++    .sck_status_busy_i (sck_status_busy),
+ 
+     .io_mode_o    (s2p_iomode),
+ 
+     .sel_dp_o       (dut_sel_dp),
++    .cmd_only_sel_dp_o (cmd_only_dp_sel),
+     .cmd_info_o     (cmd_info),
+     .cmd_info_idx_o (cmd_info_idx),
+ 
+@@ -268,8 +285,8 @@
+     .cmd_config_idx_o ()
+   );
+ 
+-  assign sck_we_set = (dut_sel_dp == DpWrEn);
+-  assign sck_we_clr = (dut_sel_dp == DpWrDi);
++  assign sck_we_set = (cmd_only_dp_sel == DpWrEn);
++  assign sck_we_clr = (cmd_only_dp_sel == DpWrDi);
+ 
+   spi_s2p s2p (
+     .clk_i  (gated_sck),

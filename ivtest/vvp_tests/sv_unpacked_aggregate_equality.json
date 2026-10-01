@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_unpacked_aggregate_equality.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_unpacked_aggregate_equality"
+}

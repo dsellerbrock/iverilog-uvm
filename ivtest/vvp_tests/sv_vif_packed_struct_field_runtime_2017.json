@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_vif_packed_struct_field_runtime.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "top"],
+  "gold": "sv_vif_packed_struct_field_runtime"
+}

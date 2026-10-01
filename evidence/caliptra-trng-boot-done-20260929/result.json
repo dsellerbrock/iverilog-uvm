@@ -1,0 +1,20 @@
+{
+  "case": "smoke_test_trng",
+  "historical_verdict": "four_hour_timeout",
+  "poll_address": "0x200030d0",
+  "poll_bit": 17,
+  "poll_reads_zero": 789,
+  "poll_cycle_first": 60531,
+  "poll_cycle_last": 71562,
+  "entropy_enable_cycle_approx": 57654,
+  "samples_required": 96,
+  "model_duty_cycle_clocks": 500,
+  "model_first_to_last_96_span_clocks": 47500,
+  "diagnostic_first_to_last_96_span_clocks": 4750,
+  "first_96_values_identical": true,
+  "control_compile_exit": 0,
+  "control_vvp_exit": 0,
+  "control_peak_rss_bytes": 6668288,
+  "pinned_model_sha256": "85b73db47fdab769e55d8ca58c976a0cad68631d3f3eed0e7d13649c38abf01f",
+  "qualification": "read_only_trace_plus_tiny_model_control; no full-top replay"
+}

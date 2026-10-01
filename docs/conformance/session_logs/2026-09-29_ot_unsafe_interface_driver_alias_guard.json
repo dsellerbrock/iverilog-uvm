@@ -1,0 +1,143 @@
+{
+  "blocker": "OT-UNSAFE-INTERFACE-DRIVER-ALIAS-GUARD",
+  "baseline_head": "525642475",
+  "status": "focused candidate awaiting exact-head broad gate",
+  "standards": "IEEE 1800-2017 and IEEE 1800-2023 §6.5 reject continuous and procedural assignment to the same variable bit. -gcommercial-unsafe is an opt-in compatibility extension, not IEEE qualification.",
+  "root_cause": "The full-width pending-direct-member waiver suppressed every property writer. It did not distinguish a statically resolved writer from an ordinary runtime-selected VIF property guarded at VVP from a named modport or generated clocking property whose VVP slot does not identify the physical member.",
+  "compiler_source_sha256": "66f733cde761c4e83d428df69ca786c8fbc713272c616702cbf76da741b3f692",
+  "build_and_installed_ivl_sha256": "47723577aaf31f43b9ea28d989921a2b8a0736f4fe00a8c8cc3211b22b234e68",
+  "build_tree_vvp_sha256": "e978a84bff1268ab70970eb6c5977f9f0f834d73c93ae9267d09125d2d40745b",
+  "saved_12_case_classification": [
+    {
+      "family": "ordinary VIF same member through producer port",
+      "count": 2,
+      "unsafe_expected": "RE exact VVP alias error",
+      "strict_expected": "CE"
+    },
+    {
+      "family": "ordinary VIF same member with direct continuous drive",
+      "count": 2,
+      "unsafe_expected": "RE exact VVP alias error",
+      "strict_expected": "CE"
+    },
+    {
+      "family": "ordinary VIF runtime-selected driven/other receiver",
+      "count": 2,
+      "unsafe_expected": "RE on driven branch; +OTHER value-checked pass",
+      "strict_expected": "CE"
+    },
+    {
+      "family": "named modport .reset(count) alias",
+      "count": 2,
+      "unsafe_expected": "CE: generated view's named property does not map to raw count slot in VVP",
+      "strict_expected": "CE"
+    },
+    {
+      "family": "direct interface module-port p.value",
+      "count": 2,
+      "unsafe_expected": "CE: lval resolves to concrete bus.value",
+      "strict_expected": "CE"
+    },
+    {
+      "family": "virtual clocking output to continuously driven final_value",
+      "count": 2,
+      "unsafe_expected": "CE: VVP writes generated output buffer/pending slots, not raw final_value",
+      "strict_expected": "CE"
+    }
+  ],
+  "added_simple_modport_control": "A direct simple modport task writer remains runtime-guardable in unsafe mode: alias branch emits exact sd_out error; +OTHER disjoint branch checks both members and prints PASSED in 2017/2023.",
+  "focused_results": [
+    {
+      "runner": "JSON",
+      "list": "ivtest/regress-caliptra-pic-vif-focus-vvp.list",
+      "passed": 40,
+      "failed": 0
+    },
+    {
+      "runner": "JSON",
+      "list": "ivtest/regress-caliptra-port-driver-focus-vvp.list",
+      "passed": 28,
+      "failed": 0
+    },
+    {
+      "runner": "JSON",
+      "list": "ivtest/regress-vif-clocking-output-focus-vvp.list",
+      "passed": 40,
+      "failed": 0
+    },
+    {
+      "runner": "JSON",
+      "list": "ivtest/regress-caliptra-interface-driver-focus-vvp.list",
+      "passed": 40,
+      "failed": 0
+    },
+    {
+      "runner": "legacy",
+      "list": "ivtest/regress-caliptra-port-driver-focus-legacy.list",
+      "passed": 28,
+      "failed": 0
+    },
+    {
+      "runner": "legacy",
+      "list": "ivtest/regress-vif-clocking-output-focus-legacy.list",
+      "passed": 36,
+      "failed": 0
+    },
+    {
+      "runner": "legacy",
+      "list": "ivtest/regress-caliptra-interface-driver-focus-legacy.list",
+      "passed": 34,
+      "failed": 0
+    }
+  ],
+  "exact_log_examples": [
+    "ivtest/log/sv_vif_disjoint_property_writer_uncertain_receiver_illegal_2017_unsafe-vvp-stderr.log",
+    "ivtest/log/sv_vif_disjoint_property_writer_modport_task_dynamic_receiver_illegal_2023_unsafe-vvp-stderr.log",
+    "ivtest/log/sv_vif_disjoint_property_writer_modport_alias_illegal_2017_unsafe-iverilog-stderr.log",
+    "ivtest/log/sv_interface_port_mixed_driver_direct_port_unsafe-iverilog-stderr.log",
+    "ivtest/log/sv_clocking_output_continuous_virtual_overlap_unsafe_2017-iverilog-stderr.log"
+  ],
+  "tiny_spi_select": {
+    "source": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-mixed-driver/select.sv",
+    "strict_2017_2023": "Both compile exits 3 on possible sck/csb overlap",
+    "unsafe_2017_2023": "Both compile exit 0; disjoint branch exits 0 with PASS and checked values; +alias exits 1 with exact sck/csb VVP errors"
+  },
+  "selected_spi_host_compile": {
+    "cwd": "/private/tmp/ot-census-blockers-head-20260927/work/runtime/lowrisc_dv_spi_host_sim_1.0/sim-icarus",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-sspi_host_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/private/tmp/spi_host_unsafe_guard_current.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-mixed-driver/spi-host-patched-outer.scr"
+    ],
+    "exit": 0,
+    "warnings": 15,
+    "errors": 0,
+    "sorries": 0,
+    "image_sha256": "5228a5260bf2ee803b4147f2084a20cf473d17384ee8b368d68d860acc5ae2c9",
+    "stderr": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spi-mixed-driver/spi_host_unsafe_guard_current.stderr",
+    "limitation": "Compile only. The selected copied source includes an inactive-CSB tie-off; no selected SPI VVP runtime or DV pass was attempted."
+  },
+  "make_check": "pass",
+  "diff_check": "pass",
+  "qualification_boundary": "The historical full JSON gate at d5c7366c3 ran 4,097 cases with 32 failures. No new full JSON/legacy or 49-case application corpus run has occurred."
+}

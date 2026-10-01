@@ -1,4 +1,5 @@
-ivltests/sv_queue_last_lvalue_invalid.v:6: error: `$' requires a positional queue l-value.
-ivltests/sv_queue_last_lvalue_invalid.v:7: error: `$' requires a positional queue l-value.
-ivltests/sv_queue_last_lvalue_invalid.v:8: error: `$' requires a positional queue l-value.
-3 error(s) during elaboration.
+ivltests/sv_queue_last_lvalue_invalid.v:13: error: `$' requires a positional queue l-value.
+ivltests/sv_queue_last_lvalue_invalid.v:14: error: `$' requires a positional queue l-value.
+ivltests/sv_queue_last_lvalue_invalid.v:15: error: `$' requires a positional queue l-value.
+ivltests/sv_queue_last_lvalue_invalid.v:16: sorry: queue `[$]' property write through a non-`$' indexed receiver is not supported.
+4 error(s) during elaboration.

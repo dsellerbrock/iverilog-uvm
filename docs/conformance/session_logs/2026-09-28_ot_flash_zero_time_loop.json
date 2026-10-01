@@ -1,0 +1,28 @@
+{
+  "ticket": "OT-FLASH-ZERO-TIME-LOOP",
+  "selected_case": "flash_ctrl_base_test / flash_ctrl_smoke_vseq",
+  "guarded_image_sha256": "819c0be8dcf22546d986553027b69a749411b20d2574d9a6520653fed66bcd6f",
+  "optimized_vvp_sha256": "6e1c492906010a2ea16184bac4d221a3e5f19af2f759432163eafcdce01ad5c7",
+  "probe": "VPI cbNextSimTime plus IVL_PC_PROGRESS=1 with one report per million VVP opcodes",
+  "bounded_runtime": {
+    "wall_seconds": 73.011,
+    "cpu_seconds": 72.846,
+    "terminated_at_cap": true,
+    "uvm_verdict": "none",
+    "simulation_time_at_stall_ns": 4401.911,
+    "next_sim_time_callbacks": 6567,
+    "progress_reports_at_fixed_time": 725,
+    "minimum_opcodes_without_time_advance": 725000000,
+    "scope_sample_counts": {
+      "tb.dut.u_flash_hw_if": 510,
+      "tb.dut.u_flash_hw_if.u_addr_sync_reqack.gen_nrz_hs_protocol.src_fsm": 136,
+      "tb.dut.u_flash_hw_if.u_addr_sync_reqack.gen_nrz_hs_protocol": 32,
+      "prim_mubi_pkg::mubi4_test_true_loose": 24,
+      "lc_ctrl_pkg::lc_tx_test_true_strict": 23
+    }
+  },
+  "last_completed_transaction": "flash_ctrl_core_reg_block.init=1 frontdoor write at 4381.5 ns; init_wip polling had already returned zero",
+  "candidate_reducer": "flash_ctrl_lcmgr.sv:333-343,382-400,432-470 with prim_sync_reqack.sv:194,217-259 in NRZ mode",
+  "root_cause": "undetermined: isolate RTL feedback from Icarus combinational scheduling before changing code",
+  "corpora": "OpenTitan 49 and Caliptra 52 not rerun"
+}

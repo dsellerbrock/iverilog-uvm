@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_class_packed_enum_property.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_class_packed_enum_property"
+  ],
+  "gold": "sv_class_packed_enum_property"
+}

@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_object.h"
+# include  "vvp_darray.h"
 # include  "vvp_net.h"
 # include  "vthread.h"
 # include  <iostream>
@@ -29,6 +30,8 @@
 # include  <functional>
 # include  <limits>
 # include  <cstring>
+# include  <cerrno>
+# include  <climits>
 
 using namespace std;
 
@@ -38,6 +41,95 @@ vvp_container_layout_t vvp_make_container_layout(
 {
       return vvp_container_layout_t(new vvp_container_layout_s(
             kind, queue_bound_known, queue_max_size, element));
+}
+
+vvp_container_layout_t vvp_make_fixed_container_layout(
+      int left, int right, vvp_fixed_leaf_kind_t leaf, unsigned width)
+{
+      return vvp_container_layout_t(new vvp_container_layout_s(
+            left, right, leaf, width));
+}
+
+vvp_object_t vvp_make_fixed_array_value(
+      const vvp_container_layout_t&layout)
+{
+      if (!layout || layout->kind != VVP_CONTAINER_FIXED)
+            return vvp_object_t();
+      const int64_t left = layout->fixed_left;
+      const int64_t right = layout->fixed_right;
+      const uint64_t count = static_cast<uint64_t>(
+            left >= right ? left - right : right - left) + 1;
+      vvp_darray*array = 0;
+      switch (layout->fixed_leaf) {
+          case VVP_FIXED_BOOL:
+            array = new vvp_darray_vec2(count, layout->fixed_width);
+            break;
+          case VVP_FIXED_LOGIC:
+            array = new vvp_darray_vec4(count, layout->fixed_width);
+            break;
+          case VVP_FIXED_OBJECT:
+            array = new vvp_darray_object(count);
+            break;
+      }
+      if (!array)
+            return vvp_object_t();
+      array->set_declared_container_layout(layout);
+      return vvp_object_t(array);
+}
+
+/* A fixed associative element uses numeric-low-first storage. A fixed
+ * source already has that ordering; other container values and target-built
+ * typed patterns are left-to-right. Make the positional conversion on the
+ * copied value before source metadata is replaced with the destination
+ * declaration (IEEE 1800-2017/2023 7.6). */
+void vvp_rebind_fixed_array_value(
+      vvp_object*value, const vvp_container_layout_t&layout)
+{
+      if (!value || !layout || layout->kind != VVP_CONTAINER_FIXED)
+            return;
+      vvp_darray*array = dynamic_cast<vvp_darray*>(value);
+      if (array) {
+            const vvp_container_layout_t source =
+                  value->declared_container_layout();
+            const bool dst_desc = layout->fixed_left > layout->fixed_right;
+            bool reverse = false;
+            if (source && source->kind == VVP_CONTAINER_FIXED)
+                  reverse = (source->fixed_left > source->fixed_right)
+                        != dst_desc;
+            else
+                  reverse = dst_desc;
+
+            const int64_t left = layout->fixed_left;
+            const int64_t right = layout->fixed_right;
+            const uint64_t count = static_cast<uint64_t>(
+                  left >= right ? left - right : right - left) + 1;
+            if (reverse && array->get_size() == count) {
+                  const size_t size = array->get_size();
+                  for (size_t idx = 0; idx < size / 2; ++idx) {
+                        const unsigned lo = static_cast<unsigned>(idx);
+                        const unsigned hi = static_cast<unsigned>(size-1-idx);
+                        if (layout->fixed_leaf == VVP_FIXED_OBJECT) {
+                              vvp_object_t a, b;
+                              array->get_word(lo, a);
+                              array->get_word(hi, b);
+                              array->set_word(lo, b);
+                              array->set_word(hi, a);
+                        } else {
+                              vvp_vector4_t a, b;
+                              array->get_word(lo, a);
+                              array->get_word(hi, b);
+                              array->set_word(lo, b);
+                              array->set_word(hi, a);
+                        }
+                  }
+                  std::vector<size_t> order(size);
+                  for (size_t idx = 0; idx < size; ++idx)
+                        order[idx] = size - 1 - idx;
+                  array->reorder_element_refs(order);
+                  array->reorder_rand_modes(order);
+            }
+      }
+      value->set_declared_container_layout(layout);
 }
 
 static bool parse_layout_uint64_(const char*&cur, uint64_t&value)
@@ -56,12 +148,27 @@ static bool parse_layout_uint64_(const char*&cur, uint64_t&value)
       return true;
 }
 
+static bool parse_layout_int_(const char*&cur, int&value)
+{
+      char*end = 0;
+      errno = 0;
+      const long parsed = strtol(cur, &end, 10);
+      if (end == cur || errno || parsed < INT_MIN || parsed > INT_MAX)
+            return false;
+      cur = end;
+      value = static_cast<int>(parsed);
+      return true;
+}
+
 static bool parse_strict_container_layout_(
       const char*cur, vvp_container_layout_kind_t expected_outer,
       vvp_container_layout_t&layout)
 {
       vector<vvp_container_layout_kind_t> kinds;
       vector<uint64_t> queue_bounds;
+      int fixed_left = 0, fixed_right = 0;
+      vvp_fixed_leaf_kind_t fixed_leaf = VVP_FIXED_OBJECT;
+      unsigned fixed_width = 0;
       if (!cur || *cur != '!')
             return false;
       ++cur;
@@ -82,6 +189,36 @@ static bool parse_strict_container_layout_(
                   ++cur;
                   kinds.push_back(VVP_CONTAINER_ASSOC);
                   queue_bounds.push_back(0);
+            } else if (*cur == 'F') {
+                  if (kinds.empty() || kinds.back() != VVP_CONTAINER_ASSOC)
+                        return false;
+                  ++cur;
+                  if (!parse_layout_int_(cur, fixed_left) || *cur != ':')
+                        return false;
+                  ++cur;
+                  if (!parse_layout_int_(cur, fixed_right) || *cur != ':')
+                        return false;
+                  ++cur;
+                  const int64_t left = fixed_left, right = fixed_right;
+                  const uint64_t count = static_cast<uint64_t>(
+                        left >= right ? left - right : right - left) + 1;
+                  if (count > UINT_MAX)
+                        return false;
+                  if (*cur == 'b') fixed_leaf = VVP_FIXED_BOOL;
+                  else if (*cur == 'v') fixed_leaf = VVP_FIXED_LOGIC;
+                  else if (*cur == 'o') fixed_leaf = VVP_FIXED_OBJECT;
+                  else return false;
+                  ++cur;
+                  uint64_t width = 0;
+                  if (fixed_leaf == VVP_FIXED_OBJECT) {
+                        if (*cur) return false;
+                  } else if (!parse_layout_uint64_(cur, width)
+                             || width == 0 || width > UINT_MAX || *cur) {
+                        return false;
+                  }
+                  fixed_width = static_cast<unsigned>(width);
+                  kinds.push_back(VVP_CONTAINER_FIXED);
+                  queue_bounds.push_back(0);
             } else {
                   return false;
             }
@@ -99,9 +236,14 @@ static bool parse_strict_container_layout_(
       vvp_container_layout_t result;
       for (size_t idx = kinds.size(); idx > 0; --idx) {
             const vvp_container_layout_kind_t kind = kinds[idx-1];
-            result = vvp_make_container_layout(
-                  kind, kind == VVP_CONTAINER_QUEUE,
-                  queue_bounds[idx-1], result);
+            if (kind == VVP_CONTAINER_FIXED) {
+                  result = vvp_make_fixed_container_layout(
+                        fixed_left, fixed_right, fixed_leaf, fixed_width);
+            } else {
+                  result = vvp_make_container_layout(
+                        kind, kind == VVP_CONTAINER_QUEUE,
+                        queue_bounds[idx-1], result);
+            }
       }
       layout = result;
       return true;
@@ -161,6 +303,10 @@ void vvp_object::set_declared_container_layout(
       const vvp_container_layout_t&value)
 {
       declared_container_layout_ = value;
+      if (value && value->kind == VVP_CONTAINER_FIXED)
+            if (vvp_darray*array = dynamic_cast<vvp_darray*>(this))
+                  array->dpi_set_decl_range(
+                        value->fixed_left, value->fixed_right);
       apply_declared_container_layout_own(value);
       if (value && value->element)
 	    rebind_declared_element_container_layout(value->element);

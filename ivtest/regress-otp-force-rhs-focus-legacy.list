@@ -1,0 +1,1 @@
+sv_force_packed_bank_rhs_live normal,-g2017,-gstrict-expr-width,-s,top ivltests gold=sv_force_packed_bank_rhs_live.gold

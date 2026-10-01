@@ -40,6 +40,7 @@ class vvp_vinterface : public vvp_object {
 
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0) const;
+      bool reject_continuous_write(size_t pid, size_t idx = 0) const;
 
       void set_real(size_t pid, double val, size_t idx = 0);
       double get_real(size_t pid, size_t idx = 0) const;

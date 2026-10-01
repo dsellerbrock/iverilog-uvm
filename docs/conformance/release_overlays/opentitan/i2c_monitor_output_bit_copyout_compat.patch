@@ -1,0 +1,34 @@
+diff --git a/hw/dv/sv/i2c_agent/i2c_monitor.sv b/hw/dv/sv/i2c_agent/i2c_monitor.sv
+--- a/hw/dv/sv/i2c_agent/i2c_monitor.sv
++++ b/hw/dv/sv/i2c_agent/i2c_monitor.sv
+@@ -117,7 +117,7 @@
+   endtask : run_phase
+ 
+   // Monitor SCL to measure the actual frequency of an I2C transaction.
+-  virtual task automatic perf_monitor(virtual i2c_if vif, ref uvm_event start, ref uvm_event stop);
++  virtual task automatic perf_monitor(virtual i2c_if vif, input uvm_event start, input uvm_event stop);
+ 
+     `uvm_info(`gfn, "perf_monitor(): Waiting for start event.", UVM_DEBUG)
+     start.wait_trigger();
+@@ -280,7 +280,9 @@
+ 
+       // sample read data
+       for (int i = 7; i >= 0; i--) begin
+-        cfg.vif.get_bit_data("device", cfg.timing_cfg, mon_data[i]);
++        bit sampled_bit;
++        cfg.vif.get_bit_data("device", cfg.timing_cfg, sampled_bit);
++        mon_data[i] = sampled_bit;
+         `uvm_info(`gfn, $sformatf("target_read_thread() trans %0d, byte %0d, bit[%0d] %0b",
+             mon_dut_item.tran_id, mon_dut_item.num_data+1, i, mon_data[i]), UVM_DEBUG)
+       end
+@@ -335,7 +337,9 @@
+               cfg.start_perf_monitor.trigger();
+ 
+               for (int i = 7; i >= 0; i--) begin
+-                cfg.vif.get_bit_data("host", cfg.timing_cfg, mon_data[i]);
++                bit sampled_bit;
++                cfg.vif.get_bit_data("host", cfg.timing_cfg, sampled_bit);
++                mon_data[i] = sampled_bit;
+               end
+ 
+               cfg.stop_perf_monitor.trigger();

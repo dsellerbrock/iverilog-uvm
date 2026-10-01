@@ -1,0 +1,51 @@
+--- a/hw/ip/csrng/dv/env/seq_lib/csrng_intr_vseq.sv
++++ b/hw/ip/csrng/dv/env/seq_lib/csrng_intr_vseq.sv
+@@ -95,7 +95,7 @@
+ 
+   task trigger_invalid_acmd_sts_err(uint app);
+     // Write an invalid command and expect the corresponding status response.
+-    cs_item.randomize();
++    `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+     cs_item.clen  = 'h0;
+     cs_item.acmd  = cfg.which_invalid_acmd;
+     `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+@@ -116,13 +116,13 @@
+   task trigger_invalid_seq_sts_err(uint app);
+     // Write an invalid sequence of commands and expect the corresponding status response.
+     if (cfg.which_cmd_inv_seq == INS) begin
+-      cs_item.randomize();
++      `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+       cs_item.acmd  = cfg.which_cmd_inv_seq;
+       `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+       send_cmd_req(app, cs_item);
+     end
+ 
+-    cs_item.randomize();
++    `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+     cs_item.acmd  = cfg.which_cmd_inv_seq;
+     cs_item.clen  = 'h0;
+     `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+@@ -145,20 +145,20 @@
+     csr_wr(.ptr(ral.reseed_interval), .value(cfg.reseed_interval));
+ 
+     if (cfg.which_cmd_inv_seq != INS) begin
+-      cs_item.randomize();
++      `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+       cs_item.acmd  = INS;
+       `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+       send_cmd_req(app, cs_item);
+     end
+     `uvm_info(`gfn, $sformatf("Setting the reseed interval to %d", cfg.reseed_interval), UVM_DEBUG)
+     for (int i = 0; i < cfg.reseed_interval; i++) begin
+-      cs_item.randomize();
++      `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+       cs_item.acmd  = GEN;
+       cs_item.glen  = 'h1;
+       `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+       send_cmd_req(app, cs_item);
+     end
+-    cs_item.randomize();
++    `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+     cs_item.acmd  = GEN;
+     cs_item.glen  = 'h1;
+     cs_item.clen  = 'h0;

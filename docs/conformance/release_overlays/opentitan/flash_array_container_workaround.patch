@@ -1,0 +1,78 @@
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/flash_ctrl_env_cfg.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/flash_ctrl_env_cfg.sv
+@@ -923,7 +923,7 @@
+   endfunction
+ 
+   // This shows errors injected per the given caller table.
+-  local function void show_errors(ref per_caller_err_addr_tbl_t addr_tbl);
++  local function void show_errors(input per_caller_err_addr_tbl_t addr_tbl);
+     addr_t addr;
+     if (addr_tbl.first(addr) == 0) return;
+     while (addr_tbl.next(addr) != 0) begin
+@@ -942,7 +942,7 @@
+     show_errors(derr_addr_tbl[caller]);
+   endfunction
+ 
+-  local function int err_count(ref per_caller_err_addr_tbl_t err_addr_tbl);
++  local function int err_count(input per_caller_err_addr_tbl_t err_addr_tbl);
+     int count = 0;
+     addr_t addr;
+     if (err_addr_tbl.first(addr) == 0) return 0;
+@@ -967,25 +967,26 @@
+     return err_count(serr_addr_tbl[caller]);
+   endfunction
+ 
+-  local function bit address_has_err(ref err_addr_tbl_t err_addr_tbl, input addr_t addr,
+-                                     input flash_dv_part_e part);
+-    return (err_addr_tbl[ReadTaskCtrl].exists(addr) &&
+-            err_addr_tbl[ReadTaskCtrl][addr].exists(part)) ||
+-           (err_addr_tbl[ReadTaskHost].exists(addr) &&
+-            err_addr_tbl[ReadTaskHost][addr].exists(part));
+-  endfunction
+-
+   // These functions are used to track the creation of lines with bit errors.
+   function bit address_has_derr(addr_t addr, flash_dv_part_e part);
+-    return address_has_err(derr_addr_tbl, addr, part);
++    return (derr_addr_tbl[ReadTaskCtrl].exists(addr) &&
++            derr_addr_tbl[ReadTaskCtrl][addr].exists(part)) ||
++           (derr_addr_tbl[ReadTaskHost].exists(addr) &&
++            derr_addr_tbl[ReadTaskHost][addr].exists(part));
+   endfunction
+ 
+   function bit address_has_ierr(addr_t addr, flash_dv_part_e part);
+-    return address_has_err(ierr_addr_tbl, addr, part);
++    return (ierr_addr_tbl[ReadTaskCtrl].exists(addr) &&
++            ierr_addr_tbl[ReadTaskCtrl][addr].exists(part)) ||
++           (ierr_addr_tbl[ReadTaskHost].exists(addr) &&
++            ierr_addr_tbl[ReadTaskHost][addr].exists(part));
+   endfunction
+ 
+   function bit address_has_serr(addr_t addr, flash_dv_part_e part);
+-    return address_has_err(serr_addr_tbl, addr, part);
++    return (serr_addr_tbl[ReadTaskCtrl].exists(addr) &&
++            serr_addr_tbl[ReadTaskCtrl][addr].exists(part)) ||
++           (serr_addr_tbl[ReadTaskHost].exists(addr) &&
++            serr_addr_tbl[ReadTaskHost][addr].exists(part));
+   endfunction
+ 
+   function bit address_has_some_injected_error(addr_t addr, flash_dv_part_e part);
+@@ -1290,7 +1291,7 @@
+ 
+     for (int i = 0; i < NumBanks; i++) begin
+       otf_scb_h.data_mem[i].delete();
+-      foreach (otf_scb_h.info_mem[i][j])
++      foreach (otf_scb_h.info_mem[,j])
+         otf_scb_h.info_mem[i][j].delete();
+     end
+   endtask
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_error_mp_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_error_mp_vseq.sv
+@@ -332,7 +332,7 @@
+     end
+ 
+     // Copy mp_info_pages settings, so we only apply one configuration per test.
+-    mp_info_regions = mp_info_pages;
++    foreach (mp_info_pages[i, j]) mp_info_regions[i][j] = mp_info_pages[i][j];
+ 
+   endtask : init_flash_regions
+ 

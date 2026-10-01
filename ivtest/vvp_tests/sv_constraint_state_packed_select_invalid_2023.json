@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "sv_constraint_state_packed_select_invalid.sv",
+    "iverilog-args" : [ "-g2023" ],
+    "gold" : "sv_constraint_state_packed_select_invalid"
+}

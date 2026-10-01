@@ -1,0 +1,90 @@
+{
+  "blocker": "OT-OTBN-TRACE-DECL-ORDER",
+  "status": "DONE for source-order compile blocker; selected OTBN DV and 49-target corpus pending",
+  "compiler_head": "1a2c24d13af0f0f77de7ff39640b172ccb547bf2",
+  "standards": "IEEE 1800-2017 and IEEE 1800-2023 \u00a76.5 declaration before use; packed struct variable is explicitly declared.",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "patches": [
+    {
+      "patch": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/docs/conformance/release_overlays/opentitan/otbn_mnemonic_csr_localparam_bins.patch",
+      "patch_sha256": "c22e0d9d7284e6d63b3d38d31ca31c46639e8c735a79aa8a03c7ccc83bf07656",
+      "source": "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv",
+      "source_sha256_before": "1028ed5cc5aebc4a14f47a6ae40f0fadf856fbeac5e7961e9ed660513c9bd02e",
+      "source_sha256_after": "ab13517ccd79dc34ec41b3f253670bac43265c401d20f639fdf8488ea2cf2d70"
+    },
+    {
+      "patch": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/docs/conformance/release_overlays/opentitan/otbn_trace_forward_ref_order.patch",
+      "patch_sha256": "baffc9d26205d5f57afcc9eb0ce07c82b53a740b4ef180be01ba454e6a624207",
+      "source": "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv",
+      "source_sha256_before": "6a66b4c38ed63aeedd231c519ed087ad271ee4274810f45433dfecd91fd72446",
+      "source_sha256_after": "ece12dea9c14a2ef3203b5494ffbe0db8f0a985905f511688dd7e4eccdb11a74"
+    }
+  ],
+  "strict_controls": {
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "original_compile_exit": 2,
+    "reordered_compile_exit": 0,
+    "reordered_vvp_exit": 0,
+    "saved": "strict-controls.json",
+    "saved_prior_slang_record": "docs/conformance/session_logs/2026-09-28_ot_otbn_trace_decl_order.json",
+    "reproducer": "tracer_forward_repro.sv",
+    "reproducer_sha256": "0b10abda746761517a5e343c6b5d909040e8b8dc405731a2c1688c28cd65bd8c"
+  },
+  "selected_compile": {
+    "prior_error_lines": 2,
+    "current_error_lines": 0,
+    "prior_log_sha256": "4b612981b2c649c6ffd42675909373b8de35cb46ba3ab09b42fbc5e391a931e0",
+    "current_log_sha256": "585f2543e5d00f756be81dcc0218f0bef6edd272bdcf52186910647ba6150fd7",
+    "prior_remaining_errors": "Two tracer bind/r-value errors at otbn_trace_if.sv:375",
+    "current_warnings": "One input-port coercion and five always_comb nonblocking warnings, all present before patch; successful compile adds only a DPI export-stub note",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sotbn_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/private/tmp/ot-census-speedups-overlays-20260929/otbn-selected.vvp",
+      "-c",
+      "/private/tmp/ot-census-speedups-overlays-20260929/otbn-selected/matrix-iverilog.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-speedups-overlays-20260929/otbn-selected/sim-icarus",
+    "compiler_driver_sha256": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+    "ivl_sha256": "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4",
+    "vvp_target_sha256": "c7009aa09565ac121b265d37352e66db43dd956482fba344488f2f596d12e29c",
+    "vvp_sha256": "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c",
+    "otbn_coverage_source_sha256": "ab13517ccd79dc34ec41b3f253670bac43265c401d20f639fdf8488ea2cf2d70",
+    "otbn_tracer_source_sha256": "ece12dea9c14a2ef3203b5494ffbe0db8f0a985905f511688dd7e4eccdb11a74",
+    "inner_source_list_sha256": "1908eae1ad09f25f805cf058b85d7946e421d29906b90c52ac1e5b6a74de7273",
+    "outer_filelist_sha256": "6219ddba7e43d66788f66fee64fcf14194e1f3df825a03ffdfa46cbec58e8230",
+    "guard": {
+      "reason": "exit",
+      "exit": 0,
+      "duration_seconds": 4.793,
+      "peak_process_group_rss_mib": 971.031,
+      "rss_cap_mib": 4096,
+      "samples": 41,
+      "process_group_empty_after": true
+    },
+    "vvp_image_emitted": true,
+    "vvp_image_sha256": "ee086887a932c5a1907fa0d4d7c7dc89711dd72e435eb34fa2b64dcdc4393850"
+  },
+  "qualification_boundary": "Compilation succeeds with two named source patches and existing -gcommercial-unsafe; no OTBN VVP/DV verdict, runtime traffic, or updated 49-target corpus yet."
+}

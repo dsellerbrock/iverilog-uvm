@@ -1,0 +1,12 @@
+diff --git a/hw/ip/sram_ctrl/dv/env/sram_ctrl_env_cov.sv b/hw/ip/sram_ctrl/dv/env/sram_ctrl_env_cov.sv
+--- a/hw/ip/sram_ctrl/dv/env/sram_ctrl_env_cov.sv
++++ b/hw/ip/sram_ctrl/dv/env/sram_ctrl_env_cov.sv
+@@ -56,7 +56,7 @@
+   // covers various scenarios that enable/disable SRAM executability
+   covergroup executable_cg with function sample(logic [3:0] lc_hw_debug_en,
+                                                 logic [7:0] en_sram_ifetch,
+-                                                logic [2:0] csr_exec);
++                                                logic [3:0] csr_exec);
+     // placeholder comment
+     en_sram_ifetch_cp: coverpoint en_sram_ifetch {
+       bins sram_ifetch_enable = {prim_mubi_pkg::MuBi8True};

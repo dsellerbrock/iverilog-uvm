@@ -1,0 +1,2 @@
+./ivltests/sv_vif_packed_struct_field_missing_fail.v:19: error: Struct type has no member 'missing'.
+1 error(s) during elaboration.

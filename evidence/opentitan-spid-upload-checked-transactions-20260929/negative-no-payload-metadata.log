@@ -1,0 +1,26 @@
+OpenTitan UVM runtime
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp -n /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-upload-checker-final2-negative-no-payload-metadata-20260929/runtime/lowrisc_dv_spid_upload_sim_0.1/matrix-runtime.vvp +smoke_test=1
+returncode: 1
+duration_seconds: 1.029
+
+UVM_INFO /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh(392) @ 0: reporter [UVM/RELNOTES] 
+----------------------------------------------------------------
+UVM-1.2
+(C) 2007-2014 Mentor Graphics Corporation
+(C) 2007-2014 Cadence Design Systems, Inc.
+(C) 2006-2014 Synopsys, Inc.
+(C) 2011-2013 Cypress Semiconductor Corp.
+(C) 2013-2014 NVIDIA Corporation
+----------------------------------------------------------------
+
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  You are using a version of the UVM library that has been compiled
+  with `UVM_OBJECT_DO_NOT_NEED_CONSTRUCTOR undefined.
+  See http://www.eda.org/svdb/view.php?id=3770 for more details.
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+Chip Erase (c7) is sent
+FATAL: ../src/lowrisc_dv_spid_upload_sim_0.1/tb/spid_upload_tb.sv:323: Upload command 0 unexpectedly has payload metadata
+       Time: 1733708  Scope: spid_upload_tb.sw

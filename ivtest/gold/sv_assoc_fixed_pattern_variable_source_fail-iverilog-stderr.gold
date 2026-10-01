@@ -1,0 +1,3 @@
+ivltests/sv_assoc_fixed_pattern_variable_source_fail.v:10: error: a dynamic-array or queue value in an associative fixed-array pattern is not yet supported
+ivltests/sv_assoc_fixed_pattern_variable_source_fail.v:11: error: a dynamic-array or queue value in an associative fixed-array pattern is not yet supported
+error: Code generation had 2 error(s).

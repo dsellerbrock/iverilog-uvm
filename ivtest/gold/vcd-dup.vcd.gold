@@ -14,41 +14,41 @@ $var reg 1 # a $end
 $var reg 1 $ b1 $end
 $var reg 1 % b2 $end
 $scope module m1 $end
-$var wire 1 # a $end
-$var wire 1 $ b $end
+$var wire 1 & a $end
+$var wire 1 ' b $end
 $var wire 1 " c $end
-$var wire 1 & c2 $end
-$var wire 1 ' c1 $end
-$upscope $end
-$scope module m2 $end
-$var wire 1 # a $end
-$var wire 1 % b $end
-$var wire 1 ! c $end
 $var wire 1 ( c2 $end
 $var wire 1 ) c1 $end
 $upscope $end
+$scope module m2 $end
+$var wire 1 * a $end
+$var wire 1 + b $end
+$var wire 1 ! c $end
+$var wire 1 , c2 $end
+$var wire 1 - c1 $end
+$upscope $end
 $scope task set $end
-$var reg 3 * bits [2:0] $end
-$var reg 1 + t1 $end
+$var reg 3 . bits [2:0] $end
+$var reg 1 / t1 $end
 $upscope $end
 $upscope $end
 $scope module test $end
 $scope module m1 $end
 $scope module mm1 $end
-$var wire 1 , c1 $end
+$var wire 1 0 c1 $end
 $upscope $end
 $upscope $end
 $upscope $end
 $scope module test $end
 $scope module m1 $end
 $scope module mm1 $end
-$var wire 1 - a $end
-$var wire 1 ' c $end
+$var wire 1 1 a $end
+$var wire 1 ) c $end
 $upscope $end
 $scope module mm2 $end
-$var wire 1 . a $end
-$var wire 1 & c $end
-$var wire 1 / c1 $end
+$var wire 1 2 a $end
+$var wire 1 ( c $end
+$var wire 1 3 c1 $end
 $upscope $end
 $upscope $end
 $upscope $end
@@ -58,16 +58,20 @@ $dumpall
 $end
 #0
 $dumpvars
+x3
+x2
+01
+10
 x/
-x.
-0-
-1,
+bx .
+1-
+x,
 x+
-bx *
+0*
 1)
 x(
-1'
-x&
+x'
+0&
 x%
 x$
 0#
@@ -75,42 +79,51 @@ x"
 x!
 $end
 #1
-0+
-b0 *
+0/
+b0 .
 #2
 0"
 0!
-1&
-1/
 1(
-0.
+13
+1,
+02
+0'
 0$
+0+
 0%
 #4
-b1 *
+b1 .
 #5
 1!
-0(
+0,
+1+
 1%
 #7
-b10 *
+b10 .
 #8
 1"
 0!
-0&
-0/
-1(
-1.
+0(
+03
+1,
+12
+1'
 1$
+0+
 0%
 #9
 $dumpoff
+x3
+x2
+x1
+x0
 x/
-x.
+bx .
 x-
 x,
 x+
-bx *
+x*
 x)
 x(
 x'
@@ -123,16 +136,20 @@ x!
 $end
 #15
 $dumpon
+03
+12
+01
+10
 0/
-1.
-0-
-1,
+b100 .
+1-
+0,
 0+
-b100 *
+1*
 1)
 0(
-1'
-0&
+0'
+1&
 0%
 0$
 1#
@@ -140,55 +157,67 @@ b100 *
 1!
 $end
 #16
-1+
-b101 *
+1/
+b101 .
 #17
 0!
-0)
+0-
+1+
 1%
 #19
-b110 *
+b110 .
 #20
 0"
 1!
-0'
-0,
-1)
+0)
+00
 1-
+11
+1'
 1$
+0+
 0%
 #22
-b111 *
+b111 .
 #23
 0!
-0)
+0-
+1+
 1%
 #25
-b0 *
+b0 .
 #26
-1'
-1,
-1&
-1/
-1)
 1(
-0-
-0.
+13
+1)
+10
+1,
+1-
+02
+01
+0&
+0*
 0#
+0'
 0$
+0+
 0%
 #27
 $dumpall
+13
+02
+01
+10
 1/
-0.
-0-
+b0 .
+1-
 1,
-1+
-b0 *
+0+
+0*
 1)
 1(
-1'
-1&
+0'
+0&
 0%
 0$
 0#

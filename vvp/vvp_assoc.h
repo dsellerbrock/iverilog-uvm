@@ -256,8 +256,28 @@ static inline void assoc_rebind_container_layout_(
 static inline void assoc_rebind_container_layout_(
       vvp_object_t&value, const vvp_container_layout_t&layout)
 {
-      if (vvp_object*object = value.peek<vvp_object>())
-	    object->set_declared_container_layout(layout);
+      if (vvp_object*object = value.peek<vvp_object>()) {
+	    if (layout && layout->kind == VVP_CONTAINER_FIXED)
+		  vvp_rebind_fixed_array_value(object, layout);
+	    else
+		  object->set_declared_container_layout(layout);
+      }
+}
+
+template <class TYPE>
+static inline bool assoc_make_fixed_default_(
+      TYPE&, const vvp_container_layout_t&)
+{
+      return false;
+}
+
+static inline bool assoc_make_fixed_default_(
+      vvp_object_t&value, const vvp_container_layout_t&layout)
+{
+      if (!layout || layout->kind != VVP_CONTAINER_FIXED)
+            return false;
+      value = vvp_make_fixed_array_value(layout);
+      return !value.test_nil();
 }
 
 template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
@@ -445,6 +465,9 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       void rebind_declared_element_container_layout(
 	    const vvp_container_layout_t&element_layout) override
       {
+	    if (!has_default_ && assoc_make_fixed_default_(
+		  default_value_, element_layout))
+		  has_default_ = true;
 	    for (typename std::map<std::string, TYPE>::iterator cur =
 		       str_map_.begin(); cur != str_map_.end(); ++cur)
 		  assoc_rebind_container_layout_(cur->second, element_layout);

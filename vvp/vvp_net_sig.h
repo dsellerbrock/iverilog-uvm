@@ -530,7 +530,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// in: an ordinary actual is the caller's, but an actual that
 	// could not be named is copied into a companion word in the
 	// callee's own frame and the formal is bound to that.
-      void bind(vvp_net_t*target, bool in_frame);
+      void bind(vvp_net_t*formal, vvp_net_t*target, bool in_frame);
 
 	// R25: bind to storage INSIDE a variable, so an actual that is
 	// not itself a whole variable is still a true reference
@@ -547,9 +547,10 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// cell with its last value, as required by 13.5.2; an initially
 	// out-of-range index reads the type default and drops writes.
 	// bind_word: a word of a fixed (static) unpacked array.
-      void bind_prop(const vvp_object_t&obj, unsigned pid);
-      void bind_elem(const vvp_object_t&container, int64_t index);
-      void bind_word(struct __vpiArray*arr, unsigned index);
+      void bind_prop(vvp_net_t*formal, const vvp_object_t&obj, unsigned pid);
+      void bind_elem(vvp_net_t*formal, const vvp_object_t&container,
+                     int64_t index);
+      void bind_word(vvp_net_t*formal, struct __vpiArray*arr, unsigned index);
 
 	// vvp_net_fun_t: forward everything to the bound net.
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -607,7 +608,9 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
                           index(0), arr(0) { }
       };
       bool read_binding(binding_t&out) const;
-      void write_binding(vvp_context_t frame, const binding_t&in);
+      void write_binding(vvp_net_t*formal, vvp_context_t frame,
+                         const binding_t&in);
+      void release_binding(vvp_context_t frame);
 
     public: // These objects are only permallocated.
       static void* operator new(std::size_t size) { return vvp_net_fun_t::heap_.alloc(size); }
@@ -769,11 +772,16 @@ class vvp_wire_vec4 : public vvp_wire_base {
       void enable_sample_hist() { hist_enabled_ = true; }
       void vec4_preponed_value(vvp_vector4_t&val) const;
 
+	// A net of a 2-state type (`bit', `int', ...) driven by a continuous
+	// assignment holds X/Z as 0 (IEEE 1800-2017/2023 6.8, 10.10).
+      void set_two_state() { two_state_ = true; }
+
     private:
       vvp_bit4_t filtered_value_(unsigned idx) const;
       void hist_snapshot_();
 
     private:
+      bool two_state_ = false;
       bool needs_init_;
       vvp_vector4_t bits4_; // The tracked driven value
       vvp_vector4_t force4_; // the value being forced

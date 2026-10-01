@@ -29,6 +29,8 @@
 extern "C" {
 #endif
 
+#include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include "uvm_dpi.h"
@@ -227,23 +229,95 @@ static vpiHandle uvm_ivl_hdl_lookup(const char* path)
       return vpi_handle_by_name((char*)path, 0);
 }
 
+// A trailing bit or part select on the path ("top.u.st[6:0]", "top.r[3]")
+// is accepted as the vendor backends do. It is taken only when the whole
+// path names no object, so an array word such as "top.mem[2]" still wins.
+struct uvm_ivl_hdl_sel {
+      bool present;
+      int msb, lsb;
+      uvm_ivl_hdl_sel() : present(false), msb(0), lsb(0) { }
+};
+
+static vpiHandle uvm_ivl_hdl_lookup_sel(const char* path, uvm_ivl_hdl_sel* sel)
+{
+      vpiHandle r = uvm_ivl_hdl_lookup(path);
+      if (r != 0 || path == 0)
+	    return r;
+
+      size_t len = strlen(path);
+      const char* open = strrchr(path, '[');
+      if (len < 3 || path[len-1] != ']' || open == 0 || open == path)
+	    return 0;
+
+      int a = 0, b = 0, used = 0;
+      if (sscanf(open, "[%d:%d]%n", &a, &b, &used) != 2
+	  && sscanf(open, "[%d]%n", &a, &used) != 1)
+	    return 0;
+      if (open[used] != 0)
+	    return 0;
+      if (open[used-1] == ']' && strchr(open, ':') == 0)
+	    b = a;
+
+      std::string base(path, (size_t)(open - path));
+      r = uvm_ivl_hdl_lookup(base.c_str());
+      if (r == 0)
+	    return 0;
+      sel->present = true;
+      sel->msb = a;
+      sel->lsb = b;
+      return r;
+}
+
+// Position of declared index idx within the signal's value vector, or -1.
+static int uvm_ivl_hdl_bit_pos(vpiHandle r, int size, int idx)
+{
+      int left = (int) vpi_get(vpiLeftRange, r);
+      int right = (int) vpi_get(vpiRightRange, r);
+      if (size == 1 && left == right)
+	    return idx == left ? 0 : -1;
+      int pos = (left < right) ? right - idx : idx - right;
+      return (pos >= 0 && pos < size) ? pos : -1;
+}
+
+// Resolve the select to the low bit position and width inside the signal.
+static bool uvm_ivl_hdl_sel_span(vpiHandle r, int size,
+				 const uvm_ivl_hdl_sel& sel, int* low, int* width)
+{
+      int p1 = uvm_ivl_hdl_bit_pos(r, size, sel.msb);
+      int p2 = uvm_ivl_hdl_bit_pos(r, size, sel.lsb);
+      if (p1 < 0 || p2 < 0)
+	    return false;
+      *low = p1 < p2 ? p1 : p2;
+      *width = (p1 < p2 ? p2 - p1 : p1 - p2) + 1;
+      return true;
+}
+
 // Return 1 if the path resolves to an accessible object, else 0.
 int uvm_hdl_check_path(char* path)
 {
-      vpiHandle r = uvm_ivl_hdl_lookup(path);
+      uvm_ivl_hdl_sel sel;
+      vpiHandle r = uvm_ivl_hdl_lookup_sel(path, &sel);
       if (r == 0)
 	    return 0;
+      int ok = 1, low, width;
+      if (sel.present)
+	    ok = uvm_ivl_hdl_sel_span(r, (int) vpi_get(vpiSize, r), sel, &low, &width);
       vpi_release_handle(r);
-      return 1;
+      return ok;
 }
 
 // Number of bits of the signal at path, or 0 if not found.
 int uvm_hdl_signal_size(char* path)
 {
-      vpiHandle r = uvm_ivl_hdl_lookup(path);
+      uvm_ivl_hdl_sel sel;
+      vpiHandle r = uvm_ivl_hdl_lookup_sel(path, &sel);
       if (r == 0)
 	    return 0;
       int size = (int) vpi_get(vpiSize, r);
+      if (sel.present) {
+	    int low, width;
+	    size = uvm_ivl_hdl_sel_span(r, size, sel, &low, &width) ? width : 0;
+      }
       vpi_release_handle(r);
       return size;
 }
@@ -251,7 +325,8 @@ int uvm_hdl_signal_size(char* path)
 // Read the current value of path into the caller's vecval buffer.
 int uvm_hdl_read(char* path, p_vpi_vecval value)
 {
-      vpiHandle r = uvm_ivl_hdl_lookup(path);
+      uvm_ivl_hdl_sel sel;
+      vpiHandle r = uvm_ivl_hdl_lookup_sel(path, &sel);
       if (r == 0)
 	    return 0;
 
@@ -266,6 +341,27 @@ int uvm_hdl_read(char* path, p_vpi_vecval value)
       s_vpi_value value_s;
       value_s.format = vpiVectorVal;
       vpi_get_value(r, &value_s);
+
+      if (sel.present) {
+	    int low, width;
+	    if (!uvm_ivl_hdl_sel_span(r, size, sel, &low, &width)) {
+		  vpi_release_handle(r);
+		  return 0;
+	    }
+	    int out_chunks = (width - 1) / 32 + 1;
+	    for (int i = 0 ; i < out_chunks ; i += 1)
+		  value[i].aval = value[i].bval = 0;
+	    for (int i = 0 ; i < width ; i += 1) {
+		  int bit = low + i;
+		  PLI_INT32 a = (value_s.value.vector[bit/32].aval >> (bit%32)) & 1;
+		  PLI_INT32 b = (value_s.value.vector[bit/32].bval >> (bit%32)) & 1;
+		  value[i/32].aval |= a << (i%32);
+		  value[i/32].bval |= b << (i%32);
+	    }
+	    vpi_release_handle(r);
+	    return 1;
+      }
+
       for (int i = 0 ; i < chunks ; i += 1) {
 	    value[i].aval = value_s.value.vector[i].aval;
 	    value[i].bval = value_s.value.vector[i].bval;
@@ -278,9 +374,49 @@ int uvm_hdl_read(char* path, p_vpi_vecval value)
 // release (vpiReleaseFlag).
 static int uvm_ivl_hdl_put(char* path, p_vpi_vecval value, PLI_INT32 flag)
 {
-      vpiHandle r = uvm_ivl_hdl_lookup(path);
+      uvm_ivl_hdl_sel sel;
+      vpiHandle r = flag == vpiNoDelay ? uvm_ivl_hdl_lookup_sel(path, &sel)
+				       : uvm_ivl_hdl_lookup(path);
       if (r == 0)
 	    return 0;
+
+      if (sel.present) {
+	      // Deposit into a part: read-modify-write the whole signal.
+	    int size = (int) vpi_get(vpiSize, r);
+	    int low, width;
+	    if (size > uvm_ivl_hdl_max_width()
+		|| !uvm_ivl_hdl_sel_span(r, size, sel, &low, &width)) {
+		  vpi_release_handle(r);
+		  return 0;
+	    }
+	    s_vpi_value cur_s;
+	    cur_s.format = vpiVectorVal;
+	    vpi_get_value(r, &cur_s);
+	    int chunks = (size - 1) / 32 + 1;
+	    s_vpi_vecval merged[(UVM_HDL_MAX_WIDTH + 31) / 32];
+	    for (int i = 0 ; i < chunks ; i += 1)
+		  merged[i] = cur_s.value.vector[i];
+	    for (int i = 0 ; i < width ; i += 1) {
+		  int bit = low + i;
+		  PLI_INT32 a = (value[i/32].aval >> (i%32)) & 1;
+		  PLI_INT32 b = (value[i/32].bval >> (i%32)) & 1;
+		  merged[bit/32].aval = (merged[bit/32].aval & ~(1 << (bit%32)))
+					| (a << (bit%32));
+		  merged[bit/32].bval = (merged[bit/32].bval & ~(1 << (bit%32)))
+					| (b << (bit%32));
+	    }
+	    s_vpi_value put_s;
+	    s_vpi_time  put_t;
+	    put_s.format = vpiVectorVal;
+	    put_s.value.vector = merged;
+	    put_t.type = vpiSimTime;
+	    put_t.high = 0;
+	    put_t.low = 0;
+	    put_t.real = 0.0;
+	    vpi_put_value(r, &put_s, &put_t, vpiNoDelay);
+	    vpi_release_handle(r);
+	    return 1;
+      }
 
       s_vpi_value value_s;
       s_vpi_time  time_s;

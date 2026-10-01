@@ -1,0 +1,2 @@
+PASS
+ivltests/sv_clocking_selected_input_alias.v:40: $finish called at 12000 (1ps)

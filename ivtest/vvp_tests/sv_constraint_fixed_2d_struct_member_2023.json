@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_fixed_2d_struct_member_2023.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "sv_constraint_fixed_2d_struct_member"
+}

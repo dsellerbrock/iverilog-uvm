@@ -1,0 +1,45 @@
+{
+  "active": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-n",
+      "/private/tmp/ot-pwrmgr-counter-TywoEd/active.vvp"
+    ],
+    "returncode": 0,
+    "stdout": "PASS samples=139 edges=139 failures=0\n",
+    "stderr": "",
+    "source_sha256": "b4f0b8340321846c9efaf8aef614eb016d342863864b05ee724e298add113540"
+  },
+  "stopped": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-n",
+      "/private/tmp/ot-pwrmgr-counter-TywoEd/stopped.vvp"
+    ],
+    "returncode": 0,
+    "stdout": "CHECK_FAILURE sample=139 time=5560\nPASS samples=139 edges=0 failures=1\n",
+    "stderr": "",
+    "source_sha256": "b4f0b8340321846c9efaf8aef614eb016d342863864b05ee724e298add113540"
+  },
+  "fast": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-n",
+      "/private/tmp/ot-pwrmgr-counter-TywoEd/fast.vvp"
+    ],
+    "returncode": 0,
+    "stdout": "PASS samples=139 edges=555 failures=0\n",
+    "stderr": "",
+    "source_sha256": "b4f0b8340321846c9efaf8aef614eb016d342863864b05ee724e298add113540"
+  },
+  "unpatched_active": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+      "-n",
+      "/private/tmp/ot-pwrmgr-reducer-DqSm03/level_active.vvp"
+    ],
+    "returncode": 1,
+    "stdout": "CHECK_FAILURE sample=139 time=5560\nFATAL: /private/tmp/ot-pwrmgr-reducer-DqSm03/level.sv:19: failures=1 expected=0\n       Time: 5561  Scope: checker_repro\n",
+    "stderr": ""
+  }
+}

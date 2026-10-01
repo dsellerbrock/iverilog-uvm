@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_class_member_wildcard_inherited_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "top"
+    ],
+    "gold": "sv_class_member_wildcard_inherited"
+}

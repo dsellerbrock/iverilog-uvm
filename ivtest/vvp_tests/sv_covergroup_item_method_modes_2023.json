@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_item_method_modes.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_covergroup_item_method_modes"
+}

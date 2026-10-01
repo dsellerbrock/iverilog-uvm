@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_constraint_inline_self_handle_call.v",
+    "iverilog-args" : [ "-g2023" ]
+}

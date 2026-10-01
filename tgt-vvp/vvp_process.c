@@ -1776,8 +1776,11 @@ static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
       fprintf(vvp_out, "    .scope S_%p;\n", scope);
 
       fprintf(vvp_out, "t_%u %%join;\n", out_id);
-	/* An automatic block dispatches after its %free instead. */
-      if (!ivl_scope_is_auto(subscope))
+	/* An automatic block that owns a frame dispatches after its %free
+	   instead. One collapsed into the enclosing frame (".shared") has no
+	   %free, so it must dispatch here or a break/continue it left
+	   pending would never reach its loop. */
+      if (!ivl_scope_is_auto(subscope) || !ivl_scope_auto_frame(subscope))
 	    draw_nested_flow_dispatch(scope);
 
       return rc;
@@ -1818,6 +1821,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 {
       int rc = 0;
       ivl_expr_t expr = ivl_stmt_cond_expr(net);
+      int string_case = ivl_expr_value(expr) == IVL_VT_STRING;
       unsigned count = ivl_stmt_case_count(net);
 
       unsigned idx, default_case;
@@ -1831,10 +1835,9 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
       show_stmt_file_line(net, "Case statement.");
 
-	/* Evaluate the case condition to the top of the vec4
-	   stack. This expression will be compared multiple times to
-	   each case guard. */
-      draw_eval_vec4(expr);
+	/* Keep a homogeneous string selector at its runtime length. */
+      if (string_case) draw_eval_string(expr);
+      else draw_eval_vec4(expr);
 
       fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", any_flag);
       fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", multi_flag);
@@ -1860,10 +1863,16 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	      /* Duplicate the case expression so that the cmp
 		 instructions below do not completely erase the
 		 value. Do this in front of each compare. */
-	    fprintf(vvp_out, "    %%dup/vec4;\n");
-	    draw_eval_vec4(cex);
+	    fprintf(vvp_out, string_case ? "    %%dup/str;\n"
+				       : "    %%dup/vec4;\n");
+	    if (string_case) {
+		  draw_eval_string(cex);
+		  fprintf(vvp_out, "    %%cmp/str;\n");
+		  result_flag = 4;
+	    } else {
+		  draw_eval_vec4(cex);
 
-	    switch (ivl_statement_type(net)) {
+	      switch (ivl_statement_type(net)) {
 
 		case IVL_ST_CASE:
 		    /* Plain case uses case-equality (===-like); flag 6
@@ -1888,6 +1897,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
 		default:
 		  assert(0);
+	      }
 	    }
 
 	      /* If this item did not match, skip the any/multi
@@ -1935,7 +1945,8 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	/* The dispatch below only reads first_match_word, so drop the
 	   case expression now. A branch body can then leave the case
 	   through break/continue/return/disable without leaking it. */
-      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+      fprintf(vvp_out, string_case ? "    %%pop/str 1;\n"
+				  : "    %%pop/vec4 1;\n");
 
       lab_out = local_count++;
 
@@ -2003,6 +2014,7 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
       ivl_case_quality_t qual = ivl_stmt_case_quality(net);
       int quality_if = ivl_stmt_case_is_quality_if(net);
       ivl_expr_t expr = ivl_stmt_cond_expr(net);
+      int string_case = ivl_expr_value(expr) == IVL_VT_STRING;
       unsigned count = ivl_stmt_case_count(net);
 
       unsigned local_base = local_count;
@@ -2020,10 +2032,9 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
       local_count += count + 1;
 
-	/* Evaluate the case condition to the top of the vec4
-	   stack. This expression will be compared multiple times to
-	   each case guard. */
-      draw_eval_vec4(expr);
+	/* Keep a homogeneous string selector at its runtime length. */
+      if (string_case) draw_eval_string(expr);
+      else draw_eval_vec4(expr);
 
 	/* First draw the branch table.  All the non-default cases
 	   generate a branch out of here, to the code that implements
@@ -2041,10 +2052,17 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 	      /* Duplicate the case expression so that the cmp
 		 instructions below do not completely erase the
 		 value. Do this in front of each compare. */
-	    fprintf(vvp_out, "    %%dup/vec4;\n");
-	    draw_eval_vec4(cex);
+	    fprintf(vvp_out, string_case ? "    %%dup/str;\n"
+				       : "    %%dup/vec4;\n");
+	    if (string_case) {
+		  draw_eval_string(cex);
+		  fprintf(vvp_out, "    %%cmp/str;\n");
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+			  thread_count, local_base+idx);
+	    } else {
+		  draw_eval_vec4(cex);
 
-	    switch (ivl_statement_type(net)) {
+	      switch (ivl_statement_type(net)) {
 
 		case IVL_ST_CASE:
 		  fprintf(vvp_out, "    %%cmp/u;\n");
@@ -2066,13 +2084,15 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
 		default:
 		  assert(0);
+	      }
 	    }
       }
 
 	/* Every path out of the branch table pops the case expression
 	   before running a body, so a body that leaves the case through
 	   break/continue/return/disable leaves nothing on the stack. */
-      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+      fprintf(vvp_out, string_case ? "    %%pop/str 1;\n"
+				  : "    %%pop/vec4 1;\n");
 
 	/* Emit code for the default case. */
       if (default_case < count) {
@@ -2110,7 +2130,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 		  continue;
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, local_base+idx);
-	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+	    fprintf(vvp_out, string_case ? "    %%pop/str 1;\n"
+				    : "    %%pop/vec4 1;\n");
 	    rc += show_statement(cst, sscope);
 
 	      /* Statement is done, jump to the out of the case. */
@@ -2573,7 +2594,8 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
       part_off_ex = ivl_lval_part_off(lval);
 	/* This should be verified in force_vector_to_lval() which is called
 	 * before this procedure. */
-      if (part_off_ex) {
+      /* A force link uses the offset already evaluated by %force/vec4/off. */
+      if (part_off_ex && ivl_statement_type(net) != IVL_ST_FORCE) {
 	    assert(number_is_immediate(part_off_ex, IMM_WID, 0));
 	    assert(! number_is_unknown(part_off_ex));
       }
@@ -6116,9 +6138,12 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    ivl_type_t dest_type = first ? ivl_expr_net_type(first) : 0;
 	    if (!dest_type && first && ivl_expr_signal(first))
 		  dest_type = ivl_signal_net_type(ivl_expr_signal(first));
+	      /* A dynamic array uses the same container solver as a
+	       * queue, with no declared maximum (IEEE 1800-2017 18.12). */
 	    int queue_dest = dest_type
-		&& ivl_type_base(dest_type) == IVL_VT_QUEUE
-		&& !ivl_type_queue_assoc_compat(dest_type);
+		&& ((ivl_type_base(dest_type) == IVL_VT_QUEUE
+		     && !ivl_type_queue_assoc_compat(dest_type))
+		    || ivl_type_base(dest_type) == IVL_VT_DARRAY);
 	    ivl_type_t elem_type = queue_dest
 		? ivl_type_element(dest_type) : 0;
 
@@ -6134,7 +6159,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  fprintf(vvp_out,
 		    "    %%std/randomize/queue/with \"%u|%llu|%s\", %u, %u;\n",
 		    ivl_type_packed_width(elem_type),
-		    (unsigned long long)ivl_type_queue_max_size(dest_type),
+		    (unsigned long long)(ivl_type_base(dest_type) == IVL_VT_QUEUE
+					 ? ivl_type_queue_max_size(dest_type) : 0),
 		    ir, n_vals, n_objs);
 	    else
 		  fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
@@ -6258,6 +6284,32 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    ivl_expr_t parm1 = (ivl_stmt_parm_count(net) > 1)
 		  ? ivl_stmt_parm(net, 1) : 0;
 	    ivl_signal_t sig = 0;
+	    if (parm0 && parm1 && ivl_expr_type(parm1) == IVL_EX_NUMBER
+		&& ivl_expr_type(parm0) == IVL_EX_SELECT) {
+		ivl_expr_t map = ivl_expr_oper1(parm0);
+		ivl_expr_t key = ivl_expr_oper2(parm0);
+		ivl_type_t assoc = property_assoc_container_type_(map);
+		ivl_type_t child = assoc ? ivl_type_element(assoc) : 0;
+		ivl_type_t elem = child ? ivl_type_element(child) : 0;
+		unsigned mode = ivl_expr_uvalue(parm1) & 3;
+		if (map && ivl_expr_type(map) == IVL_EX_PROPERTY
+		    && !ivl_expr_oper1(map) && key
+		    && child && type_is_fixed_uarray_property_(child)
+		    && ivl_type_packed_dimensions(child) == 1
+		    && elem && (ivl_type_base(elem) == IVL_VT_BOOL
+				|| ivl_type_base(elem) == IVL_VT_LOGIC)
+		    && (mode == 2 || mode == 3)) {
+		    /* The selected fixed child is a live vvp_darray value. Vivify
+		     * before ordering so a missing key gets private stored storage. */
+		    draw_eval_object(map);
+		    const char*key_kind = draw_eval_assoc_key_(key, 0);
+		    fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n", key_kind,
+			    strcmp(key_kind, "obj") == 0 ? 25U : 17U);
+		    fprintf(vvp_out, "    %s;\n",
+			    mode == 2 ? "%qreverse/o" : "%qshuffle/o");
+		    return 0;
+		}
+	    }
 	    if (parm0 && (ivl_expr_type(parm0) == IVL_EX_SIGNAL
 			  || ivl_expr_type(parm0) == IVL_EX_ARRAY))
 		  sig = ivl_expr_signal(parm0);
@@ -7071,7 +7123,10 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	       *         an unpacked-array element/subarray. */
       if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0
 	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_assoc") == 0
-	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_last") == 0) {
+	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_last") == 0
+	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_nested") == 0) {
+	    int nested_index = strcmp(stmt_name,
+			     "$ivl_class_method$rand_mode_nested") == 0;
 	    int assoc_index = strcmp(stmt_name,
 			     "$ivl_class_method$rand_mode_assoc") == 0;
 	    int last_index = strcmp(stmt_name,
@@ -7096,8 +7151,25 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    if (pid_arg && leaf_arg && count_arg
 		&& number_is_immediate(pid_arg, 32, 0)
 		&& !number_is_unknown(pid_arg)) {
-		  long pid = get_number_immediate(pid_arg);
-		  if (assoc_index) {
+	      long pid = get_number_immediate(pid_arg);
+	      if (nested_index) {
+		  int leaf_word = allocate_word();
+		  int elem_word = allocate_word();
+		  int invalid_flag = allocate_flag();
+		  draw_expr_into_idx(leaf_arg, leaf_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve queue leaf X/Z\n",
+			  invalid_flag);
+		  draw_expr_into_idx(count_arg, elem_word);
+		  fprintf(vvp_out, "    %%flag_or 4, %d; combine queue index X/Z\n",
+			  invalid_flag);
+		  clr_flag(invalid_flag);
+		  fprintf(vvp_out, "    %%rand_mode/p/q %ld, %d, %d;\n",
+			  pid, leaf_word, elem_word);
+		  clr_word(elem_word);
+		  clr_word(leaf_word);
+		  return 0;
+	      }
+	      if (assoc_index) {
 			const char*key_kind = draw_eval_assoc_key_(leaf_arg, 0);
 			fprintf(vvp_out, "    %%rand_mode/p/a/%s %ld;\n",
 				key_kind, pid);

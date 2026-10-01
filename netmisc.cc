@@ -1434,7 +1434,8 @@ static NetEConst* make_i64_index_constant_(int64_t value,
 
 static NetExpr* make_checked_canonical_index_(
       Design*des, const LineInfo*loc, list<NetExpr*>&indices_expr,
-      const indices_flags&flags, const netranges_t&dims)
+      const indices_flags&flags, const netranges_t&dims,
+      bool warn_undefined)
 {
       ivl_assert(*loc, !dims.empty());
 
@@ -1443,7 +1444,17 @@ static NetExpr* make_checked_canonical_index_(
 	    return 0;
       }
 
-      if (flags.undefined) {
+      for (NetExpr*raw : indices_expr) {
+	    if (raw->expr_type() == IVL_VT_REAL) {
+		  cerr << loc->get_fileline() << ": error: "
+		       << "real expression cannot index a property." << endl;
+		  des->errors += 1;
+		  delete_index_expressions_(indices_expr);
+		  return 0;
+	    }
+      }
+
+      if (flags.undefined && warn_undefined) {
 	    cerr << loc->get_fileline() << ": warning: "
 		 << "ignoring undefined value array access." << endl;
       }
@@ -1560,7 +1571,7 @@ static NetExpr* make_checked_canonical_index_(
 static NetExpr* make_checked_canonical_index_(
       Design*des, NetScope*scope, const LineInfo*loc,
       const list<index_component_t>&src, const netranges_t&dims,
-      bool need_const)
+      bool need_const, bool warn_undefined)
 {
       ivl_assert(*loc, src.size() == dims.size());
       list<long> indices_const;
@@ -1568,7 +1579,8 @@ static NetExpr* make_checked_canonical_index_(
       indices_flags flags;
       indices_to_expressions(des, scope, loc, src, src.size(), need_const,
                             flags, indices_expr, indices_const);
-      return make_checked_canonical_index_(des, loc, indices_expr, flags, dims);
+      return make_checked_canonical_index_(des, loc, indices_expr, flags,
+					   dims, warn_undefined);
 }
 
 NetExpr* make_checked_canonical_property_index(
@@ -1577,7 +1589,7 @@ NetExpr* make_checked_canonical_property_index(
 {
       ivl_assert(*loc, indices_expr.size() == stype->static_dimensions().size());
       return make_checked_canonical_index_(des, loc, indices_expr, flags,
-                                           stype->static_dimensions());
+                                           stype->static_dimensions(), true);
 }
 
 NetExpr* make_checked_canonical_property_index(
@@ -1586,14 +1598,14 @@ NetExpr* make_checked_canonical_property_index(
       bool need_const)
 {
       return make_checked_canonical_index_(des, scope, loc, src,
-                                           stype->static_dimensions(),
-                                           need_const);
+					   stype->static_dimensions(),
+					   need_const, true);
 }
 
 NetExpr* make_checked_canonical_packed_prefix(
       Design*des, NetScope*scope, const LineInfo*loc,
       const list<index_component_t>&src, const netranges_t&dims,
-      unsigned long carrier_width)
+      unsigned long carrier_width, bool warn_undefined)
 {
       ivl_assert(*loc, src.size() == dims.size());
       NetExpr*base = 0;
@@ -1605,7 +1617,8 @@ NetExpr* make_checked_canonical_packed_prefix(
             list<index_component_t> one_index(1, *raw);
             netranges_t one_dim(1, dims[idx]);
             NetExpr*term = make_checked_canonical_index_(
-                  des, scope, loc, one_index, one_dim, false);
+                  des, scope, loc, one_index, one_dim, false,
+			  warn_undefined);
             if (!term) {
                   delete base;
                   return 0;
@@ -1616,6 +1629,148 @@ NetExpr* make_checked_canonical_packed_prefix(
             base = base ? make_add_expr(loc, base, term) : term;
       }
       return base;
+}
+
+/* Prove a small unsigned index expression stays within a fixed range. The
+ * arithmetic cases must fit their elaborated result width: accepting a
+ * wrapped interval could let a trailing range spill into an outer packed
+ * dimension. Other expressions retain their width-based unsigned bound. */
+static bool bounded_unsigned_index_(const NetExpr*expr, uint64_t&low,
+				    uint64_t&high)
+{
+      if (!expr || (expr->expr_type() != IVL_VT_BOOL
+		    && expr->expr_type() != IVL_VT_LOGIC))
+	return false;
+
+      if (const NetEConst*constant = dynamic_cast<const NetEConst*>(expr)) {
+	int64_t value = 0;
+	if (!constant->value().is_defined()
+	    || !constant_index_value_(constant->value(), value)
+	    || value < 0)
+	    return false;
+	low = high = static_cast<uint64_t>(value);
+	return true;
+      }
+
+      if (expr->has_sign() || expr->expr_width() == 0
+	  || expr->expr_width() > 63)
+	return false;
+
+      if (const NetESelect*extend = dynamic_cast<const NetESelect*>(expr)) {
+	if (!extend->select() && extend->expr_width()
+	    >= extend->sub_expr()->expr_width())
+	    return bounded_unsigned_index_(extend->sub_expr(), low, high);
+      }
+
+      const uint64_t width_max = (uint64_t(1) << expr->expr_width()) - 1;
+      if (dynamic_cast<const NetEBAdd*>(expr)
+	  || dynamic_cast<const NetEBMult*>(expr)) {
+	const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr);
+	uint64_t left_low = 0, left_high = 0;
+	uint64_t right_low = 0, right_high = 0;
+	if (!bounded_unsigned_index_(binary->left(), left_low, left_high)
+	    || !bounded_unsigned_index_(binary->right(), right_low,
+					 right_high))
+	    return false;
+	if (binary->op() == '+') {
+	    if (left_high > width_max || right_high > width_max - left_high)
+		return false;
+	    low = left_low + right_low;
+	    high = left_high + right_high;
+	    return true;
+	}
+	if (binary->op() == '*') {
+	    if (left_high && right_high > width_max / left_high)
+		return false;
+	    low = left_low * right_low;
+	    high = left_high * right_high;
+	    return true;
+	}
+	return false;
+      }
+
+      low = 0;
+      high = width_max;
+      return true;
+}
+
+bool check_packed_property_tail_range(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const index_component_t&select, const netrange_t&dim,
+      bool*runtime_checked)
+{
+      if (select.sel != index_component_t::SEL_PART
+	  && select.sel != index_component_t::SEL_IDX_UP
+	  && select.sel != index_component_t::SEL_IDX_DO)
+	    return true;
+
+      auto diagnose = [&](const char*message) -> bool {
+	    cerr << loc->get_fileline() << ": " << message << endl;
+	    des->errors += 1;
+	    return false;
+      };
+
+      if (!dim.defined())
+	    return diagnose("error: packed class-property range has an "
+			    "undefined declared dimension.");
+
+      const int64_t low = min<int64_t>(dim.get_msb(), dim.get_lsb());
+      const int64_t high = max<int64_t>(dim.get_msb(), dim.get_lsb());
+
+      NetExpr*first_expr = elab_and_eval(des, scope, select.msb, -1, false);
+      NetExpr*second_expr = elab_and_eval(des, scope, select.lsb, -1, false);
+      const NetEConst*first_literal = dynamic_cast<const NetEConst*>(first_expr);
+      const NetEConst*second_literal = dynamic_cast<const NetEConst*>(second_expr);
+      int64_t first = 0, second = 0;
+      const bool first_ok = first_literal && first_literal->value().is_defined()
+	    && constant_index_value_(first_literal->value(), first);
+      const bool second_ok = second_literal && second_literal->value().is_defined()
+	    && constant_index_value_(second_literal->value(), second);
+      uint64_t first_low = 0, first_high = 0;
+      const bool first_bounded = !first_ok
+	    && select.sel != index_component_t::SEL_PART
+	    && bounded_unsigned_index_(first_expr, first_low, first_high)
+	    && first_high <= static_cast<uint64_t>(
+					std::numeric_limits<int64_t>::max());
+      delete first_expr;
+      delete second_expr;
+      if (!second_ok)
+	    return diagnose("error: packed class-property range width/bound "
+			    "must be a constant integral expression.");
+      if (!first_ok && !first_bounded && runtime_checked) {
+	    /* The caller lowers an unproven base with a run-time part select
+	       of the element, whose out-of-range bits read as X. */
+	    *runtime_checked = true;
+	    return true;
+      }
+      if (!first_ok && !first_bounded)
+	    return diagnose("sorry: run-time indexed range after a packed "
+			    "class-property element index is not yet supported; "
+			    "it may cross a packed dimension.");
+
+      bool inside = false;
+      if (select.sel == index_component_t::SEL_PART) {
+	    inside = first >= low && first <= high
+		  && second >= low && second <= high;
+      } else if (second > 0) {
+	    auto base_inside = [&](int64_t base) -> bool {
+		if (base < low || base > high)
+		    return false;
+		const uint64_t available =
+		    select.sel == index_component_t::SEL_IDX_UP
+		    ? uint64_t(high) - uint64_t(base) + 1
+		    : uint64_t(base) - uint64_t(low) + 1;
+		return available != 0 && uint64_t(second) <= available;
+	    };
+	    inside = first_ok ? base_inside(first)
+		  : base_inside(static_cast<int64_t>(first_low))
+		    && base_inside(static_cast<int64_t>(first_high));
+      }
+      if (!inside)
+	    return diagnose("sorry: packed class-property range crosses its "
+			    "declared packed dimension; exact partial "
+			    "out-of-range lowering is not yet supported.");
+      return true;
 }
 
 NetEConst* make_const_x(unsigned long wid)
@@ -3618,6 +3773,80 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
       return true;
 }
 
+bool collapse_checked_packed_property_indices(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const netranges_t&pdims, const list<index_component_t>&indices,
+      unsigned long packed_width, NetExpr*&off_expr,
+      unsigned long&sel_wid)
+{
+      off_expr = 0;
+      sel_wid = 0;
+      size_t prefix_count = 0;
+      for (const index_component_t&index : indices) {
+	    if (index.sel != index_component_t::SEL_BIT
+		|| !index.msb || index.lsb)
+		  break;
+	    prefix_count += 1;
+      }
+
+      if (prefix_count > pdims.size())
+	    return collapse_packed_member_indices(
+		  des, scope, loc, pdims, indices, off_expr, sel_wid);
+
+      if (prefix_count == indices.size() && prefix_count != 0) {
+	    netranges_t prefix_dims(pdims.begin(),
+				   pdims.begin() + prefix_count);
+	    sel_wid = packed_width;
+	    for (const netrange_t&dim : prefix_dims)
+		  sel_wid /= dim.width();
+	    off_expr = make_checked_canonical_packed_prefix(
+		  des, scope, loc, indices, prefix_dims, sel_wid, false);
+	    return off_expr != 0;
+      }
+
+	// The existing packed-member collapse flattens a range into the
+	// carrier. Check the leading element dimensions separately, then
+	// collapse only a range proven to stay in its own dimension.
+      if (prefix_count != 0 && prefix_count + 1 == indices.size()
+	  && prefix_count < pdims.size()) {
+	    const index_component_t&tail = indices.back();
+	    if (tail.sel == index_component_t::SEL_PART
+		|| tail.sel == index_component_t::SEL_IDX_UP
+		|| tail.sel == index_component_t::SEL_IDX_DO) {
+		  if (!check_packed_property_tail_range(
+			  des, scope, loc, tail, pdims[prefix_count]))
+			return false;
+		  list<index_component_t>::const_iterator tail_it = indices.end();
+		  --tail_it;
+		  list<index_component_t>prefix(indices.begin(), tail_it);
+		  netranges_t prefix_dims(pdims.begin(),
+					   pdims.begin() + prefix_count);
+		  unsigned long carrier_width = packed_width;
+		  for (const netrange_t&dim : prefix_dims)
+			carrier_width /= dim.width();
+		  NetExpr*prefix_off = make_checked_canonical_packed_prefix(
+			  des, scope, loc, prefix, prefix_dims,
+			  carrier_width, false);
+		  if (!prefix_off)
+			return false;
+		  netranges_t tail_dims(pdims.begin() + prefix_count,
+					pdims.end());
+		  list<index_component_t>tail_only(1, tail);
+		  NetExpr*tail_off = 0;
+		  if (!collapse_packed_member_indices(des, scope, loc,
+			  tail_dims, tail_only, tail_off, sel_wid)) {
+			delete prefix_off;
+			return false;
+		  }
+		  off_expr = make_packed_offset_sum(loc, prefix_off, tail_off);
+		  return off_expr != 0;
+	    }
+      }
+
+      return collapse_packed_member_indices(
+	    des, scope, loc, pdims, indices, off_expr, sel_wid);
+}
+
 NetExpr*make_packed_offset_sum(const LineInfo*loc, NetExpr*a, NetExpr*b)
 {
       return make_add_expr(loc, a, b);
@@ -4666,14 +4895,13 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
       return false;
 }
 
-/* Resolve the raw signal a clocking-block item samples or drives: the
-   local signal of the same name, or the clocking_decl_assign target
-   when the item declared one (`input a = path.to.sig;` — the
-   signal-path form; other expression shapes return nil and the
-   caller diagnoses). */
+/* Resolve the raw signal a clocking-block item samples or drives. A
+   selected INPUT may sample the whole packed signal before selecting
+   its clockvar value; OUTPUT callers still require a whole target. */
 NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 				    const Module::PClocking*cb,
-				    perm_string sig_name)
+				    perm_string sig_name,
+				    bool input_select)
 {
       std::map<perm_string,PExpr*>::const_iterator da =
 	    cb->decl_assigns.find(sig_name);
@@ -4687,7 +4915,7 @@ NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 	   A select on the declaration-assignment target must not be discarded and
 	   reinterpreted as that whole signal. */
       if (id->path().name.empty()
-	  || !id->path().name.back().index.empty())
+	  || (!input_select && !id->path().name.back().index.empty()))
 	    return nullptr;
       symbol_search_results sr;
       symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr);

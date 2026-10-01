@@ -1,0 +1,43 @@
+{
+  "scope": "one selected OpenTitan prim_flop_2sync pre-DV smoke; no 49-target rerun",
+  "target": "lowrisc:dv:prim_flop_2sync_sim:0.1",
+  "pinned_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_source_commit_at_run": "1b84e721d48a86f9e87ebfe3d39477ef7ab70104",
+  "provider_patch": "docs/conformance/release_overlays/opentitan/prim_flop_2sync_provider_dependency.patch",
+  "provider_patch_sha256": "bb59030058e7e885916b256ab58efaa1806a8e8590c5e0dfc5d855fb15053f0b",
+  "testbench_patch": "docs/conformance/release_overlays/opentitan/prim_flop_2sync_current_cdc_test.patch",
+  "testbench_patch_sha256": "eb687e0cfa510c1a1a6757640bc0894a03fddcb61592ee6ff36da788fda8bbbb",
+  "pinned_testbench_sha256": "57e383918b9e152337e56d0c0e678dc267206d02c4d1a562fd59b541dc1c9c1e",
+  "patched_testbench_sha256": "f1ec795aa47ce4b615d1ab8964c96979d6b16546da1d07f25887f16b524054a3",
+  "compile_image_sha256": "c9f553acc6db26f1e1b864b68c10b67bf4c80a4f5f240c72cd2a3f151769f4c3",
+  "compile": {
+    "exit_code": 0,
+    "hard_diagnostics": 0
+  },
+  "discarded_probe": {
+    "reason": "old queue checker treats per-bit intermediate CDC values as whole-word transactions and can print pass despite UVM errors",
+    "log_sha256": "90e0f1be6455d134aa08b45878d3f6f536b3e6af98004a5ca589644102cc7954"
+  },
+  "selected_runtime": {
+    "stimulus_changes": 500,
+    "wall_cap_seconds": 120,
+    "rss_cap_mib": 1024,
+    "runner_exit": 0,
+    "wall_seconds": 0.521,
+    "timed_out": false,
+    "memory_capped": false,
+    "pass_markers": 1,
+    "uvm_warning": 0,
+    "uvm_error": 0,
+    "uvm_fatal": 0,
+    "log_sha256": "65a1e0be2367f3cdeb0d9e8f204c4955eabd20921221d2f647bcfaff4335b642"
+  },
+  "negative_control": {
+    "mutation": "flip expected bit 0 in one compare",
+    "uvm_fatal": 1,
+    "pass_markers": 0,
+    "log_sha256": "e32ec8c4b5682b2b0e8f10fecd734ef8ab551492ade309ffaa00ca35eb692bcf"
+  },
+  "qualifies_selected_test_pass": true,
+  "qualifies_49_target_census_update": false
+}

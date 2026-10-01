@@ -3978,8 +3978,33 @@ static void flush_pending_specialized_method_seeds_(Design*des,
       pending.clear();
 }
 
-void finalize_pending_specialized_class_elaboration(Design*des)
+void finalize_pending_specialized_class_elaboration(Design*des,
+                                                    bool reached_typedef)
 {
+      // A root typedef may create a specialization under a package that the
+      // scope-tree pass already visited. A class processed here may also
+      // promote an earlier generic-only specialization to a concrete use.
+      std::set<netclass_t*> visited;
+      bool pending;
+      do {
+	    for (size_t idx = 0; idx < all_specialized_classes_.size(); ++idx) {
+		  netclass_t*cls = all_specialized_classes_[idx];
+		  if (cls && !cls->generic_body_only()
+		      && visited.insert(cls).second) {
+			reached_typedef |= elaborate_concrete_class_typedefs(
+			      des, const_cast<NetScope*>(cls->class_scope()));
+		  }
+	    }
+	    if (reached_typedef)
+		  repair_specialized_class_property_types(des);
+	    pending = false;
+	    for (netclass_t*cls : all_specialized_classes_)
+		  if (cls && !cls->generic_body_only()
+		      && !visited.count(cls)) {
+			pending = true;
+			break;
+		  }
+      } while (pending);
       flush_pending_specialized_class_bodies_(des, pending_specialized_body_elaboration_);
       pending_specialized_body_elaboration_set_.clear();
       flush_pending_specialized_method_seeds_(des, pending_specialized_method_seed_);
@@ -5696,6 +5721,8 @@ void PGenerate::elaborate_subscope_(Design*des, NetScope*scope)
       collect_scope_parameters(des, scope, parameters);
 
       collect_scope_signals(scope, wires);
+
+      elaborate_scope_classes(des, scope, classes_lexical);
 
 	// Run through the defparams for this scope and save the result
 	// in a table for later final override.

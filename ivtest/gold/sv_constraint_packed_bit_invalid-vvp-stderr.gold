@@ -1,0 +1,4 @@
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_packed_bit_invalid.sv:7 is not supported by the constraint solver; randomize() fails rather than ignore it.
+ERROR: constraint state read: invalid 4-state packed bit index in constraint.
+ERROR: constraint state read: invalid 4-state packed bit index in constraint.
+ERROR: constraint state read: invalid 4-state packed bit index in constraint.

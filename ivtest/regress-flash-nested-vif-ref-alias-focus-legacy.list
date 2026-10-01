@@ -1,0 +1,7 @@
+# Nested class-held virtual-interface ref aliases, strict IEEE editions.
+sv_vif_nested_ref_member_alias_no_ref_2017 normal,-g2017,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_call_2017 normal,-g2017,-DREF_CALL,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_conflict_2017 CE,-g2017,-DREF_CONFLICT,-stop ivltests gold=sv_vif_nested_ref_member_alias_conflict.gold
+sv_vif_nested_ref_member_alias_no_ref_2023 normal,-g2023,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_call_2023 normal,-g2023,-DREF_CALL,-stop ivltests gold=sv_vif_nested_ref_member_alias_pass.gold
+sv_vif_nested_ref_member_alias_ref_conflict_2023 CE,-g2023,-DREF_CONFLICT,-stop ivltests gold=sv_vif_nested_ref_member_alias_conflict.gold

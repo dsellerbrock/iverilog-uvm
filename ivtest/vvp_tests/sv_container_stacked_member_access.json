@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_container_stacked_member_access.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_container_stacked_member_access"
+}

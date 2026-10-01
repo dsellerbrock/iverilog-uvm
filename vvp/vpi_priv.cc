@@ -1781,9 +1781,11 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 	    && escaped_end != string::npos
 	    && escaped_end + 1 < indexed_leaf.size()
 	    && indexed_leaf[escaped_end + 1] == '[';
-      vpiHandle out = escaped_indexed ? 0 : find_name(nm_base, hand);
-	if (out == 0)
-	    out = find_indexed_name_(indexed_leaf, hand);
+      // Resolve array words by their parent and index first. A literal-name
+      // search walks every word of the memory before reaching mem[index].
+      vpiHandle out = find_indexed_name_(indexed_leaf, hand);
+	if (out == 0 && !escaped_indexed)
+	    out = find_name(nm_base, hand);
 
 	// M12: fall back to class-member descent for dotted paths
 	// whose prefix is a class variable in this scope.
@@ -2002,16 +2004,20 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    return nullptr;
       }
 
-      if (!dynamic_cast<vvp_fun_buft*>(net1->fun)) {
-	    fprintf(stderr, "Error: functor of net1 must be"
-		    "vvp_fun_buft\n");
-	    return nullptr;
+      // Port boundaries may use a transparent buffer, a Z-preserving buffer,
+      // or a settled variable sampler; each has one physical input edge.
+      auto is_port_boundary = [](vvp_net_fun_t* fun) {
+	return dynamic_cast<vvp_fun_bufz*>(fun) ||
+	       dynamic_cast<vvp_fun_sample*>(fun);
+      };
+      if (!is_port_boundary(net1->fun)) {
+	fprintf(stderr, "Error: functor of net1 must be a port buffer or sampler\n");
+	return nullptr;
       }
 
-      if (!dynamic_cast<vvp_fun_buft*>(net2->fun)) {
-	    fprintf(stderr, "Error: functor of net2 must be"
-		    "vvp_fun_buft\n");
-	    return nullptr;
+      if (!is_port_boundary(net2->fun)) {
+	fprintf(stderr, "Error: functor of net2 must be a port buffer or sampler\n");
+	return nullptr;
       }
 
 	// If port1 is actually a port bit, we have to get to the correct vvp_fun_part
@@ -2035,7 +2041,7 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 			}
 		  }
 
-		  current_net = current_net->port[0].ptr(); // BUFT has only one input, index 0
+		  current_net = current_net->port[0].ptr(); // Port boundary has one input, index 0
 	    }
       }
 

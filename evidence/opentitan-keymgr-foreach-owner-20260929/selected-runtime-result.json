@@ -1,0 +1,27 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+    "-n",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/keymgr-selected-owner/selected.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=keymgr_base_test",
+    "+UVM_TEST_SEQ=keymgr_smoke_vseq"
+  ],
+  "environment": {
+    "IVL_SVA_NFA": "1"
+  },
+  "image_sha256": "612dc857b3986d64de1d2f298c6fc8c401657f26fc88baf4eb4671cdcff50863",
+  "vvp_sha256": "5b9ed7a8ed8006a998b55c0bc42d035aa99ddeb9c1b3495fd0b4651cf23600c3",
+  "returncode": 0,
+  "stop_reason": null,
+  "duration_seconds": 35.769,
+  "peak_process_tree_rss_bytes": 3261366272,
+  "rss_cap_bytes": 4294967296,
+  "wall_timeout_seconds": 1800,
+  "pass_banner_count": 1,
+  "scoreboard_operation_lines": 16,
+  "bad_diagnostic_lines": []
+}

@@ -26,9 +26,10 @@ its pinned hash, and apply the patch there with `patch -p1 -d <copy-root> -i
 with `local-install/bin/iverilog -g2017` and `-g2023`, with and without
 `-gcommercial-unsafe`; run each image with `local-install/bin/vvp -n`.
 
-This patch is not in the active exact-52 runner. Its live tool/runner
-fingerprints remain unchanged. The current `smoke_test_veer` 1/52 result is a
-separate copied-source diagnostic under its recorded gate, with this warning;
-it is not pristine, IEEE, or warning-clean L0 qualification. A future full
-runner profile must select the patch explicitly and replay the case checks
-before making a warning-clean claim.
+The exact-52 runner now offers `--axi-read-resp-user-overlay` for one explicit
+`--case` with `--commercial-unsafe --sim-memory-gib 8 --timeout 57600`. It
+checks pinned source and patch hashes, patches a disposable copy, and replaces
+the single AXI profile entry. Copied-source, hash-guard, composition, selector,
+and `--help` checks pass without launching VVP. The earlier `smoke_test_veer`
+1/52 result remains a separate copied-source diagnostic with the RUSER warning;
+the runner integration has no new selected L0 runtime verdict.

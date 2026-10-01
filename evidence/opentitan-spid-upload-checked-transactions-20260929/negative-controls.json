@@ -1,0 +1,82 @@
+{
+  "corrupt-byte": {
+    "mutation": "Change the first transmitted program byte from A5 to A4 after snapshotting the expected payload.",
+    "status": "RUNTIME_FAIL",
+    "compile_returncode": 0,
+    "hard_error_count": 0,
+    "semantic_debt_count": 0,
+    "runtime_returncode": 1,
+    "runtime_duration_seconds": 1.025,
+    "runtime_timed_out": false,
+    "runtime_memory_limit_hit": false,
+    "runtime_peak_physical_footprint_bytes": 5128552,
+    "pass_banner_count": 0,
+    "fatal_lines": [
+      "FATAL: ../src/lowrisc_dv_spid_upload_sim_0.1/tb/spid_upload_tb.sv:421: Upload payload 0 byte 0: got a4 expected a5"
+    ]
+  },
+  "drop-last": {
+    "mutation": "Skip the final spiflash_program call.",
+    "status": "RUNTIME_FAIL",
+    "compile_returncode": 0,
+    "hard_error_count": 0,
+    "semantic_debt_count": 0,
+    "runtime_returncode": 1,
+    "runtime_duration_seconds": 4.088,
+    "runtime_timed_out": false,
+    "runtime_memory_limit_hit": false,
+    "runtime_peak_physical_footprint_bytes": 68534728,
+    "pass_banner_count": 0,
+    "fatal_lines": [
+      "FATAL: ../src/lowrisc_dv_spid_upload_sim_0.1/tb/spid_upload_tb.sv:176: TEST TIMED OUT!!"
+    ]
+  },
+  "extra-command": {
+    "mutation": "Send an eighth C7 command after the five programs.",
+    "status": "RUNTIME_FAIL",
+    "compile_returncode": 0,
+    "hard_error_count": 0,
+    "semantic_debt_count": 0,
+    "runtime_returncode": 1,
+    "runtime_duration_seconds": 4.079,
+    "runtime_timed_out": false,
+    "runtime_memory_limit_hit": false,
+    "runtime_peak_physical_footprint_bytes": 68387272,
+    "pass_banner_count": 0,
+    "fatal_lines": [
+      "FATAL: ../src/lowrisc_dv_spid_upload_sim_0.1/tb/spid_upload_tb.sv:185: Upload FIFO has extra entries: cmd 1 addr 0"
+    ]
+  },
+  "command-flags": {
+    "mutation": "Drive cmd_sync_status_wel_i high so the command FIFO upper byte is nonzero.",
+    "status": "RUNTIME_FAIL",
+    "compile_returncode": 0,
+    "hard_error_count": 0,
+    "semantic_debt_count": 0,
+    "runtime_returncode": 1,
+    "runtime_duration_seconds": 1.028,
+    "runtime_timed_out": false,
+    "runtime_memory_limit_hit": false,
+    "runtime_peak_physical_footprint_bytes": 5374312,
+    "pass_banner_count": 0,
+    "fatal_lines": [
+      "FATAL: ../src/lowrisc_dv_spid_upload_sim_0.1/tb/spid_upload_tb.sv:319: Upload command 0: got 40c7"
+    ]
+  },
+  "no-payload-metadata": {
+    "mutation": "Disconnect the payload-depth output and drive it to one for C7/52.",
+    "status": "RUNTIME_FAIL",
+    "compile_returncode": 0,
+    "hard_error_count": 0,
+    "semantic_debt_count": 0,
+    "runtime_returncode": 1,
+    "runtime_duration_seconds": 1.029,
+    "runtime_timed_out": false,
+    "runtime_memory_limit_hit": false,
+    "runtime_peak_physical_footprint_bytes": 5783912,
+    "pass_banner_count": 0,
+    "fatal_lines": [
+      "FATAL: ../src/lowrisc_dv_spid_upload_sim_0.1/tb/spid_upload_tb.sv:323: Upload command 0 unexpectedly has payload metadata"
+    ]
+  }
+}

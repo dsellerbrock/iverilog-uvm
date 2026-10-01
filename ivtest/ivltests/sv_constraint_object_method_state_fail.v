@@ -23,13 +23,21 @@ endclass
 module test;
   receiver_state_item value;
   string rng;
+  int old_posts;
   bit [7:0] old_result;
+  task automatic expect_success(input string label);
+    old_posts = value.posts;
+    if (!value.randomize()) $fatal(1, "%s failed", label);
+    if (value.posts != old_posts + 1)
+      $fatal(1, "%s missed post_randomize", label);
+  endtask
   task automatic expect_failure(input string label);
+    old_posts = value.posts;
     old_result = value.result;
     rng = value.get_randstate();
     if (value.randomize()) $fatal(1, "%s succeeded", label);
     if (value.result != old_result || value.get_randstate() != rng
-        || value.posts != 1)
+        || value.posts != old_posts)
       $fatal(1, "%s lost value/RNG/callback rollback", label);
   endtask
   initial begin
@@ -43,7 +51,7 @@ module test;
     value.null_c.constraint_mode(1);
     value.enable = 0;
     value.result = 8'h91;
-    expect_failure("terminal null false guard");
+    expect_success("terminal null false guard");
     value.enable = 1;
     value.result = 8'h92;
     expect_failure("terminal null true guard");
@@ -55,7 +63,7 @@ module test;
     value.x_c.constraint_mode(1);
     value.enable = 0;
     value.result = 8'h94;
-    expect_failure("X result false guard");
+    expect_success("X result false guard");
     value.enable = 1;
     value.result = 8'h95;
     expect_failure("X result true guard");

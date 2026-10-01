@@ -1,0 +1,5 @@
+ivltests/sv_covergroup_nested_item_method_fail.v:27: error: Object $unit.seq_t.bad_receiver.this has no method "cov.absent_cg.op_cp.get_coverage(...)".
+ivltests/sv_covergroup_nested_item_method_fail.v:20: error: A named coverage item cannot be indexed.
+ivltests/sv_covergroup_nested_item_method_fail.v:17: error: Covergroup has no named coverpoint or cross `absent_cp'.
+ivltests/sv_covergroup_nested_item_method_fail.v:24: sorry: named coverage item get_coverage() with ref arguments is not supported.
+4 error(s) during elaboration.

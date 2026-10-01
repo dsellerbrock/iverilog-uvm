@@ -1,0 +1,2 @@
+ivltests/sv_constraint_state_packed_select_invalid.sv:20: warning: Constraint item in 'c' of class struct_state is not representable in the constraint solver; randomize() of this class will fail.
+ivltests/sv_constraint_state_packed_select_invalid.sv:25: warning: Constraint item in 'c' of class wide_state is not representable in the constraint solver; randomize() of this class will fail.

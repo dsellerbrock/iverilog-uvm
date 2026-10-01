@@ -2909,7 +2909,10 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 				  uint64_t kind, uint64_t family,
 				  uint64_t array_size, char*name,
 				  char*lo_ir, char*hi_ir,
-				  uint64_t guard_idx, char*value_type)
+				  uint64_t guard_idx, char*value_type,
+				  uint64_t trans_seq, uint64_t trans_term,
+				  uint64_t trans_repeat, uint64_t trans_min,
+				  uint64_t trans_max)
 {
       assert(compile_class);
       const uint64_t u32_max = std::numeric_limits<unsigned>::max();
@@ -2956,7 +2959,10 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	       if (!value_type_bad) value_width = (unsigned)parsed;
 	 }
       if (cp_idx > u32_max || item_idx > u32_max || kind > u32_max
-	  || family > u32_max || guard_idx > u32_max || bad_type) {
+	  || family > u32_max || guard_idx > u32_max
+	  || trans_seq > 255 || trans_term > 255 || trans_repeat > 3
+	  || trans_min == 0 || trans_max < trans_min || trans_max > 65536
+	  || bad_type) {
 	yyerror("invalid .covgrp_dyn_bin metadata value");
 	free(name);
 	free(lo_ir);
@@ -2971,7 +2977,11 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 					array_size, name ? name : "",
 					lo_ir ? lo_ir : "", hi_ir ? hi_ir : "",
 					value_width, value_signed,
-					(unsigned)guard_idx);
+					(unsigned)guard_idx,
+					(unsigned)trans_seq,
+					(unsigned)trans_term,
+					(unsigned)trans_repeat,
+					trans_min, trans_max);
       free(name);
       free(lo_ir);
       free(hi_ir);
@@ -3587,6 +3597,22 @@ void class_type::covgrp_live_remove(vvp_cobject*obj) const
                   covgrp_retired_weight_ += weight;
                   covgrp_retired_weighted_ += (long double)weight * score;
             }
+	    if (covgrp_retired_item_weight_.size() < covgrp_items_.size()) {
+		  covgrp_retired_item_weight_.resize(covgrp_items_.size(), 0);
+		  covgrp_retired_item_weighted_.resize(covgrp_items_.size(), 0);
+		  covgrp_retired_item_has_bins_.resize(covgrp_items_.size(), false);
+	    }
+	    for (size_t item = 0; item < covgrp_items_.size(); item += 1) {
+		  bool item_contributes = false;
+		  double item_score = vvp_covgrp_instance_coverage(
+			obj, &item_contributes, static_cast<int>(item));
+		  covgrp_retired_item_has_bins_[item] =
+			covgrp_retired_item_has_bins_[item] || item_contributes;
+		  unsigned item_weight = covgrp_item_weight(obj, item);
+		  covgrp_retired_item_weight_[item] += item_weight;
+		  covgrp_retired_item_weighted_[item] +=
+			(long double)item_weight * item_score;
+	    }
 
 	    if (covgrp_retired_at_least_.size() < covgrp_items_.size())
 		  covgrp_retired_at_least_.resize(covgrp_items_.size(), 0);
@@ -3769,6 +3795,18 @@ uint64_t class_type::cross_type_register_bin(unsigned family,
       return bins.emplace(name, bins.size()).first->second;
 }
 
+uint64_t class_type::trans_type_register_bin(unsigned family,
+      const std::vector<uint64_t>&name) const
+{
+      auto&bins = covgrp_trans_type_bins_[family];
+      auto found = bins.find(name);
+      if (found != bins.end()) return found->second;
+      uint64_t id = bins.size();
+      bins[name] = id;
+      dyn_type_register_total(family, bins.size());
+      return id;
+}
+
 void class_type::cross_type_register_named(unsigned family,
       const std::vector<unsigned>&props) const
 {
@@ -3776,25 +3814,45 @@ void class_type::cross_type_register_named(unsigned family,
       names.insert(props.begin(), props.end());
 }
 
-double class_type::type_coverage(vvp_cobject*, bool*contributes) const
+double class_type::type_coverage(vvp_cobject*, bool*contributes,
+				int selected_item) const
 {
       if (contributes) *contributes = false;
+	if (selected_item >= 0
+	    && static_cast<size_t>(selected_item) >= covgrp_items_.size())
+	    return 0.0;
       // A declaration alone contributes no bins. Retired instances still
       // belong to the cumulative population, even with zero instance weight.
       if (covgrp_live_.empty() && !covgrp_has_retired_options_) return 0.0;
       if (!covgrp_options_.merge_instances) {
-            long double weights = covgrp_retired_weight_;
-            long double weighted = covgrp_retired_weighted_;
+            size_t item = static_cast<size_t>(selected_item);
+	    long double weights = selected_item >= 0
+		  ? (item < covgrp_retired_item_weight_.size()
+		      ? covgrp_retired_item_weight_[item] : 0)
+		  : covgrp_retired_weight_;
+	    long double weighted = selected_item >= 0
+		  ? (item < covgrp_retired_item_weighted_.size()
+		      ? covgrp_retired_item_weighted_[item] : 0)
+		  : covgrp_retired_weighted_;
+	    bool item_has_bins = selected_item >= 0
+		  && item < covgrp_retired_item_has_bins_.size()
+		  && covgrp_retired_item_has_bins_[item];
             for (vvp_cobject*obj : covgrp_live_) {
                   bool instance_contributes = false;
-                  double score = vvp_covgrp_instance_coverage(obj, &instance_contributes);
-                  if (!instance_contributes) continue;
-                  unsigned weight = covgrp_weight(obj);
+                  double score = vvp_covgrp_instance_coverage(
+			obj, &instance_contributes, selected_item);
+		  if (selected_item >= 0 && instance_contributes)
+		    item_has_bins = true;
+		  if (!instance_contributes && selected_item < 0) continue;
+                  unsigned weight = selected_item >= 0
+			? covgrp_item_weight(obj, item)
+			: covgrp_weight(obj);
                   weights += weight;
                   weighted += (long double)weight * score;
             }
             if (contributes) *contributes = weights != 0;
-            return weights != 0 ? (double)(weighted / weights) : 0.0;
+            return weights != 0 ? (double)(weighted / weights)
+		  : selected_item >= 0 && !item_has_bins ? 100.0 : 0.0;
       }
 
       // Merged coverage uses independently declared item type weights;
@@ -3834,7 +3892,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	std::set<unsigned> seen_dyn_families;
       for (size_t bi = 0 ; bi < covgrp_dyn_bins_.size() ; bi += 1) {
 	    const cov_dyn_bin_t&rec = covgrp_dyn_bins_[bi];
-	    if ((rec.kind & 7) != 0) continue;
+	    if ((rec.kind & 7) != 0 && (rec.kind & 7) != 4) continue;
 	    if (!seen_dyn_families.insert(rec.family).second) continue;
 	    unsigned at_least = rec.item_idx < covgrp_items_.size()
 		  ? covgrp_cumulative_at_least_(rec.item_idx) : 1;
@@ -3868,6 +3926,9 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	 for (auto&ip : item_trans_total) items.insert(ip.first);
 	 for (auto&ip : item_dyn_total) items.insert(ip.first);
 	 for (unsigned item_idx : items) {
+	    if (selected_item >= 0
+		&& item_idx != static_cast<unsigned>(selected_item))
+	      continue;
 	    unsigned at_least = 1, weight = 1;
 	    if (item_idx < covgrp_items_.size()) {
 		  at_least = covgrp_cumulative_at_least_(item_idx);
@@ -3884,11 +3945,18 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	    total += item_dyn_total[item_idx];
 	    hits += item_dyn_hits[item_idx];
 	    if (total == 0) continue;
+	    if (selected_item >= 0) {
+		  if (contributes) *contributes = true;
+		  return 100.0 * (double)hits / (double)total;
+	    }
 	    wsum += (double)weight;
 	    wcov += (double)weight
 		  * (100.0 * (double)hits / (double)total);
       }
       if (contributes) *contributes = wsum > 0.0;
+	if (selected_item >= 0
+	    && covgrp_items_[static_cast<size_t>(selected_item)].type_weight == 0)
+	    return 100.0;
       return (wsum > 0.0) ? (wcov / wsum) : 0.0;
 }
 

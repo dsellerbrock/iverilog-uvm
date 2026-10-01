@@ -1,0 +1,23 @@
+DESIGN TIME PRECISION: 10e0
+PACKAGES:
+$unit package $unit 0 children, 0 classes
+    timescale = 10e0 / 10e0
+    enum sets {
+    }
+    enum names {
+    }
+SCOPES:
+narrow_cast_shape module <narrow_cast_shape> instance 0 children, 0 classes
+    in compilation unit $unit
+    timescale = 10e0 / 10e0
+    enum sets {
+    }
+    enum names {
+    }
+    reg: lane unpacked dims=0 pin_count=1 netvector_t:bool unsigned (eref=1, lref=0) scope=narrow_cast_shape #(0,0,0) vector_width=1 pin_count=1 pins_are_virtual
+    reg: result unpacked dims=0 pin_count=1 netvector_t:bool unsigned[1:0] (eref=0, lref=1) scope=narrow_cast_shape #(0,0,0) vector_width=2 pin_count=1 pins_are_virtual
+ELABORATED NODES:
+ELABORATED BRANCHES:
+ELABORATED PROCESSES:
+initial  /* /private/tmp/ot-csrng-index-20260929/narrow-cast-shape.v:4 in narrow_cast_shape */
+  {result} = <select=<select=(<select=lane[(0)+:3] expr_type=bool>)+(3'd3)[(0)+:3] expr_type=bool>[(0)+:2] expr_type=bool>;

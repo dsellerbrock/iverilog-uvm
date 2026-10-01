@@ -1,0 +1,32 @@
+{
+  "status": "selected compile-only; no SPI DV PASS",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_revision": "ed6415e45",
+  "compatibility_flag": "-gcommercial-unsafe",
+  "spi_host_source_patch": "docs/conformance/release_overlays/opentitan/spi_host_inactive_csb.patch",
+  "spi_host_pinned_tb_sha256": "9162977e5e1359ef38d15822494f98e985b6600adfad886064fd5a456ca83422",
+  "spi_host_patch_sha256": "9a7c61dd4343a9583fdc45943820cdb6581a2854e800dbc595ea8abd5a96af92",
+  "spi_host_patch_applies_to_pinned": true,
+  "spi_host_compile": {
+    "case": "lowrisc:dv:spi_host_sim:1.0",
+    "source": "patched disposable copy",
+    "returncode": 0,
+    "seconds": 3.207,
+    "hard_errors": 0,
+    "warnings": 15,
+    "vvp_sha256": "1a0eb74b865839f572d302ad32e1067b8d6257df43c1973291a6c6ad6edcbdcf"
+  },
+  "spi_device_compile": {
+    "case": "lowrisc:dv:spi_device_sim:0.1",
+    "source": "unpatched disposable copy",
+    "returncode": 0,
+    "seconds": 4.06,
+    "hard_errors": 0,
+    "warnings": 74,
+    "vvp_sha256": "506f64ba80d811c73053dbe4a442a261ea4a7be7f7ca8e2acb249dd9acff9d2f"
+  },
+  "focused_validation": "strict/unsafe 2017/2023 alias and array controls; 48/48 registered interface-driver and NBA-property checks",
+  "compiler_guard_scope": "Under -gcommercial-unsafe only, one fully continuously driven packed non-array interface member may be accessed through a VIF; an actual procedural alias write fails at runtime. Strict modes reject the mixed driver. Partially driven members stay compile-rejected.",
+  "runtime": "No SPI Host/Device DV verdict; a separate SPI Device readbasic pre-DV run reached a 120 s wall cap without verdict.",
+  "source_evidence": "work/ot-spi-mixed-driver/shared-integrated-results.json"
+}

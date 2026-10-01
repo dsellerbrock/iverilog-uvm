@@ -1,0 +1,3 @@
+ivltests/sv_class_packed_property_narrow_cast_cross.v:6: sorry: packed class-property range crosses its declared packed dimension; exact partial out-of-range lowering is not yet supported.
+ivltests/sv_class_packed_property_narrow_cast_cross.v:7: sorry: packed class-property range crosses its declared packed dimension; exact partial out-of-range lowering is not yet supported.
+2 error(s) during elaboration.

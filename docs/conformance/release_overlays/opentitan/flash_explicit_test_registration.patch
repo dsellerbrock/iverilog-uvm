@@ -1,0 +1,24 @@
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/tb/tb.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/tb/tb.sv
+@@ -26,10 +26,8 @@
+   // since partner base tests inherit from flash_ctrl_base_test#(CFG_T, ENV_T) and
+   // specify directly (CFG_T, ENV_T) via the class extension and use a different
+   // UVM_TESTNAME
+-  if (`PRIM_DEFAULT_IMPL==prim_pkg::ImplGeneric) begin : gen_spec_base_test_params
+-    typedef flash_ctrl_base_test #(.CFG_T(flash_ctrl_env_cfg),
+-                                   .ENV_T(flash_ctrl_env)) flash_ctrl_base_test_t;
+-  end
++  typedef flash_ctrl_base_test #(.CFG_T(flash_ctrl_env_cfg),
++                                 .ENV_T(flash_ctrl_env)) flash_ctrl_base_test_t;
+ 
+   wire clk, rst_n, rst_shadowed_n;
+   wire intr_prog_empty;
+@@ -345,6 +343,8 @@
+     uvm_config_db#(virtual flash_ctrl_if)::set(null, "*.env", "flash_ctrl_vif", flash_ctrl_if);
+     uvm_config_db#(virtual flash_phy_prim_if)::set(null, "*.env.m_fpp_agent*", "vif", fpp_if);
+     $timeformat(-9, 1, " ns", 9);
++    if (`PRIM_DEFAULT_IMPL==prim_pkg::ImplGeneric)
++      void'(flash_ctrl_base_test_t::get_type());
+     run_test();
+   end
+ endmodule

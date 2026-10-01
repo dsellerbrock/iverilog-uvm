@@ -1,0 +1,36 @@
+{
+  "case": "lowrisc:dv:i2c_sim:0.1",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_patch": "docs/conformance/release_overlays/opentitan/i2c_nonrand_payload_copy.patch",
+  "source_patch_sha256": "8c72e8d7307ad06ffbc591028dc05be3559f2a336285277d990b767ea369fb2b",
+  "apply_after": [
+    "i2c_constraint_and_queue_compat.patch",
+    "i2c_coverage_and_state_solve_compat.patch",
+    "i2c_monitor_output_bit_copyout_compat.patch"
+  ],
+  "root_cause": "i2c_item.data_q is a non-rand queue; inline randomize constraints cannot copy the sequence payload into it. Direct queue assignment before randomization preserves the payload and num_data invariant.",
+  "minimal_reducers": {
+    "i2c_nonrand_original_failure_repro.sv": "strict 2017 and 2023: original inline non-rand size/foreach constraint warns unresolved index and randomize correctly fails",
+    "i2c_nonrand_payload_copy_repro.sv": "strict 2017 and 2023: non-rand size constraint fails without mutation; queue copy and normal randomize pass, preserving bytes and num_data",
+    "i2c_local_queue_index_repro.sv": "strict 2017 and 2023: separate rand-queue same-name local::data_q[i] compiler defect remains; do not generalize this I2C source correction to rand queues"
+  },
+  "selected_copied_source_compile": {
+    "edition": "g2012",
+    "unsafe_flag": "gcommercial-unsafe",
+    "uvm": "1.2",
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 0,
+    "warning_lines": 27,
+    "unresolved_i_warnings": 0,
+    "log": "/private/tmp/ot-i2c-constraint-period-20260928/selected-payload-copy-corrected-compile.log",
+    "log_sha256": "f4aa8b310125602d036062b4bdc401cde9506b482fe683b7531f222c5a7cec5d"
+  },
+  "installed_compiler_sha256": {
+    "driver": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "elaborator": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a"
+  },
+  "runtime": "not run; capped Caliptra observer active",
+  "scope_note": "i2c_controller_base_seq overrides send_host_mode_txn, and the source marks the base Host path unused",
+  "aggregate_49_case_census": "unchanged"
+}

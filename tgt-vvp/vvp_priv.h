@@ -842,6 +842,24 @@ static inline ivl_type_t receiver_container_type_(ivl_expr_t expr)
       return type_is_runtime_container_(type) ? type : 0;
 }
 
+/* A fixed array selected from an associative array has a scalar leaf base
+ * kind, so container recovery cannot identify it by ivl_type_base(). */
+static inline ivl_type_t fixed_uarray_expr_type_(ivl_expr_t expr)
+{
+      ivl_type_t type;
+      if (!expr)
+            return 0;
+      type = ivl_expr_type(expr) == IVL_EX_PROPERTY
+            ? property_expr_value_type_(expr) : ivl_expr_net_type(expr);
+      if (type_is_fixed_uarray_property_(type))
+            return type;
+      if (ivl_expr_type(expr) != IVL_EX_SELECT)
+            return 0;
+      type = receiver_container_type_(ivl_expr_oper1(expr));
+      type = type ? ivl_type_element(type) : 0;
+      return type_is_fixed_uarray_property_(type) ? type : 0;
+}
+
 /* Evaluate one already-canonical fixed-property slot expression into WORD and
    preserve its X/Z/conversion and explicit range results in caller-owned
    flags. */
@@ -881,13 +899,28 @@ static inline uint64_t queue_receiver_max_operand_(ivl_expr_t receiver,
 }
 
 /* Emit the strict recursive container-layout suffix understood by new VVP.
- * Q0 means a known-unbounded queue; D and A carry no bound. The element chain
- * stops at the first non-container type. */
+ * Q0 means a known-unbounded queue; D and A carry no bound. An associative
+ * array of one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.
+ * The leaf is b<width>, v<width>, or o for two-state, four-state, or object
+ * elements. */
 static inline void emit_container_layout_suffix_(ivl_type_t type)
 {
       ivl_type_t cur = type;
       int emitted = 0;
       while (cur) {
+            if (type_is_fixed_uarray_property_(cur)) {
+                  ivl_type_t leaf = ivl_type_element(cur);
+                  const ivl_variable_type_t leaf_base = ivl_type_base(leaf);
+                  const int left = ivl_type_packed_msb(cur, 0);
+                  const int right = ivl_type_packed_lsb(cur, 0);
+                  const char kind = leaf_base == IVL_VT_BOOL ? 'b'
+                        : leaf_base == IVL_VT_LOGIC ? 'v' : 'o';
+                  fprintf(vvp_out, "%cF%d:%d:%c", emitted ? ',' : '!',
+                          left, right, kind);
+                  if (kind != 'o')
+                        fprintf(vvp_out, "%u", ivl_type_packed_width(leaf));
+                  break;
+            }
             const ivl_variable_type_t base = ivl_type_base(cur);
             if (base != IVL_VT_QUEUE && base != IVL_VT_DARRAY)
                   break;

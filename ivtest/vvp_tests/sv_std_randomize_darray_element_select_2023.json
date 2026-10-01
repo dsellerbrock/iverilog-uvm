@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_std_randomize_darray_element_select_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_std_randomize_darray_element_select"
+}

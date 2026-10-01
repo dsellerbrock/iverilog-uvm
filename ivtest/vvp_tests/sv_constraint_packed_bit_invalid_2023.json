@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "sv_constraint_packed_bit_invalid.sv",
+    "iverilog-args" : [ "-g2023" ],
+    "gold" : "sv_constraint_packed_bit_invalid"
+}

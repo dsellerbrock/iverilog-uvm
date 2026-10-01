@@ -1,5 +1,25 @@
-// IEEE 1800-2017/2023 13.4.1, 13.5.2: addressable function-name storage.
+// IEEE 1800-2017/2023 6.19.4, 13.4.1, 13.5.2: addressable function-name storage.
 module sv_function_return_ref;
+  typedef enum logic [2:0] { StReset, StInit, StDisabled = 5 } state_e;
+  function automatic state_e cast_result(input int unsigned value);
+    cast_result = StReset;
+    if (value == 1) begin
+      if (!$cast(cast_result, value)) $fatal(1,"enum cast into return failed");
+    end else if ($cast(cast_result, value)) begin
+      $fatal(1,"invalid enum cast succeeded");
+    end
+  endfunction
+  function automatic state_e cast_result_task();
+    int unsigned value = 1;
+    $cast(cast_result_task, value);
+  endfunction
+  class EnumHolder;
+    state_e state;
+    function new(); state = StReset; endfunction
+    function bit set_state(input bit [31:0] value);
+      return $cast(state, value);
+    endfunction
+  endclass
   class Reader;
     static function bit fill(ref int value);
       value = 23;
@@ -67,8 +87,17 @@ module sv_function_return_ref;
   initial begin
     int a,b;
     Coverage coverage;
+    EnumHolder holder;
     coverage = new;
+    holder = new;
     if(coverage.value()!=23) $fatal(1,"method return ref");
+    if(cast_result(1)!==StInit || cast_result(2)!==StReset)
+      $fatal(1,"enum function return cast");
+    if(cast_result_task()!==StInit) $fatal(1,"task-form enum return cast");
+    if(!holder.set_state(1) || holder.state!==StInit)
+      $fatal(1,"class enum property cast");
+    if(holder.set_state(2) || holder.state!==StInit)
+      $fatal(1,"invalid class enum property cast");
     if(recurse(2)!=36) $fatal(1,"recursive result");
     if(explicit_result()!=17) $fatal(1,"explicit return");
     if(persistent()!=6 || persistent()!=12) $fatal(1,"static return storage");

@@ -1,0 +1,1 @@
+./ivltests/sv_constraint_fixed_array_packed_member_x_index.sv:4: warning: Constraint item in 'c' of class unknown_index is not representable in the constraint solver; randomize() of this class will fail.

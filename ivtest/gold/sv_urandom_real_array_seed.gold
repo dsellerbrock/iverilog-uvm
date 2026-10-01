@@ -1,0 +1,1 @@
+ERROR: ivltests/sv_urandom_real_array_seed.v:4: $urandom's seed must be an integral expression.

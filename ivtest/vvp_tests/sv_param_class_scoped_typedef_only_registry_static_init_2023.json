@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_param_class_scoped_typedef_only_registry_static_init.v",
+    "iverilog-args": [
+        "-g2023",
+        "-gstrict-expr-width"
+    ]
+}

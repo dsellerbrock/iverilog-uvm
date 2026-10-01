@@ -1,0 +1,27 @@
+{
+  "original_sources": {
+    "spid_common": "0255ca2de2cf807bea482d714a8fcb51a2f54f9a0c9173b9742aa0b908454b37",
+    "spid_jedec_tb": "7d2c40f801936bac97b4daefbf5b4ffd80b879a875b49518db5051df1c3a24a1"
+  },
+  "patches": [
+    {
+      "name": "ot-spid-cmdinfo-read-pipeline.patch",
+      "sha256": "0de41341c4fe7ab119d30d40eb66279e18e0668b556ae1cddc2601f78f0a0589"
+    },
+    {
+      "name": "ot-spid-jedec-stale-ports.patch",
+      "sha256": "ebcaed215e46bb265b4862acc28700daaaad7046cfff8ab35bf2d9c6767c567c"
+    },
+    {
+      "name": "ot-spid-jedec-fatal-checks.patch",
+      "sha256": "bd86d9e851e24534a457ec9df764ad82243f2940d5dc899b66d0a05239c2efa6"
+    }
+  ],
+  "patched_sources": {
+    "spid_common": "41fadb66b52653a81c71bbbf8e90823ed567f5bf4d8d98d1c3fe3e242dd9d87d",
+    "spid_jedec_tb": "b0f50bd3c255bb6642bd641044d4d56278f0ad312b11b310ff2b1df980828bbe"
+  },
+  "source_original_matches_generated_tb": true,
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "original_source_hashes_verified_against_pinned_git_objects": true
+}

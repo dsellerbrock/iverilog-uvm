@@ -1,0 +1,10 @@
+--- a/hw/ip/prim/prim_flop_2sync.core
++++ b/hw/ip/prim/prim_flop_2sync.core
+@@ -10,6 +10,7 @@
+     depend:
+       - lowrisc:prim:prim_pkg
+       - lowrisc:prim:primgen
++      - lowrisc:prim:flop
+ 
+   files_verilator_waiver:
+     depend:

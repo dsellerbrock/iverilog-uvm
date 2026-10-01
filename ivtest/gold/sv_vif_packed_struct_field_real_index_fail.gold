@@ -1,0 +1,2 @@
+./ivltests/sv_vif_packed_struct_field_real_index_fail.v:21: error: packed-array index must be an integral expression.
+1 error(s) during elaboration.

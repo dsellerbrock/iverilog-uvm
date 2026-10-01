@@ -1,0 +1,2 @@
+ivltests/sv_foreach_omitted_assoc_indexed_prefix_fail.v:14: sorry: omitted associative foreach with an indexed target prefix is not supported.
+1 error(s) during elaboration.

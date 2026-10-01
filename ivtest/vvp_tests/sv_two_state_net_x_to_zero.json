@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_two_state_net_x_to_zero.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_two_state_net_x_to_zero"
+}

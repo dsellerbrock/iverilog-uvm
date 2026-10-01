@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_class_member_wildcard_inherited.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "top"
+    ],
+    "gold": "sv_class_member_wildcard_inherited"
+}

@@ -1,0 +1,53 @@
+--- a/hw/ip/otp_ctrl/data/otp_ctrl_if.sv.tpl
++++ b/hw/ip/otp_ctrl/data/otp_ctrl_if.sv.tpl
+@@ -23,15 +23,25 @@
+ `define LC_PART_OTP_CMD_PATH ${"\\"}
+     tb.dut.gen_partitions[LifeCycleIdx].gen_lifecycle.u_part_buf.otp_cmd_o
+ 
++`define FORCE_OTP_PART_LOCK_BANKED(i, member, banks, values) ${"\\"}
++  if (forced_part_access_sel[``i``].``member``) begin ${"\\"}
++    if (banks[``i``]) begin ${"\\"}
++      values[1][``i``][0] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access[``i``].``member`` = values[1][``i``][0]; ${"\\"}
++      values[1][``i``][1] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access_dai[``i``].``member`` = values[1][``i``][1]; ${"\\"}
++    end else begin ${"\\"}
++      values[0][``i``][0] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access[``i``].``member`` = values[0][``i``][0]; ${"\\"}
++      values[0][``i``][1] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access_dai[``i``].``member`` = values[0][``i``][1]; ${"\\"}
++    end ${"\\"}
++    banks[``i``] = !banks[``i``]; ${"\\"}
++  end
++
+ `define FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL(i) ${"\\"}
+-  if (forced_part_access_sel[``i``].read_lock) begin ${"\\"}
+-    force tb.dut.part_access[``i``].read_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
+-    force tb.dut.part_access_dai[``i``].read_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
+-  end ${"\\"}
+-  if (forced_part_access_sel[``i``].write_lock) begin ${"\\"}
+-    force tb.dut.part_access[``i``].write_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
+-    force tb.dut.part_access_dai[``i``].write_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
+-  end
++  `FORCE_OTP_PART_LOCK_BANKED(i, read_lock, next_read_bank, read_lock_values) ${"\\"}
++  `FORCE_OTP_PART_LOCK_BANKED(i, write_lock, next_write_bank, write_lock_values)
+ 
+ `ifndef PRIM_GENERIC_OTP_PATH
+   `define PRIM_GENERIC_OTP_PATH${"\\"}
+@@ -50,6 +60,10 @@
+   import otp_ctrl_reg_pkg::*;
+   import otp_ctrl_part_pkg::*;
+   import cip_base_pkg::*;
++
++  // Keep the active force on one bank while the next random values are drawn.
++  prim_mubi_pkg::mubi8_t [1:0][NumPart-1:0][1:0] read_lock_values, write_lock_values;
++  bit [NumPart-1:0] next_read_bank, next_write_bank;
+ 
+   // Output from DUT
+   otp_broadcast_t    otp_broadcast_o;
+@@ -347,4 +361,5 @@
+   `undef PRIM_GENERIC_OTP_PATH
+   `undef PRIM_GENERIC_OTP_CMD_I_PATH
+   `undef FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL
++  `undef FORCE_OTP_PART_LOCK_BANKED
+ endinterface

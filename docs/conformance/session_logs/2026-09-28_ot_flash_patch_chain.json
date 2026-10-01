@@ -1,0 +1,37 @@
+{
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_commit": "01524842c",
+  "compiler_ivl_sha256": "c488d7660822eb80be0557887aee139b0a7a8c110637efa7f2736266d35d147a",
+  "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+  "patch_order": [
+    "flash_constraint_foreach_standard.patch",
+    "flash_illegal_whole_array_solve_before.patch",
+    "flash_array_container_workaround.patch",
+    "flash_packed_field_solve_before.patch"
+  ],
+  "patch_sha256": {
+    "flash_constraint_foreach_standard.patch": "491da90d4f893b7076502a433586ff6e48eea479d7098d3c37108410225ad0d1",
+    "flash_illegal_whole_array_solve_before.patch": "bd9574256486fe1389ae27293027e6d76593d1a4315c23f925164f27de156853",
+    "flash_array_container_workaround.patch": "300a71d1fa2fbe8a099c0395e49755d874a3ee03b9c6bf97b2388aae5e249197",
+    "flash_packed_field_solve_before.patch": "9b87b5dbe095f6d6ad1b87817901ec62910aee1e2f4291ab3c5dc9c122b65ef1"
+  },
+  "pinned_copy_patch_validation": "Each patch dry-run and application passed with -p1 --fuzz=0 --batch in listed order.",
+  "final_source_sha256": {
+    "flash_ctrl_env_cfg.sv": "f035104351a6169fe60de6c10cdf0fafef2c2f56f429e5565e9acb319eb723b2",
+    "flash_ctrl_otf_base_vseq.sv": "37c3c45c6a866d95a610c8e401054c7fbcd66d034a9eea49b647bb20a7409489",
+    "flash_ctrl_mp_regions_vseq.sv": "a2d9af9c5e69e64e820c386e6dd2f3cf7cbde46410bd59c1b9f57e6273860b5a",
+    "flash_ctrl_error_mp_vseq.sv": "eb4f43131ea8bf675e45e97e1de8a77accf80f24f9d709421a2acd64d7c06427",
+    "flash_ctrl_legacy_base_vseq.sv": "374ac97c8551d8e9dbe73919e265b38624c6e68e3cee27e55e131328d8fa916f"
+  },
+  "selective_compile": {
+    "exit_code": 0,
+    "hard_errors": 0,
+    "warnings": 113,
+    "fail_closed_constraint_warnings": 8,
+    "remaining": {
+      "indexed_2d_class_state_reads": 6,
+      "solver_random_associative_key_state_reads": 2
+    }
+  },
+  "qualification": "Compile-only diagnostic. No Flash DV runtime or current-image 49-core corpus; eight constraints still fail closed."
+}

@@ -1,0 +1,2 @@
+ivltests/sv_vif_packed_struct_field_partial_fail.v:19: sorry: Nested member path not yet supported for class properties.
+1 error(s) during elaboration.

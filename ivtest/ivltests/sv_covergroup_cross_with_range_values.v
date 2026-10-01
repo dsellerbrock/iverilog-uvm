@@ -51,11 +51,42 @@ module sv_covergroup_cross_with_range_values;
     }
   endgroup
 
+  // Large PWM-style ranges exercise relational cross selection without
+  // enumerating the product of every value in both source bins.
+  bit [15:0] wide_a, wide_b;
+  covergroup wide_relational_filter;
+    option.per_instance = 1;
+    ca: coverpoint wide_a {
+      bins low = {[1:32767]};
+      bins high = {[32768:65535]};
+    }
+    cb: coverpoint wide_b {
+      bins low = {[1:32767]};
+      bins high = {[32768:65535]};
+    }
+    cx: cross ca, cb {
+      bins less = cx with (ca < cb);
+      bins greater = cx with (ca > cb);
+      bins equal = cx with (ca == cb);
+    }
+  endgroup
+
+  covergroup wide_hole_filter;
+    option.per_instance = 1;
+    ca: coverpoint wide_a { bins gap = {0, [2:65534]}; }
+    cb: coverpoint wide_b { bins one = {1}; }
+    cx: cross ca, cb {
+      illegal_bins false_equal = cx with (ca == cb);
+    }
+  endgroup
+
   equal_filter eq = new;
   false_filter no = new;
   multirange_filter mr = new;
   signed_filter sg = new;
   overlap_filter ov = new;
+  wide_relational_filter wide_rel = new;
+  wide_hole_filter wide_hole = new;
 
   function automatic bit near(real got, real want);
     return got > want - 0.01 && got < want + 0.01;
@@ -104,6 +135,16 @@ module sv_covergroup_cross_with_range_values;
     a = 2; b = 2; ov.sample();
     if (!near(ov.get_inst_coverage(), 100.0))
       $fatal(1, "overlapping range values changed with-predicate selection");
+
+    wide_a = 1; wide_b = 2; wide_rel.sample();
+    // The low/low source-bin tuple belongs to all three named bins:
+    // each relation holds for at least one pair of values.
+    if (!near(wide_rel.cx.get_inst_coverage(), 100.0))
+      $fatal(1, "wide relational cross did not select all three bins");
+    // The bounding boxes overlap, but these range sets are disjoint.
+    wide_a = 0; wide_b = 1; wide_hole.sample();
+    if (!near(wide_hole.cx.get_inst_coverage(), 100.0))
+      $fatal(1, "disjoint range sets selected the equality illegal bin");
 
     $display("PASSED");
     $finish;

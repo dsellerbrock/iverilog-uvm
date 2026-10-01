@@ -1,0 +1,2 @@
+sv_joint_concat_dist_owned_class normal,-g2017 ivltests gold=sv_joint_concat_dist_owned_class.gold
+sv_joint_concat_dist_owned_class_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_concat_dist_owned_class.gold

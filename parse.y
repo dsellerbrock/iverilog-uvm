@@ -383,6 +383,8 @@ static PCallTask* pform_receiver_method_task(const struct vlltype&loc,
                   tmp = new PCallTask(path, actual_args);
             }
             tmp->set_leading_type_args(type_args);
+            if (id->has_scoped_type_prefix())
+                  tmp->set_scoped_type_prefix();
             delete receiver;
       } else {
             tmp = new PCallTask(receiver, method, actual_args);
@@ -765,12 +767,30 @@ static PExpr* pform_self_package_type_cast(const struct vlltype&loc,
       return cast;
 }
 
+static PExpr* pform_unsafe_unary_chain(const YYLTYPE&loc, char outer,
+				       char inner, PExpr*operand)
+{
+      if (!gn_commercial_unsafe_flag) {
+	    yyerror(loc, "error: Operand of unary %c is not a primary "
+		    "expression (accepted only under -gcommercial-unsafe).",
+		    outer);
+	    delete operand;
+	    return 0;
+      }
+      PEUnary*tmp = new PEUnary(inner, operand);
+      FILE_NAME(tmp, loc);
+      PEUnary*res = new PEUnary(outer, tmp);
+      FILE_NAME(res, loc);
+      return res;
+}
+
 static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 					      const YYLTYPE&member_loc,
 					      const char*class_name,
 					      const char*member_name,
 					      PPackage*package_scope = nullptr,
-					      parmvalue_t*class_type_args = nullptr)
+					      parmvalue_t*class_type_args = nullptr,
+					      bool quiet = false)
 {
       perm_string class_key = lex_strings.make(class_name);
       perm_string member_key = lex_strings.make(member_name);
@@ -889,13 +909,15 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
       }
 
       if (class_scope == 0) {
-	    yyerror(class_loc, "error: %s doesn't name a visible class.", class_name);
+	    if (!quiet)
+		  yyerror(class_loc, "error: %s doesn't name a visible class.", class_name);
 	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
 
       if (type == 0) {
-	    yyerror(member_loc, "error: %s doesn't name a type.", member_name);
+	    if (!quiet)
+		  yyerror(member_loc, "error: %s doesn't name a type.", member_name);
 	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
@@ -908,8 +930,9 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 	    ? pform_test_type_identifier(package_scope, class_name)
 	    : pform_test_type_identifier(class_loc, class_name);
       if (!qualifier_type) {
-	    yyerror(class_loc, "error: %s doesn't name a class type.",
-		    class_name);
+	    if (!quiet)
+		  yyerror(class_loc, "error: %s doesn't name a class type.",
+			  class_name);
 	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
@@ -921,6 +944,24 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 	    type, class_scope, qualifier);
       FILE_NAME(tmp, member_loc);
       return tmp;
+}
+
+/* The TYPE::member expression form wins the grammar conflict with a
+   class-scoped type, so `C::T' in a type position can arrive as a scoped
+   PEIdent. Return the type when the member names a typedef of class C (or
+   of pkg::C), else null without a diagnostic. */
+static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(expr);
+      if (!id || !id->has_scoped_type_prefix() || id->leading_type_args())
+	    return 0;
+      const pform_scoped_name_t&path = id->path();
+      if (path.name.size() != 2 || !path.name.front().index.empty()
+	  || !path.name.back().index.empty())
+	    return 0;
+      return make_class_scoped_typeref(loc, loc, path.name.front().name.str(),
+				       path.name.back().name.str(),
+				       path.package, nullptr, true);
 }
 
 static char* dup_cstr(const char*txt)
@@ -2277,7 +2318,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <named_pexprs> port_name_list parameter_value_byname_list
 %type <int_val> stream_operator
 %type <expr> stream_expression
-%type <exprs> stream_expression_list
+%type <exprs> stream_expression_list alias_net_list
 %type <exprs> port_conn_expression_list_with_nuls
 
 %type <named_pexpr> attribute
@@ -2364,7 +2405,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <irange> inside_value_range
 %type <irange_list> inside_range_list
 %type <irange> dist_item
-%type <irange_list> dist_list dist_list_opt
+%type <irange_list> dist_list
 
 %type <coverpoint>  covergroup_item
 %type <coverpoints> covergroup_item_list covergroup_item_list_opt
@@ -2381,6 +2422,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <cross_sel>   cross_bins_unary cross_bins_primary
 
 %type <expr>  constraint_expression constraint_block_item constraint_set_item
+%type <expr>  constraint_dist_consequent
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
 %type <exprs> randomize_constraint_block_opt
 %type <exprs> constraint_expression_list constraint_set constraint_trigger
@@ -2486,6 +2528,7 @@ static Module::port_t *module_declare_port_continuation(
 %nonassoc K_PLUS_EQ K_MINUS_EQ K_MUL_EQ K_DIV_EQ K_MOD_EQ K_AND_EQ K_OR_EQ
 %nonassoc K_XOR_EQ K_LS_EQ K_RS_EQ K_RSS_EQ K_NB_TRIGGER
 %right K_TRIGGER K_LEQUIV
+%precedence K_dist
 %right '?' ':'
 %left K_LOR
 %left K_LAND
@@ -3743,16 +3786,16 @@ class_item /* IEEE1800-2005: A.1.8 */
 	if (strcmp($4, "sample") != 0)
 	      yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
-	std::vector<data_type_t*>*ftypes__ = 0;
+	std::vector<PWire*>*ftypes__ = 0;
 	std::vector<PExpr*>*fdefaults__ = 0;
 	if ($6) {
 	      formals__ = new std::vector<perm_string>;
-	      ftypes__ = new std::vector<data_type_t*>;
+	      ftypes__ = new std::vector<PWire*>;
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
 			  formals__->push_back((*$6)[idx__].port->basename());
-			  ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
 		    }
 	      current_function->set_ports($6);
@@ -4157,8 +4200,9 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
-  | expression K_dist '{' dist_list_opt '}' ';'
-      { /* `dist` shares PEInside's domain representation while retaining
+  | expression K_dist '{' dist_list '}' ';'
+      { /* Require at least one item: an empty dist list is a syntax error.
+           `dist` shares PEInside's domain representation while retaining
            the source operator and each item's optional weight mode. */
         if ($4) {
               PEInside*tmp = new PEInside($1, $4, true);
@@ -4306,7 +4350,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
      soft constraints on the variable for this randomize() call. */
   | K_disable K_soft expression ';'
       { PEDisableSoft*tmp = new PEDisableSoft($3); FILE_NAME(tmp, @1); $$ = tmp; }
-  | K_soft expression K_dist '{' dist_list_opt '}' ';'
+  | K_soft expression K_dist '{' dist_list '}' ';'
       { if ($5) {
 	      PEInside*dist = new PEInside($2, $5, true);
 	      FILE_NAME(dist, @3);
@@ -4318,41 +4362,62 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
               $$ = nullptr;
         }
       }
-  /* implication with soft: A -> soft B; (-> is K_TRIGGER when not followed by '{') */
-  | expression K_TRIGGER K_soft expression ';'
-      { /* Preserve both the implication guard and the soft qualifier.
-	   Dropping them turns an optional conditional preference into an
-	   unconditional hard constraint. */
-	PESoft*soft = new PESoft($4);
-	FILE_NAME(soft, @3);
-	std::list<PExpr*>*items = new std::list<PExpr*>();
-	items->push_back(soft);
-	PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
-	FILE_NAME(tmp, @2);
-	$$ = tmp;
-      }
-  | expression K_TRIGGER K_soft expression K_dist '{' dist_list_opt '}' ';'
-      { if ($7) {
-	      PEInside*dist = new PEInside($4, $7, true);
-	      FILE_NAME(dist, @5);
-	      PESoft*soft = new PESoft(dist);
-	      FILE_NAME(soft, @3);
-	      std::list<PExpr*>*items = new std::list<PExpr*>();
-	      items->push_back(soft);
-	      PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
-	      FILE_NAME(tmp, @2);
-	      $$ = tmp;
+  /* An unbraced implication guards a hard or soft consequent, including
+     another implication that ends in a distribution. */
+  | expression K_TRIGGER attribute_list_opt constraint_dist_consequent
+      { if ($4) {
+            std::list<PExpr*>*items = new std::list<PExpr*>();
+            items->push_back($4);
+            PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            FILE_NAME(tmp, @2);
+            $$ = tmp;
         } else {
-	      delete $1;
-              delete $4;
-              $$ = nullptr;
+            delete $1;
+            $$ = nullptr;
         }
       }
   ;
 
-dist_list_opt
-  :       { $$ = nullptr; }
-  | dist_list { $$ = $1; }
+constraint_dist_consequent
+  : expression K_dist '{' dist_list '}' ';'
+      { if ($4) {
+            PEInside*tmp = new PEInside($1, $4, true);
+            FILE_NAME(tmp, @2);
+            $$ = tmp;
+        } else {
+            delete $1;
+            $$ = nullptr;
+        }
+      }
+  | K_soft expression ';'
+      { PESoft*tmp = new PESoft($2);
+        FILE_NAME(tmp, @1);
+        $$ = tmp;
+      }
+  | K_soft expression K_dist '{' dist_list '}' ';'
+      { if ($5) {
+            PEInside*dist = new PEInside($2, $5, true);
+            FILE_NAME(dist, @3);
+            PESoft*tmp = new PESoft(dist);
+            FILE_NAME(tmp, @1);
+            $$ = tmp;
+        } else {
+            delete $2;
+            $$ = nullptr;
+        }
+      }
+  | expression K_TRIGGER attribute_list_opt constraint_dist_consequent
+      { if ($4) {
+            std::list<PExpr*>*items = new std::list<PExpr*>();
+            items->push_back($4);
+            PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            FILE_NAME(tmp, @2);
+            $$ = tmp;
+        } else {
+            delete $1;
+            $$ = nullptr;
+        }
+      }
   ;
 
 dist_list
@@ -7233,6 +7298,19 @@ package_declaration /* IEEE1800-2005 A.1.2 */
       { check_end_label(@11, "package", $3, $11);
 	delete[]$3;
       }
+  /* A second declaration of an already-declared package name reaches the
+     parser as PACKAGE_IDENTIFIER. Parse it normally so that
+     pform_end_package_declaration reports the duplicate (IEEE 1800-2017
+     3.13) instead of a bare syntax error. */
+  | K_package lifetime_opt PACKAGE_IDENTIFIER ';'
+      { pform_start_package_declaration(@1, $3->pscope_name().str(), $2); }
+    timeunits_declaration_opt
+      { pform_set_scope_timescale(@1); }
+    package_item_list_opt
+    K_endpackage
+      { pform_end_package_declaration(@1); }
+    label_opt
+      { check_end_label(@11, "package", $3->pscope_name().str(), $11); }
   ;
 
 module_package_import_list_opt
@@ -7504,16 +7582,16 @@ package_covergroup_declaration
         if (strcmp($4, "sample") != 0)
               yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
         std::vector<perm_string>*formals__ = 0;
-        std::vector<data_type_t*>*ftypes__ = 0;
+        std::vector<PWire*>*ftypes__ = 0;
 	std::vector<PExpr*>*fdefaults__ = 0;
         if ($6) {
               formals__ = new std::vector<perm_string>;
-              ftypes__ = new std::vector<data_type_t*>;
+              ftypes__ = new std::vector<PWire*>;
 	      fdefaults__ = new std::vector<PExpr*>;
               for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
                     if ((*$6)[idx__].port) {
                           formals__->push_back((*$6)[idx__].port->basename());
-                          ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+                          ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
                     }
               current_function->set_ports($6);
@@ -9130,6 +9208,19 @@ stream_expression
   : expression { $$ = $1; }
   ;
 
+alias_net_list
+  : lpvalue '=' lpvalue
+      { list<PExpr*>*tmp = new list<PExpr*>;
+	tmp->push_back($1);
+	tmp->push_back($3);
+	$$ = tmp;
+      }
+  | alias_net_list '=' lpvalue
+      { $1->push_back($3);
+	$$ = $1;
+      }
+  ;
+
 stream_expression_list
   : stream_expression_list ',' stream_expression
       { std::list<PExpr*>*lst = $1;
@@ -9476,7 +9567,19 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	$$ = tmp;
       }
   | '[' expression ']'
-      { // SystemVerilog canonical range
+      { // An associative index type written `C::T` (IEEE 1800-2017 7.8)
+	// parses as the TYPE::member expression, which the grammar prefers
+	// in the reduce/reduce conflict with data_type. When the member
+	// names a typedef of class C, this is the '[' data_type ']' form.
+	data_type_t*index_type = class_scoped_type_of_ident(@2, $2);
+	if (index_type) {
+	      delete $2;
+	      list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	      tmp->push_back(pform_range_t(new PEAssocType(index_type), 0));
+	      pform_requires_sv(@$, "Associative array declaration");
+	      $$ = tmp;
+	} else {
+	// SystemVerilog canonical range
 	if (!gn_system_verilog()) {
 	      warn_count += 1;
 	      cerr << @2 << ": warning: Use of SystemVerilog [size] dimension. "
@@ -9486,6 +9589,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	pform_range_t index ($2,0);
 	tmp->push_back(index);
 	$$ = tmp;
+	}
       }
   | '[' ']'
       { std::list<pform_range_t> *tmp = new std::list<pform_range_t>;
@@ -11070,6 +11174,16 @@ expression
 	FILE_NAME(tmp, @3);
 	$$ = tmp;
       }
+  /* `!&{a, b}': IEEE 1800-2017 A.8.3 applies a unary operator only to a
+     primary, so a reduction operand needs parentheses. Commercial tools
+     accept the chain (OpenTitan keymgr scoreboard); accept it only under
+     -gcommercial-unsafe. */
+  | '!' attribute_list_opt '&' attribute_list_opt expr_primary %prec UNARY_PREC
+      { $$ = pform_unsafe_unary_chain(@1, '!', '&', $5); }
+  | '!' attribute_list_opt '|' attribute_list_opt expr_primary %prec UNARY_PREC
+      { $$ = pform_unsafe_unary_chain(@1, '!', '|', $5); }
+  | '!' attribute_list_opt '^' attribute_list_opt expr_primary %prec UNARY_PREC
+      { $$ = pform_unsafe_unary_chain(@1, '!', '^', $5); }
   | '!' error %prec UNARY_PREC
       { yyerror(@1, "error: Operand of unary ! "
 		"is not a primary expression.");
@@ -13660,6 +13774,13 @@ expr_primary
       { PExpr*base = $4;
 	if (pform_requires_sv(@1, "Size cast")) {
 	      PExpr*tmp = pform_self_package_type_cast(@1, $1, base);
+	      data_type_t*cast_type = tmp ? 0 : class_scoped_type_of_ident(@1, $1);
+	      if (cast_type) {
+		    // `C::enum_t'(x)' names a class-scoped type (IEEE 6.24.1).
+		    delete $1;
+		    tmp = new PECastType(cast_type, base);
+		    FILE_NAME(tmp, @1);
+	      }
 	      if (tmp) {
 	            $$ = tmp;
 	      } else {
@@ -15382,6 +15503,11 @@ module_item
   | K_assign drive_strength_opt delay3_opt cont_assign_list ';'
       { pform_make_pgassign_list(@1, $4, $3, $2); }
 
+  /* A net alias (IEEE 1800-2017 23.3.1): two or more nets made one. */
+
+  | K_alias alias_net_list ';'
+      { pform_make_alias(@1, $2); }
+
   /* Always and initial items are behavioral processes. */
 
   | attribute_list_opt K_always statement_item
@@ -15487,16 +15613,16 @@ module_item
       { if (strcmp($4, "sample") != 0)
 	      yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
-	std::vector<data_type_t*>*ftypes__ = 0;
+	std::vector<PWire*>*ftypes__ = 0;
 	std::vector<PExpr*>*fdefaults__ = 0;
 	if ($6) {
 	      formals__ = new std::vector<perm_string>;
-	      ftypes__ = new std::vector<data_type_t*>;
+	      ftypes__ = new std::vector<PWire*>;
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
 			  formals__->push_back((*$6)[idx__].port->basename());
-			  ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
 		    }
 	      current_function->set_ports($6);
@@ -17342,6 +17468,7 @@ subroutine_call
 	   context so symbol_search resolves into the package, not into
 	   `this.func` (which would mis-dispatch as a virtual method). */
 	PCallTask*tmp = new PCallTask($1, *$2, *$4);
+	tmp->set_scoped_type_prefix();
 	FILE_NAME(tmp, @2);
 	delete $2;
 	delete $4;
@@ -17377,6 +17504,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3;
 	delete $4;
@@ -17387,6 +17515,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$5, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4;
 	delete $5;
@@ -17397,6 +17526,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($4.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$5, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete $5;
@@ -17407,6 +17537,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3;
 	delete $4;
@@ -17417,6 +17548,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete $4;
@@ -17428,6 +17560,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3;
 	delete[]$5;
@@ -17440,6 +17573,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3;
 	delete[]$5;
@@ -17452,6 +17586,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($4.text)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$7, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6;
@@ -17464,6 +17599,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($4.text)));
 	hident.push_back(name_component_t(lex_strings.make($6.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$7, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6.text;
@@ -17476,6 +17612,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5;
@@ -17488,6 +17625,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5.text;
@@ -17523,6 +17661,8 @@ subroutine_call
 	} else {
 	      tmp = new PCallTask($1, lex_strings.make($3), *$4);
 	}
+	if (pid && pid->has_scoped_type_prefix())
+	      tmp->set_scoped_type_prefix();
 	FILE_NAME(tmp, @2);
 	if (pid)
 	      delete pid;
@@ -17532,6 +17672,7 @@ subroutine_call
       }
   | package_scope hierarchy_identifier argument_list_parens_opt
       { PCallTask*tmp = new PCallTask($1, *$2, *$3);
+	tmp->set_scoped_type_prefix();
 	FILE_NAME(tmp, @2);
 	lex_in_package_scope(0);
 	delete $2;
@@ -18882,6 +19023,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$7);
+	tmp->set_scoped_type_prefix();
 	tmp->void_cast();
 	delete[]$4;
 	delete[]$6;
@@ -18905,6 +19047,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@4, hident, *$7);
+	tmp->set_scoped_type_prefix();
 	tmp->void_cast();
 	std::vector<perm_string> names($11->begin(), $11->end());
 	const PEIdent*first = dynamic_cast<const PEIdent*>($10);
@@ -18939,6 +19082,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@4, hident, *$7);
+	tmp->set_scoped_type_prefix();
 	tmp->void_cast();
 	tmp->set_randomize_with_identifiers(std::vector<perm_string>());
 	if ($12) {
@@ -19092,6 +19236,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	pform_name_t hident = scoped.name;
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*tmp = new PCallTask(scoped.package, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	tmp->set_leading_type_args(prefix->take_leading_type_args());
 	FILE_NAME(tmp, @1);
 	delete[]$3;
@@ -19113,6 +19258,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
+	call->set_scoped_type_prefix();
 	stmt = call;
 	if (is_std_rand && $7) {
 	      std::vector<PExpr*> wc;
@@ -19151,6 +19297,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
+	call->set_scoped_type_prefix();
 	std::vector<perm_string> names($8->begin(), $8->end());
 	const PEIdent*first = dynamic_cast<const PEIdent*>($7);
 	if (!first || first->path().package
@@ -19184,6 +19331,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
+	call->set_scoped_type_prefix();
 	call->set_randomize_with_identifiers(std::vector<perm_string>());
 	if ($9) {
 	      std::vector<PExpr*> wc($9->begin(), $9->end());
@@ -19753,11 +19901,15 @@ udp_reg_opt
   : K_reg  { $$ = true; }
   |        { $$ = false; };
 
+  /* IEEE 1364-2005 29.3: one `input' may name several ports
+     (`input a, b, s'); every port after the output is an input. */
 udp_input_declaration_list
   : K_input IDENTIFIER
       { $$ = list_from_identifier($2, @2.lexical_pos); }
   | udp_input_declaration_list ',' K_input IDENTIFIER
       { $$ = list_from_identifier($1, $4, @4.lexical_pos); }
+  | udp_input_declaration_list ',' IDENTIFIER
+      { $$ = list_from_identifier($1, $3, @3.lexical_pos); }
   ;
 
 udp_primitive

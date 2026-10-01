@@ -29,7 +29,7 @@ static int draw_condition_fallback(ivl_expr_t expr)
 	   reducing it to a single bit. Put the result into a flag bit
 	   for use by all the tests. */
       draw_eval_vec4(expr);
-      if (ivl_expr_width(expr) > 1)
+      if (ivl_expr_width(expr) > 1 || ivl_expr_value(expr) == IVL_VT_STRING)
 	    fprintf(vvp_out, "    %%or/r;\n");
 
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", use_flag);

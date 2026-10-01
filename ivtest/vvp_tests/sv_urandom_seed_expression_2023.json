@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_urandom_seed_expression.v",
+  "iverilog-args": ["-g2023", "-gno-icarus-misc", "-gno-xtypes", "-s", "top"],
+  "gold": "sv_urandom_seed_expression"
+}

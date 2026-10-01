@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_constraint_solve_before_packed_member_unsafe.v",
+    "iverilog-args" : [ "-g2017", "-gcommercial-unsafe" ],
+    "gold"          : "sv_constraint_solve_before_packed_member_unsafe",
+    "vlog95"        : { "type" : "NI" }
+}

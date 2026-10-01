@@ -250,7 +250,7 @@ extern void pform_class_covergroup(const struct vlltype&loc,
 				    const char*name,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 				    std::vector<perm_string>*sample_formals = nullptr,
-				    std::vector<data_type_t*>*sample_formal_types = nullptr,
+				    std::vector<PWire*>*sample_formal_types = nullptr,
 				    std::vector<PEEvent*>*sample_events = nullptr,
 				    std::vector<perm_string>*ctor_formals = nullptr,
 				    std::vector<data_type_t*>*ctor_formal_types = nullptr,
@@ -267,7 +267,7 @@ extern void pform_standalone_covergroup(const struct vlltype&loc,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 				    std::vector<PEEvent*>*sample_events = nullptr,
 				    std::vector<perm_string>*sample_formals = nullptr,
-				    std::vector<data_type_t*>*sample_formal_types = nullptr,
+				    std::vector<PWire*>*sample_formal_types = nullptr,
 				    std::vector<perm_string>*ctor_formals = nullptr,
 				    std::vector<data_type_t*>*ctor_formal_types = nullptr,
 				    std::vector<bool>*ctor_formal_is_ref = nullptr,
@@ -1116,6 +1116,8 @@ extern bool pform_activate_deferred_binds(Design*des);
 extern void pform_check_bind_matches(Design*des);
 
 /* Make a continuous assignment node, with optional bit- or part- select. */
+extern void pform_make_alias(const struct vlltype&loc,
+			     std::list<PExpr*>*nets);
 extern void pform_make_pgassign_list(const struct vlltype&loc,
 				     std::list<PExpr*>*alist,
 				     std::list<PExpr*>*del,

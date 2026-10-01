@@ -176,6 +176,19 @@ DEBT_PATTERNS = (
 OPENTITAN_RUNTIME_PASS_RE = re.compile(
     r"^TEST PASSED (?:UVM_)?CHECKS$", re.I | re.M
 )
+SPID_JEDEC_CHECKED_PASS_RE = re.compile(r"^SPI Flash Read JEDEC ID Tested!!:$", re.M)
+
+
+def opentitan_runtime_pass_marker(core: str, output: str) -> bool:
+    return bool(
+        OPENTITAN_RUNTIME_PASS_RE.search(output)
+        or (
+            core == "lowrisc:dv:spid_jedec_sim:0.1"
+            and SPID_JEDEC_CHECKED_PASS_RE.search(output)
+        )
+    )
+
+
 OPENTITAN_RUNTIME_FAIL_PATTERNS = (
     re.compile(r"^UVM_ERROR\s[^:].*$", re.I),
     re.compile(r"^UVM_FATAL\s[^:].*$", re.I),
@@ -183,8 +196,12 @@ OPENTITAN_RUNTIME_FAIL_PATTERNS = (
     re.compile(r"^Assert failed: ", re.I),
     re.compile(r"^\s*Offending '.*'", re.I),
     re.compile(r"^TEST FAILED (?:UVM_)?CHECKS$", re.I),
+    re.compile(r"(?:^|:\s*)TEST TIMED OUT!!$"),
     re.compile(r"^Error:.*$", re.I),
     re.compile(r"^DPI error:.*$", re.I),
+)
+RUNTIME_ERROR_ALLOWLIST = (
+    re.compile(r"^----\| has Configuration error:\s+FALSE$"),
 )
 RUNTIME_DEBT_ALLOWLIST = (
     # IEEE 1800 permits a function call as a statement with its return value
@@ -206,12 +223,20 @@ COMPILE_DEBT_ALLOWLIST = (
     # IEEE 1800 13.4.1: a function may be called as a statement; its
     # return value is discarded.
     re.compile(r"warning: User function '\S+' is being called as a task\.", re.I),
+    # Synthesizability lint for always_* bodies, including subroutines they
+    # call (a UVM report from an assertion action). IEEE 1800 does not require
+    # these processes to be synthesizable, and simulation is unaffected.
+    re.compile(r"warning: .* (?:cannot be synthesized|must be automatic to be "
+               r"synthesized) in an always_(?:comb|ff|latch) process\.", re.I),
 )
 SETUP_ALLOWLIST = (
     re.compile(r"No trustfile configured .* signatures will not be checked", re.I),
     # This is an Edalize API-lifecycle notice.  It does not change the selected
     # sources, provider mapping, compiler invocation, or HDL semantics.
     re.compile(r"This backend is deprecated .* migrate to the flow API", re.I),
+)
+NATIVE_SOURCE_SETUP_WARNING_RE = re.compile(
+    r"^WARNING: (?P<path>.+) has unknown file type '(?:cSource|cppSource)'$"
 )
 NO_TOPLEVEL_RE = re.compile(r"Target '[^']+' has no toplevel", re.I)
 MODULE_DECL_RE = re.compile(
@@ -815,6 +840,9 @@ class CommandResult:
     output: str
     duration_seconds: float
     timed_out: bool = False
+    memory_limit_hit: bool = False
+    peak_physical_footprint_bytes: int | None = None
+    memory_monitor_error: str | None = None
 
 
 ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
@@ -823,15 +851,14 @@ ACTIVE_PROCESSES_LOCK = threading.Lock()
 
 def signal_command_tree(process: subprocess.Popen[str], sig: int) -> None:
     """Signal a command and every child in the session created for it."""
-    if process.poll() is not None:
-        return
     try:
         if os.name == "posix":
             os.killpg(process.pid, sig)
-        else:
+        elif process.poll() is None:
             process.send_signal(sig)
-    except ProcessLookupError:
-        pass
+    except (ProcessLookupError, PermissionError):
+        if process.poll() is None:
+            process.send_signal(sig)
 
 
 def terminate_active_commands() -> None:
@@ -848,7 +875,13 @@ def command_result(
     cwd: Path,
     env: dict[str, str],
     timeout: int,
+    memory_limit_bytes: int | None = None,
 ) -> CommandResult:
+    if memory_limit_bytes is not None:
+        return memory_guarded_command_result(
+            command, cwd=cwd, env=env, timeout=timeout,
+            memory_limit_bytes=memory_limit_bytes,
+        )
     started = time.monotonic()
     process = subprocess.Popen(
         list(command),
@@ -890,6 +923,113 @@ def command_result(
     finally:
         with ACTIVE_PROCESSES_LOCK:
             ACTIVE_PROCESSES.discard(process)
+
+
+def memory_guarded_command_result(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+    memory_limit_bytes: int,
+) -> CommandResult:
+    """Stop one runtime process group when macOS reports excessive footprint."""
+    started = time.monotonic()
+    peak = 0
+    timed_out = False
+    memory_limit_hit = False
+    monitor_error = None
+    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8", errors="replace") as output_file:
+        process = subprocess.Popen(
+            list(command), cwd=cwd, env=env, stdout=output_file,
+            stderr=subprocess.STDOUT, text=True, start_new_session=True,
+        )
+        with ACTIVE_PROCESSES_LOCK:
+            ACTIVE_PROCESSES.add(process)
+        try:
+            while process.poll() is None:
+                if time.monotonic() - started >= timeout:
+                    timed_out = True
+                    break
+                try:
+                    sample = subprocess.run(
+                        ["/usr/bin/footprint", "--noCategories", "--swapped",
+                         "-f", "bytes", "-p", str(process.pid)],
+                        capture_output=True, text=True, timeout=10, check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    monitor_error = "footprint sampling timed out"
+                    break
+                except OSError as exc:
+                    monitor_error = f"footprint launch failed: {exc}"
+                    break
+                if time.monotonic() - started >= timeout:
+                    timed_out = True
+                    break
+                if process.poll() is not None and sample.returncode != 0:
+                    break
+                if sample.returncode != 0:
+                    # A large process can sit in exit teardown for seconds
+                    # after $finish: footprint no longer finds it but poll()
+                    # still reports it running. That is a normal exit, not a
+                    # monitor failure, so give it a grace period to finish.
+                    try:
+                        process.wait(timeout=30)
+                        break
+                    except subprocess.TimeoutExpired:
+                        pass
+                match = re.search(r"^\s*phys_footprint:\s*(\d+) B\s*$",
+                                  sample.stdout, re.MULTILINE)
+                if sample.returncode != 0 or match is None:
+                    monitor_error = (
+                        sample.stderr.strip() or "footprint output had no phys_footprint"
+                    )
+                    break
+                peak = max(peak, int(match.group(1)))
+                if peak > memory_limit_bytes:
+                    memory_limit_hit = True
+                    break
+                time.sleep(min(1, max(0, timeout - (time.monotonic() - started))))
+            if time.monotonic() - started >= timeout:
+                timed_out = True
+            if timed_out or memory_limit_hit or monitor_error:
+                signal_command_tree(process, signal.SIGTERM)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+                signal_command_tree(process, signal.SIGKILL)
+                process.wait()
+            output_file.seek(0)
+            output = output_file.read()
+            if memory_limit_hit:
+                output += (f"\nmatrix runtime memory limit: {peak} > "
+                           f"{memory_limit_bytes} physical-footprint bytes\n")
+            if monitor_error:
+                output += f"\nmatrix runtime memory monitor failed: {monitor_error}\n"
+            return CommandResult(
+                list(command),
+                124 if timed_out else 125 if memory_limit_hit else 126 if monitor_error
+                else process.returncode,
+                output,
+                time.monotonic() - started,
+                timed_out,
+                memory_limit_hit,
+                peak or None,
+                monitor_error,
+            )
+        except KeyboardInterrupt:
+            signal_command_tree(process, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+            signal_command_tree(process, signal.SIGKILL)
+            process.wait()
+            raise
+        finally:
+            with ACTIVE_PROCESSES_LOCK:
+                ACTIVE_PROCESSES.discard(process)
 
 
 def short_command(command: Sequence[str]) -> str:
@@ -1435,6 +1575,12 @@ def load_config(config_path, inherited=None, stack=()):
         imported_path = Path(imported_path)
         if not imported_path.is_absolute():
             imported_path = config_path.parent / imported_path
+        # Ibex vendors lowrisc_ip as `<ibex>/vendor/lowrisc_ip`, a link that
+        # does not exist inside OpenTitan; the same files live at hw/ there.
+        if not imported_path.is_file() and "/vendor/lowrisc_ip/" in str(imported_path):
+            relocated = root / "hw" / str(imported_path).split("/vendor/lowrisc_ip/", 1)[1]
+            if relocated.is_file():
+                imported_path = relocated
         imported_configs.add(imported_path.resolve())
         merged = merge_configs(
             merged,
@@ -1486,11 +1632,38 @@ for config_path, config in loaded_configs:
     if "{" in core_name or core_name not in cores:
         continue
     tests = [test for test in config.get("tests", []) or [] if isinstance(test, dict)]
+    smoke_regressions = [
+        regression
+        for regression in config.get("regressions", []) or []
+        if isinstance(regression, dict) and regression.get("name") == "smoke"
+    ]
+    tests_by_name = {
+        substitute(test["name"], context): test
+        for test in tests
+        if isinstance(test.get("name"), str)
+        and (
+            test.get("uvm_test_seq")
+            or any(
+                re.fullmatch(r"\+TESTNAME=[^{}%\s]+", str(option))
+                for option in test.get("run_opts", []) or []
+            )
+        )
+    }
+    regression_smoke = next(
+        (
+            tests_by_name[substitute(name, context)]
+            for regression in reversed(smoke_regressions)
+            for name in regression.get("tests", []) or []
+            if isinstance(name, str)
+            and substitute(name, context) in tests_by_name
+        ),
+        None,
+    )
     smoke_tests = [
         test for test in tests if "smoke" in str(test.get("name", "")).casefold()
     ]
     expected_smoke = str(config.get("name", "")) + "_smoke"
-    selected = next(
+    selected = regression_smoke or next(
         (test for test in smoke_tests if test.get("name") == expected_smoke),
         smoke_tests[0] if smoke_tests else (tests[0] if len(tests) == 1 else {}),
     )
@@ -1500,11 +1673,6 @@ for config_path, config in loaded_configs:
     uvm_test_seq = substitute(
         selected.get("uvm_test_seq", config.get("uvm_test_seq", "")), context
     ) or None
-    smoke_regressions = [
-        regression
-        for regression in config.get("regressions", []) or []
-        if isinstance(regression, dict) and regression.get("name") == "smoke"
-    ]
     run_options = [
         *(config.get("run_opts", []) or []),
         *(selected.get("run_opts", []) or []),
@@ -1563,6 +1731,33 @@ for config_path, config in loaded_configs:
     build_options.extend(
         substitute(option, context) for option in selected.get("build_opts", []) or []
     )
+
+    # dvsim also applies every run mode named in en_run_modes (of the cfg or
+    # the test, transitively) and passes its run_opts to the simulation. The
+    # chip xbar smoke test only works with xbar_run_mode's +xbar_mode=1.
+    # Options holding a {placeholder} or a tool flag stay unresolved, and a
+    # mode's own pre/post commands remain orchestration requirements below.
+    run_modes = {
+        mode.get("name"): mode
+        for mode in config.get("run_modes", []) or []
+        if isinstance(mode, dict)
+    }
+    pending_run_modes = []
+    for source in (config, selected):
+        pending_run_modes.extend(source.get("en_run_modes", []) or [])
+    applied_run_modes = []
+    while pending_run_modes:
+        mode_name = substitute(pending_run_modes.pop(0), context)
+        mode = run_modes.get(mode_name)
+        if mode is None or mode_name in applied_run_modes:
+            continue
+        applied_run_modes.append(mode_name)
+        runtime_options.extend(
+            substitute(option, context)
+            for option in mode.get("run_opts", []) or []
+            if str(option).startswith("+") and "{" not in str(option)
+        )
+        pending_run_modes.extend(mode.get("en_run_modes", []) or [])
 
     orchestration_requirements = []
     for key in (
@@ -1872,6 +2067,43 @@ def actionable_setup_lines(output: str) -> list[str]:
             continue
         findings.append(line.strip())
     return findings
+
+
+def verified_native_setup_warnings(
+    findings: Sequence[str],
+    source_list: Path,
+    native_sources: Sequence[str],
+    skipped_sources: Sequence[str],
+    native_library: Path | None,
+    loaded_libraries: Sequence[Path],
+    *,
+    runtime_passed: bool,
+) -> tuple[list[str], list[str]]:
+    """Classify FuseSoC native-source notices after independent DPI proof."""
+    if (
+        not runtime_passed or not native_sources or skipped_sources
+        or native_library is None or not native_library.is_file()
+        or native_library not in loaded_libraries
+    ):
+        return list(findings), []
+    try:
+        native_hashes = {file_sha256(Path(path)) for path in native_sources}
+    except OSError:
+        return list(findings), []
+    actionable = []
+    benign = []
+    for line in findings:
+        match = NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+        if match:
+            staged = source_list.parent / match.group("path")
+            try:
+                if staged.is_file() and file_sha256(staged) in native_hashes:
+                    benign.append(line)
+                    continue
+            except OSError:
+                pass
+        actionable.append(line)
+    return actionable, benign
 
 
 def matching_lines(
@@ -2238,6 +2470,39 @@ def compile_command(
 NATIVE_CXX_SUFFIXES = {".cc", ".cpp", ".cxx"}
 
 
+def native_pkg_config_flags(
+    packages: Sequence[str], env: dict[str, str], cwd: Path, timeout: int
+) -> tuple[list[str], list[str], dict[str, object]]:
+    """Resolve explicit native build dependencies before any matrix job runs."""
+    pkg_config = shutil.which("pkg-config", path=env.get("PATH"))
+    if not pkg_config:
+        raise RuntimeError("--native-pkg-config requires pkg-config on PATH")
+    if any(not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*", name) for name in packages):
+        raise RuntimeError("--native-pkg-config needs plain package names")
+    commands = {}
+    flags = {}
+    for option, label in (("--cflags", "cflags"), ("--libs", "libs")):
+        command = [pkg_config, option, *packages]
+        try:
+            result = subprocess.run(command, cwd=cwd, env=env, capture_output=True,
+                                    text=True, timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(f"pkg-config {option} failed: {exc}") from exc
+        if result.returncode:
+            raise RuntimeError(f"pkg-config {option} failed: {result.stderr.strip()}")
+        commands[label] = command
+        flags[label] = shlex.split(result.stdout)
+    resolved = Path(pkg_config).resolve()
+    provenance = {
+        "packages": list(packages), "executable": str(resolved),
+        "executable_sha256": file_sha256(resolved),
+        "commands": commands, "cflags": flags["cflags"], "libs": flags["libs"],
+        "environment": {name: env[name] for name in (
+            "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_SYSROOT_DIR") if name in env},
+    }
+    return flags["cflags"], flags["libs"], provenance
+
+
 def native_dpi_commands(
     sources: Sequence[str],
     include_dirs: Sequence[str],
@@ -2245,6 +2510,8 @@ def native_dpi_commands(
     output: Path,
     export_stubs: Path | None,
     platform: str = sys.platform,
+    cflags: Sequence[str] = (),
+    libs: Sequence[str] = (),
 ) -> list[list[str]]:
     """Commands that build a job's native DPI sources into one library.
 
@@ -2264,9 +2531,9 @@ def native_dpi_commands(
         else:
             compiler = ["cc"]
         commands.append(
-            [*compiler, "-O1", "-fPIC", *includes, "-c", source, "-o", str(obj)]
+            [*compiler, "-O1", "-fPIC", *includes, *cflags, "-c", source, "-o", str(obj)]
         )
-    link = ["c++", "-shared", "-o", str(output), *objects]
+    link = ["c++", "-shared", "-o", str(output), *objects, *libs]
     if platform == "darwin":
         link[2:2] = ["-undefined", "dynamic_lookup"]
     commands.append(link)
@@ -2391,6 +2658,8 @@ def run_job(
     iverilog: Path,
     vvp: Path,
     env: dict[str, str],
+    native_cflags: Sequence[str] = (),
+    native_libs: Sequence[str] = (),
 ) -> dict[str, object]:
     work_root = build_root / job.lane / safe_name(job.core.vlnv)
     work_root.mkdir(parents=True, exist_ok=True)
@@ -2570,19 +2839,22 @@ def run_job(
     )
     dpi_libraries = list(args.dpi_library)
     native_sources = job.simulation.native_sources if job.simulation else ()
+    native_library = work_root / "matrix-dpi.so" if native_sources else None
+    skipped_sources = []
     if native_sources:
-        library = work_root / "matrix-dpi.so"
+        library = native_library
         stubs = executable.with_suffix(".dpiexport.c")
         build_log = work_root / "matrix-dpi-build.log"
         build_output = []
         build_failed = False
-        skipped_sources = []
         commands = native_dpi_commands(
             native_sources,
             job.simulation.native_include_dirs,
             iverilog,
             library,
             stubs if stubs.is_file() else None,
+            cflags=native_cflags,
+            libs=native_libs,
         )
         # A closure can carry native sources for other tools (Verilator's
         # ELF loader needs libelf). Build what compiles; if the testbench
@@ -2631,23 +2903,42 @@ def run_job(
         cwd=source_list.parent,
         env={**env, "IVL_SVA_NFA": "1"},
         timeout=args.runtime_timeout,
+        memory_limit_bytes=(
+            args.runtime_memory_mib * 1024 * 1024
+            if args.runtime_memory_mib else None
+        ),
     )
     runtime_log = work_root / "matrix-runtime.log"
     write_log(runtime_log, "OpenTitan UVM runtime", runtime_result)
     runtime_errors = matching_lines(
         runtime_result.output,
         (*HARD_ERROR_PATTERNS, *OPENTITAN_RUNTIME_FAIL_PATTERNS),
+        RUNTIME_ERROR_ALLOWLIST,
     )
-    runtime_pass_banner = bool(OPENTITAN_RUNTIME_PASS_RE.search(runtime_result.output))
+    runtime_pass_banner = opentitan_runtime_pass_marker(
+        job.core.vlnv, runtime_result.output
+    )
     if not runtime_pass_banner:
         runtime_errors.append(
-            "OpenTitan runtime produced no `TEST PASSED [UVM_]CHECKS` banner"
+            "OpenTitan runtime produced no recognized checked pass marker"
         )
     runtime_debt = matching_lines(
         runtime_result.output, DEBT_PATTERNS, RUNTIME_DEBT_ALLOWLIST
     )
     runtime_benign_diagnostics = matching_lines(
         runtime_result.output, RUNTIME_DEBT_ALLOWLIST
+    )
+    actionable_setup_findings, native_setup_benign = verified_native_setup_warnings(
+        setup_findings,
+        source_list,
+        native_sources,
+        skipped_sources,
+        native_library,
+        dpi_libraries,
+        runtime_passed=(
+            not runtime_result.timed_out and runtime_result.returncode == 0
+            and runtime_pass_banner and not runtime_errors
+        ),
     )
     record.update(
         {
@@ -2656,23 +2947,38 @@ def run_job(
             "runtime_returncode": runtime_result.returncode,
             "runtime_duration_seconds": round(runtime_result.duration_seconds, 3),
             "runtime_timed_out": runtime_result.timed_out,
+            "runtime_memory_limit_bytes": (
+                args.runtime_memory_mib * 1024 * 1024
+                if args.runtime_memory_mib else None
+            ),
+            "runtime_memory_limit_hit": runtime_result.memory_limit_hit,
+            "runtime_peak_physical_footprint_bytes": (
+                runtime_result.peak_physical_footprint_bytes
+            ),
+            "runtime_memory_monitor_error": runtime_result.memory_monitor_error,
             "runtime_log": str(runtime_log),
             "runtime_error_count": len(runtime_errors),
             "runtime_errors": runtime_errors[: args.diagnostic_limit],
             "runtime_pass_banner": runtime_pass_banner,
             "runtime_debt_count": len(runtime_debt),
             "runtime_debt": runtime_debt[: args.diagnostic_limit],
+            "setup_actionable_warnings": actionable_setup_findings,
+            "setup_benign_diagnostics": native_setup_benign,
             "runtime_benign_diagnostic_count": len(runtime_benign_diagnostics),
             "runtime_benign_diagnostics": runtime_benign_diagnostics[
                 : args.diagnostic_limit
             ],
         }
     )
-    if runtime_result.timed_out:
+    if runtime_result.memory_monitor_error:
+        record["status"] = "RUNTIME_MEMORY_MONITOR_FAIL"
+    elif runtime_result.memory_limit_hit:
+        record["status"] = "RUNTIME_MEMORY_LIMIT"
+    elif runtime_result.timed_out:
         record["status"] = "RUNTIME_TIMEOUT"
     elif runtime_result.returncode != 0 or runtime_errors:
         record["status"] = "RUNTIME_FAIL"
-    elif setup_findings or semantic_debt or runtime_debt:
+    elif actionable_setup_findings or semantic_debt or runtime_debt:
         record["status"] = "DEBT"
     else:
         record["status"] = "PASS"
@@ -2976,6 +3282,12 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
                           DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
     assert matching_lines("x.sv:5: warning: User function 'f' is being called as a task.",
                           DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:6: warning: A do/while statement cannot be "
+                          "synthesized in an always_comb process.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
+    assert matching_lines("x.sv:7: warning: user task (t) must be automatic to "
+                          "be synthesized in an always_comb process.",
+                          DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
     assert matching_lines("x.sv:4: warning: something degraded.",
                           DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) != []
     dpi_build = native_dpi_commands(
@@ -2990,6 +3302,43 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert dpi_build[1][0] == "cc" and dpi_build[2][0] == "cc"
     assert "-I/opt/ivl/include/iverilog" in dpi_build[0]
     assert dpi_build[-1][:4] == ["c++", "-shared", "-undefined", "dynamic_lookup"]
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        pkg_config = root / "pkg-config"
+        pkg_config.write_text(
+            "#!/bin/sh\ncase \"$1\" in\n"
+            "  --cflags) printf '%s\\n' '-I/pkg/include -DOPENSSL_TEST=1';;\n"
+            "  --libs) printf '%s\\n' '-L/pkg/lib -lssl -lcrypto';;\n"
+            "esac\n"
+        )
+        pkg_config.chmod(0o755)
+        cflags, libs, provenance = native_pkg_config_flags(
+            ("openssl",), {"PATH": str(root)}, root, 5
+        )
+        assert cflags == ["-I/pkg/include", "-DOPENSSL_TEST=1"]
+        assert libs == ["-L/pkg/lib", "-lssl", "-lcrypto"]
+        assert provenance["executable_sha256"] == file_sha256(pkg_config)
+        enabled_build = native_dpi_commands(
+            ("/src/crypto.c",), (), Path("/opt/ivl/bin/iverilog"),
+            Path("/work/matrix-dpi.so"), None, cflags=cflags, libs=libs,
+        )
+        assert enabled_build[0][4:6] == cflags
+        assert enabled_build[-1][-3:] == libs
+        assert all(flag not in dpi_build[0] for flag in cflags)
+        assert all(flag not in dpi_build[-1] for flag in libs)
+        try:
+            native_pkg_config_flags(("openssl",), {"PATH": str(root / "missing")}, root, 5)
+        except RuntimeError as exc:
+            assert "requires pkg-config" in str(exc)
+        else:
+            raise AssertionError("missing pkg-config was accepted")
+        pkg_config.write_text("#!/bin/sh\necho 'missing package' >&2\nexit 1\n")
+        try:
+            native_pkg_config_flags(("openssl",), {"PATH": str(root)}, root, 5)
+        except RuntimeError as exc:
+            assert "missing package" in str(exc)
+        else:
+            raise AssertionError("missing native package was accepted")
     regex_uvm_target = dataclasses.replace(
         uvm_target,
         build_options=(
@@ -3170,9 +3519,34 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert matching_lines("foo.sv:4: syntax error", HARD_ERROR_PATTERNS)
     assert matching_lines("ivl: synth2.cc:1: failed assertion x", HARD_ERROR_PATTERNS)
     assert matching_lines("Abort trap: 6", HARD_ERROR_PATTERNS)
+    runtime_failure_patterns = (*HARD_ERROR_PATTERNS, *OPENTITAN_RUNTIME_FAIL_PATTERNS)
+    assert not matching_lines(
+        "----| has Configuration error:  FALSE", runtime_failure_patterns,
+        RUNTIME_ERROR_ALLOWLIST,
+    )
+    assert matching_lines(
+        "----| has Configuration error:  TRUE", runtime_failure_patterns,
+        RUNTIME_ERROR_ALLOWLIST,
+    )
+    assert matching_lines(
+        "UVM_ERROR @ 0 ps: real failure", runtime_failure_patterns,
+        RUNTIME_ERROR_ALLOWLIST,
+    )
     assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED CHECKS\n")
     assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED UVM_CHECKS\n")
     assert not OPENTITAN_RUNTIME_PASS_RE.search("UVM_INFO test ended\n")
+    jedec_core = "lowrisc:dv:spid_jedec_sim:0.1"
+    jedec_pass = "SPI Flash Read JEDEC ID Tested!!:\n"
+    assert opentitan_runtime_pass_marker(jedec_core, jedec_pass)
+    assert not opentitan_runtime_pass_marker("lowrisc:dv:spid_upload_sim:0.1", jedec_pass)
+    assert not opentitan_runtime_pass_marker(
+        jedec_core, "Jedec ID Received: Manufacturer ID [be], JEDEC_ID [a55a]\n"
+    )
+    assert matching_lines("TEST TIMED OUT!!", OPENTITAN_RUNTIME_FAIL_PATTERNS)
+    assert matching_lines(
+        "FATAL: spid_jedec_tb.sv:93: TEST TIMED OUT!!",
+        OPENTITAN_RUNTIME_FAIL_PATTERNS,
+    )
     assert matching_lines(
         "UVM_FATAL @ 0: reporter [NOCOMP] No components instantiated",
         OPENTITAN_RUNTIME_FAIL_PATTERNS,
@@ -3217,6 +3591,36 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
         "signatures will not be checked."
     )
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        staged = root / "src" / "native_core" / "util.c"
+        staged.parent.mkdir(parents=True)
+        staged.write_text("int native_value(void) { return 1; }\n")
+        native = root / "native" / "util.c"
+        native.parent.mkdir()
+        native.write_bytes(staged.read_bytes())
+        library = root / "matrix-dpi.so"
+        library.write_bytes(b"linked")
+        source_list = root / "sim-icarus" / "core.scr"
+        source_list.parent.mkdir()
+        warning = "WARNING: ../src/native_core/util.c has unknown file type 'cSource'"
+        findings = [warning]
+        args = (findings, source_list, (str(native),), (), library, (library,))
+        assert verified_native_setup_warnings(*args, runtime_passed=True) == (
+            [], findings
+        )
+        assert findings == [warning]  # Keep the original setup record intact.
+        assert verified_native_setup_warnings(
+            findings, source_list, (str(native),), (str(native),),
+            library, (library,), runtime_passed=True,
+        ) == (findings, [])  # SRAM-like skipped source stays debt.
+        assert verified_native_setup_warnings(
+            *args, runtime_passed=False
+        ) == (findings, [])
+        staged.write_text("int native_value(void) { return 2; }\n")
+        assert verified_native_setup_warnings(
+            *args, runtime_passed=True
+        ) == (findings, [])  # Same basename without same contents is insufficient.
     if os.name == "posix":
         with tempfile.TemporaryDirectory() as directory:
             test_root = Path(directory)
@@ -3282,6 +3686,72 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             pass
         else:
             raise AssertionError("timed-out command left a descendant running")
+    if sys.platform == "darwin":
+        from unittest import mock
+
+        signal_probe = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            start_new_session=True,
+        )
+        try:
+            with mock.patch.object(os, "killpg", side_effect=PermissionError("injected")):
+                signal_command_tree(signal_probe, signal.SIGTERM)
+            assert signal_probe.wait(timeout=5) != 0
+        finally:
+            if signal_probe.poll() is None:
+                signal_probe.kill()
+                signal_probe.wait()
+
+        memory_probe = command_result(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import subprocess,sys,time; "
+                    "p=subprocess.Popen([sys.executable,'-c',"
+                    "'import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                    "print(1,flush=True); time.sleep(30)'],"
+                    "stdout=subprocess.PIPE,text=True); p.stdout.readline(); "
+                    "print(p.pid,flush=True); "
+                    "data=bytearray(128*1024*1024); time.sleep(30)"
+                ),
+            ],
+            cwd=Path.cwd(), env=os.environ.copy(), timeout=15,
+            memory_limit_bytes=64 * 1024 * 1024,
+        )
+        assert memory_probe.memory_limit_hit, memory_probe
+        assert not memory_probe.timed_out
+        assert memory_probe.returncode == 125
+        assert memory_probe.peak_physical_footprint_bytes > 64 * 1024 * 1024
+        descendant_pid = int(memory_probe.output.strip().splitlines()[0])
+        for _ in range(50):
+            try:
+                os.kill(descendant_pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            raise AssertionError("memory-limited command left a descendant running")
+        sampled_pid = []
+
+        def fail_footprint(command: Sequence[str], **_kwargs: object) -> None:
+            sampled_pid.append(int(command[-1]))
+            raise OSError("injected footprint launch error")
+
+        with mock.patch.object(subprocess, "run", side_effect=fail_footprint):
+            monitor_probe = command_result(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                cwd=Path.cwd(), env=os.environ.copy(), timeout=15,
+                memory_limit_bytes=64 * 1024 * 1024,
+            )
+        assert monitor_probe.returncode == 126
+        assert "injected footprint launch error" in monitor_probe.memory_monitor_error
+        try:
+            os.kill(sampled_pid[0], 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise AssertionError("monitor failure left a runtime process running")
     print("opentitan_matrix self-test: PASS")
 
 
@@ -3327,6 +3797,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--setup-timeout", type=int, default=600)
     result.add_argument("--compile-timeout", type=int, default=600)
     result.add_argument("--runtime-timeout", type=int, default=300)
+    result.add_argument(
+        "--runtime-memory-mib", type=int, default=0,
+        help="per-vvp macOS physical-footprint cap in MiB (0 disables)",
+    )
     result.add_argument("--runtime-arg", action="append", default=[])
     result.add_argument(
         "--commercial-unsafe", action="store_true",
@@ -3338,6 +3812,10 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=[],
         help="repeat to load a native DPI shared library with vvp -d",
+    )
+    result.add_argument(
+        "--native-pkg-config", action="append", default=[], metavar="PACKAGE",
+        help="repeat to apply pkg-config C flags and link libraries to native DPI builds",
     )
     result.add_argument("--diagnostic-limit", type=int, default=100)
     result.add_argument("--result-json", type=Path)
@@ -3368,6 +3846,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser().error("--opentitan-root, --build-root, and --iverilog are required")
     if args.jobs < 1:
         parser().error("--jobs must be at least 1")
+    if args.runtime_memory_mib < 0:
+        parser().error("--runtime-memory-mib must be nonnegative")
+    if args.runtime_memory_mib and sys.platform != "darwin":
+        parser().error("--runtime-memory-mib requires macOS footprint")
     dpi_libraries = [path.expanduser().resolve() for path in args.dpi_library]
     missing_dpi_libraries = [path for path in dpi_libraries if not path.is_file()]
     if missing_dpi_libraries:
@@ -3452,6 +3934,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("No OpenTitan cores matched the requested lanes and filters", file=sys.stderr)
         return 2
 
+    native_cflags: list[str] = []
+    native_libs: list[str] = []
+    native_pkg_config = None
+    if args.native_pkg_config:
+        try:
+            native_cflags, native_libs, native_pkg_config = native_pkg_config_flags(
+                args.native_pkg_config, env, opentitan_root, args.setup_timeout
+            )
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
 
     metadata: dict[str, object] = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -3471,6 +3964,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "uvm_runtime_compile_profile": (
             "commercial-unsafe" if args.commercial_unsafe else "default"
         ),
+        "matrix_jobs": args.jobs,
+        "runtime_timeout_seconds": args.runtime_timeout,
+        "runtime_memory_mib": args.runtime_memory_mib,
         "matrix_provider_core_root": str(matrix_core_root),
         "englishbreakfast_mapping_sha256": hashlib.sha256(
             ENGLISHBREAKFAST_MAPPING_CORE.encode()
@@ -3479,6 +3975,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             PRIM_MAPPING_CORE.encode()
         ).hexdigest(),
     }
+    if native_pkg_config is not None:
+        metadata["native_pkg_config"] = native_pkg_config
     if formal_targets is not None:
         formal_listing = "\n".join(sorted(formal_targets)) + "\n"
         metadata["fusesoc_formal_target_count"] = len(formal_targets)
@@ -3525,6 +4023,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             iverilog=iverilog,
             vvp=vvp,
             env=env,
+            native_cflags=native_cflags,
+            native_libs=native_libs,
         )
 
     indexed_results: list[tuple[int, dict[str, object]]] = []
@@ -3617,6 +4117,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "COMPILE_TIMEOUT",
         "FAIL",
         "RUNTIME_TIMEOUT",
+        "RUNTIME_MEMORY_LIMIT",
+        "RUNTIME_MEMORY_MONITOR_FAIL",
         "RUNTIME_FAIL",
         "RUNTIME_CONFIG_MISSING",
         "MATRIX_ERROR",

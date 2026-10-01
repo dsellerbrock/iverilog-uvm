@@ -1,0 +1,42 @@
+--- a/hw/dv/sv/sw_logger_if/sw_logger_if.sv
++++ b/hw/dv/sv/sw_logger_if/sw_logger_if.sv
+@@ -355,21 +355,24 @@
+       foreach (sw_logs[sw]) begin
+         if (sw_logs[sw].exists(addr)) begin
+           bit rst_occurred;
++          sw_log_t log_entry;
++          // Icarus cannot index packed or dynamic fields through two AA selectors.
++          log_entry = sw_logs[sw][addr];
+           fork
+             begin: isolation_thread
+               fork
+                 // get args
+-                for (int i = 0; i < sw_logs[sw][addr].nargs; i++) begin
++                for (int i = 0; i < log_entry.nargs; i++) begin
+                   addr_data_t addr_data;
+                   wait(addr_data_q.size() > 0);
+                   addr_data = addr_data_q.pop_front();
+-                  if (sw_logs[sw][addr].str_arg_idx[i]) begin
++                  if (log_entry.str_arg_idx[i]) begin
+                     // addr_data is the address of the string in rodata. Retrieve it.
+-                    sw_logs[sw][addr].arg[i] = arg_t'(get_str_at_addr(sw, addr_data));
++                    log_entry.arg[i] = arg_t'(get_str_at_addr(sw, addr_data));
+                     `dv_info($sformatf("String arg at addr %0h: %0s", addr_data,
+-                                       sw_logs[sw][addr].arg[i]), UVM_LOW)
++                                       log_entry.arg[i]), UVM_LOW)
+                   end else begin
+-                    sw_logs[sw][addr].arg[i] = addr_data;
++                    log_entry.arg[i] = addr_data;
+                   end
+                 end
+                 begin
+@@ -382,7 +385,8 @@
+             end: isolation_thread
+           join
+           if (rst_occurred) continue;
+-          print_sw_log(sw_logs[sw][addr]);
++          sw_logs[sw][addr] = log_entry;
++          print_sw_log(log_entry);
+         end
+       end
+     end

@@ -42,14 +42,18 @@ typedef struct {
       uint32_t bval;
 } svLogicVecVal;
 
+/* Packed bit-select utilities; index 0 is the LSB. */
+extern svBit svGetBitselBit(const svBitVecVal* s, int i);
+extern void svPutBitselBit(svBitVecVal* d, int i, svBit s);
+
 /* Scope handle (H.9). A svScope is an opaque handle to a SystemVerilog
  * instance scope; in this implementation it is a vpiHandle for the
  * scope object. */
 typedef void* svScope;
 
-/* Return the active scope: the scope of the imported "context" DPI task
- * or function currently on the C call stack, or the last scope set with
- * svSetScope. */
+/* Return the active scope: the declaration instance of the imported
+ * "context" DPI task or function currently on the C call stack, or the
+ * last scope set with svSetScope. */
 extern svScope svGetScope(void);
 
 /* Set the active scope, returning the previous one. */
@@ -59,7 +63,8 @@ extern svScope svSetScope(svScope scope);
  * package scope by name. Returns 0 if not found. */
 extern svScope svGetScopeFromName(const char* scopeName);
 
-/* The local (leaf) and full hierarchical names of a scope. */
+/* The fully qualified name of a scope. The second API is a compatibility
+ * alias. */
 extern const char* svGetNameFromScope(svScope scope);
 extern const char* svGetFullNameFromScope(const svScope scope);
 

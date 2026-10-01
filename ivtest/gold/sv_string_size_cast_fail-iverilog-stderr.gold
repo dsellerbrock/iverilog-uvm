@@ -1,0 +1,2 @@
+ivltests/sv_string_size_cast_fail.v:6: error: Cast base expression must be a vector type (a string-typed operand is accepted only under -gcommercial-unsafe).
+1 error(s) during elaboration.

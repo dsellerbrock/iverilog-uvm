@@ -1,2 +1,2 @@
-./ivltests/sv_param_string_cast_fail.v:17: error: Cast base expression must be a vector type.
+./ivltests/sv_param_string_cast_fail.v:17: error: Cast base expression must be a vector type (a string-typed operand is accepted only under -gcommercial-unsafe).
 1 error(s) during elaboration.

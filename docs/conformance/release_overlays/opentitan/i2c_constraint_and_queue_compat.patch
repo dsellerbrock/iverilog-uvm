@@ -1,0 +1,120 @@
+--- a/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
++++ b/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
+@@ -17,6 +17,12 @@
+   rand speed_mode_e           speed_mode;
+   rand uint                   scl_frequency; //in KHz
+   rand uint                   scl_period; // converted to register value
++  uint                        constraint_clk_period_ps;
++
++  virtual function void configure_vseq();
++    super.configure_vseq();
++    constraint_clk_period_ps = cfg.clk_rst_vif.clk_period_ps;
++  endfunction
+   real                        last_posedge; // Last posedge time of SCL in ns
+   uint                        scl_period_observed; // observed SCL period in ns
+   uint                        scl_period_expected; // observed SCL period in ns
+@@ -63,17 +69,17 @@
+ 
+   constraint scl_period_c{
+     solve scl_frequency before scl_period;
+-    scl_period == ((10**9)/scl_frequency)/(cfg.clk_rst_vif.clk_period_ps);
++    scl_period == ((10**9)/scl_frequency)/(constraint_clk_period_ps);
+   }
+ 
+ // Constrain the timing parameters based on programmers guide
+   constraint timing_val_c {
+-    thd_sta == cfg.seq_cfg.get_thdsta_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    tsu_sto == cfg.seq_cfg.get_tsusto_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    tsu_dat == cfg.seq_cfg.get_tsudat_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    tsu_sta == cfg.seq_cfg.get_tsusta_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    if (cfg.seq_cfg.get_thddat_min(speed_mode, cfg.clk_rst_vif.clk_period_ps) > 0) {
+-      thd_dat == cfg.seq_cfg.get_thddat_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
++    thd_sta == cfg.seq_cfg.get_thdsta_min(speed_mode, constraint_clk_period_ps);
++    tsu_sto == cfg.seq_cfg.get_tsusto_min(speed_mode, constraint_clk_period_ps);
++    tsu_dat == cfg.seq_cfg.get_tsudat_min(speed_mode, constraint_clk_period_ps);
++    tsu_sta == cfg.seq_cfg.get_tsusta_min(speed_mode, constraint_clk_period_ps);
++    if (cfg.seq_cfg.get_thddat_min(speed_mode, constraint_clk_period_ps) > 0) {
++      thd_dat == cfg.seq_cfg.get_thddat_min(speed_mode, constraint_clk_period_ps);
+     } else {
+       thd_dat == 1;
+     }
+@@ -106,13 +112,13 @@
+     tlow  >= 3;
+     thigh >= 3;
+     // Spec minimum value of parameters
+-    tlow  >= cfg.seq_cfg.get_tlow_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    t_r   >= cfg.seq_cfg.get_tr_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    t_f   >= cfg.seq_cfg.get_tf_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    thigh >= cfg.seq_cfg.get_thigh_min(speed_mode, cfg.clk_rst_vif.clk_period_ps);
++    tlow  >= cfg.seq_cfg.get_tlow_min(speed_mode, constraint_clk_period_ps);
++    t_r   >= cfg.seq_cfg.get_tr_min(speed_mode, constraint_clk_period_ps);
++    t_f   >= cfg.seq_cfg.get_tf_min(speed_mode, constraint_clk_period_ps);
++    thigh >= cfg.seq_cfg.get_thigh_min(speed_mode, constraint_clk_period_ps);
+     // Spec maximum value of parameters
+-    t_r <= cfg.seq_cfg.get_tr_max(speed_mode, cfg.clk_rst_vif.clk_period_ps);
+-    t_f <= cfg.seq_cfg.get_tf_max(speed_mode, cfg.clk_rst_vif.clk_period_ps);
++    t_r <= cfg.seq_cfg.get_tr_max(speed_mode, constraint_clk_period_ps);
++    t_f <= cfg.seq_cfg.get_tf_max(speed_mode, constraint_clk_period_ps);
+ 
+     t_sda_unstable     == 0;
+     t_sda_interference == 0;
+--- a/hw/ip/i2c/dv/env/seq_lib/i2c_base_vseq.sv
++++ b/hw/ip/i2c/dv/env/seq_lib/i2c_base_vseq.sv
+@@ -869,17 +869,25 @@
+     end
+ 
+     // Next randomize the number of data bytes in each transfer.
+-    `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(transfer_lengths,
+-      transfer_lengths.size() == num_transfers;
+-      transfer_lengths.sum() == num_data_total;
+-      foreach (transfer_lengths[i]) {
+-        // Bound the size of each transfer to limit the solve space to positive integers
+-        transfer_lengths[i] inside {[cfg.min_xfer_len : num_data_total]};
+-      }
+-      // Don't place RSTARTs too close to the start or end of the transaction.
+-      transfer_lengths[0] > 0;
+-      transfer_lengths[num_transfers - 1] > 0;
+-    )
++    // Construct a positive partition of the requested number of data bytes.
++    `DV_CHECK(cfg.min_xfer_len >= 1)
++    `DV_CHECK(num_data_total / num_transfers >= cfg.min_xfer_len)
++    transfer_lengths = new[num_transfers];
++    begin
++      int unsigned remaining;
++      remaining = num_data_total;
++      foreach (transfer_lengths[i]) begin
++        if (i == num_transfers - 1) begin
++          transfer_lengths[i] = remaining;
++        end else begin
++          int unsigned max_len;
++          max_len = remaining - (num_transfers - i - 1) * cfg.min_xfer_len;
++          transfer_lengths[i] = $urandom_range(max_len, cfg.min_xfer_len);
++          remaining -= transfer_lengths[i];
++        end
++      end
++    end
++    `DV_CHECK(transfer_lengths.sum() == num_data_total)
+ 
+     // Loop over the list of transfers we wish to construct, adding in data and control signals
+     // as appropriate. The address and data-direction of each is chosen randomly at this point.
+@@ -1085,7 +1093,7 @@
+         // Ack-Stop test mode can introduce a non-normal ACK bit at the end of each read transfer.
+         // When enabled, randomly ACK or NACK the final byte of each individual read transfer.
+         `DV_CHECK_STD_RANDOMIZE_FATAL(random_acknack)
+-        xfer.data_ack_q[$] = random_acknack;
++        xfer.data_ack_q[xfer.data_ack_q.size() - 1] = random_acknack;
+ 
+         // In Ack-Stop test mode, we may need to overwrite the data byte from the pre-randomized
+         // value. Values are pushed into the 'pre_feed_rd_data_q[$]' as needed, and overwrite read
+@@ -1099,9 +1107,9 @@
+     // If the final transfer in the transaction is a READ , then 'force_ack' can also be used
+     // to always ACK the final byte.
+     if (force_ack) begin
+-      `DV_CHECK(txn[$].bus_op == BusOpRead, "Can't force_ack if the final transfer wasn't a READ!")
++      `DV_CHECK(txn[txn.size() - 1].bus_op == BusOpRead, "Can't force_ack if the final transfer wasn't a READ!")
+       // Force the final byte to be ACK'd
+-      txn[$].data_ack_q[$] = i2c_pkg::ACK;
++      txn[txn.size() - 1].data_ack_q[txn[txn.size() - 1].data_ack_q.size() - 1] = i2c_pkg::ACK;
+     end
+ 
+   endfunction : ack_stop_stim_modifier

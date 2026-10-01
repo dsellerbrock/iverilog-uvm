@@ -1,0 +1,11 @@
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_rand_ops_base_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_rand_ops_base_vseq.sv
+@@ -100,7 +100,7 @@
+     solve en_mp_regions before mp_regions;
+ 
+     foreach (mp_regions[i]) {
+-      mp_regions[i].en == mubi4_bool_to_mubi(en_mp_regions[i]);
++      mp_regions[i].en == (en_mp_regions[i] ? MuBi4True : MuBi4False);
+ 
+       mp_regions[i].read_en dist {
+         MuBi4False :/ (100 - cfg.seq_cfg.mp_region_read_en_pc),

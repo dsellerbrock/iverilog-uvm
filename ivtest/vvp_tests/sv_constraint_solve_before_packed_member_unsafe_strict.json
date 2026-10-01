@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_solve_before_packed_member_unsafe_strict.v",
+    "iverilog-args": [ "-g2017" ],
+    "gold": "sv_constraint_solve_before_packed_member_unsafe_strict"
+}

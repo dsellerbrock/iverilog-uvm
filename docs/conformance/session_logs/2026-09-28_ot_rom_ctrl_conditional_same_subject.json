@@ -1,0 +1,29 @@
+{
+  "scope": "ROM_CTRL time-zero cfg.randomize() failure, reduced to two conditional distributions on one nested delay subject; no UVM DV or corpus rerun",
+  "target": "lowrisc:dv:rom_ctrl_sim:0.1",
+  "opentitan_pinned_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "root_cause": "The same Z3 subject entered active_subjects once per distribution; the residual factor proof counted the duplicate as two coupled subject dimensions. The weighted set already holds unique active subjects.",
+  "compiler_change": "Use the weighted set for the residual proof subject count and iteration.",
+  "standard_scope": "IEEE 1800-2017 18.5.4/18.5.10 and IEEE 1800-2023 18.5.3/18.5.9; distribution membership and ordered random sampling",
+  "reproducer": "work/rom_ctrl_conditional_dist_repro.sv in the task workspace",
+  "before": {
+    "reducer_2017_exit": 1,
+    "reducer_2023_exit": 1,
+    "error": "coupled same-stage conditional distributions lack a complete fiber proof",
+    "existing_regression_with_new_case_2017_exit": 1
+  },
+  "after": {
+    "vvp_build_exit": 0,
+    "reducer_2017_exit": 0,
+    "reducer_2023_exit": 0,
+    "reducer_controls_NO_OVERRIDE_and_NO_INNER_DIST": "both pass in 2017 and 2023",
+    "sv_randomize_joint_multiple_dist": "passes in 2017 and 2023; new case checks both conditional branches and hard membership",
+    "sv_joint_ordered_guard_coupled_reject": "passes in 2017 and 2023; distinct coupled subjects still fail closed",
+    "sv_randomize_joint_multiple_dist_fail": "passes in 2017 and 2023; unsupported weights still fail transactionally",
+    "git_diff_check_exit": 0,
+    "make_vvp_query_exit": 0
+  },
+  "rom_ctrl_dv_runtime": "not run while capped Caliptra observer is active",
+  "qualifies_dv_pass": false,
+  "qualifies_49_target_census_update": false
+}

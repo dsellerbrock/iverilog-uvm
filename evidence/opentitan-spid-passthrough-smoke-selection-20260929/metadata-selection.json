@@ -1,0 +1,26 @@
+{
+  "frozen_rows": 49,
+  "compared_rows": 49,
+  "changed_rows": [
+    {
+      "core": "lowrisc:dv:spid_passthrough_sim:0.1",
+      "before": {
+        "dvsim_test": null,
+        "runtime_args": [
+          "+smoke_test=1"
+        ],
+        "uvm_test": null,
+        "uvm_test_seq": null
+      },
+      "after": {
+        "dvsim_test": "spid_passthrough_readbasic",
+        "runtime_args": [
+          "+TESTNAME=readbasic",
+          "+smoke_test=1"
+        ],
+        "uvm_test": null,
+        "uvm_test_seq": null
+      }
+    }
+  ]
+}

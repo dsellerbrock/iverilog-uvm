@@ -1,0 +1,64 @@
+diff --git a/hw/ip/pattgen/dv/env/seq_lib/pattgen_base_vseq.sv b/hw/ip/pattgen/dv/env/seq_lib/pattgen_base_vseq.sv
+--- a/hw/ip/pattgen/dv/env/seq_lib/pattgen_base_vseq.sv
++++ b/hw/ip/pattgen/dv/env/seq_lib/pattgen_base_vseq.sv
+@@ -1,6 +1,10 @@
+ // Copyright lowRISC contributors (OpenTitan project).
+ // Licensed under the Apache License, Version 2.0, see LICENSE for details.
+ // SPDX-License-Identifier: Apache-2.0
++
++class pattgen_data_word_rand;
++  rand bit [31:0] value;
++endclass
+ 
+ class pattgen_base_vseq extends cip_base_vseq #(
+     .RAL_T               (pattgen_reg_block),
+@@ -343,6 +347,8 @@
+   // this function randomizes the channel config
+   virtual function pattgen_channel_cfg get_random_channel_config(uint channel);
+     pattgen_channel_cfg ch_cfg;
++    pattgen_data_word_rand word;
++    bit [31:0] data_lo;
+     ch_cfg = pattgen_channel_cfg::type_id::create($sformatf("channel_cfg_%0d", channel));
+     if (inactive_level_en) begin
+       // TODO(#23219): Remove this when the scoreboard supports the inactive_level feature.
+@@ -352,16 +358,6 @@
+       ch_cfg.polarity dist {
+         1'b0 :/ cfg.seq_cfg.pattgen_low_polarity_pct,
+         1'b1 :/ (100 - cfg.seq_cfg.pattgen_low_polarity_pct)
+-      };
+-      ch_cfg.data[31:0] dist {
+-        DataMax :/ cfg.seq_cfg.data_top_pct,
+-        DataMin :/ cfg.seq_cfg.data_bottom_pct,
+-        [DataMin + 1:DataMax - 1] :/ cfg.seq_cfg.data_middle_pct
+-      };
+-      ch_cfg.data[63:32] dist {
+-        DataMax :/ cfg.seq_cfg.data_top_pct,
+-        DataMin :/ cfg.seq_cfg.data_bottom_pct,
+-        [DataMin:DataMax] :/ cfg.seq_cfg.data_middle_pct
+       };
+       ch_cfg.prediv dist {
+         cfg.seq_cfg.pattgen_max_prediv :/ cfg.seq_cfg.data_top_pct,
+@@ -380,6 +376,23 @@
+         [cfg.seq_cfg.pattgen_min_len:cfg.seq_cfg.pattgen_max_len] :/ cfg.seq_cfg.data_middle_pct
+       };
+     )
++    word = new;
++    `DV_CHECK_RANDOMIZE_WITH_FATAL(word,
++      value dist {
++        DataMax :/ cfg.seq_cfg.data_top_pct,
++        DataMin :/ cfg.seq_cfg.data_bottom_pct,
++        [DataMin + 1:DataMax - 1] :/ cfg.seq_cfg.data_middle_pct
++      };
++    )
++    data_lo = word.value;
++    `DV_CHECK_RANDOMIZE_WITH_FATAL(word,
++      value dist {
++        DataMax :/ cfg.seq_cfg.data_top_pct,
++        DataMin :/ cfg.seq_cfg.data_bottom_pct,
++        [DataMin:DataMax] :/ cfg.seq_cfg.data_middle_pct
++      };
++    )
++    ch_cfg.data = {word.value, data_lo};
+     return ch_cfg;
+   endfunction : get_random_channel_config
+ 

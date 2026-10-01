@@ -172,7 +172,11 @@ string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
       for (size_t i = 0 ; i < parms.size() ; i += 1) {
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(parms[i].parm);
 	    int pid = -1;
-	    if (id && id->path().size() == 1
+	      /* `this.prop' names the same property as `prop'. */
+	    const bool this_prefixed = id && id->path().size() == 2
+		  && id->path().name.front().name == perm_string::literal(THIS_TOKEN)
+		  && id->path().name.front().index.empty();
+	    if (id && (id->path().size() == 1 || this_prefixed)
 		&& id->path().back().index.empty())
 		  pid = class_type->property_idx_from_name(
 			      id->path().back().name);
@@ -382,11 +386,34 @@ NetESFunc* make_randomize_with_expr(
  * lowering rather than $ivl_std_randomize's raw bits. So does a function's
  * implicit return variable (13.4.1): a system task receives it by value,
  * and only the solver lowering stores its result to the return value. */
+static NetNet* std_randomize_fixed_array_arg_(const PExpr*arg,
+					      Design*des, NetScope*scope)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(arg);
+      if (!id || id->path().size() != 1
+	  || !id->path().back().index.empty())
+	    return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.net || !sr.path_tail.empty() || sr.path_head.empty()
+	  || !sr.path_head.back().index.empty())
+	    return nullptr;
+      NetNet*net = sr.net;
+      if (net->unpacked_dimensions() != 1 || net->darray_type()
+	  || net->queue_type() || net->type() != NetNet::REG
+	  || net->enumeration() || net->unpacked_count() == 0)
+	    return nullptr;
+      ivl_variable_type_t base = net->data_type();
+      return base == IVL_VT_BOOL || base == IVL_VT_LOGIC ? net : nullptr;
+}
+
 bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 				    Design*des, NetScope*scope)
 {
       for (const named_pexpr_t&parm : parms) {
 	    if (!parm.parm) continue;
+	    if (std_randomize_fixed_array_arg_(parm.parm, des, scope))
+	      continue;
 	    NetExpr*ne = elab_and_eval(des, scope, parm.parm, -1, false);
 	    bool is_enum = ne && (ne->enumeration()
 			|| dynamic_cast<const netenum_t*>(ne->net_type()));
@@ -399,6 +426,80 @@ bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 	    if (is_enum || is_return) return true;
       }
       return false;
+}
+
+/* A fixed unpacked array is one scope-randomize argument, but the VPI
+ * implementation writes individual integral variables. Supply each
+ * canonical memory word as an argument, retaining the existing RNG and
+ * write-back path. Constraint-bearing calls use the solver path instead. */
+NetESFunc* make_std_randomize_simple_expr(
+      const vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
+      const LineInfo*loc)
+{
+      vector<NetExpr*> args;
+      for (const named_pexpr_t&parm : parms) {
+	    if (!parm.parm) {
+		for (NetExpr*old : args) delete old;
+		return nullptr;
+	    }
+	    if (NetNet*array = std_randomize_fixed_array_arg_(
+		  parm.parm, des, scope)) {
+		for (unsigned word = 0; word < array->unpacked_count(); ++word) {
+		      NetEConst*index = make_const_val_s(word);
+		      index->set_line(*parm.parm);
+		      NetESignal*element = new NetESignal(array, index);
+		      element->set_line(*parm.parm);
+		      args.push_back(element);
+		}
+	    } else {
+		NetExpr*arg = elab_and_eval(des, scope, parm.parm, -1);
+		if (!arg) {
+		      for (NetExpr*old : args) delete old;
+		      return nullptr;
+		}
+		NetESignal*sig = dynamic_cast<NetESignal*>(arg);
+		const netstruct_t*record =
+		  dynamic_cast<const netstruct_t*>(arg->net_type());
+		if (record && !record->packed()) {
+		      // Scope randomization writes VPI lvalues. An unpacked struct
+		      // is an object-backed aggregate, so pass its integral members.
+		      bool integral_members = sig && !record->union_flag()
+			&& !record->members().empty();
+		      for (const netstruct_t::member_t&member : record->members()) {
+			ivl_variable_type_t base = member.data_type();
+			if (!member.net_type->packed()
+			    || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC)
+			    || dynamic_cast<const netenum_t*>(member.net_type))
+			      integral_members = false;
+		      }
+		      if (!integral_members) {
+			cerr << parm.parm->get_fileline() << ": sorry: "
+			     << "std::randomize() of this unpacked struct "
+			     << "requires a direct variable with integral members."
+			     << endl;
+			des->errors += 1;
+			delete arg;
+			for (NetExpr*old : args) delete old;
+			return nullptr;
+		      }
+		      NetNet*net = sig->sig();
+		      delete arg;
+		      for (size_t idx = 0; idx < record->members().size(); ++idx) {
+			NetEProperty*member = new NetEProperty(net, idx);
+			member->set_line(*parm.parm);
+			args.push_back(member);
+		      }
+		} else {
+		      args.push_back(arg);
+		}
+	    }
+      }
+      NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
+					 IVL_VT_BOOL, 32, args.size());
+      fun->set_line(*loc);
+      for (size_t idx = 0; idx < args.size(); ++idx)
+	    fun->parm(idx, args[idx]);
+      return fun;
 }
 
 NetESFunc* make_std_randomize_with_expr(
@@ -424,7 +525,8 @@ NetESFunc* make_std_randomize_with_expr(
        * constraints, with an inline path such as h.payload.valid rooted
        * at that object. This is semantically an all-properties object
        * randomize, not an attempt to synthesize random pointer bits. */
-      if (parms.size() == 1 && parms[0].parm) {
+      if (parms.size() == 1 && parms[0].parm
+	  && !std_randomize_fixed_array_arg_(parms[0].parm, des, scope)) {
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(parms[0].parm);
 	    if (id && id->path().size() == 1
 		&& id->path().back().index.empty()) {
@@ -458,7 +560,11 @@ NetESFunc* make_std_randomize_with_expr(
 	    bool all_this_properties = class_type && !parms.empty();
 	    for (size_t idx = 0 ; all_this_properties && idx < parms.size(); idx++) {
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(parms[idx].parm);
-		  if (!id || id->path().size() != 1
+		    /* `this.prop' names the same property as `prop'. */
+		  const bool this_prefixed = id && id->path().size() == 2
+			&& id->path().name.front().name == perm_string::literal(THIS_TOKEN)
+			&& id->path().name.front().index.empty();
+		  if (!id || (id->path().size() != 1 && !this_prefixed)
 		      || !id->path().back().index.empty()
 		      || class_type->property_idx_from_name(
 			    id->path().back().name) < 0)
@@ -491,6 +597,15 @@ NetESFunc* make_std_randomize_with_expr(
 
       for (size_t idx = 0 ; idx < parms.size() ; idx += 1) {
 	    PExpr*pe = parms[idx].parm;
+	    if (std_randomize_fixed_array_arg_(pe, des, scope)) {
+		cerr << loc->get_fileline() << ": sorry: "
+		     << "std::randomize() with constraints on a fixed "
+		     << "unpacked array is not yet supported; the call "
+		     << "cannot be compiled." << endl;
+		des->errors += 1;
+		for (NetExpr*old : random_vars) delete old;
+		return nullptr;
+	    }
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(pe);
 	    if (!id || id->path().size() != 1
 		|| !id->path().back().index.empty()) {
@@ -507,21 +622,32 @@ NetESFunc* make_std_randomize_with_expr(
 	    NetESignal*se = dynamic_cast<NetESignal*>(ne);
 	    const netqueue_t*queue = se
 		  ? dynamic_cast<const netqueue_t*>(se->sig()->net_type()) : nullptr;
-	    if (queue && parms.size() == 1 && !queue->assoc_compat()
+	      // A dynamic array (IEEE 1800-2017 18.12) uses the same container
+	      // solver; its token omits the queue's Q<max> prefix (OpenTitan
+	      // usbdev: std::randomize(tx_data) with { tx_data.size() <= N; }).
+	    const netdarray_t*darray = se && !queue
+		  ? dynamic_cast<const netdarray_t*>(se->sig()->net_type()) : nullptr;
+	    if ((queue || darray) && parms.size() == 1
+		&& !(queue && queue->assoc_compat())
 		&& !se->word_index()) {
-		  ivl_type_t elem = queue->element_type();
+		  const netdarray_t*container = queue ? queue : darray;
+		  ivl_type_t elem = container->element_type();
 		  unsigned ewid = elem ? elem->packed_width() : 0;
 		  ivl_variable_type_t base = elem
 			? elem->base_type() : IVL_VT_NO_TYPE;
 		  if (elem && elem->packed() && ewid && ewid <= 65536
 		      && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
 			  || dynamic_cast<const netenum_t*>(elem))) {
-			uint64_t max_size = queue->max_idx() < 0 ? 0
-			    : (uint64_t)queue->max_idx() + 1;
 			string etype = (elem->get_signed() ? "sv" : "v")
 			    + to_string(ewid);
-			random_tokens[id->path().back().name] =
-			    "s:0:Q" + to_string(max_size) + ":" + etype;
+			if (queue) {
+			      uint64_t max_size = queue->max_idx() < 0 ? 0
+				  : (uint64_t)queue->max_idx() + 1;
+			      random_tokens[id->path().back().name] =
+				  "s:0:Q" + to_string(max_size) + ":" + etype;
+			} else {
+			      random_tokens[id->path().back().name] = "s:0:" + etype;
+			}
 			random_types[id->path().back().name] = se->sig()->net_type();
 			random_vars.push_back(ne);
 			if (const netenum_t*eenum =
@@ -2023,6 +2149,8 @@ static NetExpr* make_array_reduction_expr_(
  *   parm 4: best NetESignal (best value so far, value width)
  *   parm 5: bestitem NetESignal (element with the best value)
  *   parm 6: value expression
+ *   parm 7: optional materialized receiver
+ *   final two parms for fixed arrays: declared index net and expression
  */
 static NetExpr* make_array_minmax_expr_(
       const LineInfo*li, Design*des, NetScope*scope,
@@ -2042,8 +2170,21 @@ static NetExpr* make_array_minmax_expr_(
 	    return 0;
       }
 
+      const netuarray_t*fixed_type =
+	    dynamic_cast<const netuarray_t*>(container_type);
+      const bool fixed_materialized = fixed_type
+	    && !dynamic_cast<NetESignal*>(array_expr);
       NetNet*recv_net = 0;
-      if (!dynamic_cast<NetESignal*>(array_expr)) {
+      if (fixed_materialized) {
+	    /* A fixed-array property has no container handle. Snapshot its
+	     * complete value once using the same object-context path as the
+	     * reduction methods. */
+	    ivl_type_t recv_type = new netdarray_t(element_type);
+	    recv_net = new NetNet(scope, scope->local_symbol(),
+				   NetNet::REG, recv_type);
+	    recv_net->set_line(*li);
+	    recv_net->local_flag(true);
+      } else if (!dynamic_cast<NetESignal*>(array_expr)) {
 	    recv_net = make_array_method_recv_net_(li, des, scope,
 						   array_expr,
 						   container_type, kind);
@@ -2062,12 +2203,27 @@ static NetExpr* make_array_minmax_expr_(
       idx_net->set_line(*li);
       idx_net->local_flag(true);
 
+      NetNet*visible_idx_net = idx_net;
+      NetExpr*declared_idx_expr = 0;
+      if (fixed_type) {
+	    visible_idx_net = new NetNet(scope, scope->local_symbol(),
+				     NetNet::REG, &netvector_t::atom2s32);
+	    visible_idx_net->set_line(*li);
+	    visible_idx_net->local_flag(true);
+	    const netrange_t&range = fixed_type->static_dimensions().front();
+	    declared_idx_expr = fixed_materialized
+		  ? make_fixed_array_method_declared_index_(
+			*li, idx_net, range)
+		  : make_fixed_array_method_canonical_index_(
+			*li, idx_net, range);
+      }
+
       NetExpr*val_expr = 0;
       if (!with_exprs.empty() && with_exprs.front()) {
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
 						    iter_name, iter_net,
-						    idx_net);
+						    visible_idx_net);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -2111,7 +2267,8 @@ static NetExpr* make_array_minmax_expr_(
 
       string mangled = string("$ivl_darray_method$minmax|") + kind;
       NetESFunc*fn = new NetESFunc(mangled.c_str(), result_qtype,
-				   recv_net ? 8 : 7);
+				   fixed_type ? (recv_net ? 10 : 9)
+					      : (recv_net ? 8 : 7));
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*li);
@@ -2133,6 +2290,12 @@ static NetExpr* make_array_minmax_expr_(
 	    NetESignal*recv_ref = new NetESignal(recv_net);
 	    recv_ref->set_line(*li);
 	    fn->parm(7, recv_ref);
+      }
+      if (fixed_type) {
+	    NetESignal*visible_idx_ref = new NetESignal(visible_idx_net);
+	    visible_idx_ref->set_line(*li);
+	    fn->parm(recv_net ? 8 : 7, visible_idx_ref);
+	    fn->parm(recv_net ? 9 : 8, declared_idx_expr);
       }
       fn->set_line(*li);
       return fn;
@@ -2877,8 +3040,23 @@ static NetExpr* apply_trailing_container_indices_(
 	    NetExpr*index_expr = nullptr;
 	    if (idx_comp.sel == index_component_t::SEL_BIT
 		       && idx_comp.msb && !idx_comp.lsb) {
-		  index_expr = elab_assoc_index(des, scope, idx_comp.msb,
-					cur_type, false);
+		  if (const netuarray_t*fixed =
+			dynamic_cast<const netuarray_t*>(cur_type)) {
+			if (fixed->static_dimensions().size() != 1) {
+			      cerr << loc.get_fileline() << ": sorry: an associative-array"
+				   << " value with more than one fixed dimension is not"
+				   << " yet supported." << endl;
+			      des->errors += 1;
+			      delete cur_expr;
+			      return nullptr;
+			}
+			list<index_component_t>fixed_index(1, idx_comp);
+			index_expr = make_checked_canonical_property_index(
+			      des, scope, &loc, fixed_index, fixed, false);
+		  } else {
+			index_expr = elab_assoc_index(des, scope, idx_comp.msb,
+					      cur_type, false);
+		  }
 	    } else {
 		  cerr << loc.get_fileline() << ": sorry: this select form on "
 		       << "a queue or associative-array class-property value is "
@@ -5497,6 +5675,163 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
       return true;
 }
 
+/* IEEE 1800-2017 11.4.5: == != === !== on two unpacked structures (and on
+ * fixed unpacked arrays held in a struct member or class property) compare
+ * element by element. Such a value is an object, so the generic compare read
+ * its handle as a vector: struct operands crashed vvp and array members
+ * compared equal whenever both were present. Rewrite a comparison of two
+ * plain identifiers (variable or member paths) as the conjunction of the
+ * element comparisons, recursing into nested structs and arrays, and let the
+ * ordinary operators compare each leaf (integral, real, string, queues...).
+ * Only identifier operands are handled so nothing with side effects is
+ * evaluated more than once. */
+static PEIdent* aggregate_operand_with_(const PEIdent*base,
+					const name_component_t*member,
+					const index_component_t*select,
+					const LineInfo&li)
+{
+      pform_name_t path = base->path().name;
+      if (member)
+	    path.push_back(*member);
+      if (select)
+	    path.back().index.push_back(*select);
+      PEIdent*id = base->path().package
+	    ? new PEIdent(base->path().package, path, base->lexical_pos())
+	    : new PEIdent(path, base->lexical_pos());
+      id->set_line(li);
+      return id;
+}
+
+static PExpr* aggregate_compare_(const PEIdent*left, const PEIdent*right,
+				 ivl_type_t type, char leaf_op,
+				 const LineInfo&li)
+{
+      auto join = [&](PExpr*result, PExpr*term) -> PExpr* {
+	    if (!result) return term;
+	    PEBLogic*both = new PEBLogic('a', result, term);
+	    both->set_line(li);
+	    return both;
+      };
+      auto leaf = [&](const PEIdent*l, const PEIdent*r) -> PExpr* {
+	    PExpr*cmp = new PEBComp(leaf_op, aggregate_operand_with_(l, nullptr, nullptr, li),
+				    aggregate_operand_with_(r, nullptr, nullptr, li));
+	    cmp->set_line(li);
+	    return cmp;
+      };
+
+      if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(type)) {
+	    if (st->packed())
+		  return leaf(left, right);
+	    PExpr*result = nullptr;
+	    for (const netstruct_t::member_t&member : st->members()) {
+		  name_component_t comp(member.name);
+		  PEIdent*l = aggregate_operand_with_(left, &comp, nullptr, li);
+		  PEIdent*r = aggregate_operand_with_(right, &comp, nullptr, li);
+		  PExpr*term = aggregate_compare_(l, r, member.net_type,
+						  leaf_op, li);
+		  delete l;
+		  delete r;
+		  result = join(result, term);
+	    }
+	    return result;
+      }
+
+      if (const netsarray_t*arr = dynamic_cast<const netsarray_t*>(type)) {
+	    const netranges_t&dims = arr->static_dimensions();
+	    if (dims.empty())
+		  return leaf(left, right);
+	    std::vector<long> position(dims.size(), 0);
+	    PExpr*result = nullptr;
+	    for (;;) {
+		  const PEIdent*cur_l = left;
+		  const PEIdent*cur_r = right;
+		  std::vector<PEIdent*> made;
+		  for (size_t dim = 0; dim < dims.size(); ++dim) {
+			const long msb = dims[dim].get_msb();
+			const long lsb = dims[dim].get_lsb();
+			const long index = msb >= lsb ? msb - position[dim]
+						      : msb + position[dim];
+			index_component_t select;
+			select.sel = index_component_t::SEL_BIT;
+			select.msb = new PENumber(new verinum((int64_t)index, 32U));
+			select.msb->set_line(li);
+			PEIdent*l = aggregate_operand_with_(cur_l, nullptr, &select, li);
+			index_component_t select_r;
+			select_r.sel = index_component_t::SEL_BIT;
+			select_r.msb = new PENumber(new verinum((int64_t)index, 32U));
+			select_r.msb->set_line(li);
+			PEIdent*r = aggregate_operand_with_(cur_r, nullptr, &select_r, li);
+			made.push_back(l);
+			made.push_back(r);
+			cur_l = l;
+			cur_r = r;
+		  }
+		  PExpr*term = aggregate_compare_(cur_l, cur_r, arr->element_type(),
+						  leaf_op, li);
+		  result = join(result, term);
+		  for (PEIdent*id : made)
+			delete id;
+		  size_t dim = dims.size();
+		  while (dim > 0) {
+			--dim;
+			if (++position[dim] < (long)dims[dim].width())
+			      break;
+			position[dim] = 0;
+			if (dim == 0) return result;
+		  }
+	    }
+      }
+      return leaf(left, right);
+}
+
+/* The aggregate type of a comparison operand that needs the expansion above:
+ * a direct unpacked-structure variable, or a struct/class member path that
+ * ends in an unpacked structure or a fixed unpacked array. Plain fixed-array
+ * variables keep their own comparison path. */
+static ivl_type_t unpacked_aggregate_operand_type_(Design*des, NetScope*scope,
+						   const PEIdent*id)
+{
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.net)
+	    return nullptr;
+      ivl_type_t cur = sr.net->net_type();
+      if (sr.path_tail.empty()) {
+	    const netstruct_t*direct = dynamic_cast<const netstruct_t*>(cur);
+	    if (direct && !direct->packed() && sr.net->unpacked_dimensions() == 0)
+		  return direct;
+	    return nullptr;
+      }
+      for (const name_component_t&comp : sr.path_tail) {
+	    if (!comp.index.empty())
+		  return nullptr;
+	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(cur)) {
+		  int pidx = cls->property_idx_from_name(comp.name);
+		  if (pidx < 0)
+			return nullptr;
+		  cur = cls->get_prop_type((size_t)pidx);
+	    } else if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(cur)) {
+		  if (st->packed())
+			return nullptr;
+		  ivl_type_t found = nullptr;
+		  for (const netstruct_t::member_t&member : st->members())
+			if (member.name == comp.name)
+			      found = member.net_type;
+		  if (!found)
+			return nullptr;
+		  cur = found;
+	    } else {
+		  return nullptr;
+	    }
+      }
+      if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(cur))
+	    return st->packed() ? nullptr : cur;
+      if (dynamic_cast<const netsarray_t*>(cur)
+	  && !dynamic_cast<const netdarray_t*>(cur))
+	    return cur;
+      return nullptr;
+}
+
 static NetScope* visible_interface_instance_array_(
 		Design*des, NetScope*scope, perm_string name,
 		unsigned lexical_pos);
@@ -5992,6 +6327,39 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       const netclass_t*right_instance_type = right_instance
 	    ? elaborate_interface_instance_type(
 		  des, right_instance, right_instance_modport) : nullptr;
+
+      if (!left_instance && !right_instance && gn_system_verilog()
+	  && (op_ == 'e' || op_ == 'n' || op_ == 'E' || op_ == 'N')) {
+	    const PEIdent*lid = dynamic_cast<const PEIdent*>(left_);
+	    const PEIdent*rid = dynamic_cast<const PEIdent*>(right_);
+	    ivl_type_t ltype = lid
+		  ? unpacked_aggregate_operand_type_(des, scope, lid) : nullptr;
+	    ivl_type_t rtype = rid
+		  ? unpacked_aggregate_operand_type_(des, scope, rid) : nullptr;
+	    if (ltype && rtype) {
+		  if (!ltype->type_compatible(rtype)) {
+			cerr << get_fileline() << ": error: operands of an "
+			     << "aggregate comparison must have equivalent "
+			     << "types (IEEE 1800-2017 11.4.5)." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  const bool equal_op = (op_ == 'e' || op_ == 'E');
+		  const char leaf_op = equal_op ? op_ : (op_ == 'n' ? 'e' : 'E');
+		  PExpr*chain = aggregate_compare_(lid, rid, ltype, leaf_op, *this);
+		  if (!chain)
+			return 0;
+		  if (!equal_op) {
+			PEUnary*negated = new PEUnary('!', chain);
+			negated->set_line(*this);
+			chain = negated;
+		  }
+		  NetExpr*expanded = elab_and_eval(des, scope, chain, expr_wid,
+						   false);
+		  delete chain;
+		  return expanded;
+	    }
+      }
 
       if (!left_instance && !right_instance) {
 	    NetExpr*array_comparison = 0;
@@ -11569,9 +11937,16 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  symbol_search_results dsr;
 		  if (symbol_search(this, des, scope, did->path(),
 				    did->lexical_pos(), &dsr)
-		      && dsr.net && dsr.path_tail.empty())
+		      && dsr.net && dsr.path_tail.empty()) {
+			/* $cast writes its first argument through VPI. A function's
+			 * implicit return needs signal storage for that write. */
+			materialize_ref_return(dsr.net);
 			cast_enum_type =
 			      dynamic_cast<const netenum_t*>(dsr.net->net_type());
+		  }
+		  if (!cast_enum_type)
+			cast_enum_type = dynamic_cast<const netenum_t*>(
+			      did->test_type_of_ident(des, scope));
 	    }
       }
 
@@ -13187,7 +13562,7 @@ static void set_scoped_class_parameter_result_(
 }
 
 /*
- * R-value select of a PACKED VECTOR property (IEEE 1800-2017 11.5.1):
+ * R-value select of a PACKED property (IEEE 1800-2017 11.5.1):
  * `r.v[3]`, `r.v[7:4]`, `r.v[i +: 4]`, `r.m[1][5]` where the property is a
  * (possibly multi-dimensional) packed vector, NOT an unpacked array. Such a
  * select must read the whole property and part-select the result — it must
@@ -13214,16 +13589,22 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 
 	// Canonicalize one source-space index expression against a range to
 	// an LSB-0 element offset expression. Constants fold to NetEConst.
-      auto c32 = [](long v) -> NetEConst* {
-	    return new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)v, 32));
+      auto cwidth = [](long v, unsigned width) -> NetEConst* {
+	    return new NetEConst(verinum(static_cast<uint64_t>(v), width));
+      };
+      auto c32 = [&](long v) -> NetEConst* {
+	    return cwidth(v, 32);
       };
       auto canon1 = [&](NetExpr*e, const netrange_t&r) -> NetExpr* {
 	    bool desc = r.get_msb() >= r.get_lsb();
 	    if (NetEConst*ec = dynamic_cast<NetEConst*>(e)) {
-		  if (!ec->value().is_defined())
+		  if (!ec->value().is_defined()) {
+			delete e;
 			return nullptr;
+		  }
 		  long i = ec->value().as_long();
 		  long off = desc ? (i - r.get_lsb()) : (r.get_lsb() - i);
+		  delete e;
 		  return c32(off);
 	    }
 	      // Widen before making any normalization arithmetic signed. An
@@ -13233,13 +13614,17 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	      // range. The subtraction result below is signed where a negative
 	      // canonical offset is possible; a zero-offset descending range can
 	      // retain the index's original signedness directly.
-	    e = pad_to_width(e, 32, e->has_sign(), *li);
+	    const unsigned arith_width = max(32u, e->expr_width());
+	    e = pad_to_width(e, arith_width, e->has_sign(), *li);
 	    if (desc) {
 		  if (r.get_lsb() == 0)
 			return e;
-		  return new NetEBAdd('-', e, c32(r.get_lsb()), 32, true);
+		  return new NetEBAdd('-', e,
+				cwidth(r.get_lsb(), arith_width),
+				arith_width, true);
 	    }
-	    return new NetEBAdd('-', c32(r.get_lsb()), e, 32, true);
+	    return new NetEBAdd('-', cwidth(r.get_lsb(), arith_width),
+			       e, arith_width, true);
       };
 
 	// Strides: stride[k] = product of widths of dims k+1..n-1 (bits per
@@ -13253,18 +13638,26 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       size_t depth = 0;                // dims consumed by leading bit indices
       unsigned wid = 0;
       bool done = false;
+      NetExpr*inner_off = nullptr;     // run-time base inside the selected element
+      unsigned element_wid = 0;        // bits of that element
 
       auto add_off = [&](NetExpr*e, long mult) {
-	    if (NetEConst*ec = dynamic_cast<NetEConst*>(e)) {
+	    NetEConst*ec = dynamic_cast<NetEConst*>(e);
+	    if (ec && ec->value().is_defined()) {
 		  const_off += ec->value().as_long() * mult;
 		  delete e;
 		  return;
 	    }
 	    NetExpr*scaled = (mult == 1) ? e
-		  : new NetEBMult('*', e, c32(mult), 32, true);
+		  : scale_index_to_bits(e, (unsigned long)mult, *li);
 	    off_expr = off_expr
-		  ? new NetEBAdd('+', off_expr, scaled, 32, true)
+		  ? make_packed_offset_sum(li, off_expr, scaled)
 		  : scaled;
+      };
+	// A later dimension may fail after earlier offsets have been built.
+      auto fail = [&]() -> NetExpr* {
+	    delete off_expr;
+	    return nullptr;
       };
 
       size_t n_comp = indices.size();
@@ -13272,17 +13665,18 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       for (const index_component_t&ic : indices) {
 	    ci += 1;
 	    if (done)
-		  return nullptr; // components after the width-fixing select
+		  return fail(); // components after the width-fixing select
 	    if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
 		  if (depth >= dims.size())
-			return nullptr;
-		  NetExpr*e = elab_and_eval(des, scope, ic.msb, -1, false);
-		  if (!e)
-			return nullptr;
-		  NetExpr*c = canon1(e, dims[depth]);
+			return fail();
+		  list<index_component_t>one_index(1, ic);
+		  netranges_t one_dim(1, dims[depth]);
+		  NetExpr*c = make_checked_canonical_packed_prefix(
+			des, scope, li, one_index, one_dim,
+			(unsigned long)stride[depth], false);
 		  if (!c)
-			return nullptr;
-		  add_off(c, stride[depth]);
+			return fail();
+		  add_off(c, 1);
 		  depth += 1;
 		    // A full chain of bit indices selects a single bit; a
 		    // partial chain selects a slice.
@@ -13292,6 +13686,9 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	    } else if (ic.sel == index_component_t::SEL_PART
 		       && ic.msb && ic.lsb && ci == n_comp
 		       && depth < dims.size()) {
+		  if (depth != 0 && !check_packed_property_tail_range(
+			  des, scope, li, ic, dims[depth]))
+			return fail();
 		    // Constant [msb:lsb] on the current packed dimension.
 		    // A slice of an OUTER dimension selects complete inner
 		    // elements, so both its offset and width are scaled by the
@@ -13301,12 +13698,17 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		  NetEConst*mec = dynamic_cast<NetEConst*>(me);
 		  NetEConst*lec = dynamic_cast<NetEConst*>(le);
 		  if (!mec || !lec || !mec->value().is_defined()
-		      || !lec->value().is_defined())
-			return nullptr;
+		      || !lec->value().is_defined()) {
+			delete me;
+			delete le;
+			return fail();
+		  }
 		  const netrange_t&r = dims[depth];
 		  bool desc = r.get_msb() >= r.get_lsb();
 		  long mv = mec->value().as_long();
 		  long lv = lec->value().as_long();
+		  delete me;
+		  delete le;
 		  long ca = desc ? (mv - r.get_lsb()) : (r.get_lsb() - mv);
 		  long cb = desc ? (lv - r.get_lsb()) : (r.get_lsb() - lv);
 		  const_off += (ca < cb ? ca : cb) * stride[depth];
@@ -13317,43 +13719,96 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 			|| ic.sel == index_component_t::SEL_IDX_DO)
 		       && ic.msb && ic.lsb && ci == n_comp
 		       && depth < dims.size()) {
+		  bool runtime_tail = false;
+		  if (depth != 0 && !check_packed_property_tail_range(
+			  des, scope, li, ic, dims[depth], &runtime_tail))
+			return fail();
 		    // [base +: w] / [base -: w] on the current packed
 		    // dimension; outer-dimension selections span complete inner
 		    // elements and therefore use the packed stride.
 		  NetExpr*we = elab_and_eval(des, scope, ic.lsb, -1, false);
 		  NetEConst*wec = dynamic_cast<NetEConst*>(we);
 		  if (!wec || !wec->value().is_defined()
-		      || wec->value().as_long() <= 0)
-			return nullptr;
+		      || wec->value().as_long() <= 0) {
+			delete we;
+			return fail();
+		  }
 		  long w = wec->value().as_long();
+		  delete we;
 		  NetExpr*be = elab_and_eval(des, scope, ic.msb, -1, false);
 		  if (!be)
-			return nullptr;
+			return fail();
 		  NetExpr*c = canon1(be, dims[depth]);
 		  if (!c)
-			return nullptr;
-		  if (ic.sel == index_component_t::SEL_IDX_DO && w > 1)
-			c = new NetEBAdd('-', c, c32(w-1), 32, true);
-		  add_off(c, stride[depth]);
+			return fail();
+	      const bool descending =
+		  dims[depth].get_msb() >= dims[depth].get_lsb();
+	      const bool adjust_base =
+		  (ic.sel == index_component_t::SEL_IDX_UP && !descending)
+		  || (ic.sel == index_component_t::SEL_IDX_DO && descending);
+	      if (adjust_base && w > 1)
+			c = new NetEBAdd('-', c, cwidth(w-1, c->expr_width()),
+				      c->expr_width(), true);
+		  if (runtime_tail) {
+			/* The base is not provably inside this dimension, and the
+			 * packed array indexes it separately from the outer
+			 * dimensions: select the element, then part-select the
+			 * element so out-of-range bits read as X (11.5.1). */
+			inner_off = (stride[depth] == 1)
+			      ? c : scale_index_to_bits(c, (unsigned long)stride[depth], *li);
+			element_wid = (unsigned)(dims[depth].width() * stride[depth]);
+		  } else
+			add_off(c, stride[depth]);
 		  wid = (unsigned)(w * stride[depth]);
 		  done = true;
 	    } else {
-		  return nullptr;
+		  return fail();
 	    }
       }
 
       if (wid == 0)
-	    return nullptr;
+	    return fail();
 
       NetExpr*base = off_expr
-	    ? (const_off ? new NetEBAdd('+', off_expr, c32(const_off), 32, true)
+	    ? (const_off ? make_packed_offset_sum(li, off_expr, c32(const_off))
 		         : off_expr)
 	    : c32(const_off);
 
-      const bool enum_bool = dynamic_cast<const netenum_t*>(pvec)
-	    && pvec->base_type() == IVL_VT_BOOL;
-      netvector_t*res_type = new netvector_t(pvec->base_type(),
-					     (long)wid - 1, 0);
+      if (inner_off) {
+	    ivl_type_t row_type = new netvector_t(pvec->base_type(),
+						  (long)element_wid - 1, 0);
+	    NetESelect*row = new NetESelect(prop_expr, base, element_wid, row_type);
+	    row->set_line(*li);
+	    prop_expr = row;
+	    base = inner_off;
+      }
+
+      ivl_type_t res_type = nullptr;
+	ivl_type_t leaf_type = pvec;
+	while (const netparray_t*array =
+	       dynamic_cast<const netparray_t*>(leaf_type))
+	    leaf_type = array->element_type();
+	// An index into a packed array retains the exact element (or remaining
+	// array) type. In particular, an enum element must not turn into an
+	// untyped vector merely because the array is stored in a class property.
+      if (const netparray_t*array = dynamic_cast<const netparray_t*>(pvec)) {
+	    const netranges_t&array_dims = array->static_dimensions();
+	    bool element_indices = true;
+	    for (const index_component_t&ic : indices)
+		  element_indices &= ic.sel == index_component_t::SEL_BIT;
+	    if (element_indices) {
+		  res_type = packed_type_after_dims(pvec, indices.size());
+		  if (!res_type && indices.size() < array_dims.size()) {
+			netranges_t remaining(array_dims.begin() + indices.size(),
+					      array_dims.end());
+			res_type = new netparray_t(remaining, array->element_type());
+		  }
+	    }
+      }
+	if (!res_type)
+	    res_type = new netvector_t(pvec->base_type(), (long)wid - 1, 0);
+	const bool enum_bool = pvec->base_type() == IVL_VT_BOOL
+	    && dynamic_cast<const netenum_t*>(leaf_type);
 	/* A two-state enum still needs the packed select evaluated with 4-state
 	 * address semantics before converting its result to the enum base type
 	 * (11.5.1). Keep that conversion local to this exact enum carrier; a broad
@@ -13365,7 +13820,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       sel->set_line(*li);
       out_type = res_type;
       if (enum_bool) {
-	    NetECast*cast = new NetECast('2', sel, wid, false);
+	    NetECast*cast = new NetECast('2', sel, wid, false, res_type);
 	    cast->set_line(*li);
 	    return cast;
       }
@@ -13468,6 +13923,72 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    return prop_expr;
       }
 
+	// A packed array of structs is one packed property value. Select each
+	// declared dimension from the value before looking up the struct field.
+	// Keeping the ranks separate also makes an out-of-range inner index
+	// yield X instead of carrying into a neighboring outer element.
+      const netparray_t*packed_array =
+	    dynamic_cast<const netparray_t*>(prop_type);
+      if (packed_array
+	  && dynamic_cast<const netstruct_t*>(packed_array->element_type())
+	  && comp.index.size() <= packed_array->static_dimensions().size()) {
+	    const netranges_t&dims = packed_array->static_dimensions();
+	    NetExpr*cur = prop_expr;
+	    auto index = comp.index.begin();
+	    for (size_t rank = 0; rank < comp.index.size(); ++rank, ++index) {
+		  if (index->sel != index_component_t::SEL_BIT
+		      || !index->msb || index->lsb) {
+			cerr << li->get_fileline() << ": error: a packed-array "
+			     << "struct element requires a single index "
+			     << "in each dimension." << endl;
+			des->errors += 1;
+			delete cur;
+			return 0;
+		  }
+		  NetExpr*offset = elab_and_eval(des, scope, index->msb,
+						      -1, false);
+		  if (!offset) {
+			delete cur;
+			return 0;
+		  }
+		  if (!type_is_vectorable(offset->expr_type())) {
+			cerr << li->get_fileline() << ": error: packed-array "
+			     << "index must be an integral expression." << endl;
+			des->errors += 1;
+			delete offset;
+			delete cur;
+			return 0;
+		  }
+		  offset = normalize_variable_base(offset,
+						 dims[rank].get_msb(),
+						 dims[rank].get_lsb(),
+						 1, true);
+		  ivl_type_t slice_type = packed_array->element_type();
+		  if (rank + 1 < dims.size()) {
+			netranges_t remaining(dims.begin() + rank + 1,
+					      dims.end());
+			slice_type = new netparray_t(remaining, slice_type);
+		  }
+		  long width = slice_type->packed_width();
+		  if (width <= 0 || (unsigned long)width > UINT_MAX) {
+			cerr << li->get_fileline() << ": error: packed property "
+			     << "element width is out of range." << endl;
+			des->errors += 1;
+			delete offset;
+			delete cur;
+			return 0;
+		  }
+		  offset = scale_index_to_bits(offset, (unsigned long)width,
+					       *li);
+		  NetESelect*slice = new NetESelect(cur, offset,
+						  (unsigned)width, slice_type);
+		  slice->set_line(*li);
+		  cur = slice;
+	    }
+	    out_type = cur->net_type();
+	    return cur;
+      }
+
 	// A queue property slice is an unbounded queue value. A legal dynamic-
 	// array slice stops at the fixed-size-result unsupported boundary.
 	// Passing the lower bound as NetEProperty's word
@@ -13495,19 +14016,22 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    return slice;
       }
 
-	// Select of a plain packed-vector property in a chained base
+	// Select of a packed property in a chained base
 	// (`o.inner.v[3:0]`): part-select the whole-property read. The old
 	// path silently DROPPED the select and returned the whole vector.
-      if (const netvector_t*prop_vec =
-	      dynamic_cast<const netvector_t*>(prop_type)) {
+	if (dynamic_cast<const netvector_t*>(prop_type)
+	    || dynamic_cast<const netparray_t*>(prop_type)) {
+	    unsigned errors_before = des->errors;
 	    NetExpr*sel = make_vector_property_select_(des, scope, li,
-						       prop_expr, prop_vec,
-						       comp.index, out_type);
+					       prop_expr, prop_type,
+					       comp.index, out_type);
 	    if (!sel) {
-		  cerr << li->get_fileline() << ": sorry: this form of "
-		       << "select on packed vector property is not yet"
-		       << " supported." << endl;
-		  des->errors += 1;
+		  if (des->errors == errors_before) {
+			cerr << li->get_fileline() << ": sorry: this form of "
+			     << "select on packed vector property is not yet"
+			     << " supported." << endl;
+			des->errors += 1;
+		  }
 		  delete prop_expr;
 		  return 0;
 	    }
@@ -13637,12 +14161,16 @@ static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
 
 	      const index_component_t&root_index = base_index.back();
 	      if (root_index.sel == index_component_t::SEL_BIT_LAST) {
-		    cerr << li->get_fileline() << ": sorry: "
-			 << "Last element select of dynamic/queue class object access is not supported."
-			 << endl;
-		    des->errors += 1;
-		    delete base_expr;
-		    return 0;
+		    const netqueue_t*queue = net->queue_type();
+		    if (!queue || queue->assoc_compat()) {
+			  cerr << li->get_fileline() << ": error: `$' requires a positional queue." << endl;
+			  des->errors += 1;
+			  delete base_expr;
+			  return 0;
+		    }
+		    NetExpr*last = make_last_queue_element_expr_(*li, base_expr, queue);
+		    out_type = queue->element_type();
+		    return last;
 	      }
 	      if (root_index.msb == 0 || root_index.lsb != 0
 		  || root_index.sel != index_component_t::SEL_BIT) {
@@ -13719,6 +14247,15 @@ static NetExpr* elaborate_temporary_member_access_(const LineInfo*li,
 					    member_width, member->net_type);
 	    sel->set_line(*li);
 	    return sel;
+      }
+
+	/* A zero-argument enumeration method may omit its parentheses
+	 * (IEEE 1800-2017 6.19.5, 13.4.2): `seq.get_state().name`. */
+      if (const netenum_t*netenum = dynamic_cast<const netenum_t*>(base_type)) {
+	    if (comp.index.empty())
+		  return check_for_enum_methods(li, des, scope, netenum,
+						pform_scoped_name_t(), comp.name,
+						base_expr, {});
       }
 
       delete base_expr;
@@ -14156,15 +14693,18 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				      dynamic_cast<const netvector_t*>(use_type)) {
 				    std::list<index_component_t> rest(idx_it, indices.end());
 				    ivl_type_t sel_type = nullptr;
+				    unsigned errors_before = des->errors;
 				    NetExpr*sel = make_vector_property_select_(
 					  des, scope, this, cur_expr, vec_t,
 					  rest, sel_type);
 				    if (!sel) {
-					  cerr << get_fileline() << ": sorry: "
-					       << "this form of select on a packed"
-					       << " vector member is not yet"
-					       << " supported." << endl;
-					  des->errors += 1;
+					  if (des->errors == errors_before) {
+						cerr << get_fileline() << ": sorry: "
+						     << "this form of select on a packed"
+						     << " vector member is not yet"
+						     << " supported." << endl;
+						des->errors += 1;
+					  }
 					  return false;
 				    }
 				    cur_expr = sel;
@@ -14172,7 +14712,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				    return true;
 			      }
 			      NetExpr*idx_expr = nullptr;
-			      if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
+			      if (const netuarray_t*fixed =
+				    dynamic_cast<const netuarray_t*>(use_type)) {
+				if (fixed->static_dimensions().size() != 1
+				    || idx_comp.sel != index_component_t::SEL_BIT
+				    || !idx_comp.msb || idx_comp.lsb) {
+				      cerr << get_fileline() << ": sorry: this fixed-array"
+					   << " element select is not yet supported." << endl;
+				      des->errors += 1;
+				      return false;
+				}
+				list<index_component_t>fixed_index(1, idx_comp);
+				idx_expr = make_checked_canonical_property_index(
+				      des, scope, this, fixed_index, fixed, false);
+				if (!idx_expr)
+				      return false;
+			      } else if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
 				    idx_expr = make_last_array_index_expr_(*this, cur_expr->dup_expr(),
 									cur_type);
 				    if (!idx_expr)
@@ -14257,10 +14812,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			continue;
 		  }
 
-		    /* IEEE 1800-2017/2023 13.4.2: a function with no arguments
-		     * may be called without its parentheses. The parser leaves
+		    /* IEEE 1800-2017/2023 13.5.5: a function with no formals or
+		     * only defaulted formals may be called without parentheses.
+		     * The parser leaves
 		     * `obj.m' as a member component rather than a
-		     * PECallFunction, so a zero-argument METHOD reached through
+		     * PECallFunction, so a method reached through
 		     * a class PROPERTY never became a call -- it fell through to
 		     * the property walk, matched no property, and yielded 0.
 		     * Silently wrong, and the reason uvm_driver's connectivity
@@ -14287,7 +14843,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      bool implicit_this =
 				    mdef && scope_method_uses_implicit_this(des, mscope);
 			      unsigned want = implicit_this ? 1u : 0u;
-			      if (mdef && mdef->port_count() == want) {
+			      if (mdef && mdef->port_count() >= want) {
+				    unsigned required_idx = want;
+				    while (required_idx < mdef->port_count()
+					   && mdef->port_defe(required_idx))
+					  required_idx += 1;
+				    if (required_idx < mdef->port_count()) {
+					  cerr << get_fileline() << ": error: Class method `"
+					       << tail_comp.name << "' requires argument `"
+					       << mdef->port(required_idx)->name()
+					       << "'; parentheses may be omitted only when "
+						  "every argument has a default "
+						  "(IEEE 1800-2017/2023 13.5.5)." << endl;
+					  des->errors += 1;
+					  delete base_expr;
+					  return 0;
+				    }
 				    NetNet*res =
 					  mscope->find_signal(mscope->basename());
 				    if (!res)
@@ -14296,6 +14867,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 					  std::vector<NetExpr*> parms(mdef->port_count());
 					  if (implicit_this)
 						parms[0] = base_expr;
+					  for (unsigned idx = want;
+					       idx < mdef->port_count(); idx += 1)
+						parms[idx] = mdef->port_defe(idx)->dup_expr();
 					  NetESignal*eres = new NetESignal(res);
 					  NetEUFunc*call = new NetEUFunc(
 						scope, mscope, eres, parms, false);
@@ -14903,8 +15477,12 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			if (!canon_index)
 			      return nullptr;
 
-			if (const netvector_t*evec =
-			      dynamic_cast<const netvector_t*>(tmp_ua->element_type())) {
+			ivl_type_t packed_leaf = tmp_ua->element_type();
+			if (dynamic_cast<const netvector_t*>(packed_leaf)
+			    || dynamic_cast<const netenum_t*>(packed_leaf)
+			    || (packed_leaf->packed()
+				&& dynamic_cast<const netstruct_t*>(packed_leaf))) {
+			      ivl_type_t evec = packed_leaf;
 			      NetExpr*base_expr = nullptr;
 			      if (!sr.path_head.empty()
 				  && !sr.path_head.back().index.empty()) {
@@ -14951,7 +15529,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			if (!canon_index)
 			      return nullptr;
 		  }
-		  } else if (const netarray_t *tmp_arr = dynamic_cast<const netarray_t*>(tmp_type)) {
+		  } else if (dynamic_cast<const netarray_t*>(tmp_type)
+			     && !dynamic_cast<const netparray_t*>(tmp_type)) {
 			const index_component_t&idx_comp = comp.index.front();
 			if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
 			      NetESignal*base_expr = new NetESignal(sr.net);
@@ -14972,7 +15551,6 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      if (!canon_index)
 			      return nullptr;
 		  } else {
-			(void) tmp_arr;
 			canon_index = elab_assoc_index(des, scope, idx_comp.msb,
 			                               tmp_type, false);
 			if (!canon_index)
@@ -14984,8 +15562,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			++it;
 			trailing_indices.assign(it, comp.index.end());
 		  }
-	    } else if (const netvector_t*prop_vec =
-		       dynamic_cast<const netvector_t*>(tmp_type)) {
+	    } else if (dynamic_cast<const netvector_t*>(tmp_type)
+		       || dynamic_cast<const netparray_t*>(tmp_type)
+		       || dynamic_cast<const netenum_t*>(tmp_type)
+		       || (tmp_type->packed()
+			   && dynamic_cast<const netstruct_t*>(tmp_type))) {
 		    // A select of a plain packed-vector property is a bit/
 		    // part-select of the property VALUE, not an array element
 		    // access. Read the whole property and select from it; the
@@ -15007,15 +15588,18 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  }
 		  NetEProperty*whole = new NetEProperty(base_expr, pidx, nullptr);
 		  whole->set_line(*this);
+		  unsigned errors_before = des->errors;
 		  NetExpr*sel = make_vector_property_select_(des, scope, this,
-							     whole, prop_vec,
+							     whole, tmp_type,
 							     comp.index, sel_type);
 		  if (!sel) {
-			cerr << get_fileline() << ": sorry: this form of "
-			     << "select on packed vector property "
-			     << class_type->get_prop_name(pidx)
-			     << " is not yet supported." << endl;
-			des->errors += 1;
+			if (des->errors == errors_before) {
+			      cerr << get_fileline() << ": sorry: this form of "
+				   << "select on packed vector property "
+				   << class_type->get_prop_name(pidx)
+				   << " is not yet supported." << endl;
+			      des->errors += 1;
+			}
 			delete whole;
 			return nullptr;
 		  }
@@ -15942,22 +16526,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				      has_randomize_with_identifier_list(),
 				      des, scope, this);
 		  }
-		  NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
-						IVL_VT_BOOL, 32,
-						parms_.size());
-		  fun->set_line(*this);
-		  bool args_ok = true;
-		  for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
-			NetExpr*ap = 0;
-			if (parms_[idx].parm)
-			      ap = elab_and_eval(des, scope,
-						 parms_[idx].parm, -1);
-			if (!ap) { args_ok = false; break; }
-			fun->parm(idx, ap);
-		  }
-		  if (args_ok)
-			return fun;
-		  delete fun;
+		  return make_std_randomize_simple_expr(
+		      parms_, des, scope, this);
 	    }
 
 	      /* A template seed carries no debt: see 8.25 above.  Checked
@@ -16616,8 +17186,10 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 		      || formal->port_type() == NetNet::PINOUT
 		      || formal->port_type() == NetNet::PREF) {
 			unsigned errors_before = des->errors;
-			NetAssign_*lval = tmp->elaborate_lval(des, scope,
-						       false, false);
+			NetAssign_*lval = tmp->elaborate_lval(
+						   des, scope, false, false,
+						   false, formal->port_type() == NetNet::PREF
+						   && formal->get_const());
 			if (lval == 0) {
 			      // Some generic l-value elaborators print a useful
 			      // diagnostic without updating the design error count.
@@ -16625,6 +17197,23 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 				    des->errors += 1;
 			      parm_errors += 1;
 			      continue;
+			}
+			if (formal->port_type() == NetNet::PREF
+			    && formal->get_const()) {
+			      ivl_type_t actual_type =
+				netassign_type_for_equivalence(lval);
+			      if (!actual_type || !formal_type
+				  || !formal_type->type_equivalent(actual_type)
+				  || !actual_type->type_equivalent(formal_type)) {
+				cerr << tmp->get_fileline() << ": error: A const ref "
+				     << "actual must have a type equivalent to "
+				     << "the formal (IEEE 1800-2017/2023 13.5.2)."
+				     << endl;
+				des->errors += 1;
+				parm_errors += 1;
+				delete lval;
+				continue;
+			      }
 			}
 
 			const netuarray_t*fixed_actual =
@@ -16975,6 +17564,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    && search_results.net->data_type() == IVL_VT_STRING
 	    && search_results.net->unpacked_dimensions() == 0
 	    && target_indexed;
+      bool selected_vif_packed_struct = false;
 
 	// IEEE 1800-2017 7.12.4: the call form of the iterator index
 	// query (`item.index()`, optional dimension defaulting to 1).
@@ -17334,11 +17924,69 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			  return 0;
 		    }
 
+		    // A named coverpoint or cross is covergroup metadata, not a class
+		    // property. Keep the elaborated covergroup object as the
+		    // receiver and select the named item before method dispatch.
+		    if (class_type->is_covergroup() && method_path.size() == 2
+			&& (method_path.back().name == "get_coverage"
+			    || method_path.back().name == "get_inst_coverage")) {
+		      if (!prop_comp.index.empty()) {
+			cerr << get_fileline() << ": error: A named coverage item "
+			     << "cannot be indexed." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		      }
+		      for (size_t item = 0; item < class_type->covgrp_item_count();
+			   item += 1) {
+			const netclass_t::covgrp_item_t&meta =
+			      class_type->covgrp_item(item);
+			if (meta.name != prop_comp.name)
+			      continue;
+			if (!parms_.empty()) {
+			      cerr << get_fileline() << ": sorry: named coverage item "
+				   << method_path.back().name
+				   << "() with ref arguments is not supported."
+				   << endl;
+			      des->errors += 1;
+			      delete sub_expr;
+			      return 0;
+			}
+			string name = "$ivl_class_method$covgrp_item_";
+			name += method_path.back().name.str();
+			name += "|" + to_string(item);
+			NetESFunc*sys = new NetESFunc(name.c_str(),
+						  &netreal_t::type_real, 1);
+			sys->set_line(*this);
+			sys->parm(0, sub_expr);
+			return sys;
+		      }
+		      if (class_type->property_idx_from_name(prop_comp.name) < 0) {
+			cerr << get_fileline() << ": error: Covergroup has no "
+			     << "named coverpoint or cross `" << prop_comp.name << "'."
+			     << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		      }
+		    }
+
 		    const data_type_t*prop_declared_type =
 			  method_receiver_property_declared_type_(
 				class_type, prop_comp.name);
 		    int pidx = ensure_class_property_idx_(
 			  des, class_type, prop_comp.name);
+		    if (class_type->is_interface() && pidx >= 0) {
+			  const netparray_t*packed_array =
+			    dynamic_cast<const netparray_t*>(
+			      class_type->get_prop_type(pidx));
+			  if (packed_array
+			      && dynamic_cast<const netstruct_t*>(
+				   packed_array->element_type())
+			      && prop_comp.index.size()
+				 == packed_array->static_dimensions().size())
+			    selected_vif_packed_struct = true;
+		    }
 		    if (pidx >= 0
 			&& dynamic_cast<const netstring_t*>(
 			      class_type->get_prop_type(pidx))
@@ -17449,6 +18097,16 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    cerr << get_fileline() << ": error: A selected string character has "
 		 << "byte type and cannot be the receiver of string method `"
 		 << method_name << "'." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
+      }
+
+      if (selected_vif_packed_struct
+	  && dynamic_cast<const netenum_t*>(target_type)) {
+	    cerr << get_fileline() << ": sorry: enumeration methods on "
+		 << "packed-struct fields selected through a virtual interface "
+		 << "are not yet supported." << endl;
 	    des->errors += 1;
 	    delete sub_expr;
 	    return 0;
@@ -18615,15 +19273,28 @@ unsigned PECastSize::test_width(Design*des, NetScope*scope, width_mode_t&)
 	// string-TYPED expression is a dynamic type, not a vector, and
 	// still gets the error below.
       bool string_literal_base = dynamic_cast<const PEString*>(base_) != nullptr;
+	// Commercial tools also size-cast a string-typed value as its packed
+	// bytes (OpenTitan prim_lfsr: `64'(LfsrType)' where the testbench
+	// passes a `localparam string'). IEEE 6.24.1 requires an integral
+	// operand; accept it, as the logic[N-1:0] type cast does, only under
+	// -gcommercial-unsafe.
+      bool unsafe_string_base = !string_literal_base && gn_commercial_unsafe_flag
+	    && base_->expr_type() == IVL_VT_STRING;
 
-      if (!string_literal_base && !type_is_vectorable(base_->expr_type())) {
+      if (!string_literal_base && !unsafe_string_base
+	  && !type_is_vectorable(base_->expr_type())) {
 	    cerr << get_fileline() << ": error: Cast base expression "
-		    "must be a vector type." << endl;
+		    "must be a vector type"
+		 << (base_->expr_type() == IVL_VT_STRING
+		     ? " (a string-typed operand is accepted only under"
+		       " -gcommercial-unsafe)" : "")
+		 << "." << endl;
 	    des->errors += 1;
 	    return 0;
       }
 
-      expr_type_   = string_literal_base ? IVL_VT_LOGIC : base_->expr_type();
+      expr_type_   = (string_literal_base || unsafe_string_base)
+		   ? IVL_VT_LOGIC : base_->expr_type();
       min_width_   = expr_width_;
       signed_flag_ = base_->has_sign();
 
@@ -18647,6 +19318,12 @@ NetExpr* PECastSize::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*sub = base_->elaborate_expr(des, scope, cast_width, flags);
       if (sub == 0)
 	    return 0;
+
+	// -gcommercial-unsafe string operand: convert as logic[N-1:0]'(s).
+      if (sub->expr_type() == IVL_VT_STRING && gn_commercial_unsafe_flag) {
+	    NetExpr*vec = cast_to_int4(sub, expr_width_);
+	    return pad_to_width(vec, expr_wid, signed_flag_, *this);
+      }
 
 	// Perform the cast. The extension method (zero/sign), if needed,
 	// depends on the type of the base expression.
@@ -20859,11 +21536,10 @@ bool PEIdent::is_string_byte_select(Design*des, NetScope*scope) const
 
 
 /*
- * IEEE 1800-2017 13.4.2: "the parentheses may be omitted" on a call to a
- * subroutine that takes no arguments. An unqualified identifier appearing
- * inside a class method may therefore be a paren-less call to a zero-argument
- * method of the enclosing class, or of one it inherits -- `get_full_name' in
- * a uvm_object subclass is the common case.
+ * IEEE 1800-2017/2023 13.5.5: parentheses may also be omitted when every
+ * argument has a default. An unqualified identifier inside a class method
+ * may therefore call a method of that class (or an inherited method);
+ * `get_full_name' in a uvm_object subclass is the zero-argument case.
  *
  * This runs only after ordinary signal binding has already failed, so it can
  * never shadow a real signal of the same name. Without it the reference
@@ -20874,8 +21550,10 @@ bool PEIdent::is_string_byte_select(Design*des, NetScope*scope) const
 static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 					      const PEIdent*self,
 					      const pform_scoped_name_t&path,
-					      unsigned expr_wid, unsigned flags)
+					      unsigned expr_wid, unsigned flags,
+					      bool&handled)
 {
+      handled = false;
       if (!gn_system_verilog())
 	    return 0;
       if (path.package || path.name.size() != 1)
@@ -20891,8 +21569,7 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 	    return 0;
 
       NetScope*mscope = cdef->method_from_name(peek_tail_name(path.name));
-	/* Only a function can appear in an expression, and only a
-	   zero-argument one may drop its parentheses. A method whose
+	/* Only a function can appear in an expression. A method whose
 	   signature has not been published yet is left alone rather than
 	   guessed at. */
       if (!mscope || mscope->type() != NetScope::FUNC)
@@ -20901,17 +21578,26 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
       if (!fdef)
 	    return 0;
 
-	/* A non-static class method carries the synthetic THIS_TOKEN ("@")
-	   port ahead of its declared arguments; a static one does not.
-	   Discount it the same way elab_sig.cc does, so that "takes no
-	   arguments" means the same thing for both. */
-      unsigned nports = fdef->port_count();
-      if (nports >= 1
+	/* A non-static method carries a synthetic this port. Every
+	   declared formal must have a default before an empty actual list
+	   can be passed to ordinary function-call elaboration. */
+      unsigned first_port = 0;
+      if (fdef->port_count() >= 1
 	  && fdef->port(0)->name() == perm_string::literal(THIS_TOKEN))
-	    nports -= 1;
-      if (nports != 0)
-	    return 0;
+	    first_port = 1;
+      for (unsigned idx = first_port; idx < fdef->port_count(); idx += 1)
+	    if (!fdef->port_defe(idx)) {
+		  cerr << self->get_fileline() << ": error: Class method `"
+		       << path << "' requires argument `"
+		       << fdef->port(idx)->name() << "'; parentheses may be omitted "
+			  "only when every argument has a default "
+			  "(IEEE 1800-2017/2023 13.5.5)." << endl;
+		  des->errors += 1;
+		  handled = true;
+		  return 0;
+	    }
 
+      handled = true;
       std::vector<named_pexpr_t> empty_parms;
       PECallFunction*call = new PECallFunction(path.name, empty_parms);
       call->set_line(*self);
@@ -20920,8 +21606,9 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 
       if (res && debug_elaborate)
 	    cerr << self->get_fileline() << ": debug: Resolved unqualified `"
-		 << path << "' as a paren-less call to a zero-argument "
-		    "class method (IEEE 1800-2017 13.4.2)." << endl;
+		 << path << "' as a paren-less call to a class method "
+		    "whose formals all have defaults (IEEE 1800-2017/2023 "
+		    "13.5.5)." << endl;
       return res;
 }
 
@@ -21644,6 +22331,38 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       NetNet *net = sr.net;
 
+      /* An interface port is a signal, unlike a directly named interface
+       * instance (a scope). Its `.modport' suffix selects a view of the
+       * same handle, not a class property. */
+      const netclass_t*want_if = dynamic_cast<const netclass_t*>(ntype);
+      const netclass_t*source_if =
+	    dynamic_cast<const netclass_t*>(net->net_type());
+      if (want_if && want_if->is_interface()
+	  && source_if && source_if->is_interface()
+	  && net->unpacked_dimensions() == 0
+	  && sr.path_head.size() == 1
+	  && sr.path_head.back().index.empty()
+	  && sr.path_tail.size() == 1
+	  && sr.path_tail.front().index.empty()) {
+	    perm_string modport = sr.path_tail.front().name;
+	    const Module*definition = source_if->interface_definition();
+	    if (definition && definition->modports.count(modport)) {
+		  const netclass_t*view = elaborate_interface_instance_type(
+			des, const_cast<netclass_t*>(source_if)->definition_scope(),
+			modport);
+		  if (!view || !view->interface_assignment_compatible_from(source_if)
+		      || !want_if->interface_assignment_compatible_from(view)) {
+			report_virtual_interface_assignment_mismatch_(
+			      des, *this, want_if, view);
+			return nullptr;
+		  }
+		  NetESignal*value = new NetESignal(net);
+		  value->set_interface_view_type(view);
+		  value->set_line(*this);
+		  return value;
+	    }
+      }
+
       /* IEEE 1800-2017 7.12 permits the iterator argument parentheses to be
        * omitted. In a typed aggregate context, terminal min/max/unique
        * locator spellings used to pass the container compatibility check
@@ -22336,10 +23055,22 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
 // FIXME: The real array to queue is failing here.
       if (net->unpacked_dimensions() != use_comp.index.size()) {
+	      /* A plain packed vector with bit or part selects (an element of
+	       * an unpacked concatenation such as {q, addr[23:16]}) is not an
+	       * aggregate matching the container context. Its selects are
+	       * packed selects: elaborate them normally instead of treating
+	       * the bracket as a missing array index and dropping it. */
+	    bool packed_select_of_vector = !use_comp.index.empty()
+		  && net->unpacked_dimensions() == 0
+		  && sr.path_tail.empty()
+		  && !net->darray_type() && !net->queue_type()
+		  && net->data_type() != IVL_VT_STRING
+		  && net->data_type() != IVL_VT_CLASS;
 	    if (!use_comp.index.empty()
 		&& net->unpacked_dimensions() == 0
 		&& (net->darray_type() || net->queue_type()
-		    || net->data_type() == IVL_VT_STRING)) {
+		    || net->data_type() == IVL_VT_STRING
+		    || packed_select_of_vector)) {
 		  unsigned expr_wid = expr_width_ ? expr_width_ : 1;
 		  return elaborate_expr_net(des, scope, net, sr.scope,
 					    expr_wid, flags);
@@ -22586,7 +23317,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
             bool local_param_member = sr.par_val != 0
 		  && !sr.path_tail.empty() && sr.path_head.size() == 1;
             bool bind_parameter = bind_parameter_expr_ && sr.par_val != 0;
-            if (!pkg_param && !local_param_member && !bind_parameter) {
+	      // Commercial tools accept an instance-path parameter in a
+	      // constant expression (OpenTitan csrng tb:
+	      // `tb.dut.u_core.u_gen.BlkLen' as a part-select width).
+            bool unsafe_hier_param = gn_commercial_unsafe_flag && sr.par_val != 0;
+            if (!pkg_param && !local_param_member && !bind_parameter
+		&& !unsafe_hier_param) {
                   // Allow local struct/class member paths in constant functions.
                   // sr.net found in the current scope (e.g., struct variable
                   // declared in the same function) is not a hierarchical reference.
@@ -22596,7 +23332,10 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
                   if (NEED_CONST & flags) {
                         cerr << get_fileline() << ": error: A hierarchical reference"
                                 " (`" << path_ << "') is not allowed in a constant"
-                                " expression." << endl;
+                                " expression"
+			     << (sr.par_val ? " (a hierarchical parameter is accepted"
+					      " only under -gcommercial-unsafe)" : "")
+			     << "." << endl;
                         des->errors += 1;
                         return 0;
                   }
@@ -23503,8 +24242,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    unsigned long moff = 0;
 				    const netstruct_t::member_t*member =
 					  cs->packed_member(tail_comp.name, moff);
-				    if (!member || cs->packed()
-					|| !tail_comp.index.empty()) {
+				    if (!member || cs->packed()) {
 					  ok = false;
 					  break;
 				    }
@@ -23516,6 +24254,21 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    cur = prop;
 				    cur_type = member->net_type;
 				    active_modport = member->interface_modport;
+				      /* A selected member (`.str_arg_idx[i]', `.arg[i]'):
+				       * bit/element select of the member value. */
+				    if (!tail_comp.index.empty()) {
+					  ivl_type_t selected_type = nullptr;
+					  NetExpr*selected = apply_trailing_container_indices_(
+						*this, des, scope, cur, cur_type,
+						tail_comp.index, selected_type);
+					  if (!selected) {
+						cur = nullptr;
+						ok = false;
+						break;
+					  }
+					  cur = selected;
+					  cur_type = selected_type;
+				    }
 			      } else {
 				    ok = false;
 				    break;
@@ -23820,14 +24573,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // the user's own reference to the same name reports it.
 	    if (quiet_bind_) return 0;
 
-	      /* IEEE 1800-2017 13.4.2: an unqualified name in a class
-		 method may be a paren-less call to a zero-argument method
-		 of the enclosing class or one it inherits. Only reachable
-		 once ordinary signal binding has failed. */
+	      /* IEEE 1800-2017/2023 13.5.5: an unqualified name may call an
+		 enclosing or inherited class method without parentheses when
+		 all formals have defaults. Ordinary signal binding has failed. */
+	    bool handled_method = false;
 	    if (NetExpr*r = paren_less_class_method_call_(des, scope, this,
 							  path_, expr_wid,
-							  flags))
+							  flags, handled_method))
 		  return r;
+	    if (handled_method) return 0;
 
 	      // strict_bind_ marks identifiers that came out of a
 	      // concurrent assertion. The compile-progress warning keeps
@@ -24003,12 +24757,14 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// user's own reference to the same name reports it.
       if (quiet_bind_) return 0;
 
-	/* IEEE 1800-2017 13.4.2 paren-less zero-argument method call.
+	/* IEEE 1800-2017/2023 13.5.5 paren-less defaulted method call.
 	   See paren_less_class_method_call_ -- the companion binding
 	   failure path above calls it too. */
-      if (NetExpr*r = paren_less_class_method_call_(des, scope, this, path_,
-						    expr_wid, flags))
+	bool handled_method = false;
+	if (NetExpr*r = paren_less_class_method_call_(des, scope, this, path_,
+						    expr_wid, flags, handled_method))
 	    return r;
+	if (handled_method) return 0;
 
 
 	// strict_bind_: see the companion site above. An identifier that
@@ -27052,6 +27808,8 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			      dynamic_cast<const netdarray_t*>(level);
 			const netqueue_t*level_queue =
 			      dynamic_cast<const netqueue_t*>(level);
+			const netuarray_t*level_fixed =
+			      dynamic_cast<const netuarray_t*>(level);
 
 			  /* A range selector consumes the current container as a
 			   * whole. Do not treat its first operand as an element index:
@@ -27113,11 +27871,28 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			unsigned ew = 1;
 			if (level_darray)
 			      ew = level_darray->element_width();
+			if (level_fixed && et)
+			      ew = et->packed_width();
 			if (ew == 0)
 			      ew = 1;
 
-			NetExpr*mux = elab_assoc_index(des, scope, level_index.msb,
+			NetExpr*mux = nullptr;
+			if (level_fixed) {
+			      if (level_fixed->static_dimensions().size() != 1) {
+				    cerr << get_fileline() << ": sorry: an associative-array"
+					 << " value with more than one fixed dimension is not"
+					 << " yet supported." << endl;
+				    des->errors += 1;
+				    delete cur_sel;
+				    return 0;
+			      }
+			      list<index_component_t>fixed_index(1, level_index);
+			      mux = make_checked_canonical_property_index(
+				    des, scope, this, fixed_index, level_fixed, need_const);
+			} else {
+			      mux = elab_assoc_index(des, scope, level_index.msb,
 						     level, need_const);
+			}
 			if (!mux) {
 			      delete cur_sel;
 			      return 0;
@@ -27135,6 +27910,8 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			  // index; anything else leaves the remaining
 			  // indices to the packed-select handling below.
 			level = dynamic_cast<const netdarray_t*>(et);
+			if (!level)
+			      level = dynamic_cast<const netuarray_t*>(et);
 		  }
 	    }
 

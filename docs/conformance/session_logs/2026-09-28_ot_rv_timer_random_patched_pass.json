@@ -1,0 +1,35 @@
+{
+  "scope": "one selected OpenTitan rv_timer_random smoke; no 49-target rerun",
+  "target": "lowrisc:dv:rv_timer_sim:0.1",
+  "pinned_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_source_commit_at_run": "1b84e721d48a86f9e87ebfe3d39477ef7ab70104",
+  "source_patch": "docs/conformance/release_overlays/opentitan/rv_timer_compare_solve_before.patch",
+  "source_patch_sha256": "3aa45d74296a1ecbd9d1671424b672d7be48fcda5f7a82012d5aea2458dcb9e3",
+  "compile_image_sha256": "b09895973cd228457e87ce7baa1210e1ec3f1a905fc422078c0d97f01688df03",
+  "compile_record": "docs/conformance/session_logs/2026-09-28_ot_rv_timer_solve_before_focus.json",
+  "invalid_harness_probe": {
+    "test_seq": "rv_timer_base_vseq",
+    "result": "expected abstract-sequence UVM_FATAL at 1109409 ps; excluded",
+    "log_sha256": "39f49e6ffea0882682c47d8b549c81e9e77b9cd9e0b284f7413d50cac6bd7e50"
+  },
+  "selected_runtime": {
+    "test": "rv_timer_base_test",
+    "test_seq": "rv_timer_random_vseq",
+    "smoke_test": 1,
+    "wall_cap_seconds": 750,
+    "rss_cap_mib": 6144,
+    "wall_seconds": 123.871,
+    "simulated_time_ps": 1632979408,
+    "random_iterations": 1,
+    "runner_exit": 0,
+    "timed_out": false,
+    "memory_capped": false,
+    "pass_markers": 1,
+    "uvm_warning": 0,
+    "uvm_error": 0,
+    "uvm_fatal": 0,
+    "log_sha256": "c9a69c1f5fb6e311ee5f5d930a437b94e73cbeddc1772ffc2a5735cb0b6e3288"
+  },
+  "qualifies_selected_test_pass": true,
+  "qualifies_49_target_census_update": false
+}

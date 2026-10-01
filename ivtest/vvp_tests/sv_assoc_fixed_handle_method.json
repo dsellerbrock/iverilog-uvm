@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assoc_fixed_handle_method.v",
+    "iverilog-args" : [ "-g2017", "-s", "top" ],
+    "gold"          : "sv_assoc_fixed_handle_method"
+}

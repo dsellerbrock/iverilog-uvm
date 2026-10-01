@@ -86,6 +86,7 @@ class Module : public PScopeExtra, public PNamedItem {
 		 block `default input/output` skews. */
 	    enum skew_kind_t { SKEW_1STEP, SKEW_DELAY };
 	    skew_kind_t input_skew(perm_string sig_name, PExpr*&delay) const;
+	    const pform_clocking_skew_t* output_skew(perm_string sig_name) const;
 	    PExpr* output_skew_delay(perm_string sig_name) const;
 	    void set_default_skews(const pform_clocking_skew_t*in_skew,
 				   const pform_clocking_skew_t*out_skew);
@@ -249,7 +250,8 @@ class Module : public PScopeExtra, public PNamedItem {
    other expression shapes return nil). Implemented in netmisc.cc. */
 class Design;
 extern NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
-					   const Module::PClocking*cb,
-					   perm_string sig_name);
+				    const Module::PClocking*cb,
+				    perm_string sig_name,
+				    bool input_select = false);
 
 #endif /* IVL_Module_H */

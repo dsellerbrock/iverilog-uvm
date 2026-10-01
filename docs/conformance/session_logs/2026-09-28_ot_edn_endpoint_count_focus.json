@@ -1,0 +1,47 @@
+{
+  "case": "lowrisc:dv:edn_sim:0.1 / edn_smoke_test / edn_smoke_vseq",
+  "status": "selected patched-source compile PASS; DV runtime FAIL at 0 ps",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_checkout_edited": false,
+  "compiler_revision_before_patch": "e84b12cc04083f056b9ab8df2b8a7622aaf479b8",
+  "saved_corpus": "/private/tmp/ot-census-blockers-head-20260927/result.json",
+  "saved_hard_errors": 3,
+  "source_patch": "docs/conformance/release_overlays/opentitan/edn_endpoint_request_count_coverpoint.patch",
+  "source_patch_sha256": "a12f3946750d65e6c8bb26144e899e80c4f86023712f44746f73961b7b1298f4",
+  "source_before_sha256": "eeeb7a0bcba823b936adb96ab3c80ea7d7aa1fa3e3fcbaf8d257c3636069017a",
+  "source_after_sha256": "6afc4b90f31da9f24c7fef6a42a3cf73e4520f476c56569066ca3bdba256c5e6",
+  "only_changed_generated_source": "src/lowrisc_dv_edn_cov_0/edn_cov_if.sv",
+  "source_list_sha256": "1c607ef26afee32072425ee32953cb005375a0832b58b6df34ff09f02b7337d9",
+  "reason": "The original coverpoint sampled the seven-bit request vector, while its three bin expressions evaluated Boolean $countones comparisons at covergroup construction. Binning $countones(ep_requests) directly samples the endpoint count and gives the intended none/some/all values (IEEE 1800-2017/2023 19.5.1). Slang accepts the original syntax; this patch corrects the testbench meaning and clears Icarus's three unsupported runtime-bin diagnostics.",
+  "minimal_reproducers": {
+    "original": "docs/conformance/repros/edn_endpoint_count/original.sv",
+    "original_strict_2017_and_2023": "three bin-dropped sorry diagnostics, one for each none/some/all bin",
+    "corrected": "docs/conformance/repros/edn_endpoint_count/corrected.sv",
+    "corrected_strict_2017_and_2023": "PASS endpoint count coverage 100.000000",
+    "next_runtime_blocker": "docs/conformance/repros/edn_joint_concat/nested_dist.sv",
+    "next_runtime_blocker_strict_2017_and_2023": "joint dist requires a direct canonical scalar or element subject when an owned rand child activates global joint solving"
+  },
+  "selected_compile": {
+    "returncode": 0,
+    "seconds": 5.565,
+    "hard_errors": 0,
+    "warnings": 15,
+    "image_sha256": "89f13b25c813a43abe04d7256526698c091e189e1e79037c3845cea6a150db01",
+    "log_sha256": "744bfc5551d3761f0af9d852136bffe9741f37a83590d9b4b7c9b8339000af73"
+  },
+  "selected_runtime": {
+    "returncode": 0,
+    "seconds": 3.106,
+    "test_passed_checks": false,
+    "test_failed_checks": true,
+    "first_failure": "0 ps: cfg.randomize() fails because global joint distribution requires a direct canonical scalar or element subject",
+    "uvm_fatal_count": 1,
+    "follow_on_end_of_sim_assertion_errors": 256,
+    "log_sha256": "0bdd301e01b24ce259c64c48c2eaae465fc8048e4ec1ddfb588c612444eb449f"
+  },
+  "compiler_binary_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "compiler_engine_sha256": "72bd3584c9baddd24bca29f9382a4da75aa03ec7b031b93ec90fbeed419bcfc4",
+  "vvp_target_sha256": "072c8c4608f5ba0a076444a767e743290ca3c3295e67dead1c05a0c7a9aa7129",
+  "vvp_binary_sha256": "08aea955de0800ce46cc843405a94098b80352eabe592e37e2dca11294646742",
+  "qualification": "One selected EDN target with one disposable source patch. No EDN DV pass and no 49-target corpus replay."
+}

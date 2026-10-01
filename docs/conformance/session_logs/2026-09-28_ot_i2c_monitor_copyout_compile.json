@@ -1,0 +1,33 @@
+{
+  "case": "lowrisc:dv:i2c_sim:0.1",
+  "source_pin": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_patch": "docs/conformance/release_overlays/opentitan/i2c_monitor_output_bit_copyout_compat.patch",
+  "source_patch_sha256": "e9cdca3fb35a600a2f1d6a6032e43cb1f6c04d3cbb2a3451d1d61652d290b740",
+  "apply_order": [
+    "i2c_constraint_and_queue_compat.patch",
+    "i2c_coverage_and_state_solve_compat.patch",
+    "i2c_monitor_output_bit_copyout_compat.patch"
+  ],
+  "root_cause": "virtual-interface output argument copied back to packed vector bit select is skipped by VVP target; both read and write monitor data bytes remain zero",
+  "minimal_reducers": {
+    "i2c_output_packed_bit_repro.sv": "strict 2017/2023 original compiles with copy-out warning then fails (00 vs ff); SCALAR_TEMP compiles and runs PASS",
+    "i2c_event_handle_input_repro.sv": "strict 2017/2023 input-handle and ref-handle controls both see start and stop events; perf_monitor never assigns its event handles"
+  },
+  "selected_copied_source_compile": {
+    "exit_code": 0,
+    "hard_error_lines": 0,
+    "sorry_lines": 0,
+    "warning_lines": 28,
+    "copyout_warning_lines": 0,
+    "log": "/private/tmp/ot-i2c-constraint-period-20260928/selected-monitor-corrected-compile.log",
+    "log_sha256": "01183f58c5e959b447f1c6e62be4151a1244d7bea6354554bb8eda61e493de60"
+  },
+  "installed_compiler_sha256": {
+    "driver": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+    "elaborator": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+    "vvp_target": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+  },
+  "remaining_risk": "i2c_base_seq local::data_q[i] binding warning remains and a strict reducer proves wrong queue values; separate investigation active",
+  "runtime": "not run while capped Caliptra observer is active",
+  "aggregate_49_case_census": "unchanged"
+}

@@ -1,0 +1,65 @@
+{
+  "blocker": "OT-PORT-BOUNDARY-SIGNEDNESS-VCD-GOLD",
+  "status": "focused tested, awaiting independent review and commit",
+  "standards": "IEEE 1800-2017/2023 11.8.2 expression sizing and 23.3.3 module input-port connection semantics",
+  "baseline": {
+    "head": "8eab751d9",
+    "json_run": 4105,
+    "json_failed": 0,
+    "json_gate_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-json-8eab751d9.log",
+    "legacy_total": 6873,
+    "legacy_passed": 6864,
+    "legacy_failed": 4,
+    "legacy_failed_names": ["pr2121536", "pr2121536b", "implicit_cast12", "vcd-dup"],
+    "gate_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-legacy-8eab751d9.log"
+  },
+  "root_cause": "The variable-input BUFZ boundary made a temporary netvector_t with default unsigned type. Port resizing later used that temporary's signedness, so signed 4-bit actuals zero-extended to 8-bit input ports. The same boundary split old VCD alias identifiers without changing any named signal's value stream.",
+  "fix": "Pass sig->get_signed() to the BUFZ temporary netvector_t constructor; retain the physical input-port boundary. Refresh only vcd-dup's structural VCD gold after semantic comparison.",
+  "red_green": {
+    "pre_fix_installed_ivl_sha256": "47723577aaf31f43b9ea28d989921a2b8a0736f4fe00a8c8cc3211b22b234e68",
+    "red_2017_2023": "Both editions exited 1: signed logic x001 widened to 0000x001 instead of xxxxx001, and signed bit 1001 widened to 00001001 instead of 11111001. Both unsigned controls already matched.",
+    "fixed_installed_ivl_sha256": "531587ed04d1c80b990548c639e7e007ab29402f70df0a48d735adba6c9980bc",
+    "fixed_installed_vvp_sha256": "e978a84bff1268ab70970eb6c5977f9f0f834d73c93ae9267d09125d2d40745b",
+    "green_2017_2023": "Both editions exit 0 and print PASSED for signed/unsigned logic and bit controls."
+  },
+  "permanent_regression": "ivtest/ivltests/sv_variable_input_port_signedness.v, paired 2017/2023 JSON and legacy registrations; 2023 legacy include wrapper.",
+  "focused_checks": [
+    {
+      "runner": "JSON",
+      "scope": "SDF interconnect 1-4, 2017/2023 sample port, settled input port, and 2017/2023 signedness reducer",
+      "result": "9 run, 0 failed; sdf_interconnect4 retained expected failure",
+      "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/port-boundary-regression-20260929/focus-json.log"
+    },
+    {
+      "runner": "legacy",
+      "scope": "pr2121536/pr2121536b, vcd-dup, br_gh540, implicit_cast1-13, and 2017/2023 signedness reducer",
+      "result": "19 total, 19 passed, 0 failed",
+      "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/port-boundary-regression-20260929/focus-legacy-port-cast-vcd.log"
+    }
+  ],
+  "vcd_gold_check": {
+    "fresh_run_cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/port-boundary-regression-20260929",
+    "fresh_run_path_prepend": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin",
+    "fresh_compile_argv": ["iverilog", "-o", "work/vcd-dup.vvp", "-s", "test", "ivltests/vcd-dup.v"],
+    "fresh_vvp_argv": ["vvp", "work/vcd-dup.vvp"],
+    "fresh_pre_refresh_output_sha256": "b957310e556f65585fc7f8ad2b05cd1f389103c3456ce63211696cf993c694a1",
+    "old_gold_identifier_count": 15,
+    "fixed_output_identifier_count": 19,
+    "named_signals": 23,
+    "ordered_timestamp_value_sequences_equal": true,
+    "mismatches": 0,
+    "original_date_header_preserved": true,
+    "duplicate_warning_gold": "The first four lines of the fixed run's log exactly match ivtest/gold/vcd-dup.log.gold: one dumpfile info line and three duplicate-dump warnings.",
+    "semantic_comparison": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/port-boundary-regression-20260929/vcd-fixed-vs-gold.json",
+    "final_comparison": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/port-boundary-regression-20260929/final-vcd-semantic.json"
+  },
+  "sha256": {
+    "elaborate_cc": "9d52272ba3b42cbdeb86679256319637599eee88f5022503f978ea0be9999678",
+    "signedness_reducer": "2a05dc78cecf661fbfc78955972916ddf270af8c3eea66a832a19a048f38a496",
+    "refreshed_vcd_gold": "c2ee8ee7600ae3e9526a4c3074e268b742fdacaa3aa371d1d8ceaafc582d256e"
+  },
+  "build_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/port-boundary-build-20260929.log",
+  "make_check_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/port-boundary-check-20260929.log",
+  "diff_check": "pass",
+  "qualification_boundary": "No full JSON or legacy gate was rerun after this fix. No OpenTitan 49-case corpus or high-memory application VVP was launched."
+}

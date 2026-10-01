@@ -1,0 +1,23 @@
+{
+  "pinned_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "applied": [
+    {
+      "patch": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/docs/conformance/release_overlays/opentitan/otbn_mnemonic_csr_localparam_bins.patch",
+      "patch_sha256": "c22e0d9d7284e6d63b3d38d31ca31c46639e8c735a79aa8a03c7ccc83bf07656",
+      "source": "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv",
+      "source_sha256_before": "1028ed5cc5aebc4a14f47a6ae40f0fadf856fbeac5e7961e9ed660513c9bd02e",
+      "source_sha256_after": "ab13517ccd79dc34ec41b3f253670bac43265c401d20f639fdf8488ea2cf2d70"
+    },
+    {
+      "patch": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/docs/conformance/release_overlays/opentitan/otbn_trace_forward_ref_order.patch",
+      "patch_sha256": "baffc9d26205d5f57afcc9eb0ce07c82b53a740b4ef180be01ba454e6a624207",
+      "source": "/private/tmp/ot-census-speedups-overlays-20260929/source/hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv",
+      "source_sha256_before": "6a66b4c38ed63aeedd231c519ed087ad271ee4274810f45433dfecd91fd72446",
+      "source_sha256_after": "ece12dea9c14a2ef3203b5494ffbe0db8f0a985905f511688dd7e4eccdb11a74"
+    }
+  ],
+  "changed_paths": [
+    "hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv",
+    "hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv"
+  ]
+}

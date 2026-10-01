@@ -1,0 +1,53 @@
+OpenTitan UVM runtime
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp -n /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-passthrough-checked-calls-matrix-20260929/runtime/lowrisc_dv_spid_passthrough_sim_0.1/matrix-runtime.vvp +TESTNAME=readbasic +smoke_test=1
+returncode: 0
+duration_seconds: 4.090
+
+UVM_INFO /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh(392) @ 0: reporter [UVM/RELNOTES] 
+----------------------------------------------------------------
+UVM-1.2
+(C) 2007-2014 Mentor Graphics Corporation
+(C) 2007-2014 Cadence Design Systems, Inc.
+(C) 2006-2014 Synopsys, Inc.
+(C) 2011-2013 Cypress Semiconductor Corp.
+(C) 2013-2014 NVIDIA Corporation
+----------------------------------------------------------------
+
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  You are using a version of the UVM library that has been compiled
+  with `UVM_OBJECT_DO_NOT_NEED_CONSTRUCTOR undefined.
+  See http://www.eda.org/svdb/view.php?id=3770 for more details.
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+/////////////////////
+// SPI Flash Model //
+/////////////////////
+
+Configurations:
+  JEDEC ID:  ID(0x1f) CC_NUM ( 7)
+  Capacity:  1MB
+  Fast Read: Enabled/ Dummy Cycle (8)
+  Dual Mode: Enabled/ Dummy Cycle (4)
+  Quad Mode: Enabled/ Dummy Cycle (3)
+Intializing SPI_DEVICE: PassThrough mode
+Status Received: 00
+Received Status: 00h
+SPIFlash: Command(9fh) received
+Jedec ID Received: Manufacturer ID [1f], JEDEC_ID [1234]
+Received Jedec ID: 1fh (CC:  7), Device ID: 1234h
+SPIFlash: Command(5ah) received
+                5149] SPIFlash: SFDP Address 00000000h
+Read SFDP [0x  000000 + 0x00000020]
+SPIFlash: Command(03h) received
+T:9447] SPIFlash: Read Address 00000103h
+Read Cmd [0x00000103 + 0x00000100]
+SPIFlash: Command(6bh) received
+T:38721] SPIFlash: Read Address 00000103h
+Read Cmd [0x00000103 + 0x00000083]
+Read Data size: 256 / 131
+Read Data (1st): '{171, 236, 57, 192, 73, 94, 159, 12, 129, 166, 33, 14, 41, 96, 112, 152, 47, 246, 96, 158, 162, 180, 95, 183, 228, 30, 115, 238, 61, 172, 214, 84, 105, 1, 158, 157, 188, 67, 91, 139, 231, 252, 210, 40, 142, 189, 29, 234, 56, 49, 56, 101, 17, 245, 230, 226, 1, 163, 116, 72, 214, 203, 247, 222, 118, 236, 187, 45, 163, 95, 8, 186, 88, 183, 148, 2, 1, 63, 148, 205, 29, 183, 160, 46, 66, 195, 163, 23, 156, 115, 95, 126, 184, 56, 200, 199, 247, 235, 210, 197, 22, 28, 121, 71, 67, 105, 110, 35, 48, 174, 186, 188, 158, 95, 196, 89, 148, 63, 144, 24, 40, 242, 88, 236, 48, 61, 55, 3, 118, 17, 51, 210, 147, 156, 221, 191, 137, 181, 220, 15, 124, 74, 176, 130, 58, 234, 183, 155, 2, 153, 240, 179, 178, 121, 96, 114, 1, 53, 237, 63, 215, 160, 141, 185, 77, 42, 155, 147, 203, 227, 214, 165, 6, 42, 61, 65, 222, 93, 192, 250, 42, 69, 100, 190, 235, 229, 69, 246, 153, 103, 46, 118, 254, 35, 213, 96, 178, 54, 75, 8, 152, 249, 52, 243, 91, 145, 164, 35, 249, 248, 48, 36, 94, 129, 45, 249, 46, 76, 168, 35, 61, 29, 151, 206, 251, 208, 12, 8, 179, 79, 138, 61, 197, 128, 10, 90, 19, 151, 169, 47, 26, 48, 201, 227, 76, 251, 146, 185, 125, 248, 178, 244, 135, 125, 168, 92}
+Read Data (2nd): '{171, 236, 57, 192, 73, 94, 159, 12, 129, 166, 33, 14, 41, 96, 112, 152, 47, 246, 96, 158, 162, 180, 95, 183, 228, 30, 115, 238, 61, 172, 214, 84, 105, 1, 158, 157, 188, 67, 91, 139, 231, 252, 210, 40, 142, 189, 29, 234, 56, 49, 56, 101, 17, 245, 230, 226, 1, 163, 116, 72, 214, 203, 247, 222, 118, 236, 187, 45, 163, 95, 8, 186, 88, 183, 148, 2, 1, 63, 148, 205, 29, 183, 160, 46, 66, 195, 163, 23, 156, 115, 95, 126, 184, 56, 200, 199, 247, 235, 210, 197, 22, 28, 121, 71, 67, 105, 110, 35, 48, 174, 186, 188, 158, 95, 196, 89, 148, 63, 144, 24, 40, 242, 88, 236, 48, 61, 55, 3, 118, 17, 51}
+TEST PASSED CHECKS
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:114: $finish called at 42710830 (1ps)

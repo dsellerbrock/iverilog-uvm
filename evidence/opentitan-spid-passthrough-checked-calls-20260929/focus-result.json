@@ -1,0 +1,114 @@
+{
+  "compiler": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+  "vvp": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp",
+  "results": [
+    {
+      "edition": "2017",
+      "source": "guarded_calls.sv",
+      "case": "valid",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 0,
+      "runtime_output": "PASSED\n"
+    },
+    {
+      "edition": "2017",
+      "source": "guarded_calls.sv",
+      "case": "missing",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 1,
+      "runtime_output": "FATAL: /private/tmp/spid-passthrough-notice-triage-20260929/guarded_calls.sv:10: missing TESTNAME\n       Time: 0  Scope: top\n"
+    },
+    {
+      "edition": "2017",
+      "source": "randomize_unchecked.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "/private/tmp/spid-passthrough-notice-triage-20260929/randomize_unchecked.sv:9: warning: method function 'randomize' is being called as a task.\n",
+      "runtime_returncode": 0,
+      "runtime_output": "unchecked value=0\n"
+    },
+    {
+      "edition": "2017",
+      "source": "randomize_checked.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 1,
+      "runtime_output": "FATAL: /private/tmp/spid-passthrough-notice-triage-20260929/randomize_checked.sv:9: randomize failed\n       Time: 0  Scope: top\n"
+    },
+    {
+      "edition": "2017",
+      "source": "static_init_before.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "/private/tmp/spid-passthrough-notice-triage-20260929/static_init_before.sv:6: warning: Static variable initialization requires explicit lifetime in this context.\n",
+      "runtime_returncode": 0,
+      "runtime_output": "value=1\nvalue=2\n"
+    },
+    {
+      "edition": "2017",
+      "source": "static_init_after.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 0,
+      "runtime_output": "value=1\nvalue=1\n"
+    },
+    {
+      "edition": "2023",
+      "source": "guarded_calls.sv",
+      "case": "valid",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 0,
+      "runtime_output": "PASSED\n"
+    },
+    {
+      "edition": "2023",
+      "source": "guarded_calls.sv",
+      "case": "missing",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 1,
+      "runtime_output": "FATAL: /private/tmp/spid-passthrough-notice-triage-20260929/guarded_calls.sv:10: missing TESTNAME\n       Time: 0  Scope: top\n"
+    },
+    {
+      "edition": "2023",
+      "source": "randomize_unchecked.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "/private/tmp/spid-passthrough-notice-triage-20260929/randomize_unchecked.sv:9: warning: method function 'randomize' is being called as a task.\n",
+      "runtime_returncode": 0,
+      "runtime_output": "unchecked value=0\n"
+    },
+    {
+      "edition": "2023",
+      "source": "randomize_checked.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 1,
+      "runtime_output": "FATAL: /private/tmp/spid-passthrough-notice-triage-20260929/randomize_checked.sv:9: randomize failed\n       Time: 0  Scope: top\n"
+    },
+    {
+      "edition": "2023",
+      "source": "static_init_before.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "/private/tmp/spid-passthrough-notice-triage-20260929/static_init_before.sv:6: warning: Static variable initialization requires explicit lifetime in this context.\n",
+      "runtime_returncode": 0,
+      "runtime_output": "value=1\nvalue=2\n"
+    },
+    {
+      "edition": "2023",
+      "source": "static_init_after.sv",
+      "case": "default",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 0,
+      "runtime_output": "value=1\nvalue=1\n"
+    }
+  ]
+}

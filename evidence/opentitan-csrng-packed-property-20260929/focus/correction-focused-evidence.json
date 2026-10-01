@@ -1,0 +1,164 @@
+{
+  "purpose": "CSRNG packed-property correction focused validation",
+  "repo_head": "14cf59e46a30adad09bda1378f0bd8a3dcc63ff9",
+  "in_tree_ivl": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivl",
+  "in_tree_ivl_sha256": "7c47607b82a089b08d7212b6d6ed3df2f7351155befb93324635ff556d5d2507",
+  "frozen_installed_ivl_sha256_before_correction": "432cb9c737cae3736c81aaa7daee7d46dfc3da926269ba53497723deb175f7b3",
+  "build_command": "make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex ivl",
+  "focused_command": "python3 /private/tmp/ot-csrng-index-20260929/run-three-plus-focus.py",
+  "focused_working_directory": "/private/tmp/ot-csrng-index-20260929",
+  "focused_runner": "/private/tmp/ot-csrng-index-20260929/run-three-plus-focus.py",
+  "private_result_directory": "/private/tmp/ot-csrng-index-20260929/three-plus-focus",
+  "total": 18,
+  "passed": 18,
+  "failed": 0,
+  "results": [
+    {
+      "name": "sv_concat_object_lvalue_unknown_offset",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_selected_vif_edge_invalid_real_index_2017",
+      "pass": true,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "mismatches": []
+    },
+    {
+      "name": "sv_selected_vif_edge_invalid_real_index_2023",
+      "pass": true,
+      "compile_exit": 1,
+      "runtime_exit": null,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_fixed_array_container_packed_select_oob",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_enum_property_2017",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_enum_property_2023",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_enum_container_packed_select_bounds",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_enum_container_packed_select_bounds_2023",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_prop_packed_member_var",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_select_incdec",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_select_incdec_bounds",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_select_incdec_bounds_2023",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_enum_property_index_2017",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_enum_property_index_2023",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_property_2d_index_2017",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_property_2d_index_2023",
+      "pass": true,
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_property_2d_range_invalid_2017",
+      "pass": true,
+      "compile_exit": 4,
+      "runtime_exit": null,
+      "mismatches": []
+    },
+    {
+      "name": "sv_class_packed_property_2d_range_invalid_2023",
+      "pass": true,
+      "compile_exit": 4,
+      "runtime_exit": null,
+      "mismatches": []
+    }
+  ],
+  "selected_vif_ce_stderr": {
+    "2017": "ivltests/sv_selected_vif_edge_invalid_real_index_2017.v:5: error: real expression cannot index a property.\nivltests/sv_selected_vif_edge_invalid_real_index_2017.v:5: warning: Failed to evaluate event expression 'posedge cfg.vif.csb[index]' (compile-progress: event skipped).\n1 error(s) during elaboration.\n",
+    "2023": "ivltests/sv_selected_vif_edge_invalid_real_index_2023.v:5: error: real expression cannot index a property.\nivltests/sv_selected_vif_edge_invalid_real_index_2023.v:5: warning: Failed to evaluate event expression 'posedge cfg.vif.csb[index]' (compile-progress: event skipped).\n1 error(s) during elaboration.\n"
+  },
+  "diff_check": "clean",
+  "source_hashes": {
+    "netmisc.cc": "b30a8fda8962ae6acc2f9d3a5647db8263fbd157fc80e3870afc91b11a0da7c8",
+    "netmisc.h": "92aacc907329fd459a21594d4647d379eae48e27dbbebf836add6ef1cbf077e2",
+    "elab_expr.cc": "92f37660fb163dab29cca88c65ae133803110cb8c6a4572fcea3267919d694df",
+    "elab_lval.cc": "675580d2f5f1b395f137a2bfb45f43b471dca2f9bbaafad5e92f952d37c88cc7"
+  },
+  "gold_hashes": {
+    "2017": "c456fff8081b1dfddb186b81fc6231b3fb9e244bfd5f1e54f39aa95cc10f49e5",
+    "2023": "3d7945c9cc018bfa4f151641df0ac261027d281e4c338c949b6e94234a39ac1e"
+  },
+  "validation_notes": [
+    "The formerly failing concat X/Z fixture has empty compiler stderr and runtime PASSED.",
+    "Both real-index CE fixtures now exit nonzero with one hard property-index error and the preexisting skipped-event warning.",
+    "Fixed-array undefined-index warning behavior is preserved by the adjacent sv_class_fixed_array_container_packed_select_oob control.",
+    "No install, broad suite, OpenTitan corpus, or shared ivtest work/log was run."
+  ]
+}

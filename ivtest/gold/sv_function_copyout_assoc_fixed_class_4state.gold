@@ -1,0 +1,7 @@
+WARNING: ./ivltests/sv_function_copyout_assoc_fixed_class_4state.v:41: associative array key contains X/Z; function copy-out was ignored
+         Time: 0  Scope: sv_function_copyout_assoc_fixed_class_4state
+WARNING: ./ivltests/sv_function_copyout_assoc_fixed_class_4state.v:45: associative array key contains X/Z; function copy-out was ignored
+         Time: 0  Scope: sv_function_copyout_assoc_fixed_class_4state
+WARNING: ./ivltests/sv_function_copyout_assoc_fixed_class_4state.v:53: associative array key contains X/Z; function copy-out was ignored
+         Time: 0  Scope: sv_function_copyout_assoc_fixed_class_4state
+PASSED

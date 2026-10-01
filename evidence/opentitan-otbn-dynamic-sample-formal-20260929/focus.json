@@ -1,0 +1,121 @@
+{
+  "blocker": "DD-095",
+  "phase": "DONE for DD-095 after exact-image local regression gates; OpenTitan application target remains blocked by tracer source order",
+  "base_head": "4fbfd2bc8",
+  "standards": [
+    "IEEE 1800-2017 7.4.6, 13.5.3, 19.3, 19.5",
+    "IEEE 1800-2023 7.4.5, 13.5.3, 19.3, 19.5"
+  ],
+  "root_cause": "Three covergroup sample-formal parser branches saved only PWire::data_type, losing unpacked_indices. Elaboration created scalar placeholders and call slots; VVP assignment did not dispatch fixed-array by-value RHS copy. Explicit and omitted-default call paths both need whole-array elaboration and shape validation.",
+  "changed_paths": [
+    "parse.y",
+    "pform.h",
+    "pform_types.h",
+    "pform_pclass.cc",
+    "elaborate.cc",
+    "tgt-vvp/stmt_assign.c",
+    "ivtest paired focus fixtures/golds/lists"
+  ],
+  "candidate_tool_sha256": {
+    "ivl_sha256": "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4",
+    "vvp_target_sha256": "c7009aa09565ac121b265d37352e66db43dd956482fba344488f2f596d12e29c",
+    "vvp_sha256": "1e1e39c507b23bfd0a29121ba3317801d9a7181b1cc2a18943fa1fdada6baa7c"
+  },
+  "focused_checks": {
+    "make_check": "pass on final candidate",
+    "strict_2017_2023": "six positive/negative paired regression families, including array member and bit selection, class property and bare signal actuals, opposite-direction copy, default reevaluation on each omitted call, and explicit/default shape rejects",
+    "json": "10/10",
+    "legacy": "10/10",
+    "json_command": "cd ivtest && PATH=\"$PWD/../local-install/bin:$PATH\" python3 ./vvp_reg.py regress-opentitan-otbn-flag-select-focus-vvp.list",
+    "legacy_command": "cd ivtest && PATH=\"$PWD/../local-install/bin:$PATH\" perl ./vvp_reg.pl regress-opentitan-otbn-flag-select-focus-legacy.list",
+    "independent_review": "No further actionable correctness issue after default path correction"
+  },
+  "selected_compile": {
+    "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "source_copy_root": "/private/tmp/otbn-dd094-20260929/selected",
+    "source_hashes": {
+      "copied_patched_sha256": "ab13517ccd79dc34ec41b3f253670bac43265c401d20f639fdf8488ea2cf2d70",
+      "selected_source_list_sha256": "1908eae1ad09f25f805cf058b85d7946e421d29906b90c52ac1e5b6a74de7273",
+      "selected_outer_filelist_sha256": "25a37f8ee165e65bb6d79bbda98ec101bbba5de5f13e26f4d2d7b3878acfb981"
+    },
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sotbn_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/private/tmp/otbn-dd095-final-20260929/otbn.vvp",
+      "-c",
+      "/private/tmp/otbn-dd094-20260929/selected/matrix-iverilog.scr"
+    ],
+    "cwd": "/private/tmp/otbn-dd094-20260929/selected/sim-icarus",
+    "prior_exit": 30,
+    "current_exit": 2,
+    "prior_hard_diagnostic_lines": 30,
+    "current_hard_diagnostic_lines": 2,
+    "cleared": {
+      "dynamic_sample_index_errors": 25,
+      "packed_struct_member_internal_errors": 3,
+      "array_index_zero_fallback_warnings": 25,
+      "constant_zero_sample_site_sorry_notices": 28
+    },
+    "remaining": "Two original otbn_trace_if.sv forward declaration-order bind/r-value errors",
+    "new_non_summary_diagnostic_lines": 0,
+    "current_non_summary_lines_are_ordered_subsequence_of_prior": true,
+    "guard": {
+      "reason": "exit",
+      "duration_seconds": 3.353,
+      "peak_process_group_rss_mib": 844.875,
+      "rss_cap_mib": 4096,
+      "samples": 30,
+      "process_group_empty_after": true
+    },
+    "selected_compile_log_sha256": "4b612981b2c649c6ffd42675909373b8de35cb46ba3ab09b42fbc5e391a931e0",
+    "vvp_image_emitted": false
+  },
+  "qualification_boundary": "No OTBN VVP image or DV pass and no refreshed 49-target OpenTitan census. DD-096 X/Z bin matching and out-of-bounds sample selection remain separate.",
+  "integrated_local_gates": {
+    "json": {
+      "result": "4129 run, 0 failed, 2 shards",
+      "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/dd095-full-gates-20260929/json.log",
+      "log_sha256": "44516774131f6b5fbe66a8a448827335d7e0091de26eec220459067cea81ec65",
+      "command": "PATH=\"$PWD/local-install/bin:$PATH\" scripts/ivtest-parallel.sh -j 2"
+    },
+    "legacy": {
+      "result": "6885 total, 6880 passed, 0 failed, 2 not implemented, 3 expected fail",
+      "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/dd095-full-gates-20260929/legacy.log",
+      "log_sha256": "6de71f2a16b01dffee7f0c186c90e16f8ba77ba6b8e01aeecddbe8de864b9b73"
+    },
+    "uvm": {
+      "result": "361 passed, 0 failed, 0 skipped, real DPI",
+      "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/dd095-full-gates-20260929/uvm.log",
+      "log_sha256": "e1f341e5abb0b9f4db032bfafb8fdc23d7546b452afc4e837337ec048cee75ec",
+      "command": "PATH=\"$PWD/local-install/bin:$PATH\" bash .github/uvm_test.sh"
+    },
+    "vpi": {
+      "result": "131 passed, 0 failed",
+      "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/dd095-full-gates-20260929/vpi.log",
+      "log_sha256": "04a980bf7866fdc13bbbd546bfb8744faaadcaf64ea809224fac7712aa6cade4"
+    },
+    "negative": {
+      "result": "154 passed, 0 failed",
+      "log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/dd095-full-gates-20260929/negative.log",
+      "log_sha256": "069925694d7d3b5320d80e961f6a002d4deacb59d0d31dcdf65bfec4a82547d9"
+    }
+  }
+}

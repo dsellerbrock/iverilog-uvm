@@ -1,0 +1,89 @@
+{
+  "pinned_opentitan_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "scope": "focused copied-source compiles only; no DV runtime",
+  "compiler_source_head": "1f2a4b3344ec87a014924e818d261c6e8c131f81",
+  "common_patch": "spid_cmdinfo_read_pipeline.patch",
+  "source_patches": [
+    {
+      "case": "readcmd",
+      "file": "ot-spid-readcmd-current-ports.patch",
+      "sha256": "1cef4a59031a475a3a188cea066462b66efeb04f6d9cc190b354eecd7870b322"
+    },
+    {
+      "case": "upload",
+      "file": "ot-spid-upload-current-ports.patch",
+      "sha256": "e3d56d9fe82bb889597bd9eb9efe5b75735590f9d92123ca788b442c58ee99c9"
+    }
+  ],
+  "results": [
+    {
+      "case": "readcmd",
+      "cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/readcmd/sim-icarus",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-gcommercial-unsafe",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/readcmd/patched.vvp",
+        "-c",
+        "lowrisc_dv_spid_readcmd_sim_0.1.scr"
+      ],
+      "returncode": 0,
+      "duration_seconds": 0.992,
+      "hard_errors": [],
+      "warnings": [],
+      "notes": [
+        "iverilog: note: wrote DPI export C stubs to /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/readcmd/patched.dpiexport.c (compile it into your DPI object)."
+      ],
+      "vvp_sha256": "6367719d80f0c0ed01729be80f1b8502fb95ee221dc3ad952c61a1514400eeae",
+      "common_only_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/readcmd/common-only.log",
+      "patched_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/readcmd/patched.log"
+    },
+    {
+      "case": "upload",
+      "cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/upload/sim-icarus",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-sspid_upload_tb",
+        "-gcommercial-unsafe",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/upload/patched.vvp",
+        "-c",
+        "lowrisc_dv_spid_upload_sim_0.1.scr"
+      ],
+      "returncode": 0,
+      "duration_seconds": 1.013,
+      "hard_errors": [],
+      "warnings": [],
+      "notes": [
+        "iverilog: note: wrote DPI export C stubs to /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/upload/patched.dpiexport.c (compile it into your DPI object)."
+      ],
+      "vvp_sha256": "871ff3a0aa6e90a8bb91a50e5d783f1c1d6df4094f232aca640df61b7432d34a",
+      "common_only_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/upload/common-only.log",
+      "patched_log": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-readcmd-upload-20260928/upload/patched.log"
+    }
+  ],
+  "pinned_checkout_edited": false
+}

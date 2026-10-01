@@ -1,0 +1,13 @@
+{
+    "type": "normal",
+    "source": "sdf_interconnect_sample_port.v",
+    "iverilog-args": [
+        "-g2017",
+        "-Ttyp",
+        "-ginterconnect",
+        "-gspecify",
+        "-s",
+        "top"
+    ],
+    "gold": "sdf_interconnect_sample_port"
+}

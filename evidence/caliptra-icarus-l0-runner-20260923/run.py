@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = Path(__file__).resolve().parent
 WORKTREE = HERE.parents[1]
@@ -34,6 +35,27 @@ CHECKER_PATCH = RELEASE_PATCHES / "l0_pure_checker_functions.patch"
 CHECKER_SOURCE_SHA256 = "6bd2ade137a90c0701aab28951ba6f8918724e0467c21756b0c308e6e9081c89"
 CHECKER_PATCH_SHA256 = "b3cdf87a5c819820fbb02d8b183e6209ab7f5fdb062228046ba27cdaae9dbd19"
 CHECKER_PATCHED_SHA256 = "6e67d67966b030931ec222aacfd0863086c7d35b5e916acd5f358a90ed538654"
+ECC_PCR_SOURCE = SOURCE / "src/ecc/rtl/ecc_dsa_ctrl.sv"
+ECC_PCR_PATCH = RELEASE_PATCHES / "caliptra-ecc-pcr-sign-key-start-boundary.patch"
+ECC_PCR_OBSERVER_PATCH = HERE / "ecc_pcr_internal_observer.patch"
+ECC_PCR_SOURCE_SHA256 = "bfe41f23b8002cc18e22c2f1fe8045fd0fb9c026d966154e3c6e845f9b24989b"
+ECC_PCR_PATCH_SHA256 = "3b24623f91bff4cdc7e4f22e3e30134454bd8fcbac07d38fd571c0321286cc06"
+ECC_PCR_PATCHED_SHA256 = "00dc51e75e38e4022a75772bb92cb80c8e97a59c6ec06fb1cdacc5108c357166"
+ECC_PCR_OBSERVER_PATCH_SHA256 = "0bf5b0a6af12e74f26442ab6ad30a1aa90c707dc834fb2613de7b5e942df8623"
+ECC_PCR_OBSERVED_SHA256 = "97dbc86ad178842159adf1d2cf46e5b6e65fe9988273a2d43d878c48b6fcd57d"
+AXI_SOURCE = SOURCE / "src/axi/rtl/axi_if.sv"
+AXI_PATCH = RELEASE_PATCHES / "axi_read_resp_user_alloc.patch"
+AXI_SOURCE_SHA256 = "e03bd7a7654eb9c31bd532861b94d59c876810aa9798f9f67f7df2a5a3f5495c"
+AXI_PATCH_SHA256 = "1309b3a8b53de1ffbf5b70e8e0d78ee81cbf23377d999d36a16a43d72047219f"
+AXI_PATCHED_SHA256 = "270ae4d86d3f118a67af1d3b0711478add168c8835645e871153abbd3931a31e"
+SHA_SOURCE = SOURCE / "src/sha512/rtl/sha512.sv"
+SHA_PERWORD_PATCH = HERE / "caliptra-sha512-block-stability-per-word.patch"
+SHA_OBSERVER_PATCH = HERE / "sha512_perword_observer_addon.patch"
+SHA_SOURCE_SHA256 = "5656d5a09d1570a567bb674b1b419775a83a08b37ee70792d28ab72ae0510d82"
+SHA_PERWORD_PATCH_SHA256 = "9eddc37ad0d62c6aeb8c4e11a20840ada166a5730d13a16d23f8cdca1075a3f6"
+SHA_PERWORD_SOURCE_SHA256 = "26428cb581ffa8e70818ad185f992662e77d25aac7acea80dac4e40699260586"
+SHA_OBSERVER_PATCH_SHA256 = "2ce62f52d424bfbb7bd40838885426b86097bf4b473498d154ee0d8644470397"
+SHA_OBSERVED_SOURCE_SHA256 = "7474f901d48b11d6f290fddc898f495b9fb0de7ccca2d700bd0fbc947a4d42a9"
 JTAG_TOP = SOURCE / "src/integration/tb/caliptra_top_tb.sv"
 JTAG_TOP_SHA256 = "c212c32da99e90cd3991da65e653998cac3e945d7479abfd640b9d82f47659f9"
 JTAG_EPHEMERAL_TOP_SHA256 = "df8d51cc7ad84000288f5d7c19641f433d59ae213314fa81b9d9e5f8a6b76c6e"
@@ -190,6 +212,91 @@ def prepare_checker_source_overlay(profile):
     return overlay_profile, patched
 
 
+def prepare_ecc_pcr_overlay(profile, observer=False):
+    if sha256(ECC_PCR_SOURCE) != ECC_PCR_SOURCE_SHA256 or sha256(ECC_PCR_PATCH) != ECC_PCR_PATCH_SHA256:
+        raise RuntimeError("Pinned ECC source or frozen PCR checker patch hash mismatch")
+    overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-ecc-pcr-", dir="/tmp"))
+    relative = Path("src/ecc/rtl/ecc_dsa_ctrl.sv")
+    patched = overlay_dir / relative
+    patched.parent.mkdir(parents=True)
+    shutil.copy2(ECC_PCR_SOURCE, patched)
+    command = ["patch", "--batch", "--fuzz=0", "-p1", "-d", str(overlay_dir),
+               "-i", str(ECC_PCR_PATCH)]
+    subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                   capture_output=True, text=True)
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    if sha256(patched) != ECC_PCR_PATCHED_SHA256:
+        raise RuntimeError("PCR checker overlay produced unexpected source")
+    if observer:
+        if sha256(ECC_PCR_OBSERVER_PATCH) != ECC_PCR_OBSERVER_PATCH_SHA256:
+            raise RuntimeError("ECC observer patch hash mismatch")
+        command[-1] = str(ECC_PCR_OBSERVER_PATCH)
+        subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                       capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        if sha256(patched) != ECC_PCR_OBSERVED_SHA256:
+            raise RuntimeError("ECC observer overlay produced unexpected source")
+    original_entry = "${CALIPTRA_ROOT}/" + str(relative)
+    source_list = profile.read_text()
+    if source_list.splitlines().count(original_entry) != 1:
+        raise RuntimeError("ECC source must occur exactly once in the compile profile")
+    overlay_profile = overlay_dir / profile.name
+    overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
+    return overlay_profile, patched
+
+
+def prepare_axi_read_resp_user_overlay(profile):
+    if sha256(AXI_SOURCE) != AXI_SOURCE_SHA256 or sha256(AXI_PATCH) != AXI_PATCH_SHA256:
+        raise RuntimeError("Pinned AXI source or frozen response-user patch hash mismatch")
+    overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-axi-ruser-", dir="/tmp"))
+    relative = Path("src/axi/rtl/axi_if.sv")
+    patched = overlay_dir / relative
+    patched.parent.mkdir(parents=True)
+    shutil.copy2(AXI_SOURCE, patched)
+    command = ["patch", "--batch", "--fuzz=0", "-p1", "-d", str(overlay_dir),
+               "-i", str(AXI_PATCH)]
+    subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                   capture_output=True, text=True)
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    if sha256(patched) != AXI_PATCHED_SHA256:
+        raise RuntimeError("AXI response-user overlay produced unexpected source")
+    original_entry = "${CALIPTRA_ROOT}/" + str(relative)
+    source_list = profile.read_text()
+    if source_list.splitlines().count(original_entry) != 1:
+        raise RuntimeError("AXI source must occur exactly once in the compile profile")
+    overlay_profile = overlay_dir / profile.name
+    overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
+    return overlay_profile, patched
+
+
+def prepare_sha512_perword_observer_overlay(profile):
+    if (sha256(SHA_SOURCE) != SHA_SOURCE_SHA256 or
+            sha256(SHA_PERWORD_PATCH) != SHA_PERWORD_PATCH_SHA256 or
+            sha256(SHA_OBSERVER_PATCH) != SHA_OBSERVER_PATCH_SHA256):
+        raise RuntimeError("Pinned SHA source or frozen diagnostic patch hash mismatch")
+    overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-sha-perword-", dir="/tmp"))
+    relative = Path("src/sha512/rtl/sha512.sv")
+    patched = overlay_dir / relative
+    patched.parent.mkdir(parents=True)
+    shutil.copy2(SHA_SOURCE, patched)
+    for patch_file, expected in ((SHA_PERWORD_PATCH, SHA_PERWORD_SOURCE_SHA256),
+                                 (SHA_OBSERVER_PATCH, SHA_OBSERVED_SOURCE_SHA256)):
+        command = ["patch", "--batch", "--fuzz=0", "-p1", "-d", str(overlay_dir),
+                   "-i", str(patch_file)]
+        subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                       capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        if sha256(patched) != expected:
+            raise RuntimeError(f"SHA diagnostic patch produced unexpected source: {patch_file.name}")
+    original_entry = "${CALIPTRA_ROOT}/" + str(relative)
+    source_list = profile.read_text()
+    if source_list.splitlines().count(original_entry) != 1:
+        raise RuntimeError("SHA source must occur exactly once in the compile profile")
+    overlay_profile = overlay_dir / profile.name
+    overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
+    return overlay_profile, patched
+
+
 def prepare_ephemeral_jtag_port(profile):
     if sha256(JTAG_TOP) != JTAG_TOP_SHA256:
         raise RuntimeError("Pinned JTAG top source hash mismatch")
@@ -285,7 +392,7 @@ def prepare_vectors(output, timeout, env, preflight):
         [sys.executable, str(VECTORS / "check_native_mldsa.py"), str(adams), str(ref / "test/test_dilithium5")],
     ]
     for index, command in enumerate(commands):
-        code, timed_out = invoke(command, native, env, native / f"step_{index}.log", timeout)
+        code, timed_out, _, _ = invoke(command, native, env, native / f"step_{index}.log", timeout)
         if code != 0:
             raise RuntimeError(f"Native vector preparation step {index} failed (exit={code}, timeout={timed_out})")
     files = {
@@ -343,30 +450,67 @@ def cases():
     return selected
 
 
-def invoke(argv, cwd, env, log, timeout):
+def stop_process(process):
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        process.terminate()
+    try:
+        return process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            process.kill()
+        return process.wait()
+
+
+def physical_footprint(pid):
+    report = subprocess.run(
+        ["/usr/bin/footprint", "--noCategories", "--swapped", "-f", "bytes", "-p", str(pid)],
+        capture_output=True, text=True, timeout=10)
+    match = re.search(r"^\s*phys_footprint:\s*(\d+) B\s*$", report.stdout, re.MULTILINE)
+    if report.returncode or not match:
+        raise RuntimeError(f"Cannot measure VVP physical footprint: {report.stderr.strip()}")
+    return int(match.group(1))
+
+
+def invoke(argv, cwd, env, log, timeout, memory_cap_bytes=None):
     with log.open("w") as stream:
         process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=stream,
                                    stderr=subprocess.STDOUT, start_new_session=True)
-        try:
-            return process.wait(timeout=timeout), False
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            except PermissionError:
-                process.terminate()
-            try:
-                process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
+        if memory_cap_bytes is not None:
+            deadline = time.monotonic() + timeout
+            peak_footprint = None
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    stop_process(process)
+                    return None, True, False, peak_footprint
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                except PermissionError:
-                    process.kill()
-                process.wait()
-            return None, True
+                    return process.wait(timeout=min(5, remaining)), False, False, peak_footprint
+                except subprocess.TimeoutExpired:
+                    if process.poll() is not None:
+                        return process.returncode, False, False, peak_footprint
+                    try:
+                        footprint = physical_footprint(process.pid)
+                    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+                        if process.poll() is not None:
+                            return process.returncode, False, False, peak_footprint
+                        stop_process(process)
+                        raise
+                    peak_footprint = max(peak_footprint or 0, footprint)
+                    if footprint > memory_cap_bytes:
+                        return stop_process(process), False, True, peak_footprint
+        try:
+            return process.wait(timeout=timeout), False, False, None
+        except subprocess.TimeoutExpired:
+            stop_process(process)
+            return None, True, False, None
 
 
 def main():
@@ -380,10 +524,20 @@ def main():
                         help="use a hash-guarded copied BFM to diagnose the time-zero reset race")
     parser.add_argument("--checker-source-overlay", action="store_true",
                         help="use a hash-guarded copied checker with pure KV/MLDSA predicates")
+    parser.add_argument("--ecc-pcr-key-boundary-overlay", action="store_true",
+                        help="patch copied ECC checker source for smoke_test_pcr_zeroize only")
+    parser.add_argument("--ecc-pcr-internal-observer", action="store_true",
+                        help="trace ECC private-key write controls on the copied checker source")
+    parser.add_argument("--axi-read-resp-user-overlay", action="store_true",
+                        help="patch copied AXI read response-user allocation for one selected case")
+    parser.add_argument("--sha512-perword-observer-overlay", action="store_true",
+                        help="patch copied SHA checker and trace block writes for pv_hash_zeroize")
     parser.add_argument("--ephemeral-jtag-port", action="store_true",
                         help="use a hash-guarded copied top with JTAG ListenPort 0")
     parser.add_argument("--output", type=Path, help="new isolated results directory")
     parser.add_argument("--timeout", type=int, default=900, help="seconds per command")
+    parser.add_argument("--sim-memory-gib", type=int,
+                        help="stop VVP if its macOS physical footprint exceeds this many GiB")
     args = parser.parse_args()
     selected = cases()
     if args.list:
@@ -395,8 +549,27 @@ def main():
         parser.error("--all and --case cannot be combined")
     if args.case and args.case not in {case["name"] for case in selected}:
         parser.error(f"unknown released L0 test: {args.case}")
+    if args.ecc_pcr_key_boundary_overlay and (args.all or args.case != "smoke_test_pcr_zeroize"):
+        parser.error("--ecc-pcr-key-boundary-overlay requires --case smoke_test_pcr_zeroize")
+    if args.ecc_pcr_internal_observer and not args.ecc_pcr_key_boundary_overlay:
+        parser.error("--ecc-pcr-internal-observer requires --ecc-pcr-key-boundary-overlay")
+    if args.axi_read_resp_user_overlay and (args.all or not args.case):
+        parser.error("--axi-read-resp-user-overlay requires one explicit --case")
+    if args.sha512_perword_observer_overlay and (args.all or args.case != "pv_hash_zeroize"):
+        parser.error("--sha512-perword-observer-overlay requires --case pv_hash_zeroize")
+    if args.sha512_perword_observer_overlay and not args.commercial_unsafe:
+        parser.error("--sha512-perword-observer-overlay requires --commercial-unsafe")
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if args.sim_memory_gib is not None:
+        if args.sim_memory_gib <= 0:
+            parser.error("--sim-memory-gib must be positive")
+        if platform.system() != "Darwin" or not os.access("/usr/bin/footprint", os.X_OK):
+            parser.error("--sim-memory-gib requires macOS /usr/bin/footprint")
+    if args.axi_read_resp_user_overlay and (args.sim_memory_gib != 8 or args.timeout != 57600):
+        parser.error("--axi-read-resp-user-overlay requires --sim-memory-gib 8 --timeout 57600")
+    if args.sha512_perword_observer_overlay and (args.sim_memory_gib != 8 or args.timeout != 57600):
+        parser.error("--sha512-perword-observer-overlay requires --sim-memory-gib 8 --timeout 57600")
     run_cases = selected if args.all else [next(case for case in selected
                                                 if case["name"] == (args.case or "smoke_test_veer"))]
     source_before = verify_sources()
@@ -406,11 +579,18 @@ def main():
         parser.error("--reset-overlay requires --commercial-unsafe")
     if args.checker_source_overlay and not args.commercial_unsafe:
         parser.error("--checker-source-overlay requires --commercial-unsafe")
+    if args.ecc_pcr_key_boundary_overlay and not args.commercial_unsafe:
+        parser.error("--ecc-pcr-key-boundary-overlay requires --commercial-unsafe")
+    if args.axi_read_resp_user_overlay and not args.commercial_unsafe:
+        parser.error("--axi-read-resp-user-overlay requires --commercial-unsafe")
     if args.ephemeral_jtag_port and not args.commercial_unsafe:
         parser.error("--ephemeral-jtag-port requires --commercial-unsafe")
     profile = PROFILE
     bfm_overlay = None
     checker_overlay = None
+    ecc_pcr_overlay = None
+    axi_overlay = None
+    sha_overlay = None
     jtag_top_overlay = None
     jtag_port_provenance = None
     if args.reset_overlay:
@@ -421,6 +601,12 @@ def main():
         bfm_overlay = overlay_dir / "caliptra_top_tb_soc_bfm.sv"
     if args.checker_source_overlay:
         profile, checker_overlay = prepare_checker_source_overlay(profile)
+    if args.ecc_pcr_key_boundary_overlay:
+        profile, ecc_pcr_overlay = prepare_ecc_pcr_overlay(profile, args.ecc_pcr_internal_observer)
+    if args.axi_read_resp_user_overlay:
+        profile, axi_overlay = prepare_axi_read_resp_user_overlay(profile)
+    if args.sha512_perword_observer_overlay:
+        profile, sha_overlay = prepare_sha512_perword_observer_overlay(profile)
     if args.ephemeral_jtag_port:
         profile, jtag_top_overlay, jtag_port_provenance = prepare_ephemeral_jtag_port(profile)
     checker_overlay_provenance = ({
@@ -431,6 +617,29 @@ def main():
         "copied_source": str(checker_overlay),
         "source_sha256_after": sha256(checker_overlay),
     } if checker_overlay else None)
+    ecc_pcr_overlay_provenance = ({
+        "source": str(ECC_PCR_SOURCE),
+        "source_sha256_before": sha256(ECC_PCR_SOURCE),
+        "patch": str(ECC_PCR_PATCH),
+        "patch_sha256": sha256(ECC_PCR_PATCH),
+        "observer_patch": str(ECC_PCR_OBSERVER_PATCH) if args.ecc_pcr_internal_observer else None,
+        "observer_patch_sha256": (sha256(ECC_PCR_OBSERVER_PATCH)
+                                   if args.ecc_pcr_internal_observer else None),
+        "copied_source": str(ecc_pcr_overlay),
+        "source_sha256_after": sha256(ecc_pcr_overlay),
+    } if ecc_pcr_overlay else None)
+    axi_overlay_provenance = ({
+        "source": str(AXI_SOURCE), "source_sha256_before": sha256(AXI_SOURCE),
+        "patch": str(AXI_PATCH), "patch_sha256": sha256(AXI_PATCH),
+        "copied_source": str(axi_overlay), "source_sha256_after": sha256(axi_overlay),
+    } if axi_overlay else None)
+    sha_overlay_provenance = ({
+        "source": str(SHA_SOURCE), "source_sha256_before": sha256(SHA_SOURCE),
+        "perword_patch": str(SHA_PERWORD_PATCH), "perword_patch_sha256": sha256(SHA_PERWORD_PATCH),
+        "perword_source_sha256": SHA_PERWORD_SOURCE_SHA256,
+        "observer_patch": str(SHA_OBSERVER_PATCH), "observer_patch_sha256": sha256(SHA_OBSERVER_PATCH),
+        "copied_source": str(sha_overlay), "source_sha256_after": sha256(sha_overlay),
+    } if sha_overlay else None)
     fingerprints_before = {"runner": sha256(Path(__file__)),
                            "compiler": sha256(CC), "ivl": sha256(IVL),
                            "vvp_target": sha256(TARGET), "vvp": sha256(VVP),
@@ -440,6 +649,21 @@ def main():
     if checker_overlay:
         fingerprints_before["checker_sva_overlay"] = sha256(checker_overlay)
         fingerprints_before["checker_patch"] = sha256(CHECKER_PATCH)
+    if ecc_pcr_overlay:
+        fingerprints_before["ecc_pcr_source"] = sha256(ECC_PCR_SOURCE)
+        fingerprints_before["ecc_pcr_overlay"] = sha256(ecc_pcr_overlay)
+        fingerprints_before["ecc_pcr_patch"] = sha256(ECC_PCR_PATCH)
+        if args.ecc_pcr_internal_observer:
+            fingerprints_before["ecc_pcr_observer_patch"] = sha256(ECC_PCR_OBSERVER_PATCH)
+    if axi_overlay:
+        fingerprints_before["axi_source"] = sha256(AXI_SOURCE)
+        fingerprints_before["axi_overlay"] = sha256(axi_overlay)
+        fingerprints_before["axi_patch"] = sha256(AXI_PATCH)
+    if sha_overlay:
+        fingerprints_before["sha_source"] = sha256(SHA_SOURCE)
+        fingerprints_before["sha_perword_patch"] = sha256(SHA_PERWORD_PATCH)
+        fingerprints_before["sha_observer_patch"] = sha256(SHA_OBSERVER_PATCH)
+        fingerprints_before["sha_overlay"] = sha256(sha_overlay)
     if jtag_top_overlay:
         fingerprints_before["jtag_top_source"] = sha256(JTAG_TOP)
         fingerprints_before["jtag_top_overlay"] = sha256(jtag_top_overlay)
@@ -461,6 +685,10 @@ def main():
     diagnostic_overlays = [name for enabled, name in (
         (args.reset_overlay, "reset"),
         (args.checker_source_overlay, "checker_source"),
+        (args.ecc_pcr_key_boundary_overlay, "ecc_pcr_key_boundary"),
+        (args.ecc_pcr_internal_observer, "ecc_pcr_internal_observer"),
+        (args.axi_read_resp_user_overlay, "axi_read_resp_user"),
+        (args.sha512_perword_observer_overlay, "sha512_perword_observer"),
         (args.ephemeral_jtag_port, "ephemeral_jtag_port"),
     ) if enabled]
     qualification = (f"diagnostic_{'_'.join(diagnostic_overlays)}_overlay"
@@ -473,15 +701,23 @@ def main():
         "reset_overlay": args.reset_overlay,
         "checker_source_overlay": args.checker_source_overlay,
         "checker_overlay_provenance": checker_overlay_provenance,
+        "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+        "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+        "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+        "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+        "axi_overlay_provenance": axi_overlay_provenance,
+        "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+        "sha_overlay_provenance": sha_overlay_provenance,
         "ephemeral_jtag_port": args.ephemeral_jtag_port,
         "jtag_port_provenance": jtag_port_provenance,
         "qualification": qualification, "compiler_flags": compiler_flags,
+        "sim_memory_cap_gib": args.sim_memory_gib,
         "expected_smoke_readmemh_sha256": SEED_HASHES, "jtagdpi_bundle_sha256": jtagdpi_hash,
         "vector_preflight": vector_preflight,
     }, indent=2) + "\n")
     compile_error = None
     try:
-        compile_code, compile_timeout = invoke(compiler, output, env, output / "compile.log", args.timeout)
+        compile_code, compile_timeout, _, _ = invoke(compiler, output, env, output / "compile.log", args.timeout)
     except OSError as exc:
         compile_code, compile_timeout, compile_error = 127, False, str(exc)
     sampling_warnings = len(SAMPLING_WARNING.findall((output / "compile.log").read_text(errors="replace")))
@@ -497,6 +733,13 @@ def main():
             "reset_overlay": args.reset_overlay,
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
+            "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+            "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+            "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+            "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+            "axi_overlay_provenance": axi_overlay_provenance,
+            "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+            "sha_overlay_provenance": sha_overlay_provenance,
             "ephemeral_jtag_port": args.ephemeral_jtag_port,
             "jtag_port_provenance": jtag_port_provenance,
             "compiler_flags": compiler_flags, "selected": 52, "attempted": 0,
@@ -519,6 +762,13 @@ def main():
             "reset_overlay": args.reset_overlay,
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
+            "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+            "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+            "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+            "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+            "axi_overlay_provenance": axi_overlay_provenance,
+            "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+            "sha_overlay_provenance": sha_overlay_provenance,
             "ephemeral_jtag_port": args.ephemeral_jtag_port,
             "jtag_port_provenance": jtag_port_provenance,
             "selected": 52, "attempted": 0, "passed": 0, "failed": 0, "unrun": 52,
@@ -528,6 +778,7 @@ def main():
         print(f"run preparation failed: {exc}", file=sys.stderr)
         return 1
     failed = 0
+    memory_limit_hits = 0
     for case in run_cases:
         name = case["name"]
         firmware_root = firmware_roots[name]
@@ -540,8 +791,8 @@ def main():
         firmware_env = env.copy()
         firmware_env["CALIPTRA_ROOT"] = str(firmware_root)
         firmware_env["CALIPTRA_PRIM_ROOT"] = str(firmware_root / "src/caliptra_prim_generic")
-        firmware_code, firmware_timeout = invoke(firmware_command, run, firmware_env,
-                                                  run / "firmware.log", args.timeout)
+        firmware_code, firmware_timeout, _, _ = invoke(firmware_command, run, firmware_env,
+                                                        run / "firmware.log", args.timeout)
         images = {name: run / name for name in SEED_HASHES}
         missing_images = [name for name, path in images.items() if not path.is_file()]
         image_hashes = {name: sha256(path) if path.is_file() else None
@@ -551,14 +802,17 @@ def main():
                     and expected_match is not False)
         sim_command = [str(VVP), "-d", str(JTAGDPI), "-n", str(output / "caliptra_top_tb.vvp"),
                        "+CLP_REGRESSION", "+CLP_BUS_LOGS", *case["plusargs"]]
-        sim_code, sim_timeout = (None, False)
+        sim_code, sim_timeout, sim_memory_limit_hit, sim_peak_footprint = (None, False, False, None)
         staged_hashes = None
         vector_integrity_ok = False
         if firmware_code == 0 and image_ok:
             staged_hashes = stage_vectors(run, vector_files, vector_hashes, vector_preflight)
             sim_env = env.copy()
             sim_env["PATH"] = f"{run / '.bin'}:{env['PATH']}"
-            sim_code, sim_timeout = invoke(sim_command, run, sim_env, run / "sim.log", args.timeout)
+            sim_code, sim_timeout, sim_memory_limit_hit, sim_peak_footprint = invoke(
+                sim_command, run, sim_env, run / "sim.log", args.timeout,
+                memory_cap_bytes=(args.sim_memory_gib * 1024**3
+                                  if args.sim_memory_gib is not None else None))
             vector_integrity_ok = all(sha256(run / relative) == digest
                                       for relative, digest in staged_hashes.items())
         sim = (run / "sim.log").read_text(errors="replace") if (run / "sim.log").exists() else ""
@@ -570,6 +824,7 @@ def main():
         missing_dpi = len(MISSING_DPI.findall(sim))
         jtag_server_errors = len(JTAG_SERVER_ERROR.findall(sim))
         passed = (firmware_code == 0 and image_ok and sim_code == 0 and not sim_timeout
+                  and not sim_memory_limit_hit
                   and vector_integrity_ok
                   and sim.count("* TESTCASE PASSED") == 1 and "TESTCASE FAILED" not in sim
                   and runtime_diagnostics_ok(sim)
@@ -583,6 +838,13 @@ def main():
                   "reset_overlay": args.reset_overlay,
                   "checker_source_overlay": args.checker_source_overlay,
                   "checker_overlay_provenance": checker_overlay_provenance,
+                  "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+                  "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+                  "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+                  "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+                  "axi_overlay_provenance": axi_overlay_provenance,
+                  "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+                  "sha_overlay_provenance": sha_overlay_provenance,
                   "ephemeral_jtag_port": args.ephemeral_jtag_port,
                   "jtag_port_provenance": jtag_port_provenance,
                   "compiler_flags": compiler_flags, "jtagdpi_bundle_sha256": jtagdpi_hash,
@@ -594,6 +856,9 @@ def main():
                   "program_sha256": image_hashes["program.hex"],
                   "sim_command": sim_command if firmware_code == 0 and image_ok else None,
                   "sim_exit": sim_code, "sim_timeout": sim_timeout,
+                  "sim_memory_cap_gib": args.sim_memory_gib,
+                  "memory_limit_hit": sim_memory_limit_hit,
+                  "peak_physical_footprint_bytes": sim_peak_footprint,
                   "pass_markers": sim.count("* TESTCASE PASSED"),
                   "failed_markers": sim.count("TESTCASE FAILED"),
                   "bad_diagnostics": len(BAD.findall(sim)),
@@ -604,6 +869,7 @@ def main():
         (run / "result.json").write_text(json.dumps(result, indent=2) + "\n")
         print(f"{'PASS' if passed else 'FAIL'} {name}: retired={retired} trace={commits}", flush=True)
         failed += not passed
+        memory_limit_hits += sim_memory_limit_hit
     source_after = None
     source_error = None
     try:
@@ -619,6 +885,21 @@ def main():
     if checker_overlay:
         fingerprints_after["checker_sva_overlay"] = sha256(checker_overlay)
         fingerprints_after["checker_patch"] = sha256(CHECKER_PATCH)
+    if ecc_pcr_overlay:
+        fingerprints_after["ecc_pcr_source"] = sha256(ECC_PCR_SOURCE)
+        fingerprints_after["ecc_pcr_overlay"] = sha256(ecc_pcr_overlay)
+        fingerprints_after["ecc_pcr_patch"] = sha256(ECC_PCR_PATCH)
+        if args.ecc_pcr_internal_observer:
+            fingerprints_after["ecc_pcr_observer_patch"] = sha256(ECC_PCR_OBSERVER_PATCH)
+    if axi_overlay:
+        fingerprints_after["axi_source"] = sha256(AXI_SOURCE)
+        fingerprints_after["axi_overlay"] = sha256(axi_overlay)
+        fingerprints_after["axi_patch"] = sha256(AXI_PATCH)
+    if sha_overlay:
+        fingerprints_after["sha_source"] = sha256(SHA_SOURCE)
+        fingerprints_after["sha_perword_patch"] = sha256(SHA_PERWORD_PATCH)
+        fingerprints_after["sha_observer_patch"] = sha256(SHA_OBSERVER_PATCH)
+        fingerprints_after["sha_overlay"] = sha256(sha_overlay)
     if jtag_top_overlay:
         fingerprints_after["jtag_top_source"] = sha256(JTAG_TOP)
         fingerprints_after["jtag_top_overlay"] = sha256(jtag_top_overlay)
@@ -655,12 +936,21 @@ def main():
     (output / "summary.json").write_text(json.dumps({"selected": 52, "attempted": attempted,
                                                        "passed": attempted - failed,
                                                        "failed": failed, "unrun": 52 - attempted,
+                                                       "sim_memory_cap_gib": args.sim_memory_gib,
+                                                       "memory_limit_hits": memory_limit_hits,
                                                        "status": "COMPLETE" if not integrity_error else "INVALIDATED",
                                                        "qualification": qualification,
                                                        "commercial_unsafe": args.commercial_unsafe,
                                                        "reset_overlay": args.reset_overlay,
                                                        "checker_source_overlay": args.checker_source_overlay,
                                                        "checker_overlay_provenance": checker_overlay_provenance,
+                                                       "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+                                                       "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+                                                       "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+                                                       "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+                                                       "axi_overlay_provenance": axi_overlay_provenance,
+                                                       "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+                                                       "sha_overlay_provenance": sha_overlay_provenance,
                                                        "ephemeral_jtag_port": args.ephemeral_jtag_port,
                                                        "jtag_port_provenance": jtag_port_provenance,
                                                        "firmware_sources": {name: str(root) for name, root in firmware_roots.items()},

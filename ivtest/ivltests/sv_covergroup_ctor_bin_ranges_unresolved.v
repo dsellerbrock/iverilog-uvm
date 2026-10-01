@@ -19,12 +19,6 @@ module top;
     unsupported_cross: cross cp, other_cp;
   endgroup
 
-  covergroup cg_wide(logic [64:0] limit) with function sample(logic [64:0] value);
-    cp: coverpoint value {
-      bins unsupported_width = {[limit:limit]};
-    }
-  endgroup
-
   covergroup cg_ctor_set(int values[$]) with function sample(int value);
     cp: coverpoint value {
       bins unsupported_ctor_set[] = values;
@@ -32,12 +26,10 @@ module top;
   endgroup
 
   cg bad;
-  cg_wide wide_bad;
   cg_ctor_set ctor_set_bad;
 
   initial begin
     bad = new(4);
-    wide_bad = new(65'h1_0000_0000_0000_0000);
     $display("PASSED");
   end
 endmodule

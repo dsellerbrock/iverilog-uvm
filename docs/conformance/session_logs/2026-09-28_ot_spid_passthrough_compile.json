@@ -1,0 +1,71 @@
+{
+  "case": "lowrisc:dv:spid_passthrough_sim:0.1",
+  "compiler_source_head": "1f2a4b3344ec87a014924e818d261c6e8c131f81",
+  "scope": "focused copied-source compile only; no DV runtime",
+  "edition": "-g2012 -stb -gcommercial-unsafe",
+  "source_patches": [
+    {
+      "file": "spid_cmdinfo_read_pipeline.patch",
+      "sha256": "0de41341c4fe7ab119d30d40eb66279e18e0668b556ae1cddc2601f78f0a0589"
+    },
+    {
+      "file": "spid_passthrough_program_input_var.patch",
+      "sha256": "eecb73e4f3c1e11f67a23ac5e36a6a5a96dfd6218a91be7805b5a137573dafee"
+    },
+    {
+      "file": "spid_passthrough_stale_interrupt_ports.patch",
+      "sha256": "859481cce8eddc3bdfd7b2f29fbcea876c9dbdfb1d38bca3af3be45fb7c59cef"
+    }
+  ],
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+    "-g2012",
+    "-stb",
+    "-gcommercial-unsafe",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_REG_BYTENABLE_WIDTH=4",
+    "-DUVM_REGEX_NO_DPI",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-passthrough-current/matrix-runtime-shared-head.vvp",
+    "-c",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-passthrough-current/matrix-iverilog.scr"
+  ],
+  "cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-passthrough-current/sim-icarus",
+  "returncode": 0,
+  "wall_seconds": 2.301,
+  "vvp_sha256": "7748391bc319abc93ba76eb3b46c24c75652feb7cab0f30f49363857b4087e8f",
+  "hard_lines": [],
+  "warning_lines": [
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:224: warning: Static variable initialization requires explicit lifetime in this context.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:226: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:263: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:373: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:386: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:414: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:437: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:489: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:323: warning: method function 'randomize' is being called as a task.",
+    "../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_sw.sv:215: warning: Could not find variable ``tb.dut.u_memory_2p.u_mem.gen_generic.u_impl_generic.mem[i]'' in ``tb.sw.init_dpsram.$unm_blk_5628'' (compile-progress: assignment ignored)."
+  ],
+  "strict_modport_checks": {
+    "passed": 8,
+    "total": 8,
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "positive_runtime_and_negative_compile": true
+  },
+  "runtime_blockers": [
+    "const ref clock edge wait on program input var does not wake in strict 2017/2023 RED reducer",
+    "dynamic backdoor memory assignment at prog_passthrough_sw.sv:215 ignored by compiler"
+  ],
+  "pinned_checkout_edited": false
+}

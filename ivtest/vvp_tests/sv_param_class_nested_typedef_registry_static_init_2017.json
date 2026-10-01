@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_param_class_nested_typedef_registry_static_init.v",
+    "iverilog-args" : [ "-g2017", "-gstrict-expr-width" ]
+}

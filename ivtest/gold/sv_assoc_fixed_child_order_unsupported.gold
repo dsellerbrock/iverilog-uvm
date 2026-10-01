@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_fixed_child_order_unsupported.v:10: error: Enable of unknown task ``cfg.map[Data]['sd0].shuffle''.
+1 error(s) during elaboration.

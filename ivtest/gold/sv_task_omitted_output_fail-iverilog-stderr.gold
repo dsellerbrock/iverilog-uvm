@@ -1,0 +1,2 @@
+ivltests/sv_task_omitted_output_fail.v:10: error: Missing argument 2 ('value') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+1 error(s) during elaboration.

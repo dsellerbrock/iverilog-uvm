@@ -1,0 +1,71 @@
+{
+  "target": "lowrisc:dv:rv_timer_sim:0.1",
+  "pinned_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_commit": "975579b15",
+  "source_patch": {
+    "name": "docs/conformance/release_overlays/opentitan/rv_timer_compare_solve_before.patch",
+    "sha256": "3aa45d74296a1ecbd9d1671424b672d7be48fcda5f7a82012d5aea2458dcb9e3",
+    "pinned_source_sha256": "7ad1e3f37f3886735cdd4a273ebd919ef76b5b612418eb7f892bb7643a39fd33",
+    "patched_source_sha256": "1a8c84e5cc147ad45743097be2ee3c9bed025f3299e52ad264ffcde80d090260",
+    "scope": "pinned NUM_HARTS=NUM_TIMERS=1"
+  },
+  "focused_2017_2023": {
+    "2017_compile": "pass",
+    "2017_runtime": "PASS",
+    "2023_compile": "pass",
+    "2023_runtime": "PASS",
+    "slang_2017": "pass",
+    "slang_2023": "pass"
+  },
+  "unpatched_current_compile": {
+    "exit_code": 5,
+    "hard_error_count": 5,
+    "log_sha256": "faa83348148ff7235130a08acb074c9bac669fb3a4fe46e4adc325ed777e87bc"
+  },
+  "patched_selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-srv_timer_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-rv-timer-solve/rv_timer_patched.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-rv-timer-solve/matrix-iverilog.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_rv_timer_sim_0.1/sim-icarus",
+    "exit_code": 0,
+    "wall_seconds": 3.938,
+    "hard_diagnostics": [],
+    "warnings": [
+      "../src/lowrisc_dv_rv_timer_sim_0.1/tb/tb.sv:26: warning: input port rst_n is coerced to inout.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.",
+      "../src/lowrisc_fpv_rv_timer_csr_assert_0/rv_timer_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process."
+    ],
+    "log_sha256": "54fabec63ca45b78959339611fd92507051cf27ba4d6fc4b287a2959369292ae",
+    "image_sha256": "b09895973cd228457e87ce7baa1210e1ec3f1a905fc422078c0d97f01688df03"
+  },
+  "dv_runtime_started": false,
+  "qualifies_dv_pass": false
+}

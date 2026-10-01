@@ -1,0 +1,37 @@
+{
+  "repository": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926",
+  "head": "14cf59e46a30adad09bda1378f0bd8a3dcc63ff9",
+  "installed_red_ivl_sha256": "7c47607b82a089b08d7212b6d6ed3df2f7351155befb93324635ff556d5d2507",
+  "in_tree_green_ivl_sha256": "7427219cfcf964d35119fb738f237596083f41aa3214219bf6a24071c37c5013",
+  "elab_expr_cc_sha256": "6020ae21dcfc8cc7e68cbb5e7ea9d16393b3ab7ab47dc8392b19278faeea2e4d",
+  "netmisc_cc_sha256": "400609240fbae90618591170817fdbdf5987f3de2cfbb704ffe19dad152b5866",
+  "build_command": "make -j8 ivl",
+  "build_log": "/private/tmp/ot-csrng-index-20260929/dynamic-canon-ascending-build.log",
+  "red": {
+    "source": "ivtest/ivltests/sv_class_packed_property_dynamic_nested_slice.v",
+    "editions": [2017, 2023],
+    "compile_exit_each": 6,
+    "logs": [
+      "/private/tmp/ot-csrng-index-20260929/three-plus-focus/dynamic-installed7c-2017.log",
+      "/private/tmp/ot-csrng-index-20260929/three-plus-focus/dynamic-installed7c-2023.log"
+    ]
+  },
+  "green": {
+    "json_focus_command": "python3 /private/tmp/ot-csrng-index-20260929/run-three-plus-focus.py",
+    "json_focus": "28/28 PASS",
+    "json_focus_log": "/private/tmp/ot-csrng-index-20260929/dynamic-canon-ascending-json-focus.log",
+    "legacy_focus_command": "python3 /private/tmp/ot-csrng-index-20260929/run-dynamic-legacy-focus.py",
+    "legacy_focus": "16/16 PASS",
+    "legacy_focus_log": "/private/tmp/ot-csrng-index-20260929/dynamic-canon-ascending-legacy-focus.log",
+    "original_uvm_test": "tests/class_packed_dynamic_nested_slice_test.sv compiled and ran with PASS: class multidimensional dynamic nested slice",
+    "diff_check": "PASS"
+  },
+  "controls": [
+    "Four byte lanes, dynamic read/write, one evaluation of a side-effecting lane function, and X-index no-op",
+    "Bounded cross-dimension range and narrowing cast remain compile errors in both editions",
+    "33-bit arithmetic bases read/write on both small [11:4] and high-index 16-bit packed properties",
+    "Ascending +:/-: dynamic read/write match ordinary packed-signal results"
+  ],
+  "proof_boundary": "Defined nonnegative constants, unsigned finite-width leaves, widening zero-base selects, and nonwrapping +/* chains are bounded. All possible indexed-range endpoints must remain inside the declared inner packed dimension. Unproven and crossing forms retain compile errors.",
+  "installation": "Final 7427219c image was not installed by this agent; coordinator owns install and broad gates."
+}

@@ -174,7 +174,7 @@ static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scop
       if (!prop_type)
 	    return 0;
 
-      if (const array_base_t*array_type = dynamic_cast<const array_base_t*>(prop_type)) {
+      if (const uarray_type_t*array_type = dynamic_cast<const uarray_type_t*>(prop_type)) {
 	    ivl_type_t base_use_type =
 		  elaborate_class_property_type_(des, class_scope,
 						 array_type->base_type.get(), seen,
@@ -903,7 +903,8 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
 
-		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it,
+						     is_in && !is_out);
 		  if (!raw) {
 			if (cb->decl_assigns.count(*sig_it))
 			      cerr << cb->get_fileline() << ": sorry: "
@@ -920,7 +921,12 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			     << "it keeps the alias behavior." << endl;
 			continue;
 		  }
-		  if (raw->pin_count() != 1 || raw->unpacked_dimensions() > 0) {
+		  bool fixed_array_input = is_in && !is_out
+		    && raw->unpacked_dimensions() == 1;
+		  bool fixed_array_output = is_out && !is_in
+		    && raw->unpacked_dimensions() == 1;
+		  if ((raw->pin_count() != 1 || raw->unpacked_dimensions() > 0)
+		      && !fixed_array_input && !fixed_array_output) {
 			cerr << cb->get_fileline() << ": sorry: clocking "
 			     << "signal `" << *sig_it << "' of block `"
 			     << cb->name << "' is an array; it keeps the "
@@ -929,11 +935,37 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  }
 
 		  ivl_type_t vt = raw->net_type();
+		  bool selected_input = false;
+		  if (is_in && !is_out) {
+		    auto da = cb->decl_assigns.find(*sig_it);
+		    if (da != cb->decl_assigns.end()) {
+		      const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+		      if (id && !id->path().name.back().index.empty()) {
+			selected_input = true;
+			vt = id->test_type_of_ident(des, scope);
+		      }
+		    }
+		  }
+		  if (selected_input && !vt) {
+		    cerr << cb->get_fileline() << ": sorry: selected clocking input `"
+			 << *sig_it << "' has no resolvable type." << endl;
+		    des->errors += 1;
+		    continue;
+		  }
+		  if (fixed_array_input) {
+		    PExpr*skew_delay = nullptr;
+		    if (cb->input_skew(*sig_it, skew_delay)
+			== Module::PClocking::SKEW_DELAY) {
+		      cerr << cb->get_fileline() << ": sorry: numeric input "
+			   << "skew on fixed clocking array `" << *sig_it
+			   << "' is not supported." << endl;
+		      des->errors += 1;
+		      continue;
+		    }
+		  }
 
-		    /* Edge-qualified skews (14.4 `input negedge [#d]`):
-		       the delay/#1step part is honored; the edge
-		       qualifier itself is not applied. Diagnose rather
-		       than silently ignore. */
+		    /* Input edge-qualified skews are still unsupported. Output
+		       edge qualifiers are handled by the output apply process. */
 		  {
 			const pform_clocking_skew_t*esk = nullptr;
 			std::map<perm_string,pform_clocking_skew_t>::const_iterator eit;
@@ -941,11 +973,6 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			      eit = cb->in_skews.find(*sig_it);
 			      if (eit != cb->in_skews.end()) esk = &eit->second;
 			      else if (cb->default_in_set) esk = &cb->default_in;
-			}
-			if ((!esk || !esk->edge) && is_out) {
-			      eit = cb->out_skews.find(*sig_it);
-			      if (eit != cb->out_skews.end()) esk = &eit->second;
-			      else if (cb->default_out_set) esk = &cb->default_out;
 			}
 			if (esk && esk->edge) {
 			      cerr << cb->get_fileline() << ": sorry: the "
@@ -963,7 +990,10 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			perm_string smp_name = lex_strings.make(sname.c_str());
 			if (!scope->find_signal(smp_name)) {
 			      NetNet*smp;
-			      if (vt) {
+			      if (fixed_array_input) {
+				    smp = new NetNet(scope, smp_name, NetNet::REG,
+						     raw->unpacked_dims(), raw->net_type());
+			      } else if (vt) {
 				    smp = new NetNet(scope, smp_name, NetNet::REG, vt);
 			      } else {
 				    netvector_t*vec = new netvector_t(raw->data_type(),
@@ -1011,7 +1041,10 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			perm_string obuf_name = lex_strings.make(bname.c_str());
 			if (!scope->find_signal(obuf_name)) {
 			      NetNet*obuf;
-			      if (vt) {
+			      if (fixed_array_output) {
+				    obuf = new NetNet(scope, obuf_name, NetNet::REG,
+						      raw->unpacked_dims(), raw->net_type());
+			      } else if (vt) {
 				    obuf = new NetNet(scope, obuf_name, NetNet::REG, vt);
 			      } else {
 				    netvector_t*vec = new netvector_t(raw->data_type(),
@@ -1026,7 +1059,10 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			perm_string opend_name = lex_strings.make(pname.c_str());
 			if (!scope->find_signal(opend_name)) {
 			      NetNet*opend;
-			      if (vt) {
+			      if (fixed_array_output) {
+				    opend = new NetNet(scope, opend_name, NetNet::REG,
+						       raw->unpacked_dims(), raw->net_type());
+			      } else if (vt) {
 				    opend = new NetNet(scope, opend_name, NetNet::REG, vt);
 			      } else {
 				    netvector_t*pvec = new netvector_t(raw->data_type(),
@@ -2340,7 +2376,9 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    if (!bad_type && cur->second.qual.test_randc() && use_type) {
 	      long pw = class_randc_property_leaf_width_(use_type);
 	      const long randc_cap_bits = 20;
-	      if (pw > randc_cap_bits) {
+	      // Specializations share a declaration but can change its width.
+	      if (pw > randc_cap_bits
+	          && des->mark_randc_cycle_cap_warning(&cur->second, pw)) {
 		cerr << cur->second.get_fileline() << ": warning: randc property '"
 			     << cur->first << "' of class " << get_name()
 			     << " has a " << pw << "-bit cyclic leaf, beyond the "
@@ -2654,6 +2692,7 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
 
       elaborate_sig_funcs(des, scope, funcs);
       elaborate_sig_tasks(des, scope, tasks);
+      elaborate_sig_classes(des, scope, classes);
       scope->elaborate_nettypes(des);
 
       typedef list<PGenerate*>::const_iterator generate_it_t;

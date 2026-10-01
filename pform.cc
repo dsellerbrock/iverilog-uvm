@@ -585,6 +585,40 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       scope->local_symbols[name] = item;
 }
 
+static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
+
+/* A property inherited from a base class (IEEE 1800-2017 8.15, 8.18): a local
+ * property is not inherited, a protected or public one is. An inherited
+ * property is found before any wildcard-imported name (26.3). */
+static bool class_inherits_visible_property_(PClass*cls, perm_string name)
+{
+      set<PClass*> seen;
+      PClass*cur = cls;
+      seen.insert(cur);
+      while (cur && cur->type && cur->type->base_type) {
+	    const typeref_t*ref = dynamic_cast<const typeref_t*>(
+		  cur->type->base_type.get());
+	    if (!ref || !ref->typedef_ref()) break;
+	    PClass*base = nullptr;
+	      // `extends P::B' names the class in package P, not a same-named
+	      // class visible from here.
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(ref->scope_ref())) {
+		  auto cls_it = pkg->classes.find(ref->typedef_ref()->name);
+		  if (cls_it != pkg->classes.end()) base = cls_it->second;
+	    }
+	    if (!base)
+		  base = pform_find_visible_class_scope(
+			cur, ref->typedef_ref()->name);
+	    if (!base || !base->type || !seen.insert(base).second) break;
+	    auto found = base->type->properties.find(name);
+	    if (found != base->type->properties.end()
+		&& !found->second.qual.test_local())
+		  return true;
+	    cur = base;
+      }
+      return false;
+}
+
 static void check_potential_imports(const struct vlltype&loc, perm_string name, bool tf_call)
 {
       LexicalScope*scope = lexical_scope;
@@ -594,6 +628,8 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
 		  if (class_scope->type && class_scope->type->properties.find(name)
 		      != class_scope->type->properties.end())
+		    return;
+		  if (class_inherits_visible_property_(class_scope, name))
 		    return;
 	    }
 	    if (scope->explicit_imports.find(name) != scope->explicit_imports.end()) {
@@ -715,12 +751,15 @@ PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name)
 
       PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
       ivl_assert(loc, scopex);
-      ivl_assert(loc, !pform_cur_generate);
-
       pform_set_scope_timescale(class_scope, scopex);
 
-      scopex->classes[name] = class_scope;
-      scopex->classes_lexical .push_back(class_scope);
+      if (pform_cur_generate && lexical_scope == pform_cur_generate) {
+	    pform_cur_generate->classes[name] = class_scope;
+	    pform_cur_generate->classes_lexical.push_back(class_scope);
+      } else {
+	    scopex->classes[name] = class_scope;
+	    scopex->classes_lexical.push_back(class_scope);
+      }
 
       lexical_scope = class_scope;
       return class_scope;
@@ -762,7 +801,7 @@ PTask* pform_push_task_scope(const struct vlltype&loc, const char*name,
 
       pform_set_scope_timescale(task, scopex);
 
-      if (pform_cur_generate) {
+      if (pform_cur_generate && lexical_scope == pform_cur_generate) {
 	    add_local_symbol(pform_cur_generate, task_name, task);
 	    pform_cur_generate->tasks[task_name] = task;
       } else {
@@ -817,7 +856,7 @@ PFunction* pform_push_function_scope(const struct vlltype&loc, const char*name,
 
       pform_set_scope_timescale(func, scopex);
 
-      if (pform_cur_generate) {
+      if (pform_cur_generate && lexical_scope == pform_cur_generate) {
 	    add_local_symbol(pform_cur_generate, func_name, func);
 	    pform_cur_generate->funcs[func_name] = func;
 
@@ -1418,6 +1457,11 @@ void pform_set_nettype_referenced(const struct vlltype&loc, const char*name)
 static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
 {
       for (LexicalScope*cur = start ; cur ; cur = cur->parent_scope()) {
+	    if (PGenerate*generate = dynamic_cast<PGenerate*>(cur)) {
+		  auto cls = generate->classes.find(name);
+		  if (cls != generate->classes.end())
+			return cls->second;
+	    }
 	    if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(cur)) {
 		  auto cls = scopex->classes.find(name);
 		  if (cls != scopex->classes.end())
@@ -3388,6 +3432,68 @@ static void pform_set_net_range(PWire *wire,
  * `event arr[3];`), or null for an ordinary scalar event; ownership
  * transfers to the PEvent.
  */
+/*
+ * A named event declared directly in an interface cannot be named through a
+ * virtual interface handle (IEEE 1800-2017 25.9, 15.5): `@(vif.ev)' and
+ * `->vif.ev' have no signal for the existing virtual-interface machinery to
+ * address. Give the event two ordinary one-bit members that a handle can
+ * reach, bridged by two always processes:
+ *
+ *   logic _ivl_evt_done_ev = 0, _ivl_evt_req_ev = 0;
+ *   always @(ev)                  _ivl_evt_done_ev = ~_ivl_evt_done_ev;
+ *   always @(_ivl_evt_req_ev)     -> ev;
+ *
+ * Elaboration rewrites a failing `vif.ev' wait to the done member and a
+ * `->vif.ev' to a toggle of the req member (see PTrigger::elaborate).
+ * Triggers from either side reach waiters on both, one delta later.
+ */
+static void pform_interface_event_bridge_(const struct vlltype&loc,
+					  perm_string name)
+{
+      const std::string base = name.str();
+      perm_string done = lex_strings.make(("_ivl_evt_done_" + base).c_str());
+      perm_string req = lex_strings.make(("_ivl_evt_req_" + base).c_str());
+
+      for (perm_string var : { done, req }) {
+	    std::list<decl_assignment_t*>*decls = new std::list<decl_assignment_t*>;
+	    decl_assignment_t*decl = new decl_assignment_t;
+	    decl->name = pform_ident_t(var, loc.lexical_pos);
+	    PENumber*zero = new PENumber(new verinum(verinum::V0, 1));
+	    FILE_NAME(zero, loc);
+	    decl->expr.reset(zero);
+	    decls->push_back(decl);
+	    vector_type_t*vtype = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	    FILE_NAME(vtype, loc);
+	    pform_make_var(loc, decls, vtype, nullptr, false);
+      }
+
+      auto ident = [&](perm_string id_name) {
+	    PEIdent*id = new PEIdent(id_name, UINT_MAX);
+	    FILE_NAME(id, loc);
+	    return id;
+      };
+
+      PEEvent*on_event = new PEEvent(PEEvent::ANYEDGE, ident(name));
+      PEventStatement*mirror = new PEventStatement(on_event);
+      FILE_NAME(mirror, loc);
+      PEUnary*flip = new PEUnary('~', ident(done));
+      FILE_NAME(flip, loc);
+      PAssign*toggle = new PAssign(ident(done), flip);
+      FILE_NAME(toggle, loc);
+      mirror->set_statement(toggle);
+      pform_make_behavior(IVL_PR_ALWAYS, mirror, nullptr);
+
+      PEEvent*on_req = new PEEvent(PEEvent::ANYEDGE, ident(req));
+      PEventStatement*forward = new PEventStatement(on_req);
+      FILE_NAME(forward, loc);
+      pform_name_t event_path;
+      event_path.push_back(name_component_t(name));
+      PTrigger*fire = new PTrigger(nullptr, event_path, UINT_MAX);
+      FILE_NAME(fire, loc);
+      forward->set_statement(fire);
+      pform_make_behavior(IVL_PR_ALWAYS, forward, nullptr);
+}
+
 static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 			      std::list<pform_range_t>*array_dims,
 			      ivl_lifetime_t lifetime)
@@ -3399,6 +3505,11 @@ static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 
       add_local_symbol(lexical_scope, name.first, event);
       lexical_scope->events[name.first] = event;
+
+      if (!array_dims && !pform_cur_module.empty()
+	  && pform_cur_module.front()->is_interface
+	  && lexical_scope == static_cast<LexicalScope*>(pform_cur_module.front()))
+	    pform_interface_event_bridge_(loc, name.first);
 }
 
 void pform_make_events(const struct vlltype&loc,
@@ -5024,6 +5135,18 @@ static PGAssign* pform_make_pgassign(PExpr*lval, PExpr*rval,
 	    pform_cur_module.front()->add_gate(cur);
 
       return cur;
+}
+
+/* `alias a = b [= c ...];' (IEEE 1800-2017 23.3.1). */
+void pform_make_alias(const struct vlltype&loc, list<PExpr*>*nets)
+{
+      pform_requires_sv(loc, "Net alias");
+      PGAlias*cur = new PGAlias(nets);
+      FILE_NAME(cur, loc);
+      if (pform_cur_generate)
+	    pform_cur_generate->add_gate(cur);
+      else
+	    pform_cur_module.front()->add_gate(cur);
 }
 
 void pform_make_pgassign_list(const struct vlltype&loc,
@@ -7608,6 +7731,8 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 		  if (!args) { delete copy; goto unsupported; }
 		  copy->set_leading_type_args(args);
 	    }
+	    if (call->has_scoped_type_prefix())
+		  copy->set_scoped_type_prefix();
 	    std::vector<PExpr*> with;
 	    for (PExpr*src : call->with_constraints()) {
 		  PExpr*dst = sva_clone_subst_(src, subst);
@@ -9582,25 +9707,25 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       return sign;
 }
 
-/* The first executable 16.11 slice deliberately supports only a direct
-   $display match item. Keeping this predicate in one place makes cloning,
-   validation, and action construction agree: no package/receiver/type-arg
-   call can accidentally be rebuilt as an unrelated unqualified task. */
-static bool sva_match_call_is_display_(const PCallTask*call)
+/* Keep cloning and validation on the same direct-call subset. A user
+   subroutine with no actual arguments needs no sampled-argument or ref
+   carrier; argument-bearing user calls still fail closed. */
+static bool sva_match_call_is_direct_(const PCallTask*call, bool cover)
 {
       if (!call || call->is_void_cast() || call->leading_type_args()
 	  || !call->with_constraints().empty())
 	    return false;
       const pform_name_t&path = call->path();
       return path.size() == 1 && path.front().index.empty()
-	     && path.front().name == perm_string::literal("$display");
+	     && (path.front().name == perm_string::literal("$display")
+		 || (cover && call->parms().empty()));
 }
 
 static PCallTask* sva_clone_match_call_(
       const PCallTask*source,
       const std::map<perm_string,PExpr*>*subst = nullptr)
 {
-      if (!sva_match_call_is_display_(source)) return nullptr;
+      if (!sva_match_call_is_direct_(source, true)) return nullptr;
       std::list<named_pexpr_t> parms;
       const std::vector<named_pexpr_t>&src = source->parms();
       for (size_t i = 0 ; i < src.size() ; i += 1) {
@@ -9617,6 +9742,8 @@ static PCallTask* sva_clone_match_call_(
 	    parms.push_back(arg);
       }
       PCallTask*out = new PCallTask(source->path(), parms);
+      if (source->has_scoped_type_prefix())
+	    out->set_scoped_type_prefix();
       out->set_lineno(source->get_lineno());
       out->set_file(source->get_file());
       return out;
@@ -10914,6 +11041,8 @@ static Statement* sva_clone_stmt_(Statement*st)
 	    PCallTask*out = ct->package()
 		  ? new PCallTask(ct->package(), ct->path(), parms)
 		  : new PCallTask(ct->path(), parms);
+	    if (ct->has_scoped_type_prefix())
+		  out->set_scoped_type_prefix();
 	    out->set_lineno(ct->get_lineno());
 	    out->set_file(ct->get_file());
 	    return out;
@@ -13772,6 +13901,10 @@ static bool sva_expand_fixed_(const struct vlltype&loc, const char*what,
 			      std::vector<PExpr*>&cyc)
 {
       cyc.clear();
+	/* An operand may name a declared sequence (`s1 intersect s2'); splice
+	   its steps in first, or the bare identifier is bound later as a
+	   variable. Splicing is idempotent. */
+      sva_splice_sequences_(loc, seq);
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
 	    sva_seq_step_t&st = seq[j];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
@@ -15217,9 +15350,6 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 	  || (prop->mc_more && !prop->mc_more->empty()))
 	    return sva_match_item_sorry_(loc,
 		  "in a multiclocked sequence are not supported yet");
-      if (kind == 2)
-	    return sva_match_item_sorry_(loc,
-		  "in a cover property are not supported yet");
       if (prop->op_type != 0 || prop->antecedent)
 	    return sva_match_item_sorry_(loc,
 		  "are supported only in a flat, non-negated sequence property");
@@ -15244,9 +15374,10 @@ static int sva_validate_match_items_(const struct vlltype&loc,
       }
       const std::vector<PCallTask*>&calls = prop->seq->back().match_calls;
       for (size_t i = 0 ; i < calls.size() ; i += 1)
-	    if (!sva_match_call_is_display_(calls[i]))
+	    if (!sva_match_call_is_direct_(calls[i], kind == 2))
 		  return sva_match_item_sorry_(loc,
-			"currently support only a direct $display call");
+			"currently support only direct $display calls or "
+			"zero-argument user calls in a cover property");
       if (!pform_sva_nfa_enabled())
 	    return sva_match_item_sorry_(loc,
 		  "require the automaton engine (unset IVL_SVA_LEGACY)");
@@ -16034,6 +16165,10 @@ sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
 	    delete s1; delete s2;
 	    return nullptr;
       }
+	/* Splice declared sequences first: a bare identifier operand looks like
+	   a one-step fixed chain until it is replaced by its real steps. */
+      sva_splice_sequences_(loc, *s1);
+      sva_splice_sequences_(loc, *s2);
       long l1 = 0, l2 = 0;
       bool f1 = sva_chain_fixed_len_(*s1, l1);
       bool f2 = sva_chain_fixed_len_(*s2, l2);
@@ -16240,6 +16375,8 @@ sva_property_t* pform_sva_seq_within(const struct vlltype&loc,
 	    delete s1; delete s2;
 	    return nullptr;
       }
+      sva_splice_sequences_(loc, *s1);
+      sva_splice_sequences_(loc, *s2);
       long l1 = 0, l2 = 0;
       if (sva_chain_fixed_len_(*s1, l1) && sva_chain_fixed_len_(*s2, l2))
 	    return pform_sva_binprop(loc, 8, s1, s2);
@@ -17193,9 +17330,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* Rewrite sampled-value functions in the already-Preponed action
 	   arguments against this checker's history state, then rebuild the
-	   direct $display calls in source order. These statements are folded
-	   ahead of the user's property pass action below, so a successful
-	   attempt observes sequence-match ordering exactly once. */
+	   admitted direct calls in source order. Assertion match calls fold
+	   ahead of the user's pass action; cover match calls run at their
+	   accepted sequence endpoints. */
       Statement*match_action = nullptr;
       if (match_calls) {
 	    std::vector<Statement*>actions;
@@ -17208,6 +17345,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			args.push_back(arg);
 		  }
 		  PCallTask*call = new PCallTask((*match_calls)[c]->path(), args);
+		  if ((*match_calls)[c]->has_scoped_type_prefix())
+			call->set_scoped_type_prefix();
 		  call->set_lineno((*match_calls)[c]->get_lineno());
 		  call->set_file((*match_calls)[c]->get_file());
 		  actions.push_back(call);
@@ -17216,9 +17355,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 
 	/* M12B-cb SUCCESS fold (the NFA hook runs before the legacy
-	   fold, so replicate it): every match reports
-	   cbAssertionSuccess; negated properties have no pass path and
-	   cover keeps only its counter (matching the legacy engine). */
+	   fold, so replicate it): assertion matches report
+	   cbAssertionSuccess. Negated properties have no pass path; cover
+	   keeps a counter and dispatches attached calls separately. */
       if (!negated && !cover) {
 	    if (match_action) {
 		  std::vector<Statement*>ordered;
@@ -17484,6 +17623,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, r_cnt,
 			new PENumber(new verinum((uint64_t)0, 32))));
       }
+      perm_string r_match;
+      if (cover && match_action) {
+	      /* The admitted flat, fixed-length sequence starts at most once
+		 per sampled tick. Overlapping starts therefore end on different
+		 ticks. Track endpoint calls per tick, while r_cnt stays cumulative. */
+	    r_match = sva_make_reg_(loc, inst, "match", 0, true);
+	    init_zero.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
+      }
       perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
       init_zero.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
       perm_string r_oovf;
@@ -17552,6 +17699,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   legacy engine). Existing slots continue advancing after $assertoff. */
       body.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_attempt_state()));
+      if (cover && match_action)
+	    body.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
       body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
 
@@ -17769,6 +17918,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					      sva_bit_(loc, 1));
 		  FILE_NAME(add, loc);
 		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
+		  if (match_action)
+		    acc_v.push_back(increment_verdict(r_match));
 	    } else if (implication && !forbidden) {
 		  acc_v.push_back(increment_verdict(r_p));
 	    } else {
@@ -17996,6 +18147,20 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			    sva_if_(loc, ready, sva_block_(loc, pass), nullptr)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, parent_live[k]),
 				   sva_block_(loc, done), nullptr));
+      }
+
+	/* All endpoint verdicts are fixed in Observed before any attached
+	   subroutine runs. Spawn one child per match so a task that consumes
+	   time cannot delay the checker or suppress another endpoint. Each
+	   child enters Reactive before executing the source-ordered calls. */
+      if (cover && match_action) {
+	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+	    FILE_NAME(spawn, loc);
+	    std::vector<Statement*>child;
+	    child.push_back(sva_cover_action_(loc, match_action));
+	    spawn->set_statement(child);
+	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match), spawn));
+	    match_action = nullptr;
       }
 
 	/* Pass then fail dispatch: one report site each per tick, in
@@ -19067,7 +19232,8 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
    general same-clock NFA engine owns repetitions, locals, and first_match. */
 static bool sva_mc_bounded_chain_nfa_(
 		const std::vector<sva_seq_step_t>&steps, sva_nfa_t&nfa,
-		long&depth, bool&accepts_empty, bool require_ranged = true)
+		long&depth, bool&accepts_empty, bool require_ranged = true,
+		bool allow_first_match = false)
 {
       bool ranged = false;
       accepts_empty = false;
@@ -19079,7 +19245,8 @@ static bool sva_mc_bounded_chain_nfa_(
 			|| st.rep_hi < st.rep_lo || st.rep_hi < 0))
 		|| (st.grouped_repeat && !st.group_repeat_start
 		    && !st.group_repeat_end && steps.size() == 1)
-		|| st.lv_rhs || st.fm || !st.match_calls.empty())
+		|| st.lv_rhs || (st.fm && !allow_first_match)
+		|| !st.match_calls.empty())
 		  return false;
 	    PExpr*probe = sva_clone_expr_(st.expr);
 	    if (!probe) return false;
@@ -19108,6 +19275,27 @@ static bool sva_mc_bounded_chain_nfa_(
 	    }
       }
 	return terminal || accepts_empty;
+}
+
+/* The multiclock source transport can implement a direct finite first_match
+   prefix. A whole-chain wrapper closes at its first accepting tick. A
+   wrapper followed by a finite source-clock suffix cuts the still-pending
+   wrapper paths at the earliest exit and lets every tied exit continue. */
+static bool sva_mc_direct_first_match_(
+		const std::vector<sva_seq_step_t>&steps)
+{
+      if (steps.empty()) return false;
+      bool left_wrapper = false;
+      for (size_t i = 0; i < steps.size(); ++i) {
+	    const sva_seq_step_t&st = steps[i];
+	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
+		|| st.rep_kind || st.rep_tail || st.grouped_repeat
+		|| st.lv_rhs || !st.match_calls.empty())
+		  return false;
+	    if (!st.fm) left_wrapper = true;
+	    else if (left_wrapper) return false;
+      }
+      return steps[0].fm;
 }
 
 /* Absolute-key producer storage for L86's cross-clock record stream.
@@ -19226,6 +19414,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       bool antecedent_accepts_empty = false;
       bool consequence_accepts_empty = false;
       bool ranged_antecedent = false;
+      bool source_first_match = false;
+      bool source_first_match_suffix = false;
+      bool source_first_match_whole = false;
+      bool source_has_first_match = false;
       bool consequence_nfa_mode = false;
       long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
@@ -19234,14 +19426,27 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->mc_prefix)
 		  sva_splice_sequences_(loc, *prop->mc_prefix);
 	    sva_splice_sequences_(loc, *prop->seq);
+	    const std::vector<sva_seq_step_t>*source_steps = prop->antecedent
+		  ? prop->antecedent : (plain ? prop->mc_prefix : nullptr);
+	    if (source_steps)
+		  for (size_t k = 0; k < source_steps->size(); ++k)
+			source_has_first_match |= (*source_steps)[k].fm;
+	    source_first_match = source_steps
+		  && sva_mc_direct_first_match_(*source_steps);
+	    source_first_match_suffix = source_first_match
+		  && !source_steps->back().fm;
+	    source_first_match_whole = source_first_match
+		  && !source_first_match_suffix;
 	    if (prop->antecedent)
 		  ranged_antecedent = sva_mc_bounded_chain_nfa_(
 			*prop->antecedent, a_nfa, a_depth,
-			antecedent_accepts_empty);
+			antecedent_accepts_empty, !source_first_match,
+			source_first_match);
             else if (plain && prop->mc_prefix)
                   ranged_antecedent = sva_mc_bounded_chain_nfa_(
                         *prop->mc_prefix, a_nfa, a_depth,
-                        antecedent_accepts_empty);
+			antecedent_accepts_empty, !source_first_match,
+			source_first_match);
 	    bool antecedent_group = false;
 	    if (prop->antecedent)
 		  for (size_t k = 0; k < prop->antecedent->size(); ++k)
@@ -19303,6 +19508,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		     || b_slots.size() + b_window > 64))
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
+	    if (source_has_first_match && !source_first_match)
+		  why = "a multiclocked first-clock `first_match' outside the "
+			"direct finite Boolean-chain subset";
       }
       if (!why && plain && ranged_antecedent && antecedent_accepts_empty)
             why = "a plain multiclocked sequence whose first-clock maximal "
@@ -19901,9 +20109,34 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					 allocate, nullptr));
 
 		  /* Advance every live parent from the old NFA state.  Each
-		     terminal edge emits its own MATCH record; the restricted
-		     linear-window subset has no same-tick path coalescing. */
+		     terminal edge emits its own MATCH record. For first_match,
+		     publish all tied earliest matches before closing the parent. */
 		  for (size_t k = 0; k < ran_slots; ++k) {
+			PExpr*first_match_hit = source_first_match_whole
+			      ? sva_bit_(loc, 0) : nullptr;
+			PExpr*first_match_exit_hit = source_first_match_suffix
+			      ? sva_bit_(loc, 0) : nullptr;
+			if (source_first_match_suffix) {
+			      for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
+				    const sva_nfa_edge_t&ed = a_nfa.edges[i];
+				    if (!ed.first_match_exit) continue;
+				    PExpr*hit = sva_id_(loc, ran_state[k][ed.from]);
+				    for (size_t g = 0;
+				         g < ed.first_match_guards.size(); ++g) {
+					  std::map<PExpr*,perm_string>::iterator it =
+						ran_guard.find(ed.first_match_guards[g]);
+					  if (it == ran_guard.end()) {
+						delete hit; hit = sva_bit_(loc, 0); break;
+					  }
+					  hit = sva_logic_(loc, 'a', hit,
+						sva_id_(loc, it->second));
+				    }
+				    hit = sva_logic_(loc, 'a',
+					sva_id_(loc, ran_live[k]), hit);
+				    first_match_exit_hit = sva_logic_(loc, 'o',
+					  first_match_exit_hit, hit);
+			      }
+			}
 			for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
 			      const sva_nfa_edge_t&ed = a_nfa.edges[i];
 			      if (ed.to != a_nfa.accept) continue;
@@ -19919,6 +20152,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      hit = sva_logic_(loc, 'a',
 				    sva_id_(loc, ran_live[k]), hit);
+			      if (source_first_match_whole) {
+				    PExpr*copy = sva_clone_expr_(hit);
+				    ivl_assert(loc, copy);
+				    first_match_hit = sva_logic_(loc, 'o',
+					  first_match_hit, copy);
+			      }
 			      Statement*endpoint;
 			      if (prefix_stages) {
 				    std::vector<Statement*>start_prefix;
@@ -19934,8 +20173,19 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      body1.push_back(sva_if_(loc, hit, endpoint, nullptr));
 			}
+			if (source_first_match_whole) {
+			      std::vector<Statement*>cut;
+			      cut.push_back(emit_record(
+				    2, sva_id_(loc, ran_parent[k]), nullptr));
+			      cut.push_back(sva_assign_(loc, ran_live[k],
+					 sva_bit_(loc, 0)));
+			      body1.push_back(sva_if_(loc, first_match_hit,
+				    sva_block_(loc, cut), nullptr));
+			}
 			for (unsigned j = 0; j < a_nfa.nstates; ++j) {
 			      PExpr*next = sva_bit_(loc, 0);
+			      PExpr*cut_next = source_first_match_suffix
+				    ? sva_bit_(loc, 0) : nullptr;
 			      for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
 				    const sva_nfa_edge_t&ed = a_nfa.edges[i];
 				    if (ed.to != j) continue;
@@ -19949,12 +20199,25 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					  term = sva_logic_(loc, 'a', term,
 						       sva_id_(loc, it->second));
 				    }
+				    if (source_first_match_suffix && ed.first_match_exit) {
+					  PExpr*copy = sva_clone_expr_(term);
+					  ivl_assert(loc, copy);
+					  cut_next = sva_logic_(loc, 'o', cut_next, copy);
+				    }
 				    next = sva_logic_(loc, 'o', next, term);
+			      }
+			      if (source_first_match_suffix) {
+				    PExpr*cut = sva_clone_expr_(first_match_exit_hit);
+				    ivl_assert(loc, cut);
+				    PETernary*choose = new PETernary(cut, cut_next, next);
+				    FILE_NAME(choose, loc);
+				    next = choose;
 			      }
 			      body1.push_back(sva_assign_(loc, ran_next[k][j], next));
 			      body1.push_back(sva_assign_nb_(loc,
 				    ran_state[k][j], sva_id_(loc, ran_next[k][j])));
 			}
+			delete first_match_exit_hit;
 			PEBinary*age = new PEBinary(
 			      '+', sva_id_(loc, ran_age[k]), sva_num32_(loc, 1));
 			FILE_NAME(age, loc);
@@ -26728,6 +26991,14 @@ static LexicalScope* pform_nettype_child_scope_(LexicalScope*scope,
       if (!scope)
             return nullptr;
 
+      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope)) {
+            auto cls = generate->classes.find(name);
+            if (cls != generate->classes.end()) {
+                  name_exists = true;
+                  return cls->second;
+            }
+      }
+
       if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope)) {
             map<perm_string,PClass*>::const_iterator cls =
                   scopex->classes.find(name);
@@ -26855,9 +27126,12 @@ static void pform_validate_nettype_resolvers_(LexicalScope*scope,
                   pform_validate_nettype_resolvers_(generate, seen);
       }
 
-      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope))
-            for (PGenerate*child : generate->generate_schemes)
-                  pform_validate_nettype_resolvers_(child, seen);
+      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope)) {
+	    for (const auto&item : generate->classes)
+		  pform_validate_nettype_resolvers_(item.second, seen);
+	    for (PGenerate*child : generate->generate_schemes)
+		  pform_validate_nettype_resolvers_(child, seen);
+      }
 
 }
 
@@ -26933,6 +27207,8 @@ static void pform_release_scope_memory_(LexicalScope*scope,
 	    for (map<perm_string,PTask*>::value_type&item : generate->tasks)
 		  pform_release_scope_memory_(item.second, seen);
 	    for (map<perm_string,PFunction*>::value_type&item : generate->funcs)
+		  pform_release_scope_memory_(item.second, seen);
+	    for (map<perm_string,PClass*>::value_type&item : generate->classes)
 		  pform_release_scope_memory_(item.second, seen);
 	    for (PGenerate*child : generate->generate_schemes)
 		  pform_release_scope_memory_(child, seen);

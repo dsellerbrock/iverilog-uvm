@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_constraint_packed_iterator_reverse_ce.sv",
+    "iverilog-args" : [ "-g2017" ],
+    "gold" : "sv_constraint_packed_iterator_reverse_ce"
+}

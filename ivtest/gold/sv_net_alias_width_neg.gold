@@ -1,0 +1,2 @@
+./ivltests/sv_net_alias_width_neg.v:5: error: Net alias operands have different widths (4 and 8).
+1 error(s) during elaboration.

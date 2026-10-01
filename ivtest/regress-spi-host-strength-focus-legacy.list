@@ -1,0 +1,2 @@
+sv_contassign_reduction_strength normal,-g2017,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold
+sv_contassign_reduction_strength_2023 normal,-g2023,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold

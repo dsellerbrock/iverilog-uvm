@@ -1,0 +1,27 @@
+{
+  "id": "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY",
+  "date_utc": "2026-09-28",
+  "phase": "safely suspended after strict minimal reproducer triage",
+  "compiler_base_commit": "f13b3c8a2",
+  "compiler_engine_sha256": "512c79d3f4830012397def1142bf5325fee9004bb0e86e44847497380bcf283c",
+  "target_sha256": "e88fb68c0d1915119a1e0d622071dfd0ae07151a2a0d59b7280fc34be94e6ebf",
+  "runtime_sha256": "8d25235aa0223341ec066aa7996fbac6e305299c2381d36d7feb2363189ad423",
+  "standard": "IEEE 1800-2017/2023 18.5.10 integral solve-before operands",
+  "failing_application_corpus": "Two whole-array solve-before hard errors and 135 warnings on the last hash-guarded patched-copy Flash compile; no new application compile in this triage.",
+  "focused_findings": {
+    "portable_fixed_leaves": "Explicit integral fixed-array leaves compile and randomize in strict 2017/2023.",
+    "foreach": "A solve-before directive inside foreach is rejected by both Icarus and Slang in 2017/2023.",
+    "nested_content": "Selected fixed-array-of-queue elements and nonempty queue-content constraints compile with unrepresentable warnings, then randomize() fails in both editions.",
+    "size_only": "Ordering a selected nested queue .size() compiles and runs, but Flash constrains the queue sizes to constants and needs content ordering.",
+    "unsafe_whole_queue": "A whole selected queue currently compiles without a warning, emits an e: scalar ordering target, and reports randomize success; this does not represent the queue.",
+    "source_shape": "Pinned Earlgrey has 8 packed region leaves and 26 packed page leaves per clause. An explicit integral-leaf source rewrite is only a candidate after nested queue-content solver support.",
+    "distribution": "A previously saved 200-draw fixed-array control observed 98 ordered versus 44 unordered first==1 results. A newer direct-queue 200-draw control was inconclusive, so no new distribution claim follows."
+  },
+  "prerequisite": "Represent each nested queue content element by property, flattened fixed leaf, inner queue index, and packed width across constraint IR, solver variables and ordering, size/bounds checks, rand_mode, rollback, and writeback. Do not remove ordering or substitute size-only ordering.",
+  "evidence": [
+    "projectless outputs/flash-solve-before-prerequisite-20260928.md",
+    "projectless work/flash-solve-semantics-20260928/EVIDENCE.md",
+    "projectless work/flash-solve-solver-review-20260928/EVIDENCE.md"
+  ],
+  "boundary": "No OpenTitan source patch, compiler implementation edit, additional Flash source-list compile, VVP image, Flash DV runtime, broad suite, installation, or pristine qualification was produced. Pinned sources and unsafe flags are unchanged."
+}

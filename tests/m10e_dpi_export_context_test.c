@@ -2,7 +2,7 @@
  * function calls the exported m10e_localf WITHOUT svSetScope, relying on
  * the 35.5.2 context default (the export runs in the import's instance).
  * The vvp runtime resolves the instance from the active DPI scope (the
- * import's own scope, whose enclosing instance is the caller's). */
+ * import declaration's instance). */
 extern int m10e_localf(int a);
 
 int m10e_ctx(void)

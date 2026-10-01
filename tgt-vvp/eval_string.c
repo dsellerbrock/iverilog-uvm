@@ -512,7 +512,7 @@ static void draw_ternary_string(ivl_expr_t expr)
       int cond_flag = allocate_flag();
 
       draw_eval_vec4(cond);
-      if (ivl_expr_width(cond) > 1)
+      if (ivl_expr_width(cond) > 1 || ivl_expr_value(cond) == IVL_VT_STRING)
             fprintf(vvp_out, "    %%or/r;\n");
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", cond_flag);
 

@@ -1,0 +1,24 @@
+{
+  "opentitan_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "baseline_diff_sha256": "893469cb66f606207fd1d6285ca85a8f029202cdd734d583a0b4f686661e01e9",
+  "combined_diff_sha256": "8b7ab0548494243f967d2cc4a07aafac6600de88a00504d671b18ab4549c7a1f",
+  "added_patches": [
+    {
+      "name": "ibex_icache_bus_params_provider.patch",
+      "sha256": "38976d49b433b780d6b97a2811ff0db5c325e2cd84947d25b601c6d2bcf84e9b"
+    },
+    {
+      "name": "flash_constraint_foreach_standard.patch",
+      "sha256": "491da90d4f893b7076502a433586ff6e48eea479d7098d3c37108410225ad0d1"
+    }
+  ],
+  "patched_files": {
+    "hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/env/ibex_icache_env.core": "4921ef8ebfaf4747ee176e16eb7531927aec50f57b54e1a322d12bb4f58cccd7",
+    "hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e"
+  },
+  "excluded_compile_only_patches": [
+    "chip_rom_debug_scalar_randomize.patch",
+    "chip_sw_logger_nested_aa_value_copy.patch",
+    "spi_tpm_current_interface_compile_only.patch"
+  ]
+}

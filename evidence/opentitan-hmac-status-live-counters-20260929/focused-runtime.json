@@ -1,0 +1,16 @@
+{
+  "exit": 0,
+  "duration_s": 189.784,
+  "timed_out": false,
+  "memory_limit_hit": false,
+  "peak_bytes": 514344448,
+  "monitor_error": null,
+  "pass_banner": true,
+  "pass_count": 1,
+  "error_count": 0,
+  "errors": [],
+  "debt_count": 0,
+  "debt": [],
+  "seq_started": 22,
+  "log": "/private/tmp/hmac-status-live-counters-20260929/runtime-300.log"
+}

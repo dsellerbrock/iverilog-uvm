@@ -361,6 +361,8 @@ class PCallTask  : public Statement {
             { leading_type_args_ = type_args; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
+      void set_scoped_type_prefix() { scoped_type_prefix_ = true; }
+      bool has_scoped_type_prefix() const { return scoped_type_prefix_; }
 
     private:
       NetProc* elaborate_sys(Design*des, NetScope*scope) const;
@@ -409,6 +411,7 @@ class PCallTask  : public Statement {
       pform_name_t path_;
       std::vector<named_pexpr_t> parms_;
       struct parmvalue_t*leading_type_args_ = 0;
+      bool scoped_type_prefix_ = false;
       bool void_cast_ = false;
       std::vector<PExpr*> with_constraints_;
       bool randomize_with_identifier_list_present_ = false;
@@ -865,6 +868,12 @@ class PForeach : public Statement {
 					NetExpr*array_expr,
 					size_t index_var_start) const;
       NetProc* elaborate_static_array_(Design*des, NetScope*scope,
+				       const netranges_t&dims) const;
+      NetProc* elaborate_static_array_prefix_(Design*des, NetScope*scope,
+				       const netranges_t&dims, size_t count,
+				       NetProc*sub,
+				       size_t index_var_start = 0) const;
+      NetProc* elaborate_mixed_fixed_array_(Design*des, NetScope*scope,
 				       const netranges_t&dims) const;
 
     private:

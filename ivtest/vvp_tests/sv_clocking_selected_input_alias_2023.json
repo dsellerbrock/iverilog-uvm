@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_clocking_selected_input_alias.v",
+  "iverilog-args": ["-g2023", "-s", "sv_clocking_selected_input_alias"],
+  "gold": "sv_clocking_selected_input_alias"
+}

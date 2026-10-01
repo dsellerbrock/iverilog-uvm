@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_std_randomize_fixed_array_with_fail.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_std_randomize_fixed_array_with_fail"],
+  "gold": "sv_std_randomize_fixed_array_with_fail"
+}

@@ -1,0 +1,12 @@
+{
+  "type": "CE",
+  "source": "sv_constraint_indexed_part_unsupported.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gno-icarus-misc",
+    "-gno-xtypes",
+    "-s",
+    "top"
+  ],
+  "gold": "sv_constraint_indexed_part_unsupported"
+}

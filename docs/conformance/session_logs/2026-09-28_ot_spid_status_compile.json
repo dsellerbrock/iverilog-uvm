@@ -1,0 +1,67 @@
+{
+  "core": "lowrisc:dv:spid_status_sim:0.1",
+  "compiler_source_head": "c4650f70f",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+    "-g2017",
+    "-sspid_status_tb",
+    "-gcommercial-unsafe",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_REG_BYTENABLE_WIDTH=4",
+    "-DUVM_REGEX_NO_DPI",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-status-current/matrix-runtime.vvp",
+    "-c",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-status-current/matrix-iverilog.scr"
+  ],
+  "cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-status-current/sim-icarus",
+  "returncode": 2,
+  "wall_seconds": 0.686,
+  "patch_sha256": "0de41341c4fe7ab119d30d40eb66279e18e0668b556ae1cddc2601f78f0a0589",
+  "patched_spid_common_sha256": "41fadb66b52653a81c71bbbf8e90823ed567f5bf4d8d98d1c3fe3e242dd9d87d",
+  "hard_lines": [
+    "../src/lowrisc_dv_spid_status_sim_0.1/tb/spid_status_tb.sv:274: error: port ``bitcnt_o'' is not a port of s2p.",
+    "../src/lowrisc_dv_spid_status_sim_0.1/tb/spid_status_tb.sv:288: error: port ``cpha_i'' is not a port of p2s."
+  ],
+  "with_status_patch": {
+    "returncode": 0,
+    "wall_seconds": 1.054,
+    "hard_lines": [],
+    "warning_lines": [],
+    "status_patch_sha256": "9ac04fbe170ab6b799db53283f24583848cf8fc042dcbeb478a57917a6e7bff6",
+    "patched_status_tb_sha256": "f73c7c80b643b61480360f143453df3d7ed8e8ad7654ec627356d3edb8fed229"
+  },
+  "saved_edition": {
+    "returncode": 0,
+    "wall_seconds": 1.042,
+    "hard_lines": [],
+    "warning_lines": [],
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-sspid_status_tb",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-status-current/matrix-runtime-saved-edition.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-status-current/matrix-iverilog.scr"
+    ]
+  }
+}

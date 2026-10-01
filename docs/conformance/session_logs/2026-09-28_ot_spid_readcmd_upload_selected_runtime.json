@@ -1,0 +1,138 @@
+{
+  "scope": "selected OpenTitan SPI Device pre-DV read-command and upload only; no 49-target corpus rerun",
+  "pinned_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler_driver_sha256": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+  "vvp_binary_sha256": "7d6e5ba43816902733deb2141d5cc0606ee7ab48a8f02cda5a4d587b387ca4ba",
+  "timescale_required": "+timescale+1ns/1ps (the copied direct-compile command omitted this and clock-interface 1ps delays rounded to zero)",
+  "readcmd": {
+    "target": "lowrisc:dv:spid_readcmd_sim:0.1",
+    "patch_order": [
+      {
+        "name": "spid_cmdinfo_read_pipeline.patch",
+        "sha256": "0de41341c4fe7ab119d30d40eb66279e18e0668b556ae1cddc2601f78f0a0589"
+      },
+      {
+        "name": "spid_readcmd_current_ports.patch",
+        "sha256": "1cef4a59031a475a3a188cea066462b66efeb04f6d9cc190b354eecd7870b322"
+      },
+      {
+        "name": "spi_readcmd_single_assignment_address_counter.patch",
+        "sha256": "b90dc45f2e857543916d7154d6dde3dcd8a94c45e3056a8f6c29996d97c5b43d"
+      }
+    ],
+    "pinned_testbench_sha256": "3febc8e9af89bd97b9e594edaea5d79fa9c29a5e512567a76dcb08f6e69d479d",
+    "patched_testbench_sha256": "eea90315916e69648d6726a1fbb333ef75b99946fc554d1e88764e4c492733be",
+    "pinned_rtl_sha256": "0be7a508d9c42d2ae0e43f9d40f9f952b3f390632b4a72b3ae2a7d46a63ac3a2",
+    "patched_rtl_sha256": "c2fc7718a5295d0bb498318013fd0d6b4fa5b8c6f7ed6cd4f1586657e4693146",
+    "compile": {
+      "exit_code": 0,
+      "hard_errors": 0,
+      "warnings": 0,
+      "image_sha256": "b81a8edfbe512b3e75af9dc67fc4844707d8b6bd6c0c59364e1f0969adc248c6"
+    },
+    "diagnostics": {
+      "missing_timescale": {
+        "runner_exit": 0,
+        "wall_seconds": 120.19,
+        "timed_out": true,
+        "memory_capped": false,
+        "log_sha256": "6fe1dbd0049ac559ef33e1fc0a46f8c360ee320c60b16b4ae330836f786aa169",
+        "last_test_message": null
+      },
+      "timescale_without_rtl_patch": {
+        "runner_exit": 0,
+        "wall_seconds": 20.008,
+        "timed_out": true,
+        "memory_capped": false,
+        "log_sha256": "c8d0f485d1ab9640ffaf637e271bdedb7cc997b6149a131b0742962447c85e33",
+        "last_test_message": "Sending a SFDP command"
+      }
+    },
+    "selected_runtime": {
+      "runner_exit": 0,
+      "wall_seconds": 0.892,
+      "timed_out": false,
+      "memory_capped": false,
+      "simulated_finish_ps": 51425974,
+      "pass_markers": 1,
+      "test_failed_markers": 0,
+      "error_lines": 0,
+      "uvm_warning": 0,
+      "uvm_error": 0,
+      "uvm_fatal": 0,
+      "log_sha256": "2aeaf6356988bf89f788ad9106faecc0b9530370d3494c10303a673ea1546ff9"
+    },
+    "qualifies_selected_pre_dv_pass": true
+  },
+  "upload": {
+    "target": "lowrisc:dv:spid_upload_sim:0.1",
+    "patch_order": [
+      {
+        "name": "spid_cmdinfo_read_pipeline.patch",
+        "sha256": "0de41341c4fe7ab119d30d40eb66279e18e0668b556ae1cddc2601f78f0a0589"
+      },
+      {
+        "name": "spid_upload_current_ports.patch",
+        "sha256": "e3d56d9fe82bb889597bd9eb9efe5b75735590f9d92123ca788b442c58ee99c9"
+      },
+      {
+        "name": "spid_upload_automatic_ref_tasks.patch",
+        "sha256": "9a1e596e74ff2e2754e9b1ca9e609eff99b18705b60d947aeec23d1bf665b621"
+      }
+    ],
+    "pinned_testbench_sha256": "e8e63634fbc69dc064c8e3cfd57b7d7f0008e72946236cead6b0bee944a87a3e",
+    "patched_testbench_sha256": "48c140f9baebf84698e35c8a70e992cf55fcec8007187218b40ae05aed0fe79b",
+    "strict_reproducer": "static tasks with ref formals rejected by Icarus and Slang under 2017/2023; automatic tasks compile and preserve immediate alias writes",
+    "compile": {
+      "exit_code": 0,
+      "hard_errors": 0,
+      "warnings": 0,
+      "image_sha256": "aa2fba1c45f10c386173aa5ca37ce8519954918f49952c044e6b4b3c04c00243"
+    },
+    "original_static_task_runtime": {
+      "runner_exit": 0,
+      "wall_seconds": 6.472,
+      "timed_out": false,
+      "memory_capped": false,
+      "uploaded_commands": [
+        "c7",
+        "52",
+        "02"
+      ],
+      "sram_read_lines": 0,
+      "log_sha256": "51c3e96e57bddc7b6973f690e578385ecc7dc36a22a28c2e3a6949cec62f3063"
+    },
+    "corrected_automatic_task_runtime": {
+      "runner_exit": 0,
+      "wall_seconds": 5.844,
+      "timed_out": false,
+      "memory_capped": false,
+      "simulated_finish_ps": 260578974,
+      "uploaded_commands": [
+        "c7",
+        "52",
+        "02",
+        "02",
+        "02",
+        "02",
+        "02"
+      ],
+      "addresses": [
+        "00deadbe",
+        "00adbeef",
+        "00abcdef",
+        "00000000",
+        "00000000",
+        "00000000"
+      ],
+      "sram_read_lines": 260,
+      "all_payloads_read_markers": 2,
+      "test_pass_markers": 0,
+      "error_lines": 0,
+      "log_sha256": "601dca53de359b4cbd1b3b2d1a0eea6710b9e603273b62cb31b844e1b444cfdb"
+    },
+    "qualifies_selected_pre_dv_pass": false,
+    "reason_not_pass": "bench has no pass assertion or data comparison; host task reaches $finish after traffic completes"
+  },
+  "qualifies_49_target_census_update": false
+}

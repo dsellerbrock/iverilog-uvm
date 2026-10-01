@@ -1,0 +1,41 @@
+--- a/hw/dv/sv/usb20_agent/usb20_monitor.sv
++++ b/hw/dv/sv/usb20_agent/usb20_monitor.sv
+@@ -517,6 +517,7 @@
+ //-------------------------------------------SOF Packet-------------------------------------------//
+   function void sof_packet(pid_type_e pid, bit low_speed, bit valid_sync, bit valid_eop,
+                            bit valid_stuffing, ref bit destuffed_packet[$]);
++    bit [15:0] packet_fields;
+     m_sof_pkt.m_pid_type = pid;
+     m_sof_pkt.low_speed = low_speed;
+     m_sof_pkt.valid_sync = valid_sync;
+@@ -524,7 +525,9 @@
+     m_sof_pkt.valid_stuffing = valid_stuffing;
+     if (destuffed_packet.size() == 32) begin
+       // Unpack everything following the PID.
+-      {m_sof_pkt.crc5, m_sof_pkt.framenum} = {<<{destuffed_packet[16:31]}};
++      packet_fields = {<<{destuffed_packet[16:31]}};
++      m_sof_pkt.crc5 = packet_fields[15:11];
++      m_sof_pkt.framenum = packet_fields[10:0];
+       if (!m_sof_pkt.valid_crc()) begin
+         // Informational report; the scoreboard may check this using `valid_crc().`
+         `uvm_info(`gfn, $sformatf("Detected SOF packet CRC5 mismatch (0x%0x, expected 0x%0x)",
+@@ -539,6 +542,7 @@
+ //------------------------------------------Token Packet------------------------------------------//
+   function void token_packet(pid_type_e pid, bit low_speed, bit valid_sync, bit valid_eop,
+                              bit valid_stuffing, ref bit destuffed_packet[$]);
++    bit [15:0] packet_fields;
+     m_token_pkt.m_pid_type = pid;
+     m_token_pkt.low_speed = low_speed;
+     m_token_pkt.valid_sync = valid_sync;
+@@ -546,7 +550,10 @@
+     m_token_pkt.valid_stuffing = valid_stuffing;
+     if (destuffed_packet.size() == 32) begin
+       // Unpack everything following the PID.
+-      {m_token_pkt.crc5, m_token_pkt.endpoint, m_token_pkt.address} = {<<{destuffed_packet[16:31]}};
++      packet_fields = {<<{destuffed_packet[16:31]}};
++      m_token_pkt.crc5 = packet_fields[15:11];
++      m_token_pkt.endpoint = packet_fields[10:7];
++      m_token_pkt.address = packet_fields[6:0];
+       if (!m_token_pkt.valid_crc()) begin
+         // Informational report; the scoreboard may check this using `valid_crc().`
+         `uvm_info(`gfn, $sformatf("Detected token packet CRC5 mismatch (0x%0x, expected 0x%0x)",

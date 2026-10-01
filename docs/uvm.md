@@ -45,6 +45,9 @@ checking occurred.
 - `+UVM_TESTNAME=name` selects the test when `run_test()` has no argument.
   A hardcoded `run_test("name")` supplies the name itself.
 - Runtime plusargs include `+UVM_VERBOSITY=UVM_HIGH`.
+- Use `vvp smoke.vvp +ntb_random_seed=123` for reproducible root RNG seeding.
+  Supply one decimal value from 0 through 4294967295. Omitting it retains the
+  deterministic default; malformed or duplicate seed options are rejected.
 - The language edition and UVM release are independent choices. Explicitly
   select `-g2012`, `-g2017`, or `-g2023` when recording evidence.
 

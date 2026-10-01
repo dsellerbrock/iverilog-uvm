@@ -1,0 +1,154 @@
+diff --git a/hw/ip/spi_device/pre_dv/program/prog_passthrough_host.sv b/hw/ip/spi_device/pre_dv/program/prog_passthrough_host.sv
+--- a/hw/ip/spi_device/pre_dv/program/prog_passthrough_host.sv
++++ b/hw/ip/spi_device/pre_dv/program/prog_passthrough_host.sv
+@@ -72,7 +72,8 @@
+ 
+     @(negedge clk);
+ 
+-    $value$plusargs("TESTNAME=%s", testname);
++    if (!$value$plusargs("TESTNAME=%s", testname))
++      $fatal(1, "Missing +TESTNAME");
+ 
+     case (testname)
+       "readbasic": begin
+@@ -97,7 +98,7 @@
+       end
+ 
+       default: begin
+-        $display("Passthrough test requires '+TESTNAME=%%s'");
++        $fatal(1, "Unknown +TESTNAME=%s", testname);
+       end
+ 
+     endcase
+@@ -221,13 +222,13 @@
+     automatic logic [31:0] address;
+     automatic int unsigned size;
+ 
+-    SpiTransRead trans = new();
++    automatic SpiTransRead trans = new();
+     // Random address and size
+-    trans.randomize() with {
++    if (!(trans.randomize() with {
+       size < 32;
+       address < FlashSize - size;
+       addr_mode == 0; // 3B only
+-    };
++    })) $fatal(1, "SPI passthrough randomization failed");
+     trans.display();
+ 
+     if (addr_mode != Addr3B) begin
+@@ -260,11 +261,11 @@
+ 
+     trans = new();
+ 
+-    trans.randomize() with {
++    if (!(trans.randomize() with {
+       size      == local::size;
+       address   == local::address;
+       addr_mode == 1; // Addr 4B
+-    };
++    })) $fatal(1, "SPI passthrough randomization failed");
+     trans.display();
+ 
+     // Issue En4B
+@@ -320,7 +321,7 @@
+ 
+       trans = new();
+ 
+-      trans.randomize() with {
++      if (!(trans.randomize() with {
+         cmd inside {
+           CmdWriteDisable,
+           CmdWriteEnable
+@@ -328,7 +329,7 @@
+         size      == 0;
+         address   == '0;
+         addr_mode == 0;
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+ 
+       // TODO: Add to TLM FIFO to sequencer then sequencer to Driver
+ 
+@@ -370,7 +371,8 @@
+ 
+       // WEL cmd
+       trans_wel = new();
+-      trans_wel.randomize();
++      if (!trans_wel.randomize())
++        $fatal(1, "SPI passthrough randomization failed");
+ 
+       // If flip, issue cmd
+       if (((trans_wel.cmd == CmdWriteEnable) && !wel)
+@@ -383,9 +385,9 @@
+ 
+       // Issue page program
+       trans_prog = new();
+-      trans_prog.randomize() with {
++      if (!(trans_prog.randomize() with {
+         address < (local::FlashSize - size);
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+       trans_prog.display();
+ 
+       spiflash_program(
+@@ -411,11 +413,11 @@
+       // Read from Mailbox space only when WEL
+       trans_size = $min(trans_prog.size, 256);
+       trans_read = new();
+-      trans_read.randomize() with {
++      if (!(trans_read.randomize() with {
+         address == local::MailboxAddr;
+         addr_mode == 1'b 0; // 3B
+         size == local::trans_size;
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+ 
+       spiflash_read(
+         sif.tb,
+@@ -434,11 +436,11 @@
+       // Read even if wel = 0. Check if value is written?
+ 
+       trans_read = new();
+-      trans_read.randomize() with {
++      if (!(trans_read.randomize() with {
+         address == local::trans_prog.address;
+         addr_mode == 1'b 0; // 3B
+         size == local::trans_size;
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+ 
+       spiflash_read(
+         sif.tb,
+@@ -486,9 +488,9 @@
+ 
+     // Issue Page Program
+     trans = new();
+-    trans.randomize() with {
++    if (!(trans.randomize() with {
+         address < (local::FlashSize - size);
+-    };
++    })) $fatal(1, "SPI passthrough randomization failed");
+     trans.display();
+ 
+     spiflash_program(
+diff --git a/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv b/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
+--- a/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
++++ b/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
+@@ -29,7 +29,8 @@
+     $display("Intializing SPI_DEVICE: PassThrough mode");
+     init_spidevice_passthrough();
+ 
+-    $value$plusargs("TESTNAME=%s", testname);
++    if (!$value$plusargs("TESTNAME=%s", testname))
++      $fatal(1, "Missing +TESTNAME");
+ 
+     case (testname)
+       "readbasic": begin
+@@ -51,6 +52,7 @@
+         // TODO: Read and check if cmds...
+         test_upload();
+       end
++      default: $fatal(1, "Unknown +TESTNAME=%s", testname);
+     endcase
+ 
+     forever begin

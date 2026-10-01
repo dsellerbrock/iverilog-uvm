@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_constraint_nested_fixed_element_type_fail_2023.v","iverilog-args":["-g2023"],"gold":"sv_constraint_nested_fixed_element_type_fail_2023"}

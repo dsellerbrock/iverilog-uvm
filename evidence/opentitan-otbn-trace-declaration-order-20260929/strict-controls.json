@@ -1,0 +1,73 @@
+{
+  "source_sha256": "0b10abda746761517a5e343c6b5d909040e8b8dc405731a2c1688c28cd65bd8c",
+  "compiler_sha256": "02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1",
+  "ivl_sha256": "2b24c2854756c53c8bd51d8d19906e820700a7fd0d34dbfe4d56de7f3befb0a4",
+  "cases": [
+    {
+      "edition": "2017",
+      "declaration_moved": false,
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/ot-census-speedups-overlays-20260929/tracer-controls/2017-original.vvp",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+      ],
+      "compile_exit": 2,
+      "compile_output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to bind wire/reg/memory `controller_bad_int_i.loop_hw_intg_err' in `top.trace'\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:12:      : A symbol with that name was declared here. Check for declaration after use.\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to elaborate r-value: controller_bad_int_i.loop_hw_intg_err\n2 error(s) during elaboration.\n"
+    },
+    {
+      "edition": "2017",
+      "declaration_moved": true,
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/ot-census-speedups-overlays-20260929/tracer-controls/2017-moved.vvp",
+        "-DEARLY_DECL",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+      ],
+      "compile_exit": 0,
+      "compile_output": "",
+      "vvp_exit": 0,
+      "vvp_output": "PASS\n"
+    },
+    {
+      "edition": "2023",
+      "declaration_moved": false,
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/ot-census-speedups-overlays-20260929/tracer-controls/2023-original.vvp",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+      ],
+      "compile_exit": 2,
+      "compile_output": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to bind wire/reg/memory `controller_bad_int_i.loop_hw_intg_err' in `top.trace'\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:12:      : A symbol with that name was declared here. Check for declaration after use.\n/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv:11: error: Unable to elaborate r-value: controller_bad_int_i.loop_hw_intg_err\n2 error(s) during elaboration.\n"
+    },
+    {
+      "edition": "2023",
+      "declaration_moved": true,
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "top",
+        "-o",
+        "/private/tmp/ot-census-speedups-overlays-20260929/tracer-controls/2023-moved.vvp",
+        "-DEARLY_DECL",
+        "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/otbn_trace_forward.sv"
+      ],
+      "compile_exit": 0,
+      "compile_output": "",
+      "vvp_exit": 0,
+      "vvp_output": "PASS\n"
+    }
+  ]
+}

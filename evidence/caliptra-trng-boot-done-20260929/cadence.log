@@ -1,0 +1,2 @@
+PASS first96_equal slow_span=47500 fast_span=4750
+caliptra-trng-rng-cadence-20260929.sv:42: $finish called at 480035 (1s)

@@ -1,6 +1,9 @@
 // IEEE 1800-2017 18.3/18.5.4/18.5.9/18.5.10/18.6.1/18.6.3;
 // IEEE 1800-2023 18.3/18.5.3/18.5.8/18.5.9/18.6.1/18.6.3.
-// Unsupported distributions and coupled factors fail without partial writeback.
+// Unsupported distributions fail without partial writeback; a coupled factor
+// too large to enumerate is sampled against the hard constraints (valid, but
+// not uniform); an independent distribution samples only values allowed by hard
+// constraints.
 class leaf;
   rand bit [9:0] value;
 endclass
@@ -68,15 +71,16 @@ module main;
   int old_posts;
   string root_state, child_state;
   initial begin
-    if (c.randomize() || c.value!=1 || c.child.value!=13 || c.posts)
-      $fatal(1,"coupled OR limit split or rollback lost");
+    if (!c.randomize() || !(c.value==0 || c.child.value==0) || c.posts != 1)
+      $fatal(1,"coupled OR over the enumeration limit was not solved validly");
     if (b.randomize() || b.value!=1 || b.posts) $fatal(1,"active weight admitted");
     b.value.rand_mode(0);
     if (b.randomize() || b.value!=1 || b.posts) $fatal(1,"inactive subject hid active weight");
     x.value.rand_mode(0);
     if (x.randomize() || x.value!=1 || x.posts) $fatal(1,"inactive subject hid X weight");
     if (s.randomize()) $fatal(1,"discarded soft dist silently sampled");
-    if (p.randomize()) $fatal(1,"unproved range-exclusion policy admitted");
+    if (!p.randomize() || !(p.value inside {102,103}))
+      $fatal(1,"independent clipped range did not sample");
     if (!d.randomize() || d.child.value != d.value || d.posts != 1)
       $fatal(1,"coupled distributions did not solve jointly");
     old_value=d.value; old_child=d.child.value; old_posts=d.posts;

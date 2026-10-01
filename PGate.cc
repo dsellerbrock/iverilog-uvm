@@ -146,6 +146,16 @@ PGAssign::~PGAssign()
 {
 }
 
+PGAlias::PGAlias(list<PExpr*>*pins)
+: PGate(perm_string(), pins)
+{
+      ivl_assert(*this, pin_count() >= 2);
+}
+
+PGAlias::~PGAlias()
+{
+}
+
 PGBuiltin::PGBuiltin(Type t, perm_string name,
 		     list<PExpr*>*pins,
 		     const list<PExpr*>*del)

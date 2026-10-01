@@ -1,0 +1,15 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-passthrough-matrix-20260929/runtime/lowrisc_dv_spid_passthrough_sim_0.1/matrix-runtime.vvp -c /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-passthrough-matrix-20260929/runtime/lowrisc_dv_spid_passthrough_sim_0.1/matrix-iverilog.scr
+returncode: 0
+duration_seconds: 1.338
+
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:224: warning: Static variable initialization requires explicit lifetime in this context.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:226: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:263: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:373: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:386: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:414: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:437: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:489: warning: method function 'randomize' is being called as a task.
+../src/lowrisc_dv_spid_passthrough_sim_0.1/program/prog_passthrough_host.sv:323: warning: method function 'randomize' is being called as a task.
+iverilog: note: wrote DPI export C stubs to /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/spid-passthrough-matrix-20260929/runtime/lowrisc_dv_spid_passthrough_sim_0.1/matrix-runtime.dpiexport.c (compile it into your DPI object).

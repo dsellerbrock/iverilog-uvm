@@ -1,0 +1,39 @@
+{
+  "id": "OT-FLASH-ASSOC-FIXED-CHILD-SHUFFLE",
+  "date_utc": "2026-09-28",
+  "phase": "focused-tested implementation checkpoint with remaining application errors",
+  "compiler_base_commit": "be4834e1d",
+  "compiler_engine_sha256": "512c79d3f4830012397def1142bf5325fee9004bb0e86e44847497380bcf283c",
+  "target_sha256": "e88fb68c0d1915119a1e0d622071dfd0ae07151a2a0d59b7280fc34be94e6ebf",
+  "runtime_sha256": "8d25235aa0223341ec066aa7996fbac6e305299c2381d36d7feb2363189ad423",
+  "standard": "IEEE 1800-2017/2023 7.8 associative array indexing and 7.12.2 array ordering methods",
+  "root_cause": "The frontend rejected an enum-keyed associative class-property selection whose element was a one-dimensional fixed integral array. The fixed-array ordering target only emitted operations for direct signal or array receivers, so a selected child could not be ordered in place.",
+  "correction": "Admit the selected fixed child and lower reverse/shuffle through typed associative vivification and the existing object ordering opcodes. Vivification stores a private fixed child for a missing key, while the object ordering operation mutates the selected stored child and notifies its root.",
+  "focused_validation": {
+    "json": "4/4 strict paired 2017/2023 positive and compile-error cases; focus list SHA-256 723f7bc49a787ac496590fca85b4c69072099151872ecca6fb956fbc78d79716",
+    "legacy": "4/4 strict paired 2017/2023 positive and compile-error cases; focus list SHA-256 7e0950a5a12f1ce7b8431a4eb9831ebfdd424ebe97e32a1e1bd651f4ef6f3797",
+    "adjacent": "18/18 existing associative fixed-array checks passed in each runner",
+    "positive": "Selected existing child exact reverse, missing-key insertion and private default copy, neighboring-key isolation, key expression evaluated once, and twelve shuffles preserving permutation with an observed reorder passed in both editions.",
+    "negative": "A scalar child ordering receiver hard-fails in paired registered tests; a separate two-dimensional fixed-child control hard-fails in strict 2017/2023.",
+    "independent_review": "No selected-ticket blocker; typed vivify, object stack balance, root propagation, and default-copy isolation checked.",
+    "build_checks": "make -q ivl, make -C tgt-vvp -q vvp.tgt, and git diff --check passed"
+  },
+  "patched_source_flash_compile": {
+    "before_hard_diagnostics": 3,
+    "after_hard_diagnostics": 2,
+    "removed_indexed_child_shuffle_errors": 1,
+    "added_hard_diagnostics": 0,
+    "warnings_before": 135,
+    "warnings_after": 135,
+    "added_warnings": 0,
+    "exit_code": 2,
+    "output_image_exists": false,
+    "source_list_sha256": "8b7c8cf7f7aad93a6a30f986a5a00b389a1b555601efefc19c0bd1b57c648572",
+    "source_overlay_sha256": {
+      "flash_ctrl_mp_regions_vseq.sv": "df813c30f1bbf12350c3432c41ab4c6a74577824e0ab77add4718363fcb8454e",
+      "flash_ctrl_env_cfg.sv": "b4fd9c0895c37715c15269bf598eddff910f536562987d9774ae347b27c5b438"
+    },
+    "raw_result": "projectless work/ot-flash-assoc-fixed-child-shuffle-20260928/result.json"
+  },
+  "boundary": "Two whole-multidimensional-array solve-before errors still prevent a Flash VVP image. Ten nested queue-element constraint warnings still state that randomize() will fail. Direct fixed class-property ordering remains DD-084. This is compile-only selected-overlay evidence; no Flash DV runtime, broad suite, installed-image result, pristine application qualification, or fresh census follows. Pinned sources and unsafe flags are unchanged."
+}

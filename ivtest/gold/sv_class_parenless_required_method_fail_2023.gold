@@ -1,0 +1,3 @@
+ivltests/sv_class_parenless_required_method_fail.v:4: error: Class method `f' requires argument `x'; parentheses may be omitted only when every argument has a default (IEEE 1800-2017/2023 13.5.5).
+ivltests/sv_class_parenless_required_method_fail.v:10: error: Class method `f' requires argument `x'; parentheses may be omitted only when every argument has a default (IEEE 1800-2017/2023 13.5.5).
+2 error(s) during elaboration.

@@ -1,0 +1,46 @@
+{
+  "case": "lowrisc:dv:spid_passthrough_sim:0.1",
+  "compiler_source_head": "1f2a4b3344ec87a014924e818d261c6e8c131f81",
+  "scope": "focused copied-source compile only; no DV runtime",
+  "source_patch": "spid_passthrough_sram_path.patch",
+  "source_patch_sha256": "c2ed608865d50151cebb6e70b24fa1b276708018fc1cb05d6cb45898bec08d61",
+  "old_macro": "tb.dut.u_memory_2p.u_mem.gen_generic.u_impl_generic.mem[(x)]",
+  "current_macro": "tb.dut.u_spid_dpram.gen_ram2p.u_memory_2p.u_mem.gen_generic.u_impl_generic.mem[(x)]",
+  "before": {
+    "returncode": 0,
+    "ignored_assignment_warning": true,
+    "warning_count": 10
+  },
+  "after": {
+    "returncode": 0,
+    "hard_lines": [],
+    "ignored_assignment_warning": false,
+    "warning_count": 9,
+    "vvp_sha256": "339857d635e0e06380cdd9070c9920898d3d56e0d9a078964e3b51f77b81d9d1",
+    "init_dpsram_emits_array_store": true,
+    "vvp_memory_shape": "mem[1023:0][35:0]"
+  },
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+    "-g2012",
+    "-stb",
+    "-gcommercial-unsafe",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_REG_BYTENABLE_WIDTH=4",
+    "-DUVM_REGEX_NO_DPI",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-passthrough-current/matrix-runtime-sram-path.vvp",
+    "-c",
+    "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-passthrough-current/matrix-iverilog.scr"
+  ],
+  "cwd": "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-spid-passthrough-current/sim-icarus",
+  "pinned_checkout_edited": false,
+  "runtime_blocker": "const ref event/wait sensitivity does not follow bound actual; DV not run"
+}

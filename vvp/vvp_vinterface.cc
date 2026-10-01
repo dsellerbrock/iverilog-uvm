@@ -23,6 +23,7 @@
 # include  "vthread.h"
 # include  "vvp_net.h"
 # include  "vvp_net_sig.h"
+# include  "schedule.h"
 # include  <cassert>
 # include  <cstddef>
 
@@ -238,6 +239,9 @@ void vvp_vinterface::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
       if (!sig || !sig->node)
 	    return;
 
+      if (reject_continuous_write(pid, idx))
+            return;
+
 	// The interface CLASS type is elaborated once per interface
 	// definition with DEFAULT parameter values, so the property
 	// width can differ from this instance's actual signal width
@@ -257,6 +261,26 @@ void vvp_vinterface::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 	    return;
       }
       vvp_send_vec4(dest, val, vthread_get_wt_context());
+}
+
+bool vvp_vinterface::reject_continuous_write(size_t pid, size_t idx) const
+{
+      slot_t slot = get_slot_(pid);
+      if (slot.kind != SLOT_SIGNAL)
+            return false;
+      __vpiSignal*sig = resolve_signal_index_(
+            dynamic_cast<__vpiSignal*>(slot.handle), idx);
+      if (!sig || !sig->node || sig->get_type_code() != vpiNet)
+            return false;
+
+      // A continuous assignment coerces an interface variable to a net in
+      // the VVP image. Reject an actual VIF alias before any write or NBA
+      // no-change shortcut can hide the conflict.
+      fprintf(stderr, "vvp error: procedural write to continuously driven interface member '%s'.\n",
+              sig->id.name ? sig->id.name : "<unnamed>");
+      vpip_set_return_value(1);
+      schedule_finish(1);
+      return true;
 }
 
 bool vvp_vinterface::sig_changed_this_step(size_t pid) const

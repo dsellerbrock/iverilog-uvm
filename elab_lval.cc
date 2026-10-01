@@ -45,6 +45,20 @@
 # include  <climits>
 # include  "ivl_assert.h"
 
+/* A bit or part select of a packed property. An enum or packed struct is
+ * written as the flat vector of its bits, like a `logic [N-1:0]' property. */
+static const netvector_t*packed_select_view_(ivl_type_t type)
+{
+      if (const netvector_t*vec = dynamic_cast<const netvector_t*>(type))
+	    return vec;
+      if (type && (dynamic_cast<const netenum_t*>(type)
+		   || (type->packed() && dynamic_cast<const netstruct_t*>(type)))
+	  && type->packed_width() > 0)
+	    return new netvector_t(type->base_type(), type->packed_width() - 1, 0,
+				   type->get_signed());
+      return 0;
+}
+
 using namespace std;
 
 /* Reuse the live last-index expression used by queue reads. Ordinary indices
@@ -86,8 +100,14 @@ static string stream_int128_text_(__int128 value)
 
 NetAssign_* PEStreamWith::elaborate_lval(Design*des, NetScope*scope,
                                           bool is_cassign, bool is_force,
-                                          bool is_init) const
+                                          bool is_init, bool read_only_ref) const
 {
+      if (read_only_ref) {
+	cerr << get_fileline() << ": error: A const ref actual must be a variable."
+	     << endl;
+	des->errors += 1;
+	return nullptr;
+      }
       NetAssign_*res = base_->elaborate_lval(des, scope, is_cassign,
                                              is_force, is_init);
       if (!res)
@@ -280,9 +300,16 @@ void PEIdent::report_mixed_assignment_conflict_(const char*category) const
  * is to try to make a net elaboration, and see if the result is
  * suitable for assignment.
  */
-NetAssign_* PExpr::elaborate_lval(Design*, NetScope*, bool, bool, bool) const
+NetAssign_* PExpr::elaborate_lval(Design*des, NetScope*, bool, bool, bool,
+				 bool read_only_ref) const
 {
-      cerr << get_fileline() << ": Assignment l-value too complex." << endl;
+      if (read_only_ref) {
+	cerr << get_fileline() << ": error: A const ref actual must be a variable."
+	     << endl;
+	des->errors += 1;
+      } else {
+	cerr << get_fileline() << ": Assignment l-value too complex." << endl;
+      }
       return 0;
 }
 
@@ -346,8 +373,15 @@ NetAssign_* PEConcat::elaborate_lval(Design*des,
                                      NetScope*scope,
                                      bool is_cassign,
                                      bool is_force,
-                                     bool is_init) const
+                                     bool is_init,
+                                     bool read_only_ref) const
 {
+      if (read_only_ref) {
+	cerr << get_fileline() << ": error: A const ref actual must be a variable."
+	     << endl;
+	des->errors += 1;
+	return nullptr;
+      }
       if (repeat_) {
 	    cerr << get_fileline() << ": error: Repeat concatenations make "
 		  "no sense in l-value expressions. I refuse." << endl;
@@ -702,7 +736,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 				    NetScope*scope,
 				    bool is_cassign,
 				    bool is_force,
-				    bool is_init) const
+				    bool is_init,
+				    bool read_only_ref) const
 {
 
       for (const name_component_t&component : path_.name) {
@@ -829,13 +864,15 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_clocking_access(mapped_access);
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
-						    is_force, is_init);
+						      is_force, is_init,
+						      read_only_ref);
 	    }
 	    PEIdent mapped_ident(rewritten_path, lexical_pos_);
 	    mapped_ident.set_line(*this);
 	    mapped_ident.set_clocking_access(mapped_access);
 	    return mapped_ident.elaborate_lval(des, scope, is_cassign,
-					      is_force, is_init);
+						is_force, is_init,
+						read_only_ref);
       }
 
 	/* The l-value must be a variable. If not, then give up and
@@ -955,7 +992,36 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
             && reg->unpacked_dimensions() == 0
             && !sr.path_head.empty() && sr.path_head.back().index.empty()
             && dynamic_cast<const netclass_t*>(reg->net_type());
-      if (reg->get_const() && !is_init && !class_member_write) {
+	/* A const-ref call needs the storage address, not permission to
+	   assign to it. Packed selects are not reference actuals
+	   (IEEE 1800-2017/2023 13.5.2). */
+      const netstruct_t*record =
+	    dynamic_cast<const netstruct_t*>(reg->net_type());
+      bool unpacked_member = record && !record->packed()
+	    && member_path.size() == 1
+	    && member_path.front().index.empty();
+      bool addressable_const_ref = read_only_ref
+	    && (member_path.empty() || unpacked_member);
+      if (addressable_const_ref && !sr.path_head.empty()) {
+	const auto&indices = sr.path_head.back().index;
+	unsigned unpacked_dims = reg->unpacked_dimensions();
+	if (reg->darray_type()) unpacked_dims += 1;
+	if (indices.size() > unpacked_dims)
+	  addressable_const_ref = false;
+	for (const index_component_t&index : indices)
+	  if (index.sel != index_component_t::SEL_BIT)
+	    addressable_const_ref = false;
+      }
+	if (read_only_ref && !addressable_const_ref
+	    && !class_member_write) {
+	    cerr << get_fileline() << ": error: A const ref actual must be "
+		 << "a variable, class property, or unpacked member or element."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+	}
+      if (reg->get_const() && !is_init && !class_member_write
+	  && !addressable_const_ref) {
 	    cerr << get_fileline() << ": error: Assignment to const signal `"
 	         << reg->name() << "` is not allowed." << endl;
 	    des->errors++;
@@ -979,7 +1045,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       ivl_assert(*this, !sr.path_head.empty());
       NetAssign_*res = elaborate_lval_var_(des, scope, is_force, is_cassign,
 					 reg, sr.type, member_path,
-					 sr.path_head.back().index, is_init);
+					 sr.path_head.back().index, is_init,
+					 read_only_ref);
       if (is_force && res)
 	    res->mark_force_lval();
       return res;
@@ -990,7 +1057,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 					NetNet *reg, ivl_type_t data_type,
 					const pform_name_t tail_path,
 					const list<index_component_t>&base_index,
-					bool is_init) const
+					bool is_init, bool read_only_ref) const
 {
 	// We are processing the tail of a string of names. For
 	// example, the Verilog may be "a.b.c", so we are processing
@@ -1006,6 +1073,52 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       index_component_t::ctype_t use_sel = index_component_t::SEL_NONE;
       if (!name_tail.index.empty())
 	    use_sel = name_tail.index.back().sel;
+
+	/* An associative element that is a fixed unpacked array has two
+	 * independent indices: a key and a declared fixed-array slot. Keep
+	 * both l-value ranks so the target can materialize the keyed array
+	 * before storing its selected word. */
+	const netqueue_t*assoc = reg->queue_type();
+	const netuarray_t*fixed_assoc_element = assoc && assoc->assoc_compat()
+	      ? dynamic_cast<const netuarray_t*>(assoc->element_type()) : nullptr;
+	if (tail_path.empty() && fixed_assoc_element
+	    && name_tail.index.size() >= 2) {
+	      if (fixed_assoc_element->static_dimensions().size() != 1
+		  || name_tail.index.size() != 2) {
+		cerr << get_fileline() << ": sorry: this associative-array value"
+		     << " with a fixed unpacked dimension needs one key and"
+		     << " one fixed slot index." << endl;
+		des->errors += 1;
+		return nullptr;
+	      }
+	      const index_component_t&key = name_tail.index.front();
+	      const index_component_t&slot = name_tail.index.back();
+	      if (key.sel != index_component_t::SEL_BIT || !key.msb || key.lsb
+		  || slot.sel != index_component_t::SEL_BIT || !slot.msb
+		  || slot.lsb) {
+		cerr << get_fileline() << ": sorry: an associative-array"
+		     << " fixed-element write needs simple key and slot indices."
+		     << endl;
+		des->errors += 1;
+		return nullptr;
+	      }
+	      NetExpr*key_expr = elab_lval_container_index_(
+		    des, scope, *this, key, reg);
+	      if (!key_expr)
+		return nullptr;
+	      list<index_component_t>slot_index(1, slot);
+	      NetExpr*slot_expr = make_checked_canonical_property_index(
+		    des, scope, this, slot_index, fixed_assoc_element, false);
+	      if (!slot_expr) {
+		delete key_expr;
+		return nullptr;
+	      }
+	      NetAssign_*key_lv = new NetAssign_(reg);
+	      key_lv->set_word(key_expr);
+	      NetAssign_*slot_lv = new NetAssign_(key_lv);
+	      slot_lv->set_word(slot_expr);
+	      return slot_lv;
+	}
 
 	// Special case: The l-value is an entire memory, or array
 	// slice. Detect the situation by noting if the index count
@@ -1177,7 +1290,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 		  return elaborate_lval_net_class_member_(des, scope, member_root_type,
 							  reg, tail_path, base_index,
 							  is_cassign || is_force,
-							  is_init);
+							  is_init, read_only_ref);
       }
 
 
@@ -3079,7 +3192,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    ivl_type_t root_type, NetNet*sig,
 				    pform_name_t member_path,
 				    const list<index_component_t>&base_index,
-				    bool need_const_idx, bool is_init) const
+				    bool need_const_idx, bool is_init,
+				    bool read_only_ref) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEIdent::elaborate_lval_net_class_member_: "
@@ -3100,24 +3214,11 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 	      NetAssign_*lv = 0;
 	      if (!base_index.empty() && sig->darray_type()) {
-		    if (base_index.size() != 1) {
-			  cerr << get_fileline() << ": sorry: "
-			       << "Only single-dimension index of dynamic/queue class l-value roots is supported."
-			       << endl;
-			  des->errors += 1;
-			  return 0;
-		    }
-
-		    const index_component_t&root_index = base_index.back();
-		    if (root_index.sel == index_component_t::SEL_BIT_LAST) {
-			  cerr << get_fileline() << ": sorry: "
-			       << "Last element select of dynamic/queue class l-value roots is not supported."
-			       << endl;
-			  des->errors += 1;
-			  return 0;
-		    }
-		    if (root_index.msb == 0 || root_index.lsb != 0
-			|| root_index.sel != index_component_t::SEL_BIT) {
+		    const index_component_t&root_index = base_index.front();
+		    if ((root_index.sel == index_component_t::SEL_BIT
+			 && (root_index.msb == 0 || root_index.lsb != 0))
+			|| (root_index.sel != index_component_t::SEL_BIT
+			 && root_index.sel != index_component_t::SEL_BIT_LAST)) {
 			  cerr << get_fileline() << ": sorry: "
 			       << "Only simple index selects of dynamic/queue class l-value roots are supported."
 			       << endl;
@@ -3125,14 +3226,45 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			  return 0;
 		    }
 
-		    NetExpr*root_word_index = elab_assoc_index(
-			  des, scope, root_index.msb, sig->queue_type());
+		    NetExpr*root_word_index = elab_lval_container_index_(
+			  des, scope, *this, root_index, sig);
 		    if (!root_word_index)
 			  return 0;
 
 		    lv = new NetAssign_(sig);
 		    lv->set_word(root_word_index);
 		    root_type = lv->net_type();
+
+		      /* Stacked container selects (`aa[k1][k2].member'): each
+		       * further index selects inside the container the previous
+		       * one produced, expressed as one more nested word node. */
+		    list<index_component_t>::const_iterator more_index = base_index.begin();
+		    for (++more_index ; more_index != base_index.end() ; ++more_index) {
+			  const netqueue_t*cur_queue =
+				dynamic_cast<const netqueue_t*>(root_type);
+			  const netdarray_t*cur_darray =
+				dynamic_cast<const netdarray_t*>(root_type);
+			  if ((!cur_queue && !cur_darray)
+			      || more_index->sel != index_component_t::SEL_BIT
+			      || !more_index->msb || more_index->lsb) {
+				cerr << get_fileline() << ": sorry: this stacked "
+				     << "container select before a member l-value "
+				     << "is not supported." << endl;
+				des->errors += 1;
+				delete lv;
+				return 0;
+			  }
+			  NetExpr*nested_key = elab_assoc_index(des, scope,
+				more_index->msb, cur_queue, false);
+			  if (!nested_key) {
+				delete lv;
+				return 0;
+			  }
+			  NetAssign_*outer = new NetAssign_(lv);
+			  outer->set_word(nested_key);
+			  lv = outer;
+			  root_type = lv->net_type();
+		    }
 	      } else if (!base_index.empty() && sig->unpacked_dimensions() > 0) {
 		      // Static unpacked array of class handles, e.g.
 		      // `c arr[N]; arr[i].prop = ...`. Convert the element
@@ -3470,7 +3602,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			des->errors += 1;
 
 		  } else if (qual.test_static()) {
-			  if (qual.test_const()) {
+			  if (qual.test_const()
+			      && !(read_only_ref && member_cur.index.empty()
+				   && member_path.empty())) {
 				cerr << get_fileline() << ": error: Assignment to const class property `"
 				     << owner_class->get_prop_name(pidx)
 				     << "' is not allowed." << endl;
@@ -3517,7 +3651,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    return elaborate_lval_net_class_member_(
 					  des, scope, psig->net_type(), psig,
 					  member_path, member_cur.index,
-					  need_const_idx, is_init);
+					  need_const_idx, is_init,
+					  read_only_ref);
 			      }
 			      cerr << get_fileline() << ": sorry: member"
 				   << " access into an indexed static-property"
@@ -3598,7 +3733,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			des->errors += 1;
 			return 0;
 
-		  } else if (qual.test_const()) {
+		  } else if (qual.test_const()
+			     && !(read_only_ref && member_cur.index.empty()
+				  && member_path.empty())) {
 			// Instance-constant writes are authorized per assignment site by
 			// the unlowered constructor control-flow audit. A single mutable
 			// bit cannot decide this: assignments in mutually exclusive arms
@@ -3742,7 +3879,49 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	    NetExpr *word_index = nullptr;
 	    bool applied_multi_dyn_word_index = false;
 	    if (!member_cur.index.empty()) {
-		  if (const netsarray_t *stype = dynamic_cast<const netsarray_t*>(ptype)) {
+		  if (const netparray_t*packed =
+			    dynamic_cast<const netparray_t*>(ptype)) {
+			// A packed array occupies one property slot. Its indices are
+			// bit offsets within that slot, not property word indices.
+			NetExpr*part_off = nullptr;
+			unsigned long part_wid = 0;
+			const netranges_t packed_dims = packed->slice_dimensions();
+			if (!collapse_checked_packed_property_indices(
+			      des, scope, this, packed_dims, member_cur.index,
+			      (unsigned long)packed->packed_width(),
+			      part_off, part_wid)) {
+			      delete lv;
+			      return 0;
+			}
+			if (part_wid == 0 || part_wid > UINT_MAX) {
+			      cerr << get_fileline() << ": error: packed property "
+				   << "select width is out of range." << endl;
+			      des->errors += 1;
+			      delete part_off;
+			      delete lv;
+			      return 0;
+			}
+			ivl_type_t part_type = nullptr;
+			const netranges_t&dims = packed->static_dimensions();
+			bool element_indices = true;
+			for (const index_component_t&ic : member_cur.index)
+			      element_indices &= ic.sel == index_component_t::SEL_BIT;
+			if (element_indices) {
+			      part_type = packed_type_after_dims(
+				    packed, member_cur.index.size());
+			      if (!part_type && member_cur.index.size() < dims.size()) {
+				    netranges_t remaining(
+					  dims.begin() + member_cur.index.size(),
+					  dims.end());
+				    part_type = new netparray_t(
+					  remaining, packed->element_type());
+			      }
+			}
+			if (!part_type)
+			      part_type = new netvector_t(
+				    packed->base_type(), (long)part_wid - 1, 0);
+			lv->set_part(part_off, part_type);
+		  } else if (const netsarray_t *stype = dynamic_cast<const netsarray_t*>(ptype)) {
 			  // Element access + bit/part-select of a packed-vector
 			  // element (c.arr[i][m:l] = v): leading indices address
 			  // the element (word index), the trailing select becomes
@@ -3752,7 +3931,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			const netuarray_t*utype =
 			      dynamic_cast<const netuarray_t*>(ptype);
 			const netvector_t*evec =
-			      dynamic_cast<const netvector_t*>(stype->element_type());
+			      packed_select_view_(stype->element_type());
 
 			/* A final range on a one-dimensional fixed class property is
 			 * an unpacked-array slice, not an element index. Decode it
@@ -3872,7 +4051,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				       * residual brackets are packed selects on the current
 				       * element l-value, not more container word indices. */
 				    if (const netvector_t*vector_type =
-					  dynamic_cast<const netvector_t*>(ptype)) {
+					  packed_select_view_(ptype)) {
 					  std::list<index_component_t>packed_indices(
 						idx_it, member_cur.index.cend());
 					  NetExpr*part_off = nullptr;
@@ -4015,16 +4194,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      }
 
 			      const index_component_t&index_tail = *idx_it;
-			      if (index_tail.sel == index_component_t::SEL_BIT_LAST) {
-				    cerr << get_fileline() << ": sorry: "
-					 << "Last-element select of dynamic/queue class "
-					 << "properties is not supported." << endl;
-				    des->errors += 1;
-				    delete lv;
-				    return 0;
-			      }
-			      if (!index_tail.msb || index_tail.lsb
-				  || index_tail.sel != index_component_t::SEL_BIT) {
+			      if (index_tail.sel != index_component_t::SEL_BIT_LAST
+				  && (!index_tail.msb || index_tail.lsb
+				      || index_tail.sel != index_component_t::SEL_BIT)) {
 				    cerr << get_fileline() << ": sorry: "
 					 << "Part-select of dynamic/queue class properties "
 					 << "is not supported." << endl;
@@ -4033,8 +4205,68 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    return 0;
 			      }
 
-			      NetExpr*idx_expr = elab_assoc_index(
-				    des, scope, index_tail.msb, ptype);
+			      NetExpr*idx_expr = nullptr;
+			      if (const netuarray_t*fixed =
+				    dynamic_cast<const netuarray_t*>(ptype)) {
+				if (fixed->static_dimensions().size() != 1) {
+				      cerr << get_fileline() << ": sorry: an associative-array"
+					   << " value with more than one fixed dimension is not"
+					   << " yet supported as an l-value." << endl;
+				      des->errors += 1;
+				      delete lv;
+				      return 0;
+				}
+				list<index_component_t>fixed_index(1, index_tail);
+				idx_expr = make_canonical_property_lval_index_(
+				      des, scope, this, fixed_index, fixed, false);
+			      } else if (index_tail.sel == index_component_t::SEL_BIT_LAST) {
+			const netqueue_t*queue = dynamic_cast<const netqueue_t*>(ptype);
+			if (!queue || queue->assoc_compat()) {
+			      cerr << get_fileline()
+				   << ": error: `$' requires a positional queue." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+			PEIdent*queue_ref = clone_for_reference();
+			queue_ref->set_line(*this);
+			while (queue_ref->path_.name.size()
+			       > path_.name.size() - member_path.size())
+			      queue_ref->path_.name.pop_back();
+			auto&indices = queue_ref->path_.name.back().index;
+			while (indices.size() > idx_pos) indices.pop_back();
+			/* ponytail: non-$ indexed receivers fail closed; capture the
+			 * receiver once to support them without duplicate side effects. */
+			for (const auto&comp : queue_ref->path_.name)
+			      for (const auto&index : comp.index)
+				    if (index.sel != index_component_t::SEL_BIT_LAST) {
+					  cerr << get_fileline() << ": sorry: queue `[$]'"
+					       << " property write through a non-`$' indexed"
+					       << " receiver is not supported." << endl;
+					  des->errors += 1;
+					  delete queue_ref;
+					  delete lv;
+					  return 0;
+				    }
+			NetExpr*queue_expr = queue_ref->elaborate_expr(
+			      des, scope, 0u, 0u);
+			delete queue_ref;
+			if (!queue_expr) {
+			      delete lv;
+			      return 0;
+			}
+			NetESFunc*size = new NetESFunc("$ivl_queue_method$size",
+						 &netvector_t::atom2u32, 1);
+			size->set_line(*this);
+			size->parm(0, queue_expr);
+			NetEConst*one = make_const_val(1);
+			one->set_line(*this);
+			idx_expr = new NetEBAdd('-', size, one, 32, true);
+			idx_expr->set_line(*this);
+		      } else {
+				idx_expr = elab_assoc_index(
+				      des, scope, index_tail.msb, ptype);
+			      }
 			      if (!idx_expr) {
 				    delete lv;
 				    return 0;
@@ -4066,8 +4298,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      }
 			}
 
-		  } else if (const netvector_t*pvec =
-			     dynamic_cast<const netvector_t*>(ptype)) {
+		  } else if (const netvector_t*pvec = packed_select_view_(ptype)) {
 			// A bit- or part-select of a packed-vector member is a
 			// PARTIAL WRITE. This applies both to a class-OBJECT
 			// property (owner_class) and to a member of a plain
@@ -4084,13 +4315,25 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 			NetExpr*canonical_off = 0;
 			unsigned long canonical_wid = 0;
-			if (collapse_packed_member_indices(
+			unsigned errors_before = des->errors;
+			if (collapse_checked_packed_property_indices(
 			      des, scope, this, dims, member_cur.index,
+			      (unsigned long)pvec->packed_width(),
 			      canonical_off, canonical_wid)) {
 			      lv->set_part(canonical_off,
 				    new netvector_t(pvec->base_type(),
 						     (long)canonical_wid - 1, 0));
 			} else {
+			      const index_component_t&tail = member_cur.index.back();
+			      bool mixed_range = member_cur.index.size() > 1
+				    && dims.size() > 1
+				    && (tail.sel == index_component_t::SEL_PART
+					|| tail.sel == index_component_t::SEL_IDX_UP
+					|| tail.sel == index_component_t::SEL_IDX_DO);
+			      if (mixed_range && des->errors > errors_before) {
+				    delete lv;
+				    return 0;
+			      }
 			{
 			      bool handled = false;
 
@@ -4421,7 +4664,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  if (!member_cur.index.empty()
 		      && dims.size() != member_cur.index.size()
 		      && !(member_cur.index.size() > dims.size()
-			   && dynamic_cast<const netvector_t*>(tmp_ua->element_type()))) {
+			   && packed_select_view_(tmp_ua->element_type()))) {
 			cerr << get_fileline() << ": error: "
 			     << "Got " << member_cur.index.size() << " indices, "
 			     << "expecting " << dims.size()
@@ -4866,7 +5109,8 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
       }
 }
 
-NetAssign_* PENumber::elaborate_lval(Design*des, NetScope*, bool, bool, bool) const
+NetAssign_* PENumber::elaborate_lval(Design*des, NetScope*, bool, bool, bool,
+				    bool) const
 {
       cerr << get_fileline() << ": error: Constant values not allowed "
 	   << "in l-value expressions." << endl;

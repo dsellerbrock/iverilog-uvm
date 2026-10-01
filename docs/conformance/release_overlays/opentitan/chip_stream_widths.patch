@@ -1,0 +1,45 @@
+diff --git a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv
+@@ -46,7 +46,7 @@
+ 
+   virtual task cpu_init();
+     // sw_symbol_backdoor_overwrite takes an array as the input
+-    bit [7:0] uart_freq_arr[8] = {<<byte{cfg.uart_baud_rate}};
++    bit [7:0] uart_freq_arr[8] = {<<byte{64'(cfg.uart_baud_rate)}};
+ 
+     super.cpu_init();
+     sw_symbol_backdoor_overwrite("kUartBaudrate", uart_freq_arr);
+@@ -59,7 +59,7 @@
+     if (cfg.chip_clock_source != ChipClockSourceInternal) begin
+       bit [7:0] use_extclk_arr[] = {cfg.chip_clock_source != ChipClockSourceInternal};
+       bit [7:0] low_speed_sel_arr[] = {cfg.chip_clock_source == ChipClockSourceExternal48Mhz};
+-      bit [7:0] uart_clk_freq_arr[8] = {<<byte{uart_clk_freq_khz * 1000}};
++      bit [7:0] uart_clk_freq_arr[8] = {<<byte{64'(uart_clk_freq_khz * 1000)}};
+ 
+       sw_symbol_backdoor_overwrite("kUseExtClk", use_extclk_arr);
+       sw_symbol_backdoor_overwrite("kUseLowSpeedSel", low_speed_sel_arr);
+diff --git a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_vseq.sv b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_vseq.sv
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_vseq.sv
+@@ -132,7 +132,7 @@
+     bit [7:0] sw_filter_config[4];
+     super.cpu_init();
+     `DV_CHECK_MEMBER_RANDOMIZE_FATAL(passthrough_filters);
+-    sw_filter_config = {<<byte{passthrough_filters}};
++    sw_filter_config = {<<byte{32'(passthrough_filters)}};
+     sw_symbol_backdoor_overwrite("kFilteredCommands", sw_filter_config);
+   endtask
+ 
+diff --git a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv
+@@ -202,7 +202,7 @@
+     passthrough_filters[spi_device_pkg::CmdInfoReadStatus3:spi_device_pkg::CmdInfoReadStatus1] = '1;
+     passthrough_filters[spi_device_pkg::CmdInfoReadCmdEnd:spi_device_pkg::CmdInfoReadCmdStart] = '0;
+     passthrough_filters[spi_device_pkg::NumTotalCmdInfo-1:spi_device_pkg::CmdInfoReserveStart] = '1;
+-    sw_filter_config = {<<byte{passthrough_filters}};
++    sw_filter_config = {<<byte{32'(passthrough_filters)}};
+     sw_symbol_backdoor_overwrite("kFilteredCommands", sw_filter_config);
+     sw_symbol_backdoor_overwrite("kUploadWriteCommands", upload_config);
+   endtask

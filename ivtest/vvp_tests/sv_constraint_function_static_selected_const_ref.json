@@ -1,5 +1,5 @@
 {
-    "type": "normal",
+    "type": "CE",
     "source": "sv_constraint_function_static_selected_const_ref.v",
     "iverilog-args": [
         "-g2017",

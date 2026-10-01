@@ -3509,7 +3509,228 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Reproducer status:** paired compile exit zero, runtime exit one at the first X sample; source and expression both print `xxxxx` before coverage rises to 50%. Z behavior is not yet isolated beyond the same earlier boundary fixture failing at X first.
 - **Triage status:** separate VVP four-state coverage representation blocker; no fix, no DV credit, and no implementation scope in the current elaborate.cc ticket.
 
-### DD-064 — unpacked-array output port connected to a slice of a 2-D unpacked array reads X
+### DD-064 — string conditions test only the low bit
+
+- **Discovered while working:** OT-STD-RANDOMIZE-RANGED-SIZE-EXACT.
+- **Observation:** In strict 2017 and 2023, `s = "AB"; if (s)` takes the false branch although the string's packed value is nonzero (`16'h4142`) and `!s` is false. `while`, `for`, `do while`, and ternary conditions also choose the false path.
+- **File/function:** `tgt-vvp/eval_condit.c` `draw_condition_fallback`; `tgt-vvp/eval_string.c` and `eval_real.c` duplicate the nominal-width test for ternary conditions.
+- **Possible clause:** IEEE 1800-2017/2023 12.4 (nonzero known `if` predicate); 11.4.7 (logical truth).
+- **Evidence:** `/private/tmp/str_truth_conditions_red.sv` passes `slang --quiet`; both strict runs print `failed=5 value=9 chosen=no real=2.500000` and exit at `$fatal`. The generated VVP casts the string at natural width, then tests bit 0 without reduction.
+- **Reproducer status:** confirmed in strict 2017 and 2023.
+- **Triage status:** untriaged; separate from the active Z3 size solver patch.
+
+### DD-065 — virtual-interface covergroup sampling silently has zero coverpoints
+
+- **Discovered while working:** OT-STD-RANDOMIZE-RANGED-SIZE-EXACT.
+- **Observation:** In strict 2017 and 2023, `vif.cg.sample()` compiles without a diagnostic but leaves two bound interface instances at 0% coverage. The same calls through physical `u0.cg` and `u1.cg` reach 50% each. A direct `coverpoint v` fails through `vif` too, so the loss precedes coverpoint expression lookup.
+- **File/function:** `elaborate.cc` `PCallTask::elaborate_method_` reads `covgrp_ncoverpoints()` from the virtual receiver's covergroup type; `elab_type.cc` `interface_layout_view_` supplies its interface layout type. The emitted virtual calls use `%covgrp/sample 0, 0`, whereas physical calls evaluate the coverpoint and use `%covgrp/sample 1, 1`.
+- **Possible clause:** IEEE 1800-2017/2023 §19.3 (covergroup sampling) and §25.9 (virtual-interface binding); confirm exact subclauses during selection.
+- **Evidence:** `/private/tmp/iverilog-vif-covergroup-scope-review.sv` and paired generated VVP files; both strict installed-tool runs print `COVERAGE 0.000000 0.000000` / `FAILED`, while the physical-call control prints `COVERAGE 50.000000 50.000000` / `PASSED`. Slang accepts the virtual source under both editions with zero errors or warnings.
+- **Reproducer status:** confirmed paired strict wrong-success; virtual receiver can rebind between two instances.
+- **Triage status:** separate elaboration/type-metadata blocker. A fixed concrete-instance lookup cannot cover a rebinding virtual handle; retain the selected receiver while making its covergroup metadata and sample expressions available, or reject unsupported sampling explicitly. No implementation in the active solver ticket.
+
+### DD-066 — const-ref forwarding is rejected as an assignment to const
+
+- **Discovered while working:** OT-PACKED-CONSTRAINT-INDEX-EXACT.
+- **Observation:** The released OpenTitan SPID `tlul_rmw` task passes its `const ref` clock and response arguments to `tlul_read` and `tlul_write`, whose corresponding formals are also `const ref`. After a disposable source overlay clears an unrelated missing struct field, Icarus reports four `Assignment to const signal` errors at the two calls. A 16-line standalone reducer produces the same four errors under local Icarus `-g2012`, with or without `-gcommercial-unsafe`. Slang 11.0.448 accepts it with zero errors and warnings under both `--std 1800-2017` and `--std 1800-2023`. A negative control changing one receiving formal to writable `ref` is rejected by Slang in both editions (`cannot bind const variable to 'ref' argument`). Icarus has no 2017/2023 language switch; `-g2012` is its highest available mode.
+- **File/function:** `PCallTask::elaborate_ref_bind_` in `elaborate.cc:18056` calls `actual->elaborate_lval` without conveying that the receiving formal is read-only. `PEIdent::elaborate_lval` then rejects `reg->get_const()` at `elab_lval.cc:958` as though reference binding were an assignment. The sole caller of `elaborate_ref_bind_` is `PCallTask::elaborate_build_call_` at `elaborate.cc:18668`. A dedicated read-only-ref lvalue context, enabled only when the receiving `ref` formal is const, would retain the existing lvalue checks while preserving writable-ref rejection; `is_init` and `is_force` are not suitable substitutes.
+- **Possible clause:** IEEE 1800-2017/2023 §13.5.2 (passing arguments by reference); confirm the exact edition wording before implementation.
+- **Evidence:** `/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/outputs/minimal-reproducers/ot-spid-const-ref-forward-min.sv`; disposable SPID compile log `/private/tmp/ot-spid_jedec-focused-w3qzp13u/compile.log`. The three stale SPID ports and four `sd_out` mixed-driver diagnostics in that log are separate.
+- **Reproducer status:** Confirmed compile rejection in local Icarus and acceptance in paired Slang editions; the writable-ref negative control rejects as expected in Slang. No compiler patch or application-source edit was made.
+- **Triage status:** Reproduced, record-only during OT-PACKED-CONSTRAINT-INDEX-EXACT; no implementation selected.
+
+### DD-067 — associative arrays of fixed arrays lack a sound VVP representation
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** A three-line `bit tgt[enum][2]` declaration fails under Icarus strict 2017/2023 while Slang accepts it. This is the largest family in the saved patched-copy Flash compile (114 diagnostics). Removing the `netuarray_t` type guard alone would lose fixed bounds and default element construction in VVP.
+- **File/function:** `elab_type.cc` associative element check; `tgt-vvp/vvp_priv.h` container layout; `vvp/vvp_object.*` layout; `vvp/vthread.cc` associative element construction.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.8; check exact nested-container behavior when selected.
+- **Evidence:** `outputs/minimal-reproducers/ot-flash-assoc-of-fixed-red.sv` and `work/flash-queue-triage-20260928/result.json` in the projectless campaign workspace.
+- **Reproducer status:** paired strict compile RED on the frozen compiler; current active patch passes 16/16 focused strict JSON and 16/16 legacy controls for module and class-property storage. One patched-copy Flash compile and wider qualification remain pending.
+- **Triage status:** active compiler blocker OT-FLASH-ASSOC-OF-FIXED-ARRAY, separate from the RSTMGR source patch.
+
+### DD-068 — nested queue constraints cannot reach fixed-array queue leaves
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** `q[i].size()==2` under `rand bit q[2][$]` fails elaboration, and `foreach(q[i,j]) q[i][j]==1` warns that it is unrepresentable before `randomize()` fails. Flat queue controls pass in both editions; Slang accepts the nested sources.
+- **File/function:** `elaborate.cc` indexed queue `.size()` constraint lowering and fixed-array/queue `foreach` IR traversal.
+- **Possible clause:** IEEE 1800-2017/2023 §18.5; confirm subclauses during selection.
+- **Evidence:** `outputs/minimal-reproducers/ot-flash-nested-queue-size-red.sv`, `outputs/minimal-reproducers/ot-flash-nested-queue-element-red.sv`, and `work/flash-queue-triage-20260928/result.json` in the projectless campaign workspace.
+- **Reproducer status:** paired strict compile/runtime REDs; no compiler fix.
+- **Triage status:** separate solver-lowering blocker; no Flash core rerun.
+
+### DD-069 — prim_flop_2sync setup omits its generated flop provider
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** The pinned FuseSoC dependency graph contains `prim_generic:flop_2sync -> prim:flop`, but its source list omits both `prim_flop.sv` and `prim_generic_flop.sv`. A one-line direct `prim:flop` dependency in `prim_flop_2sync.core` makes disposable setup generate both. One focused compile removes the two unknown-module errors and exposes separate obsolete CDC-delay task calls.
+- **File/function:** `hw/ip/prim/prim_flop_2sync.core` `primgen_dep`; generated `prim_flop_2sync` file list.
+- **Possible clause:** setup/provider mapping, not an IEEE compiler-semantic issue.
+- **Evidence:** `outputs/patches/ot-prim-flop-provider-dependency.patch` and `work/prim-flop-provider-20260928/compile-result.json` in the projectless campaign workspace.
+- **Reproducer status:** disposable setup and one focused compile; no runtime.
+- **Triage status:** source metadata correction proposal; the six stale TB task calls remain a separate issue.
+
+### DD-070 — SPI TPM pre-DV testbench targets obsolete parameters and ports
+
+- **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
+- **Observation:** Three TB overrides name local or nonexistent `spi_tpm` parameters. A three-line correction clears the exact minimal strict 2017/2023 errors, but static RTL comparison also finds eight obsolete named ports and a TB 8-bit read-FIFO assumption against the RTL's 32-bit read FIFO.
+- **File/function:** `hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv` instance versus released `hw/ip/spi_device/rtl/spi_tpm.sv`.
+- **Possible clause:** released source/interface mismatch, not an IEEE compiler-semantic issue.
+- **Evidence:** `outputs/patches/ot-spi-tpm-stale-parameter-overrides.patch` and `work/ot-spi-tpm-param-20260928/result.md` in the projectless campaign workspace.
+- **Reproducer status:** paired strict minimal controls and static port contract; no full core compile or runtime.
+- **Triage status:** source correction proposal only; requires separate port/FIFO reconciliation before application qualification.
+
+### DD-071 — missing associative key read omits the required warning
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** Reading a nonexistent scalar associative entry returns its default value without allocating, but emits no runtime warning. This predates fixed-array element support; the active blocker preserves the same read/value behavior and does not claim full missing-key diagnostic conformance.
+- **Warning distinction:** The fixed-child runtime currently stores its implicit default through `has_default_`, which also marks a user-specified default. A later warning fix must distinguish those cases so implicit fixed defaults do not suppress the §7.8.6 warning.
+- **File/function:** VVP associative-array read handlers in `vvp/vthread.cc`; precise warning path needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 §7.8.6 (read of a nonexistent entry warns unless a user default is specified).
+- **Evidence:** `work/flash-queue-triage-20260928/scalar-missing-key.sv` prints `VALUE=00 EXISTS=0` with no warning under the frozen Icarus runtime.
+- **Reproducer status:** confirmed with a minimal scalar control.
+- **Triage status:** untriaged; separate from fixed-array value/storage semantics.
+
+### DD-072 — variable-size whole-map pattern items need transactional validation
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** A dynamic array or queue can legally supply a fixed-array associative pattern item when its runtime size matches. On a mismatch, the whole-map assignment must report an error and leave the old map unchanged. The current typed pattern builder loses destination layout until after map replacement, so this slice explicitly rejects variable-size items at compile time instead of silently replacing the map.
+- **File/function:** `tgt-vvp/stmt_assign.c` `draw_eval_assoc_default`, `draw_assoc_pattern_value_`; `vvp/vthread.cc` `aa_new_default`; `vvp/vvp_assoc.h` map copy/rebind.
+- **Possible clause:** IEEE 1800-2017/2023 §7.6 and §7.8.
+- **Evidence:** Paired strict expected-fail fixture `ivtest/ivltests/sv_assoc_fixed_pattern_variable_source_fail.v`; transactional module/class reducers under `work/flash-queue-triage-20260928/flash-review-*-dynamic-mismatch-transaction.sv` in the projectless campaign workspace. Slang accepts those legal sources; current Icarus gives an explicit unsupported diagnostic for both default and keyed pattern items.
+- **Reproducer status:** strict 2017/2023 CE control passes in the 16-case JSON and legacy focus; transactional runtime implementation remains absent.
+- **Triage status:** explicit unsupported boundary for this blocker; select separately before claiming full §7.6 pattern assignment support.
+
+### DD-073 — module associative fixed arrays with class-handle leaves still reject indexed writes
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** A module variable `entry src[int][8:9]` with a class-handle leaf still fails target code generation on `src[4][8] = handle` with `could not recover the selected nested container type`. The active class-property handle control passes; the pinned Flash handle array is a class property.
+- **File/function:** `tgt-vvp/stmt_assign.c` nested object-element assignment type recovery.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.6, 7.8.
+- **Evidence:** `work/flash-queue-triage-20260928/flash-review-handle-cross-orientation.sv` in the projectless campaign workspace; strict 2017 emits three explicit `sorry` diagnostics and exits nonzero, while the class-property control passes both strict editions.
+- **Reproducer status:** focused compile boundary; no silent runtime success.
+- **Triage status:** separate follow-on beyond this blocker’s Flash class-property handle path.
+
+### DD-074 — packed-bit write after an associative fixed slot is unsupported
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** `m[key][fixed_slot][packed_bit] = value` is legal and accepted by Slang, but current Icarus gives an explicit `one key and one fixed slot index` elaboration error. The selected Flash sites use whole packed-leaf assignments.
+- **File/function:** `elab_lval.cc` nested fixed-child lvalue selection.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4 and 7.8.
+- **Evidence:** `work/flash-queue-triage-20260928/flash-assoc-fixed-packed-tail-boundary.sv` in the projectless campaign workspace; strict 2017 compiler exits nonzero, Slang lint accepts it.
+- **Reproducer status:** focused explicit compile boundary.
+- **Triage status:** separate follow-on; no packed-bit write support claimed by this blocker.
+
+### DD-075 — nonblocking indexed write to an associative fixed child is unsupported
+
+- **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
+- **Observation:** `m[key][fixed_slot] <= value` is legal, but current target reports that the nonblocking property assignment form is unsupported rather than scheduling the write with NBA semantics. The selected Flash sites do not require this form.
+- **File/function:** `tgt-vvp/stmt_assign.c` nested indexed nonblocking assignment lowering.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.8 and 10.4.2.
+- **Evidence:** `work/flash-queue-triage-20260928/flash-review-nba.sv` in the projectless campaign workspace; strict 2017 compile exits nonzero with an explicit target diagnostic.
+- **Reproducer status:** focused explicit compile boundary.
+- **Triage status:** separate follow-on; no NBA behavior claimed by this blocker.
+
+### DD-076 — null class method calls can return without a diagnostic
+
+- **Discovered while working:** OT-FLASH-INDEXED-FIXED-HANDLE-METHOD.
+- **Observation:** A void function call through a null class handle returns normally without invoking the body or reporting an error. Both a direct scalar receiver and an associative-key/fixed-slot receiver behave alike in strict 2017/2023. An out-of-range fixed-slot read yields null and does not alias a valid neighbor.
+- **File/function:** Generated class-method call/body and property dereference paths in `tgt-vvp`/`vvp`; exact diagnostic owner needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4.6/7.4.5, 8.4; null access diagnostic behavior needs separate assessment.
+- **Evidence:** `work/flash-direct-null.sv`, `work/flash-indexed-null.sv`, and `work/flash-indexed-oob.sv` in the projectless campaign workspace; paired strict Icarus runs print `FAILED null method returned` for direct and selected null receivers.
+- **Reproducer status:** paired strict runtime observation; no change to this global behavior in the indexed receiver fix.
+- **Triage status:** record-only diagnostic-policy follow-on; do not count silent null calls as successful method execution.
+
+### DD-077 — queue foreach silently skips a packed element dimension
+
+- **Discovered while working:** OT-FLASH-FOREACH-MIXED-RANK.
+- **Observation:** `bit [1:0] q[$]; foreach (q[i,j])` compiles in strict 2017/2023 but executes zero body visits after a two-bit queue element is inserted. Slang accepts the same source. This predates the mixed fixed/runtime repair; that repair gives an explicit unsupported diagnostic when a packed rank follows its selected runtime leaf, rather than silently dropping the loop.
+- **File/function:** `elaborate.cc` `PForeach::elaborate_runtime_array_` and `make_foreach_array_element_expr_` currently descend through runtime array ranks only.
+- **Possible clause:** IEEE 1800-2017/2023 §12.7.3.
+- **Evidence:** `work/flash-foreach-next-20260928/plain-queue-packed-tail.sv` and `work/flash-foreach-next-20260928/mixed-packed-tail-unsupported.sv` in the projectless campaign workspace.
+- **Reproducer status:** paired strict Icarus runtime zero-visit control and explicit mixed-tail compile boundary; Slang accepts the legal packed-tail source.
+- **Triage status:** separate foreach packed-tail lowering task; no packed-tail runtime support claimed by the mixed-rank repair.
+
+### DD-078 — physical-interface packed inner index aliases a neighbor
+
+- **Discovered while working:** OT-FLASH-VIF-PACKED-STRUCT-FIELD.
+- **Observation:** With distinct packed-struct values in `rd_buf[0][0] = 8'h11`, `[0][1] = 8'h22`, `[1][0] = 8'h33`, and `[1][1] = 8'h44`, direct physical-interface reads `fi.rd_buf[0][2].addr` and `fi.rd_buf[1][-1].addr` return `8'h33` and `8'h22`. The invalid inner index carries into the neighboring outer row. The selected VIF repair returns X for both because it selects each packed rank separately. Valid direct slots still provide the field-value oracle for the active blocker.
+- **File/function:** Direct physical-interface packed-select collapse in `elab_expr.cc`/`netmisc.cc`; exact owner needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 packed-array out-of-range indexing; exact subclause needs separate assessment.
+- **Evidence:** Projectless `work/flash-vif-packed-struct-20260928/runtime-print-invalid.sv` on the focused candidate prints `outer=xx inner_high=33 inner_low=22 outer_x=xx inner_x=xx`; paired VIF-focused runtime controls return X for invalid inner indices.
+- **Reproducer status:** confirmed with a minimal strict 2017 direct-interface runtime probe; VIF controls pass strict 2017/2023.
+- **Triage status:** untriaged; separate from the selected VIF packed-struct field repair.
+
+### DD-079 — packed child rank after an omitted associative foreach key
+
+- **Discovered while working:** OT-FLASH-FOREACH-OMITTED-ASSOC-KEY.
+- **Observation:** `foreach (map[, bank, bit_index])` is legal when `map` has an associative rank, one fixed child rank, and a packed vector leaf. Slang accepts the strict 2017/2023 reducer. The selected repair iterates the fixed bank rank but explicitly diagnoses the packed tail as unsupported; no packed-rank execution is claimed.
+- **File/function:** `elaborate.cc` `PForeach::elaborate_assoc_array_` and packed-rank descent after fixed child iteration.
+- **Possible clause:** IEEE 1800-2017/2023 §12.7.3.
+- **Evidence:** Focused candidate reducer and paired diagnostics in projectless `outputs/flash-omitted-assoc-foreach-focused-evidence-20260928.md`.
+- **Reproducer status:** strict Slang accepts; focused Icarus gives an explicit `sorry` in both editions.
+- **Triage status:** separate packed-tail implementation ticket; no silent execution accepted.
+
+### DD-080 — indexed parent path before an omitted associative foreach key
+
+- **Discovered while working:** OT-FLASH-FOREACH-OMITTED-ASSOC-KEY.
+- **Observation:** `foreach (boxes[next_idx()].m[, bank])` is legal and the indexed parent expression must be evaluated. A candidate that deleted the target expression without evaluating it visited banks but called `next_idx()` zero times. The selected repair explicitly diagnoses this form as unsupported, while the unindexed Flash target works.
+- **File/function:** `elaborate.cc` `PForeach::elaborate_assoc_array_`; selector evaluation must precede fixed child loop execution.
+- **Possible clause:** IEEE 1800-2017/2023 §12.7.3 and ordinary expression side effects.
+- **Evidence:** Focused indexed-prefix negative and independent review in projectless `outputs/flash-omitted-assoc-foreach-focused-evidence-20260928.md`.
+- **Reproducer status:** Slang accepts strict 2017/2023; Icarus emits an explicit `sorry` in both editions.
+- **Triage status:** separate indexed-target evaluation ticket; no dropped side effects accepted.
+
+### DD-081 — ascending packed class-property indexed read selects wrong bits
+
+- **Discovered while working:** OT-FLASH-CONSTRAINT-CONSTANT-INDEXED-PART-SELECT.
+- **Observation:** A class property `bit [0:7] value = 8'hA6` reads `value[2+:3] == 3'b101` and `value[5-:3] == 3'b110`; copying it into a local `bit [0:7]` and selecting the same ranges gives the correct `3'b100` and `3'b001`. The whole property remains `8'hA6`. This predates the selected constraint change and occurs without randomization.
+- **File/function:** procedural class-property packed-select elaboration/code generation; exact owner needs separate triage.
+- **Possible clause:** IEEE 1800-2017/2023 §11.5.1 indexed part-select orientation.
+- **Evidence:** Projectless `work/flash-constraint-indexed-impl-20260928/class-ascending-readback-debt.sv` reproduces in strict 2017 and 2023 using frozen installed ivl SHA-256 `56fe5718f2a7db3ea2075a588d1bbe82a49ecde8827536cde35897eebe6dfb6e` and VVP SHA-256 `0bc8c3b3e6a430dd0feec77d987c9ff78350206e8f386695f068131db5bcf862`.
+- **Reproducer status:** paired strict runtime observation; the selected solver test checks ascending bits through a copied local.
+- **Triage status:** separate procedural class-property selector repair; no claim that this constraint change repairs the read path.
+
+### DD-082 — unsupported constraint marker mistakes a `.v:` filename for a value slot
+
+- **Discovered while working:** OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER.
+- **Observation:** An unsupported constraint in a source named `*.v` emits the expected compile warning and makes `randomize()` fail, but runtime reports `malformed class constraint function capture` instead of naming the unsupported item. The same source named `*.sv` reports the intended unsupported-item error.
+- **File/function:** `substitute_class_slots_` scans the `(unsupported ...file.v:line)` marker as if its `v:` filename suffix were a value-slot token.
+- **Possible clause:** Diagnostic fidelity for explicitly unsupported class constraints; no changed IEEE semantic acceptance is claimed.
+- **Evidence:** Projectless `work/flash-foreach-function-arg-20260928/unsupported-marker-filename.v`, compiled with strict `-g2017` and run with the current build-tree VVP. The `.v` run printed `ERROR: constraint state read: malformed class constraint function capture.`; the `.sv` variant printed the intended unsupported-item site.
+- **Reproducer status:** confirmed with a minimal source; no solver-acceptance change.
+- **Triage status:** untriaged; keep the filename parser repair separate from the packed-member fix.
+
+### DD-083 — X/Z numeric literal in a constraint can alias zero
+
+- **Discovered while working:** OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER.
+- **Observation:** Both `rand logic [3:0] en; en == 4'hx` and a packed-struct array member constrained to `4'hx` compile without a diagnostic and `randomize()` wrongly succeeds with value zero in strict 2017 and 2023. The plain scalar control shows this predates the selected member path.
+- **File/function:** `elaborate.cc` `PENumber` constraint IR lowering calls `constraint_const_bits_ir_`, which serializes only one-bits and loses X/Z information.
+- **Possible clause:** IEEE 1800-2017/2023 class-constraint four-state expression semantics; exact clause and legal failure behavior need separate triage.
+- **Evidence:** Projectless `work/flash-fixed-packed-member-20260928/{flash-scalar-x-rhs,flash-packed-member-x-rhs}.sv` on build-tree `ivl` SHA-256 `8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba` and VVP SHA-256 `0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3`; both report `WRONG-SUCCESS value=0`.
+- **Reproducer status:** confirmed in both strict editions for scalar and array-member forms.
+- **Triage status:** untriaged; selected Flash RHS uses known enum literals and a pure function, so do not broaden the packed-member fix or claim X/Z RHS support.
+
+### DD-084 — fixed class-property ordering method silently skips its receiver
+
+- **Discovered while working:** OT-FLASH-ASSOC-FIXED-CHILD-SHUFFLE.
+- **Observation:** A direct one-dimensional fixed-array class property accepts `.reverse()` in strict 2017/2023, but target emission warns that `$ivl_uarray_method$order` has an unsupported receiver and skips it. The runtime array remains unchanged. This is distinct from the selected associative child: that child can use typed associative vivify to obtain stored object storage, while a direct fixed property needs explicit copyback.
+- **File/function:** `tgt-vvp/vvp_process.c` `$ivl_uarray_method$order` at 6125–6150; fixed class-property array materialization and store path.
+- **Possible clause:** IEEE 1800-2017/2023 §7.12.2.
+- **Evidence:** Projectless `work/flash-shuffle-c56988df8-20260928/shuffle_min.sv`; Slang accepts the source in both editions, and current build-tree Icarus emits the skip warning and fails the direct-property reverse self-check.
+- **Reproducer status:** confirmed.
+- **Triage status:** untriaged; explicitly outside the selected associative child shuffle fix.
+
+### DD-085 — whole selected queue masquerades as a scalar solve-order target
+
+- **Discovered while working:** OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY.
+- **Observation:** `solve first before values[0][0]` for a fixed-array-of-queue class property compiles without warning and `randomize()` reports success, but the emitted order target is `e:1:1:0`, a scalar fixed-element slot. It is neither the queue size nor its contents. A strict 2017/2023 control with selected queue contents warns and fails instead.
+- **File/function:** `elaborate.cc` selected fixed-element constraint reference at 33630–33635; `vvp/vvp_z3.cc` `ElemVar` and scalar element read/writeback.
+- **Possible clause:** IEEE 1800-2017/2023 §18.5.10 integral solve-before operands and class constraint representation.
+- **Evidence:** Projectless `work/flash-solve-solver-review-20260928/EVIDENCE.md` and `result.json`, build-tree `ivl` SHA-256 `512c79d3f4830012397def1142bf5325fee9004bb0e86e44847497380bcf283c`.
+- **Reproducer status:** confirmed in strict 2017 and 2023; no Flash source-list replay followed.
+- **Triage status:** reject whole-queue order until a typed nested queue-content representation exists; a simple dimension-guard removal is unsound.
+
+### DD-086 — unpacked-array output port connected to a slice of a 2-D unpacked array reads X
 
 - **Discovered while working:** VVP-HOTPATH-PERF (Caliptra/Adams Bridge single-core performance assessment; no conformance ticket).
 - **Observation:** `m u0(.s(s[0]))`, where `s` is `logic [1:0] s [2][3:0]` and the port is `output logic [1:0] s [3:0]` driven by `always_comb`, leaves every `s[0][k]` at X. Connecting a whole one-dimensional array (`.s(s1)`) works. No diagnostic is issued. The first Adams Bridge A2B reducer hit this and reported an all-X output hash.
@@ -3519,7 +3740,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Reproducer status:** confirmed, paired 2017/2023.
 - **Triage status:** untriaged. The performance reducer now uses per-instance arrays.
 
-### DD-065 — out-of-range part select of a two-state vector leaves X in a two-state variable
+### DD-087 — out-of-range part select of a two-state vector leaves X in a two-state variable
 
 - **Discovered while working:** VVP-HOTPATH-PERF.
 - **Observation:** `bit [7:0] br = bv[b +: 8]`, with `bit [99:0] bv` and `b = 96`, stores `xxxx1111` into the two-state `br`. A two-state variable cannot hold X or Z bits.
@@ -3528,3 +3749,162 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/two_state_oob_part_select.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log), identical on the unmodified 7a04009f baseline and with the new part-load opcode.
 - **Reproducer status:** confirmed, paired 2017/2023.
 - **Triage status:** untriaged. `vvp_load_vec4_part_select.v` checks two-state selects only in range.
+
+### DD-088 — packed-subfield `release` asserts on non-immediate LHS offset
+
+- **Discovered while working:** OT-OTP-FORCE-RHS-BANKED.
+- **Observation:** A `release dut.part_access[0].read_lock` on a packed array of packed structs aborts the VVP target with `Assertion failed: (number_is_immediate(part_off_ex, 64, 0)), function show_stmt_release, file vvp_process.c, line 3322.` This occurs after the separately selected packed-force link guard is applied. Whole-array `release dut.part_access` and `release dut.part_access_dai` compile and run; these are the exact release forms used by the selected OTP task.
+- **File/function:** `tgt-vvp/vvp_process.c` `show_stmt_release`, packed LHS offset handling.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6 procedural continuous assignment `release` semantics; inspect the exact packed-select requirements before implementation.
+- **Evidence:** [Reducer](../../evidence/opentitan-otp-force-rhs-20260928/packed_partial_release_repro.sv) and [focused OTP evidence](../../evidence/opentitan-otp-force-rhs-20260928/README.md). Strict `-g2017` and `-g2023`, each with `-gstrict-expr-width`, both exit 134 at the assertion on the private force-corrected VVP target.
+- **Reproducer status:** confirmed paired compile-time assertion; no selected OTP runtime implicated.
+- **Triage status:** separate targeted ticket; do not broaden the OTP force-RHS correction to partial release.
+
+### DD-089 — type-only parameterized OTP test specialization is not registered
+
+- **Discovered while working:** OT-UVM-PARAMETERIZED-REGISTRY-STATIC-INIT.
+- **Pre-fix observation:** The pinned OTP testbench names a concrete parameterized base test only through a typedef in a true generate block. The former compiler emitted its generic master and registry but no concrete registration initializer; UVM reports `INVTST` at time zero. Paired 2017/2023 compiler-only controls with typedefs in package, module, and true-generate scopes all omit the concrete `$init`; false-generate and no-typedef controls also emit none. A concrete handle or explicit `get_type()` emits one named initializer. The pre-b2c3baf39 image emitted a generic-master initializer, not the concrete one, so reverting that commit would restore a false success.
+- **File/function:** `NetScope::add_typedefs` only indexes names from package, module, generate, class, task/function, and named-block scopes; no later use reaches `typedef_t::elaborate_type` for a typedef-only specialization. A sound compiler fix needs deferred traversal of typedefs in elaborated scopes before `finalize_pending_specialized_class_elaboration()` and `release_deferred_static_inits()` in `elaborate.cc`, excluding generic masters and false generate branches.
+- **Clauses:** IEEE 1800-2017/2023 §§8.25, 8.9, 6.8 and 10.5 govern concrete specializations and static class-property initialization; §6.21 supplies static-lifetime context. Both local editions were checked.
+- **Evidence:** [Selected compile and tiny controls](../../evidence/opentitan-otp-factory-registration-20260929/selected_compile.json); the [named OTP source workaround](release_overlays/opentitan/otp_ctrl_explicit_test_registration.patch) calls the intended concrete specialization before `run_test()`.
+- **Reproducer status:** confirmed in the small compile gate and selected OTP image; full patched-source OTP runtime pending.
+- **Triage status:** CLOSED by `56f4bc756` for the tested compiler subset. Paired concrete typedef-only, false-generate, generic-only and later-use controls pass; the selected OTP compile no longer needs the registration workaround. Application runtime and full chapter-8 qualification remain separate.
+
+### DD-090 — SDF interconnect port buffer emitted as BUFZ
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** All three `sdf_interconnect` tests report `Could not find intermodpath` and miss their annotated delay. The smallest existing source, `sdf_interconnect1.v`, emits a `BUFZ` for the top variable-to-module input buffer with the current compiler, where the older compiler emitted `BUFT`. Current VVP runs the older bytecode correctly; older VVP reproduces the failure with current bytecode. This is compiler output, not a VVP runtime regression.
+- **File/function:** `elaborate.cc` input-port `NetBUFZ` construction around line 6611 uses `!variable_input_source` even with `gn_interconnect_flag`; `t-dll.cc` maps a nontransparent buffer to `IVL_LO_BUFZ`; `vvp/vpi_priv.cc` `vpi_handle_multi` requires `vvp_fun_buft` for SDF interconnect. The variable-port rule was added in `d696b6934d`.
+- **Possible clause:** Module port connection and SDF interconnect delay semantics; confirm precise IEEE 1800-2017/2023 clauses before implementation.
+- **Evidence:** `ivtest/ivltests/sdf_interconnect1.v` with `-Ttyp -ginterconnect -gspecify -s top`; projectless `work/sdf-regression-triage-20260929/` has both bytecode images and cross-runtime results. The integrated gate ran 4,097 JSON tests with 32 failures; this family accounts for three.
+- **Reproducer status:** confirmed with a minimal existing test and compiler/runtime cross-matrix.
+- **Triage status:** separate compiler ticket. Preserve variable-port settled-value behavior while making SDF port buffers annotatable; no shared source change under the fixed-2D ticket.
+
+### DD-091 — unsafe interface-driver guard suppresses live overlapping writes
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** Twelve paired unsafe-mode compile negatives unexpectedly succeed with no diagnostic: eight virtual-interface property writers, two module-port procedural writers, and two virtual clocking-output writers. Each strict counterpart reports the expected continuous/procedural overlap error. Legal disjoint-member controls pass.
+- **File/function:** `elaborate.cc` `finalize_unsafe_interface_drivers_` around lines 2960–2971. Commit `ed6415e450` suppresses `interface_member_has_property_writer_` whenever `-gcommercial-unsafe` and `completely_driven` are true. A fully driven scalar satisfies that condition even when its procedural writer is live or its VIF receiver is uncertain. The intended waiver is narrower: provably uncalled same-instance interface task writers.
+- **Possible clause:** IEEE 1800-2017/2023 variable driver restrictions and virtual-interface aliasing; verify exact subclauses before implementation.
+- **Evidence:** Exact-head direct strict/unsafe pairs and analysis in projectless `work/json-unsafe-negative-20260929/triage.md`. The 12 names are in the 4,097/32 full JSON gate.
+- **Reproducer status:** confirmed in both editions using existing minimal sources.
+- **Triage status:** separate compiler ticket; preserve the SPI compatibility case that motivated the unsafe waiver while keeping live or uncertain writes rejected.
+
+### DD-092 — function argument capture rejects fixed queue size leaves
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** Both editions of `sv_constraint_fixed_queue_leaf_size` pass direct size constraints but fail the function-argument leaf-identity check. Emitted `.constraint_dep 3 0 1` denotes the requested fixed queue leaf SIZE; VVP rejects a function dependency on any fixed queue before capturing that value. A dynamic queue-size function argument also fails, so removing this one guard is not a proven fix.
+- **File/function:** `vvp/vvp_z3.cc` around lines 11632–11636, fixed queue function-argument dependency guard and stage/capture path.
+- **Possible clause:** IEEE 1800-2017/2023 class-constraint function calls and queue size; verify exact subclauses before implementation.
+- **Evidence:** Exact-head direct tests and smallest controls in projectless `work/json-eight-direct-20260929/triage.md`.
+- **Reproducer status:** confirmed strict 2017/2023 direct cases.
+- **Triage status:** separate solver ticket; validate stage value and rollback before relaxing the guard, and retain intentional fixed-element function-argument rejection.
+
+### DD-093 — constraint constant-folding errors trigger duplicate PartInfo diagnostics
+
+- **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
+- **Observation:** The bad-member and above-bit-63 PartInfo negatives each emit the expected specific error followed by a generic selector error, producing four JSON gold mismatches across 2017/2023. The second diagnostic does not add information.
+- **File/function:** `elaborate.cc` constant-then-selector paths around lines 33465, 34093, and 34334 call `constraint_parameter_member_select_ir_` after `constraint_constant_ir_` has already increased `Design::errors`.
+- **Possible clause:** Diagnostic quality rather than a new language-semantic claim.
+- **Evidence:** Exact-head direct tests and first-error traces in projectless `work/json-eight-direct-20260929/triage.md`.
+- **Reproducer status:** confirmed paired 2017/2023 negative tests; positive rand-index controls await a scoped fix.
+- **Triage status:** separate diagnostic ticket. Skip selector fallback only when constant folding adds an error; continue symbolic fallback when it returns empty without an error.
+
+### DD-094 — OTBN packed coverage bins use mutable class fields
+
+- **Discovered while working:** OT-ROM-CTRL-STARTUP-RSS.
+- **Observation:** The saved 49-target compile log for `lowrisc:dv:otbn_sim:0.1` has 178 errors because packed mnemonic and CSR bin bounds are initialized mutable class fields. Making them `const` removes that error but still fails wide-bin lowering; class `localparam` bounds compile and sample in tiny strict 2017/2023 controls.
+- **File/function:** Pinned OpenTitan `hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv`, `DEF_MNEM` and `DEF_CSR` macros at lines 17 and 114.
+- **Possible clause:** IEEE 1800-2017/2023 §19.5, covergroup bin value expressions.
+- **Evidence:** [DD-094 focused evidence](../../evidence/opentitan-otbn-localparam-bins-20260929/focus.json) records the historical log, exact copied-source/tool hashes, strict 2017/2023 controls, and paired selected compile commands/results. Raw paired logs and their SHA-256 values remain under `/private/tmp/otbn-dd094-20260929/`.
+- **Reproducer status:** confirmed with tiny packed-width compile/runtime controls and a paired current-compiler OTBN source-list compile under a sampled 4 GiB process-group RSS watchdog.
+- **Triage status:** the two-macro `localparam` overlay is committed. Relative to the unpatched copy, it clears 178 mutable-bin errors, 178 wide-bin errors, and 2,927 dropped-empty-cross notices without changing any other diagnostic line. The selected target still fails with 30 independent errors; no OTBN VVP/DV pass or 49-target census update is claimed.
+
+### DD-095 — OTBN dynamic unpacked flag selection fails in coverpoint expressions
+
+- **Discovered while working:** DD-094 paired selected OTBN compile.
+- **Observation:** A non-ref covergroup sample formal containing `flags_t flags[2]` rejects `flags[fg].C`, `flags[fg][0]`, and `flags[fg][idx]` in strict 2017/2023. Scalarized controls compile and sample two distinct group values; Slang accepts the direct forms.
+- **File/function:** Icarus `parse.y` covergroup sample-formal capture near line 3795 stores only `PWire::data_type()`, omitting `unpacked_indices()`; `elaborate.cc` then builds scalar formal placeholders/call slots. The `elab_expr.cc` and `netmisc.cc` failures are downstream symptoms.
+- **Possible clause:** IEEE 1800-2017 §7.4.6 and IEEE 1800-2023 §7.4.5 for array indexing; both editions §19.5 for coverpoint sample expressions.
+- **Evidence:** Projectless `work/otbn-flag-select-20260929/flag_select.sv` and `results.json`; DD-094 patched selected compile retains 25 sample-index and 3 packed-member internal errors.
+- **Reproducer status:** the final candidate passes paired strict 2017/2023 direct, class-property, bare-array, opposite-direction and defaulted-array sample controls. Focused JSON and legacy runners pass 10/10 each; the guarded selected OTBN compile clears 25 dynamic-index errors and three packed-member internal errors, leaving two original tracer errors.
+- **Triage status:** DONE for the tested compiler scope: exact-image JSON 4129/0, legacy 6880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, negative 154/154. [DD-095 evidence](../../evidence/opentitan-otbn-dynamic-sample-formal-20260929/focus.json) records exact source/tool hashes and the selected compile. No OTBN VVP/DV pass or 49-target update.
+
+### DD-096 — X/Z coverpoint samples hit known-value bins
+
+- **Discovered while working:** DD-095 focused regression.
+- **Observation:** A scalar non-ref covergroup sample formal `logic flag` is sampled as `1'bx` and `1'bz` in `{fg, flag}`; each sample reports 50% coverage of explicit known-value bins `2'b00` and `2'b11`, then the guard fatals. The sample has no dynamic array or packed-struct selection.
+- **File/function:** Functional-coverage value sampling/bin matching, exact runtime root cause not yet traced.
+- **Possible clause:** IEEE 1800-2017 and 1800-2023 §19.5.4: non-wildcard value bins match four-state values exactly; sampled X/Z cannot match these known-only bins.
+- **Evidence:** [DD-096 reducer and paired red logs](../../evidence/opentitan-covergroup-xz-bin-debt-20260929/); the original projectless files remain under `work/dd095-xz-coverage-debt-20260929/`.
+- **Reproducer status:** paired strict editions compile and fail the runtime check; first X sample already reports 50% instead of 0%.
+- **Triage status:** separate coverage-runtime blocker. Exclude X/Z samples from the DD-095 array-shape success fixture; do not infer four-state bin qualification from known-value passes.
+
+### DD-097 — OTBN trace checker ends with an unfinished operation
+
+- **Discovered while working:** OT-OTBN-DPI-IMPORT-SCOPE.
+- **Observation:** The scope-corrected selected OTBN smoke prints `TEST PASSED CHECKS` and zero UVM warnings/errors/fatals, then native `OtbnTraceChecker` warns on destruction that an operation remains unfinished. Its `Finish()` routine checks unmatched RTL/ISS trace entries, so the selected result stays DEBT rather than a clean DV pass.
+- **File/function:** Pinned OpenTitan `hw/ip/otbn/dv/model/otbn_trace_checker.cc` destructor at lines 28–34 and `Finish()` at line 213; caller in `otbn_model.cc` at line 463.
+- **Possible clause:** N/A; application trace-verification completeness.
+- **Evidence:** `evidence/opentitan-otbn-dpi-import-scope-20260929/selected-result.json` and `selected-runtime.log`.
+- **Reproducer status:** confirmed in one selected pinned-source smoke with real libelf DPI and the generated smoke ELF; no minimal reducer yet.
+- **Triage status:** untriaged. Keep OTBN DEBT until the trace operation is finished and checked; do not suppress the warning under the DPI scope ticket.
+
+### DD-098 — SPI Device flash-mode selected compile retains semantic notices
+
+- **Discovered while working:** OT-MATRIX-SMOKE-REGRESSION-TEST-SELECTION.
+- **Observation:** The official `spi_device_flash_mode_vseq` selected replay compiles and prints `TEST PASSED CHECKS` with zero UVM warnings/errors/fatals, but its compile has five semantic notices: three `spi_agent_pkg` foreach iterator `i` unresolved references, one covergroup `valids` bin clipped to a 1-bit domain, and one `spi_device_pass_base_vseq` indexed `addr` fallback. The runner correctly reports DEBT rather than PASS.
+- **File/function:** OpenTitan SPI agent sequence files, `spi_device_env_cov.sv:123`, and `spi_device_pass_base_vseq.sv:548`; compiler diagnostics in the selected result.
+- **Possible clause:** IEEE 1800-2017/2023 foreach scoping, covergroup bin typing, and indexed expression semantics; root causes remain to be separated.
+- **Evidence:** `evidence/opentitan-matrix-smoke-selection-20260929/selected-result.json` and the selected compile log path recorded there.
+- **Reproducer status:** selected pinned-source compile and runtime; no minimal reducer for these five notices yet.
+- **Triage status:** record-only under the harness ticket. Preserve the SPI Device DEBT verdict until each semantic notice is resolved or justified.
+
+### DD-099 — Entropy Source UVM real-field macro passes 4096 bits to `$bitstoreal`
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, during the frozen 49-target census.
+- **Observation:** The official Entropy Source smoke stops at two `$bitstoreal` calls on a 4096-bit UVM bitstream. A disposable one-line UVM macro patch selects bits `[63:0]` and removes both errors, but does not make the DV target pass.
+- **File/function:** Pinned UVM 1.2 `uvm_object_defines.svh:999`, `UVM_SETINT`; Icarus `vpi/sys_convert.c:166` enforces exactly 64 bits.
+- **Possible clause:** IEEE 1800-2017/2023 §20.5 defines `$bitstoreal` on a real bit pattern; wider-argument behavior is not explicit in the checked wording.
+- **Evidence:** `/private/tmp/ot-entropy-bitstoreal-selected-20260929/HANDOFF.md`, paired reducer and hash-guarded selected replay.
+- **Reproducer status:** confirmed; selected patch removes the specific error on the same installed image.
+- **Triage status:** untriaged source-compatibility correction; do not count Entropy Source as passing.
+
+### DD-100 — Entropy Source event-sensitive `ref` binding stops selected replay
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, after the isolated DD-099 source correction.
+- **Observation:** With the wide `$bitstoreal` arguments corrected, selected runtime reaches `event-sensitive ref binding has an unsupported non-integral whole-variable actual` and fails. Four pre-existing covergroup width warnings also remain.
+- **File/function:** Icarus `vvp_net_sig.cc` event-sensitive reference binding; exact OpenTitan call site is in the selected runtime log.
+- **Possible clause:** IEEE 1800-2017/2023 `ref` actual binding and lifetime; exact subclause pending.
+- **Evidence:** `/private/tmp/ot-entropy-bitstoreal-selected-20260929/HANDOFF.md` and selected result.
+- **Reproducer status:** selected application replay; no minimal compiler reducer yet.
+- **Triage status:** untriaged. Keep Entropy Source RUNTIME_FAIL.
+
+### DD-101 — OTBN smoke runner omits the required pre-run ELF mode
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, during the frozen 49-target census.
+- **Observation:** The runner records OpenTitan's `build_otbn_smoke_binary_mode` but does not execute it or supply `+otbn_elf_dir`, so OTBN fails at time zero. A bounded selected replay with the real generated ELF and `REPO_TOP` advances to 25.7 us, then reports `noOutstandingReqsAtEndOfSim_A` and `TEST FAILED CHECKS`; it remains a DV failure.
+- **File/function:** `scripts/opentitan_matrix.py` runtime option resolution; pinned `otbn_sim_cfg.hjson` pre-run mode.
+- **Possible clause:** N/A; application setup and later TLUL protocol assertion.
+- **Evidence:** `/private/tmp/otbn-smoke-selected-20260929/HANDOFF.md`, ELF hash, selected result and runtime log.
+- **Reproducer status:** confirmed in the corpus and one guarded selected replay.
+- **Triage status:** untriaged runner setup gap and separate TLUL DV error. Do not substitute a dummy ELF path or claim OTBN PASS.
+
+### DD-102 — Pwrmgr parallel runner exception before simulator launch
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, during the frozen 49-target census.
+- **Observation:** FuseSoC setup and Icarus compilation complete, then the parallel worker reports `[Errno 1] Operation not permitted` before recording a runtime command or log. The exact failed syscall is unconfirmed; this row is `MATRIX_ERROR`, not a DV verdict.
+- **File/function:** `scripts/opentitan_matrix.py` runtime launch after compile; the concurrent worker exception is caught at `future.result()`.
+- **Possible clause:** N/A; macOS runner/process-launch reliability.
+- **Evidence:** `/private/tmp/ot-corpus-after-fixes-20260929/result-final.json` pwrmgr row and its `work-final/runtime/lowrisc_dv_pwrmgr_sim_0.1/` setup/compile logs. The earlier raw census ran Pwrmgr and failed `EscClkStopEscTimeout_A`.
+- **Reproducer status:** one parallel-run exception; a single-core same-image replay is pending after the corpus finishes.
+- **Triage status:** untriaged. Do not count Pwrmgr as PASS based on successful compilation or on a prior separate checker-patched DEBT result.
+
+### DD-103 — exact clipping for a dynamic inner packed class-property range
+
+- **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX.
+- **Observation:** Flattening `property[outer][base +: width]` into an absolute offset can alias the neighboring outer element when the inner range crosses its declared dimension. Rejecting every dynamic base also rejects valid bounded byte selectors. The validated CSRNG fix admits ranges proven wholly inside the inner dimension, including the existing dynamic UVM nested-slice control; unproven crossing ranges remain explicit compile errors.
+- **File/function:** `netmisc.cc::check_packed_property_tail_range`; class-property RMW in `tgt-vvp/stmt_assign.c`. Ordinary signal lvalues already use `NetAssign_::set_dynamic_part_carrier` and `%clip/vec4/d`, but class-property blocking, compound, and nonblocking stores need their own preserved carrier and evaluation order.
+- **Possible clause:** IEEE 1800-2017 and 1800-2023 §11.5.1: a partly out-of-bounds read fills only missing bits with X; a write updates only in-range bits. An all-or-nothing runtime guard is insufficient.
+- **Evidence/reproducer:** Paired `ivtest/ivltests/sv_class_packed_property_2d_range_invalid.v` and `sv_class_packed_property_dynamic_slice_cross.v` reject aliases; paired `sv_class_packed_property_dynamic_nested_slice.v`, `sv_class_packed_property_dynamic_range_width.v`, `sv_class_packed_property_narrow_cast_cross.v`, and `sv_class_packed_property_ascending_dynamic_slice.v` cover bounded, width, truncation, and direction cases. The existing `tests/class_packed_dynamic_nested_slice_test.sv` passes again. The exact final gates and selected CSRNG result are under `evidence/opentitan-csrng-packed-property-20260929/`.
+- **Triage status:** Open, record-only beyond the validated bounded subset. Exact carrier clipping for arbitrary runtime bases needs a separate target/read-lowering ticket with single-evaluation, ascending/descending, partial-overlap, blocking/compound/NBA, and X/Z controls. Do not count the selected CSRNG PASS as qualification of partial-overlap behavior.

@@ -1,0 +1,128 @@
+{
+  "target": "lowrisc:dv:chip_sim:0.1",
+  "scope": "selected compile only; no Chip DV runtime or 49-target corpus",
+  "pinned_opentitan_sha": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_tree_clean_after": true,
+  "overlay_order": [
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_nested_vif_lvalue_alias_workaround.patch",
+      "sha256": "50988f3e21e8de1e69b33126467a94fc10c342f5fce4b39596cbc7f48c592696"
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_stream_widths.patch",
+      "sha256": "043f8fd8a6f7b35d5103952e11b96b61e623f8fa057e656018c62399f7ff42db"
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_sw_logger_nested_aa_value_copy.patch",
+      "sha256": "f3e64c8e9f167a244705b132194a249c065bf2bcb34c246751c67a758ad7d9cd"
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_rom_enum_foreach_cast_compile_only.patch",
+      "sha256": "34db724ef9b3520c4e9444551a2622db094de1cdca8a5c135b48633645f0c1c4"
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_pmp_virtual_if_index_slice.patch",
+      "sha256": "d21f9efdda1c6444eda1ae7f71b6bce8be93c719e936f6c70be5c1c36744ff6a"
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_rom_digest_randomize_cached_geometry.patch",
+      "sha256": "7b5a9525c4ae70d3690645a2f88890f4a3e6c696321c04db79131f3d330b2fd0"
+    },
+    {
+      "path": "docs/conformance/release_overlays/opentitan/chip_rom_debug_scalar_randomize.patch",
+      "sha256": "352fe219a3403a4b2aecef290842f53f3feb93d93b928b45e1787555df8add37"
+    }
+  ],
+  "new_minimal_reproducers": [
+    {
+      "path": "docs/conformance/repros/pmp_virtual_if_index_slice.sv",
+      "sha256": "ff456008c6ed458b6f6d48c93290ec39869eee3e738d60d4eb6a232d0f3f8321"
+    },
+    {
+      "path": "docs/conformance/repros/rom_digest_randomize_methods.sv",
+      "sha256": "084e0568bedf1325521d9d4c0cf4e101c7571f943d39b2f6a90f1248154461b7"
+    },
+    {
+      "path": "docs/conformance/repros/rom_debug_queue_randomize.sv",
+      "sha256": "d3b8241a4bfa3b5c21b34a5a78115fa8843c76a9e636343dd31b357306ed9861"
+    },
+    {
+      "path": "docs/conformance/repros/rom_debug_scalar_randomize.sv",
+      "sha256": "b52c83fe579a5aa4786afd1994c3dbc4ff91cfd6ca938fa46761b26155134d5f"
+    }
+  ],
+  "strict_2017_2023_matrix": {
+    "path": "docs/conformance/session_logs/2026-09-28_ot_chip_final_strict_matrix.json",
+    "sha256": "df7854a94b12fb8f7b5e3ed91d10fafb4bb3f0c861738f295c9a157eeccf0282",
+    "cases": 12,
+    "result": "original PMP slice, ROM method calls, and queue foreach constraints reject in Icarus with the selected diagnostics; named workarounds compile and VVP PASS in both editions; Slang accepts all originals and workarounds in both editions with zero warnings"
+  },
+  "selected_compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-sclkmgr_bind",
+      "-spwrmgr_bind",
+      "-srstmgr_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-sspi_host_bind",
+      "-stop_earlgrey_bind",
+      "-stop_earlgrey_error_injection_ifs_bind",
+      "-sxbar_main_bind",
+      "-sxbar_peri_bind",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=64",
+      "-DUVM_REG_BYTENABLE_WIDTH=8",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "-DTOP_LEVEL_DV",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/chip-seven.vvp",
+      "-c",
+      "/Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/chip-seven-outer.scr"
+    ],
+    "cwd": "/private/tmp/ot-census-1838970aa-work/work/runtime/lowrisc_dv_chip_sim_0.1/sim-icarus",
+    "generated_source_list_sha256": "bc619244cc0b921bd4dc21fc67dd23c2f1fafde7d6868ddc645aec3a3faa3263",
+    "generated_compiler_list_sha256": "a3b29f8291c4ac62f526ecc999823030861ad555538801de6bce1503638f13f3",
+    "compiler_fingerprints_before_and_after": {
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog": "4c1b000819eda1d9eeb26f3e3bb37c9365aa664611bbcfb025000cc065e93c19",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/ivl": "d3387c8580fcf160a20e4400b40f2feab88260af860b450ea99727057dbebd5a",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/lib/ivl/vvp.tgt": "63fe85abf5d31b8a7c7a2334566f57dc28e98ef50a89a0ef029a2df9bb98274f"
+    },
+    "elapsed_seconds": 105.041,
+    "timed_out": false,
+    "exit": 0,
+    "compile_log_sha256": "b5082342f1d35db8d3321371ce354274a2b3578b62934571567007c989aa8d7b",
+    "compiled_image_bytes": 734931360,
+    "diagnostics": {
+      "error": [],
+      "sorry": [],
+      "notice": [],
+      "warning_lowercase_count": 459,
+      "warning_capitalized": [
+        "Warning: Unsupported VPI argument type 1 at /Users/danielellerbrock/Documents/Codex/2026-09-27/users-danielellerbrock-projects-iverilog-uvm-handoff/work/ot-chip-remaining/combined-seven/hw/dv/sv/sw_logger_if/sw_logger_if.sv:199; treating as logic (further similar warnings suppressed)"
+      ]
+    }
+  },
+  "classification": {
+    "pmp": "Legal packed slice of an unpacked interface array through a virtual interface. Local packed-entry helper preserves the read instant and bits; source workaround for compiler lowering gap.",
+    "rom_digest": "Legal function calls used as random constraint bounds; cache ROM geometry before scalar randomization. Geometry getters return uint32_t from stable memory utility fields.",
+    "rom_debug": "Legal queue foreach constraint; scalar count and per-address randomization preserve legal size (5..20), either SRAM range, and word alignment. Solver sampling distribution can differ."
+  },
+  "runtime_caveats": [
+    "Chip DV image was compiled but not simulated; no pass is claimed.",
+    "The previously recorded ROM enum-index cast has compile-only qualification because its tiny Icarus VVP control timed out.",
+    "The previously recorded software logger whole-record copy can discard partial intermediate argument writes on reset.",
+    "The JTAG scalar randomization patch can change the address sampling distribution."
+  ]
+}
