@@ -78,6 +78,27 @@ static int ref_actual_is_nameable_(ivl_expr_t expr)
       return 1;
 }
 
+/* True when a `ref' actual is a whole class property of a type the runtime can
+   bind as a true reference (%ref/bind/pr, IEEE 1800-2017/2023 13.5.2): the
+   callee then sees and makes every write at once, so a write to the property
+   by its own name inside the call is not undone by a stale copy-out. */
+static int ref_actual_is_bound_property_(ivl_signal_t port, ivl_expr_t expr)
+{
+      if (!expr || ivl_expr_type(expr) != IVL_EX_PROPERTY) return 0;
+      if (ivl_expr_oper1(expr)) return 0;                 /* element of it */
+      if (!ivl_expr_signal(expr) && !ivl_expr_oper2(expr)) return 0;
+      switch (ivl_signal_data_type(port)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_REAL:
+	  case IVL_VT_STRING:
+	  case IVL_VT_CLASS:
+	    return 1;
+	  default:
+	    return 0;
+      }
+}
+
 static int function_port_is_native_output_(ivl_signal_t port)
 {
       ivl_type_t type;
@@ -121,10 +142,28 @@ static void draw_bind_function_ref_argument(ivl_signal_t port, ivl_expr_t expr)
 		    port, ivl_expr_signal(expr));
 	    return;
       }
+      if (ref_actual_is_bound_property_(port, expr)) {
+	    ivl_expr_t base_expr = ivl_expr_oper2(expr);
+	    if (base_expr)
+		  draw_eval_object(base_expr);
+	    else
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", ivl_expr_signal(expr));
+	    fprintf(vvp_out, "    %%ref/bind/pr v%p_0, %d;\n",
+		    port, ivl_expr_property_idx(expr));
+	    return;
+      }
 
-      draw_eval_vec4(expr);
-      fprintf(vvp_out, "    %%store/vec4 v%p_R, 0, %u;\n",
-	      port, ivl_signal_width(port));
+	/* The companion of a class-handle formal is an object variable (see
+	   vvp_scope.c); the handle is copied in as an object, never as the
+	   vector image of its null test. */
+      if (ivl_signal_data_type(port) == IVL_VT_CLASS) {
+	    draw_eval_object(expr);
+	    fprintf(vvp_out, "    %%store/obj v%p_R;\n", port);
+      } else {
+	    draw_eval_vec4(expr);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_R, 0, %u;\n",
+		    port, ivl_signal_width(port));
+      }
       fprintf(vvp_out, "    %%ref/bind/f v%p_0, v%p_R;\n", port, port);
 }
 
@@ -1578,7 +1617,8 @@ int draw_vif_statement_output_arguments(ivl_scope_t scope,
 		     publish the companion back to the caller. */
 		  if (ivl_signal_const(port))
 			continue;
-		  if (ref_actual_is_nameable_(argv[idx]))
+		  if (ref_actual_is_nameable_(argv[idx])
+		      || ref_actual_is_bound_property_(port, argv[idx]))
 			continue;
 	    } else if (direction != IVL_SIP_OUTPUT
 		       && direction != IVL_SIP_INOUT) {
@@ -1607,7 +1647,8 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 	    if (port_type == IVL_SIP_REF) {
 		  if (ivl_signal_const(port))
 			continue;
-		  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx)))
+		  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx))
+		      || ref_actual_is_bound_property_(port, ivl_expr_parm(expr, idx)))
 			continue;
 	    } else if ((port_type != IVL_SIP_OUTPUT) &&
 		       (port_type != IVL_SIP_INOUT)) {

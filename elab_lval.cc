@@ -45,6 +45,20 @@
 # include  <climits>
 # include  "ivl_assert.h"
 
+/* A bit or part select of a packed property. An enum or packed struct is
+ * written as the flat vector of its bits, like a `logic [N-1:0]' property. */
+static const netvector_t*packed_select_view_(ivl_type_t type)
+{
+      if (const netvector_t*vec = dynamic_cast<const netvector_t*>(type))
+	    return vec;
+      if (type && (dynamic_cast<const netenum_t*>(type)
+		   || (type->packed() && dynamic_cast<const netstruct_t*>(type)))
+	  && type->packed_width() > 0)
+	    return new netvector_t(type->base_type(), type->packed_width() - 1, 0,
+				   type->get_signed());
+      return 0;
+}
+
 using namespace std;
 
 /* Reuse the live last-index expression used by queue reads. Ordinary indices
@@ -3917,7 +3931,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			const netuarray_t*utype =
 			      dynamic_cast<const netuarray_t*>(ptype);
 			const netvector_t*evec =
-			      dynamic_cast<const netvector_t*>(stype->element_type());
+			      packed_select_view_(stype->element_type());
 
 			/* A final range on a one-dimensional fixed class property is
 			 * an unpacked-array slice, not an element index. Decode it
@@ -4037,7 +4051,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				       * residual brackets are packed selects on the current
 				       * element l-value, not more container word indices. */
 				    if (const netvector_t*vector_type =
-					  dynamic_cast<const netvector_t*>(ptype)) {
+					  packed_select_view_(ptype)) {
 					  std::list<index_component_t>packed_indices(
 						idx_it, member_cur.index.cend());
 					  NetExpr*part_off = nullptr;
@@ -4284,8 +4298,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      }
 			}
 
-		  } else if (const netvector_t*pvec =
-			     dynamic_cast<const netvector_t*>(ptype)) {
+		  } else if (const netvector_t*pvec = packed_select_view_(ptype)) {
 			// A bit- or part-select of a packed-vector member is a
 			// PARTIAL WRITE. This applies both to a class-OBJECT
 			// property (owner_class) and to a member of a plain
@@ -4651,7 +4664,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  if (!member_cur.index.empty()
 		      && dims.size() != member_cur.index.size()
 		      && !(member_cur.index.size() > dims.size()
-			   && dynamic_cast<const netvector_t*>(tmp_ua->element_type()))) {
+			   && packed_select_view_(tmp_ua->element_type()))) {
 			cerr << get_fileline() << ": error: "
 			     << "Got " << member_cur.index.size() << " indices, "
 			     << "expecting " << dims.size()

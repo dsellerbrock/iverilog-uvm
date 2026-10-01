@@ -15477,8 +15477,12 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			if (!canon_index)
 			      return nullptr;
 
-			if (const netvector_t*evec =
-			      dynamic_cast<const netvector_t*>(tmp_ua->element_type())) {
+			ivl_type_t packed_leaf = tmp_ua->element_type();
+			if (dynamic_cast<const netvector_t*>(packed_leaf)
+			    || dynamic_cast<const netenum_t*>(packed_leaf)
+			    || (packed_leaf->packed()
+				&& dynamic_cast<const netstruct_t*>(packed_leaf))) {
+			      ivl_type_t evec = packed_leaf;
 			      NetExpr*base_expr = nullptr;
 			      if (!sr.path_head.empty()
 				  && !sr.path_head.back().index.empty()) {
@@ -15559,7 +15563,10 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			trailing_indices.assign(it, comp.index.end());
 		  }
 	    } else if (dynamic_cast<const netvector_t*>(tmp_type)
-		       || dynamic_cast<const netparray_t*>(tmp_type)) {
+		       || dynamic_cast<const netparray_t*>(tmp_type)
+		       || dynamic_cast<const netenum_t*>(tmp_type)
+		       || (tmp_type->packed()
+			   && dynamic_cast<const netstruct_t*>(tmp_type))) {
 		    // A select of a plain packed-vector property is a bit/
 		    // part-select of the property VALUE, not an array element
 		    // access. Read the whole property and select from it; the

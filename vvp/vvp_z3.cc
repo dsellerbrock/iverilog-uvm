@@ -9642,9 +9642,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    bool indeterminate = false;
 	    bool exact_supported = spec.exact_supported;
 	    Z3Builder::DistSpec exact_spec = spec;
-	    if (spec.requires_large_exact && !exact_supported
+	    if (!exact_supported
 		&& spec.exact_supported_without_guard && !spec.guards.empty()) {
-		  // A guarded large distribution can use exact sampling only if its
+		  // A guarded distribution can use exact sampling only if its
 		  // complete enclosing guard is proved active in this solve context.
 		  // A proved-inactive guard contributes no distribution preference;
 		  // an unresolved guard must not fall back to biased soft sampling.
