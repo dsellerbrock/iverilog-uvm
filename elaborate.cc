@@ -34759,6 +34759,37 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + (c->elem_signed ? ":s" : "")
 				    + " " + idx_ir + ")";
 			}
+			  /* A packed select of one container element (`src[i][7:0]'):
+			     translate the element, then select from it (IEEE
+			     1800-2017/2023 11.5.1). */
+			if (id->path().size() == 1 && !id->path().package) {
+			      const netuarray_t*sel_ua =
+				    dynamic_cast<const netuarray_t*>(ptype);
+			      const netdarray_t*sel_da =
+				    dynamic_cast<const netdarray_t*>(ptype);
+			      const netqueue_t*sel_qq =
+				    dynamic_cast<const netqueue_t*>(ptype);
+			      bool assoc = sel_qq && sel_qq->assoc_compat();
+			      size_t depth = sel_ua ? sel_ua->static_dimensions().size()
+				    : (sel_da && !assoc) ? 1 : 0;
+			      const index_component_t&tail =
+				    id->path().back().index.back();
+			      if (depth && id->path().back().index.size() == depth + 1
+				  && tail.msb
+				  && ((tail.sel == index_component_t::SEL_BIT && !tail.lsb)
+				      || (tail.sel == index_component_t::SEL_PART
+					  && tail.lsb))) {
+				    pform_name_t inner_path = id->path().name;
+				    inner_path.back().index.pop_back();
+				    PEIdent inner(inner_path, id->lexical_pos());
+				    inner.set_line(*id);
+				    string base = pexpr_to_constraint_ir(&inner, cls,
+					  value_slots, scope, loop_env);
+				    if (base.empty()) return "";
+				    return scope_randomize_select_ir_(base, tail, cls,
+					  value_slots, scope, loop_env);
+			      }
+			}
 			const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
 			const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype);
 			  // An integral-key associative element is addressed by its

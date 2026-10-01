@@ -651,7 +651,8 @@ static bool infer_constraint_integral_type_(IRParser&par,
       }
       if (op == "fsel" || op == "psel" || op == "delem" || op == "qmelem"
           || op == "qfield" || op == "qkeymember" || op == "hselectfield"
-          || op == "qkeyelem" || op == "skelem" || op == "dsum") {
+          || op == "qkeyelem" || op == "skelem" || op == "dsum"
+          || op == "qsel") {
             string header = par.read_token();
             vector<string> fields;
             string field;
@@ -1845,6 +1846,43 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
  * parser is positioned after the form's operator/header tokens, and
  * this consumes characters through the MATCHING close paren (which is
  * consumed but not included in the returned text). */
+/* A caller queue/darray read at an index (qelem) used to expand to a nested
+ * ite chain over every element, per occurrence. A dynamic foreach instantiates
+ * the body once per element with a literal index, so a copy constraint such as
+ * `foreach (data[i]) data[i] == other[i]' built n chains of n ites: O(n^2)
+ * Z3 nodes (OpenTitan spi_device spent minutes and gigabytes on it). Keep
+ * the elements in a table and emit `(qsel ID:W[:s] <index>)'; the builder picks
+ * the element directly when the index is a constant and builds the chain only
+ * for a symbolic index. Tables are shared by id and pruned oldest-first. */
+struct qsel_table_s {
+      vector<string> elements;
+      string missing;
+};
+static map<unsigned, shared_ptr<qsel_table_s> > qsel_tables_;
+static unsigned qsel_next_id_ = 1;
+static size_t qsel_total_elements_ = 0;
+
+static unsigned qsel_register_(shared_ptr<qsel_table_s> table)
+{
+      static const size_t QSEL_RETAIN_ELEMENTS = 1u << 21;
+      qsel_total_elements_ += table->elements.size();
+      while (qsel_total_elements_ > QSEL_RETAIN_ELEMENTS
+	     && !qsel_tables_.empty()) {
+	    qsel_total_elements_ -= qsel_tables_.begin()->second->elements.size();
+	    qsel_tables_.erase(qsel_tables_.begin());
+      }
+      unsigned id = qsel_next_id_++;
+      qsel_tables_[id] = table;
+      return id;
+}
+
+static string qsel_text_(shared_ptr<qsel_table_s> table, unsigned width,
+			 bool is_signed, const string&index_ir)
+{
+      return "(qsel " + to_string(qsel_register_(table)) + ":"
+	    + to_string(width) + (is_signed ? ":s " : " ") + index_ir + ")";
+}
+
 static string capture_balanced_form(IRParser& par)
 {
       string text;
@@ -2765,6 +2803,46 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             b.set_sv(value, width);
             if (sflag) b.signed_vars.insert(value);
             return value;
+      }
+
+	/* (qsel ID:W[:s] <index>): one element of a captured caller container,
+	 * see qsel_table_s. A constant index selects the element in O(1). */
+      if (op == "qsel") {
+	    string hdr = par.read_token();
+	    string index_ir = capture_balanced_form(par);
+	    unsigned id = (unsigned)strtoul(hdr.c_str(), nullptr, 10);
+	    unsigned width = 32; bool is_signed = false;
+	    {
+		  unsigned unused = 0;
+		  parse_pws_header(hdr, unused, width, is_signed);
+	    }
+	    auto found = qsel_tables_.find(id);
+	    if (found == qsel_tables_.end()) {
+		  b.state_errors.push_back("expired container element table");
+		  return Z3_mk_unsigned_int64(b.ctx, 0,
+					      Z3_mk_bv_sort(b.ctx, width));
+	    }
+	    const qsel_table_s&table = *found->second;
+	    string element;
+	    IRParser constant_index(index_ir);
+	    uint64_t selected = 0;
+	    if (eval_const_ir(constant_index, selected)) {
+		  constant_index.skip_ws();
+		  if (constant_index.at_end()) {
+			element = selected < table.elements.size()
+			      ? table.elements[selected] : table.missing;
+		  } else {
+			element.clear();
+		  }
+	    }
+	    if (element.empty()) {
+		  element = table.missing;
+		  for (size_t i = table.elements.size() ; i-- > 0 ; )
+			element = "(ite (eq " + index_ir + " c:" + to_string(i)
+			      + ":32) " + table.elements[i] + " " + element + ")";
+	    }
+	    IRParser sub(element);
+	    return build_z3_atom(sub, b);
       }
 
 	/* (dsum P:W[:s] OP): array reduction method over a RANDOM dynamic
@@ -5887,7 +5965,8 @@ bool vvp_z3_substitute_wide_value_slots(const string&ir,
  * to qbad:W[:s], which the typed inside path turns into a guard-aware 18.3
  * error. Keep qempty:W[:s] so an empty queue is false rather than vacuously
  * true, while retaining its declared type for context sizing. */
-static const unsigned QELEM_MAX_ELEMENTS = 4096;
+static const unsigned QELEM_MAX_ELEMENTS = 1u << 18;
+
 
 static string substitute_scope_object_slots(
       const string&ir, const vector<vector<uint64_t> >&object_vals,
@@ -5939,21 +6018,21 @@ static string substitute_scope_object_slots(
 		  if (slot < object_vals.size()
 		      && object_vals[slot].size() <= QELEM_MAX_ELEMENTS) {
 			const vector<uint64_t>&vals = object_vals[slot];
-			for (size_t i = vals.size() ; i-- > 0 ; ) {
+			shared_ptr<qsel_table_s> table(new qsel_table_s);
+			table->missing = missing;
+			for (size_t i = 0 ; i < vals.size() ; i += 1) {
 			      bool known = slot < object_known.size()
 				    && i < object_known[slot].size()
 				    && object_known[slot][i];
 			      uint64_t value = vals[i];
 			      if (width < 64)
 				    value &= (UINT64_C(1) << width) - 1;
-			      string element = known
+			      table->elements.push_back(known
 				    ? "c:" + to_string(value) + ":"
 				      + to_string(width) + suffix
-				    : missing;
-			      expanded = "(ite (eq " + index_ir + " c:"
-				    + to_string(i) + ":32) " + element + " "
-				    + expanded + ")";
+				    : missing);
 			}
+			expanded = qsel_text_(table, width, is_signed, index_ir);
 		  }
 		  result += expanded;
 		  p = q + 1;
@@ -7102,6 +7181,31 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
       if (domain > ENUM_DOMAIN_CAP) return false;
 
       Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+
+	/* Most constrained variables have exactly one feasible value (a copy
+	 * `x[i] == y[i]', an equality, a pinned field). Find one model value
+	 * and ask whether any other exists: two checks and one model instead
+	 * of one probe per domain value, which made an n-element copy
+	 * constraint cost n * 2^width solver calls. */
+      if (domain > 2) {
+	    Z3_lbool first = Z3_solver_check(ctx, base);
+	    if (first == Z3_L_TRUE) {
+		  Z3_model model = Z3_solver_get_model(ctx, base);
+		  Z3_model_inc_ref(ctx, model);
+		  uint64_t only = 0;
+		  bool have = z3_eval_uint64(ctx, model, var, only);
+		  Z3_model_dec_ref(ctx, model);
+		  if (have && only < domain) {
+			Z3_ast cv = Z3_mk_unsigned_int64(ctx, only, sort);
+			Z3_ast other = Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv));
+			Z3_lbool more = Z3_solver_check_assumptions(ctx, base, 1, &other);
+			if (more == Z3_L_FALSE) {
+			      out.push_back(only);
+			      return true;
+			}
+		  }
+	    }
+      }
       for (uint64_t bits = 0 ; bits < domain ; bits += 1) {
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
 	    Z3_ast eq = Z3_mk_eq(ctx, var, cv);
@@ -9573,6 +9677,31 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    && builder.size_vars.empty();
       auto sample_elements = [&](bool cyclic_only) {
       if (exact_joint && (defer_joint || !cyclic_only)) return;
+	/* An element the hard constraints already pin (`dst[i] == src[i]') needs
+	   no diversity objective; each objective costs the optimizer a lexicographic
+	   round, so a few hundred pinned elements took minutes. */
+      std::shared_ptr<Z3_model> pin_model;
+      bool pin_tried = false;
+      auto element_pinned = [&](Z3_ast var) -> bool {
+	    if (builder.elem_vars.size() < 32 || builder.elem_vars.size() > 4096)
+		  return false;
+	    if (!pin_tried) {
+		  pin_tried = true;
+		  if (Z3_solver_check(ctx, base) == Z3_L_TRUE) {
+			Z3_model m = Z3_solver_get_model(ctx, base);
+			Z3_model_inc_ref(ctx, m);
+			pin_model.reset(new Z3_model(m), [ctx](Z3_model*mp) {
+			      Z3_model_dec_ref(ctx, *mp);
+			      delete mp;
+			});
+		  }
+	    }
+	    Z3_ast value = nullptr;
+	    if (!pin_model || !Z3_model_eval(ctx, *pin_model, var, true, &value))
+		  return false;
+	    Z3_ast differs = Z3_mk_not(ctx, Z3_mk_eq(ctx, var, value));
+	    return Z3_solver_check_assumptions(ctx, base, 1, &differs) == Z3_L_FALSE;
+      };
       for (auto& ev : builder.elem_vars) {
             if (graph && builder.type(ev.idx)->property_is_randc(builder.local_index(ev.idx)) != cyclic_only)
                   continue;
@@ -9687,6 +9816,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (ev.width > 64) target_bits.set_bit(b, one ? BIT4_1 : BIT4_0);
 		  if (ev.width <= 64 && b + 1 >= 64) break;
 	    }
+	    if (element_pinned(ev.var)) continue;
 	    z3_minimize_diversity_(ctx, opt, ev.var, ev.width, rand_bits, target_bits);
       }
       };
@@ -12473,13 +12603,14 @@ static bool expand_qelem_form_(const char*&p,
       if (slot < object_words.size()
 	  && object_words[slot].size() <= QELEM_MAX_ELEMENTS) {
 	    const vector<vvp_vector4_t>&words = object_words[slot];
-	    for (size_t i = words.size() ; i-- > 0 ; ) {
-		  string value = words[i].size() && vec4_is_two_state_(words[i])
+	    shared_ptr<qsel_table_s> table(new qsel_table_s);
+	    table->missing = missing;
+	    for (size_t i = 0 ; i < words.size() ; i += 1)
+		  table->elements.push_back(
+			words[i].size() && vec4_is_two_state_(words[i])
 			? vec4_ir_constant_(words[i], width, is_signed)
-			: missing;
-		  expanded = "(ite (eq " + index_ir + " c:" + to_string(i)
-			+ ":32) " + value + " " + expanded + ")";
-	    }
+			: missing);
+	    expanded = qsel_text_(table, width, is_signed, index_ir);
       }
       result += expanded;
       p = q + 1;
@@ -12822,6 +12953,30 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	    return false;
       }
       Z3_optimize_assert(ctx, opt, exact);
+      /* An element the constraints already pin (`dst[i] == src[i]') needs no
+	 diversity objective; each objective costs the optimizer a full lexicographic
+	 round, which made a few hundred pinned elements take minutes. */
+      vector<bool> pinned(size, false);
+      if (size <= 4096) {
+	    Z3_solver fs = Z3_mk_simple_solver(ctx);
+	    Z3_solver_inc_ref(ctx, fs);
+	    Z3_solver_assert(ctx, fs, hard);
+	    Z3_solver_assert(ctx, fs, exact);
+	    if (Z3_solver_check(ctx, fs) == Z3_L_TRUE) {
+		  Z3_model fm = Z3_solver_get_model(ctx, fs);
+		  Z3_model_inc_ref(ctx, fm);
+		  for (uint64_t i = 0; i < size; ++i) {
+			Z3_ast var = final.get_elem_var(0, element_width, (unsigned)i);
+			Z3_ast value = nullptr;
+			if (!Z3_model_eval(ctx, fm, var, true, &value)) continue;
+			Z3_ast differs = Z3_mk_not(ctx, Z3_mk_eq(ctx, var, value));
+			pinned[i] = Z3_solver_check_assumptions(ctx, fs, 1, &differs)
+			      == Z3_L_FALSE;
+		  }
+		  Z3_model_dec_ref(ctx, fm);
+	    }
+	    Z3_solver_dec_ref(ctx, fs);
+      }
       for (uint64_t i = 0; i < size; ++i) {
 	    Z3_ast var = final.get_elem_var(0, element_width, (unsigned)i);
 	    string target(element_width, '0');
@@ -12842,7 +12997,8 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 		  preferred = preferred ? Z3_mk_concat(ctx, preferred, part) : part;
 		  pos += take;
 	    }
-	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, var, preferred));
+	    if (!pinned[i])
+		  Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, var, preferred));
       }
       status = Z3_optimize_check(ctx, opt, 0, nullptr);
       if (status == Z3_L_TRUE) {
