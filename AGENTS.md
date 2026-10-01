@@ -332,6 +332,11 @@ model.
   `scripts/retire-agent-worktree.sh`, dry-run first.
 - Never raw-`rm` a worktree or bypass cleanup refusal.
 - Lock deliberate baseline worktrees.
+- Standing clone limits: at most 3 iverilog-uvm checkouts (control repo plus
+  worktrees), 1 OpenTitan repo and 1 Caliptra repo. The cleanup target after
+  the consolidation PR merges is ONE iverilog-uvm clone (the control repo with
+  the canonical graphify-out), adding worktrees only up to the limit and
+  retiring each after its PR merges.
 - Stage explicit paths; avoid `git add -A` in mixed/generated trees.
 - Do not commit build products, local installs, logs, cores, generated
   parser files, `.dSYM`, or temporary evidence unless policy
@@ -546,17 +551,22 @@ an unvalidated semantic baseline.
 Commit at a coherent tested boundary. Push/open a draft PR when
 authorized and ready.
 
-During this user-authorized continuous campaign, publish validated work at
-substantial milestones, normally after roughly 3–5 sequential validated
-blockers with a coherent review scope. Do not create a PR for every blocker
-or rapidly drain historical work into a stack of PRs. Keep local implementation
-checkpoints separate and frequent. Prefer updating an existing PR when its
-scope fits; use a new PR when the next milestone warrants separate review.
-At coordination boundaries inspect existing PRs and record URLs, published
-semantic revisions, dependencies and outstanding CI in `.ai/CAMPAIGN.yaml`.
-The user's latest cadence request takes precedence over earlier per-checkpoint
-publication instructions. Publication does not authorize merging or waive
-required validation, CI, worktree safeguards or merge permissions.
+PR cadence (user rule, 2026-10-01; supersedes the earlier "3-5 blockers"
+cadence, which let work go unpublished for weeks):
+
+- Open a PR for every coherent validated unit: a fix cluster, a test batch,
+  or a consolidation. Never let more than one working day or ~15 commits sit
+  unpublished on a local branch; push the branch at least daily.
+- Work from `main` in small branches. One open PR per branch; update it rather
+  than opening a duplicate. Do not stack unreviewed work on an unmerged branch
+  for long: if a PR is open, finish and merge it before starting the next
+  large change on top of it.
+- Never end a session or hand off with unpushed commits or without an open PR
+  for committed work. State the PR URL and its validation state in the handoff.
+- If full gates are intentionally deferred, say so in the PR body; a PR with
+  honest "not run" beats an unpublished branch.
+- Publication does not authorize merging or waive CI/worktree safeguards;
+  never enable auto-merge unless asked.
 
 Follow `.github/pull_request_template.md`. Include:
 
