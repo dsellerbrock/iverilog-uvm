@@ -1,7 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 7e553b433
+checkpoint_head: 2b7ad622c
+active_runtime_leak_constraint_batch_lane:
+  blocker: "OT-RUNTIME-LEAK-AND-CONSTRAINT-BATCH-20260930"
+  phase: "DONE"
+  baseline_head: "8440da0d7"
+  head: "2b7ad622c"
+  commits: "6b5af6554 de27a7201 99257603b 93b0254b4 3775b025d 5263ed8c8 f70bbc35f 80971ad8f 2b7ad622c"
+  gates: "JSON 4168 run/0 failed; legacy 6922 total/0 failed; UVM 363 passed/0 failed"
+  census: "49-core runtime census 23 -> 32 PASS (evidence/opentitan-census-20260930/); no frozen PASS lost"
+  next: "spi_device RUNTIME_MEMORY_LIMIT; adc_ctrl rand 2-D dynamic arrays; i2c covergroup bins and .sum() in std::randomize with; @(vif.event); concurrent @(sig[idx]) waiters; usbdev rx_pid_err; edn throughput"
 active_hmac_status_mirror_lane:
   blocker: "OT-HMAC-STATUS-MIRROR-MISMATCH"
   phase: "DONE"
