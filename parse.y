@@ -2316,7 +2316,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <named_pexprs> port_name_list parameter_value_byname_list
 %type <int_val> stream_operator
 %type <expr> stream_expression
-%type <exprs> stream_expression_list
+%type <exprs> stream_expression_list alias_net_list
 %type <exprs> port_conn_expression_list_with_nuls
 
 %type <named_pexpr> attribute
@@ -9206,6 +9206,19 @@ stream_expression
   : expression { $$ = $1; }
   ;
 
+alias_net_list
+  : lpvalue '=' lpvalue
+      { list<PExpr*>*tmp = new list<PExpr*>;
+	tmp->push_back($1);
+	tmp->push_back($3);
+	$$ = tmp;
+      }
+  | alias_net_list '=' lpvalue
+      { $1->push_back($3);
+	$$ = $1;
+      }
+  ;
+
 stream_expression_list
   : stream_expression_list ',' stream_expression
       { std::list<PExpr*>*lst = $1;
@@ -15487,6 +15500,11 @@ module_item
 
   | K_assign drive_strength_opt delay3_opt cont_assign_list ';'
       { pform_make_pgassign_list(@1, $4, $3, $2); }
+
+  /* A net alias (IEEE 1800-2017 23.3.1): two or more nets made one. */
+
+  | K_alias alias_net_list ';'
+      { pform_make_alias(@1, $2); }
 
   /* Always and initial items are behavioral processes. */
 

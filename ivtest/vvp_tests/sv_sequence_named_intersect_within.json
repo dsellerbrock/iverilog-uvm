@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_sequence_named_intersect_within.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_sequence_named_intersect_within"
+}

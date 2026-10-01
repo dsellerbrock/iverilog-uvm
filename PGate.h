@@ -192,6 +192,22 @@ class PGAssign  : public PGate {
 
 
 /*
+ * A net alias (IEEE 1800-2017 23.3.1): `alias a = b = c;'. Every pin names a
+ * whole net of the same width; elaboration joins them with always-on
+ * bidirectional switches so they behave as one net.
+ */
+class PGAlias  : public PGate {
+
+    public:
+      explicit PGAlias(std::list<PExpr*>*pins);
+      ~PGAlias() override;
+
+      void dump(std::ostream&out, unsigned ind =4) const override;
+      virtual void elaborate(Design*des, NetScope*scope) const override;
+};
+
+
+/*
  * The Builtin class is specifically a gate with one of the builtin
  * types. The parser recognizes these types during parse. These types
  * have special properties that allow them to be treated specially.

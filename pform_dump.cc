@@ -833,6 +833,14 @@ void PGAssign::dump(ostream&out, unsigned ind) const
       out << " " << *pin(0) << " = " << *pin(1) << ";" << endl;
 }
 
+void PGAlias::dump(ostream&out, unsigned ind) const
+{
+      out << setw(ind) << "" << "alias ";
+      for (unsigned idx = 0 ; idx < pin_count() ; idx += 1)
+	    out << (idx ? " = " : "") << *pin(idx);
+      out << ";" << endl;
+}
+
 void PGBuiltin::dump(ostream&out, unsigned ind) const
 {
       out << setw(ind) << "";

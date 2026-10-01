@@ -5101,6 +5101,18 @@ static PGAssign* pform_make_pgassign(PExpr*lval, PExpr*rval,
       return cur;
 }
 
+/* `alias a = b [= c ...];' (IEEE 1800-2017 23.3.1). */
+void pform_make_alias(const struct vlltype&loc, list<PExpr*>*nets)
+{
+      pform_requires_sv(loc, "Net alias");
+      PGAlias*cur = new PGAlias(nets);
+      FILE_NAME(cur, loc);
+      if (pform_cur_generate)
+	    pform_cur_generate->add_gate(cur);
+      else
+	    pform_cur_module.front()->add_gate(cur);
+}
+
 void pform_make_pgassign_list(const struct vlltype&loc,
 			      list<PExpr*>*alist,
 			      list<PExpr*>*del,
@@ -13847,6 +13859,10 @@ static bool sva_expand_fixed_(const struct vlltype&loc, const char*what,
 			      std::vector<PExpr*>&cyc)
 {
       cyc.clear();
+	/* An operand may name a declared sequence (`s1 intersect s2'); splice
+	   its steps in first, or the bare identifier is bound later as a
+	   variable. Splicing is idempotent. */
+      sva_splice_sequences_(loc, seq);
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
 	    sva_seq_step_t&st = seq[j];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
@@ -16107,6 +16123,10 @@ sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
 	    delete s1; delete s2;
 	    return nullptr;
       }
+	/* Splice declared sequences first: a bare identifier operand looks like
+	   a one-step fixed chain until it is replaced by its real steps. */
+      sva_splice_sequences_(loc, *s1);
+      sva_splice_sequences_(loc, *s2);
       long l1 = 0, l2 = 0;
       bool f1 = sva_chain_fixed_len_(*s1, l1);
       bool f2 = sva_chain_fixed_len_(*s2, l2);
@@ -16313,6 +16333,8 @@ sva_property_t* pform_sva_seq_within(const struct vlltype&loc,
 	    delete s1; delete s2;
 	    return nullptr;
       }
+      sva_splice_sequences_(loc, *s1);
+      sva_splice_sequences_(loc, *s2);
       long l1 = 0, l2 = 0;
       if (sva_chain_fixed_len_(*s1, l1) && sva_chain_fixed_len_(*s2, l2))
 	    return pform_sva_binprop(loc, 8, s1, s2);

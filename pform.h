@@ -1116,6 +1116,8 @@ extern bool pform_activate_deferred_binds(Design*des);
 extern void pform_check_bind_matches(Design*des);
 
 /* Make a continuous assignment node, with optional bit- or part- select. */
+extern void pform_make_alias(const struct vlltype&loc,
+			     std::list<PExpr*>*nets);
 extern void pform_make_pgassign_list(const struct vlltype&loc,
 				     std::list<PExpr*>*alist,
 				     std::list<PExpr*>*del,

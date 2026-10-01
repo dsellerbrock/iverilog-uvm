@@ -3325,6 +3325,40 @@ static bool elaborate_string_variable_continuous_(
       return true;
 }
 
+/* Join the aliased nets with always-on bidirectional switches. */
+void PGAlias::elaborate(Design*des, NetScope*scope) const
+{
+      std::vector<NetNet*> nets;
+      for (unsigned idx = 0 ; idx < pin_count() ; idx += 1) {
+	    NetNet*sig = pin(idx)->elaborate_bi_net(des, scope, false);
+	    if (!sig)
+		  return;
+	    if (sig->pin_count() != 1) {
+		  cerr << get_fileline() << ": sorry: an alias of an unpacked "
+		       << "array is not supported." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    nets.push_back(sig);
+      }
+
+      for (size_t idx = 1 ; idx < nets.size() ; idx += 1) {
+	    if (nets[idx]->vector_width() != nets[0]->vector_width()) {
+		  cerr << get_fileline() << ": error: Net alias operands have "
+		       << "different widths (" << nets[0]->vector_width()
+		       << " and " << nets[idx]->vector_width() << ")." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    NetTran*join = new NetTran(scope, scope->local_symbol(),
+				       IVL_SW_TRAN, nets[0]->vector_width());
+	    join->set_line(*this);
+	    des->add_node(join);
+	    connect(join->pin(0), nets[0]->pin(0));
+	    connect(join->pin(1), nets[idx]->pin(0));
+      }
+}
+
 void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
