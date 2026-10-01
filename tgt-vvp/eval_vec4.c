@@ -3513,6 +3513,7 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
                 case IVL_EX_SELECT:
                 case IVL_EX_SFUNC:
                 case IVL_EX_UFUNC:
+                case IVL_EX_TERNARY:
                   draw_eval_string(expr);
                   break;
                 default:

@@ -5338,3 +5338,5 @@ sv_constraint_wide_fixed_element_direct normal,-g2017 ivltests gold=sv_constrain
 sv_constraint_wide_fixed_element_direct_2023 normal,-g2023 ivltests gold=sv_constraint_wide_fixed_element_direct.gold
 sv_constraint_wide_fixed_element_randc_fail normal,-g2017 ivltests gold=sv_constraint_wide_fixed_element_randc_fail.gold
 sv_constraint_wide_fixed_element_randc_fail_2023 normal,-g2023 ivltests gold=sv_constraint_wide_fixed_element_randc_fail.gold
+sv_string_condition_truth normal,-g2017,-s,test ivltests gold=sv_string_condition_truth.gold
+sv_string_condition_truth_2023 normal,-g2023,-s,test ivltests gold=sv_string_condition_truth.gold
