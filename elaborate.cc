@@ -21454,6 +21454,22 @@ static NetExpr*build_vif_validity_expr_(
           || dynamic_cast<const NetENull*>(expr))
             return vif_valid_const_(true);
 
+      /* The canonical-index check of a packed class-property element select
+       * is a pure function of its arguments: the raw index expressions and
+       * constant range parameters. It is valid exactly when they are. */
+      if (const NetESFunc*func = dynamic_cast<const NetESFunc*>(expr)) {
+            if (strcmp(func->name(), "$ivl_checked_property_index") == 0) {
+                  NetExpr*valid = vif_valid_const_(true);
+                  for (unsigned idx = 0; idx < func->nparms(); ++idx)
+                        if (func->parm(idx))
+                              valid = vif_valid_and_(valid,
+                                    build_vif_validity_expr_(func->parm(idx),
+                                                             leaves,
+                                                             unsupported));
+                  return valid;
+            }
+      }
+
       /* This event contains a dynamic VIF leaf, so treating an unknown
        * expression kind as unconditionally valid would mask a null use. */
       unsupported = true;
