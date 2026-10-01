@@ -662,7 +662,7 @@ static bool infer_constraint_integral_type_(IRParser&par,
       if (op == "fsel" || op == "psel" || op == "delem" || op == "qmelem"
           || op == "qfield" || op == "qkeymember" || op == "hselectfield"
           || op == "qkeyelem" || op == "skelem" || op == "dsum"
-          || op == "qsel") {
+          || op == "dsumw" || op == "qsel") {
             string header = par.read_token();
             vector<string> fields;
             string field;
@@ -1963,7 +1963,8 @@ static string vec4_ir_constant_(const vvp_vector4_t&value, unsigned width,
 }
 
 static string subst_loop_token(const string& body, uint64_t i,
-                               unsigned width = 32, bool sign = true)
+                               unsigned width = 32, bool sign = true,
+                               char token = 'L')
 {
       string out;
       const char* p = body.c_str();
@@ -1973,10 +1974,10 @@ static string subst_loop_token(const string& body, uint64_t i,
       };
       char prev = ' ';
       while (*p) {
-	    if (*p == 'L' && is_delim(prev) && is_delim(p[1])) {
+	    if (*p == token && is_delim(prev) && is_delim(p[1])) {
 		  out += "c:" + to_string(i) + ":" + to_string(width)
 		       + (sign ? ":s" : "");
-		  prev = 'L';
+		  prev = token;
 		  p++;
 		  continue;
 	    }
@@ -2907,6 +2908,59 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    return build_z3_atom(sub, b);
       }
 
+	/* (dsumw P:RW[:s] OP <template>): array reduction method WITH a with
+	 * expression over a RANDOM dynamic array or queue (IEEE 1800-2017
+	 * 7.12.3, 18.5.8.2). RW is the with expression's own result type. The
+	 * template reads the element and its index through `(delem ..)' and the
+	 * loop token L. Size pass: free value; element pass: fold one template
+	 * instance per element and truncate to the result type. */
+      if (op == "dsumw") {
+	    string hdr = par.read_token();
+	    string red = par.read_token();
+	    string body = capture_balanced_form(par);
+	    par.skip_ws(); par.expect(')');
+	    unsigned local = 0, rwid = 32; bool rsig = false;
+	    parse_pws_header(hdr, local, rwid, rsig);
+	    unsigned pidx = b.property_index(local);
+	    if (!b.dyn_sizes) {
+		  bool seen = false;
+		  for (const auto& d : b.dyn_foreach)
+			if (d.pidx == pidx && d.leaf == 0 && !d.nested) {
+			      seen = true;
+			      break;
+			}
+		  if (!seen) {
+			Z3Builder::DynForeach rec;
+			rec.pidx = pidx; rec.leaf = 0; rec.nested = false;
+			rec.ewid = rwid; rec.esigned = rsig; rec.body = string();
+			b.dyn_foreach.push_back(rec);
+		  }
+		  Z3_ast free_value = Z3_mk_fresh_const(
+			b.ctx, "dsumw", Z3_mk_bv_sort(b.ctx, rwid));
+		  if (rsig) b.signed_vars.insert(free_value);
+		  return free_value;
+	    }
+	    uint64_t count = 0;
+	    auto found = b.dyn_sizes->find(make_pair(pidx, 0u));
+	    if (found != b.dyn_sizes->end()) count = found->second;
+	    string chain;
+	    for (uint64_t i = 0 ; i < count ; i += 1) {
+		  string leaf = subst_loop_token(body, i);
+		  chain = chain.empty() ? leaf : "(" + red + " " + chain + " " + leaf + ")";
+	    }
+	    if (chain.empty()) {
+		  uint64_t identity = red == "mul" ? 1
+			: red == "band" ? (rwid >= 64 ? ~(uint64_t)0
+					       : (((uint64_t)1 << rwid) - 1)) : 0;
+		  chain = "c:" + to_string((unsigned long long)identity) + ":"
+			+ to_string(rwid);
+	    }
+	    string text = "(trunc:" + to_string(rwid) + (rsig ? ":s " : " ")
+		  + chain + ")";
+	    IRParser sub(text);
+	    return build_z3_atom(sub, b);
+      }
+
 	/* Dynamic-array foreach template (IEEE 1800-2017 18.5.8.2).
 	 * Size pass: capture the body and contribute `true` (the size
 	 * variables elsewhere in the IR still participate). Element
@@ -2914,6 +2968,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	 * bound to each index and conjoin the instances. */
       if (op == "dynforeach") {
 	    string hdr = par.read_token();
+	      // `foreach (q[i]) foreach (q[j])' over one array: the inner template
+	      // appends @M so its iterator is the token M, not the outer L.
+	    char loop_token = 'L';
+	    string::size_type at_sign = hdr.find('@');
+	    if (at_sign != string::npos && at_sign + 1 < hdr.size()) {
+		  loop_token = hdr[at_sign + 1];
+		  hdr.erase(at_sign);
+	    }
 	      // An integral-key associative array appends /KW[:s], its index type.
 	    string key_hdr;
 	    string::size_type slash = hdr.find('/');
@@ -2993,7 +3055,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			  (unsigned long long)count, ewid, body.c_str());
 	    Z3_ast conj = b.mk_true();
 	    for (uint64_t i = 0 ; i < count ; i += 1) {
-		  string inst_text = subst_loop_token(body, i);
+		  string inst_text = subst_loop_token(body, i, 32, true, loop_token);
 		  if (z3_dyndbg())
 			fprintf(stderr, "[z3dyn]   inst i=%llu text=<%s>\n",
 				(unsigned long long)i, inst_text.c_str());
@@ -4342,6 +4404,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast right = build_z3_atom(par, b);
 	    if (typed) leave_typed_context_(b, saved_width, saved_sign);
 	    par.skip_ws(); par.expect(')');
+	    /* A nested comparison or logical expression is an integral one-bit
+	     * operand in SystemVerilog, even though Z3 represents it as Bool. */
+	    left = bool_to_bv1(b.ctx, left);
+	    right = bool_to_bv1(b.ctx, right);
 	    unsigned sw = b.sv_of(left);
 	    if (b.sv_of(right) > sw) sw = b.sv_of(right);
 	    if (typed) sw = typed_width;
@@ -9523,10 +9589,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             if (!sizes.empty()) {
                   vector<vector<uint64_t> > values;
                   const char*reason = nullptr;
-                  Z3_lbool fixed = z3_enumerate_joint_(ctx, base, sizes, 1, values, reason);
+                  Z3_lbool fixed = z3_enumerate_joint_(ctx, base, sizes,
+                        ENUM_DOMAIN_CAP, values, reason);
                   if (fixed == Z3_L_FALSE) return fail_joint(nullptr);
                   if (fixed != Z3_L_TRUE)
                         return fail_joint("global array sizes must have one proven value before element solving");
+                    /* A ranged size (`q.size() inside {[2:4]}') is a random
+                       choice among the proven size tuples (IEEE 1800-2017/2023
+                       18.4, 18.5.8.2); pin it so element solving sees one value. */
+                  if (values.size() > 1) {
+                        vector<uint64_t> chosen_sizes =
+                              values[root_rng.uniform_index(values.size())];
+                        values.assign(1, chosen_sizes);
+                        for (size_t i = 0; i < sizes.size(); ++i) {
+                              Z3_sort sort = Z3_get_sort(ctx, sizes[i]);
+                              Z3_ast pin = Z3_mk_eq(ctx, sizes[i],
+                                    Z3_mk_unsigned_int64(ctx, chosen_sizes[i], sort));
+                              Z3_solver_assert(ctx, base, pin);
+                              Z3_optimize_assert(ctx, opt, pin);
+                        }
+                  }
                   for (size_t i = 0; i < sizes.size(); ++i) {
                         const auto&sv = builder.size_vars[i];
                         proved_joint_sizes[make_pair(sv.idx, sv.leaf)] = values[0][i];
@@ -10236,6 +10318,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             vector<vector<vector<uint64_t> > > tables(components.size());
             vector<bool> full_power_component(components.size(), false);
             vector<unsigned> full_power_bits(components.size(), 0);
+            /* A component too large to enumerate that carries no dist, randc or
+               solve-before promise needs only a valid joint assignment: sample it
+               column by column against the hard solver. */
+            vector<bool> sampled_component(components.size(), false);
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   bool component_has_randc = any_of(components[ci].begin(),
                         components[ci].end(), active_randc_var);
@@ -10271,6 +10357,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               // the same distribution as choosing uniformly
                               // from its fully enumerated tuple table.
                               full_power_component[ci] = true;
+                              continue;
+                        }
+                        if (enumerated == Z3_L_UNDEF && reason
+                            && strcmp(reason,
+                               "the complete joint solution set exceeds the enumeration limit") == 0
+                            && distributions[ci].empty() && !component_has_dist_spec
+                            && !component_has_randc && !ordered_component) {
+                              static bool warned_sampled_component = false;
+                              if (!warned_sampled_component) {
+                                    fprintf(stderr, "Warning: a joint randomization "
+                                            "component is too large to enumerate "
+                                            "exactly; it is sampled against the hard "
+                                            "constraints, not uniformly over its "
+                                            "solutions (further similar warnings "
+                                            "suppressed).\n");
+                                    warned_sampled_component = true;
+                              }
+                              sampled_component[ci] = true;
                               continue;
                         }
                         return fail_joint(reason);
@@ -10693,6 +10797,37 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         Z3_solver_assert(ctx, base, pin);
                         Z3_optimize_assert(ctx, opt, pin);
                   };
+                  if (sampled_component[ci]) {
+                        for (size_t column = 0; column < component.size(); ++column) {
+                              Z3_sort sort = Z3_get_sort(ctx, component[column]);
+                              unsigned width = Z3_get_bv_sort_size(ctx, sort);
+                              bool pinned = false;
+                              for (unsigned attempt = 0; attempt < 8 && !pinned; ++attempt) {
+                                    uint64_t draw = ((uint64_t)root_rng.next() << 32)
+                                          | root_rng.next();
+                                    if (width < 64) draw &= ((uint64_t)1 << width) - 1;
+                                    Z3_ast pin = Z3_mk_eq(ctx, component[column],
+                                          Z3_mk_unsigned_int64(ctx, draw, sort));
+                                    if (Z3_solver_check_assumptions(ctx, base, 1, &pin)
+                                        == Z3_L_TRUE) {
+                                          pin_column(column, draw);
+                                          pinned = true;
+                                    }
+                              }
+                              if (pinned) continue;
+                              if (Z3_solver_check(ctx, base) != Z3_L_TRUE)
+                                    return fail_joint("a sampled joint component became infeasible");
+                              Z3_model model = Z3_solver_get_model(ctx, base);
+                              Z3_model_inc_ref(ctx, model);
+                              uint64_t value = 0;
+                              bool have = z3_eval_uint64(ctx, model, component[column], value);
+                              Z3_model_dec_ref(ctx, model);
+                              if (!have)
+                                    return fail_joint("a sampled joint component has no integral model");
+                              pin_column(column, value);
+                        }
+                        continue;
+                  }
                   if (full_power_component[ci]) {
                         unsigned bits = full_power_bits[ci];
                         uint64_t chosen = 0;

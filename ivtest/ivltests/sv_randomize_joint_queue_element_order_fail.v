@@ -72,7 +72,7 @@ module sv_randomize_joint_queue_element_order_fail;
   if(oob.randomize()||oob.values.size()!=3||!oob.values[0]||!oob.values[1]||!oob.values[2]||oob.child.value||oob.posts||oob.get_randstate()!=os||oob.child.get_randstate()!=ocs)$fatal(1,"dynamic OOB rollback");
   if(wide.randomize()||wide.values.size()!=2||!wide.values[0]||!wide.values[1]||wide.scalar||wide.posts||wide.get_randstate()!=ws)$fatal(1,"dynamic wide-index rollback");
   if(negative.randomize()||negative.values.size()!=2||!negative.values[0]||!negative.values[1]||negative.scalar||negative.posts||negative.get_randstate()!=ns)$fatal(1,"dynamic negative-index rollback");
-  if(ambiguous.randomize()||ambiguous.values.size()!=3||!ambiguous.values[0]||!ambiguous.values[1]||!ambiguous.values[2]||ambiguous.scalar||ambiguous.child.value||ambiguous.posts||ambiguous.get_randstate()!=as||ambiguous.child.get_randstate()!=acs)$fatal(1,"dynamic size proof rollback");
+  if(!ambiguous.randomize()||(ambiguous.values.size()!=1&&ambiguous.values.size()!=2)||ambiguous.scalar!=ambiguous.values[0]||ambiguous.child.value!=ambiguous.scalar||ambiguous.posts!=1)$fatal(1,"ranged size with element ordering was not solved validly");
   if(bound.randomize()||bound.values.size()!=2||bound.values[0]||bound.values[1]||bound.scalar||bound.posts||bound.get_randstate()!=bs)$fatal(1,"queue bound rollback");
   if(cap.randomize())cap_changed=1;foreach(cap.values[i])cap_changed|=cap.values[i];
   if(cap_changed||cap.values.size()!=11||cap.child.value||cap.posts||cap.get_randstate()!=caps||cap.child.get_randstate()!=capcs)$fatal(1,"dynamic cap rollback");

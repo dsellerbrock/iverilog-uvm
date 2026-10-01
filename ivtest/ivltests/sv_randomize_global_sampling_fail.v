@@ -1,5 +1,7 @@
 // IEEE 1800-2017 18.5.9/18.5.10; IEEE 1800-2023 18.5.8/18.5.9.
-// Unsupported joint distributions fail atomically; no prefix sampling.
+// Unsupported joint distributions fail atomically; no prefix sampling. A joint
+// component past the enumeration limit and a ranged array size are solved
+// validly (sampled), never failed.
 class leaf;
   rand bit value;
 endclass
@@ -46,15 +48,17 @@ module main;
       $fatal(1, "exactly 1024 tuples did not pass");
     before_value=r.value; before_child=r.child.value;
     r.limit=1024;
-    if (r.randomize() || r.value != before_value || r.child.value != before_child || r.posts != 1)
-      $fatal(1, "joint cap failure sampled a prefix or changed values/posts");
+    if (!r.randomize() || r.value > 1024 || r.child.value != 0 || r.posts != 2)
+      $fatal(1, "1025 tuples past the enumeration limit were not solved validly");
+    before_value=r.value; before_child=r.child.value;
     r.limit=-1;
-    if (r.randomize() || r.posts != 1) $fatal(1, "negative-domain failure changed callbacks");
+    if (r.randomize() || r.value != before_value || r.child.value != before_child || r.posts != 2)
+      $fatal(1, "negative-domain failure changed values or callbacks");
     s.low_bound=1; s.high_bound=2;
-    if (s.randomize() || s.data.size()!=2 || s.data[0]!=1 || s.data[1]!=0 || s.posts)
-      $fatal(1, "ambiguous size failure changed array/posts");
+    if (!s.randomize() || (s.data.size()!=1 && s.data.size()!=2) || s.posts != 1)
+      $fatal(1, "ranged size was not solved validly");
     s.low_bound=65537; s.high_bound=65537;
-    if (s.randomize() || s.data.size()!=2 || s.posts)
+    if (s.randomize() || s.posts != 1)
       $fatal(1, "unsupported fixed size silently clamped");
     if (!w.randomize() || w.child.value > w.value)
       $fatal(1, "supported weighted graph failed or broke its hard relation");

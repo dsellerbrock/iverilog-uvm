@@ -585,6 +585,40 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       scope->local_symbols[name] = item;
 }
 
+static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
+
+/* A property inherited from a base class (IEEE 1800-2017 8.15, 8.18): a local
+ * property is not inherited, a protected or public one is. An inherited
+ * property is found before any wildcard-imported name (26.3). */
+static bool class_inherits_visible_property_(PClass*cls, perm_string name)
+{
+      set<PClass*> seen;
+      PClass*cur = cls;
+      seen.insert(cur);
+      while (cur && cur->type && cur->type->base_type) {
+	    const typeref_t*ref = dynamic_cast<const typeref_t*>(
+		  cur->type->base_type.get());
+	    if (!ref || !ref->typedef_ref()) break;
+	    PClass*base = nullptr;
+	      // `extends P::B' names the class in package P, not a same-named
+	      // class visible from here.
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(ref->scope_ref())) {
+		  auto cls_it = pkg->classes.find(ref->typedef_ref()->name);
+		  if (cls_it != pkg->classes.end()) base = cls_it->second;
+	    }
+	    if (!base)
+		  base = pform_find_visible_class_scope(
+			cur, ref->typedef_ref()->name);
+	    if (!base || !base->type || !seen.insert(base).second) break;
+	    auto found = base->type->properties.find(name);
+	    if (found != base->type->properties.end()
+		&& !found->second.qual.test_local())
+		  return true;
+	    cur = base;
+      }
+      return false;
+}
+
 static void check_potential_imports(const struct vlltype&loc, perm_string name, bool tf_call)
 {
       LexicalScope*scope = lexical_scope;
@@ -594,6 +628,8 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
 		  if (class_scope->type && class_scope->type->properties.find(name)
 		      != class_scope->type->properties.end())
+		    return;
+		  if (class_inherits_visible_property_(class_scope, name))
 		    return;
 	    }
 	    if (scope->explicit_imports.find(name) != scope->explicit_imports.end()) {

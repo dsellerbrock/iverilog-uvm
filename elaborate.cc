@@ -18324,6 +18324,38 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
       return elaborate_build_call_(des, scope, dscope, 0);
 }
 
+/* The handle VALUE named by an object-valued l-value: a whole variable, or a
+ * whole property of such a handle, any number of hops (`this.cfg'). Used to
+ * bind a `ref' formal to a property of a handle reached through other
+ * properties (`cfg.start_perf_monitor'). Returns null for anything else. */
+static NetExpr*netassign_object_value_expr_(const NetAssign_*lv,
+					    const LineInfo*loc)
+{
+      if (!lv || lv->more || lv->word() || lv->get_base()
+	  || lv->is_array_slice())
+	    return 0;
+      NetExpr*base = 0;
+      if (lv->nest()) {
+	    if (lv->get_property_idx() < 0) return 0;
+	    base = netassign_object_value_expr_(lv->nest(), loc);
+	    if (!base) return 0;
+      } else {
+	    NetNet*sig = lv->sig();
+	    if (!sig) return 0;
+	    base = new NetESignal(sig);
+	    base->set_line(*loc);
+	    if (lv->get_property_idx() < 0) return base;
+      }
+      if (!lv->nest() && lv->get_property_idx() >= 0) {
+	    NetEProperty*e = new NetEProperty(base, lv->get_property_idx(), 0);
+	    e->set_line(*loc);
+	    return e;
+      }
+      NetEProperty*e = new NetEProperty(base, lv->get_property_idx(), 0);
+      e->set_line(*loc);
+      return e;
+}
+
 /*
  * Bind a `ref' formal to its actual (IEEE 1800-2017 13.5.2).
  *
@@ -18473,6 +18505,32 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  bind->set_line(*this);
 		  delete lv;
 		  return bind;
+	    }
+
+	      /* A property of a handle reached through other properties:
+		 h.cfg.p. Bind the formal to that property of the evaluated
+		 handle. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && !lv->sig()
+		&& lv->nest() && lv->get_property_idx() >= 0
+		&& lv->word() == 0 && lv->get_base() == 0
+		&& !lv->is_array_slice() && !lv->is_interface_member()) {
+		  NetExpr*obj_e = netassign_object_value_expr_(lv->nest(), this);
+		  if (obj_e) {
+			NetESignal*formal_e = new NetESignal(port);
+			formal_e->set_line(*this);
+			NetEConst*pid_e = new NetEConst(
+			      verinum((uint64_t)lv->get_property_idx(), 32));
+			pid_e->set_line(*this);
+			vector<NetExpr*> argv(3);
+			argv[0] = formal_e;
+			argv[1] = obj_e;
+			argv[2] = pid_e;
+			NetSTask*bind = new NetSTask("$ivl_ref_bind_prop",
+						     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			delete lv;
+			return bind;
+		  }
 	    }
 
 	      /* An element of a dynamic array or queue: da[i], q[i]. */
@@ -27375,6 +27433,11 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  * scoped rather than threaded through the ~30 recursive call sites. */
 struct dynforeach_emit_ctx_t {
       perm_string loop_var;
+	// `foreach (q[i]) foreach (q[j])' over the SAME dynamic array: the inner
+	// iterator is the second token `M' of one template.
+      perm_string loop_var2;
+      bool iterates(perm_string name) const
+      { return loop_var == name || (!loop_var2.nil() && loop_var2 == name); }
       int prop_idx;
       unsigned elem_wid;
       bool elem_signed;
@@ -30136,7 +30199,7 @@ static bool constraint_source_references_randc_(
 	    }
 	    if (dynforeach_emit_ctx_ && name.size() == 1
 		&& !name.front().local_scope
-		&& name.front().name == dynforeach_emit_ctx_->loop_var)
+		&& dynforeach_emit_ctx_->iterates(name.front().name))
 		  return false;
 
 	    constraint_symbol_randc_result_t resolved =
@@ -31561,7 +31624,7 @@ static constraint_handle_operand_t constraint_handle_operand_(
             if (root.index.empty() && !root.local_scope
                 && ((loop_env && loop_env->count(root.name))
                     || (dynforeach_emit_ctx_
-                        && dynforeach_emit_ctx_->loop_var == root.name)
+                        && dynforeach_emit_ctx_->iterates(root.name))
                     || (stateforeach_emit_ctx_
                         && stateforeach_emit_ctx_->source->loop_vars()[0] == root.name))
                 && !constraint_array_iter_ctx_find_(root.name))
@@ -33245,7 +33308,10 @@ static string constraint_local_indexed_ir_(
 			if (constraint_expr_mentions_name_(e, binding.first))
 			      return true;
 	    return dynforeach_emit_ctx_
-		  && constraint_expr_mentions_name_(e, dynforeach_emit_ctx_->loop_var);
+		  && (constraint_expr_mentions_name_(e, dynforeach_emit_ctx_->loop_var)
+		      || (!dynforeach_emit_ctx_->loop_var2.nil()
+			  && constraint_expr_mentions_name_(
+				e, dynforeach_emit_ctx_->loop_var2)));
       };
       const pform_name_t&names = id->path().name;
       for (const name_component_t&comp : names)
@@ -33931,8 +33997,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& loop_env->find(id->path().name.front().name)
 		   != loop_env->end())
 		|| (dynforeach_emit_ctx_
-		    && dynforeach_emit_ctx_->loop_var
-		       == id->path().name.front().name);
+		    && dynforeach_emit_ctx_->iterates(
+			  id->path().name.front().name));
 	    if (!ctx && !foreach_shadow && !local_qualified && !id->path().package
 		&& !id->has_scoped_type_prefix()) {
 		  string size_ir = constraint_class_container_size_ir_(
@@ -34045,15 +34111,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    }
 	    if (dynforeach_emit_ctx_ && id->path().size() == 1
 		&& !id->path().name.front().local_scope
-		&& name == dynforeach_emit_ctx_->loop_var) {
+		&& dynforeach_emit_ctx_->iterates(name)) {
 		  if (dynforeach_emit_ctx_->entry_key)
 			return constraint_entry_key_error_(expr);
+		  const char*token = name == dynforeach_emit_ctx_->loop_var
+			? "L" : "M";
 		  const list<index_component_t>&indices =
 			id->path().name.front().index;
-		  if (indices.empty()) return "L";
+		  if (indices.empty()) return token;
 		  if (indices.size() == 1)
 			return packed_typed_select_ir_(
-			      "L", dynforeach_emit_ctx_->index_type
+			      token, dynforeach_emit_ctx_->index_type
 				? dynforeach_emit_ctx_->index_type
 				: netvector_t::integer_type(),
 			      indices.front(), cls, value_slots, scope, loop_env);
@@ -35435,7 +35503,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	       * solved size in the element pass (18.5.8.2 order). It covers a
 	       * class property and a local array of std::randomize(). */
 	    if (!call->path().package && (cpath.size() == 2 || cpath.size() == 3)
-		&& call->get_parms().empty() && call->with_constraints().empty()) {
+		&& call->get_parms().size() <= 1 && call->with_constraints().size() <= 1
+		&& (call->get_parms().empty() || !call->with_constraints().empty())) {
 		  pform_name_t::const_iterator dprop = cpath.begin();
 		  pform_name_t::const_iterator dmethod = cpath.end();
 		  if (cpath.size() == 2) {
@@ -35483,9 +35552,74 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && delem && delem->packed()
 			    && (delem->base_type() == IVL_VT_BOOL
 				|| delem->base_type() == IVL_VT_LOGIC)
-			    && delem->packed_width() > 0 && delem->packed_width() <= 64)
+			    && delem->packed_width() > 0 && delem->packed_width() <= 64
+			    && call->with_constraints().empty())
 			      return "(dsum " + head + ":" + to_string(delem->packed_width())
 				    + (delem->get_signed() ? ":s " : " ") + dop + ")";
+			  /* With a with expression: the per-element value is the
+			     expression, sized by its own self-determined type. */
+			if (darray && !(dqueue && dqueue->assoc_compat())
+			    && delem && delem->packed()
+			    && (delem->base_type() == IVL_VT_BOOL
+				|| delem->base_type() == IVL_VT_LOGIC)
+			    && delem->packed_width() > 0 && delem->packed_width() <= 64
+			    && call->with_constraints().size() == 1
+			    && call->with_constraints().front()
+			    && scope && constraint_ir_design_ctx_) {
+			      const PEIdent*iter_ident = call->get_parms().empty() ? nullptr
+				    : dynamic_cast<const PEIdent*>(call->get_parms().front().parm);
+			      if (!call->get_parms().empty()
+				  && (!call->get_parms().front().name.nil() || !iter_ident
+				      || iter_ident->path().size() != 1
+				      || !iter_ident->path().back().index.empty()))
+				    return "";
+			      perm_string iter_name = iter_ident
+				    ? iter_ident->path().back().name
+				    : perm_string::literal("item");
+			      NetScope*mutable_scope = const_cast<NetScope*>(scope);
+			      NetNet*iter_net = new NetNet(mutable_scope,
+				    mutable_scope->local_symbol(), NetNet::REG, delem);
+			      iter_net->set_line(*call);
+			      iter_net->local_flag(true);
+			      NetNet*index_net = new NetNet(mutable_scope,
+				    mutable_scope->local_symbol(), NetNet::REG,
+				    &netvector_t::atom2s32);
+			      index_net->set_line(*call);
+			      index_net->local_flag(true);
+			      NetNet*previous = mutable_scope->set_signal_alias(
+				    iter_name, iter_net);
+			      push_array_method_iter_ctx(iter_net, index_net);
+			      PExpr*with_expr = call->with_constraints().front();
+			      PExpr::width_mode_t mode = PExpr::SIZED;
+			      unsigned rwidth = with_expr->test_width(
+				    constraint_ir_design_ctx_, mutable_scope, mode);
+			      bool rsigned = with_expr->has_sign();
+			      ivl_variable_type_t rtype = with_expr->expr_type();
+			      pop_array_method_iter_ctx();
+			      mutable_scope->restore_signal_alias(iter_name, previous);
+			      if ((rtype != IVL_VT_BOOL && rtype != IVL_VT_LOGIC)
+				  || rwidth == 0 || rwidth > 64)
+				    return "";
+			      string esfx = delem->get_signed() ? ":s" : "";
+			      string ehdr = head + ":" + to_string(delem->packed_width()) + esfx;
+			      constraint_reduction_iter_ctx_t iter_ctx;
+			      iter_ctx.name = iter_name;
+			      iter_ctx.value_ir = "(delem " + ehdr + " L)";
+			      iter_ctx.index_ir = "L";
+			      iter_ctx.value_type = delem;
+			      const constraint_reduction_iter_ctx_t*saved =
+				    constraint_reduction_iter_ctx_;
+			      iter_ctx.parent = saved;
+			      constraint_reduction_iter_ctx_ = &iter_ctx;
+			      string value = pexpr_to_constraint_ir(with_expr, cls,
+				    value_slots, scope, loop_env);
+			      constraint_reduction_iter_ctx_ = saved;
+			      if (value.empty()) return "";
+			      string rsfx = rsigned ? ":s" : "";
+			      value = "(trunc:" + to_string(rwidth) + rsfx + " " + value + ")";
+			      return "(dsumw " + head + ":" + to_string(rwidth) + rsfx + " "
+				    + dop + " " + value + ")";
+			}
 		  }
 	    }
 
@@ -35777,8 +35911,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  && ((loop_env
 		       && loop_env->find(cpath.front().name) != loop_env->end())
 		      || (dynforeach_emit_ctx_
-			  && dynforeach_emit_ctx_->loop_var
-			     == cpath.front().name));
+			  && dynforeach_emit_ctx_->iterates(cpath.front().name)));
 	    bool simple_size_call = cpath.size() == 2
 		  && cpath.back().name == perm_string::literal("size")
 		  && cpath.back().index.empty() && cpath.front().index.empty()
@@ -37008,7 +37141,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			cfe->array_name());
 		  if (random_queue != scope_randomize_emit_ctx_->end()
 		      && random_queue->second.compare(0, 2, "s:") == 0) {
-			if (dynforeach_emit_ctx_ || !cfe->prefix_names().empty()
+			const dynforeach_emit_ctx_t*outer = dynforeach_emit_ctx_;
+			  /* A second foreach over the same array is the inner token M. */
+			if ((outer && (!outer->loop_var2.nil()
+				       || outer->assoc_key_type || outer->entry_key
+				       || outer->prop_idx != 0
+				       || outer->loop_var == cfe->loop_vars()[0]))
+			    || !cfe->prefix_names().empty()
 			    || cfe->has_hierarchical_target()) return "";
 			const netdarray_t*array = dynamic_cast<const netdarray_t*>(
 			  scope_randomize_type_ctx_->at(cfe->array_name()));
@@ -37019,20 +37158,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			dctx.prop_idx = 0;
 			dctx.elem_wid = elem->packed_width();
 			dctx.elem_signed = elem->get_signed();
+			if (outer) {
+			      dctx = *outer;
+			      dctx.loop_var2 = cfe->loop_vars()[0];
+			}
 			dynforeach_emit_ctx_ = &dctx;
 			string body;
 			for (const PExpr*item : cfe->items()) {
 			      if (!item) continue;
 			      string part = pexpr_to_constraint_ir(
 				item, cls, value_slots, scope, loop_env);
-			      if (part.empty()) { dynforeach_emit_ctx_ = nullptr; return ""; }
+			      if (part.empty()) { dynforeach_emit_ctx_ = outer; return ""; }
 			      body = body.empty() ? part
 				: "(and " + body + " " + part + ")";
 			}
-			dynforeach_emit_ctx_ = nullptr;
+			dynforeach_emit_ctx_ = outer;
 			return body.empty() ? "" : "(dynforeach 0:"
 			  + to_string(dctx.elem_wid)
-			  + (dctx.elem_signed ? ":s" : "") + " " + body + ")";
+			  + (dctx.elem_signed ? ":s" : "") + (outer ? "@M" : "")
+			  + " " + body + ")";
 		  }
 		  long range_lo = 0;
 		  unsigned long count = 0;
@@ -37106,7 +37250,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (cfe->loop_vars().size() != 1
 		      || cfe->loop_vars()[0].nil()) return "";
 		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(foreach_type);
-		  if (!da || dynforeach_emit_ctx_)
+		  if (!da)
+			return "";
+		  const dynforeach_emit_ctx_t*outer = dynforeach_emit_ctx_;
+		  if (outer && (outer->prop_idx != idx || !outer->loop_var2.nil()
+				|| outer->assoc_key_type || outer->entry_key
+				|| outer->loop_var == cfe->loop_vars()[0]))
 			return "";
 		  ivl_type_t etype = da->element_type();
 		  unsigned ewid = etype ? etype->packed_width() : 32;
@@ -37151,6 +37300,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + (key_type->get_signed() ? ":s" : "");
 			}
 		  }
+		  if (outer) {
+			dctx = *outer;
+			dctx.loop_var2 = cfe->loop_vars()[0];
+		  }
 		  dynforeach_emit_ctx_ = &dctx;
 		  string body;
 		  for (const PExpr*item : cfe->items()) {
@@ -37158,14 +37311,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
 			if (s.empty()) {
-			      dynforeach_emit_ctx_ = nullptr;
+			      dynforeach_emit_ctx_ = outer;
 			      return "";
 			}
 			body = body.empty() ? s : "(and " + body + " " + s + ")";
 		  }
-		  dynforeach_emit_ctx_ = nullptr;
+		  dynforeach_emit_ctx_ = outer;
 		  if (body.empty())
 			return "";
+		  if (outer)
+			return "(dynforeach " + to_string(idx) + ":" + to_string(ewid)
+			      + (esig ? ":s" : "") + "@M " + body + ")";
 		  if (dctx.entry_key)
 			return "(assocforeach " + to_string(idx) + " " + body + ")";
 		  return "(dynforeach " + to_string(idx)
@@ -37298,6 +37454,32 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (!item) continue;
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
 		  bool expanded = false;
+		    /* std::randomize(arr) with { unique {arr}; } over a scope
+		       dynamic array or queue: the pairwise template again. */
+		  if (!cls && id && id->path().size() == 1
+		      && id->path().back().index.empty() && scope_randomize_emit_ctx_
+		      && scope_randomize_type_ctx_) {
+			auto random_queue = scope_randomize_emit_ctx_->find(
+			      id->path().back().name);
+			if (random_queue != scope_randomize_emit_ctx_->end()
+			    && random_queue->second.compare(0, 2, "s:") == 0) {
+			      const netdarray_t*array = dynamic_cast<const netdarray_t*>(
+				    scope_randomize_type_ctx_->at(id->path().back().name));
+			      ivl_type_t etype = array ? array->element_type() : nullptr;
+			      unsigned ewid = etype && etype->packed()
+				    ? etype->packed_width() : 0;
+			      ivl_variable_type_t ebase = etype
+				    ? etype->base_type() : IVL_VT_NO_TYPE;
+			      if (uq->items().size() != 1 || ewid == 0 || ewid > 64
+				  || (ebase != IVL_VT_BOOL && ebase != IVL_VT_LOGIC))
+				    return "";
+			      string hdr = "0:" + to_string(ewid)
+				    + (etype->get_signed() ? ":s" : "");
+			      return "(dynforeach " + hdr + " (dynforeach " + hdr
+				    + "@M (impl (lt L M) (ne (delem " + hdr
+				    + " L) (delem " + hdr + " M)))))";
+			}
+		  }
 		  if (cls && id && id->path().size() == 1
 		      && id->path().back().index.empty()) {
 			perm_string pname = id->path().back().name;
@@ -37305,6 +37487,40 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // (18.3): its elements are the set members, at
 			  // the values they hold now.
 			int pidx = cls->property_idx_from_name(pname);
+			  /* `unique {q}' over a rand dynamic array or queue: every
+			     pair of elements differs (IEEE 1800-2017/2023 18.5.5).
+			     The element count is solved first, so emit the pairwise
+			     template the runtime expands once the size is known. It
+			     was silently dropped, leaving duplicates. */
+			if (pidx >= 0) {
+			      ivl_type_t ptype = cls->get_prop_type((size_t)pidx);
+			      const netdarray_t*dyn = dynamic_cast<const netdarray_t*>(ptype);
+			      const netqueue_t*dq = dynamic_cast<const netqueue_t*>(ptype);
+			      if (dyn && !(dq && dq->assoc_compat())) {
+				    ivl_type_t etype = dyn->element_type();
+				    unsigned ewid = etype && etype->packed()
+					  ? etype->packed_width() : 0;
+				    ivl_variable_type_t ebase = etype
+					  ? etype->base_type() : IVL_VT_NO_TYPE;
+				    if (uq->items().size() != 1
+					|| !cls->get_prop_qual((size_t)pidx).test_rand()
+					|| ewid == 0 || ewid > 64
+					|| (ebase != IVL_VT_BOOL && ebase != IVL_VT_LOGIC)) {
+					  cerr << uq->get_fileline() << ": sorry: unique over "
+					       << "dynamic array or queue '" << pname
+					       << "' needs it to be the only operand, a rand "
+					       << "property of integral elements." << endl;
+					  if (constraint_ir_design_ctx_)
+						constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
+				    string hdr = to_string(pidx) + ":" + to_string(ewid)
+					  + (etype->get_signed() ? ":s" : "");
+				    return "(dynforeach " + hdr + " (dynforeach " + hdr
+					  + "@M (impl (lt L M) (ne (delem " + hdr
+					  + " L) (delem " + hdr + " M)))))";
+			      }
+			}
 			if (pidx >= 0
 			    && (cls->get_prop_qual((size_t)pidx).test_rand()
 				|| constraint_state_prop_ok_(

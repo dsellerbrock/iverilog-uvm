@@ -89,9 +89,13 @@ module main;
         $fatal(1, "non-power-of-two exact enumeration failed");
     end
     holed.child.value = 7;
-    if (holed.randomize())
-      $fatal(1, "interior hole was mistaken for a full power-of-two set");
-    if (holed.child.value != 7) $fatal(1, "holed failure did not roll back");
+      // value < 2048 && value != 1024 has 2047 solutions: too many to enumerate,
+      // and not a full power-of-two set. It is solved validly by sampling, and the
+      // hole (1024) is never produced.
+    repeat (20) begin
+      if (!holed.randomize() || holed.child.value >= 2048 || holed.child.value == 1024)
+        $fatal(1, "interior hole was mistaken for a full power-of-two set");
+    end
     impossible.f.value = 5;
     previous = impossible.f.value;
     if (impossible.randomize()) $fatal(1, "impossible constraints succeeded");

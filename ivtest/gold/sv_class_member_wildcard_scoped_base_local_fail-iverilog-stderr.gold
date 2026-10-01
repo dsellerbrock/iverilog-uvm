@@ -1,0 +1,1 @@
+ivltests/sv_class_member_wildcard_scoped_base_local_fail.v:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'.

@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_class_member_wildcard_scoped_base_local_fail_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "top"
+    ],
+    "gold": "sv_class_member_wildcard_scoped_base_local_fail_2023"
+}
