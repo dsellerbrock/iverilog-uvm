@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_packed_property_runtime_tail_range.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_packed_property_runtime_tail_range"
+}

@@ -1,5 +1,4 @@
 ivltests/sv_class_packed_property_2d_range_invalid.v:8: sorry: packed class-property range crosses its declared packed dimension; exact partial out-of-range lowering is not yet supported.
 ivltests/sv_class_packed_property_2d_range_invalid.v:9: sorry: packed class-property range crosses its declared packed dimension; exact partial out-of-range lowering is not yet supported.
-ivltests/sv_class_packed_property_2d_range_invalid.v:11: sorry: run-time indexed range after a packed class-property element index is not yet supported; it may cross a packed dimension.
 ivltests/sv_class_packed_property_2d_range_invalid.v:12: sorry: run-time indexed range after a packed class-property element index is not yet supported; it may cross a packed dimension.
-4 error(s) during elaboration.
+3 error(s) during elaboration.

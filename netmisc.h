@@ -460,10 +460,13 @@ extern NetExpr*make_checked_canonical_packed_prefix(
 /* A trailing range after a packed-property element index must stay within
  * its own declared dimension; flattening a crossing range aliases a neighbor.
  * Until partial crossing ranges are lowered element by element, diagnose them
- * and run-time indexed bases instead of generating an aliased offset. */
+ * and run-time indexed bases instead of generating an aliased offset. A
+ * caller that passes RUNTIME_CHECKED lowers an unproven run-time base itself
+ * (select the element, then part-select it) and gets true plus the flag. */
 extern bool check_packed_property_tail_range(
       Design*des, NetScope*scope, const LineInfo*loc,
-      const index_component_t&select, const netrange_t&dim);
+      const index_component_t&select, const netrange_t&dim,
+      bool*runtime_checked = nullptr);
 
 /*
  * This function takes as input a NetNet signal and adds a constant

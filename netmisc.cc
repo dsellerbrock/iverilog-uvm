@@ -1696,7 +1696,8 @@ static bool bounded_unsigned_index_(const NetExpr*expr, uint64_t&low,
 
 bool check_packed_property_tail_range(
       Design*des, NetScope*scope, const LineInfo*loc,
-      const index_component_t&select, const netrange_t&dim)
+      const index_component_t&select, const netrange_t&dim,
+      bool*runtime_checked)
 {
       if (select.sel != index_component_t::SEL_PART
 	  && select.sel != index_component_t::SEL_IDX_UP
@@ -1736,6 +1737,12 @@ bool check_packed_property_tail_range(
       if (!second_ok)
 	    return diagnose("error: packed class-property range width/bound "
 			    "must be a constant integral expression.");
+      if (!first_ok && !first_bounded && runtime_checked) {
+	    /* The caller lowers an unproven base with a run-time part select
+	       of the element, whose out-of-range bits read as X. */
+	    *runtime_checked = true;
+	    return true;
+      }
       if (!first_ok && !first_bounded)
 	    return diagnose("sorry: run-time indexed range after a packed "
 			    "class-property element index is not yet supported; "

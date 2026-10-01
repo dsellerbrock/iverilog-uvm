@@ -13440,6 +13440,8 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       size_t depth = 0;                // dims consumed by leading bit indices
       unsigned wid = 0;
       bool done = false;
+      NetExpr*inner_off = nullptr;     // run-time base inside the selected element
+      unsigned element_wid = 0;        // bits of that element
 
       auto add_off = [&](NetExpr*e, long mult) {
 	    NetEConst*ec = dynamic_cast<NetEConst*>(e);
@@ -13519,8 +13521,9 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 			|| ic.sel == index_component_t::SEL_IDX_DO)
 		       && ic.msb && ic.lsb && ci == n_comp
 		       && depth < dims.size()) {
+		  bool runtime_tail = false;
 		  if (depth != 0 && !check_packed_property_tail_range(
-			  des, scope, li, ic, dims[depth]))
+			  des, scope, li, ic, dims[depth], &runtime_tail))
 			return fail();
 		    // [base +: w] / [base -: w] on the current packed
 		    // dimension; outer-dimension selections span complete inner
@@ -13548,7 +13551,16 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	      if (adjust_base && w > 1)
 			c = new NetEBAdd('-', c, cwidth(w-1, c->expr_width()),
 				      c->expr_width(), true);
-		  add_off(c, stride[depth]);
+		  if (runtime_tail) {
+			/* The base is not provably inside this dimension, and the
+			 * packed array indexes it separately from the outer
+			 * dimensions: select the element, then part-select the
+			 * element so out-of-range bits read as X (11.5.1). */
+			inner_off = (stride[depth] == 1)
+			      ? c : scale_index_to_bits(c, (unsigned long)stride[depth], *li);
+			element_wid = (unsigned)(dims[depth].width() * stride[depth]);
+		  } else
+			add_off(c, stride[depth]);
 		  wid = (unsigned)(w * stride[depth]);
 		  done = true;
 	    } else {
@@ -13563,6 +13575,15 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	    ? (const_off ? make_packed_offset_sum(li, off_expr, c32(const_off))
 		         : off_expr)
 	    : c32(const_off);
+
+      if (inner_off) {
+	    ivl_type_t row_type = new netvector_t(pvec->base_type(),
+						  (long)element_wid - 1, 0);
+	    NetESelect*row = new NetESelect(prop_expr, base, element_wid, row_type);
+	    row->set_line(*li);
+	    prop_expr = row;
+	    base = inner_off;
+      }
 
       ivl_type_t res_type = nullptr;
 	ivl_type_t leaf_type = pvec;
