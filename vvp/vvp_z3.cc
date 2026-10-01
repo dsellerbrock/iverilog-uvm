@@ -8417,7 +8417,8 @@ static bool z3_full_power_two_domain_(Z3_context ctx, Z3_solver base,
  * Keep the shared solver for feasibility; this partitions sampling, not solving. */
 static bool z3_joint_components_(Z3_context ctx, Z3_solver base,
       const vector<Z3_ast>&variables, vector<vector<Z3_ast> >&components,
-      const vector<pair<Z3_ast,Z3_ast> >&preference_edges = {})
+      const vector<pair<Z3_ast,Z3_ast> >&preference_edges = {},
+      const set<Z3_ast>*pinned = nullptr)
 {
       map<Z3_ast, Z3_ast> parent;
       auto root = [&](Z3_ast var) {
@@ -8462,6 +8463,9 @@ static bool z3_joint_components_(Z3_context ctx, Z3_solver base,
                   unsigned count = Z3_get_app_num_args(ctx, app);
                   if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) == Z3_OP_UNINTERPRETED) {
                         if (count) return false;
+                          /* A proved single-valued constant is a fixed
+                             parameter of the factors that mention it. */
+                        if (pinned && pinned->count(node)) continue;
                         if (!first) first = node;
                         parent[root(node)] = root(first);
                   }
@@ -9737,6 +9741,39 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             if (!z3_joint_components_(ctx, base, variables, components,
                   preference_edges))
                   return fail_joint("the joint dependency graph contains an unsupported expression");
+            {
+                  /* IEEE 1800-2017 18.5.9: independent factors have a
+                     Cartesian product of legal tuples. A variable the hard
+                     constraints force to one value (a fixed clock a pair of
+                     derived frequencies both mention) couples nothing, so
+                     treat it as a constant of those factors; otherwise their
+                     product exceeds the enumeration cap although each factor
+                     is small. Only plain variables qualify: staged, randc and
+                     dist-related ones keep their coupling. */
+                  set<Z3_ast> preference_vars;
+                  for (const auto&edge : preference_edges) {
+                        preference_vars.insert(edge.first);
+                        preference_vars.insert(edge.second);
+                  }
+                  set<Z3_ast> pinned;
+                  for (const auto&component : components) {
+                        if (component.size() < 2) continue;
+                        for (Z3_ast var : component) {
+                              if (stages.count(var) || active_randc_var(var)
+                                  || preference_vars.count(var)) continue;
+                              vector<vector<uint64_t> > one;
+                              const char*why = nullptr;
+                              if (z3_enumerate_joint_(ctx, base,
+                                    vector<Z3_ast>(1, var), 1, one, why)
+                                  == Z3_L_TRUE && one.size() == 1)
+                                    pinned.insert(var);
+                        }
+                  }
+                  if (!pinned.empty()
+                      && !z3_joint_components_(ctx, base, variables, components,
+                            preference_edges, &pinned))
+                        return fail_joint("the joint dependency graph contains an unsupported expression");
+            }
             vector<bool> ordered_components;
             for (const auto&component : components)
                   ordered_components.push_back(any_of(component.begin(),

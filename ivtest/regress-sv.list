@@ -5073,3 +5073,5 @@ sv_ref_event_nonintegral_actual normal,-g2017,-s,main ivltests gold=sv_ref_event
 sv_ref_event_nonintegral_actual_2023 normal,-g2023,-s,main ivltests gold=sv_ref_event_nonintegral_actual.gold
 sv_break_continue_labeled_block normal,-g2017,-s,main ivltests gold=sv_break_continue_labeled_block.gold
 sv_break_continue_labeled_block_2023 normal,-g2023,-s,main ivltests gold=sv_break_continue_labeled_block.gold
+sv_randomize_joint_fixed_var_coupling normal,-g2017,-s,main ivltests gold=sv_randomize_joint_fixed_var_coupling.gold
+sv_randomize_joint_fixed_var_coupling_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_joint_fixed_var_coupling.gold
