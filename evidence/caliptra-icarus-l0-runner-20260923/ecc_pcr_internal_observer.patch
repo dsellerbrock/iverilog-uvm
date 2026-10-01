@@ -1,0 +1,31 @@
+--- a/src/ecc/rtl/ecc_dsa_ctrl.sv
++++ b/src/ecc/rtl/ecc_dsa_ctrl.sv
+@@ -1000,0 +1001,28 @@
++
++// Disposable diagnostic: inspect the register inputs at each relevant clock edge.
++integer ecc_obs_edges = 0;
++logic [REG_SIZE-1:0] ecc_obs_prior_key;
++always @(posedge clk) begin
++    ecc_obs_edges = ecc_obs_edges + 1;
++    if (ecc_obs_edges == 1)
++        $display("ECC_OBS_READY edge=%0d time=%0t", ecc_obs_edges, $time);
++    if (((ecc_obs_edges >= 59980 && ecc_obs_edges <= 60200) ||
++         (ecc_obs_edges >= 62980 && ecc_obs_edges <= 63320)) &&
++        (pcr_sign_mode || kv_privkey_write_en || zeroize_reg ||
++         privkey_reg !== ecc_obs_prior_key || ecc_obs_edges >= 63230)) begin
++        $display("ECC_OBS edge=%0d time=%0t reset=%b ready=%b pcr=%b kvwe=%b offset=%0d zeroize=%b kvreset=%b kverr=%h key=%h",
++                 ecc_obs_edges, $time, reset_n, ecc_ready_reg, pcr_sign_mode,
++                 kv_privkey_write_en, kv_privkey_write_offset, zeroize_reg,
++                 kv_key_data_present_reset, kv_privkey_error, privkey_reg);
++        for (integer ecc_obs_word = 0; ecc_obs_word < REG_NUM_DWORDS; ecc_obs_word = ecc_obs_word + 1)
++            $display("ECC_OBS_WORD edge=%0d word=%0d value=%h we=%b next=%h hwclr=%b swwe=%b",
++                     ecc_obs_edges, ecc_obs_word,
++                     hwif_out.ECC_PRIVKEY_IN[ecc_obs_word].PRIVKEY_IN.value,
++                     hwif_in.ECC_PRIVKEY_IN[ecc_obs_word].PRIVKEY_IN.we,
++                     hwif_in.ECC_PRIVKEY_IN[ecc_obs_word].PRIVKEY_IN.next,
++                     hwif_in.ECC_PRIVKEY_IN[ecc_obs_word].PRIVKEY_IN.hwclr,
++                     hwif_in.ECC_PRIVKEY_IN[ecc_obs_word].PRIVKEY_IN.swwe);
++    end
++    ecc_obs_prior_key <= privkey_reg;
++end
++

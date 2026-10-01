@@ -35,6 +35,27 @@ CHECKER_PATCH = RELEASE_PATCHES / "l0_pure_checker_functions.patch"
 CHECKER_SOURCE_SHA256 = "6bd2ade137a90c0701aab28951ba6f8918724e0467c21756b0c308e6e9081c89"
 CHECKER_PATCH_SHA256 = "b3cdf87a5c819820fbb02d8b183e6209ab7f5fdb062228046ba27cdaae9dbd19"
 CHECKER_PATCHED_SHA256 = "6e67d67966b030931ec222aacfd0863086c7d35b5e916acd5f358a90ed538654"
+ECC_PCR_SOURCE = SOURCE / "src/ecc/rtl/ecc_dsa_ctrl.sv"
+ECC_PCR_PATCH = RELEASE_PATCHES / "caliptra-ecc-pcr-sign-key-start-boundary.patch"
+ECC_PCR_OBSERVER_PATCH = HERE / "ecc_pcr_internal_observer.patch"
+ECC_PCR_SOURCE_SHA256 = "bfe41f23b8002cc18e22c2f1fe8045fd0fb9c026d966154e3c6e845f9b24989b"
+ECC_PCR_PATCH_SHA256 = "3b24623f91bff4cdc7e4f22e3e30134454bd8fcbac07d38fd571c0321286cc06"
+ECC_PCR_PATCHED_SHA256 = "00dc51e75e38e4022a75772bb92cb80c8e97a59c6ec06fb1cdacc5108c357166"
+ECC_PCR_OBSERVER_PATCH_SHA256 = "0bf5b0a6af12e74f26442ab6ad30a1aa90c707dc834fb2613de7b5e942df8623"
+ECC_PCR_OBSERVED_SHA256 = "97dbc86ad178842159adf1d2cf46e5b6e65fe9988273a2d43d878c48b6fcd57d"
+AXI_SOURCE = SOURCE / "src/axi/rtl/axi_if.sv"
+AXI_PATCH = RELEASE_PATCHES / "axi_read_resp_user_alloc.patch"
+AXI_SOURCE_SHA256 = "e03bd7a7654eb9c31bd532861b94d59c876810aa9798f9f67f7df2a5a3f5495c"
+AXI_PATCH_SHA256 = "1309b3a8b53de1ffbf5b70e8e0d78ee81cbf23377d999d36a16a43d72047219f"
+AXI_PATCHED_SHA256 = "270ae4d86d3f118a67af1d3b0711478add168c8835645e871153abbd3931a31e"
+SHA_SOURCE = SOURCE / "src/sha512/rtl/sha512.sv"
+SHA_PERWORD_PATCH = HERE / "caliptra-sha512-block-stability-per-word.patch"
+SHA_OBSERVER_PATCH = HERE / "sha512_perword_observer_addon.patch"
+SHA_SOURCE_SHA256 = "5656d5a09d1570a567bb674b1b419775a83a08b37ee70792d28ab72ae0510d82"
+SHA_PERWORD_PATCH_SHA256 = "9eddc37ad0d62c6aeb8c4e11a20840ada166a5730d13a16d23f8cdca1075a3f6"
+SHA_PERWORD_SOURCE_SHA256 = "26428cb581ffa8e70818ad185f992662e77d25aac7acea80dac4e40699260586"
+SHA_OBSERVER_PATCH_SHA256 = "2ce62f52d424bfbb7bd40838885426b86097bf4b473498d154ee0d8644470397"
+SHA_OBSERVED_SOURCE_SHA256 = "7474f901d48b11d6f290fddc898f495b9fb0de7ccca2d700bd0fbc947a4d42a9"
 JTAG_TOP = SOURCE / "src/integration/tb/caliptra_top_tb.sv"
 JTAG_TOP_SHA256 = "c212c32da99e90cd3991da65e653998cac3e945d7479abfd640b9d82f47659f9"
 JTAG_EPHEMERAL_TOP_SHA256 = "df8d51cc7ad84000288f5d7c19641f433d59ae213314fa81b9d9e5f8a6b76c6e"
@@ -186,6 +207,91 @@ def prepare_checker_source_overlay(profile):
     source_list = profile.read_text()
     if source_list.splitlines().count(original_entry) != 1:
         raise RuntimeError("Checker source must occur exactly once in the compile profile")
+    overlay_profile = overlay_dir / profile.name
+    overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
+    return overlay_profile, patched
+
+
+def prepare_ecc_pcr_overlay(profile, observer=False):
+    if sha256(ECC_PCR_SOURCE) != ECC_PCR_SOURCE_SHA256 or sha256(ECC_PCR_PATCH) != ECC_PCR_PATCH_SHA256:
+        raise RuntimeError("Pinned ECC source or frozen PCR checker patch hash mismatch")
+    overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-ecc-pcr-", dir="/tmp"))
+    relative = Path("src/ecc/rtl/ecc_dsa_ctrl.sv")
+    patched = overlay_dir / relative
+    patched.parent.mkdir(parents=True)
+    shutil.copy2(ECC_PCR_SOURCE, patched)
+    command = ["patch", "--batch", "--fuzz=0", "-p1", "-d", str(overlay_dir),
+               "-i", str(ECC_PCR_PATCH)]
+    subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                   capture_output=True, text=True)
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    if sha256(patched) != ECC_PCR_PATCHED_SHA256:
+        raise RuntimeError("PCR checker overlay produced unexpected source")
+    if observer:
+        if sha256(ECC_PCR_OBSERVER_PATCH) != ECC_PCR_OBSERVER_PATCH_SHA256:
+            raise RuntimeError("ECC observer patch hash mismatch")
+        command[-1] = str(ECC_PCR_OBSERVER_PATCH)
+        subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                       capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        if sha256(patched) != ECC_PCR_OBSERVED_SHA256:
+            raise RuntimeError("ECC observer overlay produced unexpected source")
+    original_entry = "${CALIPTRA_ROOT}/" + str(relative)
+    source_list = profile.read_text()
+    if source_list.splitlines().count(original_entry) != 1:
+        raise RuntimeError("ECC source must occur exactly once in the compile profile")
+    overlay_profile = overlay_dir / profile.name
+    overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
+    return overlay_profile, patched
+
+
+def prepare_axi_read_resp_user_overlay(profile):
+    if sha256(AXI_SOURCE) != AXI_SOURCE_SHA256 or sha256(AXI_PATCH) != AXI_PATCH_SHA256:
+        raise RuntimeError("Pinned AXI source or frozen response-user patch hash mismatch")
+    overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-axi-ruser-", dir="/tmp"))
+    relative = Path("src/axi/rtl/axi_if.sv")
+    patched = overlay_dir / relative
+    patched.parent.mkdir(parents=True)
+    shutil.copy2(AXI_SOURCE, patched)
+    command = ["patch", "--batch", "--fuzz=0", "-p1", "-d", str(overlay_dir),
+               "-i", str(AXI_PATCH)]
+    subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                   capture_output=True, text=True)
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    if sha256(patched) != AXI_PATCHED_SHA256:
+        raise RuntimeError("AXI response-user overlay produced unexpected source")
+    original_entry = "${CALIPTRA_ROOT}/" + str(relative)
+    source_list = profile.read_text()
+    if source_list.splitlines().count(original_entry) != 1:
+        raise RuntimeError("AXI source must occur exactly once in the compile profile")
+    overlay_profile = overlay_dir / profile.name
+    overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
+    return overlay_profile, patched
+
+
+def prepare_sha512_perword_observer_overlay(profile):
+    if (sha256(SHA_SOURCE) != SHA_SOURCE_SHA256 or
+            sha256(SHA_PERWORD_PATCH) != SHA_PERWORD_PATCH_SHA256 or
+            sha256(SHA_OBSERVER_PATCH) != SHA_OBSERVER_PATCH_SHA256):
+        raise RuntimeError("Pinned SHA source or frozen diagnostic patch hash mismatch")
+    overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-sha-perword-", dir="/tmp"))
+    relative = Path("src/sha512/rtl/sha512.sv")
+    patched = overlay_dir / relative
+    patched.parent.mkdir(parents=True)
+    shutil.copy2(SHA_SOURCE, patched)
+    for patch_file, expected in ((SHA_PERWORD_PATCH, SHA_PERWORD_SOURCE_SHA256),
+                                 (SHA_OBSERVER_PATCH, SHA_OBSERVED_SOURCE_SHA256)):
+        command = ["patch", "--batch", "--fuzz=0", "-p1", "-d", str(overlay_dir),
+                   "-i", str(patch_file)]
+        subprocess.run([*command[:1], "--dry-run", *command[1:]], check=True,
+                       capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        if sha256(patched) != expected:
+            raise RuntimeError(f"SHA diagnostic patch produced unexpected source: {patch_file.name}")
+    original_entry = "${CALIPTRA_ROOT}/" + str(relative)
+    source_list = profile.read_text()
+    if source_list.splitlines().count(original_entry) != 1:
+        raise RuntimeError("SHA source must occur exactly once in the compile profile")
     overlay_profile = overlay_dir / profile.name
     overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
     return overlay_profile, patched
@@ -418,6 +524,14 @@ def main():
                         help="use a hash-guarded copied BFM to diagnose the time-zero reset race")
     parser.add_argument("--checker-source-overlay", action="store_true",
                         help="use a hash-guarded copied checker with pure KV/MLDSA predicates")
+    parser.add_argument("--ecc-pcr-key-boundary-overlay", action="store_true",
+                        help="patch copied ECC checker source for smoke_test_pcr_zeroize only")
+    parser.add_argument("--ecc-pcr-internal-observer", action="store_true",
+                        help="trace ECC private-key write controls on the copied checker source")
+    parser.add_argument("--axi-read-resp-user-overlay", action="store_true",
+                        help="patch copied AXI read response-user allocation for one selected case")
+    parser.add_argument("--sha512-perword-observer-overlay", action="store_true",
+                        help="patch copied SHA checker and trace block writes for pv_hash_zeroize")
     parser.add_argument("--ephemeral-jtag-port", action="store_true",
                         help="use a hash-guarded copied top with JTAG ListenPort 0")
     parser.add_argument("--output", type=Path, help="new isolated results directory")
@@ -435,6 +549,16 @@ def main():
         parser.error("--all and --case cannot be combined")
     if args.case and args.case not in {case["name"] for case in selected}:
         parser.error(f"unknown released L0 test: {args.case}")
+    if args.ecc_pcr_key_boundary_overlay and (args.all or args.case != "smoke_test_pcr_zeroize"):
+        parser.error("--ecc-pcr-key-boundary-overlay requires --case smoke_test_pcr_zeroize")
+    if args.ecc_pcr_internal_observer and not args.ecc_pcr_key_boundary_overlay:
+        parser.error("--ecc-pcr-internal-observer requires --ecc-pcr-key-boundary-overlay")
+    if args.axi_read_resp_user_overlay and (args.all or not args.case):
+        parser.error("--axi-read-resp-user-overlay requires one explicit --case")
+    if args.sha512_perword_observer_overlay and (args.all or args.case != "pv_hash_zeroize"):
+        parser.error("--sha512-perword-observer-overlay requires --case pv_hash_zeroize")
+    if args.sha512_perword_observer_overlay and not args.commercial_unsafe:
+        parser.error("--sha512-perword-observer-overlay requires --commercial-unsafe")
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
     if args.sim_memory_gib is not None:
@@ -442,6 +566,10 @@ def main():
             parser.error("--sim-memory-gib must be positive")
         if platform.system() != "Darwin" or not os.access("/usr/bin/footprint", os.X_OK):
             parser.error("--sim-memory-gib requires macOS /usr/bin/footprint")
+    if args.axi_read_resp_user_overlay and (args.sim_memory_gib != 8 or args.timeout != 57600):
+        parser.error("--axi-read-resp-user-overlay requires --sim-memory-gib 8 --timeout 57600")
+    if args.sha512_perword_observer_overlay and (args.sim_memory_gib != 8 or args.timeout != 57600):
+        parser.error("--sha512-perword-observer-overlay requires --sim-memory-gib 8 --timeout 57600")
     run_cases = selected if args.all else [next(case for case in selected
                                                 if case["name"] == (args.case or "smoke_test_veer"))]
     source_before = verify_sources()
@@ -451,11 +579,18 @@ def main():
         parser.error("--reset-overlay requires --commercial-unsafe")
     if args.checker_source_overlay and not args.commercial_unsafe:
         parser.error("--checker-source-overlay requires --commercial-unsafe")
+    if args.ecc_pcr_key_boundary_overlay and not args.commercial_unsafe:
+        parser.error("--ecc-pcr-key-boundary-overlay requires --commercial-unsafe")
+    if args.axi_read_resp_user_overlay and not args.commercial_unsafe:
+        parser.error("--axi-read-resp-user-overlay requires --commercial-unsafe")
     if args.ephemeral_jtag_port and not args.commercial_unsafe:
         parser.error("--ephemeral-jtag-port requires --commercial-unsafe")
     profile = PROFILE
     bfm_overlay = None
     checker_overlay = None
+    ecc_pcr_overlay = None
+    axi_overlay = None
+    sha_overlay = None
     jtag_top_overlay = None
     jtag_port_provenance = None
     if args.reset_overlay:
@@ -466,6 +601,12 @@ def main():
         bfm_overlay = overlay_dir / "caliptra_top_tb_soc_bfm.sv"
     if args.checker_source_overlay:
         profile, checker_overlay = prepare_checker_source_overlay(profile)
+    if args.ecc_pcr_key_boundary_overlay:
+        profile, ecc_pcr_overlay = prepare_ecc_pcr_overlay(profile, args.ecc_pcr_internal_observer)
+    if args.axi_read_resp_user_overlay:
+        profile, axi_overlay = prepare_axi_read_resp_user_overlay(profile)
+    if args.sha512_perword_observer_overlay:
+        profile, sha_overlay = prepare_sha512_perword_observer_overlay(profile)
     if args.ephemeral_jtag_port:
         profile, jtag_top_overlay, jtag_port_provenance = prepare_ephemeral_jtag_port(profile)
     checker_overlay_provenance = ({
@@ -476,6 +617,29 @@ def main():
         "copied_source": str(checker_overlay),
         "source_sha256_after": sha256(checker_overlay),
     } if checker_overlay else None)
+    ecc_pcr_overlay_provenance = ({
+        "source": str(ECC_PCR_SOURCE),
+        "source_sha256_before": sha256(ECC_PCR_SOURCE),
+        "patch": str(ECC_PCR_PATCH),
+        "patch_sha256": sha256(ECC_PCR_PATCH),
+        "observer_patch": str(ECC_PCR_OBSERVER_PATCH) if args.ecc_pcr_internal_observer else None,
+        "observer_patch_sha256": (sha256(ECC_PCR_OBSERVER_PATCH)
+                                   if args.ecc_pcr_internal_observer else None),
+        "copied_source": str(ecc_pcr_overlay),
+        "source_sha256_after": sha256(ecc_pcr_overlay),
+    } if ecc_pcr_overlay else None)
+    axi_overlay_provenance = ({
+        "source": str(AXI_SOURCE), "source_sha256_before": sha256(AXI_SOURCE),
+        "patch": str(AXI_PATCH), "patch_sha256": sha256(AXI_PATCH),
+        "copied_source": str(axi_overlay), "source_sha256_after": sha256(axi_overlay),
+    } if axi_overlay else None)
+    sha_overlay_provenance = ({
+        "source": str(SHA_SOURCE), "source_sha256_before": sha256(SHA_SOURCE),
+        "perword_patch": str(SHA_PERWORD_PATCH), "perword_patch_sha256": sha256(SHA_PERWORD_PATCH),
+        "perword_source_sha256": SHA_PERWORD_SOURCE_SHA256,
+        "observer_patch": str(SHA_OBSERVER_PATCH), "observer_patch_sha256": sha256(SHA_OBSERVER_PATCH),
+        "copied_source": str(sha_overlay), "source_sha256_after": sha256(sha_overlay),
+    } if sha_overlay else None)
     fingerprints_before = {"runner": sha256(Path(__file__)),
                            "compiler": sha256(CC), "ivl": sha256(IVL),
                            "vvp_target": sha256(TARGET), "vvp": sha256(VVP),
@@ -485,6 +649,21 @@ def main():
     if checker_overlay:
         fingerprints_before["checker_sva_overlay"] = sha256(checker_overlay)
         fingerprints_before["checker_patch"] = sha256(CHECKER_PATCH)
+    if ecc_pcr_overlay:
+        fingerprints_before["ecc_pcr_source"] = sha256(ECC_PCR_SOURCE)
+        fingerprints_before["ecc_pcr_overlay"] = sha256(ecc_pcr_overlay)
+        fingerprints_before["ecc_pcr_patch"] = sha256(ECC_PCR_PATCH)
+        if args.ecc_pcr_internal_observer:
+            fingerprints_before["ecc_pcr_observer_patch"] = sha256(ECC_PCR_OBSERVER_PATCH)
+    if axi_overlay:
+        fingerprints_before["axi_source"] = sha256(AXI_SOURCE)
+        fingerprints_before["axi_overlay"] = sha256(axi_overlay)
+        fingerprints_before["axi_patch"] = sha256(AXI_PATCH)
+    if sha_overlay:
+        fingerprints_before["sha_source"] = sha256(SHA_SOURCE)
+        fingerprints_before["sha_perword_patch"] = sha256(SHA_PERWORD_PATCH)
+        fingerprints_before["sha_observer_patch"] = sha256(SHA_OBSERVER_PATCH)
+        fingerprints_before["sha_overlay"] = sha256(sha_overlay)
     if jtag_top_overlay:
         fingerprints_before["jtag_top_source"] = sha256(JTAG_TOP)
         fingerprints_before["jtag_top_overlay"] = sha256(jtag_top_overlay)
@@ -506,6 +685,10 @@ def main():
     diagnostic_overlays = [name for enabled, name in (
         (args.reset_overlay, "reset"),
         (args.checker_source_overlay, "checker_source"),
+        (args.ecc_pcr_key_boundary_overlay, "ecc_pcr_key_boundary"),
+        (args.ecc_pcr_internal_observer, "ecc_pcr_internal_observer"),
+        (args.axi_read_resp_user_overlay, "axi_read_resp_user"),
+        (args.sha512_perword_observer_overlay, "sha512_perword_observer"),
         (args.ephemeral_jtag_port, "ephemeral_jtag_port"),
     ) if enabled]
     qualification = (f"diagnostic_{'_'.join(diagnostic_overlays)}_overlay"
@@ -518,6 +701,13 @@ def main():
         "reset_overlay": args.reset_overlay,
         "checker_source_overlay": args.checker_source_overlay,
         "checker_overlay_provenance": checker_overlay_provenance,
+        "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+        "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+        "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+        "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+        "axi_overlay_provenance": axi_overlay_provenance,
+        "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+        "sha_overlay_provenance": sha_overlay_provenance,
         "ephemeral_jtag_port": args.ephemeral_jtag_port,
         "jtag_port_provenance": jtag_port_provenance,
         "qualification": qualification, "compiler_flags": compiler_flags,
@@ -543,6 +733,13 @@ def main():
             "reset_overlay": args.reset_overlay,
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
+            "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+            "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+            "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+            "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+            "axi_overlay_provenance": axi_overlay_provenance,
+            "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+            "sha_overlay_provenance": sha_overlay_provenance,
             "ephemeral_jtag_port": args.ephemeral_jtag_port,
             "jtag_port_provenance": jtag_port_provenance,
             "compiler_flags": compiler_flags, "selected": 52, "attempted": 0,
@@ -565,6 +762,13 @@ def main():
             "reset_overlay": args.reset_overlay,
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
+            "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+            "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+            "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+            "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+            "axi_overlay_provenance": axi_overlay_provenance,
+            "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+            "sha_overlay_provenance": sha_overlay_provenance,
             "ephemeral_jtag_port": args.ephemeral_jtag_port,
             "jtag_port_provenance": jtag_port_provenance,
             "selected": 52, "attempted": 0, "passed": 0, "failed": 0, "unrun": 52,
@@ -634,6 +838,13 @@ def main():
                   "reset_overlay": args.reset_overlay,
                   "checker_source_overlay": args.checker_source_overlay,
                   "checker_overlay_provenance": checker_overlay_provenance,
+                  "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+                  "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+                  "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+                  "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+                  "axi_overlay_provenance": axi_overlay_provenance,
+                  "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+                  "sha_overlay_provenance": sha_overlay_provenance,
                   "ephemeral_jtag_port": args.ephemeral_jtag_port,
                   "jtag_port_provenance": jtag_port_provenance,
                   "compiler_flags": compiler_flags, "jtagdpi_bundle_sha256": jtagdpi_hash,
@@ -674,6 +885,21 @@ def main():
     if checker_overlay:
         fingerprints_after["checker_sva_overlay"] = sha256(checker_overlay)
         fingerprints_after["checker_patch"] = sha256(CHECKER_PATCH)
+    if ecc_pcr_overlay:
+        fingerprints_after["ecc_pcr_source"] = sha256(ECC_PCR_SOURCE)
+        fingerprints_after["ecc_pcr_overlay"] = sha256(ecc_pcr_overlay)
+        fingerprints_after["ecc_pcr_patch"] = sha256(ECC_PCR_PATCH)
+        if args.ecc_pcr_internal_observer:
+            fingerprints_after["ecc_pcr_observer_patch"] = sha256(ECC_PCR_OBSERVER_PATCH)
+    if axi_overlay:
+        fingerprints_after["axi_source"] = sha256(AXI_SOURCE)
+        fingerprints_after["axi_overlay"] = sha256(axi_overlay)
+        fingerprints_after["axi_patch"] = sha256(AXI_PATCH)
+    if sha_overlay:
+        fingerprints_after["sha_source"] = sha256(SHA_SOURCE)
+        fingerprints_after["sha_perword_patch"] = sha256(SHA_PERWORD_PATCH)
+        fingerprints_after["sha_observer_patch"] = sha256(SHA_OBSERVER_PATCH)
+        fingerprints_after["sha_overlay"] = sha256(sha_overlay)
     if jtag_top_overlay:
         fingerprints_after["jtag_top_source"] = sha256(JTAG_TOP)
         fingerprints_after["jtag_top_overlay"] = sha256(jtag_top_overlay)
@@ -718,6 +944,13 @@ def main():
                                                        "reset_overlay": args.reset_overlay,
                                                        "checker_source_overlay": args.checker_source_overlay,
                                                        "checker_overlay_provenance": checker_overlay_provenance,
+                                                       "ecc_pcr_key_boundary_overlay": args.ecc_pcr_key_boundary_overlay,
+                                                       "ecc_pcr_internal_observer": args.ecc_pcr_internal_observer,
+                                                       "ecc_pcr_overlay_provenance": ecc_pcr_overlay_provenance,
+                                                       "axi_read_resp_user_overlay": args.axi_read_resp_user_overlay,
+                                                       "axi_overlay_provenance": axi_overlay_provenance,
+                                                       "sha512_perword_observer_overlay": args.sha512_perword_observer_overlay,
+                                                       "sha_overlay_provenance": sha_overlay_provenance,
                                                        "ephemeral_jtag_port": args.ephemeral_jtag_port,
                                                        "jtag_port_provenance": jtag_port_provenance,
                                                        "firmware_sources": {name: str(root) for name, root in firmware_roots.items()},

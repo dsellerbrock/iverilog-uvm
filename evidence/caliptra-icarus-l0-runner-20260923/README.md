@@ -20,6 +20,18 @@ Apply any named Caliptra or OpenTitan test-selected source patch only to a dispo
 
 `--commercial-unsafe --checker-source-overlay` applies the frozen [checker patch](../../docs/conformance/release_overlays/caliptra/l0_pure_checker_functions.patch) to a hash-guarded disposable copy of the pinned SVA file, then substitutes that copy in the compile profile. The patch removes only nine internal print calls from four KV/MLDSA functions; their Boolean checks and all outer assertion failure actions remain enabled. A genuine failure still prints its outer action, though the first-mismatch detail is lost. [Paired 2017/2023 controls](../caliptra-l0-checker-source-overlay-20260924/README.md) cover vacuity, true pass/fail, reset disablement, and a same-slot NBA. The runner records source, patch, and copy hashes and labels this profile `diagnostic_checker_source_overlay`. Combining both options is labeled `diagnostic_reset_checker_source_overlay`. These diagnostic outcomes are separate from the pristine unsafe compatibility denominator; neither patch is an IEEE conformance result.
 
+`--ecc-pcr-key-boundary-overlay` is restricted to `--commercial-unsafe --case smoke_test_pcr_zeroize`. It dry-runs and applies the frozen [ECC checker patch](../../docs/conformance/release_overlays/caliptra/caliptra-ecc-pcr-sign-key-start-boundary.patch) with zero fuzz to a hash-guarded copy of `ecc_dsa_ctrl.sv`, then substitutes only that file in the compile profile. The runner records the source, patch, and copied-file hashes before and after the case; the pinned tree stays clean. The patch permits the key to become all zero one sampled edge after ZEROIZE while still rejecting a wrong key; `ecc_pcr_zeroize_guard_repro.sv` checks both behaviors in strict 2017 and 2023 modes. This selected diagnostic case has not yet passed. Check preparation without starting a case with `python3 evidence/caliptra-icarus-l0-runner-20260923/check_ecc_pcr_overlay.py`.
+
+When ready for the single long replay, run from this worktree with a fresh output directory:
+
+```sh
+python3 evidence/caliptra-icarus-l0-runner-20260923/run.py \
+  --commercial-unsafe --reset-overlay --checker-source-overlay \
+  --ecc-pcr-key-boundary-overlay --ephemeral-jtag-port \
+  --case smoke_test_pcr_zeroize --sim-memory-gib 8 --timeout 57600 \
+  --output evidence/caliptra-ecc-pcr-boundary-single-20260928
+```
+
 `--commercial-unsafe --ephemeral-jtag-port` copies only the pinned top testbench, changes its sole `jtagdpi` `ListenPort` value from `63224` to `0`, and substitutes the hash-guarded copy in the filelist. Port 0 lets the native TCP server request an OS-selected ephemeral port, avoiding fixed-port collisions during diagnostic replays; its startup message still prints `0`, not the assigned port. The runner records original/copied top and input/output profile hashes and rechecks them after the run. JTAG bind/server errors fail the case even if VVP exits zero or prints `TESTCASE PASSED`. This explicit option labels results `diagnostic_ephemeral_jtag_port_overlay`, or appends `ephemeral_jtag_port` to a combined diagnostic overlay label. It does not modify the pinned checkout or relax any L0 check, and its results stay separate from the pristine unsafe and IEEE denominators. Run `python3 evidence/caliptra-icarus-l0-runner-20260923/check_ephemeral_jtag_port.py` for the focused copy and error-gate check.
 
 The baseline top compile emitted 32 Preponed-region sampling warnings for the released `KV_MLKEM_CHECK0` concurrent assertion. The final shared build's exact strict top compile emits zero after the paired nested constant packed-select fix; it still rejects the 46 mixed-driver errors. The runner records any sampling warning and disqualifies a runtime even if it later prints a pass marker. Nested dynamic-index sampling remains an unqualified boundary.
@@ -60,3 +72,16 @@ Use a fresh output directory for each invocation. The first unsafe case failed a
 With the interval-aware sensitivity and Preponed fixes, the [pre-PIC pinned first case](../caliptra-icarus-l0-unsafe-final-first-20260924/summary.json) compiled with zero sampling warnings and advanced to 43.865 us with 621 instruction-trace entries. It was **0/1**: the TLU, `soc_ifc_reg` `ERR_HWIF_IN`, and Veer store-buffer assertions fired, VVP exited 1, no `TESTCASE PASSED` marker appeared, and 17,467 error diagnostics disqualified the run. The missing final CSR dump meant `retired_instructions` and `cycles` were recorded as zero; 621 was an execution-trace count. An earlier [copied-reset diagnostic](../caliptra-icarus-l0-diagnostic-aesfix-first-20260923/summary.json) reached the same time and failed separately.
 
 After the PIC packed partial-driver repair and its null guard, the [exact first compatibility replay](../caliptra-icarus-l0-unsafe-pic-nullguard-first-20260924/smoke_test_veer/result.json) completed firmware and simulation with exit 0, one `TESTCASE PASSED` marker, zero fail markers, 633 retired instructions, 4,348 cycles, and 634 trace commits. It still **failed 0/1** with 51 unrun because 17,863 bad diagnostics violated the unchanged zero-error gate. The old 43.865 us terminal SOC/TLU/LSU fatal was absent. Repeated messages from checker functions with false antecedents are documented in [paired evidence](../caliptra-post-aes-sva-triage-20260923/README.md); all diagnostics remain disqualifying. No L0 pass is established, and the remaining 51 compatibility cases are unrun pending a checked first-case pass. The [strict null-guard top compile](../caliptra-icarus-l0-strict-pic-nullguard-20260924/summary.json) still exits 46 on genuine mixed drivers with zero sampling warnings; it remains conformance-guard evidence. The [fresh VIF-install first case](../caliptra-icarus-l0-unsafe-vif-first-20260924/README.md) repeats nonstandard compatibility 0/1 with 51 unrun and 17,863 diagnostics despite a pass marker and 633 retired instructions. Independent review also found a called-task virtual-dispatch false waiver in `-gcommercial-unsafe`; broad qualification and PR review are on hold pending that separate soundness fix.
+
+## Opt-in SHA-512 per-word diagnostic
+
+The runner accepts `--sha512-perword-observer-overlay` only with
+`--case pv_hash_zeroize --commercial-unsafe --sim-memory-gib 8 --timeout 57600`.
+It verifies the pinned `sha512.sv` and both local patch hashes, applies the
+[per-word stability assertion](caliptra-sha512-block-stability-per-word.patch)
+and then the [control observer](sha512_perword_observer_addon.patch) to one
+disposable source copy, and replaces the single SHA profile entry. Copied-source
+hashes, patch order, profile composition, selector rejection, and `--help`
+passed focused checks. The AXI and SHA overlays also compose in one copied
+profile. No VVP was launched for this integration, so `pv_hash_zeroize` has no
+new runtime verdict and the historical 52-case aggregate is unchanged.
