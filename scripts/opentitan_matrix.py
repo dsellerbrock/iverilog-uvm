@@ -968,6 +968,16 @@ def memory_guarded_command_result(
                     break
                 if process.poll() is not None and sample.returncode != 0:
                     break
+                if sample.returncode != 0:
+                    # A large process can sit in exit teardown for seconds
+                    # after $finish: footprint no longer finds it but poll()
+                    # still reports it running. That is a normal exit, not a
+                    # monitor failure, so give it a grace period to finish.
+                    try:
+                        process.wait(timeout=30)
+                        break
+                    except subprocess.TimeoutExpired:
+                        pass
                 match = re.search(r"^\s*phys_footprint:\s*(\d+) B\s*$",
                                   sample.stdout, re.MULTILINE)
                 if sample.returncode != 0 or match is None:
@@ -1715,6 +1725,33 @@ for config_path, config in loaded_configs:
     build_options.extend(
         substitute(option, context) for option in selected.get("build_opts", []) or []
     )
+
+    # dvsim also applies every run mode named in en_run_modes (of the cfg or
+    # the test, transitively) and passes its run_opts to the simulation. The
+    # chip xbar smoke test only works with xbar_run_mode's +xbar_mode=1.
+    # Options holding a {placeholder} or a tool flag stay unresolved, and a
+    # mode's own pre/post commands remain orchestration requirements below.
+    run_modes = {
+        mode.get("name"): mode
+        for mode in config.get("run_modes", []) or []
+        if isinstance(mode, dict)
+    }
+    pending_run_modes = []
+    for source in (config, selected):
+        pending_run_modes.extend(source.get("en_run_modes", []) or [])
+    applied_run_modes = []
+    while pending_run_modes:
+        mode_name = substitute(pending_run_modes.pop(0), context)
+        mode = run_modes.get(mode_name)
+        if mode is None or mode_name in applied_run_modes:
+            continue
+        applied_run_modes.append(mode_name)
+        runtime_options.extend(
+            substitute(option, context)
+            for option in mode.get("run_opts", []) or []
+            if str(option).startswith("+") and "{" not in str(option)
+        )
+        pending_run_modes.extend(mode.get("en_run_modes", []) or [])
 
     orchestration_requirements = []
     for key in (
