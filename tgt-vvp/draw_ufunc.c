@@ -1307,6 +1307,51 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 	    }
       }
 
+      /* An output/inout actual that is a bit or part select of a vector
+	 variable (`cur_val[i]', `word[7:0]'): load the formal, resize it to
+	 the selected width, and store it back at the select's offset. A
+	 narrower select than the formal truncates exactly as an assignment
+	 does (13.5, 11.8.2). An unknown offset leaves the variable alone
+	 through the store's undefined-offset flag. */
+      ivl_expr_t sel_actual = actual;
+	/* The call site wraps the select in a base-less pad/truncate select
+	   when the formal and the selected widths differ. */
+      if (ivl_expr_type(sel_actual) == IVL_EX_SELECT
+	  && !ivl_expr_oper2(sel_actual)
+	  && ivl_expr_oper1(sel_actual)
+	  && ivl_expr_type(ivl_expr_oper1(sel_actual)) == IVL_EX_SELECT)
+	    sel_actual = ivl_expr_oper1(sel_actual);
+      if (ivl_expr_type(sel_actual) == IVL_EX_SELECT
+	  && ivl_expr_oper2(sel_actual)
+	  && ivl_expr_oper1(sel_actual)
+	  && ivl_expr_type(ivl_expr_oper1(sel_actual)) == IVL_EX_SIGNAL
+	  && !ivl_expr_oper1(ivl_expr_oper1(sel_actual))) {
+	    ivl_signal_t under_sig = ivl_expr_signal(ivl_expr_oper1(sel_actual));
+	    ivl_variable_type_t udtype = under_sig
+		  ? ivl_signal_data_type(under_sig) : IVL_VT_NO_TYPE;
+	    ivl_variable_type_t pdtype = ivl_signal_data_type(port);
+	    if (under_sig && ivl_signal_dimensions(under_sig) == 0
+		&& (udtype == IVL_VT_BOOL || udtype == IVL_VT_LOGIC)
+		&& (pdtype == IVL_VT_BOOL || pdtype == IVL_VT_LOGIC)
+		&& ivl_signal_type(under_sig) != IVL_SIT_UWIRE
+		&& !signal_is_return_value(under_sig)) {
+		  unsigned sel_wid = ivl_expr_width(sel_actual);
+		  unsigned port_wid = ivl_signal_width(port);
+		  int offset_ix = allocate_word();
+		  draw_eval_expr_into_integer(ivl_expr_oper2(sel_actual), offset_ix);
+		  draw_copy_out_load(port, "vec4");
+		  if (port_wid != sel_wid)
+			fprintf(vvp_out, "    %%pad/%s %u;\n",
+				ivl_signal_signed(port) ? "s" : "u", sel_wid);
+		  if (udtype == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, %d, %u;\n",
+			  under_sig, offset_ix, sel_wid);
+		  clr_word(offset_ix);
+		  return;
+	    }
+      }
+
 	/* A `ref'/`output'/`inout' open-array formal whose actual is a
 	   WHOLE fixed unpacked array. The formal holds a container and
 	   the actual holds inline words, so the copy back out is the
