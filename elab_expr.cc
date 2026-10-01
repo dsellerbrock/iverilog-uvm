@@ -172,7 +172,11 @@ string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
       for (size_t i = 0 ; i < parms.size() ; i += 1) {
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(parms[i].parm);
 	    int pid = -1;
-	    if (id && id->path().size() == 1
+	      /* `this.prop' names the same property as `prop'. */
+	    const bool this_prefixed = id && id->path().size() == 2
+		  && id->path().name.front().name == perm_string::literal(THIS_TOKEN)
+		  && id->path().name.front().index.empty();
+	    if (id && (id->path().size() == 1 || this_prefixed)
 		&& id->path().back().index.empty())
 		  pid = class_type->property_idx_from_name(
 			      id->path().back().name);
@@ -556,7 +560,11 @@ NetESFunc* make_std_randomize_with_expr(
 	    bool all_this_properties = class_type && !parms.empty();
 	    for (size_t idx = 0 ; all_this_properties && idx < parms.size(); idx++) {
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(parms[idx].parm);
-		  if (!id || id->path().size() != 1
+		    /* `this.prop' names the same property as `prop'. */
+		  const bool this_prefixed = id && id->path().size() == 2
+			&& id->path().name.front().name == perm_string::literal(THIS_TOKEN)
+			&& id->path().name.front().index.empty();
+		  if (!id || (id->path().size() != 1 && !this_prefixed)
 		      || !id->path().back().index.empty()
 		      || class_type->property_idx_from_name(
 			    id->path().back().name) < 0)

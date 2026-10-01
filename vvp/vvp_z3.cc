@@ -437,6 +437,16 @@ static bool infer_constraint_integral_type_(
 static bool infer_constraint_inside_type_(
       IRParser&par, constraint_integral_type_t&out);
 
+/* An `inside' member that is a bare variable or state token (`p:', `r:',
+ * `e:', `v:' ...) rather than a literal, wildcard or container expansion. */
+static bool constraint_inside_token_is_variable_(IRParser par)
+{
+      string tok = par.read_token();
+      return !tok.empty() && tok.compare(0, 3, "cw:") != 0
+	    && tok.compare(0, 2, "c:") != 0 && tok.compare(0, 5, "qbad:") != 0
+	    && tok.compare(0, 6, "qempty") != 0 && tok.compare(0, 2, "q:") != 0;
+}
+
 /* Constant wildcard patterns emitted for unpacked-array `inside' members:
  * cw:VALUE:KNOWN_MASK:WIDTH[:s]. X and Z bits in the source pattern have a
  * zero in KNOWN_MASK and therefore match either subject bit. */
@@ -4642,6 +4652,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      clauses.push_back(b.mk_true());
 			}
 		  } else if (par.peek() == '(') {
+			Z3_ast v = match_width(build_z3_atom(par, b));
+			clauses.push_back(Z3_mk_eq(b.ctx, subj_at(v), v));
+		  } else if (constraint_inside_token_is_variable_(par)) {
+			/* A variable or state member (`p:', `r:', `e:', `v:' ...)
+			   is an ordinary member: it was silently dropped, which
+			   narrowed `x inside {a, b}' to the other members or to
+			   everything. */
 			Z3_ast v = match_width(build_z3_atom(par, b));
 			clauses.push_back(Z3_mk_eq(b.ctx, subj_at(v), v));
 		  } else {
