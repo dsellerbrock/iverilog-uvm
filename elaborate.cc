@@ -34311,7 +34311,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (id->path().back().index.empty())
 			      return it->second.compare(0, 2, "s:") == 0
 				? "" : it->second;
-			if (id->path().back().index.size() != 1)
+			  /* A local dynamic array element may carry one packed
+			   * select: `arr[i][1:0]', `arr[i][b]'. */
+			bool element_select = id->path().back().index.size() == 2
+			      && it->second.compare(0, 2, "s:") == 0;
+			if (id->path().back().index.size() != 1 && !element_select)
 			      return "";
 			if (it->second.compare(0, 2, "s:") == 0) {
 			      const netdarray_t*array = dynamic_cast<const netdarray_t*>(
@@ -34324,9 +34328,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      string index_ir = pexpr_to_constraint_ir(
 				select.msb, cls, value_slots, scope, loop_env);
 			      if (index_ir.empty()) return "";
-			      return "(delem 0:" + to_string(elem->packed_width())
+			      string element_ir = "(delem 0:" + to_string(elem->packed_width())
 				+ (elem->get_signed() ? ":s" : "")
 				+ " " + index_ir + ")";
+			      if (!element_select) return element_ir;
+			      return packed_typed_select_ir_(
+				    element_ir, elem, id->path().back().index.back(),
+				    cls, value_slots, scope, loop_env);
 			}
 			ivl_type_t type = nullptr;
 			if (scope_randomize_type_ctx_) {
@@ -35204,6 +35212,66 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& call->get_parms().empty()
 		&& call->with_constraints().empty())
 		  return call_iter_ctx->index_ir;
+
+	      /* A reduction method over a RANDOM dynamic array or queue has no
+	       * element set until the size is solved: emit `(dsum P:W op)', which
+	       * the solver leaves free in the size pass and expands over the
+	       * solved size in the element pass (18.5.8.2 order). It covers a
+	       * class property and a local array of std::randomize(). */
+	    if (!call->path().package && (cpath.size() == 2 || cpath.size() == 3)
+		&& call->get_parms().empty() && call->with_constraints().empty()) {
+		  pform_name_t::const_iterator dprop = cpath.begin();
+		  pform_name_t::const_iterator dmethod = cpath.end();
+		  if (cpath.size() == 2) {
+			dmethod = std::next(dprop);
+		  } else if (cls && dprop->name == perm_string::literal("this")
+			     && dprop->index.empty()) {
+			++dprop;
+			dmethod = std::next(dprop);
+		  }
+		  const char*dop = nullptr;
+		  if (dmethod != cpath.end() && dmethod->index.empty()
+		      && dprop->index.empty() && !dprop->local_scope) {
+			if (dmethod->name == perm_string::literal("sum")) dop = "add";
+			else if (dmethod->name == perm_string::literal("product")) dop = "mul";
+			else if (dmethod->name == perm_string::literal("and")) dop = "band";
+			else if (dmethod->name == perm_string::literal("or")) dop = "bor";
+			else if (dmethod->name == perm_string::literal("xor")) dop = "bxor";
+		  }
+		  if (dop) {
+			string head;
+			ivl_type_t dtype = nullptr;
+			if (cls && scope_randomize_emit_ctx_ == nullptr) {
+			      int pidx = cls->property_idx_from_name(dprop->name);
+			      if (pidx >= 0) {
+				    property_qualifier_t qual = cls->get_prop_qual((size_t)pidx);
+				    if (qual.test_rand() || qual.test_randc()) {
+					  dtype = cls->get_prop_type((size_t)pidx);
+					  head = to_string(pidx);
+				    }
+			      }
+			} else if (scope_randomize_emit_ctx_ && scope_randomize_type_ctx_) {
+			      auto found = scope_randomize_emit_ctx_->find(dprop->name);
+			      auto typed = scope_randomize_type_ctx_->find(dprop->name);
+			      if (found != scope_randomize_emit_ctx_->end()
+				  && found->second.compare(0, 2, "s:") == 0
+				  && typed != scope_randomize_type_ctx_->end()) {
+				    dtype = typed->second;
+				    head = "0";
+			      }
+			}
+			const netdarray_t*darray = dynamic_cast<const netdarray_t*>(dtype);
+			const netqueue_t*dqueue = dynamic_cast<const netqueue_t*>(dtype);
+			ivl_type_t delem = darray ? darray->element_type() : nullptr;
+			if (darray && !(dqueue && dqueue->assoc_compat())
+			    && delem && delem->packed()
+			    && (delem->base_type() == IVL_VT_BOOL
+				|| delem->base_type() == IVL_VT_LOGIC)
+			    && delem->packed_width() > 0 && delem->packed_width() <= 64)
+			      return "(dsum " + head + ":" + to_string(delem->packed_width())
+				    + (delem->get_signed() ? ":s " : " ") + dop + ")";
+		  }
+	    }
 
 	      /* IEEE 1800-2017 18.5.8.2 permits reduction methods in
 	       * constraints. A one-dimensional fixed-array property has a

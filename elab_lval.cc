@@ -3200,15 +3200,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 	      NetAssign_*lv = 0;
 	      if (!base_index.empty() && sig->darray_type()) {
-		    if (base_index.size() != 1) {
-			  cerr << get_fileline() << ": sorry: "
-			       << "Only single-dimension index of dynamic/queue class l-value roots is supported."
-			       << endl;
-			  des->errors += 1;
-			  return 0;
-		    }
-
-		    const index_component_t&root_index = base_index.back();
+		    const index_component_t&root_index = base_index.front();
 		    if ((root_index.sel == index_component_t::SEL_BIT
 			 && (root_index.msb == 0 || root_index.lsb != 0))
 			|| (root_index.sel != index_component_t::SEL_BIT
@@ -3228,6 +3220,37 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    lv = new NetAssign_(sig);
 		    lv->set_word(root_word_index);
 		    root_type = lv->net_type();
+
+		      /* Stacked container selects (`aa[k1][k2].member'): each
+		       * further index selects inside the container the previous
+		       * one produced, expressed as one more nested word node. */
+		    list<index_component_t>::const_iterator more_index = base_index.begin();
+		    for (++more_index ; more_index != base_index.end() ; ++more_index) {
+			  const netqueue_t*cur_queue =
+				dynamic_cast<const netqueue_t*>(root_type);
+			  const netdarray_t*cur_darray =
+				dynamic_cast<const netdarray_t*>(root_type);
+			  if ((!cur_queue && !cur_darray)
+			      || more_index->sel != index_component_t::SEL_BIT
+			      || !more_index->msb || more_index->lsb) {
+				cerr << get_fileline() << ": sorry: this stacked "
+				     << "container select before a member l-value "
+				     << "is not supported." << endl;
+				des->errors += 1;
+				delete lv;
+				return 0;
+			  }
+			  NetExpr*nested_key = elab_assoc_index(des, scope,
+				more_index->msb, cur_queue, false);
+			  if (!nested_key) {
+				delete lv;
+				return 0;
+			  }
+			  NetAssign_*outer = new NetAssign_(lv);
+			  outer->set_word(nested_key);
+			  lv = outer;
+			  root_type = lv->net_type();
+		    }
 	      } else if (!base_index.empty() && sig->unpacked_dimensions() > 0) {
 		      // Static unpacked array of class handles, e.g.
 		      // `c arr[N]; arr[i].prop = ...`. Convert the element

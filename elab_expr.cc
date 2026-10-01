@@ -24037,8 +24037,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    unsigned long moff = 0;
 				    const netstruct_t::member_t*member =
 					  cs->packed_member(tail_comp.name, moff);
-				    if (!member || cs->packed()
-					|| !tail_comp.index.empty()) {
+				    if (!member || cs->packed()) {
 					  ok = false;
 					  break;
 				    }
@@ -24050,6 +24049,21 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    cur = prop;
 				    cur_type = member->net_type;
 				    active_modport = member->interface_modport;
+				      /* A selected member (`.str_arg_idx[i]', `.arg[i]'):
+				       * bit/element select of the member value. */
+				    if (!tail_comp.index.empty()) {
+					  ivl_type_t selected_type = nullptr;
+					  NetExpr*selected = apply_trailing_container_indices_(
+						*this, des, scope, cur, cur_type,
+						tail_comp.index, selected_type);
+					  if (!selected) {
+						cur = nullptr;
+						ok = false;
+						break;
+					  }
+					  cur = selected;
+					  cur_type = selected_type;
+				    }
 			      } else {
 				    ok = false;
 				    break;

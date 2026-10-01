@@ -651,7 +651,7 @@ static bool infer_constraint_integral_type_(IRParser&par,
       }
       if (op == "fsel" || op == "psel" || op == "delem" || op == "qmelem"
           || op == "qfield" || op == "qkeymember" || op == "hselectfield"
-          || op == "qkeyelem" || op == "skelem") {
+          || op == "qkeyelem" || op == "skelem" || op == "dsum") {
             string header = par.read_token();
             vector<string> fields;
             string field;
@@ -2765,6 +2765,58 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             b.set_sv(value, width);
             if (sflag) b.signed_vars.insert(value);
             return value;
+      }
+
+	/* (dsum P:W[:s] OP): array reduction method over a RANDOM dynamic
+	 * array or queue (IEEE 1800-2017 7.12.3, 18.5.8.2). Size pass: the
+	 * element count is not known yet, so the value is left free and the
+	 * array is recorded so that an element pass follows. Element pass:
+	 * fold the elements of the solved size, truncated to the element type
+	 * as the self-determined reduction result requires. */
+      if (op == "dsum") {
+	    string hdr = par.read_token();
+	    string red = par.read_token();
+	    par.skip_ws(); par.expect(')');
+	    unsigned local = 0, ewid = 32; bool esig = false;
+	    parse_pws_header(hdr, local, ewid, esig);
+	    unsigned pidx = b.property_index(local);
+	    if (!b.dyn_sizes) {
+		  bool seen = false;
+		  for (const auto& d : b.dyn_foreach)
+			if (d.pidx == pidx && d.leaf == 0 && !d.nested) {
+			      seen = true;
+			      break;
+			}
+		  if (!seen) {
+			Z3Builder::DynForeach rec;
+			rec.pidx = pidx; rec.leaf = 0; rec.nested = false;
+			rec.ewid = ewid; rec.esigned = esig; rec.body = string();
+			b.dyn_foreach.push_back(rec);
+		  }
+		  Z3_ast free_value = Z3_mk_fresh_const(
+			b.ctx, "dsum", Z3_mk_bv_sort(b.ctx, ewid));
+		  if (esig) b.signed_vars.insert(free_value);
+		  return free_value;
+	    }
+	    uint64_t count = 0;
+	    auto found = b.dyn_sizes->find(make_pair(pidx, 0u));
+	    if (found != b.dyn_sizes->end()) count = found->second;
+	    string chain;
+	    for (uint64_t i = 0 ; i < count ; i += 1) {
+		  string leaf = "(delem " + hdr + " c:" + to_string(i) + ":32)";
+		  chain = chain.empty() ? leaf : "(" + red + " " + chain + " " + leaf + ")";
+	    }
+	    if (chain.empty()) {
+		  uint64_t identity = red == "mul" ? 1
+			: red == "band" ? (ewid >= 64 ? ~(uint64_t)0
+					       : (((uint64_t)1 << ewid) - 1)) : 0;
+		  chain = "c:" + to_string((unsigned long long)identity) + ":"
+			+ to_string(ewid);
+	    }
+	    string text = "(trunc:" + to_string(ewid) + (esig ? ":s " : " ")
+		  + chain + ")";
+	    IRParser sub(text);
+	    return build_z3_atom(sub, b);
       }
 
 	/* Dynamic-array foreach template (IEEE 1800-2017 18.5.8.2).
