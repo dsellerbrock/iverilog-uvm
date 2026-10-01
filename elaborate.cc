@@ -24304,7 +24304,14 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 		  const netqueue_t*hier_aq = selector_prefix
 			? dynamic_cast<const netqueue_t*>(hier_sig->net_type()) : nullptr;
 		  bool hier_is_assoc = hier_aq && hier_aq->assoc_compat();
-		  if (!selector_prefix || !hier_is_assoc)
+		    /* A selector into a dynamic array, queue or a fixed array of
+		     * them (`foreach (a[i][j])' over `int a[][]') selects a
+		     * run-time container: iterate the selected element through
+		     * the expression route instead of dropping static dimensions. */
+		  bool hier_dynamic_selection = selector_prefix
+			&& (hier_sig->darray_type() || hier_sig->queue_type()
+			    || dynamic_cast<const netdarray_t*>(hier_sig->net_type()));
+		  if ((!selector_prefix || !hier_is_assoc) && !hier_dynamic_selection)
 			return elaborate_signal_array_(des, scope, hier_sig);
 	    }
 
