@@ -1,7 +1,16 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 2b7ad622c
+checkpoint_head: 70ae3be50
+active_ot_compile_constraint_batch2_lane:
+  blocker: "OT-COMPILE-CONSTRAINT-BATCH2-20261001"
+  phase: "DONE"
+  baseline_head: "edaa19774"
+  head: "70ae3be50"
+  commits: "a6f92578b 0ea1ac8ce 6beb19e21 72e3dd3a9 c97d91eef 70ae3be50"
+  gates: "JSON 4188 run/0 failed; legacy 6942 total/0 failed; UVM 363 passed/0 failed"
+  census: "49-core runtime census 32 -> 33 PASS plus 5 DEBT that reach the pass banner (evidence/opentitan-census-20260930/result-census3.json); chip_sim runs the whole top_earlgrey chip; no frozen PASS lost"
+  next: "flash_ctrl fixed arrays of containers as aggregates; i2c covergroup with-filter at construction and ignore/illegal transition bins; adc_ctrl rand 2-D dynamic arrays; usbdev rx_pid_err; edn/ibex_icache/spi_device throughput; clocking-block event waits; ref actual that is an array element"
 active_runtime_leak_constraint_batch_lane:
   blocker: "OT-RUNTIME-LEAK-AND-CONSTRAINT-BATCH-20260930"
   phase: "DONE"

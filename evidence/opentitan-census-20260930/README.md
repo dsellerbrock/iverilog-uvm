@@ -113,3 +113,22 @@ Same command as census 1, 49 cores, 3 jobs. Result: **32 PASS**, 6 RUNTIME_FAIL,
 ### spi_device probe (bounded, 8 min)
 
 The run is alive, not stuck: simulation time advances (about 43 us after 90 s, `IVL_PC_PROGRESS`), no UVM output at UVM_LOW, and RSS grows slowly (about 300 MB at 0 s, 490 MB at 5 min, 620 MB at 8 min). The census run reached the 4 GiB cap at 21 min, so growth accelerates later. Most active scopes are `tb.dut.tlul_assert_device.gen_device_cov` and the register assertions, i.e. throughput of assertion/coverage processes, same family as edn/ibex_icache. Next step is a `heap`/`malloc_history` sample around minute 15, not another full run.
+
+## Census 3 (after commit 70ae3be50)
+
+Same command as census 1 and 2, 49 cores, 3 jobs. Result: **33 PASS**, 5 DEBT, 5 RUNTIME_FAIL, 3 FAIL,
+2 RUNTIME_TIMEOUT, 1 RUNTIME_MEMORY_LIMIT. The five DEBT cores (chip_sim, entropy_src, otp_ctrl, spid_passthrough,
+trial1) all reach the checked pass banner; DEBT only records unresolved warnings. Files: `result-census3.json`,
+`result-census3.md`.
+
+- No core that passed in the frozen baseline stopped passing.
+- Versus census 2: `pwrmgr` RUNTIME_FAIL -> PASS (no overlay applied), `chip_sim` FAIL -> DEBT. chip_sim is the whole
+  top_earlgrey chip: its xbar smoke passes (918 items) once the runner applies the test's `en_run_modes` (`+xbar_mode=1`).
+- chip_sim's remaining debt: four `@(cfg.chip_vif...)` waits on clocking-block events, a `%p` of an unpacked struct, and
+  `ref` actuals that are array elements (copy-in/out instead of aliasing).
+- Still FAIL: flash_ctrl (fixed arrays of containers as one aggregate: `ref` actual and whole-array assignment),
+  i2c (covergroup `with` filter at construction; ignore/illegal transition bins), spi_tpm (the testbench overrides
+  localparams and a parameter the RTL does not have: an upstream defect at this pin).
+- Still RUNTIME_FAIL: adc_ctrl (rand 2-D dynamic array), hmac (needs its overlay), otbn (needs an ELF directory),
+  spid_upload, usbdev (`rx_pid_err`).
+- Slow: edn and ibex_icache time out at 1800 s; spi_device reaches the 4 GiB cap.
