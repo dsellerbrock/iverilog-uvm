@@ -24201,6 +24201,35 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 		  }
 	    }
 
+	    /* A selector prefix that consumes only some of a class property's
+	       fixed dimensions (`foreach (h.mem[i][j])' with `mem[A][B][key]')
+	       has no expression form: the remainder is a sub-array of a
+	       fixed-size property. The remaining fixed bounds do not depend on
+	       the selector, exactly as in elaborate_signal_array_(), so drop
+	       the selected leading dimensions and evaluate the selector once. */
+	    if (foreach_target_has_selector_prefix_(array_path_)
+		&& array_path_.size() > 1) {
+		  pform_name_t whole_path = array_path_;
+		  size_t selector_count = whole_path.back().index.size();
+		  whole_path.back().index.clear();
+		  ivl_type_t whole_type = 0;
+		  NetExpr*whole = elaborate_foreach_target_expr_(
+			des, *this, lexical_pos_, scope, whole_path, whole_type);
+		  const netsarray_t*sdims = dynamic_cast<const netsarray_t*>(whole_type);
+		  if (sdims && selector_count < sdims->static_dimensions().size()) {
+			netranges_t rest(sdims->static_dimensions().begin()
+					 + (long)selector_count,
+					 sdims->static_dimensions().end());
+			if (index_vars_.size() <= rest.size()) {
+			      delete whole;
+			      return prepend_foreach_selector_evaluation_(
+				    des, scope, *this, array_path_,
+				    elaborate_static_array_(des, scope, rest));
+			}
+		  }
+		  delete whole;
+	    }
+
 	    ivl_type_t ptype = 0;
 	    NetExpr*array_expr = elaborate_foreach_target_expr_(
 		  des, *this, lexical_pos_, scope, array_path_, ptype);
@@ -28595,6 +28624,18 @@ static void constraint_randc_reference_error_(const PExpr*site,
  * sizes carry their owning property's index in the s: token, so reject the
  * state-only case here instead of letting the runtime silently ignore an
  * ordering rank it cannot randomize. */
+/* True for a whole fixed array that 'solve before' can order element by
+   element: one dimension of integral elements. */
+static bool constraint_solve_before_aggregate_is_orderable_(const netuarray_t*array)
+{
+      if (array->static_dimensions().size() != 1) return false;
+      ivl_type_t element_type = array->element_type();
+      if (!element_type || !element_type->packed()) return false;
+      ivl_variable_type_t base = element_type->base_type();
+      return base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+	  || dynamic_cast<const netenum_t*>(element_type);
+}
+
 static void constraint_order_nonrandom_error_(const PExpr*site)
 {
       if (!site || !constraint_ir_design_ctx_
@@ -36107,6 +36148,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			return;
 		  }
 	    };
+	    bool omitted_operand = false;
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
@@ -36156,8 +36198,20 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && s.compare(0, 2, "a:") != 0
 			    && s.compare(0, 2, "e:") != 0
 			    && s.compare(0, 2, "s:") != 0
-			    && s.compare(0, 7, "(delem ") != 0)
-			      return "";
+			    && s.compare(0, 7, "(delem ") != 0) {
+			      if (!gn_commercial_unsafe_flag) return "";
+			      /* A packed-struct member or other shape the runtime
+			       * cannot name as an ordered variable: ordering only
+			       * shapes the distribution (18.5.10), so omit just
+			       * this operand. */
+			      cerr << item->get_fileline() << ": warning: "
+				   << "-gcommercial-unsafe 'solve before' operand cannot be "
+				   << "named as an ordered variable; the operand is omitted "
+				   << "from the ordering (distribution only); nonstandard "
+				   << "compatibility behavior." << endl;
+			      omitted_operand = true;
+			      continue;
+			}
 			if (s.compare(0, 2, "m:") == 0 && cls) {
 			      const char*p = s.c_str() + 2;
 			      char*end = nullptr;
@@ -36280,6 +36334,20 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      expand_ok = false;
 			      continue;
 			}
+			if (gn_commercial_unsafe_flag
+			    && !constraint_solve_before_aggregate_is_orderable_(array)) {
+			      /* The ordering of a whole aggregate only shapes the
+			       * distribution, never the solution set (18.5.10), and
+			       * commercial tools accept one over struct, queue or
+			       * multidimensional shapes. Omit just this operand. */
+			      cerr << item->get_fileline() << ": warning: "
+				   << "-gcommercial-unsafe 'solve before' operand names an "
+				   << "aggregate that cannot be ordered; the operand is "
+				   << "omitted from the ordering (distribution only); "
+				   << "nonstandard compatibility behavior." << endl;
+			      omitted_operand = true;
+			      continue;
+			}
 			if (array->static_dimensions().size() != 1) {
 			      cerr << item->get_fileline() << ": sorry: 'solve before' "
 				   << "names a whole multidimensional fixed array; name "
@@ -36327,7 +36395,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    string bef = vars_to_ir(before_items);
 	    string aft = vars_to_ir(after_items);
 	    if (bef.empty() || aft.empty())
-		  return "";
+		  return omitted_operand ? "c:1:1" : "";
 	    string result = "(order (vars " + bef + ") (vars " + aft + "))";
 	    if (constraint_ir_references_randc_(result, cls))
 		  constraint_randc_reference_error_(co, "solve before");

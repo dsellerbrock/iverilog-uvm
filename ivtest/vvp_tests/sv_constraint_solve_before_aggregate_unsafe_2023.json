@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_constraint_solve_before_aggregate_unsafe_2023.v",
+    "iverilog-args" : [ "-g2023", "-gcommercial-unsafe" ],
+    "gold"          : "sv_constraint_solve_before_aggregate_unsafe_2023",
+    "vlog95"        : { "type" : "NI" }
+}
