@@ -5364,3 +5364,5 @@ sv_cov_ignore_transition_subtract normal,-g2017 ivltests gold=sv_cov_ignore_tran
 sv_cov_ignore_transition_subtract_2023 normal,-g2023 ivltests gold=sv_cov_ignore_transition_subtract.gold
 sv_cov_ctor_with_filter normal,-g2017 ivltests gold=sv_cov_ctor_with_filter.gold
 sv_cov_ctor_with_filter_2023 normal,-g2023 ivltests gold=sv_cov_ctor_with_filter.gold
+sv_vif_task_output_property_bit_select normal,-g2017 ivltests gold=sv_vif_task_output_property_bit_select.gold
+sv_vif_task_output_property_bit_select_2023 normal,-g2023 ivltests gold=sv_vif_task_output_property_bit_select.gold
