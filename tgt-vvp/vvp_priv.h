@@ -1203,6 +1203,8 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
       kind bit     11  = object elements
       kind bit     12  = string elements
       kind bit     13  = queue result
+      kind bit     30  = object elements that are value containers: each word is
+                         deep-copied (7.6 copy semantics), not aliased
       kind bits 29..14 = element width bits 23..8
 
    Returns 0 (and reports) when the element kind cannot be carried. */
@@ -1214,6 +1216,7 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
 #define VVP_ARRDAR_OBJ             (1u << 11)
 #define VVP_ARRDAR_STRING          (1u << 12)
 #define VVP_ARRDAR_QUEUE           (1u << 13)
+#define VVP_ARRDAR_COPY            (1u << 30)
 
 extern int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 				  const char*file, unsigned lineno);
