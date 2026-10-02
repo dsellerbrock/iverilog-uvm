@@ -41177,13 +41177,39 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					// Constructor-dependent bounds are per-instance
 					  // constants (19.3), not failed declaration
 					  // constants. Preserve each endpoint as property IR.
-				      if (bin.with_expr) {
-					    cerr << "sorry: constructor-dependent covergroup bin '"
-						 << bin.name << "' uses a 'with' filter that "
-						    "cannot yet be evaluated at construction; "
-						    "the bin is dropped." << endl;
-					    continue;
-				      }
+				      // A 'with' filter that is a constant inside/!inside test
+				      // partitions the value domain independently of the
+				      // constructor bounds: apply it to the whole domain once and
+				      // clip each surviving piece to the runtime range (19.5.1).
+				    std::vector<std::pair<uint64_t,uint64_t>> with_pieces;
+				    bool with_filter = false;
+				    uint64_t with_domain_max = 0;
+				    if (bin.with_expr) {
+					  bool with_ok = !bin.wildcard && cp_value_supported
+						&& cp_value_width > 0
+						&& cp_value_width <= (cp_value_signed ? 64u : 63u);
+					  if (with_ok) {
+						with_domain_max = cp_value_width == 64
+						      ? UINT64_MAX
+						      : ((UINT64_C(1) << cp_value_width) - 1);
+						if (cp_value_signed && cp_value_width > 1) {
+						      uint64_t sign_bit = UINT64_C(1) << (cp_value_width - 1);
+						      with_pieces.push_back(std::make_pair(0, sign_bit - 1));
+						      with_pieces.push_back(std::make_pair(sign_bit, with_domain_max));
+						} else {
+						      with_pieces.push_back(std::make_pair(0, with_domain_max));
+						}
+						with_ok = apply_inside_filter(bin.with_expr, with_pieces) > 0;
+					  }
+					  if (!with_ok) {
+						cerr << "sorry: constructor-dependent covergroup bin '"
+						     << bin.name << "' uses a 'with' filter that "
+							"cannot yet be evaluated at construction; "
+							"the bin is dropped." << endl;
+						continue;
+					  }
+					  with_filter = true;
+				    }
 			      std::vector<std::pair<std::string,std::string>> ir_ranges;
 			      bool dyn_ok = cp_value_supported;
 		      bool bin_references_runtime = false;
@@ -41218,6 +41244,42 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    ir_ranges.push_back(std::make_pair(lo_ir, hi_ir));
 				      }
 			      if (!bin_references_runtime) dyn_ok = false;
+				      if (with_filter && dyn_ok) {
+					    std::vector<std::pair<std::string,std::string>> clipped;
+					    uint64_t sign_bit = cp_value_signed && cp_value_width > 1
+						  ? UINT64_C(1) << (cp_value_width - 1) : 0;
+					      // Compare in one exact domain: every runtime endpoint is
+					      // converted to signed 64 bits (value-preserving for either
+					      // signedness) and so are the piece bounds.
+					    auto piece_const = [&](uint64_t encoded) {
+						  int64_t numeric = sign_bit && encoded >= sign_bit
+							? (int64_t)encoded - (int64_t)(UINT64_C(1) << cp_value_width)
+							: (int64_t)encoded;
+						  return "c:" + std::to_string((uint64_t)numeric) + ":64:s";
+					    };
+					    for (auto&ir : ir_ranges)
+					    for (auto&pc : with_pieces) {
+						  std::string lo = ir.first, hi = ir.second;
+						  std::string lo64 = "(cast c:64 c:1 " + ir.first + ")";
+						  std::string hi64 = "(cast c:64 c:1 " + ir.second + ")";
+						    // Pieces are encoded intervals wholly on one side of the
+						    // sign bit; clip unless an endpoint is already the
+						    // numeric extreme of the value domain.
+						  bool lo_clip = sign_bit ? pc.first != sign_bit : pc.first != 0;
+						  bool hi_clip = sign_bit ? pc.second != sign_bit - 1
+									 : pc.second != with_domain_max;
+						  if (lo_clip) {
+							std::string a = piece_const(pc.first);
+							lo = "(ite (ge " + lo64 + " " + a + ") " + lo64 + " " + a + ")";
+						  }
+						  if (hi_clip) {
+							std::string b = piece_const(pc.second);
+							hi = "(ite (le " + hi64 + " " + b + ") " + hi64 + " " + b + ")";
+						  }
+						  clipped.push_back(std::make_pair(lo, hi));
+					    }
+					    ir_ranges = std::move(clipped);
+				      }
 				      uint64_t dyn_array_size = ~(uint64_t)0;
 				      if (bin.arrayed) {
 					    dyn_array_size = 0;

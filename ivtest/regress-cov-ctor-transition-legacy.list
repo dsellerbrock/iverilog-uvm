@@ -16,3 +16,5 @@ sv_cov_ctor_transition_cap_fail RE,-g2017 ivltests gold=sv_cov_ctor_transition_c
 sv_cov_ctor_transition_cap_fail_2023 RE,-g2023 ivltests gold=sv_cov_ctor_transition_cap_fail.gold
 sv_cov_ignore_transition_subtract normal,-g2017 ivltests gold=sv_cov_ignore_transition_subtract.gold
 sv_cov_ignore_transition_subtract_2023 normal,-g2023 ivltests gold=sv_cov_ignore_transition_subtract.gold
+sv_cov_ctor_with_filter normal,-g2017 ivltests gold=sv_cov_ctor_with_filter.gold
+sv_cov_ctor_with_filter_2023 normal,-g2023 ivltests gold=sv_cov_ctor_with_filter.gold
