@@ -12468,7 +12468,9 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                               expanded_item_args.push_back(item_args[wi]);
                               continue;
                         }
-                        if (!work[wi].calls.empty()) {
+                        // Calls whose arguments are not random (captured state)
+                        // impose no solving order and travel with the item.
+                        if (!item_args[wi].empty()) {
                               plan.error = "function calls inside dynamic foreach priority are not yet supported";
                               goto fail;
                         }
