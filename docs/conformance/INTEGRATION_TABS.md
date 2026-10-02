@@ -15,11 +15,12 @@ what is still NOT wired. Update it as items are finished. Standing rule: at most
 
 ## Pending integration (tests in `ivtest/regress-pending-integration-{sv,vvp}.list`, not run by gates)
 From agent/l106-l116-regression-fix-20260915; their solver/covergroup code was dropped where it conflicted with newer work:
-1. `sv_constraint_nested_fixed_element*`, `sv_constraint_wide_fixed_element_*` (wide >64-bit fixed-array elements in constraints,
-   `C:` wide constant terminal in constraint IR, dist over wide elements; vvp_z3.cc side of that branch was not taken).
+1. `sv_constraint_wide_fixed_element_*` and `sv_constraint_nested_fixed_element_wide` (wide >64-bit fixed-array elements in constraints,
+   `C:` wide constant terminal in constraint IR, dist over wide elements). The nested (<=64-bit) `x:` element path is integrated
+   (2026-10-01): `parse_nested_elem` in vvp_z3.cc, plus `:t` state-read flavor for non-random handles.
 2. ~~`sv_cov_ctor_transition_*`~~ DONE 2026-10-01: elaborate.cc dynamic-term hunk re-applied on top of HEAD's ctor_range_* helpers; static terms in a
-   constructor-dependent family ship as constant IR. Moved into regress-sv/vvp.list. Remaining pending: wide/nested fixed element (item 1),
-   sv_joint_coupled_randc_ordered_*, sv_implicit_property_method_collision_generic_fail.
+   constructor-dependent family ship as constant IR. Moved into regress-sv/vvp.list. Remaining pending: wide fixed element (item 1),
+   sv_joint_coupled_randc_ordered_*. sv_implicit_property_method_collision_generic_fail is DONE (`Name::m()` no longer resolves a variable).
 Re-integrate against current vvp_z3.cc/elaborate.cc, then move the entries back into regress-sv.list/regress-vvp.list.
 
 ## Known gaps (not from branches)

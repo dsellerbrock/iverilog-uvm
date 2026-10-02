@@ -15735,7 +15735,10 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	         declaration in scope; a class member shadows an outer
 	         type name of the same spelling here. */
 	    bool receiver_is_variable = false;
-	    if (type_path.size() == 1) {
+	      /* `Name::method()' is class scope resolution (IEEE 1800-2017
+	         8.23): a variable called Name never takes part in it. Only an
+	         unqualified receiver spelling may resolve to a variable. */
+	    if (type_path.size() == 1 && !has_scoped_type_prefix()) {
 		  symbol_search_results receiver_sr;
 		  unsigned receiver_errors_before = des->errors;
 		  bool receiver_found = symbol_search(this, des, scope, type_path,
@@ -34222,8 +34225,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      ? nested_owner->property_idx_from_name(nested->name) : -1;
 			ivl_type_t nested_root_type = nested_root_pid >= 0
 			      ? nested_owner->get_prop_type((size_t)nested_root_pid) : nullptr;
+			  // A non-random handle may alias a random object, so it is tried
+			  // as a solver element first; shapes this path cannot express
+			  // (non-fixed terminal, dynamic or out-of-range selector) fall
+			  // through to the live-state read instead of being errors.
 			bool nested_object_path = nested->index.empty()
 			      && dynamic_cast<const netclass_t*>(nested_root_type);
+			bool nested_root_rand = nested_object_path
+			      && (nested_owner->get_prop_qual((size_t)nested_root_pid).test_rand()
+				  || nested_owner->get_prop_qual((size_t)nested_root_pid).test_randc());
 			if (nested_object_path) {
 			for (; nested_owner && nested != id->path().name.end(); ++nested) {
 			      int nested_pid = nested_owner->property_idx_from_name(
@@ -34249,6 +34259,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + to_string(nested_pid);
 			      if (after == id->path().name.end()
 				  && !nested->index.empty()) {
+				      // Without a random root or terminal there is nothing
+				      // to solve: the read stays live state.
+				    if (!nested_root_rand
+					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_rand()
+					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_randc())
+					  break;
 				    const netuarray_t*array =
 					  dynamic_cast<const netuarray_t*>(nested_type);
 				    const netranges_t*dims = array
@@ -34262,6 +34278,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					|| !element || !element->packed() || !width
 					|| (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
 					    && !dynamic_cast<const netenum_t*>(element))) {
+					  if (!nested_root_rand) break;
 					  cerr << id->get_fileline() << ": error: nested indexed "
 					       << "constraint terminal must be a fixed integral or "
 					       << "enum element." << endl;
@@ -34271,6 +34288,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    uint64_t word = 0;
 				    size_t dim = 0;
 				    bool valid = true;
+				    bool out_of_range = false;
 				    for (const index_component_t&select : nested->index) {
 					  if (!select.msb || select.lsb
 					      || select.sel != index_component_t::SEL_BIT) {
@@ -34291,18 +34309,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  digit -= (uint64_t)std::min(
 						range.get_msb(), range.get_lsb());
 					  if (digit >= range.width()) {
-						cerr << id->get_fileline() << ": error: nested fixed-array "
-						     << "constraint index is outside its declared range."
-						     << endl;
-						constraint_ir_design_ctx_->errors += 1;
-						return "";
+						out_of_range = true;
+						valid = false;
+						break;
 					  }
 					  word = word * range.width() + digit;
 				    }
 				    if (valid)
 					  return "x:" + nested_path + ":"
 						+ to_string(width) + ":" + to_string(word)
-						+ (element->get_signed() ? ":s" : "");
+						+ (element->get_signed() ? ":s" : "")
+						+ (nested_root_rand ? "" : ":t");
+				    if (!nested_root_rand) break;
+				    if (out_of_range) {
+					  cerr << id->get_fileline() << ": error: nested fixed-array "
+					       << "constraint index is outside its declared range."
+					       << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
 				    cerr << id->get_fileline() << ": error: nested fixed-array "
 					 << "constraint selector must be a constant integral index."
 					 << endl;
@@ -34310,6 +34335,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    return "";
 			      }
 			      if (!nested->index.empty()) {
+				    if (!nested_root_rand) break;
 				    cerr << id->get_fileline() << ": error: indexed object "
 					 << "prefix in a nested fixed-element constraint is "
 					 << "not supported." << endl;

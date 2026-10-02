@@ -9,6 +9,7 @@
  *   (eq  p:N:W  c:V)     -- prop[N] == V
  *   (ne  p:N:W  c:V)     -- prop[N] != V
  *   r:I.J.K:W[:s]        -- integral state reached through object props I.J.K
+ *   x:I.J.P:W:E[:s]      -- fixed element E below object path I.J, property P
  *   (and expr expr)      -- logical AND
  *   (or  expr expr)      -- logical OR
  *   (not expr)           -- logical NOT
@@ -1791,6 +1792,111 @@ static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
       return var;
 }
 
+/* Parse x:I.J.P:W:E[:s]. I.J is a live class-object property path and P is
+ * the terminal fixed-array property.  Resolve that path before interning P,
+ * then use the ordinary element-variable machinery so aliases, activity,
+ * randc history, rollback and write-back share one canonical graph leaf. */
+static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
+{
+      const char*p = tok.c_str() + 2;
+      vector<unsigned> path;
+      while (*p) {
+	    char*end = nullptr;
+	    unsigned long idx = strtoul(p, &end, 10);
+	    if (end == p || idx > UINT_MAX) break;
+	    path.push_back((unsigned)idx);
+	    p = end;
+	    if (*p == '.') { ++p; continue; }
+	    break;
+      }
+      char*end = nullptr;
+      unsigned long width_ul = 0;
+      unsigned long elem_ul = ULONG_MAX;
+      bool fields_ok = *p == ':';
+      if (fields_ok) {
+	    const char*field = p + 1;
+	    width_ul = strtoul(field, &end, 10);
+	    fields_ok = end != field && *end == ':';
+	    p = end;
+      }
+      if (fields_ok) {
+	    const char*field = p + 1;
+	    elem_ul = strtoul(field, &end, 10);
+	    fields_ok = end != field;
+	    p = end;
+      }
+      bool sflag = fields_ok && *p == ':' && p[1] == 's';
+      if (sflag) p += 2;
+      bool state_read = fields_ok && *p == ':' && p[1] == 't' && p[2] == 0;
+      bool suffix_ok = fields_ok && (*p == 0 || state_read);
+      unsigned width = width_ul <= UINT_MAX ? (unsigned)width_ul : 0;
+
+      vvp_cobject*owner = b.cobj;
+      string error;
+      if (!b.graph || path.size() < 2 || width_ul > UINT_MAX
+	  || !width || width > 64
+	  || elem_ul > UINT_MAX || !suffix_ok) {
+	    error = "invalid nested fixed-array constraint metadata";
+      } else {
+	    for (size_t pos = 0; owner && pos + 1 < path.size(); ++pos) {
+		  vvp_object_t nested;
+		  if (!constraint_object_property_(owner, path[pos], nested,
+			error, 0, true)) break;
+		  owner = nested.peek<vvp_cobject>();
+	    }
+	    if (error.empty() && !owner)
+		  error = "null nested constraint object owner";
+      }
+      unsigned idx = UINT_MAX;
+      if (error.empty()) {
+	    unsigned pid = path.back();
+	    if (pid >= owner->get_defn()->property_count()
+		|| elem_ul >= owner->get_defn()->property_array_size(pid))
+		  error = "invalid nested fixed-array constraint element";
+	    else {
+		  vvp_vector4_t current;
+		  owner->get_vec4(pid, current, (unsigned)elem_ul);
+		  if (current.size() != width)
+			error = "invalid nested fixed-array constraint width";
+		  else idx = b.graph->intern(owner, pid);
+	    }
+      }
+      if (!error.empty() || idx == UINT_MAX) {
+	    b.state_errors.push_back(state_read
+		  ? "X/Z value in constraint state (IEEE 1800-2017/2023 18.3)"
+		  : error.empty()
+		  ? "invalid nested constraint graph identity" : error);
+	    return Z3_mk_unsigned_int64(
+		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width ? width : 1));
+      }
+      if (b.collect_refs) {
+	    Z3Builder::VarRef ref = {
+		  Z3Builder::VarRef::ELEM, idx, (unsigned)elem_ul};
+	    b.collect_refs->insert(ref);
+      }
+      if (b.collect_refs_only)
+	    return Z3_mk_unsigned_int64(
+		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+      // An element outside the randomization (a non-random alias or state
+	    // handle) is a ground read of its current value.
+	      if (!b.graph->element_active(idx, (unsigned)elem_ul)) {
+		    vvp_vector4_t data;
+		    owner->get_vec4(path.back(), data, (unsigned)elem_ul);
+		    Z3_ast ground;
+		    if (!vec4_to_bv_const_(b.ctx, data, width, ground)) {
+			  b.state_errors.push_back(state_read
+				? "X/Z value in constraint state (IEEE 1800-2017/2023 18.3)"
+				: "X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
+			  ground = Z3_mk_unsigned_int64(
+				b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+		    }
+		    return sflag ? b.tag_signed_constant(ground) : ground;
+	      }
+	      Z3_ast var = b.get_elem_var(idx, width, (unsigned)elem_ul);
+      if (sflag) b.signed_vars.insert(var);
+      return var;
+}
+
 /* Parse r:I.J.K:W[:s]. Unlike p:N:W this is not a solver variable: it is
  * ordinary object state read through the live class-property chain at the
  * moment randomize() is called (IEEE 1800-2017 18.3). */
@@ -2331,6 +2437,7 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       if (tok.substr(0,2) == "m:") return parse_member(par, b, tok);
       if (tok.substr(0,2) == "a:") return parse_member_elem(par, b, tok);
       if (tok.substr(0,2) == "r:") return parse_state_path(b, tok);
+      if (tok.substr(0,2) == "x:") return parse_nested_elem(b, tok);
       if (tok.substr(0,2) == "c:") {
 	    const char*s = tok.c_str() + 2;
 	    char*end = nullptr;
@@ -5067,6 +5174,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			|| strncmp(start, "m:", 2) == 0
 			|| strncmp(start, "a:", 2) == 0
 			|| strncmp(start, "r:", 2) == 0
+			|| strncmp(start, "x:", 2) == 0
 			|| strncmp(start, "s:", 2) == 0
 			|| strncmp(start, "e:", 2) == 0;
 		  Z3_ast value = build_z3_atom(par, b);
@@ -6353,6 +6461,56 @@ class state_foreach_expander_t {
             word_(out, word, width, sign);
       }
 
+      /* x:I.J.P:W:E[:s]:t -- a nested fixed-array element read as caller
+       * state. Elements that belong to the problem are left symbolic. */
+      bool nested_state_element_(state_foreach_value_t&out)
+      {
+            const string&token = out.text;
+            if (token.size() < 4 || token.compare(token.size() - 2, 2, ":t") != 0)
+                  return true;
+            vector<unsigned> path;
+            const char*p = token.c_str() + 2;
+            while (*p) {
+                  char*end = nullptr;
+                  unsigned long idx = strtoul(p, &end, 10);
+                  if (end == p || idx > UINT_MAX) return false;
+                  path.push_back((unsigned)idx);
+                  p = end;
+                  if (*p == '.') { ++p; continue; }
+                  break;
+            }
+            if (path.empty() || *p != ':') return false;
+            char*end = nullptr;
+            unsigned long width = strtoul(p + 1, &end, 10);
+            if (end == p + 1 || *end != ':' || !width || width > 64) return false;
+            p = end + 1;
+            unsigned long elem = strtoul(p, &end, 10);
+            if (end == p) return false;
+            bool sign = end[0] == ':' && end[1] == 's';
+            vvp_cobject*record = receiver_;
+            for (size_t i = 0; record && i + 1 < path.size(); ++i) {
+                  if (path[i] >= record->get_defn()->property_count()) return false;
+                  vvp_object_t child;
+                  record->get_object(path[i], child, 0);
+                  record = child.peek<vvp_cobject>();
+            }
+            if (!record) {
+                  error_(out, "X/Z value in constraint state (IEEE 1800-2017/2023 18.3)",
+                         (unsigned)width, sign);
+                  return true;
+            }
+            if (path.back() >= record->get_defn()->property_count()
+                || elem >= record->get_defn()->property_array_size(path.back()))
+                  return false;
+            if (graph_ && graph_->element_active(graph_->intern(record, path.back()),
+                                                 (unsigned)elem))
+                  return true;
+            vvp_vector4_t word;
+            record->get_vec4(path.back(), word, (unsigned)elem);
+            word_(out, word, (unsigned)width, sign);
+            return true;
+      }
+
       bool property_(state_foreach_value_t&out)
       {
             string token = out.text;
@@ -6472,6 +6630,8 @@ class state_foreach_expander_t {
                              || out.text.compare(0, 2, "m:") == 0
                              || out.text.compare(0, 2, "r:") == 0) {
                         if (!property_(out)) return false;
+                  } else if (out.text.compare(0, 2, "x:") == 0) {
+                        if (!nested_state_element_(out)) return false;
                   } else if (out.text.compare(0, 2, "s:") != 0
                              && out.text.compare(0, 2, "e:") != 0
 			     && out.text.compare(0, 2, "a:") != 0
