@@ -961,6 +961,72 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 	    }
       }
 
+      /* An output actual such as item.addr[i] or item.addr[7:4] is a bit or
+	 part select of a packed class property (IEEE 1800-2017/2023 13.5,
+	 11.5.1): copy the returned formal into that window and leave the other
+	 bits alone. It is not an associative-array entry, which the branch
+	 below handles for container-typed properties only. */
+      if (ivl_expr_type(actual) == IVL_EX_SELECT) {
+	    ivl_expr_t prop = ivl_expr_oper1(actual);
+	    ivl_expr_t offset = ivl_expr_oper2(actual);
+	    ivl_type_t ptype = prop && ivl_expr_type(prop) == IVL_EX_PROPERTY
+		? property_expr_type_(prop) : 0;
+	    ivl_variable_type_t leaf = ptype
+		? ivl_type_base(ptype) : IVL_VT_NO_TYPE;
+	    if (prop && offset && !ivl_expr_oper1(prop)
+		&& ptype && ivl_type_is_packed_vector(ptype)
+		&& (leaf == IVL_VT_BOOL || leaf == IVL_VT_LOGIC)
+		&& ivl_signal_dimensions(port) == 0
+		&& (ivl_signal_data_type(port) == IVL_VT_BOOL
+		    || ivl_signal_data_type(port) == IVL_VT_LOGIC)
+		&& ivl_expr_width(actual) > 0
+		&& (ivl_expr_signal(prop) || ivl_expr_oper2(prop))) {
+		  ivl_signal_t base_sig = ivl_expr_signal(prop);
+		  ivl_expr_t base_expr = ivl_expr_oper2(prop);
+		  int slot_word = allocate_word();
+		  int offset_word = allocate_word();
+		  int offset_flag = allocate_flag();
+		  unsigned null_receiver = local_count++;
+		  unsigned done = local_count++;
+		  unsigned width = ivl_expr_width(actual);
+		  int pidx = (int)ivl_expr_property_idx(prop);
+		  if (base_sig)
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+		  else
+			draw_eval_object(base_expr);
+		  fprintf(vvp_out, "    %%test_nul/obj;\n");
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+			  thread_count, null_receiver);
+		  fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", slot_word);
+		  draw_eval_expr_into_integer(offset, offset_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", offset_flag);
+		  draw_copy_out_load(port, "vec4");
+		  fprintf(vvp_out, "    %%pad/%s %u;\n",
+			  ivl_signal_signed(port) ? "s" : "u", width);
+		  if (leaf == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
+		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", offset_flag);
+		  fprintf(vvp_out, "    %%store/prop/v/i/bits/%s %d, %d, %d;\n",
+			  ivl_expr_signed(offset) ? "x" : "ux",
+			  pidx, slot_word, offset_word);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, null_receiver);
+		  fprintf(vvp_out,
+			  "    %%vpi_call/w %u %u \"$warning\", "
+			  "\"null class receiver; copy-out was ignored\" "
+			  "{0 0 0 0};\n",
+			  ivl_file_table_index(ivl_expr_file(actual)),
+			  ivl_expr_lineno(actual));
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
+		  clr_word(slot_word);
+		  clr_word(offset_word);
+		  clr_flag(offset_flag);
+		  return;
+	    }
+      }
+
       /* Handle copy-out to an indexed assoc-array entry of a class
          property (e.g. cfg.vifs[key]). Iverilog represents this as
          IVL_EX_SELECT(arr, key) where `arr` is the IVL_EX_PROPERTY for

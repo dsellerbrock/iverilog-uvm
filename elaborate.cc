@@ -15735,7 +15735,10 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	         declaration in scope; a class member shadows an outer
 	         type name of the same spelling here. */
 	    bool receiver_is_variable = false;
-	    if (type_path.size() == 1) {
+	      /* `Name::method()' is class scope resolution (IEEE 1800-2017
+	         8.23): a variable called Name never takes part in it. Only an
+	         unqualified receiver spelling may resolve to a variable. */
+	    if (type_path.size() == 1 && !has_scoped_type_prefix()) {
 		  symbol_search_results receiver_sr;
 		  unsigned receiver_errors_before = des->errors;
 		  bool receiver_found = symbol_search(this, des, scope, type_path,
@@ -34222,8 +34225,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      ? nested_owner->property_idx_from_name(nested->name) : -1;
 			ivl_type_t nested_root_type = nested_root_pid >= 0
 			      ? nested_owner->get_prop_type((size_t)nested_root_pid) : nullptr;
+			  // A non-random handle may alias a random object, so it is tried
+			  // as a solver element first; shapes this path cannot express
+			  // (non-fixed terminal, dynamic or out-of-range selector) fall
+			  // through to the live-state read instead of being errors.
 			bool nested_object_path = nested->index.empty()
 			      && dynamic_cast<const netclass_t*>(nested_root_type);
+			bool nested_root_rand = nested_object_path
+			      && (nested_owner->get_prop_qual((size_t)nested_root_pid).test_rand()
+				  || nested_owner->get_prop_qual((size_t)nested_root_pid).test_randc());
 			if (nested_object_path) {
 			for (; nested_owner && nested != id->path().name.end(); ++nested) {
 			      int nested_pid = nested_owner->property_idx_from_name(
@@ -34249,6 +34259,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + to_string(nested_pid);
 			      if (after == id->path().name.end()
 				  && !nested->index.empty()) {
+				      // Without a random root or terminal there is nothing
+				      // to solve: the read stays live state.
+				    if (!nested_root_rand
+					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_rand()
+					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_randc())
+					  break;
 				    const netuarray_t*array =
 					  dynamic_cast<const netuarray_t*>(nested_type);
 				    const netranges_t*dims = array
@@ -34262,6 +34278,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					|| !element || !element->packed() || !width
 					|| (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
 					    && !dynamic_cast<const netenum_t*>(element))) {
+					  if (!nested_root_rand) break;
 					  cerr << id->get_fileline() << ": error: nested indexed "
 					       << "constraint terminal must be a fixed integral or "
 					       << "enum element." << endl;
@@ -34271,6 +34288,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    uint64_t word = 0;
 				    size_t dim = 0;
 				    bool valid = true;
+				    bool out_of_range = false;
 				    for (const index_component_t&select : nested->index) {
 					  if (!select.msb || select.lsb
 					      || select.sel != index_component_t::SEL_BIT) {
@@ -34291,18 +34309,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  digit -= (uint64_t)std::min(
 						range.get_msb(), range.get_lsb());
 					  if (digit >= range.width()) {
-						cerr << id->get_fileline() << ": error: nested fixed-array "
-						     << "constraint index is outside its declared range."
-						     << endl;
-						constraint_ir_design_ctx_->errors += 1;
-						return "";
+						out_of_range = true;
+						valid = false;
+						break;
 					  }
 					  word = word * range.width() + digit;
 				    }
 				    if (valid)
 					  return "x:" + nested_path + ":"
 						+ to_string(width) + ":" + to_string(word)
-						+ (element->get_signed() ? ":s" : "");
+						+ (element->get_signed() ? ":s" : "")
+						+ (nested_root_rand ? "" : ":t");
+				    if (!nested_root_rand) break;
+				    if (out_of_range) {
+					  cerr << id->get_fileline() << ": error: nested fixed-array "
+					       << "constraint index is outside its declared range."
+					       << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
 				    cerr << id->get_fileline() << ": error: nested fixed-array "
 					 << "constraint selector must be a constant integral index."
 					 << endl;
@@ -34310,6 +34335,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    return "";
 			      }
 			      if (!nested->index.empty()) {
+				    if (!nested_root_rand) break;
 				    cerr << id->get_fileline() << ": error: indexed object "
 					 << "prefix in a nested fixed-element constraint is "
 					 << "not supported." << endl;
@@ -40345,6 +40371,85 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					return source_prop;
 				  };
 
+			    // IEEE 1800-2017 19.5.7 / 1800-2023 19.5.7: a transition sequence
+			    // listed in ignore_bins is removed from the sequences of the
+			    // coverpoint's other transition bins. Resolve every fixed
+			    // ignored sequence to value sets once; the regular bins below
+			    // subtract them term by term.
+			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
+			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
+			  std::set<const void*> resolved_ignore_bins;
+			  auto normalize_trans_ranges = [](trans_ranges_t r) {
+				std::sort(r.begin(), r.end());
+				trans_ranges_t merged;
+				for (auto&x : r) {
+				      if (!merged.empty()
+					  && (x.first <= merged.back().second
+					      || (merged.back().second != UINT64_MAX
+						  && x.first == merged.back().second + 1)))
+					    merged.back().second = std::max(
+						  merged.back().second, x.second);
+				      else merged.push_back(x);
+				}
+				return merged;
+			  };
+			  for (auto& ib : cp.bins) {
+				if (ib.kind != class_type_t::pform_cov_bins_t::BIN_IGNORE
+				    || ib.trans_seqs.empty() || ib.wildcard
+				    || cp_value_width > 64)
+				      continue;
+				std::vector<std::vector<trans_ranges_t>> found;
+				bool all_ok = true;
+				for (auto&seq : ib.trans_seqs) {
+				      std::vector<trans_ranges_t> terms;
+				      for (auto&st : seq) {
+					    trans_ranges_t r;
+					    if (st.repeat_kind != class_type_t::pform_cov_trans_term_t::TRANS_ONCE
+						|| !eval_ranges(st.ranges, r, cp_value_width,
+								cp_value_signed, ib.name.str())
+						|| r.empty()) {
+						  all_ok = false;
+						  break;
+					    }
+					    terms.push_back(normalize_trans_ranges(r));
+				      }
+				      if (!all_ok) break;
+				      found.push_back(std::move(terms));
+				}
+				if (!all_ok) continue;
+				for (auto&f : found) ignored_trans.push_back(std::move(f));
+				resolved_ignore_bins.insert(&ib);
+			  }
+			  auto trans_ranges_intersect = [](const trans_ranges_t&a,
+							   const trans_ranges_t&b) {
+				trans_ranges_t out;
+				for (auto&x : a) for (auto&y : b) {
+				      uint64_t lo = std::max(x.first, y.first);
+				      uint64_t hi = std::min(x.second, y.second);
+				      if (lo <= hi) out.push_back(std::make_pair(lo, hi));
+				}
+				return out;
+			  };
+			  auto trans_ranges_subtract = [](const trans_ranges_t&a,
+							  const trans_ranges_t&b) {
+				trans_ranges_t cur = a;
+				for (auto&c : b) {
+				      trans_ranges_t nxt;
+				      for (auto&x : cur) {
+					    if (c.second < x.first || c.first > x.second) {
+						  nxt.push_back(x);
+						  continue;
+					    }
+					    if (c.first > x.first)
+						  nxt.push_back(std::make_pair(x.first, c.first - 1));
+					    if (c.second < x.second)
+						  nxt.push_back(std::make_pair(c.second + 1, x.second));
+				      }
+				      cur = std::move(nxt);
+				}
+				return cur;
+			  };
+
 			  for (auto& bin : cp.bins) {
 				unsigned base_kind = (unsigned)bin.kind;
 				unsigned kindval = base_kind | (bin.wildcard ? 8u : 0u);
@@ -40369,6 +40474,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // bounded-work hazard. Arrayed transition families use
 				        // sparse dynamic counters keyed by the mixed-radix logical
 				        // sequence index.
+				      if (resolved_ignore_bins.count(&bin)) continue;
 				      if (base_kind != 0) {
 					    cerr << "sorry: covergroup '" << cgdef->name
 						 << "': ignore/illegal transition bins are "
@@ -40437,22 +40543,36 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (auto&source_term : source_terms) {
 						  trans_term_t term;
 						  if (!eval_ranges(source_term.ranges, term.ranges,
-							     cp_value_width, cp_value_signed,
-							     bin.name.str())
-						      || term.ranges.empty()) {
-							cerr << "sorry: covergroup transition terms must "
-							     << "be nonempty constant sets; bin '"
-							     << bin.name << "' is dropped." << endl;
-							bad = true;
-							break;
-						  } else {
+					     cp_value_width, cp_value_signed,
+					     bin.name.str())) {
+							term.dynamic = true;
+							constructor_dependent = true;
 							for (auto&r : source_term.ranges) {
+							      ctor_range_shape_t ls = ctor_range_shape(r.first);
+							      ctor_range_shape_t hs = ctor_range_shape(r.second);
 							      std::string li = ctor_range_ir(r.first);
 							      std::string hi = ctor_range_ir(r.second);
-							      if (li.empty() || hi.empty()) { bad = true; break; }
+							      if (!ls.first || !hs.first || li.empty() || hi.empty()) {
+								    bad = true;
+								    break;
+							      }
 							      term.ir_ranges.push_back(std::make_pair(li, hi));
 							}
-							if (bad) break;
+							if (bad || term.ir_ranges.empty()) {
+							      cerr << "error: covergroup transition term in bin '"
+								   << bin.name << "' has an unsupported "
+								      "constructor expression; the bin is dropped."
+								   << endl;
+							      des->errors += 1;
+							      bad = true;
+							      break;
+							}
+						  } else if (term.ranges.empty()) {
+							cerr << "sorry: covergroup transition terms must be "
+							     << "nonempty constant sets; bin '" << bin.name
+							     << "' is dropped." << endl;
+							bad = true;
+							break;
 						  }
 						  std::sort(term.ranges.begin(), term.ranges.end());
 						  std::vector<std::pair<uint64_t,uint64_t>> merged;
@@ -40533,17 +40653,97 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  bad = true;
 						  break;
 					    }
-					    seq_bases.push_back((uint64_t)family_total);
-					    family_total = capped_add(family_total,
-							      sequence_variants);
-					    programs.push_back(std::move(terms));
+					    std::vector<std::vector<trans_term_t>> pieces;
+					    pieces.push_back(std::move(terms));
+					    bool pieces_changed = false;
+					    for (auto&ignored : ignored_trans) {
+						  std::vector<std::vector<trans_term_t>> next_pieces;
+						  for (auto&piece : pieces) {
+							bool plain = true;
+							for (auto&t : piece)
+							      if (t.dynamic || t.repeat != (unsigned)class_type_t::
+								  pform_cov_trans_term_t::TRANS_ONCE)
+								    plain = false;
+							if (piece.size() != ignored.size()) {
+							      next_pieces.push_back(std::move(piece));
+							      continue;
+							}
+							if (!plain) {
+							      cerr << "sorry: covergroup '" << cgdef->name
+								   << "': an ignore_bins transition cannot be "
+								   << "subtracted from repeated or constructor-"
+								   << "dependent bin '" << bin.name
+								   << "'; the bin is dropped." << endl;
+							      bad = true;
+							      break;
+							}
+							std::vector<trans_ranges_t> common;
+							bool overlaps = true;
+							for (size_t k = 0; k < piece.size(); k++) {
+							      common.push_back(trans_ranges_intersect(
+								    piece[k].ranges, ignored[k]));
+							      if (common.back().empty()) overlaps = false;
+							}
+							if (!overlaps) {
+							      next_pieces.push_back(std::move(piece));
+							      continue;
+							}
+							pieces_changed = true;
+							for (size_t k = 0; k < piece.size(); k++) {
+							      trans_ranges_t rest = trans_ranges_subtract(
+								    piece[k].ranges, ignored[k]);
+							      if (rest.empty()) continue;
+							      std::vector<trans_term_t> variant;
+							      for (size_t j = 0; j < piece.size(); j++) {
+								    trans_term_t t = piece[j];
+								    t.ranges = j < k ? common[j]
+									  : j == k ? rest : piece[j].ranges;
+								    uint64_t alt = 0;
+								    for (auto&r : t.ranges)
+									  alt += r.second - r.first + 1;
+								    t.alternatives = alt;
+								    variant.push_back(std::move(t));
+							      }
+							      next_pieces.push_back(std::move(variant));
+							}
+						  }
+						  if (bad) break;
+						  pieces = std::move(next_pieces);
+					    }
+					    if (bad) break;
+					    for (auto&piece : pieces) {
+						  unsigned __int128 variants_here = sequence_variants;
+						  if (pieces_changed) {
+							variants_here = 1;
+							for (auto&t : piece)
+							      variants_here = capped_mul(variants_here,
+											 t.alternatives);
+						  }
+						  seq_bases.push_back((uint64_t)family_total);
+						  family_total = capped_add(family_total,
+									    variants_here);
+						  programs.push_back(std::move(piece));
+					    }
 				      }
 				      if (bad) continue;
+				      if (programs.empty()) continue;
 				      if (constructor_dependent) {
 					    unsigned family = dyn_family++;
 					    for (unsigned sq = 0; sq < programs.size(); sq++)
 					    for (unsigned st = 0; st < programs[sq].size(); st++) {
 						  trans_term_t&term = programs[sq][st];
+						    // A static term in a constructor-dependent
+						    // family ships as constant endpoints in the
+						    // value's encoded width; open ends ($) were
+						    // already resolved by eval_ranges.
+						  if (!term.dynamic) {
+							std::string tag = std::to_string(cp_value_width)
+							      + (cp_value_signed ? ":s" : "");
+							for (auto&r : term.ranges)
+							      term.ir_ranges.push_back(std::make_pair(
+								    "c:" + std::to_string(r.first) + ":" + tag,
+								    "c:" + std::to_string(r.second) + ":" + tag));
+						  }
 						  for (auto&r : term.ir_ranges)
 							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 4u,
 							      family, bin.arrayed ? 0 : ~(uint64_t)0,
@@ -40977,13 +41177,39 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					// Constructor-dependent bounds are per-instance
 					  // constants (19.3), not failed declaration
 					  // constants. Preserve each endpoint as property IR.
-				      if (bin.with_expr) {
-					    cerr << "sorry: constructor-dependent covergroup bin '"
-						 << bin.name << "' uses a 'with' filter that "
-						    "cannot yet be evaluated at construction; "
-						    "the bin is dropped." << endl;
-					    continue;
-				      }
+				      // A 'with' filter that is a constant inside/!inside test
+				      // partitions the value domain independently of the
+				      // constructor bounds: apply it to the whole domain once and
+				      // clip each surviving piece to the runtime range (19.5.1).
+				    std::vector<std::pair<uint64_t,uint64_t>> with_pieces;
+				    bool with_filter = false;
+				    uint64_t with_domain_max = 0;
+				    if (bin.with_expr) {
+					  bool with_ok = !bin.wildcard && cp_value_supported
+						&& cp_value_width > 0
+						&& cp_value_width <= (cp_value_signed ? 64u : 63u);
+					  if (with_ok) {
+						with_domain_max = cp_value_width == 64
+						      ? UINT64_MAX
+						      : ((UINT64_C(1) << cp_value_width) - 1);
+						if (cp_value_signed && cp_value_width > 1) {
+						      uint64_t sign_bit = UINT64_C(1) << (cp_value_width - 1);
+						      with_pieces.push_back(std::make_pair(0, sign_bit - 1));
+						      with_pieces.push_back(std::make_pair(sign_bit, with_domain_max));
+						} else {
+						      with_pieces.push_back(std::make_pair(0, with_domain_max));
+						}
+						with_ok = apply_inside_filter(bin.with_expr, with_pieces) > 0;
+					  }
+					  if (!with_ok) {
+						cerr << "sorry: constructor-dependent covergroup bin '"
+						     << bin.name << "' uses a 'with' filter that "
+							"cannot yet be evaluated at construction; "
+							"the bin is dropped." << endl;
+						continue;
+					  }
+					  with_filter = true;
+				    }
 			      std::vector<std::pair<std::string,std::string>> ir_ranges;
 			      bool dyn_ok = cp_value_supported;
 		      bool bin_references_runtime = false;
@@ -41018,6 +41244,42 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    ir_ranges.push_back(std::make_pair(lo_ir, hi_ir));
 				      }
 			      if (!bin_references_runtime) dyn_ok = false;
+				      if (with_filter && dyn_ok) {
+					    std::vector<std::pair<std::string,std::string>> clipped;
+					    uint64_t sign_bit = cp_value_signed && cp_value_width > 1
+						  ? UINT64_C(1) << (cp_value_width - 1) : 0;
+					      // Compare in one exact domain: every runtime endpoint is
+					      // converted to signed 64 bits (value-preserving for either
+					      // signedness) and so are the piece bounds.
+					    auto piece_const = [&](uint64_t encoded) {
+						  int64_t numeric = sign_bit && encoded >= sign_bit
+							? (int64_t)encoded - (int64_t)(UINT64_C(1) << cp_value_width)
+							: (int64_t)encoded;
+						  return "c:" + std::to_string((uint64_t)numeric) + ":64:s";
+					    };
+					    for (auto&ir : ir_ranges)
+					    for (auto&pc : with_pieces) {
+						  std::string lo = ir.first, hi = ir.second;
+						  std::string lo64 = "(cast c:64 c:1 " + ir.first + ")";
+						  std::string hi64 = "(cast c:64 c:1 " + ir.second + ")";
+						    // Pieces are encoded intervals wholly on one side of the
+						    // sign bit; clip unless an endpoint is already the
+						    // numeric extreme of the value domain.
+						  bool lo_clip = sign_bit ? pc.first != sign_bit : pc.first != 0;
+						  bool hi_clip = sign_bit ? pc.second != sign_bit - 1
+									 : pc.second != with_domain_max;
+						  if (lo_clip) {
+							std::string a = piece_const(pc.first);
+							lo = "(ite (ge " + lo64 + " " + a + ") " + lo64 + " " + a + ")";
+						  }
+						  if (hi_clip) {
+							std::string b = piece_const(pc.second);
+							hi = "(ite (le " + hi64 + " " + b + ") " + hi64 + " " + b + ")";
+						  }
+						  clipped.push_back(std::make_pair(lo, hi));
+					    }
+					    ir_ranges = std::move(clipped);
+				      }
 				      uint64_t dyn_array_size = ~(uint64_t)0;
 				      if (bin.arrayed) {
 					    dyn_array_size = 0;
