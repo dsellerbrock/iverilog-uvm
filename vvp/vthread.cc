@@ -11270,6 +11270,15 @@ void vthread_schedule_list(vthread_t thr)
             claimed.push_back(cur);
       }
 
+      /* The wait list is built newest-first. Wake the waiters of one event in
+         the order they began waiting (the order commercial simulators run
+         them): LIFO order makes processes that re-arm in a loop swap their
+         relative order on every occurrence, and testbenches that rely on a
+         stable same-edge order between processes (OpenTitan hmac's scoreboard
+         vs. its TL monitor) then see an alternating race. The order among
+         waiters of one event is otherwise unspecified (IEEE 1800-2017 4.7). */
+      std::reverse(claimed.begin(), claimed.end());
+
       /* Detach the complete list before any recipe runs. A recipe may disable
          another waiter from this same source or re-arm itself into the event;
          neither action may invalidate this traversal or append to it. */
