@@ -40371,6 +40371,85 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					return source_prop;
 				  };
 
+			    // IEEE 1800-2017 19.5.7 / 1800-2023 19.5.7: a transition sequence
+			    // listed in ignore_bins is removed from the sequences of the
+			    // coverpoint's other transition bins. Resolve every fixed
+			    // ignored sequence to value sets once; the regular bins below
+			    // subtract them term by term.
+			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
+			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
+			  std::set<const void*> resolved_ignore_bins;
+			  auto normalize_trans_ranges = [](trans_ranges_t r) {
+				std::sort(r.begin(), r.end());
+				trans_ranges_t merged;
+				for (auto&x : r) {
+				      if (!merged.empty()
+					  && (x.first <= merged.back().second
+					      || (merged.back().second != UINT64_MAX
+						  && x.first == merged.back().second + 1)))
+					    merged.back().second = std::max(
+						  merged.back().second, x.second);
+				      else merged.push_back(x);
+				}
+				return merged;
+			  };
+			  for (auto& ib : cp.bins) {
+				if (ib.kind != class_type_t::pform_cov_bins_t::BIN_IGNORE
+				    || ib.trans_seqs.empty() || ib.wildcard
+				    || cp_value_width > 64)
+				      continue;
+				std::vector<std::vector<trans_ranges_t>> found;
+				bool all_ok = true;
+				for (auto&seq : ib.trans_seqs) {
+				      std::vector<trans_ranges_t> terms;
+				      for (auto&st : seq) {
+					    trans_ranges_t r;
+					    if (st.repeat_kind != class_type_t::pform_cov_trans_term_t::TRANS_ONCE
+						|| !eval_ranges(st.ranges, r, cp_value_width,
+								cp_value_signed, ib.name.str())
+						|| r.empty()) {
+						  all_ok = false;
+						  break;
+					    }
+					    terms.push_back(normalize_trans_ranges(r));
+				      }
+				      if (!all_ok) break;
+				      found.push_back(std::move(terms));
+				}
+				if (!all_ok) continue;
+				for (auto&f : found) ignored_trans.push_back(std::move(f));
+				resolved_ignore_bins.insert(&ib);
+			  }
+			  auto trans_ranges_intersect = [](const trans_ranges_t&a,
+							   const trans_ranges_t&b) {
+				trans_ranges_t out;
+				for (auto&x : a) for (auto&y : b) {
+				      uint64_t lo = std::max(x.first, y.first);
+				      uint64_t hi = std::min(x.second, y.second);
+				      if (lo <= hi) out.push_back(std::make_pair(lo, hi));
+				}
+				return out;
+			  };
+			  auto trans_ranges_subtract = [](const trans_ranges_t&a,
+							  const trans_ranges_t&b) {
+				trans_ranges_t cur = a;
+				for (auto&c : b) {
+				      trans_ranges_t nxt;
+				      for (auto&x : cur) {
+					    if (c.second < x.first || c.first > x.second) {
+						  nxt.push_back(x);
+						  continue;
+					    }
+					    if (c.first > x.first)
+						  nxt.push_back(std::make_pair(x.first, c.first - 1));
+					    if (c.second < x.second)
+						  nxt.push_back(std::make_pair(c.second + 1, x.second));
+				      }
+				      cur = std::move(nxt);
+				}
+				return cur;
+			  };
+
 			  for (auto& bin : cp.bins) {
 				unsigned base_kind = (unsigned)bin.kind;
 				unsigned kindval = base_kind | (bin.wildcard ? 8u : 0u);
@@ -40395,6 +40474,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // bounded-work hazard. Arrayed transition families use
 				        // sparse dynamic counters keyed by the mixed-radix logical
 				        // sequence index.
+				      if (resolved_ignore_bins.count(&bin)) continue;
 				      if (base_kind != 0) {
 					    cerr << "sorry: covergroup '" << cgdef->name
 						 << "': ignore/illegal transition bins are "
@@ -40573,12 +40653,80 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  bad = true;
 						  break;
 					    }
-					    seq_bases.push_back((uint64_t)family_total);
-					    family_total = capped_add(family_total,
-							      sequence_variants);
-					    programs.push_back(std::move(terms));
+					    std::vector<std::vector<trans_term_t>> pieces;
+					    pieces.push_back(std::move(terms));
+					    bool pieces_changed = false;
+					    for (auto&ignored : ignored_trans) {
+						  std::vector<std::vector<trans_term_t>> next_pieces;
+						  for (auto&piece : pieces) {
+							bool plain = true;
+							for (auto&t : piece)
+							      if (t.dynamic || t.repeat != (unsigned)class_type_t::
+								  pform_cov_trans_term_t::TRANS_ONCE)
+								    plain = false;
+							if (piece.size() != ignored.size()) {
+							      next_pieces.push_back(std::move(piece));
+							      continue;
+							}
+							if (!plain) {
+							      cerr << "sorry: covergroup '" << cgdef->name
+								   << "': an ignore_bins transition cannot be "
+								   << "subtracted from repeated or constructor-"
+								   << "dependent bin '" << bin.name
+								   << "'; the bin is dropped." << endl;
+							      bad = true;
+							      break;
+							}
+							std::vector<trans_ranges_t> common;
+							bool overlaps = true;
+							for (size_t k = 0; k < piece.size(); k++) {
+							      common.push_back(trans_ranges_intersect(
+								    piece[k].ranges, ignored[k]));
+							      if (common.back().empty()) overlaps = false;
+							}
+							if (!overlaps) {
+							      next_pieces.push_back(std::move(piece));
+							      continue;
+							}
+							pieces_changed = true;
+							for (size_t k = 0; k < piece.size(); k++) {
+							      trans_ranges_t rest = trans_ranges_subtract(
+								    piece[k].ranges, ignored[k]);
+							      if (rest.empty()) continue;
+							      std::vector<trans_term_t> variant;
+							      for (size_t j = 0; j < piece.size(); j++) {
+								    trans_term_t t = piece[j];
+								    t.ranges = j < k ? common[j]
+									  : j == k ? rest : piece[j].ranges;
+								    uint64_t alt = 0;
+								    for (auto&r : t.ranges)
+									  alt += r.second - r.first + 1;
+								    t.alternatives = alt;
+								    variant.push_back(std::move(t));
+							      }
+							      next_pieces.push_back(std::move(variant));
+							}
+						  }
+						  if (bad) break;
+						  pieces = std::move(next_pieces);
+					    }
+					    if (bad) break;
+					    for (auto&piece : pieces) {
+						  unsigned __int128 variants_here = sequence_variants;
+						  if (pieces_changed) {
+							variants_here = 1;
+							for (auto&t : piece)
+							      variants_here = capped_mul(variants_here,
+											 t.alternatives);
+						  }
+						  seq_bases.push_back((uint64_t)family_total);
+						  family_total = capped_add(family_total,
+									    variants_here);
+						  programs.push_back(std::move(piece));
+					    }
 				      }
 				      if (bad) continue;
+				      if (programs.empty()) continue;
 				      if (constructor_dependent) {
 					    unsigned family = dyn_family++;
 					    for (unsigned sq = 0; sq < programs.size(); sq++)
