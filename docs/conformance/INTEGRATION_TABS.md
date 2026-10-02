@@ -20,7 +20,8 @@ From agent/l106-l116-regression-fix-20260915; their solver/covergroup code was d
    (2026-10-01): `parse_nested_elem` in vvp_z3.cc, plus `:t` state-read flavor for non-random handles.
 2. ~~`sv_cov_ctor_transition_*`~~ DONE 2026-10-01: elaborate.cc dynamic-term hunk re-applied on top of HEAD's ctor_range_* helpers; static terms in a
    constructor-dependent family ship as constant IR. Moved into regress-sv/vvp.list. Remaining pending: wide fixed element (item 1),
-   sv_joint_coupled_randc_ordered_*. sv_implicit_property_method_collision_generic_fail is DONE (`Name::m()` no longer resolves a variable).
+   sv_joint_coupled_randc_ordered_* (4 tests assert the old "unsupported call fails" limitation; joint mode now solves them, so they need
+   rewriting once the semantics of two `dist` constraints on one variable are settled, not code porting). sv_implicit_property_method_collision_generic_fail is DONE (`Name::m()` no longer resolves a variable).
 Re-integrate against current vvp_z3.cc/elaborate.cc, then move the entries back into regress-sv.list/regress-vvp.list.
 
 ## Known gaps (not from branches)
