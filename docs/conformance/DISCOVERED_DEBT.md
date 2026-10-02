@@ -3888,7 +3888,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** N/A; application setup and later TLUL protocol assertion.
 - **Evidence:** `/private/tmp/otbn-smoke-selected-20260929/HANDOFF.md`, ELF hash, selected result and runtime log.
 - **Reproducer status:** confirmed in the corpus and one guarded selected replay.
-- **Triage status:** untriaged runner setup gap and separate TLUL DV error. Do not substitute a dummy ELF path or claim OTBN PASS.
+- **Triage status:** UPDATE 2026-10-02: with the real ELF from OpenTitan's own `gen-binaries.py` (xPack RV32 `as`/`ld` via `RV32_TOOL_AS`/`RV32_TOOL_LD`; ELF sha256 e47c6d70...cb827) passed as `--runtime-arg +otbn_elf_dir=/private/tmp/otbn-smoke-selected-20260929/binaries` with `REPO_TOP` and `IVL_SVA_NFA=1`, `otbn_sim` now ends `TEST PASSED CHECKS` with 0 UVM errors (DEBT: one DPI-model warning, `OtbnTraceChecker` destroyed with an unfinished operation at $finish); the earlier TLUL `noOutstandingReqsAtEndOfSim_A` failure no longer reproduces. The runner itself still does not execute the pre-run mode; that remains a harness gap. Never substitute a dummy ELF.
 
 ### DD-102 — Pwrmgr parallel runner exception before simulator launch
 
