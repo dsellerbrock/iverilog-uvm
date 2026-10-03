@@ -15,6 +15,7 @@ one owner. Documentation reviewed against `5c0f5588e` on 2026-09-14.
 | Language-edition selection and gate implementation | [Edition gates](conformance/language_edition_gates.md) |
 | OpenTitan census setup and classification | [Matrix runner](conformance/opentitan_matrix.md) |
 | Pinned OpenTitan/Caliptra patches and run profiles | [Release overlays](conformance/release_overlays/README.md) |
+| Proposed Caliptra BFM / UVMF recreation (plan only) | [BFM plan](conformance/caliptra_bfm_uvmf_recreation_plan_2026-10-03.md) |
 | Windows packaging | [MSYS2 recipe](../msys2/README.md) |
 | Personal IEEE reference files | [Standards references](standards/README.md) |
 | Upstream compiler/target/VPI documentation | [Documentation/](../Documentation) |
