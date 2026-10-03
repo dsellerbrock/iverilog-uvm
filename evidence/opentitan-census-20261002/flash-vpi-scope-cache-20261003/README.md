@@ -18,8 +18,20 @@ not cache misses or leaf-object handles.
   `scopes`.
 - The bounded, non-instrumented Flash replay using the rebuilt VVP reached
   operation 1/3 and hit its 300-second wall-time cap without a PASS marker.
-  The synthetic benchmark therefore does not establish an end-to-end Flash
-  speedup or qualify the census row.
+- A follow-up replay used a 1,200-second wall cap and a 10,000,000,000-byte RSS
+  cap. It ended at the wall cap with wrapper `timed_out=true`, `returncode=0`,
+  no memory-limit hit, and peak RSS 1,250,607,104 bytes. Its 3,666-byte log
+  appeared after process exit; while VVP was running, the redirected log stayed
+  empty. The last emitted marker starts operation 2/3 at 1,414,248.5 ns, then
+  records a bank-1 Data-partition erase at 1,414,652.8 ns. There is no PASS,
+  UVM_ERROR, or UVM_FATAL marker. The final simulation time is unknown because
+  later output was not emitted before termination. The row remains unqualified.
+- OpenTitan's published VCS report lists the smoke job at 5.131 minutes and
+  11.250 ms simulated time. That is a different simulator/build and is context,
+  not a direct performance comparison: [official Flash simulation report](https://reports.opentitan.org/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/latest/report.html).
+
+The synthetic benchmark therefore does not establish an end-to-end Flash
+speedup or qualify the census row.
 
 The captured sample points to this path as a substantial cost in the sampled
 interval, but does not establish it as the sole runtime cause. Census11 remains
@@ -40,3 +52,7 @@ From this directory, set `ROOT` to the active worktree root, then run:
 The first runtime is the pre-cache comparison binary; the last is the rebuilt
 implementation. The source and benchmark design are preserved here. Temporary
 plugin and VVP outputs are intentionally omitted.
+
+The 20-minute replay's runner, result metadata, and captured output are also
+preserved here as `run-flash-cache-1200s-10gb.py`,
+`flash-1200s-10gb-result.json`, and `flash-1200s-10gb-20261003.log`.
