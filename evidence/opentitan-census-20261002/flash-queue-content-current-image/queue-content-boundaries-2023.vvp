@@ -1,0 +1,1047 @@
+#! /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/vvp
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/private/tmp/current-ivl/system.vpi";
+:vpi_module "/private/tmp/current-ivl/vhdl_sys.vpi";
+:vpi_module "/private/tmp/current-ivl/vhdl_textio.vpi";
+:vpi_module "/private/tmp/current-ivl/v2005_math.vpi";
+:vpi_module "/private/tmp/current-ivl/v2009.vpi";
+S_0x7b3ac20000 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+C0x103bb3ad0  .class "C" "$unit.C" [2]
+   0: "q", "q8:rQv!Q0" [0:1] [0:1]
+   1: "posts", "q0:sb32"
+ .constraint "c" "(and (and (and (eq s:0:#0:Q0:v4 c:2:32:s) (eq s:0:#1:Q0:v4 c:2:32:s)) (eq s:0:#2:Q0:v4 c:2:32:s)) (eq s:0:#3:Q0:v4 c:2:32:s)) (eq (delem 0:#3:4 c:0:32:s) c:5:4)"
+ ;
+C0x103bb4bd0  .class "C_index_guard" "$unit.C_index_guard" [1]
+   0: "q", "q8:rQv!Q0" [0:0] [0:0]
+ .constraint "c" "(eq s:0:#0:Q0:v4 c:1:32:s) (eq (delem 0:#0:4 c:0:32:s) c:2:4)"
+ ;
+S_0x7b3ac200c0 .scope class, "C" "C" 3 1, 3 1 0, S_0x7b3ac20000;
+ .timescale 0 0;
+S_0x7b3ac20120 .scope autofunction.vec2.u32, "draw_selected" "draw_selected" 3 9, 3 9 0, S_0x7b3ac200c0;
+ .timescale 0 0;
+v0x7b3ac80000_0 .var/cobj "@", TC0x103bb3ad0;
+; Variable draw_selected is bool return value of scope S_0x7b3ac20120
+TD_$unit.C.draw_selected ;
+    %load/obj v0x7b3ac80000_0;
+    %randomize/pre "0";
+    %dup/obj/ref; randomize/with solve receiver
+    %rand/active "0";
+    %randomize/with "(eq (delem 0:#2:4 c:1:32:s) c:7:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %pad/u 32;
+    %ret/vec4 0, 0, 32;  Assign to draw_selected (store_vec4_to_lval)
+    %disable/flow S_0x7b3ac20120;
+    %end;
+S_0x7b3ac20180 .scope autofunction.void, "post_randomize" "post_randomize" 3 8, 3 8 0, S_0x7b3ac200c0;
+ .timescale 0 0;
+v0x7b3ac80040_0 .var/cobj "@", TC0x103bb3ad0;
+TD_$unit.C.post_randomize ;
+    %load/obj v0x7b3ac80040_0;
+    %test_nul/obj;
+    %jmp/1 T_1.2, 4;
+    %prop/v 1;
+    %pad/s 32; property l-value width
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %store/prop/v 1, 32; Store in logic property posts
+    %pop/obj 1, 0;
+    %jmp T_1.3;
+T_1.2;
+    %pop/obj 1, 0;
+T_1.3;
+    %end;
+S_0x7b3ac201e0 .scope class, "C_index_guard" "C_index_guard" 3 13, 3 13 0, S_0x7b3ac20000;
+ .timescale 0 0;
+S_0x7b3ac20060 .scope module, "test" "test" 3 17;
+ .timescale 0 0;
+v0x7b3ac80140_0 .var/cobj "c", TC0x103bb3ad0;
+v0x7b3ac80160_0 .var/cobj "index_guard", TC0x103bb4bd0;
+v0x7b3ac80180 .array "prior", 7 0, 3 0;
+v0x7b3ac801a0_0 .var "unknown_index", 31 0;
+S_0x7b3ac20240 .scope begin, "$unm_blk_1" "$unm_blk_1" 3 30, 3 30 0, S_0x7b3ac20060;
+ .timescale 0 0;
+v0x7b3ac80060_0 .var/2s "posts", 31 0;
+S_0x7b3ac202a0 .scope autotask, "snapshot" "snapshot" 3 22, 3 22 0, S_0x7b3ac20060;
+ .timescale 0 0;
+TD_test.snapshot ;
+    %alloc S_0x7b3ac20300;
+    %fork t_1, S_0x7b3ac20300;
+    %jmp t_0;
+    .scope S_0x7b3ac20300;
+t_1 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7b3ac80080_0, 0, 32;
+T_2.4 ; Top of for-loop
+    %load/vec4 v0x7b3ac80080_0;
+    %cmpi/s 1, 0, 32;
+    %flag_or 5, 4;
+	  %jmp/0xz T_2.5, 5;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7b3ac800a0_0, 0, 32;
+T_2.7 ; Top of for-loop
+    %load/vec4 v0x7b3ac800a0_0;
+    %cmpi/s 1, 0, 32;
+    %flag_or 5, 4;
+	  %jmp/0xz T_2.8, 5;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7b3ac800c0_0, 0, 32;
+T_2.10 ; Top of for-loop
+    %load/vec4 v0x7b3ac800c0_0;
+    %cmpi/s 1, 0, 32;
+    %flag_or 5, 4;
+	  %jmp/0xz T_2.11, 5;
+    %load/vec4 v0x7b3ac80080_0;
+    %load/vec4 v0x7b3ac800a0_0;
+    %prop/index/check "2|s:0:2:2;s:0:2:1";
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj;
+    %jmp/1 T_2.13, 4;
+    %jmp/1xz T_2.13, 8; invalid fixed property slot
+    %jmp/0xz T_2.13, 9; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_2.14;
+T_2.13;
+    %pop/obj 1, 0;
+    %null;
+T_2.14;
+    %ix/getv/s 3, v0x7b3ac800c0_0;
+    %load/qo/v 4;
+    %load/vec4 v0x7b3ac80080_0;
+    %pad/s 35;
+    %pad/s 37;
+    %muli 4, 0, 37;
+    %pad/s 38;
+    %load/vec4 v0x7b3ac800a0_0;
+    %pad/s 34;
+    %pad/s 35;
+    %muli 2, 0, 35;
+    %pad/s 38;
+    %add;
+    %pad/s 39;
+    %load/vec4 v0x7b3ac800c0_0;
+    %pad/s 39;
+    %add;
+    %ix/vec4/s 4;
+    %store/vec4a v0x7b3ac80180, 4, 0;
+T_2.12 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7b3ac800c0_0;
+    %cast2; compound l-value read
+    %pad/s 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/s 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7b3ac800c0_0, 0, 32;
+    %jmp T_2.10;
+T_2.11 ; for-loop exit label
+T_2.9 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7b3ac800a0_0;
+    %cast2; compound l-value read
+    %pad/s 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/s 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7b3ac800a0_0, 0, 32;
+    %jmp T_2.7;
+T_2.8 ; for-loop exit label
+T_2.6 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7b3ac80080_0;
+    %cast2; compound l-value read
+    %pad/s 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/s 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7b3ac80080_0, 0, 32;
+    %jmp T_2.4;
+T_2.5 ; for-loop exit label
+    %end;
+    .scope S_0x7b3ac202a0;
+t_0 %join;
+    %free S_0x7b3ac20300;
+    %end;
+S_0x7b3ac20300 .scope autobegin, "$ivl_foreach0" "$ivl_foreach0" 3 23, 3 23 0, S_0x7b3ac202a0;
+ .timescale 0 0;
+v0x7b3ac80080_0 .var/2s "i", 31 0;
+v0x7b3ac800a0_0 .var/2s "j", 31 0;
+v0x7b3ac800c0_0 .var/2s "k", 31 0;
+S_0x7b3ac20360 .scope autotask, "unchanged" "unchanged" 3 25, 3 25 0, S_0x7b3ac20060;
+ .timescale 0 0;
+TD_test.unchanged ;
+    %alloc S_0x7b3ac203c0;
+    %fork t_3, S_0x7b3ac203c0;
+    %jmp t_2;
+    .scope S_0x7b3ac203c0;
+t_3 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7b3ac800e0_0, 0, 32;
+T_3.15 ; Top of for-loop
+    %load/vec4 v0x7b3ac800e0_0;
+    %cmpi/s 1, 0, 32;
+    %flag_or 5, 4;
+	  %jmp/0xz T_3.16, 5;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7b3ac80100_0, 0, 32;
+T_3.18 ; Top of for-loop
+    %load/vec4 v0x7b3ac80100_0;
+    %cmpi/s 1, 0, 32;
+    %flag_or 5, 4;
+	  %jmp/0xz T_3.19, 5;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7b3ac80120_0, 0, 32;
+T_3.21 ; Top of for-loop
+    %load/vec4 v0x7b3ac80120_0;
+    %cmpi/s 1, 0, 32;
+    %flag_or 5, 4;
+	  %jmp/0xz T_3.22, 5;
+    %load/vec4 v0x7b3ac800e0_0;
+    %load/vec4 v0x7b3ac80100_0;
+    %prop/index/check "2|s:0:2:2;s:0:2:1";
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj;
+    %jmp/1 T_3.26, 4;
+    %jmp/1xz T_3.26, 8; invalid fixed property slot
+    %jmp/0xz T_3.26, 9; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_3.27;
+T_3.26;
+    %pop/obj 1, 0;
+    %null;
+T_3.27;
+    %ix/getv/s 3, v0x7b3ac80120_0;
+    %load/qo/v 4;
+    %load/vec4 v0x7b3ac800e0_0;
+    %pad/s 35;
+    %pad/s 37;
+    %muli 4, 0, 37;
+    %pad/s 38;
+    %load/vec4 v0x7b3ac80100_0;
+    %pad/s 34;
+    %pad/s 35;
+    %muli 2, 0, 35;
+    %pad/s 38;
+    %add;
+    %pad/s 39;
+    %load/vec4 v0x7b3ac80120_0;
+    %pad/s 39;
+    %add;
+    %ix/vec4/s 4;
+    %load/vec4a v0x7b3ac80180, 4;
+    %cmp/ne;
+    %jmp/0xz  T_3.24, 6;
+    %vpi_call/w 3 28 "$fatal", 32'sb00000000000000000000000000000001, "rollback content changed at %0d %0d %0d", v0x7b3ac800e0_0, v0x7b3ac80100_0, v0x7b3ac80120_0 {0 0 0 0};
+T_3.24 ;
+T_3.23 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7b3ac80120_0;
+    %cast2; compound l-value read
+    %pad/s 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/s 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7b3ac80120_0, 0, 32;
+    %jmp T_3.21;
+T_3.22 ; for-loop exit label
+T_3.20 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7b3ac80100_0;
+    %cast2; compound l-value read
+    %pad/s 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/s 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7b3ac80100_0, 0, 32;
+    %jmp T_3.18;
+T_3.19 ; for-loop exit label
+T_3.17 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7b3ac800e0_0;
+    %cast2; compound l-value read
+    %pad/s 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/s 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7b3ac800e0_0, 0, 32;
+    %jmp T_3.15;
+T_3.16 ; for-loop exit label
+    %end;
+    .scope S_0x7b3ac20360;
+t_2 %join;
+    %free S_0x7b3ac203c0;
+    %end;
+S_0x7b3ac203c0 .scope autobegin, "$ivl_foreach1" "$ivl_foreach1" 3 26, 3 26 0, S_0x7b3ac20360;
+ .timescale 0 0;
+v0x7b3ac800e0_0 .var/2s "i", 31 0;
+v0x7b3ac80100_0 .var/2s "j", 31 0;
+v0x7b3ac80120_0 .var/2s "k", 31 0;
+    .scope S_0x7b3ac20060;
+T_4 ;
+    %fork t_5, S_0x7b3ac20240;
+    %jmp t_4;
+    .scope S_0x7b3ac20240;
+t_5 ;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x103bb3ad0;
+    %store/obj v0x7b3ac80140_0;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %pad/u 1;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.0, 8;
+    %vpi_call/w 3 33 "$fatal", 32'sb00000000000000000000000000000001, "setup failed" {0 0 0 0};
+T_4.0 ;
+    %alloc S_0x7b3ac202a0;
+    %fork TD_test.snapshot, S_0x7b3ac202a0;
+    %join;
+    %free S_0x7b3ac202a0;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.2, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.3;
+T_4.2;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.3;
+    %store/vec4 v0x7b3ac80060_0, 0, 32;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize/with solve receiver
+    %randomize/with "(eq (delem 0:#3:4 c:2:32:s) c:3:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.4, 8;
+    %vpi_call/w 3 36 "$fatal", 32'sb00000000000000000000000000000001, "OOB selected element accepted" {0 0 0 0};
+T_4.4 ;
+    %alloc S_0x7b3ac20360;
+    %fork TD_test.unchanged, S_0x7b3ac20360;
+    %join;
+    %free S_0x7b3ac20360;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.8, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.9;
+T_4.8;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.9;
+    %load/vec4 v0x7b3ac80060_0;
+    %cmp/ne;
+    %jmp/0xz  T_4.6, 4;
+    %vpi_call/w 3 38 "$fatal", 32'sb00000000000000000000000000000001, "OOB post_randomize" {0 0 0 0};
+T_4.6 ;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize/with solve receiver
+    %randomize/with "(eq (delem 0:#3:4 c:0:32:s) c:6:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.10, 8;
+    %vpi_call/w 3 40 "$fatal", 32'sb00000000000000000000000000000001, "contradiction accepted" {0 0 0 0};
+T_4.10 ;
+    %alloc S_0x7b3ac20360;
+    %fork TD_test.unchanged, S_0x7b3ac20360;
+    %join;
+    %free S_0x7b3ac20360;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.14, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.15;
+T_4.14;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.15;
+    %load/vec4 v0x7b3ac80060_0;
+    %cmp/ne;
+    %jmp/0xz  T_4.12, 4;
+    %vpi_call/w 3 42 "$fatal", 32'sb00000000000000000000000000000001, "contradiction post_randomize" {0 0 0 0};
+T_4.12 ;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj;
+    %jmp/1 T_4.18, 4;
+    %new/queue "v4";
+    %dup/obj/ref;
+    %pushi/vec4 5, 0, 4;
+    %store/qo/b/v 4;
+    %dup/obj/ref;
+    %pushi/vec4 6, 0, 4;
+    %store/qo/b/v 4;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %jmp/1xz T_4.20, 8; fixed property slot is X/Z
+    %jmp/0xz T_4.20, 9; fixed property slot is OOB
+    %store/prop/obj 0, 4; fixed-array container slot
+    %pop/obj 1, 0;
+    %jmp T_4.21;
+T_4.20;
+    %vpi_call/w 3 44 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 2, 0; invalid fixed container slot store
+T_4.21;
+    %jmp T_4.19;
+T_4.18;
+    %pop/obj 1, 0;
+T_4.19;
+    %pushi/vec4 0, 0, 32;
+    %load/obj v0x7b3ac80140_0;
+    %pushi/vec4 0, 0, 2;
+    %ix/vec4 4;
+    %pushi/vec4 1, 0, 64;
+    %ix/vec4 5;
+    %rand_mode/p/i 0, 4, 5;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize/with solve receiver
+    %randomize/with "(eq (delem 0:#0:4 c:0:32:s) c:5:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.22, 8;
+    %vpi_call/w 3 47 "$fatal", 32'sb00000000000000000000000000000001, "disabled leaf matching state failed" {0 0 0 0};
+T_4.22 ;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj;
+    %jmp/1 T_4.27, 4;
+    %jmp/1xz T_4.27, 8; invalid fixed property slot
+    %jmp/0xz T_4.27, 9; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_4.28;
+T_4.27;
+    %pop/obj 1, 0;
+    %null;
+T_4.28;
+    %ix/load 3, 0, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/v 4;
+    %cmpi/ne 5, 0, 4;
+    %jmp/1 T_4.26, 6;
+    %flag_mov 8, 6;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 9, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 10, 5; fixed property slot in range
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj;
+    %jmp/1 T_4.29, 4;
+    %jmp/1xz T_4.29, 9; invalid fixed property slot
+    %jmp/0xz T_4.29, 10; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_4.30;
+T_4.29;
+    %pop/obj 1, 0;
+    %null;
+T_4.30;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/v 4;
+    %cmpi/ne 6, 0, 4;
+    %flag_or 6, 8;
+T_4.26;
+    %jmp/0xz  T_4.24, 6;
+    %vpi_call/w 3 49 "$fatal", 32'sb00000000000000000000000000000001, "disabled leaf changed" {0 0 0 0};
+T_4.24 ;
+    %load/obj v0x7b3ac80140_0;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %test_nul/obj;
+    %jmp/1 T_4.31, 4;
+    %jmp/1xz T_4.35, 8; fixed property slot is X/Z
+    %jmp/0xz T_4.35, 9; fixed property slot is OOB
+    %prop/obj 0, 4; Load property q
+    %pop/obj 1, 1;
+    %jmp T_4.32;
+T_4.35;
+    %vpi_call/w 3 50 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 1, 0; invalid fixed property slot
+    %null;
+    %jmp T_4.32;
+T_4.31;
+    %pop/obj 1, 0;
+    %null;
+T_4.32;
+    %test_nul/obj;
+    %jmp/1 T_4.36, 4;
+    %ix/load 3, 0, 0;
+    %flag_set/imm 4, 0;
+    %ix/mov 4, 3;
+    %flag_mov 8, 4;
+    %pushi/vec4 4, 0, 4;
+    %pad/u 4;
+    %flag_mov 4, 8;
+    %ix/mov 3, 4;
+    %store/qo/i/v 4;
+    %jmp T_4.37;
+T_4.36;
+    %ix/load 4, 0, 0;
+    %flag_set/imm 4, 0;
+    %pushi/vec4 4, 0, 4;
+    %pop/vec4 1; discarded nested RHS
+    %pop/obj 1, 0;
+T_4.37;
+    %alloc S_0x7b3ac202a0;
+    %fork TD_test.snapshot, S_0x7b3ac202a0;
+    %join;
+    %free S_0x7b3ac202a0;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.38, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.39;
+T_4.38;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.39;
+    %store/vec4 v0x7b3ac80060_0, 0, 32;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize/with solve receiver
+    %randomize/with "(eq (delem 0:#0:4 c:0:32:s) c:5:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.40, 8;
+    %vpi_call/w 3 53 "$fatal", 32'sb00000000000000000000000000000001, "disabled leaf mismatch accepted" {0 0 0 0};
+T_4.40 ;
+    %alloc S_0x7b3ac20360;
+    %fork TD_test.unchanged, S_0x7b3ac20360;
+    %join;
+    %free S_0x7b3ac20360;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.44, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.45;
+T_4.44;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.45;
+    %load/vec4 v0x7b3ac80060_0;
+    %cmp/ne;
+    %jmp/0xz  T_4.42, 4;
+    %vpi_call/w 3 55 "$fatal", 32'sb00000000000000000000000000000001, "disabled leaf post_randomize" {0 0 0 0};
+T_4.42 ;
+    %load/obj v0x7b3ac80140_0;
+    %pushi/vec4 2, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %test_nul/obj;
+    %jmp/1 T_4.46, 4;
+    %jmp/1xz T_4.50, 8; fixed property slot is X/Z
+    %jmp/0xz T_4.50, 9; fixed property slot is OOB
+    %prop/obj 0, 4; Load property q
+    %pop/obj 1, 1;
+    %jmp T_4.47;
+T_4.50;
+    %vpi_call/w 3 57 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 1, 0; invalid fixed property slot
+    %null;
+    %jmp T_4.47;
+T_4.46;
+    %pop/obj 1, 0;
+    %null;
+T_4.47;
+    %test_nul/obj;
+    %jmp/1 T_4.51, 4;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %ix/mov 4, 3;
+    %flag_mov 8, 4;
+    %pushi/vec4 9, 0, 4;
+    %pad/u 4;
+    %flag_mov 4, 8;
+    %ix/mov 3, 4;
+    %store/qo/i/v 4;
+    %jmp T_4.52;
+T_4.51;
+    %ix/load 4, 1, 0;
+    %flag_set/imm 4, 0;
+    %pushi/vec4 9, 0, 4;
+    %pop/vec4 1; discarded nested RHS
+    %pop/obj 1, 0;
+T_4.52;
+    %pushi/vec4 0, 0, 32;
+    %load/obj v0x7b3ac80140_0;
+    %pushi/vec4 2, 0, 3;
+    %ix/vec4 4;
+    %flag_mov 8, 4; preserve queue leaf X/Z
+    %pushi/vec4 1, 0, 32;
+    %ix/vec4 5;
+    %flag_or 4, 8; combine queue index X/Z
+    %rand_mode/p/q 0, 4, 5;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize/with solve receiver
+    %randomize/with "(eq (delem 0:#2:4 c:1:32:s) c:9:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.53, 8;
+    %vpi_call/w 3 60 "$fatal", 32'sb00000000000000000000000000000001, "disabled element matching state failed" {0 0 0 0};
+T_4.53 ;
+    %pushi/vec4 2, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj;
+    %jmp/1 T_4.57, 4;
+    %jmp/1xz T_4.57, 8; invalid fixed property slot
+    %jmp/0xz T_4.57, 9; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_4.58;
+T_4.57;
+    %pop/obj 1, 0;
+    %null;
+T_4.58;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/v 4;
+    %cmpi/ne 9, 0, 4;
+    %jmp/0xz  T_4.55, 6;
+    %vpi_call/w 3 62 "$fatal", 32'sb00000000000000000000000000000001, "disabled element changed" {0 0 0 0};
+T_4.55 ;
+    %load/obj v0x7b3ac80140_0;
+    %pushi/vec4 2, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %test_nul/obj;
+    %jmp/1 T_4.59, 4;
+    %jmp/1xz T_4.63, 8; fixed property slot is X/Z
+    %jmp/0xz T_4.63, 9; fixed property slot is OOB
+    %prop/obj 0, 4; Load property q
+    %pop/obj 1, 1;
+    %jmp T_4.60;
+T_4.63;
+    %vpi_call/w 3 63 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 1, 0; invalid fixed property slot
+    %null;
+    %jmp T_4.60;
+T_4.59;
+    %pop/obj 1, 0;
+    %null;
+T_4.60;
+    %test_nul/obj;
+    %jmp/1 T_4.64, 4;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %ix/mov 4, 3;
+    %flag_mov 8, 4;
+    %pushi/vec4 15, 15, 4;
+    %pad/u 4;
+    %flag_mov 4, 8;
+    %ix/mov 3, 4;
+    %store/qo/i/v 4;
+    %jmp T_4.65;
+T_4.64;
+    %ix/load 4, 1, 0;
+    %flag_set/imm 4, 0;
+    %pushi/vec4 15, 15, 4;
+    %pop/vec4 1; discarded nested RHS
+    %pop/obj 1, 0;
+T_4.65;
+    %alloc S_0x7b3ac202a0;
+    %fork TD_test.snapshot, S_0x7b3ac202a0;
+    %join;
+    %free S_0x7b3ac202a0;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.66, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.67;
+T_4.66;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.67;
+    %store/vec4 v0x7b3ac80060_0, 0, 32;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize/with solve receiver
+    %randomize/with "(eq (delem 0:#2:4 c:1:32:s) c:0:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.68, 8;
+    %vpi_call/w 3 66 "$fatal", 32'sb00000000000000000000000000000001, "disabled X element accepted" {0 0 0 0};
+T_4.68 ;
+    %alloc S_0x7b3ac20360;
+    %fork TD_test.unchanged, S_0x7b3ac20360;
+    %join;
+    %free S_0x7b3ac20360;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.72, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.73;
+T_4.72;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.73;
+    %load/vec4 v0x7b3ac80060_0;
+    %cmp/ne;
+    %jmp/0xz  T_4.70, 4;
+    %vpi_call/w 3 68 "$fatal", 32'sb00000000000000000000000000000001, "disabled X post_randomize" {0 0 0 0};
+T_4.70 ;
+    %load/obj v0x7b3ac80140_0;
+    %pushi/vec4 2, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %test_nul/obj;
+    %jmp/1 T_4.74, 4;
+    %jmp/1xz T_4.78, 8; fixed property slot is X/Z
+    %jmp/0xz T_4.78, 9; fixed property slot is OOB
+    %prop/obj 0, 4; Load property q
+    %pop/obj 1, 1;
+    %jmp T_4.75;
+T_4.78;
+    %vpi_call/w 3 69 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 1, 0; invalid fixed property slot
+    %null;
+    %jmp T_4.75;
+T_4.74;
+    %pop/obj 1, 0;
+    %null;
+T_4.75;
+    %test_nul/obj;
+    %jmp/1 T_4.79, 4;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %ix/mov 4, 3;
+    %flag_mov 8, 4;
+    %pushi/vec4 0, 15, 4;
+    %pad/u 4;
+    %flag_mov 4, 8;
+    %ix/mov 3, 4;
+    %store/qo/i/v 4;
+    %jmp T_4.80;
+T_4.79;
+    %ix/load 4, 1, 0;
+    %flag_set/imm 4, 0;
+    %pushi/vec4 0, 15, 4;
+    %pop/vec4 1; discarded nested RHS
+    %pop/obj 1, 0;
+T_4.80;
+    %alloc S_0x7b3ac202a0;
+    %fork TD_test.snapshot, S_0x7b3ac202a0;
+    %join;
+    %free S_0x7b3ac202a0;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.81, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.82;
+T_4.81;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.82;
+    %store/vec4 v0x7b3ac80060_0, 0, 32;
+    %load/obj v0x7b3ac80140_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize/with solve receiver
+    %randomize/with "(eq (delem 0:#2:4 c:1:32:s) c:0:4)", 0;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize/with receiver
+    %pad/u 1;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.83, 8;
+    %vpi_call/w 3 72 "$fatal", 32'sb00000000000000000000000000000001, "disabled Z element accepted" {0 0 0 0};
+T_4.83 ;
+    %alloc S_0x7b3ac20360;
+    %fork TD_test.unchanged, S_0x7b3ac20360;
+    %join;
+    %free S_0x7b3ac20360;
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_4.87, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_4.88;
+T_4.87;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_4.88;
+    %load/vec4 v0x7b3ac80060_0;
+    %cmp/ne;
+    %jmp/0xz  T_4.85, 4;
+    %vpi_call/w 3 74 "$fatal", 32'sb00000000000000000000000000000001, "disabled Z post_randomize" {0 0 0 0};
+T_4.85 ;
+    %alloc S_0x7b3ac20120;
+    %load/obj v0x7b3ac80140_0;
+    %store/obj v0x7b3ac80000_0;
+    %callf/vec4 TD_$unit.C.draw_selected, S_0x7b3ac20120;
+    %free S_0x7b3ac20120;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/1 T_4.91, 8;
+    %pushi/vec4 2, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 9, 4; fixed property slot X/Z
+    %cmpi/u 4, 0, 64; fixed property slot in range
+    %flag_mov 10, 5; fixed property slot in range
+    %load/obj v0x7b3ac80140_0;
+    %test_nul/obj;
+    %jmp/1 T_4.92, 4;
+    %jmp/1xz T_4.92, 9; invalid fixed property slot
+    %jmp/0xz T_4.92, 10; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_4.93;
+T_4.92;
+    %pop/obj 1, 0;
+    %null;
+T_4.93;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/v 4;
+    %cmpi/ne 7, 0, 4;
+    %flag_or 8, 6;
+T_4.91;
+    %jmp/0xz  T_4.89, 8;
+    %vpi_call/w 3 76 "$fatal", 32'sb00000000000000000000000000000001, "explicit selection failed to override element rand_mode" {0 0 0 0};
+T_4.89 ;
+    %pushi/vec4 4294967295, 4294967295, 32;
+    %store/vec4 v0x7b3ac801a0_0, 0, 32;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x103bb4bd0;
+    %store/obj v0x7b3ac80160_0;
+    %load/obj v0x7b3ac80160_0;
+    %test_nul/obj;
+    %jmp/1 T_4.96, 4;
+    %new/queue "b4";
+    %dup/obj/ref;
+    %pushi/vec4 1, 0, 4;
+    %store/qo/b/v 4;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 1, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %jmp/1xz T_4.98, 8; fixed property slot is X/Z
+    %jmp/0xz T_4.98, 9; fixed property slot is OOB
+    %store/prop/obj 0, 4; fixed-array container slot
+    %pop/obj 1, 0;
+    %jmp T_4.99;
+T_4.98;
+    %vpi_call/w 3 79 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 2, 0; invalid fixed container slot store
+T_4.99;
+    %jmp T_4.97;
+T_4.96;
+    %pop/obj 1, 0;
+T_4.97;
+    %pushi/vec4 0, 0, 32;
+    %load/obj v0x7b3ac80160_0;
+    %load/vec4 v0x7b3ac801a0_0;
+    %pad/u 33;
+    %ix/vec4 4;
+    %flag_mov 8, 4; preserve queue leaf X/Z
+    %pushi/vec4 0, 0, 32;
+    %ix/vec4 5;
+    %flag_or 4, 8; combine queue index X/Z
+    %rand_mode/p/q 0, 4, 5;
+    %load/obj v0x7b3ac80160_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %pad/u 1;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/1 T_4.102, 8;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 9, 4; fixed property slot X/Z
+    %cmpi/u 1, 0, 64; fixed property slot in range
+    %flag_mov 10, 5; fixed property slot in range
+    %load/obj v0x7b3ac80160_0;
+    %test_nul/obj;
+    %jmp/1 T_4.103, 4;
+    %jmp/1xz T_4.103, 9; invalid fixed property slot
+    %jmp/0xz T_4.103, 10; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_4.104;
+T_4.103;
+    %pop/obj 1, 0;
+    %null;
+T_4.104;
+    %ix/load 3, 0, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/v 4;
+    %cast2;
+    %cmpi/ne 2, 0, 4;
+    %flag_or 8, 6;
+T_4.102;
+    %jmp/0xz  T_4.100, 8;
+    %vpi_call/w 3 82 "$fatal", 32'sb00000000000000000000000000000001, "unknown fixed leaf disabled queue element zero" {0 0 0 0};
+T_4.100 ;
+    %new/cobj C0x103bb4bd0;
+    %store/obj v0x7b3ac80160_0;
+    %load/obj v0x7b3ac80160_0;
+    %test_nul/obj;
+    %jmp/1 T_4.107, 4;
+    %new/queue "b4";
+    %dup/obj/ref;
+    %pushi/vec4 1, 0, 4;
+    %store/qo/b/v 4;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 1, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %jmp/1xz T_4.109, 8; fixed property slot is X/Z
+    %jmp/0xz T_4.109, 9; fixed property slot is OOB
+    %store/prop/obj 0, 4; fixed-array container slot
+    %pop/obj 1, 0;
+    %jmp T_4.110;
+T_4.109;
+    %vpi_call/w 3 84 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 2, 0; invalid fixed container slot store
+T_4.110;
+    %jmp T_4.108;
+T_4.107;
+    %pop/obj 1, 0;
+T_4.108;
+    %pushi/vec4 0, 0, 32;
+    %load/obj v0x7b3ac80160_0;
+    %pushi/vec4 0, 0, 2;
+    %ix/vec4 4;
+    %flag_mov 8, 4; preserve queue leaf X/Z
+    %load/vec4 v0x7b3ac801a0_0;
+    %ix/vec4 5;
+    %flag_or 4, 8; combine queue index X/Z
+    %rand_mode/p/q 0, 4, 5;
+    %load/obj v0x7b3ac80160_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %pad/u 1;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/1 T_4.113, 8;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 9, 4; fixed property slot X/Z
+    %cmpi/u 1, 0, 64; fixed property slot in range
+    %flag_mov 10, 5; fixed property slot in range
+    %load/obj v0x7b3ac80160_0;
+    %test_nul/obj;
+    %jmp/1 T_4.114, 4;
+    %jmp/1xz T_4.114, 9; invalid fixed property slot
+    %jmp/0xz T_4.114, 10; fixed property slot out of range
+    %prop/obj 0, 4; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_4.115;
+T_4.114;
+    %pop/obj 1, 0;
+    %null;
+T_4.115;
+    %ix/load 3, 0, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/v 4;
+    %cast2;
+    %cmpi/ne 2, 0, 4;
+    %flag_or 8, 6;
+T_4.113;
+    %jmp/0xz  T_4.111, 8;
+    %vpi_call/w 3 87 "$fatal", 32'sb00000000000000000000000000000001, "unknown queue index disabled element zero" {0 0 0 0};
+T_4.111 ;
+    %vpi_call/w 3 88 "$display", "PASSED" {0 0 0 0};
+    %end;
+    .scope S_0x7b3ac20060;
+t_4 %join;
+    %end;
+    .thread T_4;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "ivtest/ivltests/sv_constraint_fixed_queue_content_boundaries.v";

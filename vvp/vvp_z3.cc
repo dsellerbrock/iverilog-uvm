@@ -1265,9 +1265,15 @@ struct Z3Builder {
 	    unsigned ewid;
 	    bool esigned;
 	    std::string body;
+	      // (dynrows ...): a template over the ROWS of a rand dynamic array
+	      // of dynamic arrays (row R is leaf R+1).
+	    bool rows = false;
       };
       std::vector<DynForeach> dyn_foreach;
       const std::map<std::pair<unsigned,unsigned>,uint64_t>*dyn_sizes = nullptr;
+	// Row-size pass: dyn_sizes holds only the outer sizes; (dynrows) bodies
+	// expand over those rows, (dynforeach) element templates stay deferred.
+      bool row_pass = false;
 
 	// solve...before ordering pairs (IEEE 1800-2017 18.5.10). A
 	// selected static-array element and a dynamic-container size are
@@ -1277,7 +1283,8 @@ struct Z3Builder {
 	    enum Kind {
 		  PROP = VarRef::PROP, MEMBER = VarRef::MEMBER,
 		  ELEM = VarRef::ELEM, SIZE = VarRef::SIZE,
-		  MEMBER_ELEM = VarRef::MEMBER_ELEM
+		  MEMBER_ELEM = VarRef::MEMBER_ELEM,
+		  NESTED_ELEM = VarRef::NESTED_ELEM
 	    } kind;
 	    unsigned idx;
 	    unsigned elem;
@@ -1426,6 +1433,40 @@ static uint64_t cobj_qelem_member_bits(vvp_cobject* cobj, unsigned qprop,
 				       unsigned elem, unsigned member);
 static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx,
 				 size_t leaf = 0);
+
+/* Leaf addressing of a container property. A fixed array of queues has one
+ * queue per fixed word (the leaf). A rand dynamic array of dynamic arrays has
+ * the outer array at leaf 0 and row R at leaf R+1, so the fixed-leaf element
+ * and size machinery serves its rows unchanged. */
+static void get_leaf_object_(vvp_cobject*cobj, unsigned idx, size_t leaf,
+			     vvp_object_t&out)
+{
+      if (cobj->get_defn()->property_is_dyn2(idx)) {
+	    vvp_object_t outer;
+	    cobj->get_object(idx, outer, 0);
+	    if (leaf == 0) { out = outer; return; }
+	    out = vvp_object_t();
+	    vvp_darray*rows = outer.peek<vvp_darray>();
+	    if (rows && leaf - 1 < rows->get_size())
+		  rows->get_word((unsigned)(leaf - 1), out);
+	    return;
+      }
+      cobj->get_object(idx, out, leaf);
+}
+
+static void set_leaf_object_(vvp_cobject*cobj, unsigned idx, size_t leaf,
+			     const vvp_object_t&obj)
+{
+      if (leaf > 0 && cobj->get_defn()->property_is_dyn2(idx)) {
+	    vvp_object_t outer;
+	    cobj->get_object(idx, outer, 0);
+	    vvp_darray*rows = outer.peek<vvp_darray>();
+	    if (rows && leaf - 1 < rows->get_size())
+		  rows->set_word((unsigned)(leaf - 1), obj);
+	    return;
+      }
+      cobj->set_object(idx, obj, leaf);
+}
 static bool vec4_to_uint64_(const vvp_vector4_t&value, uint64_t&bits);
 
 static bool vec4_is_two_state_(const vvp_vector4_t&value)
@@ -1628,6 +1669,8 @@ static Z3_ast parse_member(IRParser&, Z3Builder& b, const string& tok)
       return var;
 }
 
+static Z3_ast mk_free_bv(Z3Builder& b, unsigned wid);
+
 // Parse "s:N:T" or "s:N:#L:T" -- returns one container's 32-bit size.
 static Z3_ast parse_size(Z3Builder& b, const string& tok,
 			 unsigned*idx_out = nullptr)
@@ -1657,6 +1700,40 @@ static Z3_ast parse_size(Z3Builder& b, const string& tok,
 	    s = end + 1;
       }
       string dtype = *s ? string(s) : string("v32");
+      bool row_leaf = selected && dtype.size() > 1 && dtype[0] == 'R';
+      if (row_leaf) {
+	      // s:P:#R:<inner element type>: the size of one row of a rand
+	      // dynamic array of dynamic arrays. The row must exist (after the
+	      // outer size pass); before that the size is not yet meaningful.
+	    unsigned prop = b.property_index(idx);
+	    const class_type*type = b.type(prop);
+	    unsigned local = b.local_index(prop);
+	    if (!b.cobj || !type || local >= type->property_count()
+		|| !type->property_is_dyn2(local) || leaf == 0)
+		  return invalid();
+	    if (!b.dyn_sizes && !b.row_pass) {
+		    // Outer-size pass: the rows do not exist yet.
+		  if (idx_out) *idx_out = prop;
+		  return mk_free_bv(b, 32);
+	    }
+	    uint64_t rows = cobj_darray_size(b.object(prop), local, 0);
+	    if (b.dyn_sizes) {
+		  auto found = b.dyn_sizes->find(make_pair(prop, 0u));
+		  if (found != b.dyn_sizes->end()) rows = found->second;
+	    }
+	    if (leaf - 1 >= rows) return invalid();
+	    dtype = dtype.substr(1);
+	    idx = prop;
+	    if (idx_out) *idx_out = idx;
+	    if (b.collect_refs) {
+		  Z3Builder::VarRef ref = {Z3Builder::VarRef::SIZE, idx, leaf};
+		  b.collect_refs->insert(ref);
+	    }
+	    if (b.collect_refs_only)
+		  return Z3_mk_unsigned_int64(
+			b.ctx, 0, Z3_mk_bv_sort(b.ctx, 32));
+	    return b.get_size_var(idx, dtype, leaf, true);
+      }
       if (selected) {
 	    const char*max_text = dtype.c_str() + 1;
 	    char*max_end = nullptr;
@@ -2737,7 +2814,8 @@ static void parse_pws_header(const string& tok, unsigned& pidx,
       if (wid == 0) wid = 32;
 }
 
-/* A fixed-array queue leaf uses the same flat coordinate as s:P:#L:Q... . */
+/* Nested container elements use a flat leaf coordinate in s:P:#L:W
+ * and delem P:#L:W:I headers (fixed-array queues and nested dynamic arrays). */
 static bool parse_nested_pws_header_(const string&tok, unsigned&pidx,
 		unsigned&leaf, unsigned&width, bool&sign)
 {
@@ -2756,7 +2834,7 @@ static bool parse_nested_pws_header_(const string&tok, unsigned&pidx,
       ++s;
       if (!number(leaf) || *s != ':') return false;
       ++s;
-      if (!number(width) || width == 0 || width > 64) return false;
+      if (!number(width) || width == 0) return false;
       sign = *s == ':' && s[1] == 's' && s[2] == 0;
       return *s == 0 || sign;
 }
@@ -2768,6 +2846,17 @@ static bool selected_queue_leaf_(Z3Builder&b, unsigned&idx, unsigned leaf)
       idx = b.property_index(idx);
       const class_type*type = b.type(idx);
       unsigned local = b.local_index(idx);
+      if (type && local < type->property_count()
+          && type->property_is_dyn2(local)) {
+            // Rows of a dynamic array of dynamic arrays are leaves 1..N.
+            if (leaf == 0 || type->property_is_randc(local)) return false;
+            uint64_t rows = cobj_darray_size(b.object(idx), local, 0);
+            if (b.dyn_sizes) {
+                  auto found = b.dyn_sizes->find(make_pair(idx, 0u));
+                  if (found != b.dyn_sizes->end()) rows = found->second;
+            }
+            return leaf - 1 < rows;
+      }
       return type && local < type->property_count()
             && !type->property_dimensions(local).empty()
             && leaf < type->property_array_size(local)
@@ -3109,6 +3198,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                   b.state_errors.push_back("malformed selected queue foreach body");
                   return b.mk_true();
             }
+	    if (b.row_pass) return b.mk_true();
 	    if (!b.dyn_sizes) {
 		  bool seen = false;
 		  for (const auto& d : b.dyn_foreach)
@@ -3166,6 +3256,51 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  if (z3_dyndbg())
 			fprintf(stderr, "[z3dyn]   inst i=%llu text=<%s>\n",
 				(unsigned long long)i, inst_text.c_str());
+		  IRParser sub(inst_text);
+		  Z3_ast inst = bv_to_bool(b.ctx, build_z3_atom(sub, b));
+		  Z3_ast args[2] = { conj, inst };
+		  conj = Z3_mk_and(b.ctx, 2, args);
+	    }
+	    return conj;
+      }
+
+      /* (dynrows P:W[:s] body): an iterative constraint over the ROWS of a
+       * rand dynamic array of dynamic arrays (IEEE 1800-2017 18.5.8.1). The
+       * outer size is solved first (size pass). The row loop token R then
+       * expands over those rows; a row is leaf R+1, so the size of row R
+       * (s:P:#R:..) and its elements ((dynforeach P:#R:..), (delem P:#R:..))
+       * reuse the fixed-leaf machinery after "#R:" becomes "#<R+1>:". */
+      if (op == "dynrows") {
+	    string hdr = par.read_token();
+	    unsigned pidx = 0, ewid = 0; bool esig = false;
+	    parse_pws_header(hdr, pidx, ewid, esig);
+	    pidx = b.property_index(pidx);
+	    string body = capture_balanced_form(par);
+	    if (!b.dyn_sizes) {
+		  bool seen = false;
+		  for (const auto& d : b.dyn_foreach)
+			if (d.rows && d.pidx == pidx && d.body == body)
+			    { seen = true; break; }
+		  if (!seen) {
+			Z3Builder::DynForeach rec;
+			rec.pidx = pidx; rec.leaf = 0; rec.nested = false;
+			rec.ewid = ewid; rec.esigned = esig; rec.body = body;
+			rec.rows = true;
+			b.dyn_foreach.push_back(rec);
+		  }
+		  return b.mk_true();
+	    }
+	    uint64_t count = 0;
+	    {
+		  auto it = b.dyn_sizes->find(make_pair(pidx, 0u));
+		  if (it != b.dyn_sizes->end()) count = it->second;
+	    }
+	    Z3_ast conj = b.mk_true();
+	    for (uint64_t row = 0 ; row < count ; row += 1) {
+		  string inst_text = subst_loop_token(body, row, 32, true, 'R');
+		  for (size_t at = inst_text.find("#R:");
+		       at != string::npos; at = inst_text.find("#R:", at))
+			inst_text.replace(at, 2, "#" + to_string(row + 1));
 		  IRParser sub(inst_text);
 		  Z3_ast inst = bv_to_bool(b.ctx, build_z3_atom(sub, b));
 		  Z3_ast args[2] = { conj, inst };
@@ -3543,7 +3678,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             unsigned long parsed_width = strtoul(header.c_str(), &end, 10);
             bool is_signed = *end == ':' && end[1] == 's' && end[2] == 0;
             if (end == header.c_str() || errno == ERANGE
-                || parsed_width == 0 || parsed_width > 64
+                || parsed_width == 0 || parsed_width > UINT_MAX
                 || (*end && !is_signed))
                   return malformed("invalid parameter-array selection width");
             unsigned width = (unsigned)parsed_width;
@@ -3595,10 +3730,36 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                   b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
             Z3_ast valid = Z3_mk_false(b.ctx);
             for (unsigned long slot = 0; slot < span; ++slot) {
-                  string leaf = par.read_token();
+                  par.skip_ws();
+                  // A leaf wider than 64 bits is the (concat c:.. c:..) chain of
+                  // 64-bit chunks; build it as an ordinary constant expression.
+                  Z3_ast wide_word = nullptr;
+                  string leaf;
+                  if (*par.p == '(') {
+                        const char*leaf_start = par.p;
+                        wide_word = build_z3_atom(par, b);
+                        if (par.p == leaf_start || !wide_word
+                            || b.bv_width_(wide_word) != width)
+                              return malformed("malformed wide parameter-array selection leaf");
+                  } else {
+                        leaf = par.read_token();
+                  }
                   bool unknown = leaf == "x";
+                  if (leaf.compare(0, 5, "xbad:") == 0) {
+		const char*text = leaf.c_str() + 5;
+		char*unknown_end = nullptr;
+		unsigned long unknown_width = strtoul(text, &unknown_end, 10);
+		bool unknown_signed = unknown_end && *unknown_end == ':'
+		      && unknown_end[1] == 's' && unknown_end[2] == 0;
+		if (unknown_end == text || unknown_width != width
+		    || (*unknown_end && !unknown_signed))
+		      return malformed("invalid unknown parameter-array selection leaf");
+		unknown = true;
+                  }
                   uint64_t value = 0;
-                  if (!unknown) {
+                  if (wide_word) {
+                        // fall through with the built word below
+                  } else if (!unknown) {
                         if (leaf.compare(0, 2, "c:") != 0)
                               return malformed("malformed parameter-array selection leaf");
                         const char*text = leaf.c_str() + 2;
@@ -3630,8 +3791,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                               b.state_checks.push_back({match,
                                     "X/Z parameter-array element in constraint"});
                   } else {
-                        Z3_ast word = Z3_mk_unsigned_int64(
-                              b.ctx, value, Z3_mk_bv_sort(b.ctx, width));
+                        Z3_ast word = wide_word ? wide_word
+                              : Z3_mk_unsigned_int64(
+                                    b.ctx, value, Z3_mk_bv_sort(b.ctx, width));
                         selected = Z3_mk_ite(b.ctx, match, word, selected);
                   }
                   Z3_ast either[2] = {valid, match};
@@ -3882,11 +4044,6 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                         }
                         if (refs.empty() && b.graph) b.graph->valid = false;
                         for (const auto&ref : refs) {
-                              if (ref.kind == Z3Builder::VarRef::NESTED_ELEM) {
-                                    b.state_errors.push_back(
-                                          "selected queue element solve-before is not supported");
-                                    return b.mk_true();
-                              }
                               Z3Builder::OrderRef ordered;
                               ordered.kind = static_cast<Z3Builder::OrderRef::Kind>(ref.kind);
                               ordered.idx = ref.idx;
@@ -5154,18 +5311,35 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    };
 	    auto ground_at_width = [&](Z3_ast value, unsigned width,
 					 bool use_signed,
-					 uint64_t& bits) -> bool {
+					 uint64_t& bits,
+					 const string* source_ir) -> bool {
 		  if (!value || width == 0 || width > 64)
 			return false;
+		  unsigned source_width = b.sv_of(value);
 		  value = coerce_for_compare(value, width, use_signed);
 		  value = b.resolve_signed_constants(value);
 		  value = Z3_simplify(b.ctx, value);
-		  if (!z3_ground_uint64(b.ctx, value, bits))
-			return false;
+		  if (!z3_ground_uint64(b.ctx, value, bits)) {
+			if (!source_ir) return false;
+			IRParser value_parser(*source_ir);
+			uint64_t state_bits = 0;
+			bool overflow = false, negative = false, state_value = false;
+			if (!eval_runtime_integral_ir(value_parser, b, state_bits,
+				      overflow, &negative, &state_value)
+			    || overflow || !state_value || !value_parser.at_end())
+			      return false;
+			if (source_width == 0 || source_width > 64) return false;
+			uint64_t source_mask = width_mask(source_width);
+			state_bits &= source_mask;
+			if (width > source_width && use_signed
+			    && (state_bits & ((uint64_t)1 << (source_width - 1))))
+			      state_bits |= ~source_mask;
+			bits = state_bits;
+		  }
 		  bits &= width_mask(width);
 		  return true;
 	    };
-	    auto parse_integral_atom = [&](bool& ok) -> Z3_ast {
+	    auto parse_integral_atom = [&](bool& ok, string* source_ir) -> Z3_ast {
 		  par.skip_ws();
 		  const char* start = par.p;
 		  bool recognized = *start == '('
@@ -5178,6 +5352,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			|| strncmp(start, "s:", 2) == 0
 			|| strncmp(start, "e:", 2) == 0;
 		  Z3_ast value = build_z3_atom(par, b);
+		  if (source_ir) *source_ir = string(start, par.p - start);
 		  ok = recognized && par.p != start && value;
 		  if (!ok) return 0;
 		  value = bool_to_bv1(b.ctx, value);
@@ -5335,15 +5510,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			bool lo_open = par.peek() == '*';
 			if (lo_open) par.consume();
 			bool lo_valid = lo_open;
+			string lo_source_ir;
 			Z3_ast lo_raw = lo_open ? 0
-			      : parse_integral_atom(lo_valid);
+			      : parse_integral_atom(lo_valid, &lo_source_ir);
 			par.expect(',');
 			par.skip_ws();
 			bool hi_open = par.peek() == '*';
 			if (hi_open) par.consume();
 			bool hi_valid = hi_open;
+			string hi_source_ir;
 			Z3_ast hi_raw = hi_open ? 0
-			      : parse_integral_atom(hi_valid);
+			      : parse_integral_atom(hi_valid, &hi_source_ir);
 			par.expect(']');
 			bool lo_order_signed = subject_signed
 			      && (lo_open || (lo_raw && b.is_signed(lo_raw)));
@@ -5415,21 +5592,35 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      }
 			} else {
 			uint64_t lo_bits = 0, hi_bits = 0;
-			bool common_order = lo_order_signed == hi_order_signed;
-			bool bounds_ok = common_order && lo_valid && hi_valid && (lo_open
+			bool bounds_ok = lo_valid && hi_valid && (lo_open
 			      ? subject_domain_endpoint(rw, false, lo_bits)
 			      : ground_at_width(lo_raw, rw, lo_order_signed,
-						lo_bits));
+						lo_bits, &lo_source_ir));
 			bounds_ok = (hi_valid && (hi_open
 			      ? subject_domain_endpoint(rw, true, hi_bits)
 			      : ground_at_width(hi_raw, rw, hi_order_signed,
-						hi_bits))) && bounds_ok;
+				hi_bits, &hi_source_ir))) && bounds_ok;
+			bool common_order = lo_order_signed == hi_order_signed;
+			bool coordinate_signed = lo_order_signed;
+			if (!common_order && bounds_ok && subject_signed
+			    && !lo_open && !hi_open) {
+			      uint64_t sign_bit = (uint64_t)1 << (rw - 1);
+			      // When both endpoints are nonnegative in the signed subject's
+			      // range, signed and unsigned comparisons have the same order.
+			      // Keep each endpoint's original comparison in `clause'; only
+			      // the sampler uses this common ordered coordinate.
+			      if (lo_bits < sign_bit && hi_bits < sign_bit) {
+				    common_order = true;
+				    coordinate_signed = true;
+			      }
+			}
+			bounds_ok = bounds_ok && common_order;
 			uint64_t lo_coord = 1, hi_coord = 0;
 			if (bounds_ok) {
 			      lo_coord = ordered_coordinate(lo_bits, rw,
-						    lo_order_signed);
+						    coordinate_signed);
 			      hi_coord = ordered_coordinate(hi_bits, rw,
-						    hi_order_signed);
+						    coordinate_signed);
 			} else {
 			      exact_supported = false;
 			      warn_exact_item_boundary();
@@ -5450,7 +5641,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      }
 			      Z3Builder::DistBranch db = {
 				    weight, true, range_weight_per_value,
-				    rw, lo_order_signed, lo_coord, hi_coord,
+				    rw, coordinate_signed, lo_coord, hi_coord,
 				    nullptr, nullptr
 			      };
 			      dspec.branches.push_back(db);
@@ -5458,7 +5649,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			}
 		  } else {
 			bool value_valid = false;
-			Z3_ast value_raw = parse_integral_atom(value_valid);
+			string value_source_ir;
+			Z3_ast value_raw = parse_integral_atom(value_valid,
+							    &value_source_ir);
 			unsigned vw = sw;
 			if (value_valid && b.sv_of(value_raw) > vw)
 			      vw = b.sv_of(value_raw);
@@ -5477,7 +5670,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      ? ground_wide(value_raw, vw, value_compare_signed,
 					    value_wide)
 			      : ground_at_width(value_raw, vw,
-					 value_compare_signed, value_bits));
+					 value_compare_signed, value_bits,
+					 &value_source_ir));
 			if (!value_ok) {
 			      exact_supported = false;
 			      warn_exact_item_boundary();
@@ -5793,7 +5987,7 @@ static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem,
                                 size_t leaf)
 {
       vvp_object_t propobj;
-      cobj->get_object(idx, propobj, leaf);
+      get_leaf_object_(cobj, idx, leaf, propobj);
       if (vvp_darray*da = propobj.peek<vvp_darray>()) {
 	    if (elem >= da->get_size()) return 0;
 	    vvp_vector4_t vec;
@@ -5832,7 +6026,7 @@ static bool cobj_elem_vec4_(vvp_cobject*cobj, unsigned idx, unsigned elem,
                             vvp_vector4_t&value, size_t leaf)
 {
       vvp_object_t propobj;
-      cobj->get_object(idx, propobj, leaf);
+      get_leaf_object_(cobj, idx, leaf, propobj);
       if (vvp_darray*da = propobj.peek<vvp_darray>()) {
             if (elem >= da->get_size()) return false;
             da->get_word(elem, value);
@@ -5881,7 +6075,7 @@ static void cobj_set_elem_vec4_(vvp_cobject* cobj, unsigned idx, unsigned elem,
 				const vvp_vector4_t&value, size_t leaf = 0)
 {
       vvp_object_t propobj;
-      cobj->get_object(idx, propobj, leaf);
+      get_leaf_object_(cobj, idx, leaf, propobj);
       if (vvp_darray*da = propobj.peek<vvp_darray>()) {
 	    if (elem >= da->get_size()) return;
 	    da->set_word(elem, value);
@@ -5911,7 +6105,7 @@ static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx,
 				 size_t leaf)
 {
       vvp_object_t propobj;
-      cobj->get_object(idx, propobj, leaf);
+      get_leaf_object_(cobj, idx, leaf, propobj);
       if (vvp_darray*da = propobj.peek<vvp_darray>())
 	    return da->get_size();
       if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>())
@@ -7209,7 +7403,7 @@ static bool rand_nested_elem_active_(const Z3Builder&builder,
       } else if (selection && idx < selection->size() && (*selection)[idx])
             return true;
       vvp_object_t object;
-      builder.object(idx)->get_object(builder.local_index(idx), object, leaf);
+      get_leaf_object_(builder.object(idx), builder.local_index(idx), leaf, object);
       vvp_darray*array = object.peek<vvp_darray>();
       if (!array) return true; // The size pass may create this queue.
       return elem < array->get_size() ? array->rand_mode(elem)
@@ -9088,7 +9282,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       bool include_class_constraints,
                       z3_object_graph_t*graph = nullptr,
                       map<vvp_cobject*, unique_ptr<z3_rng_stream_t> >*streams = nullptr,
-                      const vector<vvp_object_t>*object_vals = nullptr)
+                      const vector<vvp_object_t>*object_vals = nullptr,
+                      bool row_pass = false)
 {
       if (z3_solve_trace(defn)) {
 	    fprintf(stderr,
@@ -9114,6 +9309,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       builder.object_vals = object_vals;
       builder.prop_active = prop_active;
       builder.dyn_sizes = dyn_sizes;
+      builder.row_pass = row_pass;
       if (graph) {
             /* A staged leaf may be unconstrained by IR. Materialized dynamic
              * ELEM selections still need solver variables so this stage owns
@@ -9375,7 +9571,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_solver_assert(ctx, base, eq);
       }
       for (auto& sv : builder.size_vars) {
-	    if (rand_size_active_(builder, prop_active, sv.idx, sv.leaf)) continue;
+	      // Row-size pass: only the row sizes are free; the outer size (and
+	      // every other array) keeps the size the first pass produced.
+	    bool pin_in_row_pass = builder.row_pass
+		  && !(sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
+			builder.local_index(sv.idx)));
+	    if (!pin_in_row_pass
+		&& rand_size_active_(builder, prop_active, sv.idx, sv.leaf)) continue;
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
 		  cobj_darray_size(builder.object(sv.idx),
@@ -9446,6 +9648,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // pass — pin them so the re-solve cannot move them.
       if (dyn_sizes) {
 	    for (auto& sv : builder.size_vars) {
+		    // In the row-size pass the row sizes are the unknowns.
+		  if (builder.row_pass && sv.leaf > 0
+		      && builder.type(sv.idx)->property_is_dyn2(
+			    builder.local_index(sv.idx))) continue;
 		  Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 		  Z3_ast cur = Z3_mk_unsigned_int64(ctx,
 			cobj_darray_size(builder.object(sv.idx),
@@ -9711,11 +9917,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // could otherwise condition successful calls on that draw.
             if (!builder.order_pairs.empty()) {
                   auto supported_element_order_ref = [&](const Z3Builder::OrderRef&ref) {
-                        if (ref.kind != Z3Builder::OrderRef::ELEM) return false;
+                        bool nested_queue =
+                              ref.kind == Z3Builder::OrderRef::NESTED_ELEM;
+                        if (ref.kind != Z3Builder::OrderRef::ELEM
+                            && !nested_queue) return false;
                         const class_type*type = builder.type(ref.idx);
                         unsigned pid = builder.local_index(ref.idx);
                         const string&base = type->property_base_type(pid);
-                        bool fixed = type->property_array_size(pid) >= 1
+                        bool fixed = !nested_queue
+                              && type->property_array_size(pid) >= 1
                               && !base.empty() && base != "o"
                               && base.compare(0, 3, "oc:") != 0
                               && base != "r" && base != "S"
@@ -9724,7 +9934,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         const Z3Builder::SizeVar*size = nullptr;
                         for (const auto&candidate : builder.size_vars)
                               if (candidate.idx == ref.idx
-				  && candidate.leaf == 0) {
+			  && candidate.leaf == (nested_queue ? ref.elem : 0)) {
                                     size = &candidate;
                                     break;
                               }
@@ -9735,7 +9945,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               && type->property_dimensions(pid).empty()
                               && ((base.size() > 1 && base[0] == 'D')
                                   || desc.is_queue);
-                        return fixed || variable_integral;
+                        bool fixed_queue_element = nested_queue && size
+                              && desc.is_queue && desc.elem_integral;
+                        return fixed || variable_integral
+                              || fixed_queue_element;
                   };
                   for (const auto&pair : builder.order_pairs)
                         if ((pair.first.kind != Z3Builder::OrderRef::PROP
@@ -9785,26 +9998,31 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             }
             for (const auto&pair : builder.order_pairs) {
                   for (const auto&ref : {pair.first, pair.second}) {
-                        if (ref.kind != Z3Builder::OrderRef::ELEM) continue;
+                        bool nested_queue =
+                              ref.kind == Z3Builder::OrderRef::NESTED_ELEM;
+                        if (ref.kind != Z3Builder::OrderRef::ELEM
+                            && !nested_queue) continue;
                         const string&base = builder.type(ref.idx)
                               ->property_base_type(builder.local_index(ref.idx));
                         const Z3Builder::SizeVar*size_var = nullptr;
                         for (const auto&candidate : builder.size_vars)
                               if (candidate.idx == ref.idx
-				  && candidate.leaf == 0) {
+			  && candidate.leaf == (nested_queue ? ref.elem : 0)) {
                                     size_var = &candidate;
                                     break;
                               }
-                        if (!size_var
+                        if (!size_var && !nested_queue
                             || ((base.empty() || base[0] != 'D')
-                                && !random_container_desc_(
-                                      size_var->container_type).is_queue))
+                                && (!size_var || !random_container_desc_(
+                                      size_var->container_type).is_queue)))
                               continue;
                         auto size = proved_joint_sizes.find(
-					make_pair(ref.idx, 0));
+                                      make_pair(ref.idx,
+                                            nested_queue ? ref.elem : 0));
                         if (size == proved_joint_sizes.end())
                               return fail_joint("dynamic element ordering requires one proved array size");
-                        if (ref.elem >= size->second)
+                        unsigned selected = nested_queue ? ref.subelem : ref.elem;
+                        if (selected >= size->second)
                               return fail_joint("dynamic element ordering index is outside the proved array size");
                   }
             }
@@ -9870,6 +10088,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       std::set<size_t> dist_fallback_active;
       std::set<Z3_ast> dist_resolved_vars;
       std::set<Z3_ast> dist_fallback_vars;
+      std::set<Z3_ast> deferred_wide_joint_scalars;
+      std::set<Z3_ast> deferred_wide_joint_elements;
       std::set<Z3Builder::VarRef> dist_fallback_refs;
       auto resolve_dist = [&](size_t spec_index) -> bool {
             // Joint draws occur only after complete component proofs, and never
@@ -9962,8 +10182,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       bool joint_randc_failed = false;
       map<Z3_ast, uint64_t> sampled_randc_values;
       auto sample_scalars = [&](bool cyclic_only) {
-      if (exact_joint && (defer_joint || !cyclic_only)) return;
+      if (exact_joint && defer_joint) return;
       for (auto& pv : builder.prop_vars) {
+            if (exact_joint && !cyclic_only
+                && !deferred_wide_joint_scalars.count(pv.var)) continue;
             if (graph && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)) != cyclic_only)
                   continue;
 	    if (!rand_scalar_active_(builder, prop_active, pv.idx)) continue;
@@ -10061,7 +10283,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    && builder.member_elem_vars.empty()
 	    && builder.size_vars.empty();
       auto sample_elements = [&](bool cyclic_only) {
-      if (exact_joint && (defer_joint || !cyclic_only)) return;
+      if (exact_joint && defer_joint) return;
 	/* An element the hard constraints already pin (`dst[i] == src[i]') needs
 	   no diversity objective; each objective costs the optimizer a lexicographic
 	   round, so a few hundred pinned elements took minutes. */
@@ -10088,6 +10310,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    return Z3_solver_check_assumptions(ctx, base, 1, &differs) == Z3_L_FALSE;
       };
       for (auto& ev : builder.elem_vars) {
+            if (exact_joint && !cyclic_only
+                && !deferred_wide_joint_elements.count(ev.var)) continue;
             if (graph && builder.type(ev.idx)->property_is_randc(builder.local_index(ev.idx)) != cyclic_only)
                   continue;
 	    if (!rand_elem_var_active_(builder, prop_active, ev))
@@ -10274,10 +10498,62 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             vector<Z3_ast> variables;
             std::set<Z3_ast> seen;
             auto add = [&](Z3_ast var) { if (seen.insert(var).second) variables.push_back(var); };
-            for (const auto&pv : builder.prop_vars)
-                  if (rand_scalar_active_(builder, prop_active, pv.idx)) add(pv.var);
-            for (const auto&ev : builder.elem_vars)
-                  if (rand_elem_var_active_(builder, prop_active, ev)) add(ev.var);
+            auto used_by_dist = [&](Z3_ast variable) {
+                  for (const auto&spec : builder.dist_specs) {
+                        set<Z3_ast> leaves;
+                        Z3_ast subject = builder.resolve_signed_constants(
+                              spec.subject);
+                        if (!z3_collect_constants_(ctx, subject, leaves)
+                            || leaves.count(variable)) return true;
+                        for (Z3_ast guard : spec.guards) {
+                              leaves.clear();
+                              if (!z3_collect_constants_(ctx, guard, leaves)
+                                  || leaves.count(variable)) return true;
+                        }
+                  }
+                  return false;
+            };
+            auto property_ordered_after = [&](unsigned idx) {
+                  for (const auto&pair : builder.order_pairs)
+                        if (pair.second.kind == Z3Builder::OrderRef::PROP
+                            && pair.second.idx == idx) return true;
+                  return false;
+            };
+            for (const auto&pv : builder.prop_vars) {
+                  if (!rand_scalar_active_(builder, prop_active, pv.idx))
+                        continue;
+                  bool randc = builder.type(pv.idx)->property_is_randc(
+                        builder.local_index(pv.idx));
+                  if (pv.width > 64 && !randc
+                      && property_ordered_after(pv.idx)
+                      && !used_by_dist(pv.var)) {
+                        deferred_wide_joint_scalars.insert(pv.var);
+                        continue;
+                  }
+                  add(pv.var);
+            }
+            for (const auto&ev : builder.elem_vars) {
+                  if (!rand_elem_var_active_(builder, prop_active, ev))
+                        continue;
+                  bool randc = builder.type(ev.idx)->property_is_randc(
+                        builder.local_index(ev.idx));
+                  bool ordered_after = property_ordered_after(ev.idx);
+                  for (const auto&pair : builder.order_pairs)
+                        if ((pair.second.kind == Z3Builder::OrderRef::ELEM
+                             && pair.second.idx == ev.idx
+                             && pair.second.elem == ev.elem)
+                            || (pair.second.kind == Z3Builder::OrderRef::NESTED_ELEM
+                                && ev.nested && pair.second.idx == ev.idx
+                                && pair.second.elem == ev.leaf
+                                && pair.second.subelem == ev.elem))
+                              ordered_after = true;
+                  if (ev.width > 64 && !randc && ordered_after
+                      && !used_by_dist(ev.var)) {
+                        deferred_wide_joint_elements.insert(ev.var);
+                        continue;
+                  }
+                  add(ev.var);
+            }
             // Canonical graph struct leaves are PropVars, not MemberVars.
 	    if (!builder.member_vars.empty() || !builder.member_elem_vars.empty())
                   return fail_joint("an unpacked-struct leaf lacks canonical storage");
@@ -10315,10 +10591,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         stages[pv.var] = final_stage - found->second;
             }
             for (const auto&ev : builder.elem_vars) {
-                  if (ev.nested) continue; // Ordering this leaf is separate.
-                  Z3Builder::OrderRef ref = {
-                        Z3Builder::OrderRef::ELEM, ev.idx, ev.elem
-                  };
+                  Z3Builder::OrderRef ref;
+                  ref.kind = ev.nested ? Z3Builder::OrderRef::NESTED_ELEM
+                                       : Z3Builder::OrderRef::ELEM;
+                  ref.idx = ev.idx;
+                  ref.elem = ev.nested ? ev.leaf : ev.elem;
+                  ref.subelem = ev.nested ? ev.elem : 0;
                   auto found = remaining.find(ref);
                   if (found != remaining.end())
                         stages[ev.var] = final_stage - found->second;
@@ -10345,18 +10623,33 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                             && Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx,
                                   Z3_to_app(ctx, unaliased))) == Z3_OP_CONCAT;
                         bool one_bit_projection = bv_width(ctx, unaliased) == 1;
+                        bool collected = z3_collect_constants_(ctx, unaliased,
+                              leaves);
+                        unsigned projected_stage = final_stage;
+                        bool staged_one_bit_leaf = false;
+                        if (collected && one_bit_projection
+                            && leaves.size() == 1) {
+                              auto leaf_stage = stages.find(*leaves.begin());
+                              if (leaf_stage != stages.end()) {
+                                    projected_stage = leaf_stage->second;
+                                    staged_one_bit_leaf = true;
+                              }
+                        }
                         if ((concat || one_bit_projection)
                             && bv_width(ctx, unaliased) <= 64
-                            && z3_collect_constants_(ctx, unaliased, leaves)
+                            && collected
                             && !leaves.empty()
                             && (concat || leaves.size() == 1)
                             && all_of(leaves.begin(), leaves.end(),
                                   [&](Z3_ast leaf) {
                                         return seen.count(leaf)
-                                              && !stages.count(leaf)
+                                              && (!stages.count(leaf)
+                                                  || staged_one_bit_leaf)
                                               && !active_randc_var(leaf);
                                   })) {
                               add(spec.subject);
+                              if (staged_one_bit_leaf)
+                                    stages[spec.subject] = projected_stage;
                               for (Z3_ast leaf : leaves)
                                     preference_edges.emplace_back(
                                           spec.subject, leaf);
@@ -10473,6 +10766,51 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   if (!found)
                         return fail_joint("joint dist requires a direct canonical scalar or element subject");
             }
+            auto covered_by_binary_bit_dists = [&](Z3_ast variable,
+                  unsigned through_stage,
+                  const vector<JointDistBinding>&bindings) {
+                  unsigned width = bv_width(ctx, variable);
+                  if (width < 2 || width > 64) return false;
+                  vector<bool> covered(width, false);
+                  for (const auto&binding : bindings) {
+                        if (binding.conditional
+                            || binding.stage > through_stage) continue;
+                        const auto&spec = *binding.spec;
+                        if (!spec.exact_supported || !spec.state_weights
+                            || spec.disableable || spec.requires_large_exact)
+                              continue;
+                        Z3_ast subject = builder.resolve_signed_constants(
+                              spec.subject);
+                        subject = Z3_simplify(ctx, subject);
+                        if (Z3_get_ast_kind(ctx, subject) != Z3_APP_AST
+                            || bv_width(ctx, subject) != 1) continue;
+                        Z3_app app = Z3_to_app(ctx, subject);
+                        Z3_func_decl decl = Z3_get_app_decl(ctx, app);
+                        if (Z3_get_decl_kind(ctx, decl) != Z3_OP_EXTRACT
+                            || Z3_get_decl_num_parameters(ctx, decl) != 2)
+                              continue;
+                        int high = Z3_get_decl_int_parameter(ctx, decl, 0);
+                        int low = Z3_get_decl_int_parameter(ctx, decl, 1);
+                        if (high != low || low < 0
+                            || (unsigned)low >= width) continue;
+                        set<Z3_ast> leaves;
+                        if (!z3_collect_constants_(ctx, subject, leaves)
+                            || leaves.size() != 1
+                            || *leaves.begin() != variable) continue;
+                        bool has_zero = false, has_one = false;
+                        for (const auto&branch : spec.branches) {
+                              if (!branch.weight || branch.is_range
+                                  || branch.comparison_signed
+                                  || branch.value_width == 0
+                                  || branch.lo > 1) continue;
+                              if (branch.lo == 0) has_zero = true;
+                              else has_one = true;
+                        }
+                        if (has_zero && has_one) covered[low] = true;
+                  }
+                  return all_of(covered.begin(), covered.end(),
+                        [](bool bit) { return bit; });
+            };
             // Prove every complete factor before drawing. A cap/UNKNOWN after
             // choosing a weighted value could otherwise bias successful calls.
             vector<vector<vector<uint64_t> > > tables(components.size());
@@ -10716,7 +11054,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               unsigned due = final_stage;
                               auto found = stages.find(var);
                               if (found != stages.end()) due = found->second;
-                              if (due == stage && !weighted.count(var))
+                              if (due == stage && !weighted.count(var)
+                                  && !covered_by_binary_bit_dists(var, stage,
+                                        bindings))
                                     projection.push_back(var);
                         }
                         if (projection.empty()) continue;
@@ -11028,7 +11368,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     if (found != stages.end())
                                           due = found->second;
                                     if (due == stage
-                                        && !weighted.count(component[i])) {
+                                        && !weighted.count(component[i])
+                                        && !covered_by_binary_bit_dists(
+                                              component[i], stage, bindings)) {
                                           columns.push_back(i);
                                           projection.push_back(component[i]);
                                     }
@@ -11158,6 +11500,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (ref.kind == Z3Builder::OrderRef::MEMBER_ELEM)
 			return rand_member_elem_active_(builder, prop_active,
 			      ref.idx, ref.elem, ref.subelem);
+		  if (ref.kind == Z3Builder::OrderRef::NESTED_ELEM)
+			return rand_nested_elem_active_(builder, prop_active,
+			      ref.idx, ref.elem, ref.subelem);
 		  if (ref.kind == Z3Builder::OrderRef::ELEM)
 			return rand_elem_active_(builder, prop_active,
 					 ref.idx, ref.elem);
@@ -11212,6 +11557,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      ordered.subelem = ref.subleaf;
 			      if (ref.kind == Z3Builder::VarRef::ELEM)
 				    ordered.kind = Z3Builder::OrderRef::ELEM;
+			      else if (ref.kind == Z3Builder::VarRef::NESTED_ELEM)
+				    ordered.kind = Z3Builder::OrderRef::NESTED_ELEM;
 			      else if (ref.kind == Z3Builder::VarRef::MEMBER_ELEM)
 				    ordered.kind = Z3Builder::OrderRef::MEMBER_ELEM;
 			      else if (ref.kind == Z3Builder::VarRef::MEMBER)
@@ -11253,7 +11600,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  }
 				    rand_bits = cobj_elem_bits(builder.object(ref.idx), builder.local_index(ref.idx),
 						     ref.elem);
-			      } else if (ref.kind == Z3Builder::OrderRef::MEMBER_ELEM) {
+				  } else if (ref.kind == Z3Builder::OrderRef::NESTED_ELEM) {
+				    for (auto&ev : builder.elem_vars)
+					  if (ev.nested && ev.idx == ref.idx
+					      && ev.leaf == ref.elem
+					      && ev.elem == ref.subelem) {
+						var = ev.var;
+						width = ev.width;
+						break;
+					  }
+				    rand_bits = cobj_elem_bits(builder.object(ref.idx),
+					  builder.local_index(ref.idx), ref.subelem, ref.elem);
+				  } else if (ref.kind == Z3Builder::OrderRef::MEMBER_ELEM) {
 				    for (auto&av : builder.member_elem_vars)
 					  if (av.outer == ref.idx && av.member == ref.elem
 					      && av.elem == ref.subelem) {
@@ -11316,6 +11674,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    for (auto&ev : builder.elem_vars)
 					  if (!ev.nested && ev.idx == ref.idx
 					      && ev.elem == ref.elem) {
+						var = ev.var;
+						break;
+					  }
+			      } else if (ref.kind == Z3Builder::OrderRef::NESTED_ELEM) {
+				    for (auto&ev : builder.elem_vars)
+					  if (ev.nested && ev.idx == ref.idx
+					      && ev.leaf == ref.elem
+					      && ev.elem == ref.subelem) {
 						var = ev.var;
 						break;
 					  }
@@ -11578,6 +11944,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
                   if ((type != "Do" && type != "Qo")
                       || sv.container_type == "D"
+                      || (sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
+				builder.local_index(sv.idx)))
                       || !rand_size_active_(builder, prop_active,
 					   sv.idx, sv.leaf)) continue;
                   uint64_t count = 0;
@@ -11725,7 +12093,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
                   if ((type == "Do" || type == "Qo")
-                      && sv.container_type != "D") continue;
+                      && sv.container_type != "D"
+                      && !(sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
+				builder.local_index(sv.idx)))) continue;
             }
 	    if (!z3_eval_uint64(ctx, model, sv.var, new_size))
 		  continue;
@@ -11735,11 +12105,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    random_container_desc_t desc =
 		  random_container_desc_(sv.container_type);
 	    vvp_object_t old_obj;
-	    builder.object(sv.idx)->get_object(builder.local_index(sv.idx),
-					 old_obj, sv.leaf);
+	    get_leaf_object_(builder.object(sv.idx), builder.local_index(sv.idx),
+				  sv.leaf, old_obj);
 	    vvp_darray*old_array = old_obj.peek<vvp_darray>();
 	    bool fixed_queue = !builder.type(sv.idx)->property_dimensions(
-			builder.local_index(sv.idx)).empty();
+			builder.local_index(sv.idx)).empty()
+		  || (sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
+			builder.local_index(sv.idx)));
 	    auto element_active = [&](unsigned adr) {
 		  if (!fixed_queue)
 			return rand_elem_active_(builder, prop_active, sv.idx, adr);
@@ -11821,12 +12193,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 	    vvp_object_t obj(da);
 	    if (old_array) da->inherit_randc_histories(*old_array);
-	    builder.object(sv.idx)->set_object(builder.local_index(sv.idx),
-					 obj, sv.leaf);
+	    set_leaf_object_(builder.object(sv.idx), builder.local_index(sv.idx),
+				  sv.leaf, obj);
 	    if (old_array) {
 		  vvp_object_t stored;
-		  builder.object(sv.idx)->get_object(builder.local_index(sv.idx),
-					    stored, sv.leaf);
+		  get_leaf_object_(builder.object(sv.idx), builder.local_index(sv.idx),
+				  sv.leaf, stored);
 		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
 			{
 			      stored_array->inherit_rand_modes(*old_array);
@@ -11835,8 +12207,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 	    if (is_randc) {
 		  vvp_object_t stored;
-		  builder.object(sv.idx)->get_object(builder.local_index(sv.idx),
-					    stored, sv.leaf);
+		  get_leaf_object_(builder.object(sv.idx), builder.local_index(sv.idx),
+				  sv.leaf, stored);
 		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
 			for (size_t adr = 0 ; adr < stored_array->get_size();
 			     adr += 1) {
@@ -12015,6 +12387,31 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       for (const auto& d : dyn)
 	    sizes[make_pair(d.pidx, d.leaf)] = cobj_darray_size(cobj, d.pidx,
 								 d.leaf);
+	// Dynamic arrays of dynamic arrays: the outer size is known now. Solve
+	// the row sizes next (18.5.8.2 orders every size before the iterative
+	// element constraints), then expand the elements over the rows.
+      bool have_rows = false;
+      for (const auto& d : dyn) if (d.rows) have_rows = true;
+      if (have_rows) {
+	    std::map<std::pair<unsigned,unsigned>,uint64_t> outer;
+	    for (const auto& d : dyn)
+		  if (d.rows) outer[make_pair(d.pidx, 0u)] =
+			cobj_darray_size(cobj, d.pidx, 0);
+	    rng.rewind();
+	    int rr = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals,
+				    class_slots, &outer, nullptr, prop_active,
+				    include_class_constraints, nullptr, nullptr,
+				    object_vals, true);
+	    if (rr == Z3PASS_FAILED) return false;
+	    for (const auto& d : dyn) {
+		  if (!d.rows) continue;
+		  uint64_t rows = outer[make_pair(d.pidx, 0u)];
+		  sizes[make_pair(d.pidx, 0u)] = rows;
+		  for (uint64_t row = 0 ; row < rows ; ++row)
+			sizes[make_pair(d.pidx, (unsigned)(row + 1))] =
+			      cobj_darray_size(cobj, d.pidx, row + 1);
+	    }
+      }
 	// Replay the size pass's RNG prefix. The object itself remains at the
 	// furthest state already consumed; only new suffix words advance it.
       rng.rewind();
@@ -12802,6 +13199,36 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
             const auto&property = graph.properties.at(loop.pidx);
             sizes[make_pair(loop.pidx, loop.leaf)] = cobj_darray_size(
 		  property.object, property.pid, loop.leaf);
+      }
+	// Rand dynamic arrays of dynamic arrays: after the outer size, solve
+	// the row sizes, then expand the elements over the rows.
+      bool have_rows = false;
+      for (const auto&loop : dyn) if (loop.rows) have_rows = true;
+      if (have_rows) {
+            map<pair<unsigned,unsigned>, uint64_t> outer;
+            for (const auto&loop : dyn) {
+                  if (!loop.rows) continue;
+                  const auto&property = graph.properties.at(loop.pidx);
+                  outer[make_pair(loop.pidx, 0u)] = cobj_darray_size(
+			property.object, property.pid, 0);
+            }
+            root_rng.rewind();
+            for (auto&stream : streams) stream.second->rewind();
+            int rr = z3_solve_pass_(root.object->get_defn(), root.object,
+                  root_rng, no_extra, no_slots, no_class_slots, &outer,
+                  nullptr, root.selection(), true, &graph, &streams,
+                  nullptr, true);
+            if (rr == Z3PASS_FAILED) return false;
+            for (const auto&loop : dyn) {
+                  if (!loop.rows) continue;
+                  const auto&property = graph.properties.at(loop.pidx);
+                  uint64_t rows = outer[make_pair(loop.pidx, 0u)];
+                  sizes[make_pair(loop.pidx, 0u)] = rows;
+                  for (uint64_t row = 0; row < rows; ++row)
+                        sizes[make_pair(loop.pidx, (unsigned)(row + 1))] =
+                              cobj_darray_size(property.object, property.pid,
+                                               row + 1);
+            }
       }
       root_rng.rewind();
       for (auto&stream : streams) stream.second->rewind();

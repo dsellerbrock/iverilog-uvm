@@ -3572,12 +3572,12 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### DD-070 — SPI TPM pre-DV testbench targets obsolete parameters and ports
 
 - **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
-- **Observation:** Three TB overrides name local or nonexistent `spi_tpm` parameters. A three-line correction clears the exact minimal strict 2017/2023 errors, but static RTL comparison also finds eight obsolete named ports and a TB 8-bit read-FIFO assumption against the RTL's 32-bit read FIFO.
+- **Observation:** Three TB overrides name local or nonexistent `spi_tpm` parameters. A three-line correction clears the exact minimal strict 2017/2023 errors, but static RTL comparison also finds eight obsolete named ports and a TB 8-bit read-FIFO assumption against the RTL's 32-bit read FIFO. The current OpenTitan matrix already compiles this target with `-gcommercial-unsafe`; census11 still reports the three parameter errors under that flag. The flag's documented compatibility cases do not include overriding localparams or dropping unknown ports, so this result is not a reason to treat strict mode as the matrix mode. The separate source-interface drift still requires port/FIFO reconciliation for runtime.
 - **File/function:** `hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv` instance versus released `hw/ip/spi_device/rtl/spi_tpm.sv`.
 - **Possible clause:** released source/interface mismatch, not an IEEE compiler-semantic issue.
 - **Evidence:** `outputs/patches/ot-spi-tpm-stale-parameter-overrides.patch` and `work/ot-spi-tpm-param-20260928/result.md` in the projectless campaign workspace.
 - **Reproducer status:** paired strict minimal controls and static port contract; no full core compile or runtime.
-- **Triage status:** source correction proposal only; requires separate port/FIFO reconciliation before application qualification.
+- **Triage status:** source correction proposal only; requires separate port/FIFO reconciliation before application qualification. Evaluate a narrowly paired unsafe-mode extension only if a supported commercial tool accepts these exact overrides; even that cannot restore the obsolete ports or old byte-FIFO behavior.
 
 ### DD-071 — missing associative key read omits the required warning
 
@@ -3843,12 +3843,12 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### DD-097 — OTBN trace checker ends with an unfinished operation
 
 - **Discovered while working:** OT-OTBN-DPI-IMPORT-SCOPE.
-- **Observation:** The scope-corrected selected OTBN smoke prints `TEST PASSED CHECKS` and zero UVM warnings/errors/fatals, then native `OtbnTraceChecker` warns on destruction that an operation remains unfinished. Its `Finish()` routine checks unmatched RTL/ISS trace entries, so the selected result stays DEBT rather than a clean DV pass.
+- **Observation:** Without a final trace check, the selected OTBN smoke printed `TEST PASSED CHECKS` and zero UVM warnings/errors/fatals, then native `OtbnTraceChecker` warned on destruction that an operation remained unfinished. An instrumented replay showed `Finish()` was never called and both pending-entry queues were empty at shutdown. Calling `Finish()` at final model destruction checks any trailing RTL/ISS entries without the premature register comparison.
 - **File/function:** Pinned OpenTitan `hw/ip/otbn/dv/model/otbn_trace_checker.cc` destructor at lines 28–34 and `Finish()` at line 213; caller in `otbn_model.cc` at line 463.
 - **Possible clause:** N/A; application trace-verification completeness.
-- **Evidence:** `evidence/opentitan-otbn-dpi-import-scope-20260929/selected-result.json` and `selected-runtime.log`.
+- **Evidence:** Earlier run: `evidence/opentitan-otbn-dpi-import-scope-20260929/selected-result.json` and `selected-runtime.log`. Hash-guarded runner overlay and selected PASS: [focused result and copied logs](../../evidence/opentitan-census-20261002/otbn-auto-prerun-focus/).
 - **Reproducer status:** confirmed in one selected pinned-source smoke with real libelf DPI and the generated smoke ELF; no minimal reducer yet.
-- **Triage status:** untriaged. Keep OTBN DEBT until the trace operation is finished and checked; do not suppress the warning under the DPI scope ticket.
+- **Triage status:** RESOLVED for the matrix's exact pinned OTBN source. `scripts/opentitan_matrix.py` stages a one-line hash-guarded overlay to call `Finish()` on final model destruction. The one-target matrix run is PASS with no runtime debt; the pinned source remains unchanged. A broader 49-target census is still pending.
 
 ### DD-098 — SPI Device flash-mode selected compile retains semantic notices
 
@@ -3883,12 +3883,12 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### DD-101 — OTBN smoke runner omits the required pre-run ELF mode
 
 - **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX, during the frozen 49-target census.
-- **Observation:** The runner records OpenTitan's `build_otbn_smoke_binary_mode` but does not execute it or supply `+otbn_elf_dir`, so OTBN fails at time zero. A bounded selected replay with the real generated ELF and `REPO_TOP` advances to 25.7 us, then reports `noOutstandingReqsAtEndOfSim_A` and `TEST FAILED CHECKS`; it remains a DV failure.
+- **Observation:** Census11 showed that the runner recorded OpenTitan's `build_otbn_smoke_binary_mode` but did not execute it or supply `+otbn_elf_dir`, so OTBN failed at time zero. The runner now executes that pre-run mode and supplies the generated ELF directory. A hash-guarded final trace check also clears DD-097 for the selected target.
 - **File/function:** `scripts/opentitan_matrix.py` runtime option resolution; pinned `otbn_sim_cfg.hjson` pre-run mode.
 - **Possible clause:** N/A; application setup and later TLUL protocol assertion.
-- **Evidence:** `/private/tmp/otbn-smoke-selected-20260929/HANDOFF.md`, ELF hash, selected result and runtime log.
+- **Evidence:** [focused runner result and copied logs](../../evidence/opentitan-census-20261002/otbn-auto-prerun-focus/); earlier replay: `/private/tmp/otbn-smoke-selected-20260929/HANDOFF.md`.
 - **Reproducer status:** confirmed in the corpus and one guarded selected replay.
-- **Triage status:** UPDATE 2026-10-02: with the real ELF from OpenTitan's own `gen-binaries.py` (xPack RV32 `as`/`ld` via `RV32_TOOL_AS`/`RV32_TOOL_LD`; ELF sha256 e47c6d70...cb827) passed as `--runtime-arg +otbn_elf_dir=/private/tmp/otbn-smoke-selected-20260929/binaries` with `REPO_TOP` and `IVL_SVA_NFA=1`, `otbn_sim` now ends `TEST PASSED CHECKS` with 0 UVM errors (DEBT: one DPI-model warning, `OtbnTraceChecker` destroyed with an unfinished operation at $finish); the earlier TLUL `noOutstandingReqsAtEndOfSim_A` failure no longer reproduces. The runner itself still does not execute the pre-run mode; that remains a harness gap. Never substitute a dummy ELF.
+- **Triage status:** UPDATE 2026-10-02: `scripts/opentitan_matrix.py` now runs the pinned `gen-binaries.py` pre-run for this exact smoke, uses xPack RV32 `as`/`ld` from `RV32_TOOL_AS`/`RV32_TOOL_LD`, supplies the generated directory as `+otbn_elf_dir`, and sets `REPO_TOP`. The generated ELF hash is `e47c6d70669a8b2837e8476b6e3ca1eeaadb98b62bab87321a0ce698348cb827`. A hash-guarded final trace check resolves DD-097. The selected 102.1-second matrix run returns zero and is PASS with zero actionable setup warnings, semantic debt, runtime errors, or runtime debt. The earlier TLUL `noOutstandingReqsAtEndOfSim_A` failure no longer reproduces. This is selected evidence, not a refreshed 49-target census. Never substitute a dummy ELF.
 
 ### DD-102 — Pwrmgr parallel runner exception before simulator launch
 

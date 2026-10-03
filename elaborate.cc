@@ -27471,8 +27471,12 @@ struct dynforeach_emit_ctx_t {
 	// `foreach (q[i]) foreach (q[j])' over the SAME dynamic array: the inner
 	// iterator is the second token `M' of one template.
       perm_string loop_var2;
+	// `foreach (f[ch][i])' over a rand dynamic array of dynamic arrays:
+	// ch iterates the ROWS (token R) of the enclosing template.
+      perm_string rows_var;
       bool iterates(perm_string name) const
-      { return loop_var == name || (!loop_var2.nil() && loop_var2 == name); }
+      { return loop_var == name || (!loop_var2.nil() && loop_var2 == name)
+	    || (!rows_var.nil() && rows_var == name); }
       int prop_idx;
       unsigned elem_wid;
       bool elem_signed;
@@ -28447,6 +28451,11 @@ string pexpr_to_rooted_class_constraint_ir(
 }
 
 static bool constraint_is_narrow_const_ir_(const string&ir);
+static string constraint_const_bits_ir_(const verinum&v, unsigned width,
+					bool is_signed);
+static string constraint_const_array_member_select_ir_(
+	  const PEIdent*id, const NetScope*scope, const netclass_t*cls,
+	  const map<perm_string,uint64_t>*loop_env);
 
 /* Parameter arrays are expanded into constant element parameters. Keep a
  * selected index symbolic by passing a typed constant table to the solver.
@@ -28523,10 +28532,10 @@ static string constraint_parameter_member_select_ir_(
             member_type = first_type;
       }
       long member_width = member_type ? member_type->packed_width() : 0;
-      if (member_width <= 0 || member_width > 64
+      if (member_width <= 0
           || (member_type->base_type() != IVL_VT_BOOL
               && member_type->base_type() != IVL_VT_LOGIC))
-          return fail("Rand-indexed parameter requires a 1..64-bit integral element or field.");
+          return fail("Rand-indexed parameter requires an integral element or field.");
       bool two_state = member_type->base_type() == IVL_VT_BOOL;
       string result = "(psel " + to_string(member_width)
           + (member_type->get_signed() ? ":s" : "")
@@ -28545,14 +28554,26 @@ static string constraint_parameter_member_select_ir_(
             bool defined = true;
             for (long bit = 0; bit < member_width; bit += 1) {
                   verinum::V value_bit = bits.get(member_off + bit);
-                  if (value_bit == verinum::V1) word |= UINT64_C(1) << bit;
-                  else if (value_bit != verinum::V0) defined = false;
+                  if (value_bit == verinum::V1 && bit < 64)
+                        word |= UINT64_C(1) << bit;
+                  else if (value_bit != verinum::V0
+                           && value_bit != verinum::V1) defined = false;
             }
             if (!defined && two_state)
                 return fail("Two-state parameter element contains X/Z bits.");
-            result += defined
-                ? " c:" + to_string(word) + ":" + to_string(member_width)
-                : " x";
+            if (!defined) {
+                  result += " x";
+            } else if (member_width <= 64) {
+                  result += " c:" + to_string(word) + ":" + to_string(member_width);
+            } else {
+                    // A wider leaf is the concat chain the solver already
+                    // accepts for wide constants (64-bit chunks, MSB first).
+                  verinum slice(verinum::V0, (unsigned)member_width);
+                  for (long bit = 0; bit < member_width; bit += 1)
+                        slice.set((unsigned)bit, bits.get(member_off + bit));
+                  result += " " + constraint_const_bits_ir_(
+                        slice, (unsigned)member_width, false);
+            }
       }
       return result + ")";
 }
@@ -28761,8 +28782,7 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
       if (!indexed)
 	if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(ptype))
 	    return st->packed() && st->base_type() == IVL_VT_BOOL
-	      && st->packed_width() > 0
-	      && st->packed_width() <= 64;
+	      && st->packed_width() > 0;
 	/* An INDEXED queue/dynamic array of class handles is readable state:
 	   the element is not integral, but its scalar PROPERTIES are, and
 	   that is what the body reads. The member is validated at the
@@ -31478,6 +31498,53 @@ static bool constraint_fixed_array_leaf_word_(
       return true;
 }
 
+/* Row selector of a rand dynamic array of dynamic arrays (`f[ch]' in
+ * `f[ch].size' or `f[ch][i]'): "R" for the rows iterator of the enclosing
+ * (dynrows) template, otherwise a constant row N, which is leaf N+1 (leaf 0
+ * is the outer array). Returns "" when the selector is neither. */
+static string constraint_dyn2_row_leaf_(
+      const index_component_t&ic, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (ic.sel != index_component_t::SEL_BIT || !ic.msb || ic.lsb) return "";
+      if (dynforeach_emit_ctx_ && !dynforeach_emit_ctx_->rows_var.nil())
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(ic.msb))
+		  if (id->path().size() == 1 && !id->path().package
+		      && id->path().name.front().index.empty()
+		      && id->path().name.front().name
+			   == dynforeach_emit_ctx_->rows_var)
+			return "R";
+      string ir = pexpr_to_constraint_ir(ic.msb, cls, value_slots, scope,
+					 loop_env);
+      constraint_const_ir_t row;
+      if (ir.empty() || !constraint_parse_const_ir_(ir, row) || row.width > 64)
+	    return "";
+      if (row.is_signed && row.width > 0
+	  && ((row.value >> (row.width - 1)) & 1)) return "";
+      return to_string(row.value + 1);
+}
+
+/* The inner element type of a rand dynamic array of dynamic arrays, or null
+ * when TYPE is not one (associative arrays and queues are excluded). */
+static ivl_type_t constraint_dyn2_inner_type_(ivl_type_t type)
+{
+      const netdarray_t*outer = dynamic_cast<const netdarray_t*>(type);
+      const netqueue_t*outer_q = dynamic_cast<const netqueue_t*>(type);
+      if (!outer || outer_q) return nullptr;
+      const netdarray_t*row = dynamic_cast<const netdarray_t*>(
+	    outer->element_type());
+      const netqueue_t*row_q = dynamic_cast<const netqueue_t*>(
+	    outer->element_type());
+      if (!row || row_q) return nullptr;
+      ivl_type_t leaf = row->element_type();
+      ivl_variable_type_t base = leaf ? leaf->base_type() : IVL_VT_NO_TYPE;
+      if (!leaf || !leaf->packed() || !leaf->packed_width()
+	  || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
+	      && !dynamic_cast<const netenum_t*>(leaf))) return nullptr;
+      return leaf;
+}
+
 /* A no-argument function call may omit its parentheses (IEEE 1800-2017
  * 13.4.2), so both `items.size' and `items.size()' must denote the same
  * dynamic-container size solver variable. Keep their lowering in one place
@@ -31505,6 +31572,24 @@ static string constraint_class_container_size_ir_(
       ivl_type_t ptype = cls->get_prop_type((size_t)idx);
       bool fixed_leaf = false;
       uint64_t word = 0;
+      if (ivl_type_t row_leaf_type = cpath.front().index.empty()
+	    ? nullptr : constraint_dyn2_inner_type_(ptype)) {
+	    // f[row].size: the size of one row of a dynamic array of dynamic
+	    // arrays; the row is a leaf of the property (see parse_size).
+	    if (cpath.front().index.size() != 1
+		|| !cls->get_prop_qual((size_t)idx).test_rand()) return "";
+	    string leaf = constraint_dyn2_row_leaf_(cpath.front().index.front(),
+		  cls, value_slots, scope, loop_env);
+	    if (leaf.empty()) return "";
+	    unsigned rwid = row_leaf_type->packed_width();
+	    bool rsigned = row_leaf_type->get_signed();
+	    string rtext;
+	    if (rwid == 8 || rwid == 16 || rwid == 32 || rwid == 64)
+		  rtext = (rsigned ? "sb" : "b") + to_string(rwid);
+	    else
+		  rtext = (rsigned ? "sv" : "v") + to_string(rwid);
+	    return "s:" + to_string(idx) + ":#" + leaf + ":R" + rtext;
+      }
       if (const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(ptype)) {
             if (!constraint_fixed_array_leaf_word_(fixed, cpath.front().index,
                   cls, value_slots, scope, loop_env, word)) return "";
@@ -33014,16 +33099,15 @@ static string constraint_class_state_assoc_select_ir_(
  * dimension, or for a dynamic array or queue by its positional initializer
  * (IEEE 1800-2017/2023 6.20.6). Each element is then an ordinary state
  * value, so an inside operand denotes exactly those values (11.4.13). */
-static bool constraint_outside_const_array_ir_(const PEIdent*id,
-					       const netclass_t*cls,
-					       const NetScope*scope,
-					       string&items)
+static bool constraint_outside_const_array_shape_(
+	  NetNet*net, Design*des, ivl_type_t&element, long&base, size_t&count)
 {
-      NetNet*net = constraint_outside_variable_(id, cls, scope);
-      if (!net || !net->get_const()) return false;
-      ivl_type_t element = nullptr;
-      size_t count = 0;
-      if (const netdarray_t*da = dynamic_cast<const netdarray_t*>(net->net_type())) {
+      element = nullptr;
+      base = 0;
+      count = 0;
+      if (!net || !des) return false;
+      if (const netdarray_t*da =
+	    dynamic_cast<const netdarray_t*>(net->net_type())) {
 	    element = da->element_type();
 	    const PPackage*owner = nullptr;
 	    for (const PPackage*package : pform_packages)
@@ -33039,24 +33123,40 @@ static bool constraint_outside_const_array_ir_(const PEIdent*id,
 		  if (!target || target->path().size() != 1
 		      || peek_tail_name(target->path()) != net->name())
 			continue;
-		  if (!pattern || pattern->replication() || pattern->parms().empty())
-			return false;
-		  count = pattern->parms().size();
+		  vector<PExpr*>values;
+		  if (!pattern || !pattern->keys().empty()
+		      || !pattern->expand_replication_(des, net->scope(), values)
+		      || values.empty()) return false;
+		  count = values.size();
+		  break;
 	    }
       } else if (net->unpacked_dimensions() == 1) {
 	    element = net->net_type();
 	    count = net->unpacked_count();
+	    const netrange_t&range = net->unpacked_dims().front();
+	    base = min(range.get_msb(), range.get_lsb());
       }
-      if (!element || count == 0 || !element->packed()
+      return element && count && count <= UINT_MAX
+	    && count - 1 <= (size_t)LONG_MAX
+	    && base <= LONG_MAX - (long)(count - 1);
+}
+
+static bool constraint_outside_const_array_ir_(const PEIdent*id,
+					       const netclass_t*cls,
+					       const NetScope*scope,
+					       string&items)
+{
+      NetNet*net = constraint_outside_variable_(id, cls, scope);
+      if (!net || !net->get_const()) return false;
+      ivl_type_t element = nullptr;
+      size_t count = 0;
+	  long base = 0;
+	  if (!constraint_outside_const_array_shape_(net,
+		constraint_ir_design_ctx_, element, base, count)
+	      || !element->packed()
 	  || (element->base_type() != IVL_VT_BOOL
 	      && element->base_type() != IVL_VT_LOGIC))
-	    return false;
-      long base = 0;
-      if (net->unpacked_dimensions() == 1)
-	    base = net->unpacked_dims().front().get_lsb()
-		  < net->unpacked_dims().front().get_msb()
-		  ? net->unpacked_dims().front().get_lsb()
-		  : net->unpacked_dims().front().get_msb();
+	return false;
       items.clear();
       for (size_t k = 0; k < count; ++k) {
 	    pform_name_t path = id->path().name;
@@ -33075,6 +33175,81 @@ static bool constraint_outside_const_array_ir_(const PEIdent*id,
 	    items += (items.empty() ? "" : " ") + slot;
       }
       return true;
+}
+
+static string constraint_const_array_member_select_ir_(
+	  const PEIdent*id, const NetScope*scope, const netclass_t*cls,
+	  const map<perm_string,uint64_t>*loop_env)
+{
+      Design*des = constraint_ir_design_ctx_;
+      if (!id || !scope || !cls || !des || id->path().name.empty())
+	return "";
+      symbol_search_results found;
+      if (!symbol_search(id, des, const_cast<NetScope*>(scope), id->path(),
+		id->lexical_pos(), &found)
+	  || !found.net || found.par_val || !found.scope
+	  || found.scope->type() != NetScope::PACKAGE
+	  || found.path_head.size() != 1 || found.path_tail.size() > 1
+	  || !found.net->get_const()) return "";
+
+      const name_component_t&root = found.path_head.back();
+      const name_component_t*field = found.path_tail.empty()
+	  ? nullptr : &found.path_tail.front();
+      if (root.index.size() != 1
+	  || (field && (!field->index.empty() || field->local_scope))) return "";
+      const index_component_t&select = root.index.front();
+      if (select.sel != index_component_t::SEL_BIT
+	  || !select.msb || select.lsb) return "";
+
+      ivl_type_t element = nullptr;
+      long low = 0;
+      size_t span = 0;
+      if (!constraint_outside_const_array_shape_(found.net, des, element,
+		low, span)) return "";
+      unsigned long member_off = 0;
+      ivl_type_t member_type = element;
+      if (field) {
+	    const netstruct_t*st = dynamic_cast<const netstruct_t*>(element);
+	    if (!st || !st->packed()) return "";
+	    const netstruct_t::member_t*member =
+		  st->packed_member(field->name, member_off);
+	    if (!member) return "";
+	    member_type = member->net_type;
+      }
+      long width = member_type && member_type->packed()
+	  ? member_type->packed_width() : 0;
+      if (width <= 0 || (member_type->base_type() != IVL_VT_BOOL
+	  && member_type->base_type() != IVL_VT_LOGIC)) return "";
+      string index_ir = pexpr_to_constraint_ir(
+	    select.msb, cls, nullptr, scope, loop_env);
+      if (index_ir.empty()) return "";
+
+      string result = "(psel " + to_string(width)
+	  + (member_type->get_signed() ? ":s" : "")
+	  + " c:" + (member_type->base_type() == IVL_VT_BOOL ? "1" : "0")
+	  + " " + to_string(low) + ":" + to_string(span) + " " + index_ir;
+      const PPackage*package = nullptr;
+      for (const PPackage*candidate : pform_packages)
+	    if (candidate->pscope_name() == found.scope->basename())
+		  package = candidate;
+      if (!package) return "";
+      for (size_t pos = 0; pos < span; ++pos) {
+	    pform_name_t path = id->path().name;
+	    path.front().index.clear();
+	    index_component_t fixed;
+	    fixed.sel = index_component_t::SEL_BIT;
+	    fixed.msb = new PENumber(new verinum((int64_t)(low + (long)pos)));
+	    fixed.lsb = nullptr;
+	    path.front().index.push_back(fixed);
+	    PEIdent*elem = new PEIdent(const_cast<PPackage*>(package), path,
+		  id->lexical_pos());
+	    elem->set_line(*id);
+	    string slot = constraint_state_expression_slot_(id, elem, member_type,
+		  cls, false);
+	    if (slot.empty()) return "";
+	    result += " " + slot;
+      }
+      return result + ")";
 }
 
 /* Solver-native terminal count for a fixed integral locator:
@@ -33390,7 +33565,10 @@ static string constraint_local_indexed_ir_(
 		  && (constraint_expr_mentions_name_(e, dynforeach_emit_ctx_->loop_var)
 		      || (!dynforeach_emit_ctx_->loop_var2.nil()
 			  && constraint_expr_mentions_name_(
-				e, dynforeach_emit_ctx_->loop_var2)));
+				e, dynforeach_emit_ctx_->loop_var2))
+		      || (!dynforeach_emit_ctx_->rows_var.nil()
+			  && constraint_expr_mentions_name_(
+				e, dynforeach_emit_ctx_->rows_var)));
       };
       const pform_name_t&names = id->path().name;
       for (const name_component_t&comp : names)
@@ -34112,6 +34290,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      string selected = constraint_parameter_member_select_ir_(
 				id, scope, cls, loop_env);
 			      if (!selected.empty()) return selected;
+			      selected = constraint_const_array_member_select_ir_(
+				id, scope, cls, loop_env);
+			      if (!selected.empty()) return selected;
 			}
 		  }
 		  if (value_slots)
@@ -34194,7 +34375,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (dynforeach_emit_ctx_->entry_key)
 			return constraint_entry_key_error_(expr);
 		  const char*token = name == dynforeach_emit_ctx_->loop_var
-			? "L" : "M";
+			? "L" : name == dynforeach_emit_ctx_->rows_var ? "R" : "M";
 		  const list<index_component_t>&indices =
 			id->path().name.front().index;
 		  if (indices.empty()) return token;
@@ -34411,6 +34592,56 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      return mtype->get_signed()
 				? "(cast c:" + to_string(width) + " c:1 "
 				  + slice + ")" : slice;
+			}
+			/* A packed member of an element of one row of a rand dynamic
+			 * array of dynamic arrays (`f[ch][i].min_v') is a slice of
+			 * that row element's delem solver variable; the row is a leaf
+			 * of the property. */
+			if (pidx >= 0 && comp->index.size() == 2
+			    && outer_tail != id->path().name.end()
+			    && target_owner->get_prop_qual((size_t)pidx).test_rand()) {
+			      ivl_type_t leaf_type = constraint_dyn2_inner_type_(ptype);
+			      const netstruct_t*rec =
+				    dynamic_cast<const netstruct_t*>(leaf_type);
+			      if (leaf_type && rec && rec->packed()) {
+				    pform_name_t::const_iterator after = outer_tail;
+				    ++after;
+				    const index_component_t&row_ic = comp->index.front();
+				    const index_component_t&col_ic = comp->index.back();
+				    string leaf = constraint_dyn2_row_leaf_(row_ic, cls,
+					  value_slots, scope, loop_env);
+				    if (leaf.empty() || !outer_tail->index.empty()
+					|| after != id->path().name.end()
+					|| !col_ic.msb || col_ic.lsb
+					|| col_ic.sel != index_component_t::SEL_BIT)
+					  return "";
+				    unsigned long offset = 0;
+				    const netstruct_t::member_t*member =
+					  rec->packed_member(outer_tail->name, offset);
+				    ivl_type_t mtype = member ? member->net_type : nullptr;
+				    unsigned ewidth = rec->packed_width();
+				    unsigned mwidth = mtype ? mtype->packed_width() : 0;
+				    if (!mtype || dynamic_cast<const netstruct_t*>(mtype)
+					|| (mtype->base_type() != IVL_VT_BOOL
+					    && mtype->base_type() != IVL_VT_LOGIC)
+					|| !mwidth || !ewidth
+					|| offset > ewidth || mwidth > ewidth - offset)
+					  return "";
+				    string col = pexpr_to_constraint_ir(col_ic.msb, cls,
+					  value_slots, scope, loop_env);
+				    if (col.empty()) return "";
+				    string base = "(delem " + to_string(pidx) + ":#" + leaf
+					  + ":" + to_string(ewidth)
+					  + (rec->get_signed() ? ":s" : "") + " " + col + ")";
+				    string slice = mwidth == 1
+					  ? "(bit " + base + " c:" + to_string(offset) + ")"
+					  : "(part " + base + " c:"
+					    + to_string(offset + mwidth - 1) + " c:"
+					    + to_string(offset) + ")";
+				    return mtype->get_signed()
+					  ? "(cast c:" + to_string(mwidth) + " c:1 "
+					    + slice + ")" : slice;
+			      }
 			}
 			/* A packed member of one element of a rand dynamic array or
 			 * queue is a slice of that element's delem solver variable.
@@ -34946,7 +35177,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		      if (!constant.empty()) return constant;
 		      if (constraint_ir_design_ctx_->errors != errors_before) return "";
 		      return constraint_parameter_member_select_ir_(id, scope, cls, loop_env);
-		    }
+		  }
+	    }
+
+	    if (!target_path && !value_slots) {
+		  string selected = constraint_const_array_member_select_ir_(
+			id, scope, cls, loop_env);
+		  if (!selected.empty()) return selected;
 	    }
 
 	    int idx = cls ? cls->property_idx_from_name(name) : -1;
@@ -35003,6 +35240,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  nullptr);
 		    if (!nested.empty()) return nested;
 		  }
+		  // A whole element of one row of a rand dynamic array of
+		  // dynamic arrays: `f[ch][i]'.
+		if (id->path().size() == 1 && id->path().back().index.size() == 2
+		    && q.test_rand()) {
+		      if (ivl_type_t leaf_type = constraint_dyn2_inner_type_(ptype)) {
+			    const index_component_t&row_ic = id->path().back().index.front();
+			    const index_component_t&col_ic = id->path().back().index.back();
+			    string leaf = constraint_dyn2_row_leaf_(row_ic, cls,
+				  value_slots, scope, loop_env);
+			    if (leaf.empty() || !col_ic.msb || col_ic.lsb
+				|| col_ic.sel != index_component_t::SEL_BIT)
+				  return "";
+			    string col = pexpr_to_constraint_ir(col_ic.msb, cls,
+				  value_slots, scope, loop_env);
+			    if (col.empty()) return "";
+			    return "(delem " + to_string(idx) + ":#" + leaf + ":"
+				  + to_string(leaf_type->packed_width())
+				  + (leaf_type->get_signed() ? ":s" : "")
+				  + " " + col + ")";
+		      }
+		}
 		  // Element of the dynamic array being iterated by
 			  // an enclosing dynamic foreach: emit the runtime
 			  // element-reference template form. The index sub-IR
@@ -36783,7 +37041,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
 			diagnose_fixed_oob(item);
-			if (s.compare(0, 7, "(delem ") == 0) {
+			  if (s.compare(0, 7, "(delem ") == 0) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
 			      if (!id || !cls || id->path().package
 			          || id->has_scoped_type_prefix()
@@ -36791,6 +37049,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    return "";
 			      const name_component_t&component = id->path().name.front();
 			      int prop = cls->property_idx_from_name(component.name);
+			      ivl_type_t queue_element = nullptr;
+			      string fixed_queue = constraint_class_fixed_queue_element_ir_(
+				    component, cls, value_slots, scope, loop_env,
+				    &queue_element);
+			      if (!fixed_queue.empty()) {
+				    const index_component_t&select = component.index.back();
+				    string index_ir = select.msb && !select.lsb
+					  && select.sel == index_component_t::SEL_BIT
+					  ? pexpr_to_constraint_ir(select.msb, cls,
+						value_slots, scope, loop_env) : "";
+				    constraint_const_ir_t index;
+				    property_qualifier_t qual =
+					  cls->get_prop_qual((size_t)prop);
+				    if (!constraint_parse_const_ir_(index_ir, index)
+					  || index.width > 64 || !queue_element
+					  || (!qual.test_rand() && !qual.test_randc()))
+					  return "";
+			      } else {
 			      const netdarray_t*array = prop < 0 ? nullptr
 				    : dynamic_cast<const netdarray_t*>(
 				          cls->get_prop_type((size_t)prop));
@@ -36815,6 +37091,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			          || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
 			              && !dynamic_cast<const netenum_t*>(element)))
 				    return "";
+			      }
 			}
 			  // Ordering may name a scalar rand property, a dynamic
 			  // container size, or a statically selected rand-array
@@ -37047,6 +37324,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
             if (cfe->has_hierarchical_target() && cfe->member_name().nil()) {
                   for (perm_string name : cfe->prefix_names()) {
                         if (loop_env && loop_env->count(name)) continue;
+                        // The rows iterator of an enclosing (dynrows) template.
+                        if (dynforeach_emit_ctx_ && !dynforeach_emit_ctx_->rows_var.nil()
+                            && dynforeach_emit_ctx_->rows_var == name) continue;
                         PEIdent selector(name, UINT_MAX);
                         selector.set_line(*cfe);
                         constraint_source_type_t type = constraint_source_expr_type_(
@@ -37462,6 +37742,65 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // iterative constraints), so emit a template the runtime
 	      // expands after the size is known. One level only.
 	    if (!ua) {
+		    /* A rand dynamic array of dynamic arrays. The rows iterator is
+		     * the token R of a (dynrows) template (the outer size is
+		     * solved first, then each row's size, then the elements);
+		     * `foreach (f[ch][i])' inside it iterates the elements of row
+		     * ch as an ordinary (dynforeach) over the row's leaf. */
+		  if (ivl_type_t dyn2_leaf = constraint_dyn2_inner_type_(foreach_type)) {
+			if (!qual.test_rand() || !cfe->member_name().nil())
+			      return "";
+			const dynforeach_emit_ctx_t*row_outer = dynforeach_emit_ctx_;
+			unsigned dyn2_wid = dyn2_leaf->packed_width();
+			string dyn2_suffix = to_string(dyn2_wid)
+			      + (dyn2_leaf->get_signed() ? ":s" : "");
+			dynforeach_emit_ctx_t row_ctx;
+			row_ctx.prop_idx = idx;
+			row_ctx.elem_wid = dyn2_wid;
+			row_ctx.elem_signed = dyn2_leaf->get_signed();
+			bool nested_rows = row_outer && !row_outer->rows_var.nil()
+			      && row_outer->prop_idx == idx
+			      && row_outer->loop_var.nil() && row_outer->loop_var2.nil()
+			      && cfe->prefix_names().size() == 1
+			      && cfe->prefix_names()[0] == row_outer->rows_var
+			      && cfe->loop_vars().size() == 1
+			      && !cfe->loop_vars()[0].nil();
+			bool top_rows = !row_outer && cfe->prefix_names().empty()
+			      && (cfe->loop_vars().size() == 1
+				  || cfe->loop_vars().size() == 2)
+			      && !cfe->loop_vars()[0].nil()
+			      && (cfe->loop_vars().size() == 1
+				  || !cfe->loop_vars()[1].nil());
+			if (!nested_rows && !top_rows) return "";
+			if (nested_rows) {
+			      row_ctx = *row_outer;
+			      row_ctx.loop_var = cfe->loop_vars()[0];
+			} else {
+			      row_ctx.rows_var = cfe->loop_vars()[0];
+			      if (cfe->loop_vars().size() == 2)
+				    row_ctx.loop_var = cfe->loop_vars()[1];
+			}
+			dynforeach_emit_ctx_ = &row_ctx;
+			string row_body;
+			for (const PExpr*item : cfe->items()) {
+			      if (!item) continue;
+			      string part = pexpr_to_constraint_ir(item, cls,
+				    value_slots, scope, loop_env);
+			      if (part.empty()) {
+				    dynforeach_emit_ctx_ = row_outer;
+				    return "";
+			      }
+			      row_body = row_body.empty() ? part
+				    : "(and " + row_body + " " + part + ")";
+			}
+			dynforeach_emit_ctx_ = row_outer;
+			if (row_body.empty()) return "";
+			string inner = "(dynforeach " + to_string(idx) + ":#R:"
+			      + dyn2_suffix + " " + row_body + ")";
+			if (nested_rows) return inner;
+			return "(dynrows " + to_string(idx) + ":" + dyn2_suffix + " "
+			      + (cfe->loop_vars().size() == 2 ? inner : row_body) + ")";
+		  }
 		  if (cfe->loop_vars().size() != 1
 		      || cfe->loop_vars()[0].nil()) return "";
 		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(foreach_type);

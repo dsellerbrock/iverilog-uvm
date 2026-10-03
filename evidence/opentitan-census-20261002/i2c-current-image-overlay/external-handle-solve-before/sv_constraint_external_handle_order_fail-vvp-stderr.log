@@ -1,0 +1,1 @@
+ERROR: constraint state read: the constraint item at ./ivltests/sv_constraint_external_handle_order_fail.svh:12 is not supported by the constraint solver; randomize() fails rather than ignore it.

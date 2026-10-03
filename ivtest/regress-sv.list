@@ -4748,6 +4748,14 @@ sv_constraint_solve_before_fixed_array normal,-g2017,-s,top ivltests
 sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests
 sv_constraint_solve_before_fixed_array_neg CE,-g2017,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
 sv_constraint_solve_before_fixed_array_neg_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
+sv_constraint_fixed_queue_leaf_order normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_order.gold
+sv_constraint_fixed_queue_leaf_order_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_order.gold
+
+# External object fields are state unless the containing handle is rand.
+sv_constraint_external_handle_state normal,-g2017,-s,top ivltests gold=sv_constraint_external_handle_state.gold
+sv_constraint_external_handle_state_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_external_handle_state.gold
+sv_constraint_external_handle_order_fail normal,-g2017,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold
+sv_constraint_external_handle_order_fail_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold
 
 # X/Z caller state in constraints (18.3).
 sv_constraint_state_xz normal,-g2017,-s,top ivltests gold=sv_constraint_state_xz.gold
@@ -5374,3 +5382,7 @@ sv_constraint_function_priority_state_foreach normal,-g2017 ivltests gold=sv_con
 sv_constraint_function_priority_state_foreach_2023 normal,-g2023 ivltests gold=sv_constraint_function_priority_state_foreach.gold
 sv_class_fixed_array_order_methods normal,-g2017 ivltests gold=sv_class_fixed_array_order_methods.gold
 sv_class_fixed_array_order_methods_2023 normal,-g2023 ivltests gold=sv_class_fixed_array_order_methods.gold
+sv_constraint_wide_param_table normal,-g2017 ivltests gold=sv_constraint_wide_param_table.gold
+sv_constraint_wide_param_table_2023 normal,-g2023 ivltests gold=sv_constraint_wide_param_table.gold
+sv_constraint_dyn2d_array normal,-g2017 ivltests gold=sv_constraint_dyn2d_array.gold
+sv_constraint_dyn2d_array_2023 normal,-g2023 ivltests gold=sv_constraint_dyn2d_array_2023.gold

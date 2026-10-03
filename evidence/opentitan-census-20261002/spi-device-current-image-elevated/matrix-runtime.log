@@ -1,0 +1,8 @@
+OpenTitan UVM runtime
+command: /private/tmp/current-tools/bin/vvp -n /private/tmp/pi/spi-device-current-image-elevated-20261002/build/runtime/lowrisc_dv_spi_device_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=spi_device_base_test +UVM_TEST_SEQ=spi_device_flash_mode_vseq
+returncode: 124
+duration_seconds: 120.033
+
+UVM_INFO @ 0 ps: reporter [RNTST] Running test spi_device_base_test...
+SRAM ingress start = 0x1bb59e00
+UVM_INFO @   1482703 ps: (spi_device_base_vseq.sv:127) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.spi_device_flash_mode_vseq] [PRE_START] - Test will run: num_trans = 10

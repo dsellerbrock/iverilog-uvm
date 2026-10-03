@@ -1,0 +1,6 @@
+OpenTitan Icarus compile
+command: /private/tmp/current-tools/bin/iverilog -g2012 -stb -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/trial1-current-image-20261002/build/runtime/lowrisc_ip_trial1_sim_0.1/matrix-runtime.vvp -c /private/tmp/pi/trial1-current-image-20261002/build/runtime/lowrisc_ip_trial1_sim_0.1/matrix-iverilog.scr
+returncode: 0
+duration_seconds: 0.841
+
+iverilog: note: wrote DPI export C stubs to /private/tmp/pi/trial1-current-image-20261002/build/runtime/lowrisc_ip_trial1_sim_0.1/matrix-runtime.dpiexport.c (compile it into your DPI object).

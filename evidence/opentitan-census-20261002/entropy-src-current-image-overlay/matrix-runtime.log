@@ -1,0 +1,118 @@
+OpenTitan UVM runtime
+command: /private/tmp/current-tools/bin/vvp -n -d /private/tmp/pi/entropy-src-current-image-overlay-20261002/build/runtime/lowrisc_dv_entropy_src_sim_0.1/matrix-dpi.so /private/tmp/pi/entropy-src-current-image-overlay-20261002/build/runtime/lowrisc_dv_entropy_src_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=entropy_src_smoke_test +UVM_TEST_SEQ=entropy_src_smoke_vseq
+returncode: 0
+duration_seconds: 29.644
+
+UVM_INFO @ 0 ps: reporter [RNTST] Running test entropy_src_smoke_test...
+UVM_INFO @         0 ps: (entropy_src_smoke_test.sv:27) uvm_test_top [uvm_test_top] 
+
+	 |**************** entropy_src_env_cfg *****************| 	
+	 |***** otp_en_es_fw_read           :         'h96 *****| 	
+	 |***** otp_en_es_fw_over           :         'h96 *****| 	
+	 |***** seed_cnt                    :            1 *****| 	
+	 |***** sim_duration                :     20.00 ms *****| 	
+	 |----------------- knobs ------------------------------| 	
+	 |***** otp_en_es_fw_read_pct       :          100 *****| 	
+	 |***** otp_en_es_fw_read_inval_pct :            0 *****| 	
+	 |***** otp_en_es_fw_over_pct       :          100 *****| 	
+	 |***** otp_en_es_fw_over_inval_pct :            0 *****| 	
+	 |******************************************************| 	
+
+	 |**************** entropy_src_dut_cfg *****************| 	
+	 |***** module_enable               :    MuBi4True *****| 	
+	 |***** fips_enable                 :   MuBi4False *****| 	
+	 |***** fips_flag                   :    MuBi4True *****| 	
+	 |***** rng_fips                    :    MuBi4True *****| 	
+	 |***** route_software              :    MuBi4True *****| 	
+	 |***** type_bypass                 :    MuBi4True *****| 	
+	 |***** entropy_data_reg_enable     :    MuBi4True *****| 	
+	 |***** rng_bit_enable              :   MuBi4False *****| 	
+	 |***** rng_bit_sel                 :            1 *****| 	
+	 |***** fips_window_size            :         2048 *****| 	
+	 |***** bypass_window_size          :          384 *****| 	
+	 |***** fw_read_enable              :   MuBi4False *****| 	
+	 |***** fw_over_enable              :   MuBi4False *****| 	
+	 |***** observe_fifo_threshold      :            4 *****| 	
+	 |***** ht_threshold_scope          :            6 *****| 	
+	 |***** adaptp_sigma                :        0.000 *****| 	
+	 |***** bucket_sigma                :        0.000 *****| 	
+	 |***** markov_sigma                :        0.000 *****| 	
+	 |----------------- knobs ------------------------------| 	
+	 |***** fw_read_pct                 :            0 *****| 	
+	 |***** fw_over_pct                 :            0 *****| 	
+	 |***** module_enable_pct           :          100 *****| 	
+	 |***** fips_enable_pct             :            0 *****| 	
+	 |***** fips_flag_pct               :           75 *****| 	
+	 |***** rng_fips_pct                :           75 *****| 	
+	 |***** route_software_pct          :          100 *****| 	
+	 |***** type_bypass_pct             :          100 *****| 	
+	 |***** entropy_data_reg_enable_pct :          100 *****| 	
+	 |***** rng_bit_enable_pct          :            0 *****| 	
+	 |***** ht_threshold_scope_pct      :          100 *****| 	
+	 |***** adaptp_sigma range          : (0.00, 0.00) *****| 	
+	 |***** bucket_sigma range          : (0.00, 0.00) *****| 	
+	 |***** markov_sigma range          : (0.00, 0.00) *****| 	
+	 |******************************************************| 	
+
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:970) [tb.dut.u_entropy_src_cov_if] Creating covergroup err_test_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:971) [tb.dut.u_entropy_src_cov_if] Creating covergroup mubi_err_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:972) [tb.dut.u_entropy_src_cov_if] Creating covergroup sm_err_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:973) [tb.dut.u_entropy_src_cov_if] Creating covergroup fifo_err_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:974) [tb.dut.u_entropy_src_cov_if] Creating covergroup cntr_err_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:975) [tb.dut.u_entropy_src_cov_if] Creating covergroup seed_output_csr_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:976) [tb.dut.u_entropy_src_cov_if] Creating covergroup csrng_hw_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:977) [tb.dut.u_entropy_src_cov_if] Creating covergroup observe_fifo_event_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:978) [tb.dut.u_entropy_src_cov_if] Creating covergroup sw_update_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:979) [tb.dut.u_entropy_src_cov_if] Creating covergroup sw_disable_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:980) [tb.dut.u_entropy_src_cov_if] Creating covergroup enable_delay_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:981) [tb.dut.u_entropy_src_cov_if] Creating covergroup cont_ht_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:982) [tb.dut.u_entropy_src_cov_if] Creating covergroup win_ht_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:983) [tb.dut.u_entropy_src_cov_if] Creating covergroup win_ht_deep_threshold_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:984) [tb.dut.u_entropy_src_cov_if] Creating covergroup alert_cnt_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:985) [tb.dut.u_entropy_src_cov_if] Creating covergroup observe_fifo_threshold_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:986) [tb.dut.u_entropy_src_cov_if] Creating covergroup one_way_ht_threshold_reg_cg
+1000 ps: (../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:987) [tb.dut.u_entropy_src_cov_if] Creating covergroup recov_alert_cg
+UVM_INFO @  14778946 ps: (entropy_src_base_vseq.sv:103) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.entropy_src_smoke_vseq] Shutting down
+UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:234) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds read from entropy_data:               1
+UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:238) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds assumed dropped from entropy_data:    0
+UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:242) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds read from csrng interface:            0
+UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:246) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds assumed dropped from csrng interface: 0
+UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:250) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Words read from observe fifo:               0
+UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:254) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Words assumed dropped from observe fifo:    0
+UVM_INFO @  29088946 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @  29088946 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count :     0 of     1
+** Report counts by severity
+UVM_INFO :   10
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[uvm_test_top]     1
+[uvm_test_top.env.scoreboard]     6
+[uvm_test_top.env.virtual_sequencer.entropy_src_smoke_vseq]     1
+
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 29088946 (1ps)

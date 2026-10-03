@@ -1811,6 +1811,18 @@ const class_type*class_type::property_declared_class_type(size_t idx) const
       return dynamic_cast<class_type*>(properties_[idx].declared_class_type);
 }
 
+bool class_type::property_is_dyn2(size_t idx) const
+{
+      if (idx >= properties_.size()) return false;
+      const prop_t&prop = properties_[idx];
+      const vvp_container_layout_t&layout = prop.container_layout;
+      return !prop.base_type.empty() && prop.base_type[0] == 'D'
+	    && prop.dimensions.empty() && layout
+	    && layout->kind == VVP_CONTAINER_DARRAY
+	    && layout->element
+	    && layout->element->kind == VVP_CONTAINER_DARRAY;
+}
+
 uint64_t class_type::property_array_size(size_t idx) const
 {
       if (idx >= properties_.size())

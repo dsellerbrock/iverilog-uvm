@@ -1,0 +1,8 @@
+{
+  "pinned_otbn_model_cc_sha256": "751102f30ec5f8c28cd05aff653f4ff4baf641bc6fba286faae99697424bfb4e",
+  "rejected_overlay_sha256": "4514705a907c295ba8c2ff7751a2b491bed3515141d7674caed933bc6ddcd1f6",
+  "experiment": "Setting CHECK_DUE on every completed ISS operation invokes the full model/register comparison at the wrong lifecycle point.",
+  "result": "The selected smoke emitted an ASSERT FAILED NoModelErrs and TEST FAILED CHECKS with RTL/ISS register differences. This candidate was not integrated.",
+  "trace_lifecycle_observation": "The unmodified selected run never called OtbnTraceChecker::Finish; at destruction rtl_pending=0, iss_pending=0, seen_err=0, done=0.",
+  "accepted_fix": "Call OtbnTraceChecker::Finish at final model destruction only; the matrix-managed selected run is PASS with no runtime debt."
+}

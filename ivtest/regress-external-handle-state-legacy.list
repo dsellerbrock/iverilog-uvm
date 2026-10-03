@@ -1,0 +1,4 @@
+sv_constraint_external_handle_state normal,-g2017,-s,top ivltests gold=sv_constraint_external_handle_state.gold
+sv_constraint_external_handle_state_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_external_handle_state.gold
+sv_constraint_external_handle_order_fail normal,-g2017,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold
+sv_constraint_external_handle_order_fail_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold

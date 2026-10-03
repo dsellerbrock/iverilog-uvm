@@ -1,0 +1,73 @@
+$ c++ -std=c++17 -O1 -fPIC -I/private/tmp/current-tools/include/iverilog -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_present/crypto_dpi_present -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince -c /private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc -o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-0.o
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:59:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+   59 |   uint8_t digest_arr[digest_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:59:22: note: read of non-const variable 'digest_len' is not allowed in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:57:12: note: declared here
+   57 |   uint64_t digest_len = sha_len / 8;
+      |            ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:119:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  119 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:119:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:114:37: note: declared here
+  114 |                            uint64_t output_len, svOpenArrayHandle digest) {
+      |                                     ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:143:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  143 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:143:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:138:37: note: declared here
+  138 |                            uint64_t output_len, svOpenArrayHandle digest) {
+      |                                     ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:169:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  169 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:169:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:164:38: note: declared here
+  164 |                             uint64_t output_len, svOpenArrayHandle digest) {
+      |                                      ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:197:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  197 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:197:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:192:38: note: declared here
+  192 |                             uint64_t output_len, svOpenArrayHandle digest) {
+      |                                      ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:231:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  231 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:231:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:219:67: note: declared here
+  219 |                           const char *customization_str, uint64_t output_len,
+      |                                                                   ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:267:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  267 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:267:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:258:40: note: declared here
+  258 |                               uint64_t output_len, svBitVecVal *digest) {
+      |                                        ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:305:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  305 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:305:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:293:67: note: declared here
+  293 |                           const char *customization_str, uint64_t output_len,
+      |                                                                   ^
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:341:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  341 |   uint8_t digest_arr[output_len];
+      |                      ^~~~~~~~~~
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:341:22: note: function parameter 'output_len' with unknown value cannot be used in a constant expression
+/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/digestpp_dpi.cc:332:40: note: declared here
+  332 |                               uint64_t output_len, svBitVecVal *digest) {
+      |                                        ^
+9 warnings generated.
+
+$ cc -O1 -fPIC -I/private/tmp/current-tools/include/iverilog -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_present/crypto_dpi_present -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince -c /private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince/crypto_dpi_prince.c -o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-1.o
+
+$ c++ -std=c++17 -O1 -fPIC -I/private/tmp/current-tools/include/iverilog -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_present/crypto_dpi_present -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince -c /private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_present/crypto_dpi_present/crypto_dpi_present.cc -o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-2.o
+
+$ cc -O1 -fPIC -I/private/tmp/current-tools/include/iverilog -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/detail/constants -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/algorithm/mixin -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/kmac/dv/dpi/vendor/kerukuro_digestpp/detail -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_present/crypto_dpi_present -I/private/tmp/ot-corpus-current-chip-qualified-20261002/source/hw/ip/prim/dv/prim_prince/crypto_dpi_prince -c /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-runtime.dpiexport.c -o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-3.o
+
+$ c++ -shared -undefined dynamic_lookup -o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi.so /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-0.o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-1.o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-2.o /private/tmp/pi/otp-cover-literal-offsets-no-cap/runtime/lowrisc_dv_otp_ctrl_sim_0.1/matrix-dpi-3.o

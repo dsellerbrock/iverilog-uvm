@@ -139,6 +139,12 @@ static int expr_is_class_like_(ivl_expr_t expr)
       ivl_type_t net_type = ivl_expr_net_type(expr);
       ivl_signal_t sig;
 
+	/* A selected unpacked aggregate is an object-backed r-value even when
+	 * nested associative dimensions hide its leaf type from the root signal. */
+      if (ivl_expr_type(expr) == IVL_EX_SELECT
+	  && ivl_expr_value(expr) == IVL_VT_NO_TYPE)
+	    return 1;
+
 	/* The expression's own VALUE type is authoritative when it is
 	 * a definite non-class kind: a chained element select like
 	 * c.dd[0][1] evaluates to an int even though its ROOT signal
@@ -511,6 +517,11 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	    ivl_expr_t vexpr = ivl_expr_oper1(expr);
 	    ivl_expr_t bexpr;
 	    ivl_expr_t wexpr;
+
+	    /* An aggregate select is a value, not a signal handle with one
+	     * array index. Let the object evaluator preserve every select. */
+	    if (ivl_expr_value(expr) == IVL_VT_NO_TYPE)
+	      return 0;
 
 	    assert(vexpr);
 
