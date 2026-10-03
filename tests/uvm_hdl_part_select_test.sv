@@ -34,7 +34,18 @@ module top;
     expect_read("top.r[0]", 1, 1);
     expect_read("top.asc[4:7]", 'hA, 4);
     expect_read("top.mem[2]", 'h5a, 8);
+    expect_read("top.mem[2]", 'h5a, 8);
     expect_read("top.x_reg[7:4]", 'b10xz, 4);
+
+    // Consecutive backdoor reads may reuse an object handle, but must still
+    // observe a deposit to that same memory word immediately.
+    v = 'ha6;
+    if (!uvm_hdl_deposit("top.mem[2]", v)) begin $display("FAIL: deposit mem[2]"); errors++; end
+    expect_read("top.mem[2]", 'ha6, 8);
+    expect_read("top.mem[2]", 'ha6, 8);
+    v = 'h5a;
+    if (!uvm_hdl_deposit("top.mem[2]", v)) begin $display("FAIL: restore mem[2]"); errors++; end
+    expect_read("top.mem[2]", 'h5a, 8);
 
     if (!uvm_hdl_check_path("top.r[7:4]")) begin $display("FAIL: check_path select"); errors++; end
     if (uvm_hdl_check_path("top.r[20:16]")) begin $display("FAIL: out of range accepted"); errors++; end
