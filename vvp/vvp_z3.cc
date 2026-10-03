@@ -10002,7 +10002,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               ref.kind == Z3Builder::OrderRef::NESTED_ELEM;
                         if (ref.kind != Z3Builder::OrderRef::ELEM
                             && !nested_queue) continue;
-                        const string&base = builder.type(ref.idx)
+                        const string&prop_base = builder.type(ref.idx)
                               ->property_base_type(builder.local_index(ref.idx));
                         const Z3Builder::SizeVar*size_var = nullptr;
                         for (const auto&candidate : builder.size_vars)
@@ -10011,11 +10011,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     size_var = &candidate;
                                     break;
                               }
-                        if (!size_var && !nested_queue
-                            || ((base.empty() || base[0] != 'D')
-                                && (!size_var || !random_container_desc_(
-                                      size_var->container_type).is_queue)))
+                        random_container_desc_t desc = size_var
+                              ? random_container_desc_(size_var->container_type)
+                              : random_container_desc_t();
+                        if (nested_queue) {
+                              if (!size_var || !desc.is_queue)
+                                    return fail_joint("nested queue solve-before requires a proven queue size");
+                        } else if (!size_var
+                                   || ((prop_base.empty() || prop_base[0] != 'D')
+                                       && !desc.is_queue)) {
                               continue;
+                        }
                         auto size = proved_joint_sizes.find(
                                       make_pair(ref.idx,
                                             nested_queue ? ref.elem : 0));

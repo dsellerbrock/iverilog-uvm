@@ -1,0 +1,125 @@
+command: /private/tmp/flash-current-tools/bin/iverilog -g2012 -stb -sflash_ctrl_bind -sflash_ctrl_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/flash-census11-overlay-queueleaf/matrix-runtime.vvp -c /private/tmp/flash-census11-overlay-queueleaf/matrix-iverilog.scr
+../src/lowrisc_dv_flash_ctrl_env_0.1/flash_ctrl_env_cfg.sv:606: warning: User function 'set_scb_mem' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/flash_ctrl_otf_scoreboard.sv:70: warning: User function 'get' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_base_vseq.sv:1285: warning: User function 'uvm_hdl_read' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_base_vseq.sv:1299: warning: User function 'uvm_hdl_read' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:102: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:104: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:104: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:104: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:105: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:105: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:106: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:106: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_mp_regions_vseq.sv:204: warning: User function 'reset_scb_mem' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_error_prog_type_vseq.sv:211: warning: User function 'predict' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_error_prog_win_vseq.sv:125: warning: User function 'predict' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_error_mp_vseq.sv:289: warning: User function 'predict' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_invalid_op_vseq.sv:183: warning: User function 'predict' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_invalid_op_vseq.sv:207: warning: User function 'predict' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_invalid_op_vseq.sv:225: warning: User function 'predict' is being called as a task.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:13: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:15: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:15: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:15: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:16: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:16: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:17: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_legacy_base_vseq.sv:17: warning: -gcommercial-unsafe 'solve before' operand cannot be named as an ordered variable; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.
+../src/lowrisc_dv_flash_ctrl_sim_0.1/tb/tb.sv:95: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:102: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:103: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:104: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:105: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:106: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:107: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:108: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:109: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:110: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:111: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:112: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:113: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:114: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:115: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:116: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:117: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:118: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:119: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:120: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:121: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:122: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:123: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:124: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:125: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:126: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:127: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:128: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:129: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:130: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:131: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:132: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:133: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:134: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:135: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:136: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:137: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:138: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:139: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:140: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:141: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:142: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:143: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:144: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:145: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:146: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:147: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:148: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:149: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:150: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:151: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:152: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:153: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:154: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:155: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:156: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:157: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:158: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:159: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:160: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:161: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:162: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:163: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:164: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:165: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:166: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:167: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:168: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:169: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:170: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:171: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:172: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:173: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:174: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:175: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:176: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:177: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:178: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:179: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:180: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:181: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:183: warning: A non-blocking assignment should not be used in an always_comb process.
+iverilog: note: wrote DPI export C stubs to /private/tmp/flash-census11-overlay-queueleaf/matrix-runtime.dpiexport.c (compile it into your DPI object).
+
+returncode: 0
+duration_seconds: 3.890
