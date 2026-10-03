@@ -36,6 +36,8 @@ establish a complete root cause for the runtime timeout.
   600-second capped replay.
 - `matrix-runtime-z3-trace-180s.log`: the complete captured solver trace and
   replay output from the 180-second capped run.
+- The source-level VPI `find_scope` cache and its focused benchmark follow-up
+  are recorded in `../flash-vpi-scope-cache-20261003/README.md`.
 
 The temporary VVP executables and OpenTitan build tree are not included. The
 instrumented read32 implementation remains an experiment; pinned OpenTitan

@@ -1560,11 +1560,6 @@ static char * find_rest(char *name)
 
 static vpiHandle find_scope(const char *name, vpiHandle handle, int depth)
 {
-
-      vpiHandle iter = handle==0
-	    ? vpi_iterate(vpiModule, NULL)
-	    : vpi_iterate(vpiInternalScope, handle);
-
       vector<char> name_buf (strlen(name)+1);
       strcpy(&name_buf[0], name);
       char*nm_first = &name_buf[0];
@@ -1575,11 +1570,37 @@ static vpiHandle find_scope(const char *name, vpiHandle handle, int depth)
       }
 
       vpiHandle rtn = 0;
+      // Scope handles in the elaborated hierarchy remain valid for the
+      // simulation lifetime. Repeated hierarchical VPI lookups (for example,
+      // UVM HDL backdoor reads) can therefore reuse successful parent/name
+      // resolutions instead of rebuilding and scanning the parent's iterator.
+      // Do not cache misses.
+      static map<vpiHandle, map<string, vpiHandle> > scope_cache;
+      string child_name(nm_first);
+      map<vpiHandle, map<string, vpiHandle> >::const_iterator parent_cache =
+	    scope_cache.find(handle);
+      if (parent_cache != scope_cache.end()) {
+	    map<string, vpiHandle>::const_iterator child_cache =
+		  parent_cache->second.find(child_name);
+	    if (child_cache != parent_cache->second.end()) {
+		  if (nm_rest)
+			rtn = find_scope(nm_rest, child_cache->second, depth+1);
+		  else
+			rtn = child_cache->second;
+		  return rtn;
+	    }
+      }
+
+      vpiHandle iter = handle==0
+	    ? vpi_iterate(vpiModule, NULL)
+	    : vpi_iterate(vpiInternalScope, handle);
+
       vpiHandle hand;
       while (iter && (hand = vpi_scan(iter))) {
 	    const char *nm = vpi_get_str(vpiName, hand);
 
 	    if (strcmp(nm_first,nm)==0) {
+		  scope_cache[handle][child_name] = hand;
 		  if (nm_rest)
 			rtn=find_scope(nm_rest, hand, depth+1);
 		  else
