@@ -1,0 +1,112 @@
+UVM_INFO @ 0 ps: reporter [RNTST] Running test adc_ctrl_base_test...
+UVM_INFO @         0 ps: (adc_ctrl_base_test.sv:50) uvm_test_top [uvm_test_top] --------------------------------------------
+Name            Type      Size      Value   
+--------------------------------------------
+cfg        adc_ctrl_env_var_filters_cfg  -  @
+  is_active      integral  1  'h1
+  en_scb      integral  1  'h1
+  en_cov      integral  1  'h0
+  zero_delays      integral  1  'h0
+  m_tl_agent_cfgs      aa(object,string)  1  -
+    [adc_ctrl_reg_block]    tl_agent_cfg  -  @
+      is_active  integral  1  'h1
+      en_cov  integral  1  'h1
+      if_mode  if_mode_e  1  Host
+      has_req_fifo  integral  1  'h0
+      has_rsp_fifo  integral  1  'h0
+      max_outstanding_req  integral  32  'h1
+      tl_level  tl_level_e  2  kTLUL
+      a_ready_delay_min  integral  32  'h0
+      a_ready_delay_max  integral  32  'ha
+      d_ready_delay_min  integral  32  'h0
+      d_ready_delay_max  integral  32  'ha
+      host_can_stall_rsp_when_a_valid_high  integral  1  'h0
+      device_can_rsp_on_same_cycle  integral  1  'h0
+      time_a_valid_avail_after_sample_edge  integral  64  'h1
+      csr_access_abort_pct_in_adapter  integral  32  'h0
+  m_alert_agent_cfgs      aa(object,string)  1  -
+    [fatal_fault]    alert_esc_agent_cfg  -  @
+      is_active  integral  1  'h1
+      en_cov  integral  1  'h1
+      if_mode  if_mode_e  1  Device
+      has_req_fifo  integral  1  'h0
+      has_rsp_fifo  integral  1  'h0
+      alert_delay_min  integral  32  'h0
+      alert_delay_max  integral  32  'ha
+      ack_delay_min  integral  32  'h0
+      ack_delay_max  integral  32  'ha
+      ack_stable_min  integral  32  'h0
+      ack_stable_max  integral  32  'ha
+      ping_delay_min  integral  32  'h0
+      ping_delay_max  integral  32  'ha
+  num_interrupts      integral  32  'h1
+  testmode      adc_ctrl_testmode_e  2  AdcCtrlTestmodeOneShot
+  filters_fixed      integral  1  'h0
+  pwrup_time      integral  32  'h6
+  wakeup_time      integral  32  'h17
+  np_sample_cnt      integral  32  'hc
+  lp_sample_cnt      integral  32  'h5
+  mirror_controls      integral  8  'b11101111
+  max_val      integral  8  'b0
+  min_val      integral  8  'b0
+  apply_max_v      integral  8  'b10011110
+  filter_cfg      array  2  -
+    filter_cfg[0]    array  8  -
+      filter_cfg[0][0]  adc_ctrl_filter_cfg_t  66  1236950581746
+      filter_cfg[0][1]  adc_ctrl_filter_cfg_t  66  36893493919855150616
+      filter_cfg[0][2]  adc_ctrl_filter_cfg_t  66  635655160159
+      filter_cfg[0][3]  adc_ctrl_filter_cfg_t  66  5781025982041
+      filter_cfg[0][4]  adc_ctrl_filter_cfg_t  66  7730941134796
+      filter_cfg[0][5]  adc_ctrl_filter_cfg_t  66  36893493739466524118
+      filter_cfg[0][6]  adc_ctrl_filter_cfg_t  66  7198365190010
+      filter_cfg[0][7]  adc_ctrl_filter_cfg_t  66  36893490715809547036
+    filter_cfg[1]    array  8  -
+      filter_cfg[1][0]  adc_ctrl_filter_cfg_t  66  1374389535240
+      filter_cfg[1][1]  adc_ctrl_filter_cfg_t  66  36893494057294104058
+      filter_cfg[1][2]  adc_ctrl_filter_cfg_t  66  515396075887
+      filter_cfg[1][3]  adc_ctrl_filter_cfg_t  66  5729486374463
+      filter_cfg[1][4]  adc_ctrl_filter_cfg_t  66  36893495758101153726
+      filter_cfg[1][5]  adc_ctrl_filter_cfg_t  66  36893493748056458686
+      filter_cfg[1][6]  adc_ctrl_filter_cfg_t  66  7069516171098
+      filter_cfg[1][7]  adc_ctrl_filter_cfg_t  66  36893490793118958334
+--------------------------------------------
+
+UVM_INFO @         0 ps: (tb.sv:262) [tb.$unm_blk_9981] Disabling assertions: WakeupTime_A
+1000 ps: (../src/lowrisc_dv_adc_ctrl_cov_0/adc_ctrl_core_cov_if.sv:71) [tb.dut.u_adc_ctrl_core.u_adc_ctrl_fsm.u_adc_ctrl_fsm_cov_if] Creating covergroup adc_ctrl_hw_reset_cg
+1000 ps: (../src/lowrisc_dv_adc_ctrl_cov_0/adc_ctrl_core_cov_if.sv:72) [tb.dut.u_adc_ctrl_core.u_adc_ctrl_fsm.u_adc_ctrl_fsm_cov_if] Creating covergroup adc_ctrl_fsm_reset_cg
+UVM_INFO @ 5928290755 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @ 5928290755 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count :     0 of     1
+** Report counts by severity
+UVM_INFO :    4
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[tb.$unm_blk_9981]     1
+[uvm_test_top]     1
+
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 5928290755 (1ps)

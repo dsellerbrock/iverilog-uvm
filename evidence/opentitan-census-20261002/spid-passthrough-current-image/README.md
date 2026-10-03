@@ -1,0 +1,7 @@
+# OpenTitan SPID Passthrough current-image replay (2026-10-03)
+
+**Result: PASS.** The `lowrisc:dv:spid_passthrough_sim:0.1` `readbasic` run passes on the current Icarus image. Its compile command includes `-gcommercial-unsafe`; compile and runtime return 0, semantic/runtime debt and runtime errors are zero, and `TEST PASSED CHECKS` is present. Runtime took 4.069 seconds and peaked at 132,153,824 bytes under a 4 GiB cap.
+
+The disposable source copy is based on census11's pinned OpenTitan revision `a78922f14a8cc20c7ee569f322a04626f2ac6127` and inherits the earlier Trial1, SPI Device, Entropy Source, I2C, and Chip overlays. It additionally applies [spid_passthrough_checked_calls.patch](../../../docs/conformance/release_overlays/opentitan/spid_passthrough_checked_calls.patch). The before/after hashes match the [verified patch record](../../opentitan-spid-passthrough-checked-calls-20260929/source-hashes.json) exactly. That patch checks all eight randomization results and both `+TESTNAME` lookups, makes the initialized transaction local automatic, and turns missing/unknown selectors into fatal errors.
+
+The [result JSON](result.json), [matrix report](result.md), [setup log](matrix-setup.log), [compile log](matrix-compile.log), [runtime log](matrix-runtime.log), and [compiler source list](matrix-iverilog.scr) are saved beside this record. This selected row is current-image evidence; the full 49-target census has not been rerun.

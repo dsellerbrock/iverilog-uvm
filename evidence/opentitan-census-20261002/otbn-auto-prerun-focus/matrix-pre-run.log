@@ -1,0 +1,7 @@
+OpenTitan DV pre-run mode
+command: /Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python /private/tmp/ot-corpus-after-fixes-20260929/source/hw/ip/otbn/dv/uvm/gen-binaries.py --src-dir /private/tmp/ot-corpus-after-fixes-20260929/source/hw/ip/otbn/dv/smoke /private/tmp/otbn-matrix-runner-finalize2/runtime/lowrisc_dv_otbn_sim_0.1/otbn-binaries
+returncode: 0
+duration_seconds: 0.159
+
+[1/2] RV32_TOOL_AS=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/as /private/tmp/ot-corpus-after-fixes-20260929/source/hw/ip/otbn/util/otbn_as.py -o smoke_test.o /private/tmp/ot-corpus-after-fixes-20260929/source/hw/ip/otbn/dv/smoke/smoke_test.s
+[2/2] RV32_TOOL_LD=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/ld /private/tmp/ot-corpus-after-fixes-20260929/source/hw/ip/otbn/util/otbn_ld.py -o smoke_test.elf smoke_test.o

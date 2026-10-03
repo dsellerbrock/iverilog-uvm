@@ -1811,6 +1811,18 @@ const class_type*class_type::property_declared_class_type(size_t idx) const
       return dynamic_cast<class_type*>(properties_[idx].declared_class_type);
 }
 
+bool class_type::property_is_dyn2(size_t idx) const
+{
+      if (idx >= properties_.size()) return false;
+      const prop_t&prop = properties_[idx];
+      const vvp_container_layout_t&layout = prop.container_layout;
+      return !prop.base_type.empty() && prop.base_type[0] == 'D'
+	    && prop.dimensions.empty() && layout
+	    && layout->kind == VVP_CONTAINER_DARRAY
+	    && layout->element
+	    && layout->element->kind == VVP_CONTAINER_DARRAY;
+}
+
 uint64_t class_type::property_array_size(size_t idx) const
 {
       if (idx >= properties_.size())
@@ -2733,7 +2745,7 @@ class covgrp_ir_syntax_t {
 	    if (op == "not" || op == "bnot" || op == "redand"
 		|| op == "redor" || op == "redxor" || op == "neg") {
 		  arity = 1;
-	    } else if (op == "ite") {
+	    } else if (op == "ite" || op == "cast") {
 		  arity = 3;
 	    } else if (op == "eq" || op == "ne" || op == "lt"
 		       || op == "le" || op == "gt" || op == "ge"
@@ -3362,7 +3374,7 @@ class covgrp_ir_eval_t {
 	    bool unary = op == "not" || op == "bnot" || op == "redand"
 		       || op == "redor" || op == "redxor" || op == "neg";
 	    if (!unary && !expr_(b, depth + 1)) return false;
-	    if (op == "ite" && !expr_(c, depth + 1)) return false;
+	    if ((op == "ite" || op == "cast") && !expr_(c, depth + 1)) return false;
 	    skip_();
 	    if (pos_ >= text_.size() || text_[pos_] != ')') return false;
 	    pos_ += 1;
@@ -3370,6 +3382,16 @@ class covgrp_ir_eval_t {
 	    auto truth = [&](const value_t&value) {
 		  return (value.bits & mask_(value.width)) != 0;
 	    };
+	      // (cast WIDTH SIGN value): the SystemVerilog size/sign cast. The
+	      // value extends according to its own signedness (6.24.1).
+	    if (op == "cast") {
+		  unsigned width = (unsigned)(a.bits & mask_(a.width));
+		  if (width == 0 || width > 64) return false;
+		  out.width = width;
+		  out.is_signed = (b.bits & mask_(b.width)) != 0;
+		  out.bits = resize_(c, width, true);
+		  return true;
+	    }
 	    if (op == "ite") {
 		  out.width = std::max(b.width, c.width);
 		  out.is_signed = b.is_signed && c.is_signed;

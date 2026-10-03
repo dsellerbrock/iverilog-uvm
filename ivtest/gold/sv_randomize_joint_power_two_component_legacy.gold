@@ -1,2 +1,2 @@
-ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
 PASS

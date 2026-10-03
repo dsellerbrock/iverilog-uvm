@@ -1,0 +1,2 @@
+sv_constraint_fixed_queue_leaf_order normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_order.gold
+sv_constraint_fixed_queue_leaf_order_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_order.gold

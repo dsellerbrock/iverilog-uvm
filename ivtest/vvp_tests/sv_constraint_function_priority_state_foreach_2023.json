@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_function_priority_state_foreach_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_constraint_function_priority_state_foreach_2023"
+}

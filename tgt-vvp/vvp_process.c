@@ -6310,6 +6310,55 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		    return 0;
 		}
 	    }
+	      /* A whole one-dimensional fixed unpacked array that is a class
+	       * property: order a by-value darray image of its words and store
+	       * it back, so the property itself is reordered (7.12.2). */
+	    if (parm0 && parm1 && ivl_expr_type(parm1) == IVL_EX_NUMBER
+		&& ivl_expr_type(parm0) == IVL_EX_PROPERTY
+		&& !ivl_expr_oper1(parm0)
+		&& (ivl_expr_signal(parm0) || ivl_expr_oper2(parm0))) {
+		  ivl_type_t ptype = property_expr_type_(parm0);
+		  ivl_type_t elem = ptype && type_is_fixed_uarray_property_(ptype)
+			&& ivl_type_packed_dimensions(ptype) == 1
+			? ivl_type_element(ptype) : 0;
+		  if (elem && (ivl_type_base(elem) == IVL_VT_BOOL
+			       || ivl_type_base(elem) == IVL_VT_LOGIC)) {
+			unsigned long mode_bits = ivl_expr_uvalue(parm1);
+			unsigned mode = mode_bits & 3;
+			int sflag = (mode_bits & 4) ? 1 : 0;
+			unsigned pidx = ivl_expr_property_idx(parm0);
+			unsigned lab_null = local_count++;
+			unsigned lab_done = local_count++;
+			if (ivl_expr_signal(parm0))
+			      fprintf(vvp_out, "    %%load/obj v%p_0;\n",
+				      ivl_expr_signal(parm0));
+			else
+			      draw_eval_object(ivl_expr_oper2(parm0));
+			fprintf(vvp_out, "    %%test_nul/obj;\n");
+			fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+				thread_count, lab_null);
+			fprintf(vvp_out, "    %%prop/arr/dar %u; order fixed property array\n",
+				pidx);
+			  /* The order opcodes consume their receiver: order an
+			     aliasing reference and keep the array for the store. */
+			fprintf(vvp_out, "    %%dup/obj/ref;\n");
+			if (mode == 0)
+			      fprintf(vvp_out, "    %%qsort/o %d;\n", sflag);
+			else if (mode == 1)
+			      fprintf(vvp_out, "    %%qsort/r/o %d;\n", sflag);
+			else if (mode == 2)
+			      fprintf(vvp_out, "    %%qreverse/o;\n");
+			else
+			      fprintf(vvp_out, "    %%qshuffle/o;\n");
+			fprintf(vvp_out, "    %%store/prop/arr/dar %u;\n", pidx);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+			return 0;
+		  }
+	    }
 	    if (parm0 && (ivl_expr_type(parm0) == IVL_EX_SIGNAL
 			  || ivl_expr_type(parm0) == IVL_EX_ARRAY))
 		  sig = ivl_expr_signal(parm0);

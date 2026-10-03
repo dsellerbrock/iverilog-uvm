@@ -102,9 +102,13 @@ module main;
   int other_tick = 0;
   always @(negedge clk) begin
     other_tick++;
-    if (other_tick == 4 && $past(d) !== 3) begin
+    // d is written on this same negedge by the stimulus initial block. The
+    // sampled value is the Preponed one (IEEE 1800-2017 16.5.1, 16.9.3): at
+    // the 4th negedge $past(d) is d as it stood before the 3rd negedge's own
+    // write, i.e. 2.
+    if (other_tick == 4 && $past(d) !== 2) begin
       fails++;
-      $display("FAILED -- negedge block $past(d)=%0d at its 4th tick (want 3)",
+      $display("FAILED -- negedge block $past(d)=%0d at its 4th tick (want 2)",
                $past(d));
     end
   end

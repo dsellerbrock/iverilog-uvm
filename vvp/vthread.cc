@@ -11270,6 +11270,15 @@ void vthread_schedule_list(vthread_t thr)
             claimed.push_back(cur);
       }
 
+      /* The wait list is built newest-first. Wake the waiters of one event in
+         the order they began waiting (the order commercial simulators run
+         them): LIFO order makes processes that re-arm in a loop swap their
+         relative order on every occurrence, and testbenches that rely on a
+         stable same-edge order between processes (OpenTitan hmac's scoreboard
+         vs. its TL monitor) then see an alternating race. The order among
+         waiters of one event is otherwise unspecified (IEEE 1800-2017 4.7). */
+      std::reverse(claimed.begin(), claimed.end());
+
       /* Detach the complete list before any recipe runs. A recipe may disable
          another waiter from this same source or re-arm itself into the event;
          neither action may invalidate this traversal or append to it. */
@@ -22968,6 +22977,7 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
 # define ARRDAR_OBJ(k)    (((k) >> 11) & 1u)
 # define ARRDAR_STRING(k) (((k) >> 12) & 1u)
 # define ARRDAR_QUEUE(k)  (((k) >> 13) & 1u)
+# define ARRDAR_COPY(k)   (((k) >> 30) & 1u)
 /* Real has a zero type payload; direction/container-kind bits may be set. */
 # define ARRDAR_REAL(k)   (((k) & ~((1u << 10) | (1u << 13))) == 0u)
 
@@ -23115,6 +23125,7 @@ static bool load_arr_dar_window_(vthread_t thr, vvp_code_t cp,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  array->get_word_obj((unsigned)source_idx, w);
+		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
 		  if (queue)
 			queue->push_back(w, queue_max_size);
 		  else
@@ -23242,6 +23253,7 @@ static bool store_arr_dar_window_(vthread_t thr, vvp_code_t cp,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  dar->get_word((unsigned)source_idx, w);
+		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
 		  array->set_word((unsigned)(base + idx), w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;
@@ -23420,6 +23432,7 @@ static vvp_object_t md_materialize_(vvp_array_t array, uint32_t kind,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  array->get_word_obj((unsigned)flat, w);
+		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
 		  level->set_word((unsigned)idx, w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  level->set_word((unsigned)idx,
@@ -23469,6 +23482,7 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  level->get_word((unsigned)source_idx, w);
+		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
 		  array->set_word((unsigned)flat, w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;
@@ -26930,6 +26944,17 @@ static size_t fixed_prop_range_size_(const pair<int,int>&range)
 	   : (size_t)((int64_t)range.second - range.first) + 1;
 }
 
+/* A fixed-array property whose words are objects: class handles ("o",
+ * "oc:...") and value containers (queues Q, dynamic arrays D, associative
+ * arrays M), all carried as one object per word. */
+static bool fixed_prop_object_leaf_(const string&type)
+{
+      if (type == "o" || type.compare(0, 3, "oc:") == 0)
+	    return true;
+      return !type.empty()
+	    && (type[0] == 'Q' || type[0] == 'D' || type[0] == 'M');
+}
+
 static vvp_darray* fixed_prop_leaf_(const string&type, size_t size)
 {
       if (type == "b8")   return new vvp_darray_atom<uint8_t>(size);
@@ -26942,7 +26967,7 @@ static vvp_darray* fixed_prop_leaf_(const string&type, size_t size)
       if (type == "sb64") return new vvp_darray_atom<int64_t>(size);
       if (type == "r")    return new vvp_darray_real(size);
       if (type == "S")    return new vvp_darray_string(size);
-      if (type == "o" || type.compare(0, 3, "oc:") == 0)
+      if (fixed_prop_object_leaf_(type))
 	    return new vvp_darray_object(size);
 
       const char*cp = type.c_str();
@@ -26998,7 +27023,7 @@ static vvp_object_t fixed_prop_materialize_(
 		  array->set_word((unsigned)idx, recv.get_real(pid, flat));
 	    } else if (type == "S") {
 		  array->set_word((unsigned)idx, recv.get_string(pid, flat));
-	    } else if (type == "o" || type.compare(0, 3, "oc:") == 0) {
+	    } else if (fixed_prop_object_leaf_(type)) {
 		  vvp_object_t val;
 		  recv.get_object(pid, val, flat);
 		  array->set_word((unsigned)idx, val);
@@ -27069,9 +27094,12 @@ static void fixed_prop_copy_back_(
 		  string val;
 		  array->get_word((unsigned)source_idx, val);
 		  recv.set_string(pid, val, flat);
-	    } else if (type == "o" || type.compare(0, 3, "oc:") == 0) {
+	    } else if (fixed_prop_object_leaf_(type)) {
 		  vvp_object_t val;
 		  array->get_word((unsigned)source_idx, val);
+		    // Class handles copy by reference; queues, dynamic and
+		    // associative arrays are values and are copied (7.6).
+		  if (type[0] != 'o' && !val.test_nil()) val = val.duplicate();
 		  recv.set_object(pid, val, flat);
 	    } else {
 		  vvp_vector4_t val;

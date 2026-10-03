@@ -699,15 +699,6 @@ void draw_fixed_uarray_slot_index_(ivl_expr_t expr, ivl_type_t type,
               *in_range_flag);
 }
 
-static int fixed_uarray_has_container_leaf_(ivl_type_t type)
-{
-      ivl_type_t leaf = type_is_fixed_uarray_property_(type)
-	    ? ivl_type_element(type) : 0;
-
-      return leaf && (ivl_type_base(leaf) == IVL_VT_QUEUE
-		      || ivl_type_base(leaf) == IVL_VT_DARRAY);
-}
-
 static int eval_object_property(ivl_expr_t expr)
 {
       ivl_signal_t sig = ivl_expr_signal(expr);
@@ -781,19 +772,12 @@ static int eval_object_property(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       } else {
 	    if (vvp_expr_is_whole_fixed_array_property(expr)) {
-		  if (fixed_uarray_has_container_leaf_(declared_prop_type)) {
-			fprintf(stderr, "%s:%u: sorry: whole fixed unpacked array "
-				"property %u with queue or dynamic-array elements "
-				"cannot be read as one aggregate object.\n",
-				ivl_expr_file(expr), ivl_expr_lineno(expr), pidx);
-			vvp_errors += 1;
-			fprintf(vvp_out,
-				"    %%null; unsupported whole fixed array of containers\n");
-		  } else {
-			fprintf(vvp_out,
-				"    %%prop/arr/dar %u; eval_fixed_property_array\n",
-				pidx);
-		  }
+		    /* A fixed array of queues / dynamic / associative arrays
+		       materializes one container object per word; the receiving
+		       store copies each by value (kind bit COPY). */
+		  fprintf(vvp_out,
+			  "    %%prop/arr/dar %u; eval_fixed_property_array\n",
+			  pidx);
 	    } else {
 		  fprintf(vvp_out,
 			  "    %%prop/obj %u, %d; eval_object_property\n",
@@ -943,6 +927,11 @@ static int eval_object_array(ivl_expr_t expr)
 		       visible (M10-1c), so only the legal `q = arr' shape
 		       reaches here. */
 		  kind = VVP_ARRDAR_OBJ;
+		  break;
+		case IVL_VT_QUEUE:
+		case IVL_VT_DARRAY:
+		    /* Value containers: one object per word, deep-copied. */
+		  kind = VVP_ARRDAR_OBJ | VVP_ARRDAR_COPY;
 		  break;
 		default:
 		  fprintf(stderr, "%s:%u: sorry: the whole unpacked array "

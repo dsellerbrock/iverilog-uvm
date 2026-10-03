@@ -1,0 +1,70 @@
+{
+  "source": {
+    "opentitan_root": "/private/tmp/ot-corpus-after-fixes-20260929/source",
+    "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "compiler_profile": "commercial-unsafe",
+    "native_pkg_config": [
+      "libelf"
+    ]
+  },
+  "tools": {
+    "components": {
+      "driver": {
+        "path": "/private/tmp/current-tools/bin/iverilog",
+        "sha256": "53969c0e4a140f0f2accec98b752c4d37529d912ddb255bec0ed5dc9d1a07bcc"
+      },
+      "compiler_engine": {
+        "path": "/private/tmp/current-tools/lib/ivl/ivl",
+        "sha256": "6a18cb3c8c4da86ad3e230935d8085635ea015e9fbf24eb4f6e07a8fd6ed384b"
+      },
+      "vvp_target": {
+        "path": "/private/tmp/current-tools/lib/ivl/vvp.tgt",
+        "sha256": "fe1361e12742b7d80bb63b837c4ea5f3b71c3239857c858f34a611c92ae08d73"
+      },
+      "vvp_runtime": {
+        "path": "/private/tmp/current-tools/bin/vvp",
+        "sha256": "215774b9c3f6f3affb0be206afe017554b64b51885516b55d51f9fd57e6cfca1"
+      },
+      "normal_config": {
+        "path": "/private/tmp/current-tools/lib/ivl/vvp.conf",
+        "sha256": "7a6caba0421d8eb8d3b72e0507376d0a43b5980f2ce4c14247a5c303e9080a7e"
+      },
+      "synthesis_config": {
+        "path": "/private/tmp/current-tools/lib/ivl/vvp-s.conf",
+        "sha256": "cc7b2c7caa89ea1e398765da227978ce0258780f9e67b1fe942520bfa6089b69"
+      },
+      "uvm_dpi": {
+        "path": "/private/tmp/current-tools/lib/ivl/uvm_dpi.vpi",
+        "sha256": "6cbf63d887ba5d37d476b4bf78272e96262b1642390adfb7248d2b2ec4742678"
+      }
+    },
+    "uvm_sources": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+    }
+  },
+  "target": {
+    "core": "lowrisc:dv:otbn_sim:0.1",
+    "status": "DEBT",
+    "dvsim_test": "otbn_smoke",
+    "runtime_command": "/private/tmp/current-tools/bin/vvp -n -d /private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/matrix-dpi.so /private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=0 +smoke_test=1 +UVM_TESTNAME=otbn_base_test +UVM_TEST_SEQ=otbn_smoke_vseq +otbn_elf_dir=/private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/otbn-binaries",
+    "pre_run_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python /private/tmp/ot-corpus-after-fixes-20260929/source/hw/ip/otbn/dv/uvm/gen-binaries.py --src-dir /private/tmp/ot-corpus-after-fixes-20260929/source/hw/ip/otbn/dv/smoke /private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/otbn-binaries",
+    "pre_run_returncode": 0,
+    "pre_run_duration_seconds": 0.027,
+    "otbn_smoke_elf": "/private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/otbn-binaries/smoke_test.elf",
+    "otbn_smoke_elf_sha256": "e47c6d70669a8b2837e8476b6e3ca1eeaadb98b62bab87321a0ce698348cb827",
+    "compile_command": "/private/tmp/current-tools/bin/iverilog -g2012 -stb -sotbn_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/matrix-runtime.vvp -c /private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/matrix-iverilog.scr",
+    "compile_returncode": 0,
+    "compile_duration_seconds": 4.922,
+    "runtime_returncode": 0,
+    "runtime_duration_seconds": 101.97,
+    "runtime_pass_banner": true,
+    "runtime_errors": [],
+    "runtime_debt": [
+      "WARNING: Destroying OtbnTraceChecker object with an unfinished operation."
+    ],
+    "runtime_error_count": 0,
+    "runtime_debt_count": 1
+  },
+  "qualification": "Selected OTBN smoke only. TEST PASSED CHECKS; zero UVM warnings/errors/fatals; classified DEBT because OtbnTraceChecker is destroyed with an unfinished operation. This is not a refreshed 49-target census."
+}

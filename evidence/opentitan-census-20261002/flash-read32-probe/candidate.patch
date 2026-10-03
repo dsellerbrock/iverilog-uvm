@@ -1,0 +1,39 @@
+--- a/flash_mem_bkdr_util.sv
++++ b/flash_mem_bkdr_util.sv
+@@ -23,6 +23,36 @@
+     return super.get_ecc_computed_data(data);
+   endfunction
+
++  // Read each backing memory word once when a 32-bit access spans its bytes.
++  virtual function logic [31:0] read32(bit [bus_params_pkg::BUS_AW-1:0] addr);
++    uvm_hdl_data_t word_data;
++    logic [31:0] result;
++    uint32_t last_index;
++    bit have_word;
++
++    `DV_CHECK_EQ_FATAL(addr % 4, 0, $sformatf("addr 0x%0h not 32-bit aligned", addr))
++    have_word = 1'b0;
++    for (int i = 0; i < 4; i++) begin
++      bit [bus_params_pkg::BUS_AW-1:0] byte_addr = addr + i;
++      uint32_t index;
++
++      if (!check_addr_valid(byte_addr)) begin
++        result[i * 8 +: 8] = 'x;
++        continue;
++      end
++
++      index = byte_addr >> addr_lsb;
++      if (!have_word || index != last_index) begin
++        word_data = read(byte_addr);
++        last_index = index;
++        have_word = 1'b1;
++      end
++      result[i * 8 +: 8] =
++          (word_data >> ((byte_addr % bytes_per_word) * byte_width)) & 8'hff;
++    end
++    return result;
++  endfunction
++
+   // Randomize the memory with correct ECC.
+   virtual function void randomize_mem();
+     `uvm_info(`gfn, "Randomizing flash mem contents", UVM_LOW)

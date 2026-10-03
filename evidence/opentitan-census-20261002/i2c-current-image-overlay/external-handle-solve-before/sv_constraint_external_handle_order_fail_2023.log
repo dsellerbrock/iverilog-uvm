@@ -1,0 +1,3 @@
+./ivltests/sv_constraint_external_handle_order_fail.svh:12: warning: Constraint item in 'frequency_mode_c' of class host_seq is not representable in the constraint solver; randomize() of this class will fail.
+ERROR: constraint state read: the constraint item at ./ivltests/sv_constraint_external_handle_order_fail.svh:12 is not supported by the constraint solver; randomize() fails rather than ignore it.
+PASS: external cfg solve-before is rejected

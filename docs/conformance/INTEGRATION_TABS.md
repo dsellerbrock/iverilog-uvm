@@ -15,16 +15,23 @@ what is still NOT wired. Update it as items are finished. Standing rule: at most
 
 ## Pending integration (tests in `ivtest/regress-pending-integration-{sv,vvp}.list`, not run by gates)
 From agent/l106-l116-regression-fix-20260915; their solver/covergroup code was dropped where it conflicted with newer work:
-1. `sv_constraint_nested_fixed_element*`, `sv_constraint_wide_fixed_element_*` (wide >64-bit fixed-array elements in constraints,
-   `C:` wide constant terminal in constraint IR, dist over wide elements; vvp_z3.cc side of that branch was not taken).
-2. `sv_cov_ctor_transition_*` (constructor-dependent covergroup transition terms; elaborate.cc hunk not taken).
+1. `sv_constraint_wide_fixed_element_*` and `sv_constraint_nested_fixed_element_wide` (wide >64-bit fixed-array elements in constraints,
+   `C:` wide constant terminal in constraint IR, dist over wide elements). The nested (<=64-bit) `x:` element path is integrated
+   (2026-10-01): `parse_nested_elem` in vvp_z3.cc, plus `:t` state-read flavor for non-random handles.
+2. ~~`sv_cov_ctor_transition_*`~~ DONE 2026-10-01: elaborate.cc dynamic-term hunk re-applied on top of HEAD's ctor_range_* helpers; static terms in a
+   constructor-dependent family ship as constant IR. Moved into regress-sv/vvp.list. Remaining pending: wide fixed element (item 1),
+   sv_joint_coupled_randc_ordered_* (4 tests assert the old "unsupported call fails" limitation; joint mode now solves them, so they need
+   rewriting once the semantics of two `dist` constraints on one variable are settled, not code porting). sv_implicit_property_method_collision_generic_fail is DONE (`Name::m()` no longer resolves a variable).
 Re-integrate against current vvp_z3.cc/elaborate.cc, then move the entries back into regress-sv.list/regress-vvp.list.
 
 ## Known gaps (not from branches)
 - rand 2-D dynamic arrays (`rand T f[][]`, `f[c].size`, `foreach (f[c,i])`): OpenTitan adc_ctrl.
-- fixed arrays of containers as `ref`/aggregate (tgt-vvp uarray_container_kind_ has no container leaf): OpenTitan flash_ctrl.
-- covergroup `bins x = {[0:ctor_arg]} with (...)`: OpenTitan i2c.
-- function-call `ref` actuals that are dyn-array/queue/fixed-array elements still copy in/out (task path binds them).
+- (FIXED 2026-10-02, PR #396) fixed arrays of containers as call arguments, property reads and whole-array stores; OpenTitan flash_ctrl now ends `TEST PASSED CHECKS` (DEBT: compat warnings). Also fixed: order methods on fixed-array class properties were silently skipped.
+- (FIXED 2026-10-02, PR #396) OpenTitan i2c: covergroup ctor-dependent `with` filter, ignore_bins transitions, vif task output into a packed class-property bit select; lowrisc:dv:i2c_sim now ends `TEST PASSED CHECKS` (DEBT: 3 upstream-compat warnings).
+- OpenTitan spid_upload: the pre-DV TB has no checker or pass banner by design (only a 300 us timeout message); stays unclassifiable, not a compiler gap.
+- OpenTitan hmac: status read races the scoreboard's FIFO-depth model at the same clock edge (`@cb` waiters vs monitor chain); ordering of same-event waiters decides the result.
+- function-call `ref` actuals that are dyn-array/queue/fixed-array elements still copy in/out (task path binds them); whole fixed arrays of containers are passed by value-copy (copy-in/out for ref).
+- OpenTitan remaining after census6+flash: adc_ctrl (rand 2-D dynamic arrays), otbn (passes when the real smoke ELF dir is supplied, see DD-101; runner does not build it yet), spi_tpm (upstream TB passes a parameter the RTL lacks), spid_upload (pre-DV TB has no checker).
 - hmac scoreboard race (wait_clks vs same-edge counter update), OpenTitan otbn needs +otbn_elf_dir, spi_tpm TB passes a parameter the RTL lacks.
 - Legacy gate for the commits up to 4cfcc2798 was not fully completed; JSON 4228/0 and UVM 363/0 were.
 

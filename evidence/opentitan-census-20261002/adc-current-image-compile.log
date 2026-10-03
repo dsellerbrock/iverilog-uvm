@@ -1,0 +1,29 @@
+../src/lowrisc_dv_adc_ctrl_sim_0.1/tb.sv:63: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:102: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:103: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:104: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:105: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:106: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:107: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:108: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:109: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:110: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:111: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:112: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:113: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:114: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:115: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:116: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_adc_ctrl_csr_assert_0/adc_ctrl_csr_assert_fpv.sv:118: warning: A non-blocking assignment should not be used in an always_comb process.
+iverilog: note: wrote DPI export C stubs to /private/tmp/pi/adc-inner-20261002/build/runtime/lowrisc_dv_adc_ctrl_sim_0.1/matrix-runtime.dpiexport.c (compile it into your DPI object).

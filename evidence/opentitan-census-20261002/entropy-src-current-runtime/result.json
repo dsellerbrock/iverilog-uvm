@@ -1,0 +1,44 @@
+{
+  "kind": "selected_runtime_replay",
+  "core": "lowrisc:dv:entropy_src_sim:0.1",
+  "lane": "runtime",
+  "source_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_tree_dirty": true,
+  "runtime_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/vvp/vvp -n -d /private/tmp/pi/census11/build/runtime/lowrisc_dv_entropy_src_sim_0.1/matrix-dpi.so /private/tmp/pi/census11/build/runtime/lowrisc_dv_entropy_src_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=entropy_src_smoke_test +UVM_TEST_SEQ=entropy_src_smoke_vseq",
+  "working_directory": "/private/tmp/pi/census11/build/runtime/lowrisc_dv_entropy_src_sim_0.1/sim-icarus",
+  "runtime_returncode": 0,
+  "runtime_duration_seconds": 27.866,
+  "compiled_image": "/private/tmp/pi/census11/build/runtime/lowrisc_dv_entropy_src_sim_0.1/matrix-runtime.vvp",
+  "compiled_image_sha256": "fa0c37e59b1cb6f9a5af7cc1d12d76727f7f34e940300525d4b481819ba8f2ee",
+  "compile_command": "/private/tmp/current-tools/bin/iverilog -g2012 -stb -sentropy_src_bind -sentropy_src_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/census11/build/runtime/lowrisc_dv_entropy_src_sim_0.1/matrix-runtime.vvp -c /private/tmp/pi/census11/build/runtime/lowrisc_dv_entropy_src_sim_0.1/matrix-iverilog.scr",
+  "compile_profile": "commercial-unsafe",
+  "commercial_unsafe_flag_present": true,
+  "runtime_sha256": "215774b9c3f6f3affb0be206afe017554b64b51885516b55d51f9fd57e6cfca1",
+  "runtime_pass_banner": true,
+  "weighted_soft_warning_present": false,
+  "dist_diagnostic_present": false,
+  "runtime_errors": [],
+  "scoreboard_drop_counters": [
+    "UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:238) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds assumed dropped from entropy_data:    0",
+    "UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:246) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds assumed dropped from csrng interface: 0",
+    "UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:254) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Words assumed dropped from observe fifo:    0"
+  ],
+  "raw_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/entropy-src-current-runtime/runtime.log",
+  "note": "Runtime replay only. Reused the census11 compiled image; driver, compiler engine and VVP target hashes match census11. Runtime is the current worktree VVP binary. This is not a fresh 49-row census.",
+  "runtime_error_count": 0,
+  "runtime_debt_count": 3,
+  "runtime_debt": [
+    "UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:238) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds assumed dropped from entropy_data:    0",
+    "UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:246) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Seeds assumed dropped from csrng interface: 0",
+    "UVM_INFO @  29088946 ps: (entropy_src_scoreboard.sv:254) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Words assumed dropped from observe fifo:    0"
+  ],
+  "compile_semantic_debt_from_reused_row": [
+    "../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:872: warning: covergroup bin 'very_tight' has a value outside its effective unsigned 1-bit coverpoint type; the affected range is intersected with that type's domain.",
+    "../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:874: warning: covergroup bin 'tight' has a value outside its effective unsigned 1-bit coverpoint type; the affected range is intersected with that type's domain.",
+    "../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:876: warning: covergroup bin 'typical' has a value outside its effective unsigned 1-bit coverpoint type; the affected range is intersected with that type's domain.",
+    "../src/lowrisc_dv_entropy_src_cov_0/entropy_src_cov_if.sv:878: warning: covergroup bin 'loose' has a value outside its effective unsigned 1-bit coverpoint type; the affected range is intersected with that type's domain."
+  ],
+  "compile_semantic_debt_count_from_reused_row": 4,
+  "compile_returncode_from_reused_row": 0,
+  "setup_actionable_warnings_from_reused_row": []
+}

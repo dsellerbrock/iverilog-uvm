@@ -1,0 +1,97 @@
+OpenTitan UVM runtime
+command: /private/tmp/current-tools/bin/vvp -n /private/tmp/pi/spi-tpm-current-image-final/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-runtime.vvp +smoke_test=1
+returncode: 0
+duration_seconds: 1.022
+
+UVM_INFO /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh(392) @ 0: reporter [UVM/RELNOTES] 
+----------------------------------------------------------------
+UVM-1.2
+(C) 2007-2014 Mentor Graphics Corporation
+(C) 2007-2014 Cadence Design Systems, Inc.
+(C) 2006-2014 Synopsys, Inc.
+(C) 2011-2013 Cypress Semiconductor Corp.
+(C) 2013-2014 NVIDIA Corporation
+----------------------------------------------------------------
+
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  You are using a version of the UVM library that has been compiled
+  with `UVM_OBJECT_DO_NOT_NEED_CONSTRUCTOR undefined.
+  See http://www.eda.org/svdb/view.php?id=3770 for more details.
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+TPM Read command process: Xfer Size (  2)
+Byte ( 0): efh
+Byte ( 1): beh
+Byte ( 2): adh
+Byte ( 3): deh
+TPM Write command process: Xfer Size (  4)
+Byte ( 0): 16h
+Byte ( 1): 74h
+Byte ( 2): 97h
+Byte ( 3): 6ah
+Byte ( 4): bah
+Byte ( 5): 4eh
+Byte ( 6): 3fh
+Byte ( 7): f8h
+Byte ( 8): 49h
+Byte ( 9): afh
+Byte (10): e9h
+Byte (11): 9eh
+Byte (12): 5eh
+Byte (13): 06h
+Byte (14): 19h
+Byte (15): dbh
+Byte (16): eah
+Byte (17): fch
+Byte (18): c0h
+Byte (19): b9h
+Byte (20): 8eh
+Byte (21): 81h
+Byte (22): 04h
+Byte (23): 2ch
+Byte (24): 8eh
+Byte (25): e7h
+Byte (26): 87h
+Byte (27): c4h
+Byte (28): 02h
+Byte (29): 84h
+Byte (30): 8dh
+Byte (31): 12h
+Byte (32): 17h
+Byte (33): 89h
+Byte (34): c2h
+Byte (35): 54h
+Byte (36): 0fh
+Byte (37): 2dh
+Byte (38): 99h
+Byte (39): 3fh
+Byte (40): b5h
+Byte (41): eah
+Byte (42): eah
+Byte (43): 3dh
+Byte (44): ebh
+Byte (45): cch
+Byte (46): adh
+Byte (47): 47h
+Byte (48): 7bh
+Byte (49): 84h
+Byte (50): fch
+Byte (51): e6h
+Byte (52): 47h
+Byte (53): 81h
+Byte (54): 99h
+Byte (55): 1ch
+Byte (56): b2h
+Byte (57): 63h
+Byte (58): 87h
+Byte (59): d3h
+Byte (60): d3h
+Byte (61): 44h
+Byte (62): ach
+Byte (63): 15h
+TPM Write command process: Xfer Size ( 64)
+Host transactions has ended.
+TEST PASSED CHECKS
+../src/lowrisc_dv_spi_tpm_sim_0.1/tb/spi_tpm_tb.sv:240: $finish called at 22492933 (1ps)

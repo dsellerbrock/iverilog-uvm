@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_class_fixed_array_order_methods_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_class_fixed_array_order_methods_2023"
+}

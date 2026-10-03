@@ -1,0 +1,12 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_fixed_queue_leaf_order_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-gno-icarus-misc",
+        "-gno-xtypes",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_fixed_queue_leaf_order"
+}

@@ -32,10 +32,19 @@ class overlap_item;
   }
 endclass
 
+class state_bound_item;
+  rand int observe_fifo_thresh;
+  int unsigned max_observe_fifo_threshold = 37;
+  constraint observe_fifo_thresh_c {
+    observe_fifo_thresh dist {[1:max_observe_fifo_threshold] :/ 1};
+  }
+endclass
+
 module test;
   signed_slash_item slash, left, right;
   per_value_exclusion_item per_value;
   overlap_item overlap;
+  state_bound_item state_bound;
   int slash_low, slash_high;
   int per_value_first, per_value_second;
   int overlap_low_only, overlap_middle, overlap_high_only;
@@ -107,6 +116,34 @@ module test;
       if (left.value != right.value || left.unrelated != right.unrelated) begin
         $display("REPLAY_FAIL left=(%0d,%0d) right=(%0d,%0d)",
                  left.value, left.unrelated, right.value, right.unrelated);
+        failures++;
+      end
+    end
+
+    // OpenTitan entropy_src uses a signed int subject and an unsigned,
+    // non-rand object property as the upper endpoint of this :/ range.
+    state_bound = new;
+    state_bound.srandom(32'h1357_2468);
+    begin
+      int counts[38];
+      real chi;
+      int max_count;
+      foreach (counts[i]) counts[i] = 0;
+      repeat (2000) begin
+        if (!state_bound.randomize()) $fatal(1, "state-bound dist randomize failed");
+        if (state_bound.observe_fifo_thresh < 1
+            || state_bound.observe_fifo_thresh > state_bound.max_observe_fifo_threshold)
+          $fatal(1, "state-bound dist escaped its source range");
+        counts[state_bound.observe_fifo_thresh]++;
+      end
+      chi = 0.0;
+      max_count = 0;
+      for (int i = 1; i <= state_bound.max_observe_fifo_threshold; i++) begin
+        chi += (counts[i] - 2000.0/37.0) * (counts[i] - 2000.0/37.0) / (2000.0/37.0);
+        if (counts[i] > max_count) max_count = counts[i];
+      end
+      if (chi > 70.0 || max_count > 100) begin
+        $display("EXACT_REQUIRED_FAIL state-bound dist chi=%0.2f max=%0d", chi, max_count);
         failures++;
       end
     end

@@ -1,0 +1,48 @@
+OpenTitan UVM runtime
+command: /private/tmp/current-tools/bin/vvp -n -d /private/tmp/otbn-matrix-runner-finalize2/runtime/lowrisc_dv_otbn_sim_0.1/matrix-dpi.so /private/tmp/otbn-matrix-runner-finalize2/runtime/lowrisc_dv_otbn_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=0 +smoke_test=1 +UVM_TESTNAME=otbn_base_test +UVM_TEST_SEQ=otbn_smoke_vseq +otbn_elf_dir=/private/tmp/otbn-matrix-runner-finalize2/runtime/lowrisc_dv_otbn_sim_0.1/otbn-binaries
+returncode: 0
+duration_seconds: 94.474
+
+UVM_INFO @ 0 ps: reporter [RNTST] Running test otbn_base_test...
+UVM_INFO @   1117724 ps: (otbn_single_vseq.sv:29) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq] Loading OTBN binary from `/private/tmp/otbn-matrix-runner-finalize2/runtime/lowrisc_dv_otbn_sim_0.1/otbn-binaries/smoke_test.elf'
+UVM_INFO @   1440650 ps: (otbn_base_vseq.sv:495) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq] 
+	 ----| Waiting for OTBN to finish (polling)
+UVM_INFO @   3992815 ps: (otbn_base_vseq.sv:495) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq] 
+	 ----| Waiting for OTBN to finish (polling)
+UVM_INFO @  28670688 ps: (otbn_base_vseq.sv:495) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq] 
+	 ----| Waiting for OTBN to finish (polling)
+UVM_INFO @  40889669 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @  40889669 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count :     0 of     1
+** Report counts by severity
+UVM_INFO :    6
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq]     4
+
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 40889669 (1ps)

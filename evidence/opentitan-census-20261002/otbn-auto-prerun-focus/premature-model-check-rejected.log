@@ -1,0 +1,103 @@
+UVM_INFO @ 0 ps: reporter [RNTST] Running test otbn_base_test...
+UVM_INFO @   1117724 ps: (otbn_single_vseq.sv:29) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq] Loading OTBN binary from `/private/tmp/pi/otbn-matrix-auto/runtime/lowrisc_dv_otbn_sim_0.1/otbn-binaries/smoke_test.elf'
+UVM_INFO @   1440650 ps: (otbn_base_vseq.sv:495) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq] 
+	 ----| Waiting for OTBN to finish (polling)
+RTL computed x2 as 0xe3556e8a, but ISS got 0x0.
+RTL computed x3 as 0x97702d02, but ISS got 0x0.
+RTL computed x4 as 0x1ed12d63, but ISS got 0x0.
+RTL computed x5 as 0xa7aa393a, but ISS got 0x0.
+RTL computed x6 as 0xa13e030e, but ISS got 0x0.
+RTL computed x7 as 0x56fe0b4b, but ISS got 0x0.
+RTL computed x8 as 0x3633fc09, but ISS got 0x0.
+RTL computed x9 as 0xa9b135ee, but ISS got 0x0.
+RTL computed x10 as 0x44504bf6, but ISS got 0x0.
+RTL computed x11 as 0xbeb8a9c4, but ISS got 0x0.
+RTL computed x12 as 0x128f8bcf, but ISS got 0x0.
+RTL computed x13 as 0x744eff9f, but ISS got 0x0.
+RTL computed x14 as 0x6f887420, but ISS got 0x0.
+RTL computed x15 as 0x9cc3422c, but ISS got 0x0.
+RTL computed x16 as 0x643f2fee, but ISS got 0x0.
+RTL computed x17 as 0xac354921, but ISS got 0x0.
+RTL computed x18 as 0xc1faad7f, but ISS got 0x0.
+RTL computed x19 as 0xaf35aa9b, but ISS got 0x0.
+RTL computed x20 as 0xba893612, but ISS got 0x0.
+RTL computed x21 as 0x4bdc9c, but ISS got 0x0.
+RTL computed x22 as 0xb27b758, but ISS got 0x0.
+RTL computed x23 as 0x10020d67, but ISS got 0x0.
+RTL computed x24 as 0x3ecbd469, but ISS got 0x0.
+RTL computed x25 as 0x46af2811, but ISS got 0x0.
+RTL computed x26 as 0xd31e0f59, but ISS got 0x0.
+RTL computed x27 as 0xb5d29f14, but ISS got 0x0.
+RTL computed x28 as 0xd741e594, but ISS got 0x0.
+RTL computed x29 as 0x3708785a, but ISS got 0x0.
+RTL computed x30 as 0xc6c847a, but ISS got 0x0.
+RTL computed x31 as 0x2e5c6139, but ISS got 0x0.
+RTL computed w0 as 0x10c3707e_43cb2e4f_8831ed79_330a6221_fd6f93b6_13f3e99a_3c8ca516_25899d5c, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w1 as 0x419cacab_df884dff_90da5239_594b3b51_9ba515b2_be3cc4c1_95f431af_1d064f0b, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w2 as 0xdc43a070_ac043084_67c5957d_85cc2f1d_f3c2abc4_dcabe6cc_ef7aee49_53619ccc, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w3 as 0xa7764869_0ecdfa37_f45f6d34_fc29e937_706475d7_1567e338_b800967b_1a4be621, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w4 as 0x2d26bce7_a7abe941_75021161_54e69331_b3db0496_5410abfd_3b0c8fc5_19a205d0, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w5 as 0xa62c723a_68c867e0_b72e5e5b_c80d1a41_0adc469a_d1627790_acf62237_34a6bf40, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w6 as 0xf91e6f07_06a940d8_144ca6a1_23cc86b8_9bca3147_be41bb2f_02e77a2b_01fdfafd, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w7 as 0x433822e7_4565468c_a7266851_f820b225_f2e14bf2_c1e2a0a7_198ab872_1de4ce6c, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w8 as 0x21eb77e0_963fe13f_8cb2660d_f7f10036_bcc006fc_e24b28ee_e7cf1a13_b6e1be7a, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w9 as 0x21e43a20_e089aa87_8bdf717c_411795f2_52b0aaba_2c62ffa1_439fa476_bd10956b, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w10 as 0x923a272d_1cf99454_2e52a2f3_5b13a59f_8f0760f1_ce7c47ba_143e81f2_e5b8f63b, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w11 as 0x8bc2ee19_2a1dae33_bda278fa_d12a3c14_42081d77_d26dd443_14fc37f6_b0d5fda0, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w12 as 0x23fa2028_aea140fe_bf5e325c_34956ae2_47d1261f_9141db44_c01c88c2_a1e3bc16, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w13 as 0xbd229f7f_12f56973_8d799d65_35f6f864_270a5f6f_57a77376_4a841c6c_6cc648a2, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w14 as 0xfb99f912_14683a51_412f0774_743320e4_d78dd4ee_a00115d0_bfd4484e_7461e9a1, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w15 as 0x1aa3b606_b7105f03_2c6cd216_2a8e7073_fe9065ef_b4a3c6f0_c63ca980_15c8aca4, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w16 as 0xf0712006_059c1da0_a05b1d3e_04932002_66ea609e_ee1b71b1_e39150b4_c1de891e, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w17 as 0x7c0aefcb_4c9b0d2c_7183a2ee_f7946f71_6648daa1_4e183bcc_86d9a260_9b7df31e, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w18 as 0x72887c61_af5b35b2_76a637e9_770ce0ba_dff93fab_cd394b49_2b5aea4d_bffe8538, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w19 as 0xa2306f87_56f0f8f1_a442726c_502d657c_48d15c3c_17334ddc_e4ef5abf_5905eac5, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w20 as 0x1b0f67d6_a940b154_e2ccdaa6_31b8fa92_7eb8b507_dcca92bd_b7d7d344_53bbb8a0, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w21 as 0xe2283002_a43ab95b_6f2c1be9_6e098406_0e47ae47_e57e9f40_7ac14e66_55fb138c, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w22 as 0x54781380_fcb4a95b_86f126f3_b7f5763d_38fe3903_21f4c583_61f89899_47aeeacd, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w23 as 0xb95f1f3e_1e3aafe2_f9594465_c378d48a_e1319011_fcbd417c_2166c0c6_f5d54583, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w24 as 0xdce776d8_8250c72a_ae52aefd_666bfdea_238464c0_8732b711_bfafc70a_2ec2b157, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w25 as 0x22443dc8_5cbd711a_7dbf4b7e_17e389f8_b11c0a6e_46db6b8f_7e53dcd0_ecfb151b, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w26 as 0xa3aeb1f6_fb7717de_e0324f11_56d06e9f_8d730bae_16836ec5_a3c2b597_a3902a66, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w27 as 0x69a8183c_982bdbae_1e89678f_896fc44c_e916f66a_11f2567b_8066564f_98fd7dad, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w28 as 0xe9e6e669_35f640a6_7af77d44_241f36b3_2df7c01f_7bd0e70b_b329b55d_1dcd8769, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w29 as 0x75a28eb6_dc3e4a70_267ba91b_51699ab0_fca0f5e6_0fdedfb8_56c4a699_71c87d6d, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w30 as 0x6a0d7157_d199bcb2_7eeba214_1c3d89e7_39572ba3_2036bc6f_ffb6503d_34e74662, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+RTL computed w31 as 0x5abd99c4_01b46fb9_e31d3507_d7302eed_2d423b72_1c3105af_b442aee8_66136729, but ISS got 0x00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.
+UVM_ERROR @   3596969 ps: (otbn_model_if.sv:137) [ASSERT FAILED] NoModelErrs
+UVM_INFO @   3596969 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @   3596969 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count reached!
+Quit count :     1 of     1
+** Report counts by severity
+UVM_INFO :    4
+UVM_WARNING :    0
+UVM_ERROR :    1
+UVM_FATAL :    0
+** Report counts by id
+[ASSERT FAILED]     1
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[uvm_test_top.env.virtual_sequencer.otbn_smoke_vseq]     2
+
+
+TEST FAILED CHECKS
+ _____         _      __       _ _          _ _ 
+|_   _|__  ___| |_   / _| __ _(_) | ___  __| | |
+  | |/ _ \/ __| __| | |_ / _` | | |/ _ \/ _` | |
+  | |  __/\__ \ |_  |  _| (_| | | |  __/ (_| |_|
+  |_|\___||___/\__| |_|  \__,_|_|_|\___|\__,_(_)
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:135: $finish called at 3596969 (1ps)
