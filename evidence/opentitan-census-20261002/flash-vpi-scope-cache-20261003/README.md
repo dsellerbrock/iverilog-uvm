@@ -91,14 +91,34 @@ The profile changes by phase:
   operation 2/3, so a single static hotspot description would miss the phase
   change.
 
-The most promising next optimization to measure is a safe cache for repeated
-HDL backdoor path resolution in `uvm_dpi/uvm_dpi_iverilog.cc`, or a batched
-native backdoor read that avoids resolving each path separately. A second
-candidate is reducing the generic VPI call overhead for the generated SVA
-enable/kill functions. Both need lifetime/semantics checks and same-workload
-before/after measurements. The current samples do not point to arithmetic
-loops as the main cost, so forcing more loop unrolling is not the first thing
-to try.
+## Follow-up source inspection
+
+The sampled SVA frames lead to `sva_enabled_calltf` and
+`sva_kill_generation_calltf` in `vpi/sys_sva.c`. Both call
+`sva_control_find_`, which linearly scans the registered assertion-control
+entries for a matching `(scope, assertion index)`. This makes each callback's
+lookup O(number of registered assertions). The profile identifies these
+callbacks as frequent, but does not isolate the lookup's share from the VPI
+handle and value operations around it; treat the scan as a measured-path
+candidate, not a proven dominant cause.
+
+Generic native loop unrolling is a weak first experiment here. The host VVP
+and VPI code is already compiled with `-O2`, while the hot work is repeated
+VPI callbacks and a data-dependent lookup loop. The testbench itself remains
+VVP bytecode interpreted by `vvp`. A useful next comparison would measure
+`sva_control_find_` across assertion-table sizes before considering an indexed
+lookup, then check the same Flash phase under the same wall/RSS caps. No SVA
+implementation change or new long replay was made for this source inspection.
+
+One temporary UVM HDL parent-handle cache was already compared against the
+baseline in a 100-second replay. Both reached operation 1/3 at 30,671 time
+steps, and its isolated microbenchmarks improved by only about 1–2%, so that
+cache was removed. The remaining measured-path candidates are the SVA control
+entry scan described above and VPI leaf-name resolution during HDL reads; the
+current samples do not establish either as the sole runtime cause. Any further
+cache needs VPI lifetime checks and a same-workload before/after comparison.
+The samples do not point to arithmetic loops as the main cost, so forcing more
+loop unrolling is not the first thing to try.
 
 The VVP runtime and `system.vpi` are already native code, built here with
 `-O2`. The Icarus `-tvvp` target emits
