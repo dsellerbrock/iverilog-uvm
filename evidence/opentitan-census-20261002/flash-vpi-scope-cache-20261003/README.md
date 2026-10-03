@@ -56,3 +56,68 @@ plugin and VVP outputs are intentionally omitted.
 The 20-minute replay's runner, result metadata, and captured output are also
 preserved here as `run-flash-cache-1200s-10gb.py`,
 `flash-1200s-10gb-result.json`, and `flash-1200s-10gb-20261003.log`.
+
+## Five-point CPU profile
+
+A second replay used the same cached VVP, runtime image, DPI library, source
+tree, and test arguments. `stdbuf -oL -eL` made the redirected VVP log visible
+while the process was active. The wrapper sampled the process for 10 seconds
+at elapsed times near 2, 5, 9, 13, and 17 minutes. All five macOS `sample`
+captures completed successfully. The wrapper source, progress stream, result
+metadata, full log, and raw captures are preserved next to this file.
+
+This replay hit the 1,200-second wall limit, not the 10,000,000,000-byte RSS
+limit. Peak RSS was 1,330,036,736 bytes. The live log reached operation 2/3 at
+1,414,248.5 ns and its bank-1 erase event at 1,414,652.8 ns. No later UVM
+progress, PASS, UVM_ERROR, or UVM_FATAL was emitted before termination. The
+wrapper's own return code was zero because it recorded the controlled timeout;
+the Flash test remains unqualified.
+
+The profile changes by phase:
+
+- At 130, 310, and 550 seconds, `of_VPI_CALL` appears in roughly 30–32% of
+  the main-thread sample stacks. The hottest named system-task frames are
+  `sva_enabled_calltf` and `sva_kill_generation_calltf` from `vpi/sys_sva.c`.
+  Those callbacks fetch their call/argument/scope handles and return values
+  through the generic VPI API on repeated checker evaluations. The VVP thread
+  interpreter and assertion work are both active; this is CPU work, not a
+  stalled setup.
+- At 791 seconds, forked UVM threads and DPI calls are more prominent. The
+  sample includes `uvm_hdl_read` → `uvm_ivl_hdl_lookup_sel` →
+  `vpi_handle_by_name`, plus VPI name traversal and frequent allocation/free
+  work. `find_scope` is still present, but the repeated leaf-name lookup is
+  outside the scope-only cache in `vvp/vpi_priv.cc`.
+- At 1,031 seconds, VPI/SVA calls are again prominent. The test is still in
+  operation 2/3, so a single static hotspot description would miss the phase
+  change.
+
+The most promising next optimization to measure is a safe cache for repeated
+HDL backdoor path resolution in `uvm_dpi/uvm_dpi_iverilog.cc`, or a batched
+native backdoor read that avoids resolving each path separately. A second
+candidate is reducing the generic VPI call overhead for the generated SVA
+enable/kill functions. Both need lifetime/semantics checks and same-workload
+before/after measurements. The current samples do not point to arithmetic
+loops as the main cost, so forcing more loop unrolling is not the first thing
+to try.
+
+The VVP runtime and `system.vpi` are already native code, built here with
+`-O2`. The Icarus `-tvvp` target emits
+VVP virtual-machine instructions, which `vvp` interprets; it has no built-in
+native code-generation switch for this testbench. Verilator is installed here
+as 5.051 and can generate and compile a C++ simulation binary, but a full
+OpenTitan Flash/UVM compatibility run was not attempted. The repository's UVM
+source reports version 2020.3.1; current Verilator documentation describes
+UVM 2020.3.2 support while also documenting language limitations. Treat that
+as a possible separate backend experiment, not a drop-in result.
+
+Callgrind is not installed on this host. Upstream Valgrind's supported-platform
+list covers ARM64/Linux and AMD64/macOS only through Ventura, not this ARM64
+macOS 27 host, so the native `/usr/bin/sample` profiles are the appropriate
+low-overhead call-graph evidence here.
+
+References: [Icarus VVP engine](https://steveicarus.github.io/iverilog/developer/guide/vvp/vvp.html),
+[Icarus VVP target](https://steveicarus.github.io/iverilog/targets/tgt-vvp.html),
+[Verilator native binary generation](https://verilator.org/guide/latest/verilating.html),
+[Verilator language limitations](https://verilator.org/guide/latest/languages.html),
+[Valgrind supported platforms](https://valgrind.org/info/platforms.html), and
+[Callgrind manual](https://valgrind.org/docs/manual/cl-manual.html).

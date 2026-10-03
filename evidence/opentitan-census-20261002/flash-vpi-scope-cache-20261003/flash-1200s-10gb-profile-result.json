@@ -1,0 +1,63 @@
+{
+  "returncode": 0,
+  "termination": "wall_limit",
+  "start_utc": "2026-10-03T22:34:24.939986+00:00",
+  "duration_seconds": 1201.0,
+  "peak_rss_bytes": 1330036736,
+  "limit_seconds": 1200,
+  "rss_limit_bytes": 10000000000,
+  "samples": [
+    {
+      "sample": 1,
+      "scheduled_elapsed_s": 120,
+      "actual_elapsed_s": 130.5,
+      "capture_duration_s": 10.3,
+      "returncode": 0,
+      "bytes": 1080578,
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-1-20261003.txt",
+      "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-1-20261003.txt\n"
+    },
+    {
+      "sample": 2,
+      "scheduled_elapsed_s": 300,
+      "actual_elapsed_s": 310.5,
+      "capture_duration_s": 10.2,
+      "returncode": 0,
+      "bytes": 1108742,
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-2-20261003.txt",
+      "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-2-20261003.txt\n"
+    },
+    {
+      "sample": 3,
+      "scheduled_elapsed_s": 540,
+      "actual_elapsed_s": 550.2,
+      "capture_duration_s": 10.2,
+      "returncode": 0,
+      "bytes": 996785,
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-3-20261003.txt",
+      "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-3-20261003.txt\n"
+    },
+    {
+      "sample": 4,
+      "scheduled_elapsed_s": 780,
+      "actual_elapsed_s": 790.9,
+      "capture_duration_s": 10.2,
+      "returncode": 0,
+      "bytes": 1661598,
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-4-20261003.txt",
+      "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-4-20261003.txt\n"
+    },
+    {
+      "sample": 5,
+      "scheduled_elapsed_s": 1020,
+      "actual_elapsed_s": 1030.6,
+      "capture_duration_s": 10.3,
+      "returncode": 0,
+      "bytes": 1017236,
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-5-20261003.txt",
+      "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-5-20261003.txt\n"
+    }
+  ],
+  "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-1200s-10gb-profile-20261003.log",
+  "progress": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-1200s-10gb-profile-progress.jsonl"
+}
