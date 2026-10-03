@@ -238,48 +238,6 @@ struct uvm_ivl_hdl_sel {
       uvm_ivl_hdl_sel() : present(false), msb(0), lsb(0) { }
 };
 
-// Keep one borrowed handle for consecutive reads of the same object. Do not
-// cache values: every call still observes the live VPI value.
-static std::string uvm_ivl_hdl_last_read_path;
-static vpiHandle uvm_ivl_hdl_last_read_handle = nullptr;
-static uvm_ivl_hdl_sel uvm_ivl_hdl_last_read_sel;
-
-static void uvm_ivl_hdl_clear_read_cache()
-{
-      if (uvm_ivl_hdl_last_read_handle)
-	    vpi_release_handle(uvm_ivl_hdl_last_read_handle);
-      uvm_ivl_hdl_last_read_handle = nullptr;
-      uvm_ivl_hdl_last_read_path.clear();
-      uvm_ivl_hdl_last_read_sel = uvm_ivl_hdl_sel();
-}
-
-static vpiHandle uvm_ivl_hdl_lookup_sel(const char*path,
-					uvm_ivl_hdl_sel*sel);
-
-static vpiHandle uvm_ivl_hdl_read_lookup(const char*path,
-					 uvm_ivl_hdl_sel*sel, bool*cached)
-{
-      *cached = false;
-      if (path && uvm_ivl_hdl_last_read_handle
-	  && uvm_ivl_hdl_last_read_path == path) {
-	    *sel = uvm_ivl_hdl_last_read_sel;
-	    *cached = true;
-	    return uvm_ivl_hdl_last_read_handle;
-      }
-
-      uvm_ivl_hdl_clear_read_cache();
-      vpiHandle r = uvm_ivl_hdl_lookup_sel(path, sel);
-	// Static memory words stay valid for the simulation. Do not retain
-	// handles to dynamic objects, which can be invalidated by resizing.
-      if (r && !sel->present && vpi_get(vpiType, r) == vpiMemoryWord) {
-	    uvm_ivl_hdl_last_read_path = path;
-	    uvm_ivl_hdl_last_read_sel = *sel;
-	    uvm_ivl_hdl_last_read_handle = r;
-	    *cached = true;
-      }
-      return r;
-}
-
 static vpiHandle uvm_ivl_hdl_lookup_sel(const char* path, uvm_ivl_hdl_sel* sel)
 {
       vpiHandle r = uvm_ivl_hdl_lookup(path);
@@ -337,7 +295,6 @@ static bool uvm_ivl_hdl_sel_span(vpiHandle r, int size,
 // Return 1 if the path resolves to an accessible object, else 0.
 int uvm_hdl_check_path(char* path)
 {
-      uvm_ivl_hdl_clear_read_cache();
       uvm_ivl_hdl_sel sel;
       vpiHandle r = uvm_ivl_hdl_lookup_sel(path, &sel);
       if (r == 0)
@@ -352,7 +309,6 @@ int uvm_hdl_check_path(char* path)
 // Number of bits of the signal at path, or 0 if not found.
 int uvm_hdl_signal_size(char* path)
 {
-      uvm_ivl_hdl_clear_read_cache();
       uvm_ivl_hdl_sel sel;
       vpiHandle r = uvm_ivl_hdl_lookup_sel(path, &sel);
       if (r == 0)
@@ -370,15 +326,14 @@ int uvm_hdl_signal_size(char* path)
 int uvm_hdl_read(char* path, p_vpi_vecval value)
 {
       uvm_ivl_hdl_sel sel;
-      bool cached;
-      vpiHandle r = uvm_ivl_hdl_read_lookup(path, &sel, &cached);
+      vpiHandle r = uvm_ivl_hdl_lookup_sel(path, &sel);
       if (r == 0)
 	    return 0;
 
       int size = (int) vpi_get(vpiSize, r);
       int maxsize = uvm_ivl_hdl_max_width();
       if (size > maxsize) {
-	    if (!cached) vpi_release_handle(r);
+	    vpi_release_handle(r);
 	    return 0;
       }
       int chunks = (size - 1) / 32 + 1;
@@ -388,11 +343,11 @@ int uvm_hdl_read(char* path, p_vpi_vecval value)
       vpi_get_value(r, &value_s);
 
       if (sel.present) {
-    int low, width;
-    if (!uvm_ivl_hdl_sel_span(r, size, sel, &low, &width)) {
-	  if (!cached) vpi_release_handle(r);
-	  return 0;
-    }
+	    int low, width;
+	    if (!uvm_ivl_hdl_sel_span(r, size, sel, &low, &width)) {
+		  vpi_release_handle(r);
+		  return 0;
+	    }
 	    int out_chunks = (width - 1) / 32 + 1;
 	    for (int i = 0 ; i < out_chunks ; i += 1)
 		  value[i].aval = value[i].bval = 0;
@@ -401,9 +356,9 @@ int uvm_hdl_read(char* path, p_vpi_vecval value)
 		  PLI_INT32 a = (value_s.value.vector[bit/32].aval >> (bit%32)) & 1;
 		  PLI_INT32 b = (value_s.value.vector[bit/32].bval >> (bit%32)) & 1;
 		  value[i/32].aval |= a << (i%32);
-	    value[i/32].bval |= b << (i%32);
+		  value[i/32].bval |= b << (i%32);
 	    }
-	    if (!cached) vpi_release_handle(r);
+	    vpi_release_handle(r);
 	    return 1;
       }
 
@@ -411,7 +366,7 @@ int uvm_hdl_read(char* path, p_vpi_vecval value)
 	    value[i].aval = value_s.value.vector[i].aval;
 	    value[i].bval = value_s.value.vector[i].bval;
       }
-	if (!cached) vpi_release_handle(r);
+      vpi_release_handle(r);
       return 1;
 }
 
@@ -419,7 +374,6 @@ int uvm_hdl_read(char* path, p_vpi_vecval value)
 // release (vpiReleaseFlag).
 static int uvm_ivl_hdl_put(char* path, p_vpi_vecval value, PLI_INT32 flag)
 {
-      uvm_ivl_hdl_clear_read_cache();
       uvm_ivl_hdl_sel sel;
       vpiHandle r = flag == vpiNoDelay ? uvm_ivl_hdl_lookup_sel(path, &sel)
 				       : uvm_ivl_hdl_lookup(path);

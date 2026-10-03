@@ -37,8 +37,7 @@ module top;
     expect_read("top.mem[2]", 'h5a, 8);
     expect_read("top.x_reg[7:4]", 'b10xz, 4);
 
-    // Consecutive backdoor reads may reuse an object handle, but must still
-    // observe a deposit to that same memory word immediately.
+    // Repeated backdoor reads after a deposit must observe the updated value.
     v = 'ha6;
     if (!uvm_hdl_deposit("top.mem[2]", v)) begin $display("FAIL: deposit mem[2]"); errors++; end
     expect_read("top.mem[2]", 'ha6, 8);
