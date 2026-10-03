@@ -945,7 +945,7 @@ struct Z3Builder {
 		  MEMBER = class_type::constraint_dependency_t::MEMBER,
 		  ELEM = class_type::constraint_dependency_t::ELEM,
 		  SIZE = class_type::constraint_dependency_t::SIZE,
-		  MEMBER_ELEM, NESTED_ELEM
+		  MEMBER_ELEM, NESTED_ELEM, PACKED_SLICE
 	    } kind;
 	    unsigned idx;
 	    unsigned leaf;
@@ -1280,11 +1280,12 @@ struct Z3Builder {
 	// distinct ordering variables, rather than collapsing to their owning
 	// property. This preserves directives such as `solve n before a.size'.
       struct OrderRef {
-	    enum Kind {
+	  enum Kind {
 		  PROP = VarRef::PROP, MEMBER = VarRef::MEMBER,
 		  ELEM = VarRef::ELEM, SIZE = VarRef::SIZE,
 		  MEMBER_ELEM = VarRef::MEMBER_ELEM,
-		  NESTED_ELEM = VarRef::NESTED_ELEM
+		  NESTED_ELEM = VarRef::NESTED_ELEM,
+		  PACKED_SLICE = VarRef::PACKED_SLICE
 	    } kind;
 	    unsigned idx;
 	    unsigned elem;
@@ -1633,6 +1634,67 @@ static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
             }
       } else idx = b.property_index(idx);
       return scalar_property_ref_(b, idx, width, sflag);
+}
+
+// Parse "u:PROPERTY:OFFSET:WIDTH:PARENT_WIDTH" as a selected packed
+// class-property slice. The order identity is the slice, while Z3 shares the
+// parent property's bitvector with ordinary constraint references.
+static Z3_ast parse_packed_slice(IRParser&, Z3Builder&b, const string&tok)
+{
+      auto invalid = [&]() -> Z3_ast {
+	    b.state_errors.push_back("invalid packed-property solve-before slice");
+	    return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, 1));
+      };
+      unsigned long fields[4];
+      const char*text = tok.c_str() + 2;
+      for (unsigned i = 0; i < 4; ++i) {
+	    errno = 0;
+	    char*end = nullptr;
+	    fields[i] = strtoul(text, &end, 10);
+	    if (end == text || errno == ERANGE || fields[i] > UINT_MAX
+		  || (i < 3 && *end != ':') || (i == 3 && *end != 0))
+		  return invalid();
+	    text = i < 3 ? end + 1 : end;
+      }
+      unsigned local = (unsigned)fields[0];
+      unsigned offset = (unsigned)fields[1];
+      unsigned width = (unsigned)fields[2];
+      unsigned parent_width = (unsigned)fields[3];
+      if (!width || width > 64 || !parent_width
+	  || offset >= parent_width || width > parent_width - offset)
+	  return invalid();
+      unsigned idx = b.property_index(local);
+      const class_type*type = b.type(idx);
+      unsigned actual_width = type && local < type->property_count()
+	    ? type->property_vec4_width(local) : 0;
+      if (!type || actual_width != parent_width
+	  || !type->property_is_rand(local)
+	  || type->property_is_randc(local)) return invalid();
+
+      if (b.collect_refs) {
+	    Z3Builder::VarRef ref = {Z3Builder::VarRef::PACKED_SLICE,
+		  idx, offset, width};
+	    b.collect_refs->insert(ref);
+      }
+      if (b.collect_refs_only)
+	    return Z3_mk_unsigned_int64(b.ctx, 0,
+		  Z3_mk_bv_sort(b.ctx, width));
+
+      Z3_ast parent;
+      if (b.graph && idx < b.graph->properties.size()
+	  && !b.graph->active(idx)) {
+	    vvp_vector4_t data;
+	    b.object(idx)->get_vec4(b.local_index(idx), data);
+	    if (!vec4_to_bv_const_(b.ctx, data, parent_width, parent)) {
+		  b.state_errors.push_back(
+			"X/Z value in inactive packed constraint property");
+		  parent = Z3_mk_unsigned_int64(b.ctx, 0,
+			Z3_mk_bv_sort(b.ctx, parent_width));
+	    }
+      } else {
+	    parent = b.get_prop_var(idx, parent_width);
+      }
+      return Z3_mk_extract(b.ctx, offset + width - 1, offset, parent);
 }
 
 // Parse "m:OUTER:MEMBER:WIDTH[:s]" -- one scalar member of an unpacked
@@ -2511,6 +2573,8 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       }
       if (tok.substr(0,2) == "p:" || tok.substr(0,2) == "g:")
             return parse_prop(par, b, tok);
+      if (tok.substr(0,2) == "u:")
+	    return parse_packed_slice(par, b, tok);
       if (tok.substr(0,2) == "m:") return parse_member(par, b, tok);
       if (tok.substr(0,2) == "a:") return parse_member_elem(par, b, tok);
       if (tok.substr(0,2) == "r:") return parse_state_path(b, tok);
@@ -4056,7 +4120,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             }
             par.expect(')');
             for (const auto&a : groups[0])
-                  for (const auto&c : groups[1]) b.order_pairs.push_back({a, c});
+                  for (const auto&c : groups[1])
+		if (!(a == c)) b.order_pairs.push_back({a, c});
             return b.mk_true();
       }
 
@@ -5345,6 +5410,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  bool recognized = *start == '('
 			|| strncmp(start, "c:", 2) == 0
 			|| strncmp(start, "p:", 2) == 0
+			|| strncmp(start, "u:", 2) == 0
 			|| strncmp(start, "m:", 2) == 0
 			|| strncmp(start, "a:", 2) == 0
 			|| strncmp(start, "r:", 2) == 0
@@ -5825,6 +5891,24 @@ static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx)
       for (unsigned b = 0; b < wid; ++b)
 	    if (vec.value(b) == BIT4_1) bits |= (1ULL << b);
       return bits;
+}
+
+/* Read one ordered packed-property slice. The parent can exceed 64 bits;
+ * each solve-before variable remains a scalar slice of at most 64 bits. */
+static bool cobj_prop_slice_bits_(vvp_cobject*cobj, unsigned idx,
+				  unsigned offset, unsigned width,
+				  uint64_t&bits)
+{
+      if (!cobj || !width || width > 64) return false;
+      vvp_vector4_t vec;
+      cobj->get_vec4(idx, vec);
+      if (offset > vec.size() || width > vec.size() - offset)
+	    return false;
+      bits = 0;
+      for (unsigned bit = 0; bit < width; ++bit)
+	    if (vec.value(offset + bit) == BIT4_1)
+		  bits |= UINT64_C(1) << bit;
+      return true;
 }
 
 static bool cobj_set_prop_vec4_(vvp_cobject*cobj, unsigned idx,
@@ -10040,6 +10124,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// their subject becomes due; unsupported groups install their weighted-
 	// soft fallback at that same point.
       auto var_ref_active = [&](const Z3Builder::VarRef&ref) -> bool {
+	    if (ref.kind == Z3Builder::VarRef::PACKED_SLICE)
+		  return rand_scalar_active_(builder, prop_active, ref.idx);
 	    if (ref.kind == Z3Builder::VarRef::MEMBER_ELEM)
 		  return rand_member_elem_active_(builder, prop_active,
 			ref.idx, ref.leaf, ref.subleaf);
@@ -11503,6 +11589,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (!exact_joint && !builder.order_pairs.empty()) {
 	    std::map<Z3Builder::OrderRef,unsigned> rank;
 	    auto order_ref_active = [&](const Z3Builder::OrderRef&ref) -> bool {
+		  if (ref.kind == Z3Builder::OrderRef::PACKED_SLICE)
+			return rand_scalar_active_(builder, prop_active, ref.idx);
 		  if (ref.kind == Z3Builder::OrderRef::MEMBER_ELEM)
 			return rand_member_elem_active_(builder, prop_active,
 			      ref.idx, ref.elem, ref.subelem);
@@ -11567,10 +11655,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    ordered.kind = Z3Builder::OrderRef::NESTED_ELEM;
 			      else if (ref.kind == Z3Builder::VarRef::MEMBER_ELEM)
 				    ordered.kind = Z3Builder::OrderRef::MEMBER_ELEM;
-			      else if (ref.kind == Z3Builder::VarRef::MEMBER)
-				    ordered.kind = Z3Builder::OrderRef::MEMBER;
+		      else if (ref.kind == Z3Builder::VarRef::MEMBER)
+			    ordered.kind = Z3Builder::OrderRef::MEMBER;
 			      else if (ref.kind == Z3Builder::VarRef::SIZE)
 				    ordered.kind = Z3Builder::OrderRef::SIZE;
+			      else if (ref.kind == Z3Builder::VarRef::PACKED_SLICE)
+				    ordered.kind = Z3Builder::OrderRef::PACKED_SLICE;
 			      else
 				    ordered.kind = Z3Builder::OrderRef::PROP;
 			      auto found = rank.find(ordered);
@@ -11646,6 +11736,22 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						break;
 					  }
 				    rand_bits = cobj_prop_bits(builder.object(ref.idx), builder.local_index(ref.idx));
+			      } else if (ref.kind == Z3Builder::OrderRef::PACKED_SLICE) {
+			    for (auto&pv : builder.prop_vars)
+				  if (pv.idx == ref.idx) {
+						var = Z3_mk_extract(ctx,
+						      ref.elem + ref.subelem - 1,
+						      ref.elem, pv.var);
+						width = ref.subelem;
+						break;
+					  }
+			    if (!cobj_prop_slice_bits_(builder.object(ref.idx),
+				  builder.local_index(ref.idx), ref.elem,
+				  ref.subelem, rand_bits)) {
+				  Z3_optimize_dec_ref(ctx, stage_opt);
+				  return fail_joint(
+					"packed solve-before slice is outside its property");
+			    }
 			      } else {
 				    for (auto&sv : builder.size_vars)
 					  if (sv.idx == ref.idx
@@ -11709,6 +11815,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    for (auto&pv : builder.prop_vars)
 					  if (pv.idx == ref.idx) {
 						var = pv.var;
+						break;
+					  }
+			      } else if (ref.kind == Z3Builder::OrderRef::PACKED_SLICE) {
+				    for (auto&pv : builder.prop_vars)
+					  if (pv.idx == ref.idx) {
+						var = Z3_mk_extract(ctx,
+						      ref.elem + ref.subelem - 1,
+						      ref.elem, pv.var);
 						break;
 					  }
 			      } else {

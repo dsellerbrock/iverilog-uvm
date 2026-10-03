@@ -27728,6 +27728,131 @@ static bool constraint_flatten_member_path_(const PExpr*expr,
       return true;
 }
 
+/* -gcommercial-unsafe permits solve-before operands that select a packed
+ * struct member. Preserve the actual randomized identity as a bit slice of
+ * its packed class property; treating the member as the whole property would
+ * merge independent ordering variables. Whole packed structs expand to
+ * their non-overlapping integral leaves so parent and member spellings share
+ * those same identities. */
+static bool constraint_packed_solve_before_refs_(
+	  const PExpr*item, const netclass_t*cls, vector<string>&refs)
+{
+      pform_name_t path;
+      if (!cls || !constraint_flatten_member_path_(item, path)
+	  || path.empty()) return false;
+      for (const name_component_t&component : path)
+	  if (component.local_scope || !component.index.empty()) return false;
+      if (!constraint_inline_target_name_(path.front().name)) return false;
+
+      int property = cls->property_idx_from_name(path.front().name);
+      if (property < 0) return false;
+      property_qualifier_t qual = cls->get_prop_qual((size_t)property);
+      if (!qual.test_rand() || qual.test_randc()) return false;
+      const netstruct_t*root = dynamic_cast<const netstruct_t*>(
+	    cls->get_prop_type((size_t)property));
+      long root_width = root ? root->packed_width() : 0;
+      if (!root || !root->packed() || root->union_flag()
+	  || root->tagged_flag() || root_width <= 0
+	  || static_cast<unsigned long>(root_width) > UINT_MAX)
+	  return false;
+
+      auto integral_leaf = [](ivl_type_t type) {
+	    if (!type || !type->packed() || type->packed_width() <= 0)
+		  return false;
+	    return type->base_type() == IVL_VT_BOOL
+		  || type->base_type() == IVL_VT_LOGIC
+		  || dynamic_cast<const netenum_t*>(type) != nullptr;
+      };
+      vector<string> selected;
+      auto append_ref = [&](unsigned offset, unsigned width) {
+	    if (!width || width > 64 || offset >= (unsigned)root_width
+		  || width > (unsigned)root_width - offset) return false;
+	    selected.push_back("u:" + to_string((unsigned)property) + ":"
+		  + to_string(offset) + ":" + to_string(width) + ":"
+		  + to_string((unsigned)root_width));
+	    return true;
+      };
+      function<bool(const netstruct_t*, unsigned)> append_struct;
+      append_struct = [&](const netstruct_t*record, unsigned base) {
+	    long record_width = record ? record->packed_width() : 0;
+	    if (!record || !record->packed() || record->union_flag()
+		  || record->tagged_flag() || record_width <= 0) return false;
+	    for (const netstruct_t::member_t&member : record->members()) {
+		  unsigned long member_offset = 0;
+		  const netstruct_t::member_t*packed =
+			  record->packed_member(member.name, member_offset);
+		  ivl_type_t type = packed ? packed->net_type : nullptr;
+		  long width = type ? type->packed_width() : 0;
+		  if (!packed || member_offset > (unsigned long)record_width
+		      || width <= 0 || (unsigned long)width
+			  > (unsigned long)record_width - member_offset
+		      || member_offset > UINT_MAX
+		      || (unsigned)member_offset > UINT_MAX - base)
+			return false;
+		  unsigned offset = base + (unsigned)member_offset;
+		  if (offset > (unsigned)root_width
+		      || (unsigned long)width > (unsigned)root_width - offset)
+			return false;
+		  const netstruct_t*nested = dynamic_cast<const netstruct_t*>(type);
+		  if (nested) {
+			if (!append_struct(nested, offset)) return false;
+		  } else if (!integral_leaf(type)
+			     || !append_ref(offset, (unsigned)width)) {
+			return false;
+		  }
+	    }
+	    return true;
+      };
+
+      if (path.size() == 1) {
+	    if (!append_struct(root, 0)) return false;
+      } else {
+	    const netstruct_t*record = root;
+	    unsigned offset = 0;
+	    ivl_type_t selected_type = nullptr;
+	    pform_name_t::const_iterator component = path.begin();
+	    ++component;
+	    for (size_t index = 1; component != path.end();
+		  ++index, ++component) {
+		  long record_width = record ? record->packed_width() : 0;
+		  if (!record || !record->packed() || record->union_flag()
+		      || record->tagged_flag() || record_width <= 0) return false;
+		  unsigned long member_offset = 0;
+		  const netstruct_t::member_t*member =
+			  record->packed_member(component->name, member_offset);
+		  if (!member || member_offset > (unsigned long)record_width)
+			return false;
+		  selected_type = member->net_type;
+		  long width = selected_type ? selected_type->packed_width() : 0;
+		  if (width <= 0 || (unsigned long)width
+			  > (unsigned long)record_width - member_offset
+		      || member_offset > UINT_MAX
+		      || (unsigned)member_offset > UINT_MAX - offset)
+			return false;
+		  offset += (unsigned)member_offset;
+		  if (offset > (unsigned)root_width
+		      || (unsigned long)width > (unsigned)root_width - offset)
+			return false;
+		  if (index + 1 < path.size()) {
+			record = dynamic_cast<const netstruct_t*>(selected_type);
+			if (!record) return false;
+		  }
+	    }
+	    const netstruct_t*nested =
+		  dynamic_cast<const netstruct_t*>(selected_type);
+	    if (nested) {
+		  if (!append_struct(nested, offset)) return false;
+	    } else if (!integral_leaf(selected_type)
+		       || !append_ref(offset,
+			  (unsigned)selected_type->packed_width())) {
+		  return false;
+	    }
+      }
+      if (selected.empty()) return false;
+      refs.swap(selected);
+      return true;
+}
+
 /* Constraint IR needs ordinary constant-name resolution as well as class
  * property lookup.  In particular, class constraints routinely name
  * parameters and enum literals imported from a package.  Keep the Design
@@ -37038,8 +37163,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
-			string s = pexpr_to_constraint_ir(item, cls,
-						value_slots, scope, loop_env);
+			vector<string> packed_refs;
+			bool packed_order = gn_commercial_unsafe_flag
+			      && constraint_packed_solve_before_refs_(
+				    item, cls, packed_refs);
+			string s;
+			if (packed_order) {
+			      for (const string&ref : packed_refs)
+				    s += s.empty() ? ref : (" " + ref);
+			} else {
+			      s = pexpr_to_constraint_ir(item, cls,
+					    value_slots, scope, loop_env);
+			}
 			diagnose_fixed_oob(item);
 			  if (s.compare(0, 7, "(delem ") == 0) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
@@ -37098,6 +37233,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // element. The runtime retains the complete identity so
 			  // each remains a distribution directive after lowering.
 			if (s.compare(0, 2, "p:") != 0
+			    && s.compare(0, 2, "u:") != 0
 			    && s.compare(0, 2, "m:") != 0
 			    && s.compare(0, 2, "a:") != 0
 			    && s.compare(0, 2, "e:") != 0
