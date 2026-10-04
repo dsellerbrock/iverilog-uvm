@@ -1,8 +1,8 @@
 # OpenTitan native hot-path census 12
 
 The full 49-target runtime census has completed. These findings come from
-10-second macOS `sample` captures and Xcode Time Profiler captures of the native
-ARM64 VVP process. The native-sample counts below are inclusive stack samples,
+macOS `sample` captures (typically 10 seconds) and Xcode Time Profiler captures
+of the native ARM64 VVP process. The native-sample counts below are inclusive stack samples,
 not exclusive CPU percentages or total-run fractions. Interpret each capture
 as a snapshot of that test's current phase. New raw sample files are
 gzip-compressed; recover one with `gzip -dc <capture.sample.txt.gz>`. The initial
@@ -32,6 +32,19 @@ The exact-default Flash retry has now reproduced that late phase, so it is not
 specific to the separately seeded replay. Its 4,500s sample shows the
 associative-array successor walk taking 98.3% of sampled stacks; captures at
 4,800s and 5,400s show the same path holding at 97.9% and 97.8% respectively.
+
+## Native-code assessment
+
+The default Icarus target emits a VVP program, which the `vvp` runtime executes
+(`driver/iverilog.man.in`, target `vvp`). There is no general switch that
+ahead-of-time compiles OpenTitan SystemVerilog or UVM sequences into native
+machine code. The profiler sees the native ARM64 `vvp` process, but its stacks
+show interpreter scheduling, VPI callbacks, and solver calls. The useful
+native work is therefore in the existing VVP/VPI/Z3 implementations: optimize
+the measured runtime operations or batch stable VPI lookups. DPI-C is useful
+for isolated pure computation; reimplementing these UVM sequences natively
+would still need the simulator's event, four-state, randomization, and VPI
+interactions, so it is not a drop-in route for these measured paths.
 
 ## Confirmed paths so far
 
@@ -414,6 +427,20 @@ The 4,800s sample repeats the result five minutes later: 7,568/7,729 roots
 successor-walk profile is sustained across multiple snapshots. At 5,400s,
 7,500/7,665 roots (97.8%) remain in the successor opcode and 6,754/7,665
 include vector-key comparison; just 16 include `uvm_hdl_read`.
+
+The latest exact-default run uses element-wise solve-before constraints to
+avoid the aggregate queue-order warnings. A 5-second ARM64 sample at 5 minutes
+captures a different, earlier phase: 3,598/3,607 stacks are in
+`schedule_simulate`, 3,150/3,607 in `vthread_run`, and 873/3,607 under
+`of_VPI_CALL`. The VPI subtree includes `sva_enabled_calltf` in 63 samples and
+`sva_clock_calltf` in 34. This confirms SVA/VPI work early in Flash and does
+not replace the later scoreboard successor-walk measurements. At 15 minutes,
+760/3,640 samples are under `randomize_with_`, including 406 through sparse-
+domain enumeration; 692/3,640 enter `of_VPI_CALL`, with 57 in
+`sva_enabled_calltf`. This run therefore confirms that Flash moves through
+solver and callback phases before its late scoreboard walk. Raw samples are at
+`/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-5m.sample.txt`
+and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-15m.sample.txt`.
 
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz),
 [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
