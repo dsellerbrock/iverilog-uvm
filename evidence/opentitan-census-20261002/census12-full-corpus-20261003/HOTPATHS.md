@@ -59,6 +59,16 @@ persists in the same capture (791/6,456 `randomize_with_`, 465 sparse-domain
 enumeration); four-state propagation remains visible (`set_bit`: 537,
 `reduce4`: 306). The target completed in 416.0 seconds.
 
+ROM controller remains solver dominated at both 30s and 180s: 4,945/6,817 and
+4,895/6,722 root stacks enter `randomize_with_`, including 2,645 and 2,687
+sparse-domain enumeration stacks. Its config owns a randomized KMAC
+application-agent config and a weighted delay constraint; these are
+source-backed candidates, though the profile does not split costs by object or
+constraint.
+
+Profiles: [ROM controller at 30s](lowrisc_dv_rom_ctrl_sim_0.1-after-30s-pid19781.sample.txt)
+and [180s](lowrisc_dv_rom_ctrl_sim_0.1-after-180s-pid19781.sample.txt).
+
 The helper at `vvp/vvp_z3.cc:7764` pushes the solver once, repeatedly checks it,
 reads a model, and adds a constraint excluding that value, stopping after the
 complete sparse set is found or its 64-value cap is exceeded. Repeated checks
@@ -113,7 +123,9 @@ including `sva_enabled_calltf`; its other visible branches include 781
 `randomize_with_` and 720 `uvm_hdl_read` stacks. OTP controller also shows
 `of_VPI_CALL` in 1,481/6,814 root stacks at 30s, with repeated `sva_enabled_calltf`
 and VPI iterator/get/put work. This reinforces the SVA callback path as a
-cross-target hot spot. The early Flash profile includes
+cross-target hot spot. PWM repeats it at 30s: 2,507/6,878 stacks are under
+`of_VPI_CALL`, with `sva_enabled_calltf` below that path. PWM passed in 74.5s.
+The early Flash profile includes
 `uvm_ivl_hdl_put`, `uvm_hdl_read`, `vpi_handle_by_name`, and `find_name` under
 DPI calls. CSRNG also shows nested randomization/sparse-domain enumeration and
 UVM HDL reads. These establish several workloads for checking whether the VPI
@@ -129,10 +141,11 @@ through `uvm_ivl_hdl_lookup()` → `vpi_handle_by_name()` for hierarchical paths
 The cache does not cache the final leaf `find_name()` lookup, and the samples do
 not expose cache hit counts or a before/after speedup. They do show that the
 repeated SVA callback work is a larger visible VPI path than scope resolution
-in the sampled ADC, entropy-source, and 900s Flash phases.
+in the sampled ADC, entropy-source, PWM, OTP, and 900s Flash phases.
 
 Profiles: [entropy source](lowrisc_dv_entropy_src_sim_0.1-after-30s-pid9242.sample.txt),
 [OTP controller](lowrisc_dv_otp_ctrl_sim_0.1-after-30s-pid16949.sample.txt),
+[PWM](lowrisc_dv_pwm_sim_0.1-after-30s-pid19545.sample.txt),
 [Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid9372.sample.txt), and
 [CSRNG](lowrisc_dv_csrng_sim_0.1-after-30s-pid8923.sample.txt).
 
@@ -147,13 +160,18 @@ in 1,449/7,088 root stacks and `of_VPI_CALL` in 1,290/7,088. The top-of-stack
 summary also shows the class-object context/alias path: 652 samples in
 `context_live_matches_scope_`, 367 in copying the alias vector, 274 in
 `notify_signal_aliases()`, and 223 in `vvp_object::pointer_is_live()`. This
-confirms the context/alias path from the I2C profile in a second workload. The
-corpus Flash run has not reached the late scoreboard associative-array scan
-seen in the separate long Flash replay.
+confirms the context/alias path from the I2C profile in a second workload. At
+2,700s, Flash still has solver work (1,376/7,032 roots under randomization, 802
+under sparse enumeration), VPI/SVA callbacks (1,343 roots under `of_VPI_CALL`),
+and context/alias bookkeeping in the flat summary (488 context checks, 376 alias
+vector copies, 334 notifications, and 321 object-liveness checks). The corpus
+Flash run has not reached the late scoreboard associative-array scan seen in
+the separate long Flash replay.
 
 Profiles: [Flash at 180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid9372.sample.txt),
 [900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid9372.sample.txt), and
-[1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid9372.sample.txt).
+[1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid9372.sample.txt) and
+[2,700s](lowrisc_dv_flash_ctrl_sim_0.1-after-2700s-pid9372.sample.txt).
 
 The CSRNG 30s capture adds class-object and automatic-context bookkeeping to
 the inventory. A repeated nested-fork path loads class signal objects through
