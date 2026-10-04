@@ -596,7 +596,7 @@ next_command: "PR376 is published with local qualification; preserve Caliptra wo
 current_execution_checkpoint:
   active_work_item: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
   source_head: "71fb85413525ba1caabb3bc1e2ef41789bd459f9"
-  phase: "ACTIVE; Flash speedup iteration 4/5 measured, no significant gain"
-  completed: "Iterations 1-4 showed no significant end-to-end Flash gain. The VPI cache and process-object candidates were removed; -O3 builds of vvp/vthread.cc and vvp/vvp_z3.cc each matched the prior operation-2 marker at 1,414,652.8 ns, with no later checked progress or PASS. O2 runtime restored after each. Iteration 4 evidence: evidence/opentitan-census-20261002/flash-vvp-z3-o3-iter4-20261003/."
-  next_action: "Use graphify and the saved Flash profiles to select a distinct hotspot for iteration 5. Do not start the 3,600-second replay until five iterations without a significant speedup."
-  next_command: "graphify explain \"find_scope\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+  phase: "ACTIVE; user-directed 60-minute Flash fallback running after iteration 4/5"
+  completed: "Iterations 1-4 showed no significant end-to-end Flash gain. The VPI cache and process-object candidates were removed; -O3 builds of vvp/vthread.cc and vvp/vvp_z3.cc each matched the prior operation-2 marker at 1,414,652.8 ns, with no later checked progress or PASS. O2 runtime restored after each. The user directed on 2026-10-03 to skip iteration 5 and proceed to the 3,600-second replay; evidence is being collected in evidence/opentitan-census-20261002/flash-60m-user-directed-fallback-20261003/."
+  next_action: "Inspect the user-directed 3,600-second Flash replay. Run the full 49-target census with all current updates only if the result is a clean checked PASS with zero UVM errors/fatals and zero semantic/runtime debt; otherwise continue focused diagnosis."
+  next_command: "Wait for the running replay; inspect evidence/opentitan-census-20261002/flash-60m-user-directed-fallback-20261003/result.json; gate the corpus on clean PASS and zero debt."
