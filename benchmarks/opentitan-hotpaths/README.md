@@ -100,9 +100,23 @@ that traversal stops at the final key.
 The indexed VVP runtime passed the 262,144-key SV walk three times in 0.86,
 0.93, and 0.94 seconds, including population; maximum resident set size was
 61.3 MB. This is a full-size end-to-end fixture result, not a direct before and
-after ratio. The prior OpenTitan Flash replay passed in 5,349 seconds with the
-old scan; a repeat with the indexed runtime provides the workload-level
-comparison.
+after ratio.
+
+The same Flash image and DPI library, seed, and seven operation inputs were
+then run once against each VVP runtime:
+
+| Runtime | SHA-256 | Wall time | Peak RSS | Result |
+| --- | --- | ---: | ---: | --- |
+| Prior scan | `2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570` | 5,349.4 s | 1,748,877,312 bytes | [clean pass](../../evidence/opentitan-census-20261002/flash-5h-user-directed-20261003/result.json) |
+| Ordered index | `105caac4cc9d56ddba0fdd08b4d7672735bcfdc4d2ad606e11790dc5d17315fe` | 3,338.4 s | 1,474,989,584 bytes | [clean pass](../../evidence/opentitan-census-20261002/flash-after-vector-aa-index-20261004/result.json) |
+
+The indexed run was 37.6% shorter (1.60x elapsed-time speedup). Both runs
+completed all seven operations with zero UVM errors or fatals and no timeout or
+memory-cap hit. The old late-phase sample recorded `of_AA_NEXT_SIG_V` in
+7,563 of 7,656 root stacks; the indexed-run capture recorded it in 106 of
+5,758. These captures are qualitative phase snapshots, not CPU percentages,
+and used different sampling windows: [old operation-4 capture](../../evidence/opentitan-census-20261002/flash-5h-user-directed-20261003/flash-sample-operation4-75m.txt),
+[indexed capture](../../evidence/opentitan-census-20261002/flash-after-vector-aa-index-20261004/sample-during-ops-3-4.txt).
 
 ### Z3 sparse and joint enumeration
 
@@ -148,7 +162,7 @@ layout, or the full 262,144-word population loop.
 These fixtures hit the relevant VVP syntax/runtime path, but do not expose
 private counters for set_bit/reduce4, context-map/liveness probes, VIF slot
 resolution, or assertion-object fanout. The distribution histogram is one
-seeded sample and does not assert a frequency guarantee.
+unseeded sample and does not assert a frequency guarantee.
 
 ## Files
 
