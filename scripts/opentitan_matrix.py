@@ -145,6 +145,11 @@ MATRIX_SOURCE_CORE_DEPENDENCIES = (
         ("lowrisc:prim:flop_2sync",),
     ),
     (
+        "hw/ip/prim/prim_ram_1p_adv.core",
+        "lowrisc:prim:ram_1p",
+        ("lowrisc:prim:mubi",),
+    ),
+    (
         "hw/top_earlgrey/ip_autogen/flash_ctrl/flash_ctrl_prim_reg_top.core",
         "lowrisc:ip_interfaces:flash_ctrl_pkg",
         ("lowrisc:prim:reg_we_check",),
@@ -3463,6 +3468,11 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             assert (overlay_core.parent / "rtl").resolve() == (
                 source_core.parent / "rtl"
             ).resolve()
+        assert (
+            "hw/ip/prim/prim_ram_1p_adv.core",
+            "lowrisc:prim:ram_1p",
+            ("lowrisc:prim:mubi",),
+        ) in MATRIX_SOURCE_CORE_DEPENDENCIES
         overlay_command = setup_command(
             Job("rtl", Core("lowrisc:ip:lc_ctrl_pkg:0.1", "")),
             Path("fusesoc"),

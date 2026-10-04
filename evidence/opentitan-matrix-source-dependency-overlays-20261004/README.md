@@ -1,12 +1,13 @@
 # OpenTitan matrix source dependency overlays
 
-Five pinned Earlgrey-PROD-M6 FuseSoC cores omit direct dependencies used by
+Six pinned Earlgrey-PROD-M6 FuseSoC cores omit direct dependencies used by
 their RTL. The matrix runner creates build-local core overlays that declare
 the missing providers; it does not modify the OpenTitan input tree.
 
 | Source core | Added dependency declarations |
 |---|---|
 | `hw/ip/prim/prim_mubi.core` | `lowrisc:prim:flop_2sync` |
+| `hw/ip/prim/prim_ram_1p_adv.core` | `lowrisc:prim:mubi` |
 | `hw/top_earlgrey/ip_autogen/flash_ctrl/flash_ctrl_prim_reg_top.core` | `lowrisc:prim:reg_we_check` |
 | `hw/ip/otp_ctrl/otp_ctrl_prim_reg_top.core` | `lowrisc:prim:reg_we_check`, `lowrisc:tlul:trans_intg`, `lowrisc:tlul:adapter_reg`, `lowrisc:prim:subreg` |
 | `hw/ip/prim/prim_dom_and_2share.core` | `lowrisc:prim:xor2`, `lowrisc:prim:flop_en` |
@@ -17,7 +18,9 @@ The `prim_mubi` omission prevented FuseSoC from generating the generic
 declared only package dependencies, leaving register-check, TL-UL, and
 subregister modules out of their source lists. The masking primitive omitted
 its XOR and enabled-flop abstractions, and the lifecycle gate omitted the
-TL-UL error responder and secure-anchor primitive.
+TL-UL error responder and secure-anchor primitive. `prim_ram_1p_adv.sv` imports
+`prim_mubi_pkg` without a core dependency, which allowed FuseSoC to place the
+package after its consumer in the generated source list.
 
 ## Focused result
 
@@ -35,6 +38,24 @@ all seven affected RTL rows and the affected SVA row:
 | RTL | `lowrisc:tlul:lc_gate:0.1` | PASS |
 | SVA | `lowrisc:prim:prim_dom_and_2share:0.1` | PASS |
 
+## Follow-up: advanced RAM package ordering
+
+A later corpus snapshot exposed that `prim_ram_1p_adv.sv` imports
+`prim_mubi_pkg` while its core declared only the `ram_1p` dependency. Adding the
+missing edge removed the unknown-package compile errors in seven affected RTL
+rows. Three rows are clean `PASS`; four remain `DEBT` for unrelated FuseSoC
+C/C++ file-type warnings or the `prim_util_memload.svh` synthesis process.
+
+| Core | Result after dependency overlay | Remaining diagnostic |
+|---|---|---|
+| `lowrisc:ip:i2c:0.1` | PASS | — |
+| `lowrisc:ip:otbn:0.1` | DEBT | FuseSoC C/C++ file-type warnings |
+| `lowrisc:ip:otp_ctrl:1.0` | PASS | — |
+| `lowrisc:ip:rom_ctrl:0.1` | DEBT | `prim_util_memload.svh:57`, process not synthesized |
+| `lowrisc:ip:rv_core_ibex:0.1` | DEBT | FuseSoC C/C++ file-type warnings |
+| `lowrisc:ip:sram_ctrl:0.1` | DEBT | FuseSoC C/C++ file-type warnings |
+| `lowrisc:ip:usbdev:0.1` | PASS | — |
+
 The tested OpenTitan source snapshot has no Git metadata; its matrix report
 records `revision=unknown` and a dirty source state. The overlay and source
 SHA-256 fingerprints recorded by that report are:
@@ -42,6 +63,7 @@ SHA-256 fingerprints recorded by that report are:
 | Source core | Source SHA-256 | Overlay SHA-256 |
 |---|---|---|
 | `hw/ip/prim/prim_mubi.core` | `8760c7af65f75ccd03cede48f22e110a116c40f6f7516017e8ea05a8cb0608cf` | `9d30aaeacde9beb2e58a3d7395e34101af55d0fde827798835d18638d62c77df` |
+| `hw/ip/prim/prim_ram_1p_adv.core` | `3a9ba165765c3cf570fb3bbc8597df0976d6fb99d621655d7f67877b654dc15e` | `74d5b00aed420a40c7d9fa1e14a1f1ec25513693e15aae0fb3cbc9e5bf518255` |
 | `hw/top_earlgrey/ip_autogen/flash_ctrl/flash_ctrl_prim_reg_top.core` | `ffcc9454268f57356ccae63bf988a16c80eea40cee0aef6c75feff0116821849` | `5857645cdfe0f8840f382096956782b49f9f8ec6eb667f92132a217c0b1e427d` |
 | `hw/ip/otp_ctrl/otp_ctrl_prim_reg_top.core` | `34ff856cef2f658bff1a6fc86c4bea068979feb97c900286fc8284e25865bafb` | `1c07622516c3e0e62047b4bc1613845f68fcd8e9b1926464da77330eed19681e` |
 | `hw/ip/prim/prim_dom_and_2share.core` | `1e592c0c255c560d23be80bd13899db5622e11efc9625e12f314c56530dfc481` | `3242e56a35571810c0d03e3f3e7b1ab05efabb9ac35a90871dc55edcfba18d9b` |
@@ -76,3 +98,22 @@ for comparable results. Replace the paths with local locations:
 
 The runner records the source and generated overlay hashes in the result JSON
 under `metadata.matrix_source_core_overrides`.
+
+To reproduce the advanced-RAM source-order check, select its affected cores:
+
+```sh
+"$OT_PY" scripts/opentitan_matrix.py \
+  --opentitan-root /path/to/opentitan-source \
+  --build-root /path/to/build/ram-1p-adv-dependency \
+  --iverilog /path/to/iverilog/bin/iverilog \
+  --fusesoc "$OT_FUSESOC" --fusesoc-python "$OT_PY" \
+  --lane rtl \
+  --core lowrisc:ip:i2c:0.1 \
+  --core lowrisc:ip:otbn:0.1 \
+  --core lowrisc:ip:otp_ctrl:1.0 \
+  --core lowrisc:ip:rom_ctrl:0.1 \
+  --core lowrisc:ip:rv_core_ibex:0.1 \
+  --core lowrisc:ip:sram_ctrl:0.1 \
+  --core lowrisc:ip:usbdev:0.1 \
+  --jobs 1
+```

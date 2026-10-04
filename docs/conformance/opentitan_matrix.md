@@ -44,8 +44,9 @@ selection order:
 - `lowrisc:systems:top_earlgrey:0.1`, or
   `lowrisc:systems:top_darjeeling:0.1` for Darjeeling cores
 
-Five pinned Earlgrey-PROD-M6 core files omit direct dependencies used by their
-RTL: `prim_mubi.core` misses `lowrisc:prim:flop_2sync`; the Flash and OTP
+Six pinned Earlgrey-PROD-M6 core files omit direct dependencies used by their
+RTL: `prim_mubi.core` misses `lowrisc:prim:flop_2sync`;
+`prim_ram_1p_adv.core` misses `lowrisc:prim:mubi`; the Flash and OTP
 register-top cores omit register-check, TL-UL, and subregister providers;
 `prim_dom_and_2share.core` misses its XOR and flop providers; and
 `tlul_lc_gate.core` misses the error-response and secure-anchor providers. The
