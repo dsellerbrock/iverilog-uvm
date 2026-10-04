@@ -39,6 +39,26 @@ The HMAC/I2C workload therefore remains solver-heavy after startup, rather than
 showing only one large initial solve. These are stack shares, not exclusive CPU
 percentages.
 
+The key-manager 30s sample shows the same path at startup: 3,444/6,924 stacks
+under `randomize_with_`, including 1,074 under sparse-domain enumeration; the
+target passed in 56.2 seconds. KMAC also enters the same solver path (2,070/7,003
+under `randomize_with_`, 574 under sparse enumeration). Its flat summary also
+shows four-state conversion (`set_bit`: 828; `reduce4`: 379). These short
+captures extend the solver pattern to both targets without establishing how
+much of each complete run it occupies.
+
+KMAC's 180s sample adds a separate virtual-interface setup burst: the call tree
+has 2,286/6,456 stacks in `vvp_vinterface` construction and 1,773 inside
+`resolve_slots_()`. That function allocates one slot per interface property,
+looks up each named property in the VPI scope, and uses RTTI to classify arrays,
+signals, reals, strings, and objects. The flat summary also has 748
+`vpi_get_str`, 408 `strdup`, and 217 `memmove` samples, consistent with slot
+resolution and name/type handling. This is a measurable setup path, but the
+snapshot does not establish its share of total KMAC runtime. Solver work
+persists in the same capture (791/6,456 `randomize_with_`, 465 sparse-domain
+enumeration); four-state propagation remains visible (`set_bit`: 537,
+`reduce4`: 306). The target completed in 416.0 seconds.
+
 The helper at `vvp/vvp_z3.cc:7764` pushes the solver once, repeatedly checks it,
 reads a model, and adds a constraint excluding that value, stopping after the
 complete sparse set is found or its 64-value cap is exceeded. Repeated checks
@@ -54,7 +74,9 @@ the Z3 samples to one particular source call.
 Profiles: [HMAC at 30s](lowrisc_dv_hmac_sim_0.1-after-30s-pid9607.sample.txt)
 and [180s](lowrisc_dv_hmac_sim_0.1-after-180s-pid9607.sample.txt), [I2C at
 30s](lowrisc_dv_i2c_sim_0.1-after-30s-pid10233.sample.txt) and
-[180s](lowrisc_dv_i2c_sim_0.1-after-180s-pid10233.sample.txt).
+[180s](lowrisc_dv_i2c_sim_0.1-after-180s-pid10233.sample.txt), [keymgr at
+30s](lowrisc_dv_keymgr_sim_0.1-after-30s-pid14610.sample.txt), and [KMAC at
+30s](lowrisc_dv_kmac_sim_0.1-after-30s-pid14821.sample.txt) and [180s](lowrisc_dv_kmac_sim_0.1-after-180s-pid14821.sample.txt).
 
 ### Four-state vector propagation
 
@@ -104,8 +126,18 @@ At 180s, 1,762/6,862 root stacks are under `randomize_with_`, including 993
 under sparse-domain enumeration and 520 under `Z3_solver_get_model`. This is a
 solver phase in the corpus smoke run. At 900s, the profile is split between
 `of_VPI_CALL` (1,485/6,928) and `randomize_with_` (1,475/6,928), with 862
-stacks in sparse-domain enumeration. The corpus Flash run has not reached the
-late scoreboard associative-array scan seen in the separate long Flash replay.
+stacks in sparse-domain enumeration. At 1,800s, `randomize_with_` still appears
+in 1,449/7,088 root stacks and `of_VPI_CALL` in 1,290/7,088. The top-of-stack
+summary also shows the class-object context/alias path: 652 samples in
+`context_live_matches_scope_`, 367 in copying the alias vector, 274 in
+`notify_signal_aliases()`, and 223 in `vvp_object::pointer_is_live()`. This
+confirms the context/alias path from the I2C profile in a second workload. The
+corpus Flash run has not reached the late scoreboard associative-array scan
+seen in the separate long Flash replay.
+
+Profiles: [Flash at 180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid9372.sample.txt),
+[900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid9372.sample.txt), and
+[1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid9372.sample.txt).
 
 The CSRNG 30s capture adds class-object and automatic-context bookkeeping to
 the inventory. A repeated nested-fork path loads class signal objects through
@@ -130,6 +162,13 @@ cannot tell whether cheaper bookkeeping would preserve the required lifetime
 and alias behavior.
 
 Profile: [I2C at 900s](lowrisc_dv_i2c_sim_0.1-after-900s-pid10233.sample.txt).
+
+At 1,800s, Flash shows the same class-object and automatic-context checks,
+along with a vector copy on alias notification. In `vvp/vvp_object.cc`,
+`notify_signal_aliases()` copies the alias set before iterating and sending
+updates, so mutation during callback delivery does not invalidate the active
+iteration. Treat the vector-copy count as part of that correctness-sensitive
+fanout path; removing it would need its own safety argument and measurement.
 
 ### Other constrained-randomization path
 
