@@ -1,0 +1,31 @@
+{
+  "iteration": 3,
+  "candidate": "Compile the profiler-hot vvp/vthread.cc interpreter translation unit with -O3; all other translation units remained at -O2.",
+  "candidate_retained": false,
+  "runtime_sha256": "8fc39f55bb266512beea424e831f3bfcf49fe30b2ec8abbf779bbf3ec2fb7434",
+  "baseline_runtime_sha256_after_restore": "5737616f59fbcd305e1c9baf340acd5983050c42d9024702ed632611e29ca523",
+  "flash_image_sha256": "4b25c822438e9553e50454a188f53a031f9261f212e8692f3e83aae0ba848260",
+  "dpi_library_sha256": "b77b12c4c2ff467faf5ec324affdd5e588bcb1de61f4a1ab1a951463565794eb",
+  "flash_run": {
+    "test": "flash_ctrl_base_test",
+    "sequence": "flash_ctrl_smoke_vseq",
+    "default_seed": "0xa8cee782",
+    "default_seed_local": "0x219b79a0",
+    "wall_cap_seconds": 1200,
+    "rss_cap_bytes": 10000000000,
+    "duration_seconds": 1200.6,
+    "returncode": 0,
+    "timed_out": true,
+    "memory_limit_hit": false,
+    "peak_rss_bytes": 1304969216,
+    "last_checked_milestone": "operation 2/3, bank-1 FlashPartData erase at 1,414,652.8 ns (same as prior baseline)",
+    "subsequent_checked_milestone": null,
+    "pass_marker": false,
+    "uvm_error_count": 0,
+    "uvm_fatal_count": 0,
+    "qualified": false,
+    "log": "flash.log"
+  },
+  "prior_vthread_microbenchmark": "The fork-heavy one-million task-call reducer measured -O3 median CPU 0.69 s versus -O2 0.66 s (about 4-5% slower); no Flash result was available before this replay.",
+  "conclusion": "The same last checked milestone was reached under the same 1,200-second envelope; no later checked operation or clean PASS appeared. No significant end-to-end speedup. O2 restored; iteration 3/5."
+}
