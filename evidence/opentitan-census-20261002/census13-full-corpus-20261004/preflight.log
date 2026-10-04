@@ -1,0 +1,27 @@
+branch: agent/rand-2d-dynamic-arrays-20261002
+head: 8527d1fd44eb812aa58d894fb5791e4e3d089742
+OpenTitan source: /private/tmp/ot-corpus-current-spid-passthrough-20261003/source
+compiler/runtime fingerprints:
+53969c0e4a140f0f2accec98b752c4d37529d912ddb255bec0ed5dc9d1a07bcc  /private/tmp/current-tools/bin/iverilog
+8dae711b38f7229b74b29455db587238ef76452928a66faeb5085aa429ef184c  /private/tmp/current-tools/lib/ivl/ivl
+fe1361e12742b7d80bb63b837c4ea5f3b71c3239857c858f34a611c92ae08d73  /private/tmp/current-tools/lib/ivl/vvp.tgt
+2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570  /private/tmp/current-tools/bin/vvp
+runtime link: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/vvp/vvp
+OTBN assembler/linker versions:
+GNU assembler (xPack GNU RISC-V Embedded GCC arm64) 2.38
+Copyright (C) 2022 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or later.
+This program has absolutely no warranty.
+This assembler was configured for a target of `riscv-none-elf'.
+GNU ld (xPack GNU RISC-V Embedded GCC arm64) 2.38
+Copyright (C) 2022 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or (at your option) a later version.
+This program has absolutely no warranty.
+focused compatibility patches are present (reverse dry-run):
+patching file 'hw/ip/otp_ctrl/data/otp_ctrl_env_cov.sv.tpl'
+patching file 'hw/ip/otp_ctrl/dv/env/otp_ctrl_env_cov.sv'
+patching file 'hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv'
+patching file 'hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv'
+patching file 'hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv'

@@ -1,7 +1,19 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/rand-2d-dynamic-arrays-20261002
-checkpoint_head: 71fb85413525ba1caabb3bc1e2ef41789bd459f9
+checkpoint_head: 8527d1fd44eb812aa58d894fb5791e4e3d089742
+active_opentitan_coherent_census_lane:
+  blocker: "OT-COHERENT-49-CENSUS-20261004"
+  phase: "RUNNING"
+  baseline_head: "8527d1fd44eb812aa58d894fb5791e4e3d089742"
+  baseline: "Census12 full matrix: 45 PASS, 1 DEBT, 1 FAIL, 1 PRE_RUN_FAIL, 1 RUNTIME_TIMEOUT. Four focused retries produce a 49/49 PASS composite; a single post-fix 49-target run remains required."
+  source: "Disposable OpenTitan source copy based on a78922f14a8cc20c7ee569f322a04626f2ac6127; OTP, Flash, and SPI-TPM compatibility patches verified applied. OTBN uses existing xPack RV32 as/ld."
+  compiler: "ivl SHA-256 8dae711b38f7229b74b29455db587238ef76452928a66faeb5085aa429ef184c; VVP SHA-256 2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570."
+  command: "evidence/opentitan-census-20261002/census13-full-corpus-20261004/run-census13-coherent.sh"
+  output: "evidence/opentitan-census-20261002/census13-full-corpus-20261004/result-census13.json and result-census13.md"
+  envelope: "49 runtime targets, two jobs, 18,000-second timeout, 9,536 MiB memory cap, commercial-unsafe, pinned UVM 1.2, native OpenSSL/libelf."
+  acceptance: "One invocation records 49 PASS and zero hard errors, semantic debt, runtime errors, or timeouts."
+  next: "Audit every row and update this lane. If any row is non-PASS, select it as the sole active blocker; otherwise complete required PR checks/review before merge and clone cleanup."
 active_ot_compile_constraint_batch2_lane:
   blocker: "OT-COMPILE-CONSTRAINT-BATCH2-20261001"
   phase: "DONE"
