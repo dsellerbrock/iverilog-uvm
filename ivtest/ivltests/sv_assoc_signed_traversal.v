@@ -6,6 +6,7 @@ endclass
 
 module main;
   typedef bit [31:0] unsigned_key_t;
+  typedef logic [3:0] logic_key4_t;
 
   bit failed;
   int direct[int];
@@ -13,6 +14,10 @@ module main;
   int defaulted[int];
   int unique_indexes[$];
   int unsigned_entries[unsigned_key_t];
+  int four_state_entries[logic_key4_t];
+  int four_state_copy[logic_key4_t];
+  int mutation_entries[logic_key4_t];
+  int mutation_copy[logic_key4_t];
   signed_assoc_holder holder;
 
   task automatic check(input string label, input logic ok);
@@ -41,6 +46,7 @@ module main;
   initial begin
     int key;
     unsigned_key_t unsigned_key;
+    logic_key4_t logic_key;
     int i;
 
     failed = 1'b0;
@@ -133,6 +139,66 @@ module main;
     check("unsigned prev zero result", unsigned_entries.prev(unsigned_key));
     check("unsigned prev zero key", unsigned_key == 32'h0000_0000);
     check("unsigned prev end", !unsigned_entries.prev(unsigned_key));
+
+      // Vector-key traversal preserves the total order for X/Z keys as well
+      // as binary keys. Exercise both directions and an array copy whose
+      // source has already built its ordered traversal index.
+    four_state_entries[4'b0000] = 60;
+    four_state_entries[4'b0001] = 61;
+    four_state_entries[4'b0010] = 62;
+    four_state_entries[4'b00x1] = 63;
+    four_state_entries[4'b00z1] = 64;
+    four_state_entries[4'b1000] = 65;
+    check("four-state first result", four_state_entries.first(logic_key));
+    check("four-state first key", logic_key === 4'b0000);
+    check("four-state next one result", four_state_entries.next(logic_key));
+    check("four-state next one key", logic_key === 4'b0001);
+    check("four-state next two result", four_state_entries.next(logic_key));
+    check("four-state next two key", logic_key === 4'b0010);
+    check("four-state next X result", four_state_entries.next(logic_key));
+    check("four-state next X key", logic_key === 4'b00x1);
+    check("four-state next Z result", four_state_entries.next(logic_key));
+    check("four-state next Z key", logic_key === 4'b00z1);
+    check("four-state next high result", four_state_entries.next(logic_key));
+    check("four-state next high key", logic_key === 4'b1000);
+    check("four-state next end", !four_state_entries.next(logic_key));
+    check("four-state last result", four_state_entries.last(logic_key));
+    check("four-state last key", logic_key === 4'b1000);
+    check("four-state prev Z result", four_state_entries.prev(logic_key));
+    check("four-state prev Z key", logic_key === 4'b00z1);
+    check("four-state prev X result", four_state_entries.prev(logic_key));
+    check("four-state prev X key", logic_key === 4'b00x1);
+    four_state_copy = four_state_entries;
+    check("four-state copy first result", four_state_copy.first(logic_key));
+    check("four-state copy first key", logic_key === 4'b0000);
+    check("four-state copy next result", four_state_copy.next(logic_key));
+    check("four-state copy next key", logic_key === 4'b0001);
+
+      // Mutations after a traversal query must update an already-built index.
+      // Check insertion, deletion, re-insertion, copying, and clearing.
+    mutation_entries[4'h0] = 70;
+    mutation_entries[4'h8] = 78;
+    check("mutation first result", mutation_entries.first(logic_key));
+    check("mutation first key", logic_key === 4'h0);
+    check("mutation initial next", mutation_entries.next(logic_key));
+    check("mutation initial next key", logic_key === 4'h8);
+    mutation_entries[4'h4] = 74;
+    logic_key = 4'h0;
+    check("mutation inserted next", mutation_entries.next(logic_key));
+    check("mutation inserted key", logic_key === 4'h4);
+    mutation_entries.delete(4'h4);
+    logic_key = 4'h0;
+    check("mutation deleted next", mutation_entries.next(logic_key));
+    check("mutation deleted key", logic_key === 4'h8);
+    mutation_entries[4'h4] = 75;
+    logic_key = 4'h0;
+    check("mutation reinserted next", mutation_entries.next(logic_key));
+    check("mutation reinserted key", logic_key === 4'h4);
+    mutation_copy = mutation_entries;
+    mutation_entries.delete();
+    check("mutation clear empties source", !mutation_entries.first(logic_key));
+    check("mutation copy survives clear", mutation_copy.first(logic_key));
+    check("mutation copy first key", logic_key === 4'h0);
 
     check_automatic();
 
