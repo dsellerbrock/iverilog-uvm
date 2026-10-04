@@ -50,6 +50,14 @@ runner reports `opentitan_revision: unknown` and `opentitan_dirty: true`: this
 snapshot has no discoverable Git metadata and contains those local overlays.
 The pinned source checkout was not modified.
 
+The reproducible patch files are checked into this repository:
+[OTP covergroup purity](../census12-full-corpus-20261003/compat-patches/otp-get-offset-covergroup-purity.patch),
+[Flash element-wise solve ordering](../census12-full-corpus-20261003/compat-patches/flash-elementwise-solve-before.patch),
+and [SPI TPM SRAM/reset wiring](../census12-full-corpus-20261003/compat-patches/spi-tpm-sram-csb-reset.patch).
+Use the [top-level reproduction guide](../../../docs/conformance/opentitan_49of49_reproduction.md)
+for copyable patch and parallel matrix commands. The archived run script records
+the exact command and machine-local tool paths; adapt those paths for another host.
+
 The compiler engine SHA-256 was
 `8dae711b38f7229b74b29455db587238ef76452928a66faeb5085aa429ef184c`; the VVP
 runtime SHA-256 was

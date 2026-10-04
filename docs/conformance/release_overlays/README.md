@@ -16,6 +16,24 @@ copies and record unmodified-source results separately.
 
 ## Known-needed source patches
 
+The latest complete selected OpenTitan runtime census is
+[census13](../../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md):
+49/49 targets passed on the pinned revision with the
+[OTP covergroup-purity](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/otp-get-offset-covergroup-purity.patch),
+[Flash solve-ordering](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/flash-elementwise-solve-before.patch),
+and [SPI TPM reset](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/spi-tpm-sram-csb-reset.patch)
+patches. They are also collected in
+[`compat-patches`](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/).
+Older rows and statements such as “the full census has not been rerun” describe
+the evidence available when each focused replay was recorded; they do not
+override the newer aggregate result. Focused outcomes remain scoped to the
+named test, source overlay, and compiler image in their evidence links.
+
+For replication, apply the three census13 patches to a disposable checkout at
+`a78922f14a8cc20c7ee569f322a04626f2ac6127`, after a `patch --dry-run -p1`
+check. The [top-level reproduction guide](../opentitan_49of49_reproduction.md) has the
+copyable patch commands and parallel matrix invocation.
+
 | Test and disposition | Patch or helper | Evidence |
 | --- | --- | --- |
 | OpenTitan `pwrmgr_smoke_vseq`: count escalation-clock edges in the generated checker and its template, so a running asynchronous clock sampled low is not treated as stopped. Apply on a disposable pinned copy. | [pwrmgr_clock_edge_count.patch](opentitan/pwrmgr_clock_edge_count.patch) | The [current-image focused and selected replays](../../../evidence/opentitan-pwrmgr-clock-edge-count-20260929/README.md) pass with zero semantic/runtime debt, including explicit seed 3. The earlier [timestamp patch](opentitan/pwrmgr_clock_activity.patch) is preserved for historical runs but introduces a mixed-timescale compile notice on the current image. |

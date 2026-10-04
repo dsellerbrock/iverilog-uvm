@@ -115,6 +115,15 @@ Registration alone does not establish compatibility. See the
 versions, and legacy recording limitations, and the
 [UVM frontend guide](docs/uvm_frontend.md) for overrides such as `--uvm-no-dpi`.
 
+## OpenTitan runtime matrix
+
+The latest pinned OpenTitan runtime census passed **49/49 selected targets**
+with three published source overlays. This qualifies the matrix selection, not
+all OpenTitan DV tests. See the [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md),
+[matrix runner reference](docs/conformance/opentitan_matrix.md),
+[full results](evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md),
+and [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
+
 ## Known limitations
 
 - **Standards support is incomplete.** Classes, constraints, containers,
@@ -128,8 +137,10 @@ versions, and legacy recording limitations, and the
   support. Compilation alone does not prove meaningful traffic or checking.
   The [release overlays](docs/conformance/release_overlays/README.md) record
   pinned application sources, known-needed patches, and target run options.
-  [Current results](docs/conformance/CURRENT_WORK.md) record revisions,
-  commands, failures, and pending qualification; `DEBT` is not a pass.
+  The current [OpenTitan census](evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md)
+  and [work status](docs/conformance/CURRENT_WORK.md) record revisions,
+  commands, and qualification boundaries; historical `DEBT` results are not
+  passes.
 - **Some legal constructs remain unsupported**, including `wait_order`,
   recursive/value-returning `randsequence` productions, imported DPI shortreal
   arrays, and fixed-size unpacked DPI export formals. Consult the clause

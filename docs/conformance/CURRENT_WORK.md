@@ -1,6 +1,25 @@
 # Current evidence and work
 
-The selected 52 Caliptra L0 cases run on Icarus with explicit
+## Current OpenTitan status — 2026-10-04
+
+The latest complete selected OpenTitan runtime census is
+[census13](../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md):
+**49/49 targets passed** with zero setup or compile failures, hard errors,
+semantic debt, runtime errors, runtime debt, timeouts, or memory-cap hits. It
+used the pinned Earlgrey-PROD-M6 source revision
+`a78922f14a8cc20c7ee569f322a04626f2ac6127`, UVM 1.2, two parallel jobs,
+`-gcommercial-unsafe`, and three published test-source overlays: OTP covergroup
+purity, Flash element-wise solve ordering, and SPI TPM SRAM/reset wiring. The
+run report includes result files, tool fingerprints, runtime limits, and patch
+preflight records. This qualifies the matrix's 49 selected runtime targets,
+not every OpenTitan DV test. The pinned source checkout was left unchanged.
+
+The measured hot paths and coverage limits are summarized in the
+[native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
+
+## Earlier OpenTitan and Caliptra evidence snapshots
+
+The earlier selected 52-case Caliptra L0 run used Icarus with explicit
 `-gcommercial-unsafe` as the main **nonstandard compatibility** lane. A pass
 still requires the intended marker, zero fail/error/assertion diagnostics,
 and meaningful firmware execution. Strict mode supplies focused IEEE
@@ -9,7 +28,7 @@ evidence. Named Caliptra and OpenTitan patches and options are selected per
 test on disposable copies under the [release overlay guide](release_overlays/README.md),
 leaving pinned source checkouts unchanged.
 
-The [latest complete OpenTitan unsafe DV baseline](../../evidence/opentitan-cover-open-range-20260925/latest-unsafe-matrix.md)
+The [2026-09-25 OpenTitan unsafe DV baseline](../../evidence/opentitan-cover-open-range-20260925/latest-unsafe-matrix.md)
 uses the combined private Icarus compiler (`ivl` SHA-256
 `9084fca0b6d1cbe00184583399ba1c5fcf0f10d78402f42c14fd50c3708dbdfe`)
 and explicit `-gcommercial-unsafe` for all 84 selected compile rows. This
@@ -52,7 +71,7 @@ compatibility replay**: five golden and one random vector, reference-model
 encryption/decryption checks, one `TEST PASSED CHECKS`, and zero runtime
 errors or assertions. On that recorded image its base matrix row was `DEBT`
 because of three runner-tracked FuseSoC setup warnings and a separate raw
-backend-deprecation warning. The latest matrix instead records
+backend-deprecation warning. That image's raw matrix instead records
 `RUNTIME_FAIL` without the native DPI symbol, while the current-image
 [native-DPI replay](../../evidence/opentitan-cover-open-range-20260925/native-dpi-replays/README.md)
 completes its original checks. Neither raw matrix row qualifies as a
