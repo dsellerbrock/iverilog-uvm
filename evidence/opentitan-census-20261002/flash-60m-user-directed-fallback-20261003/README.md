@@ -1,5 +1,24 @@
-# Flash 60-minute fallback replay (user-directed)
+# Flash 60-minute fallback replay
 
-After four comparable 1,200-second Flash optimization runs showed no significant speedup, the user directed us to skip iteration 5 and proceed to the 60-minute run. This replay uses the restored `-O2` VVP runtime, the same prebuilt Flash image, DPI library, test, arguments, default seed, host, and 10 GB RSS cap. The full 49-target corpus will run only after a clean checked Flash PASS with zero UVM errors, fatals, and semantic/runtime debt.
+The user directed us to skip optimization iteration 5 after iterations 1–4 showed no significant end-to-end gain, and run this 3,600-second replay. It used the restored `-O2` VVP runtime, the same Flash image, DPI library, arguments, and default seed as the prior comparable replays.
 
-Run result: in progress. The wrapper writes one-second RSS samples and 30-second progress records to `progress.jsonl`, the simulator log to `flash.log`, and the final verdict and hashes to `result.json`. Iteration 5 was skipped by explicit user direction. The full corpus remains gated on a clean checked PASS and zero semantic/runtime debt.
+## Result
+
+The replay hit the 3,600-second wall cap after 3,600.4 seconds. It did not emit `TEST PASSED CHECKS`, so it is not a clean PASS and the 49-target corpus was not started. The wrapper terminated VVP at the wall limit; VVP returned 0, but `timed_out=true` and `clean_checked_pass=false`. No `TEST FAILED CHECKS`, `UVM_ERROR`, or `UVM_FATAL` marker was present in the captured log.
+
+Peak RSS was 1,742,995,456 bytes (about 1.74 GB), below the 10,000,000,000-byte cap; the RSS limit was not hit.
+
+The run completed the initial 3-operation sequence and then advanced into a subsequent 4-operation sequence. The log records starts for operations 1/4 through 4/4; the last start was at 5,622,051.9 ns. The last scoreboard marker flushed before termination was at 5,622,434.9 ns. This is well beyond the previous 1,414,652.8 ns operation-2 milestone, but it is not a PASS.
+
+## Reproduction and fingerprints
+
+Run wrapper: [`run-flash-3600s-10gb.py`](run-flash-3600s-10gb.py).
+
+- Test: `flash_ctrl_base_test` / `flash_ctrl_smoke_vseq`
+- Default seed: `0xa8cee782`; local seed: `0x219b79a0`
+- VVP SHA-256: `2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570`
+- Flash image SHA-256: `4b25c822438e9553e50454a188f53a031f9261f212e8692f3e83aae0ba848260`
+- DPI library SHA-256: `b77b12c4c2ff467faf5ec324affdd5e588bcb1de61f4a1ab1a951463565794eb`
+- Wall cap: 3,600 seconds; RSS cap: 10,000,000,000 bytes
+
+Artifacts: [`result.json`](result.json), [`progress.jsonl`](progress.jsonl), and [`flash.log`](flash.log). The result JSON records `clean_checked_pass: false`; continue focused diagnosis and do not start the full corpus until Flash passes with zero semantic/runtime debt.
