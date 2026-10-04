@@ -30,7 +30,8 @@ at different times and have different sample counts.
 
 The exact-default Flash retry has now reproduced that late phase, so it is not
 specific to the separately seeded replay. Its 4,500s sample shows the
-associative-array successor walk taking 98.3% of sampled stacks.
+associative-array successor walk taking 98.3% of sampled stacks; captures at
+4,800s and 5,400s show the same path holding at 97.9% and 97.8% respectively.
 
 ## Confirmed paths so far
 
@@ -510,12 +511,37 @@ paths, and Z3 integration.
 
 The complete 49-target matrix finished with 45 PASS and four non-pass rows:
 Flash runtime timeout at 3,000s, OTBN pre-run failure, OTP semantic debt, and
-SPI-TPM compile failure. A focused OTBN retry with the installed xPack RISC-V
-assembler and linker passed in 136.9s; its profile is included above. The exact
-default-args Flash retry is now running with an 18,000s timeout and a 9,536 MiB
-memory cap. Its result will replace the matrix's 3,000s timeout row in the
-consolidated census if it completes successfully.
+SPI-TPM compile failure. Those are the baseline results before the focused
+retries summarized below; the preserved baseline is in
+[`result-census12.md`](result-census12.md).
 
 Profiles were captured at 30s, 180s, and 900s for VVP jobs lasting long enough,
 with additional later Flash and alert-handler samples. Jobs that finish before
-30s have no runtime sample, so the report makes no hot-path claim for them.
+30s have no runtime sample, so the report makes no hot-path claim for them. The
+initial matrix sampler made 47 attempts: 46 produced samples across 26 targets.
+The exact-default Flash retry added 10 successful captures, and the xPack OTBN
+retry added one 120s capture. This leaves 22 of the 49 matrix targets without a
+saved native sample, mostly because they completed before the first 30s capture;
+the report does not infer hot paths for those targets. The sampled evidence
+identifies nine recurring optimization candidates: the Flash scoreboard
+successor walk, Flash scoreboard population reads, SRAM indexed backdoor
+lookup, sparse-domain and joint-tuple solver enumeration, SVA callback VPI
+work, class-object bookkeeping, four-state resolution, virtual-interface
+setup, and standard distribution randomization. Common interpreter instruction
+handlers are visible too, but their broad appearance alone does not justify a
+general interpreter rewrite.
+
+The 49-row updated census is a composite of the initial full-matrix run and
+three focused retries, not a second single invocation of all 49 targets. The
+OTBN xPack retry passed in 136.9s; the OTP template cleanup passed in 78.8s
+with no semantic debt. The exact-default Flash retry finished in 5,891.2s
+with a pass banner, zero runtime errors, and no timeout. The matrix classifies
+it as DEBT because compilation emitted two aggregate `solve before` warnings:
+`rand_regions` / `rand_info` in the OTF sequence and `mp_regions` /
+`mp_info_pages` in the memory-protection sequence. Peak physical memory was
+1.39 GB against the 9,536 MiB cap. Combining those replacements with the full
+matrix result gives **47 PASS, one DEBT (Flash), and one FAIL (SPI-TPM)**.
+SPI-TPM still has three compile errors from the testbench's stale SRAM-port
+interface; removing stale parameter overrides did not resolve that mismatch.
+The row-by-row merged result is [`result-census12-updated.md`](result-census12-updated.md)
+with machine-readable detail in [`result-census12-updated.json`](result-census12-updated.json).

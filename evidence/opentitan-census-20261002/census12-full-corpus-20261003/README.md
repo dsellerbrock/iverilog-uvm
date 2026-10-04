@@ -1,9 +1,11 @@
 # OpenTitan full runtime census 12
 
-This is the requested fresh run of all 49 configured OpenTitan runtime targets.
-The runtime inventory was checked with `scripts/opentitan_matrix.py --lane
-runtime --list` before starting: it reports 49 jobs, comprising 35 UVM and 14
-directed targets. The full run will follow the dedicated five-hour Flash replay.
+This records the requested fresh run of all 49 configured OpenTitan runtime
+targets and its later focused retries. The runtime inventory was checked with
+`scripts/opentitan_matrix.py --lane runtime --list` before starting: it reports
+49 jobs, comprising 35 UVM and 14 directed targets. The original full-matrix
+result is preserved; [`result-census12-updated.md`](result-census12-updated.md)
+combines it with the later OTBN, OTP, and five-hour Flash retries.
 
 ## Run configuration
 
@@ -16,17 +18,21 @@ directed targets. The full run will follow the dedicated five-hour Flash replay.
   resolves to this worktree's `vvp/vvp` executable.
 - UVM: the pinned UVM 1.2 source tree used by census11.
 - Profile: `--lane runtime --commercial-unsafe --jobs 2`.
-- Time limits: 600 seconds for setup and compile, 3,000 seconds per runtime.
-  The five-hour limit applies to the separate Flash replay only.
+- Initial matrix time limits: 600 seconds for setup and compile, 3,000 seconds
+  per runtime. The exact-default Flash retry used an 18,000-second timeout.
 - Runtime memory cap: disabled for the corpus, matching census11. The dedicated
-  Flash replay uses its separately requested 10,000,000,000-byte RSS cap.
+  exact-default Flash retry used a 9,536 MiB cap, within the requested 10 GB
+  budget.
 - OpenSSL and libelf flags are resolved through the OpenTitan Python 3.13
   environment's `pkg-config`.
 
 The exact command is in [`run-census12.sh`](run-census12.sh). Native samples are
 scheduled for every VVP runtime process that lasts at least 30 seconds, with
-additional samples at 180 and 900 seconds. Results and logs will be written to
-`result-census12.json`, `result-census12.md`, and `/private/tmp/pi/census12/build`.
+additional samples at 180 and 900 seconds. Initial full-matrix results are in
+`result-census12.json` and `result-census12.md`; the composite census is in
+`result-census12-updated.json` and `result-census12-updated.md`. Full-matrix
+logs are under `/private/tmp/pi/census12/build`, with focused retry logs under
+`/private/tmp/pi/census12`.
 The initial sampler can also match an `iverilog` parent waiting for its VVP
 child. Profiles are checked for `Process: vvp`, and compiler-wait captures are
 excluded from [`HOTPATHS.md`](HOTPATHS.md). The sampler source now filters to
