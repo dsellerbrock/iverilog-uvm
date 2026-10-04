@@ -43,18 +43,23 @@ all seven affected RTL rows and the affected SVA row:
 A later corpus snapshot exposed that `prim_ram_1p_adv.sv` imports
 `prim_mubi_pkg` while its core declared only the `ram_1p` dependency. Adding the
 missing edge removed the unknown-package compile errors in seven affected RTL
-rows. Three rows are clean `PASS`; four remain `DEBT` for unrelated FuseSoC
-C/C++ file-type warnings or the `prim_util_memload.svh` synthesis process.
+rows. The follow-up is **6 PASS, 1 DEBT**. FuseSoC C/C++ file-type notices
+remain in setup logs, but all seven warned files were confirmed absent from
+their Icarus source lists and are recorded as benign. The `rom_ctrl`
+process-synthesis notice remains actionable debt.
 
 | Core | Result after dependency overlay | Remaining diagnostic |
 |---|---|---|
 | `lowrisc:ip:i2c:0.1` | PASS | — |
-| `lowrisc:ip:otbn:0.1` | DEBT | FuseSoC C/C++ file-type warnings |
+| `lowrisc:ip:otbn:0.1` | PASS | C/C++ notices absent from the Icarus source list |
 | `lowrisc:ip:otp_ctrl:1.0` | PASS | — |
 | `lowrisc:ip:rom_ctrl:0.1` | DEBT | `prim_util_memload.svh:57`, process not synthesized |
-| `lowrisc:ip:rv_core_ibex:0.1` | DEBT | FuseSoC C/C++ file-type warnings |
-| `lowrisc:ip:sram_ctrl:0.1` | DEBT | FuseSoC C/C++ file-type warnings |
+| `lowrisc:ip:rv_core_ibex:0.1` | PASS | C/C++ notices absent from the Icarus source list |
+| `lowrisc:ip:sram_ctrl:0.1` | PASS | C/C++ notices absent from the Icarus source list |
 | `lowrisc:ip:usbdev:0.1` | PASS | — |
+
+The [7-row result JSON](advanced-ram-followup-result.json) retains the setup
+warnings, actionable warnings, and verified benign diagnostics.
 
 The tested OpenTitan source snapshot has no Git metadata; its matrix report
 records `revision=unknown` and a dirty source state. The overlay and source

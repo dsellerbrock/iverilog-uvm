@@ -2201,12 +2201,65 @@ def prepare_matrix_core_root(build_root: Path, opentitan_root: Path) -> Path:
 def actionable_setup_lines(output: str) -> list[str]:
     findings: list[str] = []
     for line in output.splitlines():
-        if "warning" not in line.casefold():
+        if not line.lstrip().casefold().startswith("warning:"):
             continue
         if any(pattern.search(line) for pattern in SETUP_ALLOWLIST):
             continue
         findings.append(line.strip())
     return findings
+
+
+def classify_rtl_native_setup_warnings(
+    findings: Sequence[str], source_list: Path
+) -> tuple[list[str], list[str]]:
+    """Clear C/C++ setup notices only when the staged file is unused by RTL."""
+    native_sources: set[Path] = set()
+    pending = [source_list]
+    seen: set[Path] = set()
+    try:
+        while pending:
+            current = pending.pop().resolve()
+            if current in seen:
+                continue
+            seen.add(current)
+            for line in current.read_text(errors="replace").splitlines():
+                tokens = shlex.split(line, comments=True)
+                for index, token in enumerate(tokens):
+                    if token in ("-c", "-f") and index + 1 < len(tokens):
+                        nested = Path(tokens[index + 1])
+                        pending.append(
+                            nested if nested.is_absolute() else current.parent / nested
+                        )
+                    elif (
+                        len(tokens) == 1
+                        and not token.startswith(("-", "+", "@"))
+                        and Path(token).suffix.casefold()
+                        in {".c", ".cc", ".cpp", ".cxx"}
+                    ):
+                        source = Path(token)
+                        native_sources.add(
+                            source.resolve() if source.is_absolute()
+                            else (current.parent / source).resolve()
+                        )
+    except (OSError, ValueError):
+        return list(findings), []
+
+    actionable: list[str] = []
+    benign: list[str] = []
+    for line in findings:
+        match = NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+        if match:
+            path = Path(match.group("path"))
+            staged = (
+                path.resolve()
+                if path.is_absolute()
+                else (source_list.parent / path).resolve()
+            )
+            if staged.is_file() and staged not in native_sources:
+                benign.append(line)
+                continue
+        actionable.append(line)
+    return actionable, benign
 
 
 def verified_native_setup_warnings(
@@ -2882,6 +2935,8 @@ def run_job(
     setup_log = work_root / "matrix-setup.log"
     write_log(setup_log, "OpenTitan FuseSoC setup", setup)
     setup_findings = actionable_setup_lines(setup.output)
+    setup_actionable_findings = setup_findings
+    setup_benign_diagnostics: list[str] = []
     record.update(
         {
             "setup_command": short_command(setup.command),
@@ -2934,6 +2989,16 @@ def run_job(
     except (FileNotFoundError, OSError, ValueError) as exc:
         record.update({"status": "SETUP_FAIL", "matrix_error": str(exc)})
         return record
+    if job.lane == "rtl":
+        setup_actionable_findings, setup_benign_diagnostics = (
+            classify_rtl_native_setup_warnings(setup_findings, source_list)
+        )
+        record.update(
+            {
+                "setup_actionable_warnings": setup_actionable_findings,
+                "setup_benign_diagnostics": setup_benign_diagnostics,
+            }
+        )
     if top_notes:
         record["top_selection_notes"] = top_notes
     if sva_notes:
@@ -3001,10 +3066,10 @@ def run_job(
         else:
             record["status"] = "FAIL"
         return record
-    if setup_findings or semantic_debt:
+    if setup_actionable_findings or semantic_debt:
         defect = (
             upstream_defect_for(job.core.vlnv, "compile", semantic_debt)
-            if semantic_debt and not setup_findings
+            if semantic_debt and not setup_actionable_findings
             else None
         )
         if defect is not None:
@@ -3963,6 +4028,27 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
         "signatures will not be checked."
     )
+    assert not actionable_setup_lines(
+        "INFO: Wrote dependency graph to /tmp/opentitan-warning-build/core.dot"
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        source_list = root / "build" / "core.scr"
+        source_list.parent.mkdir()
+        unused = root / "src" / "unused.c"
+        listed = root / "src" / "listed.cc"
+        unused.parent.mkdir()
+        unused.write_text("int unused;\n")
+        listed.write_text("int listed;\n")
+        source_list.write_text("../src/listed.cc\n")
+        warnings = [
+            "WARNING: ../src/unused.c has unknown file type 'cSource'",
+            "WARNING: ../src/listed.cc has unknown file type 'cppSource'",
+            "WARNING: waiver has unknown file type ''",
+        ]
+        assert classify_rtl_native_setup_warnings(warnings, source_list) == (
+            warnings[1:], warnings[:1]
+        )
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         staged = root / "src" / "native_core" / "util.c"
