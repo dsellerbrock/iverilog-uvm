@@ -10,8 +10,10 @@ module top;
     if (entries == 0)
       $fatal(1, "entries must be positive");
 
+    $flash_timer_start();
     for (i = 0; i < entries; i++)
       flash[i] = i;
+    $flash_timer_population_done();
 
     if (!flash.first(key))
       $fatal(1, "first failed for nonempty array");
@@ -25,6 +27,7 @@ module top;
         $fatal(1, "next continued after final key");
       end
     end
+    $flash_timer_walk_done();
     $display("PASS entries=%0d traversed=%0d", entries, i);
   end
 endmodule

@@ -7,8 +7,11 @@ module top;
   int count_10;
   int count_11;
   int i;
+  int unsigned seed = 20261004;
 
   initial begin
+    automatic process self_p = process::self();
+    self_p.srandom(seed);
     count_1 = 0;
     count_2 = 0;
     count_8 = 0;
@@ -30,8 +33,8 @@ module top;
         default: $fatal(1, "distribution produced value outside support: %0d", value);
       endcase
     end
-    $display("PASS standard_distribution calls=%0d bins={1:%0d,2:%0d,8:%0d,9:%0d,10:%0d,11:%0d}",
-             i, count_1, count_2, count_8, count_9, count_10, count_11);
+    $display("PASS standard_distribution seed=%0d calls=%0d bins={1:%0d,2:%0d,8:%0d,9:%0d,10:%0d,11:%0d}",
+             seed, i, count_1, count_2, count_8, count_9, count_10, count_11);
     $finish;
   end
 endmodule

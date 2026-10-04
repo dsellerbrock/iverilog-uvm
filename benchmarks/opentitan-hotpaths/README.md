@@ -42,11 +42,15 @@ checkout's install prefix:
     clang++ -O2 -std=c++17 flash_aa_walk.cpp -o flash_aa_walk
     clang++ -O2 -std=c++17 $(pkg-config --cflags z3) z3_sparse_bench.cpp $(pkg-config --libs z3) -Wl,-rpath,/opt/homebrew/opt/z3/lib -o z3_sparse_bench
     clang++ -O2 -std=c++17 $(pkg-config --cflags z3) z3_joint_bench.cpp $(pkg-config --libs z3) -Wl,-rpath,/opt/homebrew/opt/z3/lib -o z3_joint_bench
+    $IVERILOG_VPI --name=/tmp/flash_walk_timer flash_walk_timer.c
     $IVERILOG_VPI hdl_lookup_bench.c
     $IVERILOG_VPI sva_vpi_dispatch.c
     $IVERILOG -g2012 -s top -o flash_backdoor.vvp flash_backdoor.sv
     $IVERILOG -g2012 -s top -o flash_aa_walk.vvp flash_aa_walk.sv
+    $IVERILOG -g2012 -s top -o flash_aa_semantics.vvp flash_aa_semantics.sv
     $IVERILOG -g2012 -s top -o sram_indexed_backdoor.vvp sram_indexed_backdoor.sv
+    $IVERILOG -g2012 -s top -o vvp_sparse_randomize.vvp vvp_sparse_randomize.sv
+    $IVERILOG -g2012 -s top -o vvp_joint_randomize.vvp vvp_joint_randomize.sv
     $IVERILOG -g2012 -s top -o four_state_resolution.vvp four_state_resolution.sv
     $IVERILOG -g2012 -s top -o class_context_liveness.vvp class_context_liveness.sv
     $IVERILOG -g2012 -s top -o virtual_interface_slots.vvp virtual_interface_slots.sv
@@ -54,8 +58,11 @@ checkout's install prefix:
     $IVERILOG -g2012 -s top -o sva_vpi_dispatch.vvp sva_vpi_dispatch.sv
 
     /usr/bin/time -lp ./flash_aa_walk 1024 262144
-    /usr/bin/time -lp $VVP flash_aa_walk.vvp +entries=4096
-    /usr/bin/time -lp $VVP flash_aa_walk.vvp +entries=262144
+    /usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=4096
+    /usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=262144
+    $VVP flash_aa_semantics.vvp
+    /usr/bin/time -lp $VVP vvp_sparse_randomize.vvp
+    /usr/bin/time -lp $VVP vvp_joint_randomize.vvp
     /usr/bin/time -lp ./z3_sparse_bench spi 25
     /usr/bin/time -lp ./z3_sparse_bench i2c 25
     /usr/bin/time -lp ./z3_sparse_bench hmac 25
@@ -104,8 +111,19 @@ that traversal stops at the final key.
 
 The indexed VVP runtime passed the 262,144-key SV walk three times in 0.86,
 0.93, and 0.94 seconds, including population; maximum resident set size was
-61.3 MB. This is a full-size end-to-end fixture result, not a direct before and
-after ratio.
+61.3 MB. These earlier full-size measurements ran without phase instrumentation.
+Their command was `/usr/bin/time -lp $VVP flash_aa_walk.vvp +entries=262144`.
+With the VPI timer loaded, a focused 4,096-key run measured 2.947 ms for
+population and 11.291 ms for `.first/.next` traversal (0.12 s whole-process
+wall). The phase figures include SV loop overhead and VPI timer call overhead;
+they are not engine-only timings. This is a full-size end-to-end result plus a
+bounded phase split, not a direct before-and-after ratio.
+
+`flash_aa_semantics.sv` separately passes mutation checks (deleting the next
+key, inserting after the cursor, then deleting the cursor key) and walks
+four-state keys that differ at the same most-significant position in
+`0 < 1 < X < Z` order. This small case establishes runtime semantics; it is
+not included in the 262,144-key timing.
 
 The same Flash image and DPI library, seed, and seven operation inputs were
 then run once against each VVP runtime:
@@ -137,8 +155,27 @@ sizes, not extracted OpenTitan constraints.
 | Sparse TL analogue, 25 × 32 | 825 checks, 800 models/blockers | 91.81 ms |
 | RV-DM joint analogue, 25 × 32 three-variable tuples | 825 checks, 800 models/blockers | 155.92 ms |
 
-These reproduce the solver-call shape, not VVP's private enumeration helpers,
-candidate domains, or model extraction costs.
+The C++ fixtures reproduce the solver-call shape, not VVP's private
+enumeration helpers, candidate domains, or model extraction costs. Two added
+SystemVerilog fixtures exercise the actual VVP `std::randomize` route. The
+sparse case randomizes a 32-bit value over eight explicit, widely spaced
+candidates; with this width the bounded dense-domain paths decline and the
+runtime dispatches to `z3_enumerate_sparse_wide_domain_`. The joint case
+randomizes two fields in distinct child objects under a cross-object ordering
+constraint; the object graph takes the `exact_joint` path and enumerates its
+three legal tuples with `z3_enumerate_joint_`. These exercise the helper call
+paths but do not extract constraints from OpenTitan sources, and the runtime
+does not expose helper-level solver counters to these fixtures.
+
+| VVP fixture | Seed and correctness | Process wall |
+| --- | --- | ---: |
+| Sparse wide domain | Seed 20261004; 64 draws stayed in the exact 8-value support; observed bins `{4,8,5,16,4,8,11,8}` | 1.22 s |
+| Joint child-object tuple | Seed 20261004; 64 draws were among exactly `(0,2)`, `(0,5)`, `(2,5)`; all three appeared with bins `{28,20,16}` | 0.13 s |
+
+These were run with the indexed VVP toolchain hashes in the table above. Each
+fixture reports successful randomize calls and output bins; solver checks,
+model extractions, and blocker counts are not instrumented. The C++ proxy
+tables report explicit operation counts for algorithm-level comparison.
 
 ### VPI name lookup and backdoor reads
 
@@ -161,18 +198,43 @@ layout, or the full 262,144-word population loop.
 | Four-state resolution | 2,000 cycles; 8,000 X/Z checks | <0.01 s |
 | Class aliases and automatic task context | 2,000 alias groups, updates, and checks | 0.01 s |
 | Virtual-interface slots | 64 constructions; 3 members; 64 value checks | <0.01 s |
-| Standard distribution randomization | 2,000 std::randomize calls; support checked | 2.03 s |
+| Standard distribution randomization | Seed 20261004; 2,000 std::randomize calls; support checked; bins `{1:1241,2:525,8:63,9:39,10:45,11:87}` | 3.77 s |
 | SVA helper/VPI dispatch | 1,000 $ivl_sva_enabled, $ivl_assert_clock, and value-change callbacks; 0 errors | 0.07 s |
 
 These fixtures hit the relevant VVP syntax/runtime path, but do not expose
 private counters for set_bit/reduce4, context-map/liveness probes, VIF slot
-resolution, or assertion-object fanout. The distribution histogram is one
-unseeded sample and does not assert a frequency guarantee.
+resolution, or assertion-object fanout. The distribution histogram is
+reproducible for this runtime and seed; it checks support, not a frequency
+guarantee.
+
+## Ranked coverage map
+
+This maps all nine rows in `HOTPATHS.md` to a focused invocation, correctness
+oracle, reported metric, and the limit on what the fixture represents.
+
+| HOTPATHS rank and case | Exact invocation | Correctness oracle | Reported metric | Fidelity limit |
+| --- | --- | --- | --- | --- |
+| 1. Flash AA successor/comparator | `/usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=262144`; `$VVP flash_aa_semantics.vvp`; `./flash_aa_walk 1024 262144` | Full SV walk checks each numeric key and termination; semantics SV checks mutation and four-state order; C++ checks comparator pairs and successor sequence | Full-size wall/RSS above; phase split at 4,096; C++ build, walk, comparator and scan counts | Full SV walk uses fixed-width unsigned keys; mixed widths and signed mode are covered only by C++ comparator oracle. Timer includes SV loop and VPI call overhead. |
+| 2. Flash full-name backdoor reads | `/usr/bin/time -lp $VVP -M. -mhdl_lookup_bench flash_backdoor.vvp` | Plugin checks every named handle/value while reconstructing 4,096 words | 16,384 name lookups/gets; 3.376 ms plugin CPU, 0.09 s process wall | Direct VPI lookup/get, not UVM `uvm_hdl_read`, ECC, or full Flash image walk. |
+| 3. Sparse and joint Z3 enumeration | `/usr/bin/time -lp $VVP vvp_sparse_randomize.vvp`; `/usr/bin/time -lp $VVP vvp_joint_randomize.vvp`; C++ proxy commands below | Seeded sparse support/bin check; seeded tuple legality and all three legal tuples; C++ complete-set and uniqueness checks | VVP wall/draw bins; C++ checks, models, blockers and elapsed time | VVP constraints are synthetic, not extracted SPI/I2C/HMAC/TL/RV-DM inputs. No private helper-level solver counters. |
+| 4. SRAM indexed VPI lookup | `/usr/bin/time -lp $VVP -M. -mhdl_lookup_bench sram_indexed_backdoor.vvp` | Plugin checks each indexed byte against initialized memory | 1 base + 16,384 indexed lookups/gets; 0.493 ms plugin CPU, <0.01 s process wall | Direct VPI API analogue; does not call the UVM wrapper or reproduce SRAM path formatting/fallbacks. |
+| 5. SVA/VPI callback dispatch | `/usr/bin/time -lp $VVP -M. -msva_vpi_dispatch sva_vpi_dispatch.vvp` | SV checks callback return/value behavior; C plugin checks arguments/scope and counts events | 1,000 each of `$ivl_sva_enabled`, `$ivl_assert_clock`, and value-change callbacks; 0 errors; 0.07 s process wall | Real helper entry points and VPI callbacks, without OpenTitan assertion fanout or private per-operation counters. |
+| 6. Object/context/liveness bookkeeping | `/usr/bin/time -lp $VVP class_context_liveness.vvp` | Checks owner/alias identity across automatic task/fork mutation and after dropping handles | 2,000 alias groups and checks; 0.01 s process wall | Exercises alias/context/liveness behavior, without internal map/set probe counts or OpenTitan graph size. |
+| 7. Four-state resolution | `/usr/bin/time -lp $VVP four_state_resolution.vvp` | Checks resolved outputs including X/Z results each cycle | 2,000 cycles, 8,000 X/Z checks; <0.01 s process wall | Real four-state net resolution; internal `set_bit`/`reduce4` operations and drive-strength fanout are not counted. |
+| 8. Virtual-interface slot lookup | `/usr/bin/time -lp $VVP virtual_interface_slots.vvp` | Checks bound interface members and values through constructed holders | 64 constructions, 3 member reads, 64 value checks; <0.01 s process wall | Real VIF construction/access, without `resolve_slots_` name/type/RTTI counters or KMAC's interface shape. |
+| 9. Standard distribution | `/usr/bin/time -lp $VVP standard_distribution.vvp` | Seeded support checks for every one of 2,000 `dist` samples | Histogram and 3.77 s process wall | Actual `std::randomize`/`dist`; one deterministic histogram is not a statistical uniformity test and exposes no private distribution counters. |
+
+In this table, `$VVP` is the executable assignment in Toolchain and commands.
+The C++ proxy invocations are `./z3_sparse_bench spi 25`,
+`./z3_sparse_bench i2c 25`, `./z3_sparse_bench hmac 25`,
+`./z3_sparse_bench tl 25`, and `./z3_joint_bench 25`; their operation counts
+and timings are listed above.
 
 ## Files
 
-flash_aa_walk.cpp, flash_aa_walk.sv, z3_sparse_bench.cpp, z3_joint_bench.cpp,
-hdl_lookup_bench.c, flash_backdoor.sv, sram_indexed_backdoor.sv,
-four_state_resolution.sv, class_context_liveness.sv,
-virtual_interface_slots.sv, standard_distribution.sv, sva_vpi_dispatch.c,
-and sva_vpi_dispatch.sv.
+flash_aa_walk.cpp, flash_aa_walk.sv, flash_aa_semantics.sv, flash_walk_timer.c,
+z3_sparse_bench.cpp, z3_joint_bench.cpp, vvp_sparse_randomize.sv,
+vvp_joint_randomize.sv, hdl_lookup_bench.c, flash_backdoor.sv,
+sram_indexed_backdoor.sv, four_state_resolution.sv,
+class_context_liveness.sv, virtual_interface_slots.sv,
+standard_distribution.sv, sva_vpi_dispatch.c, and sva_vpi_dispatch.sv.
