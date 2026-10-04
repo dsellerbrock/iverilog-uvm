@@ -18,19 +18,19 @@ at different times and have different sample counts.
 
 | Rank | Hot path | Evidence and scope | Candidate |
 | --- | --- | --- | --- |
-| 1 | Flash scoreboard associative-array successor walk | A separate five-hour Flash replay spent nearly all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; the walk traverses a 262,144-entry scoreboard. | Replace repeated full-order successor searches with an order-aware traversal or iterator, preserving four-state key ordering. |
+| 1 | Flash scoreboard associative-array successor walk | A separate five-hour Flash replay spent nearly all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; the exact-default retry also put 98.3% of its 4,500s sample in this path. The walk traverses a 262,144-entry scoreboard. | Replace repeated full-order successor searches with an order-aware traversal or iterator, preserving four-state key ordering. |
 | 2 | Flash scoreboard population through backdoor reads | The default-args Flash Instruments capture has 2,471/30,355 stacks through `uvm_hdl_read`, 2,334 through `vpi_handle_by_name`, and 1,415 through `find_name`. Source walks 262,144 words; `read32()` issues four `read()`/`uvm_hdl_read()` calls per word. | Avoid redundant full-word backdoor reads and indexed path formatting across `read32()`'s four byte reads; reuse packed values only where Flash layout and ECC semantics permit. |
 | 3 | Repeated Z3 domain/tuple enumeration | HMAC, I2C, TL-agent, ROM, SPI host/device, UART and other tests repeatedly sample `z3_enumerate_sparse_wide_domain_`; RV-DM has a distinct joint-tuple enumeration burst. | Reduce solver checks, model extraction and blocking-clause churn while preserving exact randomization semantics. |
-| 4 | SRAM indexed backdoor name lookup | SRAM Time Profiler: 16,525/30,298 samples include `uvm_hdl_read`; 11,230 include `__vpiArray::get_word_str`, with 7,806 in `snprintf`. | Index memory words by numeric address or resolve the array once and access its element directly. |
+| 4 | SRAM indexed backdoor name lookup | SRAM Time Profiler: 16,525/30,298 samples include `uvm_hdl_read`; 11,230 include `__vpiArray::get_word_str`, with 7,806 in `snprintf`. | Cache the resolved array base per scope/name and profile remaining path formatting and fallback scans. |
 | 5 | SVA callbacks through VPI | Repeated `sva_enabled_calltf` / `sva_clock_calltf` and VPI argument, scope, iterator, get and put operations appear across ADC, entropy, OTP, PWM, reset, UART, system-reset and XBAR profiles. | Cache stable call-site argument and scope handles when callback lifetime rules permit. |
 | 6 | Class-object alias and context/liveness bookkeeping | I2C 900s, Flash 1,800–2,700s and SPI host/device later-phase profiles show repeated context checks, alias notifications/copies and live-object checks. | Measure and reduce map/set probes and alias fanout costs without weakening lifetime or mutation-during-callback guarantees. |
 | 7 | Four-state conversion and resolved-net propagation | Chip/XBAR and Alert Handler samples show repeated `reduce4`, `set_bit` and tri-net resolution; peripheral XBAR also has `set_bit` among its top leaves. | Optimize packed conversion/resolution while preserving X/Z and drive-strength semantics. |
 | 8 | Virtual-interface slot resolution | KMAC 180s is dominated by `resolve_slots_`; EDN's 30s sample also shows this setup path. | Reduce repeated name/type/RTTI work during interface setup; this is a startup-only candidate. |
 | 9 | Standard distribution randomization | Ibex icache has sustained `of_STD_RANDOMIZE_WITH` / `z3_resolve_dist_exact` samples at 30s and 180s. | Profile exact distribution handling separately from sparse-domain enumeration before changing it. |
 
-The first candidate is tied to the separate explicitly seeded Flash replay. The
-currently running exact-default Flash retry will show whether that late phase
-also occurs with the corpus's default arguments.
+The exact-default Flash retry has now reproduced that late phase, so it is not
+specific to the separately seeded replay. Its 4,500s sample shows the
+associative-array successor walk taking 98.3% of sampled stacks.
 
 ## Confirmed paths so far
 
@@ -164,14 +164,19 @@ phase's scale: 16,525/30,298 sampled stacks include `uvm_hdl_read()`, and
 stacks). These counts overlap and are not exclusive CPU shares.
 
 The OpenTitan `mem_bkdr_util.read()` implementation forms a fresh
-`path[index]` string for each memory read (`mem_bkdr_util.sv:227`). In VVP,
-`vpi_handle_by_name()` takes the indexed-array route, but its
-`find_name(base, scope)` search in `vvp/vpi_priv.cc:1466` still checks each
-scope object. Before it reaches the requested base, every unrelated
-memory/net array is walked word by word; `__vpiArray::get_word_str()` in
-`vvp/array.cc:496` formats each candidate word name before comparison. That
-repeated array-word rendering is the source-confirmed optimization target. The
-existing hierarchical scope cache does not cover this leaf-object/array scan.
+`path[index]` string for each memory read (`mem_bkdr_util.sv:227`). The active
+VVP source includes the indexed-name fast path added in `70580fdaf`: it parses
+the index, resolves the parent array, then calls `vpi_handle_by_index()` rather
+than formatting every word name in the requested array. Locating that parent
+still calls `find_name(base, scope)` (`vvp/vpi_priv.cc:1466`); this can walk
+earlier scope objects and their memory words, and a failed fast-path lookup
+can use the literal-name fallback. `__vpiArray::get_word_str()` in
+`vvp/array.cc:496` formats names in those scans. The SRAM profile's repeated
+`get_word_str()` samples therefore identify residual lookup work, not proof
+that numeric-index resolution is missing. The hierarchical scope cache
+(`a2df10e40`) caches scope transitions but not the final array-base handle.
+Caching that base or reducing repeated path-string construction remains a
+candidate; measure the fast path and fallback separately before changing it.
 
 Profiles: [SRAM controller at 30s](lowrisc_dv_sram_ctrl_sim_0.1-after-30s-pid23604.sample.txt.gz)
 and [180s](lowrisc_dv_sram_ctrl_sim_0.1-after-180s-pid23604.sample.txt.gz).
@@ -393,18 +398,23 @@ out of this snapshot, while `of_VPI_CALL` accounted for 220 roots. A subsequent
 transition: 102 samples include `of_AA_NEXT_SIG_V` and 82 include
 `compare_vec_keys_`; 35 include `uvm_hdl_read`, and none include
 `randomize_with_` or sparse-domain enumeration. The successor traversal has
-therefore begun in this exact-default run, but occupies only 0.34% of this
-capture so far. It does not yet show the sustained late-run dominance seen in
-the separately seeded replay. Later samples are needed to measure how long
-that phase lasts. The Instruments trace and exported XML remain local because
-the bundle records host environment metadata.
+therefore just begun in the exact-default run at that point, occupying 0.34%
+of this capture. At 4,500s the next native sample shows the sustained late
+phase: 7,580/7,714 roots (98.3%) are under `of_AA_NEXT_SIG_V`, and 6,989/7,714
+include `compare_vec_keys_`. Only 14 roots include `uvm_hdl_read`, and no
+sampled roots enter randomization. The simulator's physical footprint was
+933 MB (1.3 GB peak), far below the 9,536 MiB runner cap. The default-argument
+run has now reproduced the late associative-array bottleneck from the seeded
+replay. The Instruments trace and exported XML remain local because the bundle
+records host environment metadata.
 
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz)
 and [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
 plus [900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid28516.sample.txt.gz) and
 [1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid28516.sample.txt.gz),
 [2,700s](lowrisc_dv_flash_ctrl_sim_0.1-after-2700s-pid28516.sample.txt.gz), and
-[3,600s](lowrisc_dv_flash_ctrl_sim_0.1-after-3600s-pid28516.sample.txt.gz).
+[3,600s](lowrisc_dv_flash_ctrl_sim_0.1-after-3600s-pid28516.sample.txt.gz), and
+[4,500s](lowrisc_dv_flash_ctrl_sim_0.1-after-4500s-pid28516.sample.txt.gz).
 Earlier Instruments captures are retained locally under `/private/tmp`; they
 are not included in the repository because trace bundles include host
 environment metadata.
