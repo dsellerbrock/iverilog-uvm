@@ -44,7 +44,12 @@ reads a model, and adds a constraint excluding that value, stopping after the
 complete sparse set is found or its 64-value cap is exceeded. Repeated checks
 and model construction are the concrete shared optimization target visible in
 these profiles. The profiles do not yet identify which individual OpenTitan
-constraint or sequence is responsible for most of the candidate set.
+constraint is responsible for most of the candidate set. The I2C sequence does
+show repeated randomization in its source: `i2c_host_smoke_vseq` requests
+50–100 transactions, and `i2c_rx_tx_vseq::host_send_trans` randomizes member
+values in its per-transaction loop and uses constrained `fmt_item` randomize
+calls. This explains why solver work can persist, but the profile cannot map
+the Z3 samples to one particular source call.
 
 Profiles: [HMAC at 30s](lowrisc_dv_hmac_sim_0.1-after-30s-pid9607.sample.txt)
 and [180s](lowrisc_dv_hmac_sim_0.1-after-180s-pid9607.sample.txt), [I2C at
@@ -125,6 +130,19 @@ cannot tell whether cheaper bookkeeping would preserve the required lifetime
 and alias behavior.
 
 Profile: [I2C at 900s](lowrisc_dv_i2c_sim_0.1-after-900s-pid10233.sample.txt).
+
+### Other constrained-randomization path
+
+The Ibex instruction-cache test uses the standard-randomize opcode: 1,468/6,887
+root stacks are under `of_STD_RANDOMIZE_WITH` at 30s and 1,811/6,855 at 180s.
+The path includes `vvp_z3_randomize_scope()` and `z3_resolve_dist_exact()`;
+`Z3_solver_check` appears in 336 and 522 stacks respectively. The top-of-stack
+lists also show Z3 AST-table setup and allocation. This distinct distribution-
+sampling path persists beyond startup and is separate from sparse wide-domain
+enumeration. The target passed in 223.7 seconds.
+
+Profiles: [Ibex icache at 30s](lowrisc_dv_ibex_icache_sim_0.1-after-30s-pid13456.sample.txt)
+and [180s](lowrisc_dv_ibex_icache_sim_0.1-after-180s-pid13456.sample.txt).
 
 ### Virtual-interface startup
 
