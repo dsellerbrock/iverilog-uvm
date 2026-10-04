@@ -1,6 +1,6 @@
-# OpenTitan native hot-path census 12
+# OpenTitan native hot-path analysis
 
-The full 49-target runtime census has completed. These findings come from
+The census12 full 49-target invocation completed. These findings come from
 macOS `sample` captures (typically 10 seconds) and Xcode Time Profiler captures
 of the native ARM64 VVP process. The native-sample counts below are inclusive stack samples,
 not exclusive CPU percentages or total-run fractions. Interpret each capture
@@ -9,6 +9,35 @@ gzip-compressed; recover one with `gzip -dc <capture.sample.txt.gz>`. The initia
 full-matrix sampler produced 46 successful captures across 26 targets; the
 Flash retry has its own additional captures. Short tests and unsampled runtime
 phases are not covered.
+
+## Census13 runtime cross-check
+
+The subsequent coherent census13 invocation completed **49/49 PASS** with zero
+hard errors, semantic debt, runtime errors/debt, timeouts, or memory-cap hits;
+see [its result](../census13-full-corpus-20261004/result-census13.md). Its
+compiler-engine and VVP runtime SHA-256 values match the profile run, so those
+captures describe the same interpreter build. All 27 census13 targets whose
+runtime exceeded 30 seconds have at least one native sample capture in this
+profile set. The set contains 61 unique native-sample capture names across 27
+targets, plus Xcode Time Profiler traces for SRAM, SPI host, and SPI device.
+Shorter rows and unsampled phases remain outside this coverage.
+
+The new full-run durations put these measured workloads at the top:
+
+| Target | Census13 runtime |
+|---|---:|
+| Flash controller | 6,674.724 s (111.2 min) |
+| SPI host | 1,466.303 s (24.4 min) |
+| I2C | 918.347 s (15.3 min) |
+| SPI device | 784.116 s (13.1 min) |
+| Alert handler | 563.029 s (9.4 min) |
+| SRAM controller | 374.372 s (6.2 min) |
+| Chip/XBAR | 337.661 s (5.6 min) |
+
+The existing phase captures cover these rows, so no profiling replay was
+needed to identify the dominant paths. Capture counts are snapshots, not
+whole-run CPU shares; use the per-target findings below for attribution and
+limits.
 
 ## Ranked optimization candidates
 
