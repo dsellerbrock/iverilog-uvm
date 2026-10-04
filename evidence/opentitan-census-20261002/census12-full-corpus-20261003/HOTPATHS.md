@@ -30,6 +30,27 @@ Profiles: [ADC at 30s](lowrisc_dv_adc_ctrl_sim_0.1-after-30s-pid6448.sample.txt)
 [180s](lowrisc_dv_adc_ctrl_sim_0.1-after-180s-pid6448.sample.txt), and
 [360s](lowrisc_dv_adc_ctrl_sim_0.1-after-360s-pid6448.sample.txt).
 
+HMAC and I2C show a second, repeated randomization phase. HMAC has 2,913/6,979
+root stacks under `randomize_with_` at 30s and 3,086/6,913 at 180s. I2C has
+3,757/6,713 at 30s and 3,555/6,848 at 180s. In all four captures, the
+`z3_enumerate_sparse_wide_domain_` descendant is prominent (1,444, 1,531,
+1,983, and 1,882 root stacks respectively), followed by Z3 model construction.
+The HMAC/I2C workload therefore remains solver-heavy after startup, rather than
+showing only one large initial solve. These are stack shares, not exclusive CPU
+percentages.
+
+The helper at `vvp/vvp_z3.cc:7764` pushes the solver once, repeatedly checks it,
+reads a model, and adds a constraint excluding that value, stopping after the
+complete sparse set is found or its 64-value cap is exceeded. Repeated checks
+and model construction are the concrete shared optimization target visible in
+these profiles. The profiles do not yet identify which individual OpenTitan
+constraint or sequence is responsible for most of the candidate set.
+
+Profiles: [HMAC at 30s](lowrisc_dv_hmac_sim_0.1-after-30s-pid9607.sample.txt)
+and [180s](lowrisc_dv_hmac_sim_0.1-after-180s-pid9607.sample.txt), [I2C at
+30s](lowrisc_dv_i2c_sim_0.1-after-30s-pid10233.sample.txt) and
+[180s](lowrisc_dv_i2c_sim_0.1-after-180s-pid10233.sample.txt).
+
 ### Four-state vector propagation
 
 The chip test runs the OpenTitan XBAR smoke sequence. At 30 seconds, the
@@ -61,6 +82,25 @@ Profiles: [entropy source](lowrisc_dv_entropy_src_sim_0.1-after-30s-pid9242.samp
 [Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid9372.sample.txt), and
 [CSRNG](lowrisc_dv_csrng_sim_0.1-after-30s-pid8923.sample.txt).
 
+The two Flash captures show a phase change. At 30s, nested fork/DPI work is
+prominent (`of_DPI_CALL_VEC4` → `dpi_call_common_` → `vvp_dpi_call` → `libffi`).
+At 180s, 1,762/6,862 root stacks are under `randomize_with_`, including 993
+under sparse-domain enumeration and 520 under `Z3_solver_get_model`. This is a
+solver phase in the corpus smoke run. At 900s, the profile is split between
+`of_VPI_CALL` (1,485/6,928) and `randomize_with_` (1,475/6,928), with 862
+stacks in sparse-domain enumeration. The corpus Flash run has not reached the
+late scoreboard associative-array scan seen in the separate long Flash replay.
+
+The CSRNG 30s capture adds class-object and automatic-context bookkeeping to
+the inventory. A repeated nested-fork path loads class signal objects through
+`vvp_fun_signal_object_aa::get_root_net()` / `get_root_object()`, then
+`vthread_get_rd_context_item_scoped()` and `first_live_context_for_scope()`.
+The leaf summary also contains allocation/free, tree balancing, and object
+liveness-check frames. This is a smaller secondary path in a single early
+snapshot, not evidence that context tracking dominates the whole CSRNG run.
+The same snapshot includes UVM HDL reads and randomization, so later captures
+or targeted counts are needed before ranking those individual costs.
+
 ### Virtual-interface startup
 
 EDN's 30-second snapshot is dominated by `vvp_vinterface::resolve_slots_`,
@@ -81,6 +121,8 @@ are in [the Flash replay record](../flash-5h-user-directed-20261003/README.md).
 
 ## Remaining work
 
-The 49-target run is still in progress. This report will add profiles from the
-longer SPI, I2C, SRAM, alert, and Flash runtime jobs, then rank shared and
-test-specific hot paths against the completed runtime totals.
+The 49-target run is still in progress. Continue capturing the longer SPI,
+SRAM, alert, and remaining runtime jobs; then rank the measured shared and
+test-specific paths against the completed runtime totals. The current report
+does not claim exhaustive profile coverage for jobs that finish before the
+sampler's 30-second threshold.
