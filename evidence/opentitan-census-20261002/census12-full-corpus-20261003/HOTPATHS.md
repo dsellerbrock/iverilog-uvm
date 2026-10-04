@@ -566,8 +566,9 @@ Profiles were captured at 30s, 180s, and 900s for VVP jobs lasting long enough,
 with additional later Flash and alert-handler samples. Jobs that finish before
 30s have no runtime sample, so the report makes no hot-path claim for them. The
 initial matrix sampler made 47 attempts: 46 produced samples across 26 targets.
-The exact-default Flash retry added 10 successful captures, and the xPack OTBN
-retry added one 120s capture. This leaves 22 of the 49 matrix targets without a
+The exact-default Flash retry added 10 successful captures, the xPack OTBN
+retry added one 120s capture, and the final element-wise Flash retry added seven
+captures through 90 minutes. This leaves 22 of the 49 matrix targets without a
 saved native sample, mostly because they completed before the first 30s capture;
 the report does not infer hot paths for those targets. The sampled evidence
 identifies nine recurring optimization candidates: the Flash scoreboard
@@ -581,18 +582,18 @@ general interpreter rewrite.
 The 49-row updated census is a composite of the initial full-matrix run and
 four focused retries, not a second single invocation of all 49 targets. The
 OTBN xPack retry passed in 136.9s; the OTP template cleanup passed in 78.8s
-with no semantic debt. The exact-default Flash retry finished in 5,891.2s
-with a pass banner, zero runtime errors, and no timeout. The matrix classifies
-it as DEBT because compilation emitted two aggregate `solve before` warnings:
-`rand_regions` / `rand_info` in the OTF sequence and `mp_regions` /
-`mp_info_pages` in the memory-protection sequence. Peak physical memory was
-1.39 GB against the 9,536 MiB cap. The focused SPI-TPM SRAM/reset adaptation
-passed in 0.378s runtime with no hard errors or semantic debt. The current
-composite therefore has **48 PASS and one DEBT (Flash)**; the new five-hour
-element-wise Flash retry is still running and will replace the older Flash row
-when it completes. The SPI result is recorded in
-[`result-spi-tpm-sram-csb-reset.json`](result-spi-tpm-sram-csb-reset.json) and
-its compatibility patch in
-[`compat-patches/spi-tpm-sram-csb-reset.patch`](compat-patches/spi-tpm-sram-csb-reset.patch).
-The row-by-row merged result is [`result-census12-updated.md`](result-census12-updated.md)
-with machine-readable detail in [`result-census12-updated.json`](result-census12-updated.json).
+with no semantic debt; and the SPI-TPM SRAM/reset adaptation passed in 0.378s
+runtime with no hard errors or semantic debt. The earlier exact-default Flash
+retry finished in 5,891.2s but was classified DEBT because compilation emitted
+two aggregate `solve before` warnings. The final element-wise Flash retry
+finished in 5,566.776s with a pass banner, zero runtime errors, zero semantic
+debt, and no timeout. Its compile log has no aggregate `solve before` warnings;
+peak physical memory was 1,145,325,176 bytes against the 9,536 MiB cap. The
+current composite is **49 PASS, zero DEBT, and zero FAIL**. This is the initial
+full-matrix result with the four focused replacements, not a single post-fix
+49-target invocation. See [`result-flash-five-hour-elementwise.json`]
+(result-flash-five-hour-elementwise.json) and [`result-spi-tpm-sram-csb-reset.json`]
+(result-spi-tpm-sram-csb-reset.json) for the latest focused rows and their
+patches. The row-by-row merged result is
+[`result-census12-updated.md`](result-census12-updated.md) with machine-readable
+detail in [`result-census12-updated.json`](result-census12-updated.json).

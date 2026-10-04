@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-10-04T11:53:59+00:00",
+    "generated_at": "2026-10-04T12:26:15+00:00",
     "opentitan_root": "/private/tmp/ot-corpus-current-spid-passthrough-20261003/source",
     "opentitan_revision": "unknown",
     "opentitan_dirty": true,
@@ -3164,8 +3164,7 @@
     ],
     "uvm_runtime_configured_target_count": 35,
     "status_counts": {
-      "DEBT": 1,
-      "PASS": 48
+      "PASS": 49
     },
     "census_composition": {
       "kind": "full_matrix_with_focused_retries",
@@ -3173,7 +3172,7 @@
       "focused_replacements": {
         "lowrisc:dv:otbn_sim:0.1": "result-otbn-xpack-retry.json",
         "lowrisc:dv:otp_ctrl_sim:0.1": "result-otp-template-cleanup.json",
-        "lowrisc:dv:flash_ctrl_sim:0.1": "result-flash-five-hour-default.json",
+        "lowrisc:dv:flash_ctrl_sim:0.1": "result-flash-five-hour-elementwise.json",
         "lowrisc:dv:spi_tpm_sim:0.1": "result-spi-tpm-sram-csb-reset.json"
       },
       "note": "This is a composite of the full 49-target matrix and four focused retries, not a single rerun of all 49 targets after those retries. The baseline metadata describes the initial full-matrix invocation; retry row metadata describes each replacement."
@@ -4439,12 +4438,12 @@
       "core": "lowrisc:dv:flash_ctrl_sim:0.1",
       "description": "",
       "target": "sim",
-      "work_root": "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1",
+      "work_root": "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1",
       "provider_mappings": [
         "local:matrix:prim_generic_all:0.1",
         "lowrisc:systems:top_earlgrey:0.1"
       ],
-      "status": "DEBT",
+      "status": "PASS",
       "simulation_category": "uvm",
       "simulation_default_tool": "vcs",
       "simulation_toplevels": [
@@ -4492,11 +4491,11 @@
       "orchestration_requirements": [],
       "unresolved_runtime_options": [],
       "simulation_metadata_warnings": [],
-      "setup_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/private/tmp/ot-corpus-current-spid-passthrough-20261003/source run --target=sim --tool=icarus --setup --build-root=/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1 --flag=fileset_top lowrisc:dv:flash_ctrl_sim:0.1",
+      "setup_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/private/tmp/ot-corpus-current-spid-passthrough-20261003/source run --target=sim --tool=icarus --setup --build-root=/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1 --flag=fileset_top lowrisc:dv:flash_ctrl_sim:0.1",
       "setup_returncode": 0,
-      "setup_duration_seconds": 4.19,
+      "setup_duration_seconds": 2.229,
       "setup_timed_out": false,
-      "setup_log": "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-setup.log",
+      "setup_log": "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-setup.log",
       "setup_warnings": [
         "WARNING: ../src/lowrisc_dv_crypto_dpi_present_0.1/crypto_dpi_present.cc has unknown file type 'cppSource'",
         "WARNING: ../src/lowrisc_dv_digestpp_dpi_0.1/digestpp_dpi.cc has unknown file type 'cppSource'",
@@ -4505,8 +4504,8 @@
       "top_selection_notes": [
         "also rooted bind-carrying module(s) ['flash_ctrl_bind', 'flash_ctrl_cov_bind', 'sec_cm_prim_count_bind', 'sec_cm_prim_double_lfsr_bind', 'sec_cm_prim_onehot_check_bind', 'sec_cm_prim_sparse_fsm_flop_bind']: nothing instantiates them, so an explicit root would drop their bind directives"
       ],
-      "source_list": "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/sim-icarus/lowrisc_dv_flash_ctrl_sim_0.1.scr",
-      "compiler_source_list": "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-iverilog.scr",
+      "source_list": "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/sim-icarus/lowrisc_dv_flash_ctrl_sim_0.1.scr",
+      "compiler_source_list": "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-iverilog.scr",
       "top_options": [
         "-stb",
         "-sflash_ctrl_bind",
@@ -4516,11 +4515,11 @@
         "-ssec_cm_prim_onehot_check_bind",
         "-ssec_cm_prim_sparse_fsm_flop_bind"
       ],
-      "compile_command": "/private/tmp/current-tools/bin/iverilog -g2012 -stb -sflash_ctrl_bind -sflash_ctrl_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-runtime.vvp -c /private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-iverilog.scr",
+      "compile_command": "/private/tmp/current-tools/bin/iverilog -g2012 -stb -sflash_ctrl_bind -sflash_ctrl_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-runtime.vvp -c /private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-iverilog.scr",
       "compile_returncode": 0,
-      "compile_duration_seconds": 6.119,
+      "compile_duration_seconds": 3.511,
       "compile_timed_out": false,
-      "compile_log": "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-compile.log",
+      "compile_log": "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-compile.log",
       "hard_error_count": 0,
       "hard_errors": [],
       "compile_benign_diagnostic_count": 104,
@@ -4529,7 +4528,7 @@
         "../src/lowrisc_dv_flash_ctrl_env_0.1/flash_ctrl_otf_scoreboard.sv:70: warning: User function 'get' is being called as a task.",
         "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_base_vseq.sv:1285: warning: User function 'uvm_hdl_read' is being called as a task.",
         "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_base_vseq.sv:1299: warning: User function 'uvm_hdl_read' is being called as a task.",
-        "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_mp_regions_vseq.sv:204: warning: User function 'reset_scb_mem' is being called as a task.",
+        "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_mp_regions_vseq.sv:231: warning: User function 'reset_scb_mem' is being called as a task.",
         "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_error_prog_type_vseq.sv:211: warning: User function 'predict' is being called as a task.",
         "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_error_prog_win_vseq.sv:125: warning: User function 'predict' is being called as a task.",
         "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_error_mp_vseq.sv:289: warning: User function 'predict' is being called as a task.",
@@ -4626,26 +4625,23 @@
         "../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:177: warning: A non-blocking assignment should not be used in an always_comb process.",
         "../src/lowrisc_fpv_flash_ctrl_csr_assert_0/flash_ctrl_core_csr_assert_fpv.sv:178: warning: A non-blocking assignment should not be used in an always_comb process."
       ],
-      "semantic_debt_count": 2,
-      "semantic_debt": [
-        "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_otf_base_vseq.sv:49: warning: -gcommercial-unsafe 'solve before' operand names an aggregate that cannot be ordered; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior.",
-        "../src/lowrisc_dv_flash_ctrl_env_0.1/seq_lib/flash_ctrl_mp_regions_vseq.sv:43: warning: -gcommercial-unsafe 'solve before' operand names an aggregate that cannot be ordered; the operand is omitted from the ordering (distribution only); nonstandard compatibility behavior."
-      ],
-      "output_sha256": "285276e593405e7ba526b3cbb08a4364d911a55b63570a641549687144307395",
-      "dpi_build_log": "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi-build.log",
+      "semantic_debt_count": 0,
+      "semantic_debt": [],
+      "output_sha256": "764014cc614d94d45a746492bdf9a6ff75b56dd8c5526cd59b29c694d97b0c0f",
+      "dpi_build_log": "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi-build.log",
       "dpi_skipped_sources": [],
-      "runtime_command": "/private/tmp/current-tools/bin/vvp -n -d /private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi.so /private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=flash_ctrl_base_test +UVM_TEST_SEQ=flash_ctrl_smoke_vseq",
+      "runtime_command": "/private/tmp/current-tools/bin/vvp -n -d /private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi.so /private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=flash_ctrl_base_test +UVM_TEST_SEQ=flash_ctrl_smoke_vseq",
       "runtime_dpi_libraries": [
-        "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi.so"
+        "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi.so"
       ],
       "runtime_returncode": 0,
-      "runtime_duration_seconds": 5891.241,
+      "runtime_duration_seconds": 5566.776,
       "runtime_timed_out": false,
       "runtime_memory_limit_bytes": 9999220736,
       "runtime_memory_limit_hit": false,
-      "runtime_peak_physical_footprint_bytes": 1385235896,
+      "runtime_peak_physical_footprint_bytes": 1145325176,
       "runtime_memory_monitor_error": null,
-      "runtime_log": "/private/tmp/pi/census12/flash-default-five-hour-retry/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-runtime.log",
+      "runtime_log": "/private/tmp/pi/census12/flash-elementwise-final-20261004/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-runtime.log",
       "runtime_error_count": 0,
       "runtime_errors": [],
       "runtime_pass_banner": true,

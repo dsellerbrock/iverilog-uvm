@@ -19,9 +19,9 @@ combines it with later OTBN, OTP, SPI-TPM, and five-hour Flash retries.
 - UVM: the pinned UVM 1.2 source tree used by census11.
 - Profile: `--lane runtime --commercial-unsafe --jobs 2`.
 - Initial matrix time limits: 600 seconds for setup and compile, 3,000 seconds
-  per runtime. The exact-default Flash retry used an 18,000-second timeout.
+  per runtime. The final element-wise Flash retry used an 18,000-second timeout.
 - Runtime memory cap: disabled for the corpus, matching census11. The dedicated
-  exact-default Flash retry used a 9,536 MiB cap, within the requested 10 GB
+  element-wise Flash retry used a 9,536 MiB cap, within the requested 10 GB
   budget.
 - OpenSSL and libelf flags are resolved through the OpenTitan Python 3.13
   environment's `pkg-config`.
