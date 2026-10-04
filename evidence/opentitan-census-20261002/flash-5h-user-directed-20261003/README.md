@@ -43,10 +43,39 @@ mapping remains a source-backed hypothesis until a property-level solver trace
 confirms it.
 
 A second 10-second sample at about 16 minutes is `flash-sample-followup-2.txt`.
-It contains both `sva_enabled_calltf` / VPI iterator and value operations, and
-continued `z3_solve_pass_` / Z3 solver-check work. This supports phase variation
-across the run; it does not isolate the share of total wall time for either
-path.
+In its 7,263-frame call tree, `randomize_with_` appears in 1,377 frames (about
+19%), `z3_enumerate_sparse_wide_domain_` in 744 (about 10%), and VVP's
+`of_VPI_CALL` in 1,393 (about 19%). The same sample contains
+`sva_enabled_calltf`, `sva_kill_generation_calltf`, VPI iteration, and value
+access. These are stack sample counts from one interval, not exclusive CPU
+shares or a total-run breakdown. The sample confirms solver and VPI/SVA work
+are both active at this later point.
+
+Two later captures during the 3/3 group (`flash-sample-operation3-40m.txt` and
+`flash-sample-followup-4.txt`) show a similar mix: about 18% of sampled stacks
+enter `randomize_with_`, about 14% enter the sparse-domain enumeration helper,
+and about 16% enter `of_VPI_CALL`. The randomization subtree reaches repeated
+Z3 solver/model calls; the VPI subtree includes the SVA enabled, kill-generation,
+and clock callbacks. `flash-sample-operation4-53m.txt` and
+`flash-sample-operation4-61m.txt` show a different, much larger hot path: in the
+61-minute capture, 7,596 of 7,691 sampled stacks are under
+`of_AA_NEXT_SIG_V`, and the flat symbol summary records 7,023 samples in
+`compare_vec_keys_`. These are profiler sample counts, not direct elapsed-time
+percentages.
+
+The VVP image maps this opcode in
+`flash_ctrl_env_cfg.check_partition_mem_model()` to the loop over
+`scb_flash_model[addr]`. That loop checks each expected word with a backdoor
+`read32`. The data model is a 32-bit-address associative array. Its setup loop
+inserts 131,072 words per bank across two banks, or 262,144 entries for the data
+partition. In `vvp/vvp_assoc.h`, vector-key `next_key_()` scans the full map and
+uses `compare_vec_keys_()` to choose each successor. Repeating that scan for
+every entry makes a full traversal quadratic in the number of stored addresses.
+The source mapping and operation4 samples make this the strongest measured
+explanation for the long final memory-check phase. The 53- and 61-minute samples
+did not show the scope lookup walk as a hot path; the earlier VPI scope cache
+remains in the runtime, but these captures do not quantify an end-to-end speedup
+from it.
 
 `capture-followup-samples.py` schedules additional low-overhead samples while
 the replay runs. `sample-progress.jsonl` and `sample-result.json` record which
