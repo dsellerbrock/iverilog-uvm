@@ -123,6 +123,8 @@ all OpenTitan DV tests. See the [49/49 reproduction guide](docs/conformance/open
 [matrix runner reference](docs/conformance/opentitan_matrix.md),
 [full results](evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md),
 and [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
+The [optimization plan and reproducers](docs/conformance/opentitan_hotpath_optimization.md)
+show the measured bottlenecks, candidate fixes, and runnable fixtures.
 
 ## Known limitations
 

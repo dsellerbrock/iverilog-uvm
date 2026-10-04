@@ -2,7 +2,9 @@
 
 Bounded evidence probes for the paths in
 [HOTPATHS.md](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
-These are standalone fixtures, not production changes or full OpenTitan tests.
+These are standalone fixtures, not full OpenTitan tests. `flash_aa_walk.sv`
+calls VVP's actual associative-array `.first/.next`; `flash_aa_walk.cpp`
+compares the ordering and alternative data structures independently of VVP.
 See the [optimization plan](../../docs/conformance/opentitan_hotpath_optimization.md)
 for candidate changes, risks, and correctness work.
 
@@ -17,18 +19,19 @@ Measurements used Apple ARM64 macOS 27.0:
 | Tool | Version / fingerprint |
 | --- | --- |
 | Icarus engine | 13.0-devel, SHA-256 8dae711b38f7229b74b29455db587238ef76452928a66faeb5085aa429ef184c |
-| VVP runtime | 13.0-devel, SHA-256 2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570 |
+| Icarus engine for indexed SV walk | 13.0-devel, SHA-256 02f5a2f162250fd33b2a7a3c22109fd66f047dd890caa58b5fe09a510a1785f1 |
+| VVP runtime for the original probes | 13.0-devel, SHA-256 2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570 |
+| VVP runtime for the indexed SV walk | 13.0-devel, SHA-256 105caac4cc9d56ddba0fdd08b4d7672735bcfdc4d2ad606e11790dc5d17315fe |
 | Z3 shared library | 5.1.0, SHA-256 45344d6a38b6f75304433c2458d6fa16bc4907d426c96e2bedf0a90603460422 |
 | C++ compiler | Apple clang 21.0.0 |
 
-The exact compiler wrapper and VVP paths were
-/private/tmp/current-tools/bin/iverilog and /private/tmp/current-tools/bin/vvp;
-the wrapper selects /private/tmp/current-ivl/ivl. VPI modules were built with
-this checkout's iverilog-vpi and public headers, then loaded by the fingerprinted
-VVP. For another build, edit the three tool paths below. Run from this directory:
+The original probes used `/private/tmp/current-tools`; their hashes are retained
+above. The indexed SV walk used this checkout's ARM64 build after `make -j1`
+and `make install`. To reproduce from this directory, set the tools to this
+checkout's install prefix:
 
-    IVERILOG=/private/tmp/current-tools/bin/iverilog
-    VVP=/private/tmp/current-tools/bin/vvp
+    IVERILOG=../../local-install/bin/iverilog
+    VVP=../../local-install/bin/vvp
     IVERILOG_VPI=../../local-install/bin/iverilog-vpi
 
     clang++ -O2 -std=c++17 flash_aa_walk.cpp -o flash_aa_walk
@@ -37,6 +40,7 @@ VVP. For another build, edit the three tool paths below. Run from this directory
     $IVERILOG_VPI hdl_lookup_bench.c
     $IVERILOG_VPI sva_vpi_dispatch.c
     $IVERILOG -g2012 -s top -o flash_backdoor.vvp flash_backdoor.sv
+    $IVERILOG -g2012 -s top -o flash_aa_walk.vvp flash_aa_walk.sv
     $IVERILOG -g2012 -s top -o sram_indexed_backdoor.vvp sram_indexed_backdoor.sv
     $IVERILOG -g2012 -s top -o four_state_resolution.vvp four_state_resolution.sv
     $IVERILOG -g2012 -s top -o class_context_liveness.vvp class_context_liveness.sv
@@ -45,6 +49,8 @@ VVP. For another build, edit the three tool paths below. Run from this directory
     $IVERILOG -g2012 -s top -o sva_vpi_dispatch.vvp sva_vpi_dispatch.sv
 
     /usr/bin/time -lp ./flash_aa_walk 1024 262144
+    /usr/bin/time -lp $VVP flash_aa_walk.vvp +entries=4096
+    /usr/bin/time -lp $VVP flash_aa_walk.vvp +entries=262144
     /usr/bin/time -lp ./z3_sparse_bench spi 25
     /usr/bin/time -lp ./z3_sparse_bench i2c 25
     /usr/bin/time -lp ./z3_sparse_bench hmac 25
@@ -65,8 +71,8 @@ operation-level timing.
 
 ## Results
 
-Each row is one run, not an average. Fixture timings do not predict whole-corpus
-speedups.
+The original fixture figures below are single runs. The new full-size VVP walk
+is repeated three times. Fixture timings do not predict whole-corpus speedups.
 
 ### Flash associative-array successor walk
 
@@ -85,9 +91,18 @@ timed corpus has 262,144 18-bit numeric keys and four four-state keys.
 | Same hash/index pair, iterator stream | included above | 21.937 ms | 262,148 successors and hash lookups |
 
 The full-size scan is disabled; no full-scan duration or speedup ratio is
-extrapolated. upper_bound models an independent next query at every step. The
-iterator result is a streaming best case; a generic SV next implementation
-must also observe intervening array mutations.
+extrapolated. `upper_bound` models an independent next query at every step. The
+iterator result is a streaming best case; a generic SV `next` implementation
+must also observe intervening array mutations. The SV fixture populates a real
+VVP associative array, then checks every key returned by `.first/.next` and
+that traversal stops at the final key.
+
+The indexed VVP runtime passed the 262,144-key SV walk three times in 0.86,
+0.93, and 0.94 seconds, including population; maximum resident set size was
+61.3 MB. This is a full-size end-to-end fixture result, not a direct before and
+after ratio. The prior OpenTitan Flash replay passed in 5,349 seconds with the
+old scan; a repeat with the indexed runtime provides the workload-level
+comparison.
 
 ### Z3 sparse and joint enumeration
 
@@ -137,7 +152,7 @@ seeded sample and does not assert a frequency guarantee.
 
 ## Files
 
-flash_aa_walk.cpp, z3_sparse_bench.cpp, z3_joint_bench.cpp,
+flash_aa_walk.cpp, flash_aa_walk.sv, z3_sparse_bench.cpp, z3_joint_bench.cpp,
 hdl_lookup_bench.c, flash_backdoor.sv, sram_indexed_backdoor.sv,
 four_state_resolution.sv, class_context_liveness.sv,
 virtual_interface_slots.sv, standard_distribution.sv, sva_vpi_dispatch.c,
