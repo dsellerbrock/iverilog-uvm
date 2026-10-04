@@ -377,10 +377,19 @@ liveness checks remain visible in the top-of-stack summary. This is a longer
 phase sample than the 30s startup capture, and still has no visible
 `of_AA_NEXT_SIG_V` scoreboard walk.
 
+At 2,700s, the exact-default sample has 1,449/7,272 roots under
+`randomize_with_`, including 799 under sparse-domain enumeration; 1,314 roots
+are under `of_VPI_CALL`. These counts closely match the separately seeded
+2,700s sample (1,376 randomization roots, 802 sparse-enumeration roots, and
+1,343 VPI roots). The sampled solver, callback, and object-update workload is
+therefore repeatable across these two Flash invocations. The late associative
+array successor scan is still absent at this point in the default-args run.
+
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz)
 and [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
 plus [900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid28516.sample.txt.gz) and
-[1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid28516.sample.txt.gz). The
+[1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid28516.sample.txt.gz) and
+[2,700s](lowrisc_dv_flash_ctrl_sim_0.1-after-2700s-pid28516.sample.txt.gz). The
 30.4-second Instruments trace is retained locally under `/private/tmp`; it is
 not included in the repository because trace bundles include host environment
 metadata.
