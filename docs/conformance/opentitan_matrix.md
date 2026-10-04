@@ -174,6 +174,10 @@ command sessions, and preserves the last atomic JSON/Markdown checkpoint.
 This makes bounded termination part of the evidence instead of allowing a hung
 lowering pass or an orphan compiler to consume the remainder of the campaign.
 
+The RTL lane uses synthesis mode and defines
+`SYNTHESIS_MEMORY_BLACK_BOXING`, matching OpenTitan's GTECH flow for generic
+RAM models.
+
 The default reports are `opentitan-matrix.json` and `opentitan-matrix.md` under
 the build root.  `DEBT` and all failure/timeout statuses make the runner return
 nonzero, allowing the matrix to become a genuine zero-debt gate.

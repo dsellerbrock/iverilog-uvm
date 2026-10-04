@@ -2552,7 +2552,12 @@ def compile_command(
     if commercial_unsafe and job.lane in {"uvm", "runtime"}:
         command.append("-gcommercial-unsafe")
     if job.lane == "rtl":
-        command.extend(["-S", "-DSYNTHESIS"])
+        # Match OpenTitan's GTECH synthesis flow for generic RAM models.
+        command.extend([
+            "-S",
+            "-DSYNTHESIS",
+            "-DSYNTHESIS_MEMORY_BLACK_BOXING",
+        ])
     elif job.lane == "sva":
         # OpenTitan's formal flows define FPV_ON. This controls assumption and
         # cover semantics in prim_assert.sv as well as FPV-specific RTL; the
@@ -3718,6 +3723,8 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         Path("spi-device-rtl.vvp"),
     )
     assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in spi_device_rtl_compile
+    assert "-DSYNTHESIS_MEMORY_BLACK_BOXING" in spi_device_rtl_compile
+    assert "-DSYNTHESIS_MEMORY_BLACK_BOXING" not in spi_device_compile
     directed_runtime_compile = compile_command(
         Job("runtime", directed_core, directed_target),
         Path("iverilog"),
