@@ -1,5 +1,10 @@
 # OpenTitan native hot-path analysis
 
+Reproducer sources and bounded measurements are in
+[benchmarks/opentitan-hotpaths](../../../benchmarks/opentitan-hotpaths/README.md).
+The ranked implementation steps and correctness risks are in the
+[hot-path optimization plan](../../../docs/conformance/opentitan_hotpath_optimization.md).
+
 The census12 full 49-target invocation completed. These findings come from
 macOS `sample` captures (typically 10 seconds) and Xcode Time Profiler captures
 of the native ARM64 VVP process. The native-sample counts below are inclusive stack samples,
