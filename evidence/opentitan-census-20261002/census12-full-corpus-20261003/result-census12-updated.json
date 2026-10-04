@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-10-04T10:15:28+00:00",
+    "generated_at": "2026-10-04T11:53:59+00:00",
     "opentitan_root": "/private/tmp/ot-corpus-current-spid-passthrough-20261003/source",
     "opentitan_revision": "unknown",
     "opentitan_dirty": true,
@@ -3165,8 +3165,7 @@
     "uvm_runtime_configured_target_count": 35,
     "status_counts": {
       "DEBT": 1,
-      "FAIL": 1,
-      "PASS": 47
+      "PASS": 48
     },
     "census_composition": {
       "kind": "full_matrix_with_focused_retries",
@@ -3174,9 +3173,10 @@
       "focused_replacements": {
         "lowrisc:dv:otbn_sim:0.1": "result-otbn-xpack-retry.json",
         "lowrisc:dv:otp_ctrl_sim:0.1": "result-otp-template-cleanup.json",
-        "lowrisc:dv:flash_ctrl_sim:0.1": "result-flash-five-hour-default.json"
+        "lowrisc:dv:flash_ctrl_sim:0.1": "result-flash-five-hour-default.json",
+        "lowrisc:dv:spi_tpm_sim:0.1": "result-spi-tpm-sram-csb-reset.json"
       },
-      "note": "This is a composite of the full 49-target matrix and three focused retries, not a single rerun of all 49 targets after those retries. The baseline metadata describes the initial full-matrix invocation; retry row metadata describes each replacement."
+      "note": "This is a composite of the full 49-target matrix and four focused retries, not a single rerun of all 49 targets after those retries. The baseline metadata describes the initial full-matrix invocation; retry row metadata describes each replacement."
     }
   },
   "results": [
@@ -7644,12 +7644,12 @@
       "core": "lowrisc:dv:spi_tpm_sim:0.1",
       "description": "",
       "target": "sim",
-      "work_root": "/private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1",
+      "work_root": "/private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1",
       "provider_mappings": [
         "local:matrix:prim_generic_all:0.1",
         "lowrisc:systems:top_earlgrey:0.1"
       ],
-      "status": "FAIL",
+      "status": "PASS",
       "simulation_category": "directed",
       "simulation_default_tool": "vcs",
       "simulation_toplevels": [
@@ -7681,33 +7681,48 @@
       "orchestration_requirements": [],
       "unresolved_runtime_options": [],
       "simulation_metadata_warnings": [],
-      "setup_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/private/tmp/ot-corpus-current-spid-passthrough-20261003/source run --target=sim --tool=icarus --setup --build-root=/private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1 --flag=fileset_ip lowrisc:dv:spi_tpm_sim:0.1",
+      "setup_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/private/tmp/ot-corpus-current-spid-passthrough-20261003/source run --target=sim --tool=icarus --setup --build-root=/private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1 --flag=fileset_ip lowrisc:dv:spi_tpm_sim:0.1",
       "setup_returncode": 0,
-      "setup_duration_seconds": 4.268,
+      "setup_duration_seconds": 1.836,
       "setup_timed_out": false,
-      "setup_log": "/private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-setup.log",
+      "setup_log": "/private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-setup.log",
       "setup_warnings": [],
-      "source_list": "/private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1/sim-icarus/lowrisc_dv_spi_tpm_sim_0.1.scr",
-      "compiler_source_list": "/private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-iverilog.scr",
+      "source_list": "/private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/sim-icarus/lowrisc_dv_spi_tpm_sim_0.1.scr",
+      "compiler_source_list": "/private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-iverilog.scr",
       "top_options": [
         "-sspi_tpm_tb"
       ],
-      "compile_command": "/private/tmp/current-tools/bin/iverilog -g2012 -sspi_tpm_tb -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-runtime.vvp -c /private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-iverilog.scr",
-      "compile_returncode": 3,
-      "compile_duration_seconds": 0.657,
+      "compile_command": "/private/tmp/current-tools/bin/iverilog -g2012 -sspi_tpm_tb -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-runtime.vvp -c /private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-iverilog.scr",
+      "compile_returncode": 0,
+      "compile_duration_seconds": 0.871,
       "compile_timed_out": false,
-      "compile_log": "/private/tmp/pi/census12/build/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-compile.log",
-      "hard_error_count": 3,
-      "hard_errors": [
-        "../src/lowrisc_dv_spi_tpm_sim_0.1/tb/spi_tpm_tb.sv:111: error: parameter `RdDataFifoSize` not found in `spi_tpm_tb.dut`.",
-        "../src/lowrisc_dv_spi_tpm_sim_0.1/tb/spi_tpm_tb.sv:110: error: Cannot override localparam `RdFifoDepth` in `spi_tpm_tb.dut`.",
-        "../src/lowrisc_dv_spi_tpm_sim_0.1/tb/spi_tpm_tb.sv:109: error: Cannot override localparam `WrFifoDepth` in `spi_tpm_tb.dut`."
-      ],
+      "compile_log": "/private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-compile.log",
+      "hard_error_count": 0,
+      "hard_errors": [],
       "compile_benign_diagnostic_count": 0,
       "compile_benign_diagnostics": [],
       "semantic_debt_count": 0,
       "semantic_debt": [],
-      "output_sha256": "dec018e731127841e92e5f9712b24bdc760e03e87835f28a1a9face24dc6208a"
+      "output_sha256": "d830407589a68c2bc8c8464e6f3504a40900ac0ecb8c8d6f1a43b16f06f8cbfa",
+      "runtime_command": "/private/tmp/current-tools/bin/vvp -n /private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-runtime.vvp +smoke_test=1",
+      "runtime_dpi_libraries": [],
+      "runtime_returncode": 0,
+      "runtime_duration_seconds": 0.378,
+      "runtime_timed_out": false,
+      "runtime_memory_limit_bytes": null,
+      "runtime_memory_limit_hit": false,
+      "runtime_peak_physical_footprint_bytes": null,
+      "runtime_memory_monitor_error": null,
+      "runtime_log": "/private/tmp/pi/census12/spi-tpm-final-20261004/runtime/lowrisc_dv_spi_tpm_sim_0.1/matrix-runtime.log",
+      "runtime_error_count": 0,
+      "runtime_errors": [],
+      "runtime_pass_banner": true,
+      "runtime_debt_count": 0,
+      "runtime_debt": [],
+      "setup_actionable_warnings": [],
+      "setup_benign_diagnostics": [],
+      "runtime_benign_diagnostic_count": 0,
+      "runtime_benign_diagnostics": []
     },
     {
       "lane": "runtime",

@@ -5,7 +5,7 @@ targets and its later focused retries. The runtime inventory was checked with
 `scripts/opentitan_matrix.py --lane runtime --list` before starting: it reports
 49 jobs, comprising 35 UVM and 14 directed targets. The original full-matrix
 result is preserved; [`result-census12-updated.md`](result-census12-updated.md)
-combines it with the later OTBN, OTP, and five-hour Flash retries.
+combines it with later OTBN, OTP, SPI-TPM, and five-hour Flash retries.
 
 ## Run configuration
 

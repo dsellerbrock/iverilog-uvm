@@ -18,7 +18,7 @@ at different times and have different sample counts.
 
 | Rank | Hot path | Evidence and scope | Candidate |
 | --- | --- | --- | --- |
-| 1 | Flash scoreboard associative-array successor walk | A separate five-hour Flash replay spent nearly all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; the exact-default retry also put 98.3% of its 4,500s sample in this path. The walk traverses a 262,144-entry scoreboard. | Replace repeated full-order successor searches with an order-aware traversal or iterator, preserving four-state key ordering. |
+| 1 | Flash scoreboard associative-array successor walk | A separate five-hour Flash replay spent nearly all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; the exact-default retry had 98.3% of its 4,500s sample in this path, and the current element-wise retry has 98.4% at 3,600s. The walk traverses a 262,144-entry scoreboard. | Replace repeated full-order successor searches with an order-aware traversal or iterator, preserving four-state key ordering. |
 | 2 | Flash scoreboard population through backdoor reads | The default-args Flash Instruments capture has 2,471/30,355 stacks through `uvm_hdl_read`, 2,334 through `vpi_handle_by_name`, and 1,415 through `find_name`. Source walks 262,144 words; `read32()` issues four `read()`/`uvm_hdl_read()` calls per word. | Avoid redundant full-word backdoor reads and indexed path formatting across `read32()`'s four byte reads; reuse packed values only where Flash layout and ECC semantics permit. |
 | 3 | Repeated Z3 domain/tuple enumeration | HMAC, I2C, TL-agent, ROM, SPI host/device, UART and other tests repeatedly sample `z3_enumerate_sparse_wide_domain_`; RV-DM has a distinct joint-tuple enumeration burst. | Reduce solver checks, model extraction and blocking-clause churn while preserving exact randomization semantics. |
 | 4 | SRAM indexed backdoor name lookup | SRAM Time Profiler: 16,525/30,298 samples include `uvm_hdl_read`; 11,230 include `__vpiArray::get_word_str`, with 7,806 in `snprintf`. | Cache the resolved array base per scope/name and profile remaining path formatting and fallback scans. |
@@ -441,10 +441,19 @@ domain enumeration; 692/3,640 enter `of_VPI_CALL`, with 57 in
 solver and callback phases before its late scoreboard walk. At 30 minutes,
 696/3,666 samples are under randomization, 395 under sparse-domain
 enumeration, and 660 under VPI calls (51 under `sva_enabled_calltf`); the
-late scoreboard walk is still absent. Raw samples are at
-`/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-5m.sample.txt`
+late scoreboard walk is still absent. At 45 minutes, randomization remains
+prominent (651/3,647 samples, including 365 under sparse-domain enumeration)
+along with VPI calls (606/3,647, including 53 under `sva_enabled_calltf`); the
+associative-array walk is still absent. At 60 minutes the profile has moved to
+that late phase: 3,795/3,857 stacks (98.4%) enter `of_AA_NEXT_SIG_V`, and 3,476
+include `compare_vec_keys_`; only 9 enter `uvm_hdl_read`. This independently
+reproduces the late Flash scoreboard bottleneck in the element-wise retry.
+The raw captures are at
+`/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-5m.sample.txt`,
 `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-15m.sample.txt`,
-and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-30m.sample.txt`.
+`/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-30m.sample.txt`,
+`/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-45m.sample.txt`,
+and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-60m.sample.txt`.
 
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz),
 [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
@@ -563,16 +572,20 @@ handlers are visible too, but their broad appearance alone does not justify a
 general interpreter rewrite.
 
 The 49-row updated census is a composite of the initial full-matrix run and
-three focused retries, not a second single invocation of all 49 targets. The
+four focused retries, not a second single invocation of all 49 targets. The
 OTBN xPack retry passed in 136.9s; the OTP template cleanup passed in 78.8s
 with no semantic debt. The exact-default Flash retry finished in 5,891.2s
 with a pass banner, zero runtime errors, and no timeout. The matrix classifies
 it as DEBT because compilation emitted two aggregate `solve before` warnings:
 `rand_regions` / `rand_info` in the OTF sequence and `mp_regions` /
 `mp_info_pages` in the memory-protection sequence. Peak physical memory was
-1.39 GB against the 9,536 MiB cap. Combining those replacements with the full
-matrix result gives **47 PASS, one DEBT (Flash), and one FAIL (SPI-TPM)**.
-SPI-TPM still has three compile errors from the testbench's stale SRAM-port
-interface; removing stale parameter overrides did not resolve that mismatch.
+1.39 GB against the 9,536 MiB cap. The focused SPI-TPM SRAM/reset adaptation
+passed in 0.378s runtime with no hard errors or semantic debt. The current
+composite therefore has **48 PASS and one DEBT (Flash)**; the new five-hour
+Element-wise Flash retry is still running and will replace the older Flash row
+when it completes. The SPI result is recorded in
+[`result-spi-tpm-sram-csb-reset.json`](result-spi-tpm-sram-csb-reset.json) and
+its compatibility patch in
+[`compat-patches/spi-tpm-sram-csb-reset.patch`](compat-patches/spi-tpm-sram-csb-reset.patch).
 The row-by-row merged result is [`result-census12-updated.md`](result-census12-updated.md)
 with machine-readable detail in [`result-census12-updated.json`](result-census12-updated.json).
