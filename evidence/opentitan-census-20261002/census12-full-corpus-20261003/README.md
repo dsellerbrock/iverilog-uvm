@@ -43,3 +43,27 @@ the VVP executable; the already-running sampler is verified by profile identity.
 Census11 recorded 38 PASS, 7 DEBT, 1 compile FAIL, 2 RUNTIME_FAIL, and 1
 RUNTIME_TIMEOUT across 49 targets. The 5-hour Flash replay is a separate
 focused result and does not replace the full matrix's Flash row.
+
+## OpenTitan compatibility overlays
+
+The final retry results use the pinned OpenTitan source copy with explicit
+compatibility patches. These patches live under `compat-patches/` and can be
+applied to a clean source tree at the revision recorded above. Set `PATCH_DIR`
+to this directory and `OPENTITAN_ROOT` to that source tree, then run:
+
+[OTP cleanup](compat-patches/otp-get-offset-covergroup-purity.patch),
+[Flash solve ordering](compat-patches/flash-elementwise-solve-before.patch),
+and [SPI-TPM SRAM/reset adaptation](compat-patches/spi-tpm-sram-csb-reset.patch).
+
+```sh
+patch -p1 -d "$OPENTITAN_ROOT" < "$PATCH_DIR/otp-get-offset-covergroup-purity.patch"
+patch -p1 -d "$OPENTITAN_ROOT" < "$PATCH_DIR/flash-elementwise-solve-before.patch"
+patch -p1 -d "$OPENTITAN_ROOT" < "$PATCH_DIR/spi-tpm-sram-csb-reset.patch"
+```
+
+The Flash patch expands solve ordering over Earlgrey's 26 packed info-page
+queue entries, removing the unsupported aggregate ordering while preserving
+the specified order. The SPI-TPM patch adapts the legacy pre-DV testbench to
+the current SRAM-backed DUT and models the chip-select-derived resets needed
+between transactions. Its completion marker is accepted only when the host
+transaction completion and pass banners appear without the timeout banner.
