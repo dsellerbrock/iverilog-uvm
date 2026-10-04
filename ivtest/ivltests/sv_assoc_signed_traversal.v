@@ -18,6 +18,7 @@ module main;
   int four_state_copy[logic_key4_t];
   int mutation_entries[logic_key4_t];
   int mutation_copy[logic_key4_t];
+  int signed_mutation[int];
   signed_assoc_holder holder;
 
   task automatic check(input string label, input logic ok);
@@ -199,6 +200,19 @@ module main;
     check("mutation clear empties source", !mutation_entries.first(logic_key));
     check("mutation copy survives clear", mutation_copy.first(logic_key));
     check("mutation copy first key", logic_key === 4'h0);
+
+    signed_mutation[-8] = 80;
+    signed_mutation[8] = 88;
+    check("signed mutation first", signed_mutation.first(key));
+    check("signed mutation first key", key == -8);
+    signed_mutation[-4] = 84;
+    key = -8;
+    check("signed mutation inserted next", signed_mutation.next(key));
+    check("signed mutation inserted key", key == -4);
+    signed_mutation.delete(-4);
+    key = -8;
+    check("signed mutation deleted next", signed_mutation.next(key));
+    check("signed mutation deleted key", key == 8);
 
     check_automatic();
 
