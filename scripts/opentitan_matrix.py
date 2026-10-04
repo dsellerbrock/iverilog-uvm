@@ -3731,6 +3731,9 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert opentitan_runtime_pass_marker(tpm_core, tpm_pass)
     assert not opentitan_runtime_pass_marker(tpm_core, "TEST PASSED!\n")
     assert not opentitan_runtime_pass_marker(
+        "lowrisc:dv:spi_device_sim:0.1", tpm_pass
+    )
+    assert not opentitan_runtime_pass_marker(
         tpm_core, tpm_pass + "TEST TIMED OUT!!\n"
     )
     assert matching_lines("TEST TIMED OUT!!", OPENTITAN_RUNTIME_FAIL_PATTERNS)
