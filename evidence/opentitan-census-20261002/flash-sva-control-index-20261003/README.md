@@ -73,3 +73,20 @@ References: [Icarus VVP engine](https://steveicarus.github.io/iverilog/developer
 [Icarus VVP target](https://steveicarus.github.io/iverilog/targets/tgt-vvp.html),
 [Verilator native binary generation](https://verilator.org/guide/latest/verilating.html),
 and [Verilator language support](https://verilator.org/guide/latest/languages.html).
+
+## Next run gate
+
+The follow-up counter starts at **0/5** additional focused optimization
+iterations after commit `f0a087371`. Each iteration must test a distinct
+profiler-backed hypothesis on the same Flash image, seed, arguments, host, and
+1,200-second / 10 GB envelope; isolated microbenchmark gains do not count as
+end-to-end speedups. Count a speedup as significant only when paired
+measurements show at least 10% better simulated-time throughput to a comparable
+checked milestone and the gain repeats beyond run-to-run noise.
+
+If all five iterations finish without that improvement, run
+`flash_ctrl_smoke_vseq` once with a 3,600-second wall limit and the same
+10,000,000,000-byte RSS cap. If it produces the checked PASS result with zero
+UVM errors, fatals, or semantic/runtime debt, run the full 49-target corpus
+with all current updates. If Flash still does not pass, continue focused
+diagnosis without starting the full corpus.
