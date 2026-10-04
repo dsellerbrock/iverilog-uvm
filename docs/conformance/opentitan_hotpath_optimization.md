@@ -9,9 +9,15 @@ CPU percentages.
 
 ## Prioritized plan
 
+The Flash associative-array successor index is implemented. The 262,144-key
+VVP reproducer passes three times, the isolated seven-operation Flash run is
+37.6% shorter (1.60x), and the post-change selected OpenTitan census passes
+[49/49](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md).
+Remaining paths below need their own measured optimizations.
+
 | Path | First speedup step | Risks and minimum validation |
 | --- | --- | --- |
-| **Flash associative-array next** | Keep the raw-key `std::map` for exact identity and lazily build a pointer-only ordered index per signedness mode. `upper_bound` changes repeated successor lookup from O(N) to O(log N), making a full walk O(N log N) after index construction. A new SV fixture exercises VVP's real `.first/.next` path over 262,144 keys. Hash-only lookup cannot return an ordered successor; hash plus tree was slower than the tree alone in the C++ microbenchmark. | Keep signed/unsigned ordering, sign extension, four-state order, and raw-width identity. Update any built index on insert/delete, clear it on copy/clear, and query it live so mutations are visible. Validate both order modes, 0/1/X/Z, absent keys, distinct-width identities, mutation, and copy/clear. The C++ standard guarantees logarithmic ordered-container lookup; Pugh's skip list is an academically studied alternative, not evidence of a VVP speedup: [ordered-container requirements](https://eel.is/c++draft/associative.reqmts), [Pugh, Skip Lists](https://doi.org/10.1145/78973.78977). |
+| **Flash associative-array next** | **Implemented:** retain the raw-key `std::map` for exact identity and lazily build a pointer-only ordered index per signedness mode. `upper_bound` makes each successor lookup O(log N); the full walk is O(N log N) after index construction. The real VVP `.first/.next` fixture covers 262,144 keys. Hash-only lookup cannot return an ordered successor; hash plus tree was slower than the tree alone in the C++ microbenchmark. | Preserve signed/unsigned ordering, sign extension, four-state order, and raw-width identity. Keep the index live across insert/delete and invalidate it on copy/clear. Both order modes, 0/1/X/Z, absent keys, distinct-width identities, mutation, and copy/clear are covered by the implementation regressions. The C++ standard guarantees logarithmic ordered-container lookup; Pugh's skip list is an academically studied alternative, not evidence of a VVP speedup: [ordered-container requirements](https://eel.is/c++draft/associative.reqmts), [Pugh, Skip Lists](https://doi.org/10.1145/78973.78977). |
 | **Flash backdoor population** | Add an opt-in packed-word read for the Flash layout, reducing up to four byte-level HDL reads per read32 to one. | Check alignment, byte order, data/ECC mapping, X/unknown behavior, and virtual overrides. Compare packed reads to the current four-read reference at boundaries; measure VPI calls and model-build time. [OpenTitan memory backdoor docs](https://opentitan.org/book/hw/dv/sv/mem_bkdr_util/index.html). |
 | **Sparse-wide Z3 enumeration** | Instrument solver checks, model extraction, blockers, support size, cap fallback, and time per randomize. Specialize only provable small finite sets or bounded intervals. | Preserve exact feasible support and distribution semantics; approximate model sampling is not equivalent. Compare feasible sets, seeded behavior, and weights for sparse, coupled, and over-cap cases. All-SMT work explores alternatives to blocking-clause enumeration, but is not a drop-in SV sampler: [Phan et al.](https://doi.org/10.1109/ARES.2015.14), [Spallitta et al.](https://arxiv.org/abs/2410.18707). |
 | **RV-DM joint Z3 tuples** | Measure separately from sparse domains. Factor disconnected variable components only after proving independence; this may avoid enumerating a Cartesian product. | Preserve tuple support, multiplicity/weights, sort order, cap behavior, and exclude auxiliary variables. Compare exact tuples and frequencies on independent and coupled models. General All-SMT work does not establish SV randomization equivalence here. |
@@ -24,8 +30,8 @@ CPU percentages.
 
 ## Implementation order
 
-1. Implement and verify the Flash semantic ordered index. It is the clearest
-   asymptotic issue and has a full-size bounded comparison.
+1. **Complete:** implement and verify the Flash semantic ordered index. It is
+   covered by a full-size bounded comparison and isolated Flash replay.
 2. Measure Flash word-read batching and SRAM base-handle caching with VPI-call
    counters. Keep OpenTitan utility changes opt-in until ECC and subclass
    behavior are proven.

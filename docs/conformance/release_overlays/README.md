@@ -17,7 +17,7 @@ copies and record unmodified-source results separately.
 ## Known-needed source patches
 
 The latest complete selected OpenTitan runtime census is
-[census13](../../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md):
+[census14](../../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md):
 49/49 targets passed on the pinned revision with the
 [OTP covergroup-purity](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/otp-get-offset-covergroup-purity.patch),
 [Flash solve-ordering](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/flash-elementwise-solve-before.patch),
@@ -29,7 +29,7 @@ the evidence available when each focused replay was recorded; they do not
 override the newer aggregate result. Focused outcomes remain scoped to the
 named test, source overlay, and compiler image in their evidence links.
 
-For replication, apply the three census13 patches to a disposable checkout at
+For replication, apply the three published overlay patches to a disposable checkout at
 `a78922f14a8cc20c7ee569f322a04626f2ac6127`, after a `patch --dry-run -p1`
 check. The [top-level reproduction guide](../opentitan_49of49_reproduction.md) has the
 copyable patch commands and parallel matrix invocation.

@@ -8,6 +8,11 @@ compares the ordering and alternative data structures independently of VVP.
 See the [optimization plan](../../docs/conformance/opentitan_hotpath_optimization.md)
 for candidate changes, risks, and correctness work.
 
+The latest full selected-corpus result is
+[49/49 after the vector-key index](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md).
+The isolated Flash before/after timings below use the same seven operations and
+are distinct from the CPU-contended corpus timing.
+
 The full-map scan is capped at 1,024 numeric keys because a 262,144-key scan
 would require over 68 billion backing-entry visits. Ordered alternatives walk
 the full 262,148-key fixture.

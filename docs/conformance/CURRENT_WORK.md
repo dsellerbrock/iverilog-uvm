@@ -3,16 +3,18 @@
 ## Current OpenTitan status — 2026-10-04
 
 The latest complete selected OpenTitan runtime census is
-[census13](../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md):
+[census14](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md):
 **49/49 targets passed** with zero setup or compile failures, hard errors,
 semantic debt, runtime errors, runtime debt, timeouts, or memory-cap hits. It
-used the pinned Earlgrey-PROD-M6 source revision
-`a78922f14a8cc20c7ee569f322a04626f2ac6127`, UVM 1.2, two parallel jobs,
-`-gcommercial-unsafe`, and three published test-source overlays: OTP covergroup
-purity, Flash element-wise solve ordering, and SPI TPM SRAM/reset wiring. The
-run report includes result files, tool fingerprints, runtime limits, and patch
-preflight records. This qualifies the matrix's 49 selected runtime targets,
-not every OpenTitan DV test. The pinned source checkout was left unchanged.
+used UVM 1.2, two parallel jobs, `-gcommercial-unsafe`, a five-hour per-target
+limit, a 9,536-MiB per-process cap, and the three published OTP, Flash, and
+SPI-TPM source overlays. The copied source snapshot came from pinned revision
+`a78922f14a8cc20c7ee569f322a04626f2ac6127`; because it had no Git metadata, the
+runner records its revision as unknown and the tree as dirty. The pinned source
+checkout itself was left unchanged. Matrix timings were CPU-contended by the
+separate worker; use the isolated Flash comparison for before/after timing.
+This qualifies the matrix's 49 selected runtime targets, not every OpenTitan
+DV test.
 
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).

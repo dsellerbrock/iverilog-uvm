@@ -15,7 +15,38 @@ full-matrix sampler produced 46 successful captures across 26 targets; the
 Flash retry has its own additional captures. Short tests and unsampled runtime
 phases are not covered.
 
-## Census13 runtime cross-check
+## Census14 indexed-runtime census
+
+The latest post-index run passed **49/49 targets**, with no setup/compile
+failures, hard errors, semantic debt, runtime errors/debt, timeouts, or memory
+cap hits. See the [census14 result and provenance](../census14-post-vector-aa-index-20261004/README.md).
+Its 15,675.919 seconds is the sum of target runtimes, not wall time. The matrix
+ran alongside a separate CPU-intensive worker, so its Flash duration (5,756 s)
+is host-contended and should not be compared directly with the isolated
+3,338-second Flash replay in the [reproducer results](../../../benchmarks/opentitan-hotpaths/README.md).
+
+The new 10-second `sample` snapshots show what remained active after the
+successor index. Counts are inclusive stacks within that sample, not whole-run
+CPU percentages. In particular, the Flash snapshot is one phase: the absence
+of `of_AA_NEXT_SIG_V` there does not prove it is absent from the full run.
+
+| Target / phase | Sample evidence | Follow-up |
+|---|---|---|
+| Flash, 2,800 s | 602 stacks include `uvm_hdl_read`; 458 include `vpi_handle_by_name`. [Capture](../census14-post-vector-aa-index-20261004/lowrisc_dv_flash_ctrl_sim_0.1-after-2800s.sample.txt.gz) | Measure packed-word backdoor reads and VPI lookup counts; preserve ECC and byte-layout semantics. |
+| SRAM, 180 s | 3,482 include `uvm_hdl_read`, 2,555 `find_name`, 1,485 `get_word_str`, and 1,445 `snprintf`. [Capture](../census14-post-vector-aa-index-20261004/lowrisc_dv_sram_ctrl_sim_0.1-after-180s.sample.txt.gz) | Cache stable array-base handles and count the remaining fallback/name-format work. |
+| SPI host, 150 s | 2,431 stacks enter `randomize_with_`; 1,358 enter sparse-Z3 enumeration. [Capture](../census14-post-vector-aa-index-20261004/lowrisc_dv_spi_host_sim_1.0-after-150s.sample.txt.gz) | Count solver checks, extracted models, blockers, support size, and time per call. |
+| SPI device, 130 s | 2,459 stacks enter `randomize_with_`; 1,148 enter sparse enumeration. At 1,000 s the profile shifts toward SVA/VPI, context/alias work, and 41 sparse-enumeration stacks. [Early](../census14-post-vector-aa-index-20261004/lowrisc_dv_spi_device_sim_0.1-after-130s.sample.txt.gz) · [late](../census14-post-vector-aa-index-20261004/lowrisc_dv_spi_device_sim_0.1-after-1000s.sample.txt.gz) | Separate early solver cost from late callback and object bookkeeping before selecting an optimization. |
+| RV-DM, 120 s | 3,717 stacks include joint Z3 enumeration; 2,107 include `Z3_solver_get_model`. [Capture](../census14-post-vector-aa-index-20261004/lowrisc_dv_rv_dm_sim_0.1-after-120s.sample.txt.gz) | Measure tuple support and prove variable independence before factoring enumeration. |
+| I2C, 900–1,150 s | Both captures show sparse Z3 plus class-context and alias paths. [900 s](../census14-post-vector-aa-index-20261004/lowrisc_dv_i2c_sim_0.1-after-900s.sample.txt.gz) · [1,150 s](../census14-post-vector-aa-index-20261004/lowrisc_dv_i2c_sim_0.1-after-1150s.sample.txt.gz) | Distinguish solver enumeration from live-object/alias notification costs with counters. |
+| KMAC / EDN setup | KMAC has 2,688 stacks in `vvp_vinterface::resolve_slots_`; EDN shows VIF resolution, `strdup`, and `strcat`. [KMAC](../census14-post-vector-aa-index-20261004/lowrisc_dv_kmac_sim_0.1-after-130s.sample.txt.gz) · [EDN](../census14-post-vector-aa-index-20261004/lowrisc_dv_edn_sim_0.1-after-80s.sample.txt.gz) | Compare member names before RTTI and count per-scope slot scans. |
+| Alert Handler / XBAR | Alert Handler at 600 s has 993 stacks in VPI calls and 332 in sparse Z3; XBAR at 120 s shows VPI/SVA callbacks and `set_bit`. [Alert](../census14-post-vector-aa-index-20261004/lowrisc_opentitan_top_earlgrey_alert_handler_sim_0.1-after-600s.sample.txt.gz) · [XBAR](../census14-post-vector-aa-index-20261004/lowrisc_dv_top_earlgrey_xbar_main_sim_0.1-after-120s.sample.txt.gz) | Count callback argument/scope/iterator work and four-state updates separately. |
+
+Additional samples cover ADC (SVA/VPI), chip simulation (SVA, sparse Z3,
+`set_bit`), CSRNG (context objects), and HMAC (sparse Z3). All selected
+compressed snapshots, result fingerprints, and the machine-local launcher are
+in the [census14 evidence directory](../census14-post-vector-aa-index-20261004/README.md).
+
+## Census13 pre-index runtime cross-check
 
 The subsequent coherent census13 invocation completed **49/49 PASS** with zero
 hard errors, semantic debt, runtime errors/debt, timeouts, or memory-cap hits;
@@ -44,15 +75,16 @@ needed to identify the dominant paths. Capture counts are snapshots, not
 whole-run CPU shares; use the per-target findings below for attribution and
 limits.
 
-## Ranked optimization candidates
+## Pre-index optimization ranking
 
-This is a ranking by measured repeatability and apparent cost within captured
-phases, not an aggregate ranking across all 49 tests. The profiles were taken
-at different times and have different sample counts.
+This historical ranking is based on repeatability and apparent cost within
+pre-index captures, not aggregate CPU across all 49 tests. The profiles were
+taken at different times and have different sample counts; current follow-up
+work is based on the census14 snapshots above.
 
 | Rank | Hot path | Evidence and scope | Candidate |
 | --- | --- | --- | --- |
-| 1 | Flash scoreboard associative-array successor walk | A separate five-hour Flash replay spent nearly all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; the exact-default retry had 98.3% of its 4,500s sample in this path, and the current element-wise retry has 98.4% at 3,600s, 98.1% at 4,500s, and 97.6% at 5,400s. The walk traverses a 262,144-entry scoreboard. | Replace repeated full-order successor searches with an order-aware traversal or iterator, preserving four-state key ordering. |
+| 1 | Flash scoreboard associative-array successor walk | Pre-index Flash captures spent almost all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; this motivated the 262,144-entry ordered index. | **Complete:** keep exact raw-key identity and maintain a lazy, order-aware pointer index. The isolated seven-operation Flash replay is 37.6% shorter; the selected corpus passes 49/49 after the change. |
 | 2 | Flash scoreboard population through backdoor reads | The default-args Flash Instruments capture has 2,471/30,355 stacks through `uvm_hdl_read`, 2,334 through `vpi_handle_by_name`, and 1,415 through `find_name`. Source walks 262,144 words; `read32()` issues four `read()`/`uvm_hdl_read()` calls per word. | Avoid redundant full-word backdoor reads and indexed path formatting across `read32()`'s four byte reads; reuse packed values only where Flash layout and ECC semantics permit. |
 | 3 | Repeated Z3 domain/tuple enumeration | HMAC, I2C, TL-agent, ROM, SPI host/device, UART and other tests repeatedly sample `z3_enumerate_sparse_wide_domain_`; RV-DM has a distinct joint-tuple enumeration burst. | Reduce solver checks, model extraction and blocking-clause churn while preserving exact randomization semantics. |
 | 4 | SRAM indexed backdoor name lookup | SRAM Time Profiler: 16,525/30,298 samples include `uvm_hdl_read`; 11,230 include `__vpiArray::get_word_str`, with 7,806 in `snprintf`. | Cache the resolved array base per scope/name and profile remaining path formatting and fallback scans. |
@@ -62,10 +94,10 @@ at different times and have different sample counts.
 | 8 | Virtual-interface slot resolution | KMAC 180s is dominated by `resolve_slots_`; EDN's 30s sample also shows this setup path. | Reduce repeated name/type/RTTI work during interface setup; this is a startup-only candidate. |
 | 9 | Standard distribution randomization | Ibex icache has sustained `of_STD_RANDOMIZE_WITH` / `z3_resolve_dist_exact` samples at 30s and 180s. | Profile exact distribution handling separately from sparse-domain enumeration before changing it. |
 
-The exact-default Flash retry has now reproduced that late phase, so it is not
-specific to the separately seeded replay. Its 4,500s sample shows the
-associative-array successor walk taking 98.3% of sampled stacks; captures at
-4,800s and 5,400s show the same path holding at 97.9% and 97.8% respectively.
+The exact-default Flash retry reproduced the pre-index late phase, so the
+successor bottleneck was not specific to the separately seeded replay. Its
+4,500s sample showed the path in 98.3% of stacks; captures at 4,800s and 5,400s
+showed 97.9% and 97.8%. See census14 above for post-index profile evidence.
 
 ## Native-code assessment
 

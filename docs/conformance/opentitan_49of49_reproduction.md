@@ -4,7 +4,7 @@ The 2026-10-04 census passed all 49 selected Earlgrey runtime targets. It used
 OpenTitan revision `a78922f14a8cc20c7ee569f322a04626f2ac6127`, UVM 1.2,
 `-gcommercial-unsafe`, two parallel jobs, and the three source overlays below.
 This qualifies the matrix's selected runtime lane, not every OpenTitan DV test.
-See the [census results and provenance](../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md),
+See the latest [census results and provenance](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md),
 [hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md),
 and the general [matrix runner reference](opentitan_matrix.md).
 
@@ -18,7 +18,7 @@ disposable OpenTitan checkout. From the compiler fork root, run:
 - [SPI TPM SRAM/reset wiring](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/spi-tpm-sram-csb-reset.patch)
 
 ```bash
-OT_ROOT=/tmp/opentitan-census13
+OT_ROOT=/tmp/opentitan-census14
 git clone https://github.com/lowRISC/opentitan.git "$OT_ROOT"
 git -C "$OT_ROOT" checkout a78922f14a8cc20c7ee569f322a04626f2ac6127
 PATCH_DIR="$PWD/evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches"
@@ -49,7 +49,7 @@ number of concurrent jobs in the memory estimate.
 
 ```bash
 # Export JOBS=4 before this block to run four cores concurrently.
-OT_ROOT="${OT_ROOT:-/tmp/opentitan-census13}"
+OT_ROOT="${OT_ROOT:-/tmp/opentitan-census14}"
 JOBS="${JOBS:-2}"
 FUSESOC=/path/to/fusesoc-env/bin/fusesoc
 FUSESOC_PYTHON=/path/to/fusesoc-env/bin/python

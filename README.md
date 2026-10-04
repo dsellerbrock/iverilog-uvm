@@ -121,10 +121,10 @@ The latest pinned OpenTitan runtime census passed **49/49 selected targets**
 with three published source overlays. This qualifies the matrix selection, not
 all OpenTitan DV tests. See the [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md),
 [matrix runner reference](docs/conformance/opentitan_matrix.md),
-[full results](evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md),
+[latest results](evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md),
 and [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 The [optimization plan and reproducers](docs/conformance/opentitan_hotpath_optimization.md)
-show the measured bottlenecks, candidate fixes, and runnable fixtures.
+link to bounded fixtures and measured next steps.
 
 ## Known limitations
 
@@ -139,7 +139,7 @@ show the measured bottlenecks, candidate fixes, and runnable fixtures.
   support. Compilation alone does not prove meaningful traffic or checking.
   The [release overlays](docs/conformance/release_overlays/README.md) record
   pinned application sources, known-needed patches, and target run options.
-  The current [OpenTitan census](evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md)
+  The current [OpenTitan census](evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md)
   and [work status](docs/conformance/CURRENT_WORK.md) record revisions,
   commands, and qualification boundaries; historical `DEBT` results are not
   passes.

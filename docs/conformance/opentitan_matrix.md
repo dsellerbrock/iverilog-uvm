@@ -1,7 +1,7 @@
 # OpenTitan synthesis, SVA, UVM and runtime matrix
 
 The latest selected Earlgrey runtime census is the 2026-10-04
-[49/49 result](../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md),
+[49/49 result](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md),
 qualified with three disposable source overlays. See its
 [replication guide](opentitan_49of49_reproduction.md). The older discovery
 totals below come from OpenTitan revision
