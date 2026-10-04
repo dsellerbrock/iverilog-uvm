@@ -1,7 +1,11 @@
 module top;
-  int unsigned flash[int unsigned];
+  // OpenTitan's flash DV address type is bit [TL_AW-1:0] (32 bits in
+  // Earlgrey). Keep the associative-array key as a packed 2-state vector;
+  // an integer index does not preserve that key-type fidelity.
+  typedef bit [31:0] addr_t;
+  int unsigned flash[addr_t];
   int unsigned entries;
-  int unsigned key;
+  addr_t key;
   int unsigned i;
 
   initial begin

@@ -1,7 +1,8 @@
 module top;
-  int unsigned mutable[int unsigned];
+  typedef bit [31:0] addr_t;
+  int unsigned mutable[addr_t];
   logic [3:0] four_state[logic [3:0]];
-  int unsigned cursor;
+  addr_t cursor;
   logic [3:0] state_cursor;
 
   initial begin

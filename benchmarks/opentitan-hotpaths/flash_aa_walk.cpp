@@ -133,7 +133,7 @@ static Key unsigned_key(uint32_t value, unsigned width)
 
 static std::vector<Key> make_keys(unsigned count)
 {
-    constexpr unsigned width = 18;
+    constexpr unsigned width = 32; // OpenTitan Earlgrey addr_t / TL_AW
     std::vector<Key> keys;
     keys.reserve(count + 4);
     for (unsigned i = 0; i < count; ++i)
@@ -258,7 +258,7 @@ int main(int argc, char** argv)
     scanned_entries = 0;
     uint64_t scan_successors = 0;
     const uint64_t scan_walk_ns = elapsed_ns([&] {
-        Key cursor = unsigned_key(0, 17); // just below the 18-bit zero key
+        Key cursor = unsigned_key(0, 17); // raw-width tie-break sorts below the 32-bit zero key
         while (full_scan_successor(scan_entries, cursor)) {
             if (scan_successors >= scan_expected.size() ||
                 cursor != scan_expected[scan_successors]) {

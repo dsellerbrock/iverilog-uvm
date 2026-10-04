@@ -3,8 +3,9 @@
 Bounded evidence probes for the paths in
 [HOTPATHS.md](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 These are standalone fixtures, not full OpenTitan tests. `flash_aa_walk.sv`
-calls VVP's actual associative-array `.first/.next`; `flash_aa_walk.cpp`
-compares the ordering and alternative data structures independently of VVP.
+calls VVP's actual associative-array `.first/.next` with the 32-bit packed
+two-state `addr_t` key used by Earlgrey; `flash_aa_walk.cpp` compares the
+ordering and alternative data structures independently of VVP.
 See the [optimization plan](../../docs/conformance/opentitan_hotpath_optimization.md)
 for candidate changes, risks, and correctness work.
 
@@ -15,7 +16,7 @@ are distinct from the CPU-contended corpus timing.
 
 The full-map scan is capped at 1,024 numeric keys because a 262,144-key scan
 would require over 68 billion backing-entry visits. Ordered alternatives walk
-the full 262,148-key fixture.
+the full 262,148-key C++ fixture.
 
 ## Toolchain and commands
 
@@ -58,8 +59,8 @@ checkout's install prefix:
     $IVERILOG -g2012 -s top -o sva_vpi_dispatch.vvp sva_vpi_dispatch.sv
 
     /usr/bin/time -lp ./flash_aa_walk 1024 262144
-    /usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=4096
     /usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=262144
+    /usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=4096
     $VVP flash_aa_semantics.vvp
     /usr/bin/time -lp $VVP vvp_sparse_randomize.vvp
     /usr/bin/time -lp $VVP vvp_joint_randomize.vvp
@@ -88,19 +89,23 @@ is repeated three times. Fixture timings do not predict whole-corpus speedups.
 
 ### Flash associative-array successor walk
 
-The C++ fixture mirrors compare_vec_keys_ ordering: signed-negative split, sign
-extension, MSB-first 0 < 1 < X < Z, and width-prefixed raw-key tie-breaking.
-It passed 231,200 comparator-pair checks over every 1–4 bit 0/1/X/Z key in
-signed and unsigned modes, plus 680 current-algorithm successor checks. The
-timed corpus has 262,144 18-bit numeric keys and four four-state keys.
+The timed SV fixture uses `bit [31:0]` keys, matching Earlgrey's
+`typedef bit [TL_AW-1:0] addr_t` with `TL_AW=32`. It populates 262,144
+contiguous addresses and checks every key and the final termination. The
+separate C++ algorithm comparison uses the same 32-bit raw key width, with
+numeric values 0 through 262,143 plus four four-state examples. It mirrors
+`compare_vec_keys_` ordering: signed-negative split, sign extension, MSB-first
+0 < 1 < X < Z, and width-prefixed raw-key tie-breaking. It passed 231,200
+comparator-pair checks over every 1–4 bit 0/1/X/Z key in signed and unsigned
+modes, plus 680 current-algorithm successor checks.
 
 | Structure / walk | Build | Full walk | Counts and correctness |
 | --- | ---: | ---: | --- |
-| Current full-map scan, 1,024 numeric + 4 four-state keys | 0.208 ms | 12.622 ms | 1,028 successors; 1,057,812 entries scanned; 1,585,690 comparator calls |
-| Ordered std::set, full corpus, upper_bound per successor | 85.118 ms | 84.252 ms | 262,148 successors; 262,149 queries; 7,209,116 comparator calls |
-| Same ordered set, iterator stream | included above | 1.034 ms | 262,148 successors |
-| unordered_map plus ordered set, upper_bound per successor | 119.292 ms | 114.010 ms | 262,148 successors and hash lookups; exact key/value matches |
-| Same hash/index pair, iterator stream | included above | 21.937 ms | 262,148 successors and hash lookups |
+| Current full-map scan, 1,024 numeric + 4 four-state keys | 0.173 ms | 40.143 ms | 1,028 successors; 1,057,812 entries scanned; 1,585,690 comparator calls |
+| Ordered std::set, full corpus, upper_bound per successor | 302.992 ms | 200.472 ms | 262,148 successors; 262,149 queries; 7,209,116 comparator calls |
+| Same ordered set, iterator stream | included above | 2.275 ms | 262,148 successors |
+| unordered_map plus ordered set, upper_bound per successor | 373.169 ms | 290.878 ms | 262,148 successors and hash lookups; exact key/value matches |
+| Same hash/index pair, iterator stream | included above | 40.252 ms | 262,148 successors and hash lookups |
 
 The full-size scan is disabled; no full-scan duration or speedup ratio is
 extrapolated. `upper_bound` models an independent next query at every step. The
@@ -109,15 +114,15 @@ must also observe intervening array mutations. The SV fixture populates a real
 VVP associative array, then checks every key returned by `.first/.next` and
 that traversal stops at the final key.
 
-The indexed VVP runtime passed the 262,144-key SV walk three times in 0.86,
-0.93, and 0.94 seconds, including population; maximum resident set size was
-61.3 MB. These earlier full-size measurements ran without phase instrumentation.
-Their command was `/usr/bin/time -lp $VVP flash_aa_walk.vvp +entries=262144`.
-With the VPI timer loaded, a focused 4,096-key run measured 2.947 ms for
-population and 11.291 ms for `.first/.next` traversal (0.12 s whole-process
-wall). The phase figures include SV loop overhead and VPI timer call overhead;
-they are not engine-only timings. This is a full-size end-to-end result plus a
-bounded phase split, not a direct before-and-after ratio.
+With the phase timer loaded, the indexed VVP runtime passed the 262,144-key
+32-bit vector walk three times. Population took 240–289 ms (265 ms median),
+`.first/.next` traversal took 1.330–1.579 s (1.444 s median), and whole-process
+wall was 1.60–1.97 s (1.69 s median); maximum resident set size was 61.3 MB.
+A focused 4,096-key run measured 4.468 ms for population and 20.772 ms for
+traversal (0.03 s process wall). The phase figures include SV loop checks and
+two VPI timer calls; they are not engine-only timings. The command used for the
+full run is the exact invocation above. These numbers establish the current
+vector-key fixture baseline, not a before-and-after ratio.
 
 `flash_aa_semantics.sv` separately passes mutation checks (deleting the next
 key, inserting after the cursor, then deleting the cursor key) and walks
@@ -210,19 +215,22 @@ guarantee.
 ## Ranked coverage map
 
 This maps all nine rows in `HOTPATHS.md` to a focused invocation, correctness
-oracle, reported metric, and the limit on what the fixture represents.
+oracle, reported metric, and the remaining reproduction gap. The direct VVP
+operation fixtures isolate cost and semantics; only the Flash replay exercises
+the full OpenTitan test. The optimization plan gives the first speedup
+experiment, correctness gate, and measurement gate for every row.
 
 | HOTPATHS rank and case | Exact invocation | Correctness oracle | Reported metric | Fidelity limit |
 | --- | --- | --- | --- | --- |
-| 1. Flash AA successor/comparator | `/usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=262144`; `$VVP flash_aa_semantics.vvp`; `./flash_aa_walk 1024 262144` | Full SV walk checks each numeric key and termination; semantics SV checks mutation and four-state order; C++ checks comparator pairs and successor sequence | Full-size wall/RSS above; phase split at 4,096; C++ build, walk, comparator and scan counts | Full SV walk uses fixed-width unsigned keys; mixed widths and signed mode are covered only by C++ comparator oracle. Timer includes SV loop and VPI call overhead. |
-| 2. Flash full-name backdoor reads | `/usr/bin/time -lp $VVP -M. -mhdl_lookup_bench flash_backdoor.vvp` | Plugin checks every named handle/value while reconstructing 4,096 words | 16,384 name lookups/gets; 3.376 ms plugin CPU, 0.09 s process wall | Direct VPI lookup/get, not UVM `uvm_hdl_read`, ECC, or full Flash image walk. |
-| 3. Sparse and joint Z3 enumeration | `/usr/bin/time -lp $VVP vvp_sparse_randomize.vvp`; `/usr/bin/time -lp $VVP vvp_joint_randomize.vvp`; C++ proxy commands below | Seeded sparse support/bin check; seeded tuple legality and all three legal tuples; C++ complete-set and uniqueness checks | VVP wall/draw bins; C++ checks, models, blockers and elapsed time | VVP constraints are synthetic, not extracted SPI/I2C/HMAC/TL/RV-DM inputs. No private helper-level solver counters. |
-| 4. SRAM indexed VPI lookup | `/usr/bin/time -lp $VVP -M. -mhdl_lookup_bench sram_indexed_backdoor.vvp` | Plugin checks each indexed byte against initialized memory | 1 base + 16,384 indexed lookups/gets; 0.493 ms plugin CPU, <0.01 s process wall | Direct VPI API analogue; does not call the UVM wrapper or reproduce SRAM path formatting/fallbacks. |
-| 5. SVA/VPI callback dispatch | `/usr/bin/time -lp $VVP -M. -msva_vpi_dispatch sva_vpi_dispatch.vvp` | SV checks callback return/value behavior; C plugin checks arguments/scope and counts events | 1,000 each of `$ivl_sva_enabled`, `$ivl_assert_clock`, and value-change callbacks; 0 errors; 0.07 s process wall | Real helper entry points and VPI callbacks, without OpenTitan assertion fanout or private per-operation counters. |
-| 6. Object/context/liveness bookkeeping | `/usr/bin/time -lp $VVP class_context_liveness.vvp` | Checks owner/alias identity across automatic task/fork mutation and after dropping handles | 2,000 alias groups and checks; 0.01 s process wall | Exercises alias/context/liveness behavior, without internal map/set probe counts or OpenTitan graph size. |
-| 7. Four-state resolution | `/usr/bin/time -lp $VVP four_state_resolution.vvp` | Checks resolved outputs including X/Z results each cycle | 2,000 cycles, 8,000 X/Z checks; <0.01 s process wall | Real four-state net resolution; internal `set_bit`/`reduce4` operations and drive-strength fanout are not counted. |
-| 8. Virtual-interface slot lookup | `/usr/bin/time -lp $VVP virtual_interface_slots.vvp` | Checks bound interface members and values through constructed holders | 64 constructions, 3 member reads, 64 value checks; <0.01 s process wall | Real VIF construction/access, without `resolve_slots_` name/type/RTTI counters or KMAC's interface shape. |
-| 9. Standard distribution | `/usr/bin/time -lp $VVP standard_distribution.vvp` | Seeded support checks for every one of 2,000 `dist` samples | Histogram and 3.77 s process wall | Actual `std::randomize`/`dist`; one deterministic histogram is not a statistical uniformity test and exposes no private distribution counters. |
+| 1. Flash AA successor/comparator | `/usr/bin/time -lp $VVP -M/tmp -mflash_walk_timer flash_aa_walk.vvp +entries=262144`; `$VVP flash_aa_semantics.vvp`; `./flash_aa_walk 1024 262144` | Full SV walk checks each vector key and termination; semantics SV checks mutation and four-state order; C++ checks comparator pairs and successor sequence | Full-size wall/RSS above; phase split at 4,096; C++ build, walk, comparator and scan counts | Matches Earlgrey's 32-bit `bit` address key, but the timed fixture walks a one-dimensional AA; OpenTitan's error table is nested `[addr_t][flash_dv_part_e]`. The 262,144 contiguous addresses are synthetic and actual error-table cardinality is not extracted. Mixed widths and signed mode are C++ comparator cases, not the timed VVP case. Timer includes SV loop and VPI-call overhead. |
+| 2. Flash full-name backdoor reads | `/usr/bin/time -lp $VVP -M. -mhdl_lookup_bench flash_backdoor.vvp` | Plugin checks every named handle/value while reconstructing 4,096 words | 16,384 name lookups/gets; 3.376 ms plugin CPU, 0.09 s process wall | Reaches direct full-name VPI lookup/get, but bypasses `uvm_hdl_read`, ECC, packed layout, and the full Flash population. Next fidelity step: wrap the same VPI calls in the real UVM DPI read path and compare packed-word reads with the four-byte reference. |
+| 3. Sparse and joint Z3 enumeration | `/usr/bin/time -lp $VVP vvp_sparse_randomize.vvp`; `/usr/bin/time -lp $VVP vvp_joint_randomize.vvp`; C++ proxy commands below | Seeded sparse support/bin check; seeded tuple legality and all three legal tuples; C++ complete-set and uniqueness checks | VVP wall/draw bins; C++ checks, models, blockers and elapsed time | Invokes the real VVP enumerators, but constraint graphs/supports are synthetic, not extracted SPI/I2C/HMAC/TL/RV-DM inputs. No private helper-level counters. Next step: add helper counters, then lift one representative real constraint unchanged into a focused fixture. |
+| 4. SRAM indexed VPI lookup | `/usr/bin/time -lp $VVP -M. -mhdl_lookup_bench sram_indexed_backdoor.vvp` | Plugin checks each indexed byte against initialized memory | 1 base + 16,384 indexed lookups/gets; 0.493 ms plugin CPU, <0.01 s process wall | Reaches `vpi_handle_by_index`, but bypasses `uvm_hdl_read`, SRAM path formatting, `find_name` scans, and fallback. Next step: use the real wrapper/path construction and count base-cache hits plus fallback scans. |
+| 5. SVA/VPI callback dispatch | `/usr/bin/time -lp $VVP -M. -msva_vpi_dispatch sva_vpi_dispatch.vvp` | SV checks callback return/value behavior; C plugin checks arguments/scope and counts events | 1,000 each of `$ivl_sva_enabled`, `$ivl_assert_clock`, and value-change callbacks; 0 errors; 0.07 s process wall | Uses real helper entry points and VPI callbacks, but lacks OpenTitan assertion fanout and per-operation counters. Next step: profile real assertion-heavy test plus helper-level VPI operation counts. |
+| 6. Object/context/liveness bookkeeping | `/usr/bin/time -lp $VVP class_context_liveness.vvp` | Checks owner/alias identity across automatic task/fork mutation and after dropping handles | 2,000 alias groups and checks; 0.01 s process wall | Semantic analogue; does not yet show that the full native alias-notification/context-map hot path or OpenTitan object-graph size is reached. Next step: add internal probe/fanout counters and replay a minimized real object graph. |
+| 7. Four-state resolution | `/usr/bin/time -lp $VVP four_state_resolution.vvp` | Checks resolved outputs including X/Z results each cycle | 2,000 cycles, 8,000 X/Z checks; <0.01 s process wall | Reaches real four-state resolution, but fixture width/driver count do not match the profiled XBAR/Alert workloads and it has no `set_bit`/`reduce4` counters. Next step: match a profiled bus's width and driver fanout, then count conversions. |
+| 8. Virtual-interface slot lookup | `/usr/bin/time -lp $VVP virtual_interface_slots.vvp` | Checks bound interface members and values through constructed holders | 64 constructions, 3 member reads, 64 value checks; <0.01 s process wall | Real VIF construction/access, but not KMAC's member set and without `resolve_slots_` scan/RTTI counters. Next step: copy the minimal KMAC interface shape and count scope scans and type checks. |
+| 9. Standard distribution | `/usr/bin/time -lp $VVP standard_distribution.vvp` | Seeded support checks for every one of 2,000 `dist` samples | Histogram and 3.77 s process wall | Actual `std::randomize`/`dist`, but the distribution is synthetic. The histogram is not a frequency guarantee and there are no branch/solver/allocation counters. Next step: lift the exact Ibex distribution and compare weighted support exhaustively. |
 
 In this table, `$VVP` is the executable assignment in Toolchain and commands.
 The C++ proxy invocations are `./z3_sparse_bench spi 25`,
