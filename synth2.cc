@@ -3595,6 +3595,7 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
       vector<NetMux*> p_out_mux(nex_out.pin_count());
       vector<NetMux*> p_bit_mux(nex_out.pin_count());
       vector<bool>  full_case (nex_out.pin_count());
+      vector<bool> default_full_case (nex_out.pin_count());
       for (size_t mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
 	    out_mux[mdx] = new NetMux(scope, scope->local_symbol(),
 				      mux_width[mdx], mux_size, sel_need);
@@ -3630,6 +3631,8 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	      // Assume a full case to start with. We'll check this as
 	      // we synthesise each clause.
 	    full_case[mdx] = true;
+	    default_full_case[mdx] =
+		  default_ena.pin(mdx).is_linked(scope->tie_hi());
             if (outer_pending) {
                   p_out_mux[mdx] = new NetMux(scope, scope->local_symbol(),
                         mux_width[mdx], mux_size, sel_need);
@@ -3642,41 +3645,14 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
             }
       }
 
-	// Sparse case values can make mux_size much larger than the number of
-	// explicit clauses. Most mux inputs then share the same default nexuses.
-	// Cache those nexuses so connecting each input remains constant-time
-	// instead of repeatedly walking an ever-growing circular link list. The
-	// default enable is also invariant across all missing selector values.
-      vector<Nexus*> default_out_nex (nex_out.pin_count());
-      vector<Nexus*> default_ena_nex (nex_out.pin_count());
-      vector<bool> default_full_case (nex_out.pin_count());
-      for (size_t mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
-	    default_out_nex[mdx] = default_out.pin(mdx).nexus();
-	    default_ena_nex[mdx] = default_ena.pin(mdx).nexus();
-	    default_full_case[mdx] =
-		  default_ena.pin(mdx).is_linked(scope->tie_hi());
-      }
-
+      vector<unsigned> default_mux_inputs;
       for (unsigned idx = 0 ;  idx < mux_size ;  idx += 1) {
 
 	    map<unsigned long,NetProc*>::const_iterator stmt_it =
 		  statement_map.find(idx);
 	    NetProc*stmt = stmt_it == statement_map.end()? 0 : stmt_it->second;
 	    if (stmt==0) {
-		  ivl_assert(*this, default_out.pin_count() == out_mux.size());
-		  for (unsigned mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
-			connect(default_out_nex[mdx], out_mux[mdx]->pin_Data(idx));
-			connect(default_ena_nex[mdx], ena_mux[mdx]->pin_Data(idx));
-                        if (outer_pending) {
-                              connect(default_p_out.pin(mdx),
-                                      p_out_mux[mdx]->pin_Data(idx));
-                              connect(default_p_bit_ena.pin(mdx),
-                                      p_bit_mux[mdx]->pin_Data(idx));
-                        }
-			merge_parallel_masks(bitmasks[mdx], default_masks[mdx]);
-			if (!default_full_case[mdx])
-			      full_case[mdx] = false;
-		  }
+		  default_mux_inputs.push_back(idx);
 		  continue;
 	    }
 	    ivl_assert(*this, stmt);
@@ -3735,6 +3711,37 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
                   }
 		  merge_parallel_masks(bitmasks[mdx], tmp_masks[mdx]);
 		  if (!tmp_ena.pin(mdx).is_linked(scope->tie_hi()))
+			full_case[mdx] = false;
+	    }
+      }
+
+	// Nested explicit branches can merge and delete the nexuses connected to
+	// default_out/default_ena. Wait until all branches are synthesized before
+	// caching those pointers. Each recorded mux data pin is still unconnected,
+	// so these links can then be added without invalidating the cached nexuses.
+	// Caching keeps sparse defaults from repeatedly walking the growing link
+	// list once per implicit selector value.
+      vector<Nexus*> default_out_nex (nex_out.pin_count());
+      vector<Nexus*> default_ena_nex (nex_out.pin_count());
+      for (size_t mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
+	    default_out_nex[mdx] = default_out.pin(mdx).nexus();
+	    default_ena_nex[mdx] = default_ena.pin(mdx).nexus();
+      }
+
+      ivl_assert(*this, default_out.pin_count() == out_mux.size());
+      for (size_t idx = 0 ; idx < default_mux_inputs.size() ; idx += 1) {
+	    unsigned mux_idx = default_mux_inputs[idx];
+	    for (unsigned mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
+		  connect(default_out_nex[mdx], out_mux[mdx]->pin_Data(mux_idx));
+		  connect(default_ena_nex[mdx], ena_mux[mdx]->pin_Data(mux_idx));
+                  if (outer_pending) {
+                        connect(default_p_out.pin(mdx),
+                                p_out_mux[mdx]->pin_Data(mux_idx));
+                        connect(default_p_bit_ena.pin(mdx),
+                                p_bit_mux[mdx]->pin_Data(mux_idx));
+                  }
+		  merge_parallel_masks(bitmasks[mdx], default_masks[mdx]);
+		  if (!default_full_case[mdx])
 			full_case[mdx] = false;
 	    }
       }
