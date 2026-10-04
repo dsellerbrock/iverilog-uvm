@@ -596,7 +596,7 @@ next_command: "PR376 is published with local qualification; preserve Caliptra wo
 current_execution_checkpoint:
   active_work_item: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
   source_head: "71fb85413525ba1caabb3bc1e2ef41789bd459f9"
-  phase: "ACTIVE; Flash speedup iteration 1/5 measured, no significant gain"
-  completed: "Bounded full-path VPI scope cache passed 9/9 focused VPI tests and improved its microbenchmark 46%, but matched the prior Flash milestone exactly at 1,414,652.8 ns after 1,200 seconds. Candidate removed; prior VVP behavior rebuilt. Evidence: evidence/opentitan-census-20261002/flash-vpi-full-path-cache-iter1-20261003/."
-  next_action: "Use the existing Time Profiler/sample evidence to select a distinct measured Flash hotspot for iteration 2. Do not start the 3,600-second replay until five iterations without a significant speedup."
-  next_command: "graphify query \"Which VVP runtime call paths outside find_scope dominate the captured Flash Time Profiler stacks, and what source symbols own them?\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+  phase: "ACTIVE; Flash speedup iteration 2/5 measured, no significant gain"
+  completed: "Iterations 1-2 both failed to show significant end-to-end Flash gains. Iteration 1 full-path VPI cache matched the prior 1,414,652.8 ns milestone; iteration 2 skipped process-object allocation for synchronous task/named-block frames, passed four focused regressions and a task-call microbenchmark (+3.75%), but matched the same last checked Flash milestone at the 1,200-second cap and emitted a shutdown assertion. Both candidate implementations were removed; O2 VVP restored. Iteration 2 evidence: evidence/opentitan-census-20261002/flash-vthread-process-allocation-iter2-20261003/."
+  next_action: "Use the existing Time Profiler/sample evidence and graphify to select a distinct hotspot for iteration 3. Do not start the 3,600-second replay until five iterations without a significant speedup."
+  next_command: "graphify query \"Which profiled VVP runtime operation after find_scope and do_fork_ has a bounded optimization opportunity with a comparable Flash checkpoint?\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
