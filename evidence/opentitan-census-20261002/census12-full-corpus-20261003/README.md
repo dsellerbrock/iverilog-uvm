@@ -27,6 +27,10 @@ The exact command is in [`run-census12.sh`](run-census12.sh). Native samples are
 scheduled for every VVP runtime process that lasts at least 30 seconds, with
 additional samples at 180 and 900 seconds. Results and logs will be written to
 `result-census12.json`, `result-census12.md`, and `/private/tmp/pi/census12/build`.
+The initial sampler can also match an `iverilog` parent waiting for its VVP
+child. Profiles are checked for `Process: vvp`, and compiler-wait captures are
+excluded from [`HOTPATHS.md`](HOTPATHS.md). The sampler source now filters to
+the VVP executable; the already-running sampler is verified by profile identity.
 
 ## Previous coherent census
 

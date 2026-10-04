@@ -49,6 +49,9 @@ def live_vvp_processes() -> list[tuple[int, str, int, str]]:
         pid, started, elapsed, command = (
             int(fields[0]), " ".join(fields[1:6]), fields[6], fields[7]
         )
+        executable = command.split(maxsplit=1)[0]
+        if Path(executable).name != "vvp":
+            continue
         if str(BUILD_ROOT) not in command or "matrix-runtime.vvp" not in command:
             continue
         match = re.search(
