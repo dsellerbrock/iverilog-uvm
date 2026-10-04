@@ -484,7 +484,13 @@ in 5,349.4 seconds. Its early samples show solver and VPI/SVA phases, while
 repeated late samples show the scoreboard memory walk spending nearly all
 sampled stacks in vector-key associative-array successor search. That
 source-confirmed O(N²) traversal is currently the strongest Flash optimization
-target; details and late profiles are in [the Flash replay record](../flash-5h-user-directed-20261003/README.md).
+target. `aa_next_signal()` calls the vector-key `next_key_()` for each
+successor (`vvp/vthread.cc:21846-21855`); that overload scans the whole backing
+map and compares vector keys to find the least key greater than the current
+one (`vvp/vvp_assoc.h:642-660`). Walking 262,144 scoreboard entries therefore
+visits the full map once per key, giving quadratic work. Any replacement needs
+to preserve four-state key order. Details and late profiles are in
+[the Flash replay record](../flash-5h-user-directed-20261003/README.md).
 
 ## Native execution boundary
 
