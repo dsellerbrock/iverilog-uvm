@@ -78,6 +78,17 @@ UVM HDL reads. These establish several workloads for checking whether the VPI
 scope cache is effective end to end; the samples alone do not prove that cache
 lookups are the dominant part of each test.
 
+The active runner does include that cache: `/private/tmp/current-tools/bin/vvp`
+is a symlink to this checkout's `vvp/vvp`, and the runtime SHA256 matches the
+matrix fingerprint. In `vvp/vpi_priv.cc`, `find_scope()` caches successful
+`(parent scope, child name)` resolutions and reuses them instead of rescanning
+the parent's iterator; misses are not cached. `uvm_hdl_read()` reaches this
+through `uvm_ivl_hdl_lookup()` → `vpi_handle_by_name()` for hierarchical paths.
+The cache does not cache the final leaf `find_name()` lookup, and the samples do
+not expose cache hit counts or a before/after speedup. They do show that the
+repeated SVA callback work is a larger visible VPI path than scope resolution
+in the sampled ADC, entropy-source, and 900s Flash phases.
+
 Profiles: [entropy source](lowrisc_dv_entropy_src_sim_0.1-after-30s-pid9242.sample.txt),
 [Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid9372.sample.txt), and
 [CSRNG](lowrisc_dv_csrng_sim_0.1-after-30s-pid8923.sample.txt).
