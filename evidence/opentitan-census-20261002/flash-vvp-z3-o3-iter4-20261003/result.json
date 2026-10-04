@@ -1,0 +1,30 @@
+{
+  "iteration": 4,
+  "candidate": "Compile only vvp/vvp_z3.cc, containing profiled z3_solve_pass_, with -O3; all other objects remain -O2.",
+  "candidate_retained": false,
+  "runtime_sha256": "964d0dc0e4d89d65d655f03a61aa23dbc2e3b93a82fed57f0721e17a2ecbf8c2",
+  "baseline_runtime_sha256_after_restore": "2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570",
+  "flash_image_sha256": "4b25c822438e9553e50454a188f53a031f9261f212e8692f3e83aae0ba848260",
+  "dpi_library_sha256": "b77b12c4c2ff467faf5ec324affdd5e588bcb1de61f4a1ab1a951463565794eb",
+  "flash_run": {
+    "test": "flash_ctrl_base_test",
+    "sequence": "flash_ctrl_smoke_vseq",
+    "default_seed": "0xa8cee782",
+    "default_seed_local": "0x219b79a0",
+    "wall_cap_seconds": 1200,
+    "rss_cap_bytes": 10000000000,
+    "duration_seconds": 1200.5,
+    "returncode": 0,
+    "timed_out": true,
+    "memory_limit_hit": false,
+    "peak_rss_bytes": 1200898048,
+    "last_checked_milestone": "operation 2/3, bank-1 FlashPartData erase at 1,414,652.8 ns (same as prior baseline)",
+    "subsequent_checked_milestone": null,
+    "pass_marker": false,
+    "uvm_error_count": 0,
+    "uvm_fatal_count": 0,
+    "qualified": false,
+    "log": "flash.log"
+  },
+  "conclusion": "The solver-only O3 build reached the same last checked operation-2 milestone as baseline; no later checked progress or PASS. No significant end-to-end speedup. O2 restored; iteration 4/5."
+}
