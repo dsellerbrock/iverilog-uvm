@@ -44,6 +44,14 @@ selection order:
 - `lowrisc:systems:top_earlgrey:0.1`, or
   `lowrisc:systems:top_darjeeling:0.1` for Darjeeling cores
 
+Three pinned Earlgrey-PROD-M6 core files omit direct dependencies used by
+their RTL: `prim_mubi.core` misses `lowrisc:prim:flop_2sync`, and the Flash and
+OTP register-top cores omit register-check, TL-UL, and subregister providers.
+The runner creates build-local core-root overlays, leaves the input checkout
+untouched, and records source and overlay hashes in the result JSON. The
+focused five-core regression and dependency list are documented in the
+[dependency overlay evidence](../../evidence/opentitan-matrix-source-dependency-overlays-20261004/README.md).
+
 The `top_englishbreakfast` core intentionally has no virtual-core `mapping`
 stanza. For English Breakfast jobs, the runner generates a build-local CAPI
 mapping core that pins its RACL, AST, flash-register, flash-package, and random

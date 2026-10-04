@@ -138,6 +138,28 @@ mapping:
   "lowrisc:prim:xnor2": "lowrisc:prim_generic:xnor2"
   "lowrisc:prim:xor2": "lowrisc:prim_generic:xor2"
 """
+MATRIX_SOURCE_CORE_DEPENDENCIES = (
+    (
+        "hw/ip/prim/prim_mubi.core",
+        "lowrisc:prim:flop",
+        ("lowrisc:prim:flop_2sync",),
+    ),
+    (
+        "hw/top_earlgrey/ip_autogen/flash_ctrl/flash_ctrl_prim_reg_top.core",
+        "lowrisc:ip_interfaces:flash_ctrl_pkg",
+        ("lowrisc:prim:reg_we_check",),
+    ),
+    (
+        "hw/ip/otp_ctrl/otp_ctrl_prim_reg_top.core",
+        "lowrisc:ip:otp_ctrl_pkg",
+        (
+            "lowrisc:prim:reg_we_check",
+            "lowrisc:tlul:trans_intg",
+            "lowrisc:tlul:adapter_reg",
+            "lowrisc:prim:subreg",
+        ),
+    ),
+)
 ENGLISHBREAKFAST_MAPPING = "local:matrix:top_englishbreakfast:0.1"
 ENGLISHBREAKFAST_MAPPING_CORE = """CAPI=2:
 name: local:matrix:top_englishbreakfast:0.1
@@ -2070,8 +2092,8 @@ def provider_mappings(job: Job, requested_top: str) -> list[str]:
     return [PRIM_MAPPING, DEFAULT_TOPS[top]]
 
 
-def prepare_matrix_core_root(build_root: Path) -> Path:
-    """Create local mapping cores needed for deterministic dependency solves."""
+def prepare_matrix_core_root(build_root: Path, opentitan_root: Path) -> Path:
+    """Prepare FuseSoC mappings and pinned-source core metadata overlays."""
     core_root = build_root / "matrix-provider-cores"
     core_root.mkdir(parents=True, exist_ok=True)
     mapping_core = core_root / "top_englishbreakfast_mapping.core"
@@ -2086,6 +2108,78 @@ def prepare_matrix_core_root(build_root: Path) -> Path:
         or prim_mapping_core.read_text() != PRIM_MAPPING_CORE
     ):
         prim_mapping_core.write_text(PRIM_MAPPING_CORE)
+
+    # Some pinned OpenTitan core files omit direct dependencies for modules
+    # that their RTL instantiates. Keep these corrections in a build-local
+    # overlay so FuseSoC sees the complete dependency closure without editing
+    # the input source checkout.
+    source_override_root = core_root / "source-overrides"
+    for relative_core, anchor_dependency, added_dependencies in (
+        MATRIX_SOURCE_CORE_DEPENDENCIES
+    ):
+        source_core = opentitan_root / relative_core
+        overlay_core = source_override_root / relative_core
+        if not source_core.is_file():
+            if overlay_core.is_file():
+                overlay_core.unlink()
+            continue
+
+        source_text = source_core.read_text()
+        source_lines = source_text.splitlines(keepends=True)
+        present_dependencies = {
+            line.strip()[2:].strip()
+            for line in source_lines
+            if line.strip().startswith("- ")
+        }
+        missing_dependencies = [
+            dependency
+            for dependency in added_dependencies
+            if dependency not in present_dependencies
+        ]
+        if not missing_dependencies:
+            if overlay_core.is_file():
+                overlay_core.unlink()
+            continue
+
+        anchors = [
+            index
+            for index, line in enumerate(source_lines)
+            if line.strip() == f"- {anchor_dependency}"
+        ]
+        if len(anchors) != 1:
+            raise RuntimeError(
+                f"cannot prepare FuseSoC overlay for {relative_core}: expected "
+                f"one {anchor_dependency} dependency, found {len(anchors)}"
+            )
+
+        anchor_index = anchors[0]
+        anchor_line = source_lines[anchor_index]
+        indent = anchor_line[: len(anchor_line) - len(anchor_line.lstrip())]
+        newline = "\r\n" if anchor_line.endswith("\r\n") else "\n"
+        inserted_lines = [
+            f"{indent}- {dependency}{newline}"
+            for dependency in missing_dependencies
+        ]
+        overlay_text = "".join(
+            source_lines[: anchor_index + 1]
+            + inserted_lines
+            + source_lines[anchor_index + 1 :]
+        )
+        overlay_core_dir = overlay_core.parent
+        overlay_core_dir.mkdir(parents=True, exist_ok=True)
+        if not overlay_core.is_file() or overlay_core.read_text() != overlay_text:
+            overlay_core.write_text(overlay_text)
+        for dirname in ("rtl", "lint"):
+            source_dir = source_core.parent / dirname
+            if not source_dir.is_dir():
+                continue
+            overlay_dir = overlay_core_dir / dirname
+            if overlay_dir.is_symlink():
+                if overlay_dir.resolve() != source_dir.resolve():
+                    overlay_dir.unlink()
+                    overlay_dir.symlink_to(source_dir, target_is_directory=True)
+            elif not overlay_dir.exists():
+                overlay_dir.symlink_to(source_dir, target_is_directory=True)
     return core_root
 
 
@@ -2387,20 +2481,26 @@ def setup_command(
     # sva lanes this driver exercises. provider_mappings()/PRIM_MAPPING/
     # ENGLISHBREAKFAST_MAPPING are kept (and still self-tested) as the
     # mechanism a newer OpenTitan revision with the real fusesoc --mapping
-    # feature would need again, but are not applied to this command. Their
-    # cores root is not scanned either: this fusesoc ignores `mapping` and
-    # warns "Unknown item mapping in section Root", which marked every
-    # otherwise clean run as debt.
-    del matrix_core_root
+    # feature would need again, but are not applied to this command. The
+    # mapping-core root is not scanned because this FuseSoC ignores `mapping`
+    # and warns "Unknown item mapping in section Root". A separate source
+    # overlay root contains only corrected source cores and is safe to scan.
     command = [
         str(fusesoc),
         f"--cores-root={opentitan_root}",
-        "run",
-        f"--target={job.target}",
-        "--tool=icarus",
-        "--setup",
-        f"--build-root={work_root}",
     ]
+    source_override_root = matrix_core_root / "source-overrides"
+    if any(source_override_root.rglob("*.core")):
+        command.append(f"--cores-root={source_override_root}")
+    command.extend(
+        [
+            "run",
+            f"--target={job.target}",
+            "--tool=icarus",
+            "--setup",
+            f"--build-root={work_root}",
+        ]
+    )
     # OpenTitan's register cores deliberately gate their RTL filesets behind
     # these flags.  A direct IP simulation needs the IP-generated register
     # package, while system-level cores use the selected top's autogen copy.
@@ -3320,6 +3420,57 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "--flag=fileset_top"
     ]
     assert setup_flags(Job("rtl", Core("lowrisc:prim:arbiter:0", ""))) == []
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_root = Path(temp_dir)
+        source_root = temp_root / "opentitan"
+        source_cores = []
+        for relative_core, anchor, additions in MATRIX_SOURCE_CORE_DEPENDENCIES:
+            source_core = source_root / relative_core
+            source_core.parent.mkdir(parents=True)
+            (source_core.parent / "rtl").mkdir()
+            (source_core.parent / "lint").mkdir()
+            source_core.write_text(
+                "CAPI=2:\nname: local:matrix:test:0.1\nfilesets:\n"
+                "  files_rtl:\n    depend:\n"
+                f"      - {anchor}\n"
+            )
+            source_cores.append((source_core, relative_core, additions))
+        matrix_root = prepare_matrix_core_root(temp_root / "build", source_root)
+        for source_core, relative_core, additions in source_cores:
+            overlay_core = matrix_root / "source-overrides" / relative_core
+            overlay_text = overlay_core.read_text()
+            for dependency in additions:
+                assert f"      - {dependency}\n" in overlay_text
+            assert all(
+                dependency not in source_core.read_text()
+                for dependency in additions
+            )
+            assert (overlay_core.parent / "rtl").resolve() == (
+                source_core.parent / "rtl"
+            ).resolve()
+        overlay_command = setup_command(
+            Job("rtl", Core("lowrisc:ip:lc_ctrl_pkg:0.1", "")),
+            Path("fusesoc"),
+            source_root,
+            matrix_root,
+            temp_root / "build/lc_ctrl_pkg",
+            "earlgrey",
+        )
+        source_root_arg = f"--cores-root={source_root}"
+        overlay_root_arg = f"--cores-root={matrix_root / 'source-overrides'}"
+        assert overlay_command.index(overlay_root_arg) > overlay_command.index(
+            source_root_arg
+        )
+        for source_core, _relative_core, additions in source_cores:
+            source_core.write_text(
+                source_core.read_text()
+                + "".join(f"      - {dependency}\n" for dependency in additions)
+            )
+        prepare_matrix_core_root(temp_root / "build", source_root)
+        assert all(
+            not (matrix_root / "source-overrides" / relative_core).is_file()
+            for _source_core, relative_core, _additions in source_cores
+        )
     directed_core = Core("lowrisc:dv:prim_flop_2sync_sim:0.1", "")
     directed_target = SimulationTarget(
         directed_core.vlnv,
@@ -4072,7 +4223,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not opentitan_root.is_dir():
         parser().error(f"OpenTitan root does not exist: {opentitan_root}")
     build_root.mkdir(parents=True, exist_ok=True)
-    matrix_core_root = prepare_matrix_core_root(build_root)
+    matrix_core_root = prepare_matrix_core_root(build_root, opentitan_root)
 
     env = os.environ.copy()
     env["PATH"] = os.pathsep.join(
@@ -4169,6 +4320,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             PRIM_MAPPING_CORE.encode()
         ).hexdigest(),
     }
+    metadata["matrix_source_core_overrides"] = [
+        {
+            "source_core": relative_core,
+            "added_dependencies": [
+                dependency
+                for dependency in added_dependencies
+                if dependency
+                not in {
+                    line.strip()[2:].strip()
+                    for line in (opentitan_root / relative_core)
+                    .read_text()
+                    .splitlines()
+                    if line.strip().startswith("- ")
+                }
+            ],
+            "source_sha256": file_sha256(opentitan_root / relative_core),
+            "overlay_sha256": file_sha256(
+                matrix_core_root / "source-overrides" / relative_core
+            ),
+        }
+        for relative_core, _anchor, added_dependencies in (
+            MATRIX_SOURCE_CORE_DEPENDENCIES
+        )
+        if (matrix_core_root / "source-overrides" / relative_core).is_file()
+    ]
     if native_pkg_config is not None:
         metadata["native_pkg_config"] = native_pkg_config
     if formal_targets is not None:
