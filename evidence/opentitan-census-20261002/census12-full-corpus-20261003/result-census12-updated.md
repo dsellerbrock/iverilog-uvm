@@ -1,6 +1,6 @@
 # OpenTitan Icarus matrix — updated composite census
 
-- Generated: `2026-10-04T10:15:28+00:00`
+- Generated: `2026-10-04T11:53:59+00:00`
 - OpenTitan revision: `unknown` (dirty)
 - Icarus: `Icarus Verilog version 13.0 (devel) ()`
 - Compiler engine SHA-256: `8dae711b38f7229b74b29455db587238ef76452928a66faeb5085aa429ef184c`
