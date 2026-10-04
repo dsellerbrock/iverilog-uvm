@@ -438,9 +438,13 @@ not replace the later scoreboard successor-walk measurements. At 15 minutes,
 760/3,640 samples are under `randomize_with_`, including 406 through sparse-
 domain enumeration; 692/3,640 enter `of_VPI_CALL`, with 57 in
 `sva_enabled_calltf`. This run therefore confirms that Flash moves through
-solver and callback phases before its late scoreboard walk. Raw samples are at
+solver and callback phases before its late scoreboard walk. At 30 minutes,
+696/3,666 samples are under randomization, 395 under sparse-domain
+enumeration, and 660 under VPI calls (51 under `sva_enabled_calltf`); the
+late scoreboard walk is still absent. Raw samples are at
 `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-5m.sample.txt`
-and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-15m.sample.txt`.
+`/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-15m.sample.txt`,
+and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-30m.sample.txt`.
 
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz),
 [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
