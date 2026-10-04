@@ -69,6 +69,32 @@ constraint.
 Profiles: [ROM controller at 30s](lowrisc_dv_rom_ctrl_sim_0.1-after-30s-pid19781.sample.txt)
 and [180s](lowrisc_dv_rom_ctrl_sim_0.1-after-180s-pid19781.sample.txt).
 
+RV-DM exposes a different randomization hot path. At 30s, all 7,159 root
+stacks are inside `of_RANDOMIZE`; 3,712 reach `z3_enumerate_joint_()` and 2,114
+reach `Z3_solver_get_model`. Unlike the sparse-wide helper above, the joint
+helper enumerates complete tuples by checking the solver, extracting a model,
+and adding a clause that blocks that tuple. Source candidates include the
+randomized JTAG/SBA configs and `rv_dm_base_vseq`, which has several related
+random flags and a weighted `tck_period_ps` distribution; the profile cannot
+identify the specific randomize object. At 180s the profile has shifted to VPI:
+1,603/7,079 roots enter `of_VPI_CALL`, including SVA callbacks. RV-DM passed in
+211.7 seconds, so the solver burst is an early phase, followed by assertion
+handling.
+
+Profiles: [RV-DM at 30s](lowrisc_dv_rv_dm_sim_0.1-after-30s-pid20939.sample.txt)
+and [180s](lowrisc_dv_rv_dm_sim_0.1-after-180s-pid20939.sample.txt).
+
+SPI device flash-mode remains solver-heavy at both 30s and 180s: 4,925/6,698
+and 2,687/6,932 roots are under `randomize_with_`, with 2,784 and 1,298 in
+sparse-domain enumeration. Its sequence runs 1–12 transactions and calls
+`randomize_op_addr_size()` for each; the inherited intercept sequence also
+randomizes weighted access choices and delays in concurrent paths. This source
+matches the sustained randomization samples, though the profile cannot assign
+them to one individual callsite.
+
+Profiles: [SPI device at 30s](lowrisc_dv_spi_device_sim_0.1-after-30s-pid21031.sample.txt)
+and [180s](lowrisc_dv_spi_device_sim_0.1-after-180s-pid21031.sample.txt).
+
 The helper at `vvp/vvp_z3.cc:7764` pushes the solver once, repeatedly checks it,
 reads a model, and adds a constraint excluding that value, stopping after the
 complete sparse set is found or its 64-value cap is exceeded. Repeated checks
@@ -125,6 +151,8 @@ including `sva_enabled_calltf`; its other visible branches include 781
 and VPI iterator/get/put work. This reinforces the SVA callback path as a
 cross-target hot spot. PWM repeats it at 30s: 2,507/6,878 stacks are under
 `of_VPI_CALL`, with `sva_enabled_calltf` below that path. PWM passed in 74.5s.
+Reset manager also has 1,101/4,385 samples under `of_VPI_CALL` at 30s, including
+`sva_enabled_calltf`; its runtime was 41.1s.
 The early Flash profile includes
 `uvm_ivl_hdl_put`, `uvm_hdl_read`, `vpi_handle_by_name`, and `find_name` under
 DPI calls. CSRNG also shows nested randomization/sparse-domain enumeration and
@@ -146,6 +174,7 @@ in the sampled ADC, entropy-source, PWM, OTP, and 900s Flash phases.
 Profiles: [entropy source](lowrisc_dv_entropy_src_sim_0.1-after-30s-pid9242.sample.txt),
 [OTP controller](lowrisc_dv_otp_ctrl_sim_0.1-after-30s-pid16949.sample.txt),
 [PWM](lowrisc_dv_pwm_sim_0.1-after-30s-pid19545.sample.txt),
+[reset manager](lowrisc_dv_rstmgr_sim_0.1-after-30s-pid20865.sample.txt),
 [Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid9372.sample.txt), and
 [CSRNG](lowrisc_dv_csrng_sim_0.1-after-30s-pid8923.sample.txt).
 
