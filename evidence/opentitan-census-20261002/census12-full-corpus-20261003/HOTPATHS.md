@@ -385,14 +385,29 @@ are under `of_VPI_CALL`. These counts closely match the separately seeded
 therefore repeatable across these two Flash invocations. The late associative
 array successor scan is still absent at this point in the default-args run.
 
+At 3,600s, a 10-second native sample had 1,826/7,264 roots inside
+`of_DPI_CALL_VEC4`; 678 include `uvm_hdl_read`, 511 include
+`vpi_handle_by_name`, and 79 include `find_name`. The solver path had fallen
+out of this snapshot, while `of_VPI_CALL` accounted for 220 roots. A subsequent
+30.3-second Instruments capture resolved 30,348 samples and shows a phase
+transition: 102 samples include `of_AA_NEXT_SIG_V` and 82 include
+`compare_vec_keys_`; 35 include `uvm_hdl_read`, and none include
+`randomize_with_` or sparse-domain enumeration. The successor traversal has
+therefore begun in this exact-default run, but occupies only 0.34% of this
+capture so far. It does not yet show the sustained late-run dominance seen in
+the separately seeded replay. Later samples are needed to measure how long
+that phase lasts. The Instruments trace and exported XML remain local because
+the bundle records host environment metadata.
+
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz)
 and [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
 plus [900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid28516.sample.txt.gz) and
-[1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid28516.sample.txt.gz) and
-[2,700s](lowrisc_dv_flash_ctrl_sim_0.1-after-2700s-pid28516.sample.txt.gz). The
-30.4-second Instruments trace is retained locally under `/private/tmp`; it is
-not included in the repository because trace bundles include host environment
-metadata.
+[1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid28516.sample.txt.gz),
+[2,700s](lowrisc_dv_flash_ctrl_sim_0.1-after-2700s-pid28516.sample.txt.gz), and
+[3,600s](lowrisc_dv_flash_ctrl_sim_0.1-after-3600s-pid28516.sample.txt.gz).
+Earlier Instruments captures are retained locally under `/private/tmp`; they
+are not included in the repository because trace bundles include host
+environment metadata.
 
 The CSRNG 30s capture adds class-object and automatic-context bookkeeping to
 the inventory. A repeated nested-fork path loads class signal objects through
