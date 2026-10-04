@@ -61,7 +61,9 @@ and clock callbacks. `flash-sample-operation4-53m.txt` and
 61-minute capture, 7,596 of 7,691 sampled stacks are under
 `of_AA_NEXT_SIG_V`, and the flat symbol summary records 7,023 samples in
 `compare_vec_keys_`. These are profiler sample counts, not direct elapsed-time
-percentages.
+percentages. A third capture at 75 minutes (`flash-sample-operation4-75m.txt`)
+still shows 7,563 of 7,656 stacks under `of_AA_NEXT_SIG_V`, with 6,870 flat
+samples in `compare_vec_keys_`.
 
 The VVP image maps this opcode in
 `flash_ctrl_env_cfg.check_partition_mem_model()` to the loop over
@@ -72,10 +74,17 @@ partition. In `vvp/vvp_assoc.h`, vector-key `next_key_()` scans the full map and
 uses `compare_vec_keys_()` to choose each successor. Repeating that scan for
 every entry makes a full traversal quadratic in the number of stored addresses.
 The source mapping and operation4 samples make this the strongest measured
-explanation for the long final memory-check phase. The 53- and 61-minute samples
-did not show the scope lookup walk as a hot path; the earlier VPI scope cache
-remains in the runtime, but these captures do not quantify an end-to-end speedup
-from it.
+explanation for the long final memory-check phase. The 53-, 61-, and 75-minute
+samples did not show the scope lookup walk as a hot path; the earlier VPI scope
+cache remains in the runtime, but these captures do not quantify an end-to-end
+speedup from it.
+
+The active `vvp/vvp` is already a native Mach-O ARM64 executable built with
+`-O2 -g0`; it links the native Z3 dylib. The SystemVerilog image is VVP
+bytecode dispatched by native runtime opcode functions. Rebuilding those same
+functions with more aggressive compiler flags may help smaller costs, but it
+cannot remove the measured whole-map scan. The associative-array successor
+algorithm is the high-value optimization target.
 
 `capture-followup-samples.py` schedules additional low-overhead samples while
 the replay runs. `sample-progress.jsonl` and `sample-result.json` record which
