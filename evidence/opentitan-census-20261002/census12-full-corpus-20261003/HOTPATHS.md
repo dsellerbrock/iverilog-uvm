@@ -407,14 +407,19 @@ sampled roots enter randomization. The simulator's physical footprint was
 run has now reproduced the late associative-array bottleneck from the seeded
 replay. The Instruments trace and exported XML remain local because the bundle
 records host environment metadata.
+The 4,800s sample repeats the result five minutes later: 7,568/7,729 roots
+(97.9%) remain under `of_AA_NEXT_SIG_V`, 6,971/7,729 include
+`compare_vec_keys_`, and only 16 include `uvm_hdl_read`. This confirms the
+successor-walk profile is sustained across multiple snapshots.
 
-Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz)
-and [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
-plus [900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid28516.sample.txt.gz) and
+Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz),
+[180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
+[900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid28516.sample.txt.gz),
 [1,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-1800s-pid28516.sample.txt.gz),
-[2,700s](lowrisc_dv_flash_ctrl_sim_0.1-after-2700s-pid28516.sample.txt.gz), and
-[3,600s](lowrisc_dv_flash_ctrl_sim_0.1-after-3600s-pid28516.sample.txt.gz), and
-[4,500s](lowrisc_dv_flash_ctrl_sim_0.1-after-4500s-pid28516.sample.txt.gz).
+[2,700s](lowrisc_dv_flash_ctrl_sim_0.1-after-2700s-pid28516.sample.txt.gz),
+[3,600s](lowrisc_dv_flash_ctrl_sim_0.1-after-3600s-pid28516.sample.txt.gz),
+[4,500s](lowrisc_dv_flash_ctrl_sim_0.1-after-4500s-pid28516.sample.txt.gz), and
+[4,800s](lowrisc_dv_flash_ctrl_sim_0.1-after-4800s-pid28516.sample.txt.gz).
 Earlier Instruments captures are retained locally under `/private/tmp`; they
 are not included in the repository because trace bundles include host
 environment metadata.
