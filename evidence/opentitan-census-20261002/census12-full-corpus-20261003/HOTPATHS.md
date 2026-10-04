@@ -71,6 +71,18 @@ values in its per-transaction loop and uses constrained `fmt_item` randomize
 calls. This explains why solver work can persist, but the profile cannot map
 the Z3 samples to one particular source call.
 
+The LC controller 30s profile adds another very solver-heavy startup workload:
+4,352/6,755 root stacks enter `randomize_with_`, 4,349 enter the randomize graph,
+and 2,218 reach sparse-domain enumeration; Z3 model construction is also
+prominent. `lc_ctrl_env_cfg::initialize()` explicitly randomizes the OTP
+push-pull, two alert/esc, JTAG, and KMAC agent configurations. The profile does
+not attribute samples to one of those objects, so these calls are the
+source-backed candidates rather than a per-object cost breakdown. The target
+passed in 165.3 seconds, so this 30s snapshot captures startup but not its full
+runtime.
+
+Profile: [LC controller at 30s](lowrisc_dv_lc_ctrl_sim_0.1-after-30s-pid16253.sample.txt).
+
 Profiles: [HMAC at 30s](lowrisc_dv_hmac_sim_0.1-after-30s-pid9607.sample.txt)
 and [180s](lowrisc_dv_hmac_sim_0.1-after-180s-pid9607.sample.txt), [I2C at
 30s](lowrisc_dv_i2c_sim_0.1-after-30s-pid10233.sample.txt) and
