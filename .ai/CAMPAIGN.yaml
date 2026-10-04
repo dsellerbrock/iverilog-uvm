@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 70ae3be50
+branch: agent/rand-2d-dynamic-arrays-20261002
+checkpoint_head: 71fb85413525ba1caabb3bc1e2ef41789bd459f9
 active_ot_compile_constraint_batch2_lane:
   blocker: "OT-COMPILE-CONSTRAINT-BATCH2-20261001"
   phase: "DONE"
@@ -593,3 +593,10 @@ preservation:
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
 next_command: "PR376 is published with local qualification; preserve Caliptra work and respond only if CI later reports an issue, without polling."
+current_execution_checkpoint:
+  active_work_item: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
+  source_head: "71fb85413525ba1caabb3bc1e2ef41789bd459f9"
+  phase: "ACTIVE; Flash speedup iteration 1/5 measured, no significant gain"
+  completed: "Bounded full-path VPI scope cache passed 9/9 focused VPI tests and improved its microbenchmark 46%, but matched the prior Flash milestone exactly at 1,414,652.8 ns after 1,200 seconds. Candidate removed; prior VVP behavior rebuilt. Evidence: evidence/opentitan-census-20261002/flash-vpi-full-path-cache-iter1-20261003/."
+  next_action: "Use the existing Time Profiler/sample evidence to select a distinct measured Flash hotspot for iteration 2. Do not start the 3,600-second replay until five iterations without a significant speedup."
+  next_command: "graphify query \"Which VVP runtime call paths outside find_scope dominate the captured Flash Time Profiler stacks, and what source symbols own them?\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
