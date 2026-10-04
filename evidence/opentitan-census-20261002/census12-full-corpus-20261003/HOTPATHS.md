@@ -112,6 +112,20 @@ snapshot, not evidence that context tracking dominates the whole CSRNG run.
 The same snapshot includes UVM HDL reads and randomization, so later captures
 or targeted counts are needed before ranking those individual costs.
 
+I2C's 900s sample gives stronger evidence for a related steady-state path:
+1,067 top-of-stack samples are in `context_live_matches_scope_` and 431 in
+`vvp_object::pointer_is_live`. The call tree ties these to class-object signal
+updates (`of_STORE_PROP_V` → `notify_mutated_object_root_` →
+`notify_signal_aliases` → `vvp_send_object` →
+`vvp_fun_signal_object_aa::recv_object`). The scope-context check consults the
+automatic-context owner map and live-context set; the object-liveness check
+consults the live-object set. This is separate from the hierarchical VPI name
+cache described above. It is a measured candidate, but this profile alone
+cannot tell whether cheaper bookkeeping would preserve the required lifetime
+and alias behavior.
+
+Profile: [I2C at 900s](lowrisc_dv_i2c_sim_0.1-after-900s-pid10233.sample.txt).
+
 ### Virtual-interface startup
 
 EDN's 30-second snapshot is dominated by `vvp_vinterface::resolve_slots_`,
