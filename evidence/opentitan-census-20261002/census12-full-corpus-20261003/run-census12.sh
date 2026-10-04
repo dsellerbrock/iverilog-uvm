@@ -2,7 +2,7 @@
 set -eu
 
 worktree_root=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926
-opentitan_root=/private/tmp/ot-corpus-after-fixes-20260929/source
+opentitan_root=/private/tmp/ot-corpus-current-spid-passthrough-20261003/source
 build_root=/private/tmp/pi/census12/build
 tool_env=/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313
 uvm_home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src

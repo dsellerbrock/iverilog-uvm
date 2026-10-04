@@ -1,0 +1,542 @@
+Analysis of sampling vvp (pid 85402) every 1 millisecond
+Process:         vvp [85402]
+Path:            /Users/USER/*/vvp
+Load Address:    0x1008bc000
+Identifier:      vvp
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [85392]
+Target Type:     live task
+
+Date/Time:       2026-10-04 00:21:53.173 -0600
+Launch Time:     2026-10-03 22:55:47.730 -0600
+OS Version:      macOS 27.0 (26A428)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         867.6M
+Physical footprint (peak):  949.0M
+Idle exit:                  untracked
+----
+
+Call graph:
+    7656 Thread_55778416   DispatchQueue_1: com.apple.main-thread  (serial)
+      7656 start  (in dyld) + 6688  [0x19b0c7e80]
+        7656 main  (in vvp) + 1188  [0x1008bcdcc]
+          7656 vvp_run  (in vvp) + 996  [0x1008be014]
+            7656 schedule_simulate()  (in vvp) + 2176  [0x100a26e34]
+              7656 vthread_run(vthread_s*)  (in vvp) + 1280  [0x10092ca0c]
+                7656 of_FORK(vthread_s*, vvp_code_s*)  (in vvp) + 16  [0x100972ff0]
+                  7656 do_fork_(vthread_s*, vvp_code_s*, bool)  (in vvp) + 1288  [0x100973504]
+                    7656 vthread_run(vthread_s*)  (in vvp) + 1280  [0x10092ca0c]
+                      7656 of_FORK(vthread_s*, vvp_code_s*)  (in vvp) + 16  [0x100972ff0]
+                        7656 do_fork_(vthread_s*, vvp_code_s*, bool)  (in vvp) + 1288  [0x100973504]
+                          7652 vthread_run(vthread_s*)  (in vvp) + 1280  [0x10092ca0c]
+                          + 7533 of_AA_NEXT_SIG_V(vthread_s*, vvp_code_s*)  (in vvp) + 24  [0x100985eac]
+                          + ! 7533 bool aa_next_signal<vvp_vector4_t, vvp_assoc_base>(vthread_s*, vvp_net_t*, vvp_net_t*, unsigned int, bool)  (in vvp) + 120  [0x100985df4]
+                          + !   5943 vvp_assoc_map<vvp_vector4_t>::next_key_(std::map<std::basic_string<char>, vvp_assoc_map<vvp_vector4_t>::vec_entry_t> const&, vvp_vector4_t&, bool)  (in vvp) + 80  [0x1009184d4]
+                          + !   : 5943 vvp_assoc_map<vvp_vector4_t>::compare_vec_keys_(vvp_vector4_t const&, vvp_vector4_t const&, bool)  (in vvp) + 452,436,...  [0x100917e5c,0x100917e4c,...]
+                          + !   780 vvp_assoc_map<vvp_vector4_t>::next_key_(std::map<std::basic_string<char>, vvp_assoc_map<vvp_vector4_t>::vec_entry_t> const&, vvp_vector4_t&, bool)  (in vvp) + 52,156,...  [0x1009184b8,0x100918520,...]
+                          + !   694 vvp_assoc_map<vvp_vector4_t>::next_key_(std::map<std::basic_string<char>, vvp_assoc_map<vvp_vector4_t>::vec_entry_t> const&, vvp_vector4_t&, bool)  (in vvp) + 112  [0x1009184f4]
+                          + !   : 694 vvp_assoc_map<vvp_vector4_t>::compare_vec_keys_(vvp_vector4_t const&, vvp_vector4_t const&, bool)  (in vvp) + 408,452,...  [0x100917e30,0x100917e5c,...]
+                          + !   116 vvp_assoc_map<vvp_vector4_t>::compare_vec_keys_(vvp_vector4_t const&, vvp_vector4_t const&, bool)  (in vvp) + 760,752,...  [0x100917f90,0x100917f88,...]
+                          + 87 of_FORK(vthread_s*, vvp_code_s*)  (in vvp) + 16  [0x100972ff0]
+                          + ! 87 do_fork_(vthread_s*, vvp_code_s*, bool)  (in vvp) + 1288  [0x100973504]
+                          + !   86 vthread_run(vthread_s*)  (in vvp) + 1280  [0x10092ca0c]
+                          + !   : 79 of_FORK(vthread_s*, vvp_code_s*)  (in vvp) + 16  [0x100972ff0]
+                          + !   : | 78 do_fork_(vthread_s*, vvp_code_s*, bool)  (in vvp) + 1288  [0x100973504]
+                          + !   : | + 74 vthread_run(vthread_s*)  (in vvp) + 1280  [0x10092ca0c]
+                          + !   : | + ! 16 of_DPI_CALL_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 44  [0x100969bcc]
+                          + !   : | + ! : 7 dpi_call_common_(vthread_s*, vvp_code_s*, char, unsigned int, char, bool, dpi_import_kind_t)  (in vvp) + 1628,1652,...  [0x10096a234,0x10096a24c,...]
+                          + !   : | + ! : 6 dpi_call_common_(vthread_s*, vvp_code_s*, char, unsigned int, char, bool, dpi_import_kind_t)  (in vvp) + 4936  [0x10096af20]
+                          + !   : | + ! : | 6 vvp_dpi_call(void*, char const*, char, vvp_dpi_arg_t*, unsigned int, long long*, double*, char const**)  (in vvp) + 1084  [0x100a800c8]
+                          + !   : | + ! : |   6 ffi_call_int  (in libffi.8.dylib) + 1500  [0x100eed670]
+                          + !   : | + ! : |     6 ffi_call_SYSV  (in libffi.8.dylib) + 80  [0x100ef0050]
+                          + !   : | + ! : |       5 uvm_hdl_read  (in uvm_dpi.vpi) + 40  [0x100f39c80]
+                          + !   : | + ! : |       + 5 uvm_ivl_hdl_lookup_sel(char const*, uvm_ivl_hdl_sel*)  (in uvm_dpi.vpi) + 76  [0x100f398bc]
+                          + !   : | + ! : |       +   3 vpi_handle_by_name  (in vvp) + 2332  [0x100b216e8]
+                          + !   : | + ! : |       +   ! 1 find_name(char const*, __vpiHandle*)  (in vvp) + 244  [0x100b21910]
+                          + !   : | + ! : |       +   ! : 1 vpi_get  (in vvp) + 72  [0x100b1f0a4]
+                          + !   : | + ! : |       +   ! 1 find_name(char const*, __vpiHandle*)  (in vvp) + 420  [0x100b219c0]
+                          + !   : | + ! : |       +   ! : 1 vpi_get  (in vvp) + 12  [0x100b1f068]
+                          + !   : | + ! : |       +   ! 1 find_name(char const*, __vpiHandle*)  (in vvp) + 700  [0x100b21ad8]
+                          + !   : | + ! : |       +   2 vpi_handle_by_name  (in vvp) + 1100  [0x100b21218]
+                          + !   : | + ! : |       +     2 find_scope(char const*, __vpiHandle*, int)  (in vvp) + 700  [0x100b21e44]
+                          + !   : | + ! : |       +       2 find_scope(char const*, __vpiHandle*, int)  (in vvp) + 700  [0x100b21e44]
+                          + !   : | + ! : |       +         1 find_scope(char const*, __vpiHandle*, int)  (in vvp) + 700  [0x100b21e44]
+                          + !   : | + ! : |       +         : 1 find_scope(char const*, __vpiHandle*, int)  (in vvp) + 700  [0x100b21e44]
+                          + !   : | + ! : |       +         :   1 find_scope(char const*, __vpiHandle*, int)  (in vvp) + 700  [0x100b21e44]
+                          + !   : | + ! : |       +         :     1 find_scope(char const*, __vpiHandle*, int)  (in vvp) + 396  [0x100b21d14]
+                          + !   : | + ! : |       +         :       1 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x19b4a7f0c]
+                          + !   : | + ! : |       +         1 find_scope(char const*, __vpiHandle*, int)  (in vvp) + 1348  [0x100b220cc]
+                          + !   : | + ! : |       +           1 _xzm_free_main  (in libsystem_malloc.dylib) + 684  [0x19b2c1168]
+                          + !   : | + ! : |       1 uvm_hdl_read  (in uvm_dpi.vpi) + 60  [0x100f39c94]
+                          + !   : | + ! : |         1 vpi_get  (in vvp) + 240  [0x100b1f14c]
+                          + !   : | + ! : |           1 __vpiArrayWord::as_word_t::vpi_get(int)  (in vvp) + 24  [0x1008d0ab0]
+                          + !   : | + ! : |             1 array_var_word_from_handle(__vpiHandle*)  (in vvp) + 8  [0x1008cd5fc]
+                          + !   : | + ! : 2 dpi_call_common_(vthread_s*, vvp_code_s*, char, unsigned int, char, bool, dpi_import_kind_t)  (in vvp) + 6104  [0x10096b3b0]
+                          + !   : | + ! : | 2 vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp) + 0  [0x1008c74f0]
+                          + !   : | + ! : 1 dpi_call_common_(vthread_s*, vvp_code_s*, char, unsigned int, char, bool, dpi_import_kind_t)  (in vvp) + 6012  [0x10096b354]
+                          + !   : | + ! :   1 vvp_vector4_t::allocate_words_(unsigned long, unsigned long)  (in vvp) + 88  [0x100a2d728]
+                          + !   : | + ! 7 of_CALLF_VEC4_V(vthread_s*, vvp_code_s*)  (in vvp) + 220  [0x1009619dc]
+                          + !   : | + ! : 2 maybe_dispatch_virtual_method_call_(vthread_s*, vvp_code_s*, vthread_s*, bool)  (in vvp) + 400  [0x100960a0c]
+                          + !   : | + ! : | 1 build_dynamic_method_label_(class_type const*, char const*, std::basic_string<char>&)  (in vvp) + 220  [0x100a0bd04]
+                          + !   : | + ! : | + 1 std::basic_string<char>::append(char const*, unsigned long)  (in libc++.1.dylib) + 108  [0x19b3aaf88]
+                          + !   : | + ! : | +   1 std::basic_string<char>::__grow_by_and_replace(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, char const*)  (in libc++.1.dylib) + 108  [0x19b3ac07c]
+                          + !   : | + ! : | +     1 $_0::operator()() const::'lambda0'(unsigned long, std::__type_descriptor_t)::__invoke(unsigned long, std::__type_descriptor_t)  (in libc++abi.dylib) + 16  [0x19b453080]
+                          + !   : | + ! : | +       1 operator_new_impl[abi:nqe220106](unsigned long, std::__type_descriptor_t)  (in libc++abi.dylib) + 36  [0x19b4530b4]
+                          + !   : | + ! : | +         1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 92  [0x19b2bf864]
+                          + !   : | + ! : | 1 build_dynamic_method_label_(class_type const*, char const*, std::basic_string<char>&)  (in vvp) + 384  [0x100a0bda8]
+                          + !   : | + ! : |   1 std::basic_string<char>::push_back(char)  (in libc++.1.dylib) + 108  [0x19b3aaedc]
+                          + !   : | + ! : |     1 std::basic_string<char>::__grow_by(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long)  (in libc++.1.dylib) + 0  [0x19b3aace0]
+                          + !   : | + ! : 2 maybe_dispatch_virtual_method_call_(vthread_s*, vvp_code_s*, vthread_s*, bool)  (in vvp) + 448  [0x100960a3c]
+                          + !   : | + ! : | 1 _xzm_free_main  (in libsystem_malloc.dylib) + 1080  [0x19b2c12f4]
+                          + !   : | + ! : | 1 compile_lookup_code_scope(char const*, vvp_code_s**, __vpiScope**, bool)  (in vvp) + 1964  [0x1008dca28]
+                          + !   : | + ! : |   1 _platform_memcmp  (in libsystem_platform.dylib) + 8  [0x19b4a5178]
+                          + !   : | + ! : 1 maybe_dispatch_virtual_method_call_(vthread_s*, vvp_code_s*, vthread_s*, bool)  (in vvp) + 580  [0x100960ac0]
+                          + !   : | + ! : | 1 class_type::runtime_super() const  (in vvp) + 136  [0x1008e98c0]
+                          + !   : | + ! : |   1 _platform_memcmp  (in libsystem_platform.dylib) + 128  [0x19b4a51f0]
+                          + !   : | + ! : 1 maybe_dispatch_virtual_method_call_(vthread_s*, vvp_code_s*, vthread_s*, bool)  (in vvp) + 604  [0x100960ad8]
+                          + !   : | + ! : | 1 build_dynamic_method_label_(class_type const*, char const*, std::basic_string<char>&)  (in vvp) + 332  [0x100a0bd74]
+                          + !   : | + ! : |   1 _platform_memchr  (in libsystem_platform.dylib) + 76  [0x19b4a50ac]
+                          + !   : | + ! : 1 maybe_dispatch_virtual_method_call_(vthread_s*, vvp_code_s*, vthread_s*, bool)  (in vvp) + 1076  [0x100960cb0]
+                          + !   : | + ! :   1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 24  [0x10095af88]
+                          + !   : | + ! 5 of_VPI_CALL(vthread_s*, vvp_code_s*)  (in vvp) + 532  [0x1009cb178]
+                          + !   : | + ! : 5 vpip_execute_vpi_call(vthread_s*, __vpiHandle*)  (in vvp) + 124  [0x100b2f838]
+                          + !   : | + ! :   4 sys_display_calltf  (in system.vpi) + 332  [0x101b6f338]
+                          + !   : | + ! :   | 4 get_display  (in system.vpi) + 372  [0x101b70f54]
+                          + !   : | + ! :   |   2 get_format  (in system.vpi) + 2552  [0x101b71f4c]
+                          + !   : | + ! :   |   + 2 sprintf  (in libsystem_c.dylib) + 68  [0x19b337fa4]
+                          + !   : | + ! :   |   +   2 vsprintf_l  (in libsystem_c.dylib) + 204  [0x19b331b0c]
+                          + !   : | + ! :   |   +     2 __vfprintf  (in libsystem_c.dylib) + 168  [0x19b326b7c]
+                          + !   : | + ! :   |   +       2 localeconv_l  (in libsystem_c.dylib) + 60  [0x19b329b90]
+                          + !   : | + ! :   |   +         2 os_unfair_lock_lock  (in libsystem_platform.dylib) + 12  [0x19b4a4c74]
+                          + !   : | + ! :   |   1 _realloc  (in libsystem_malloc.dylib) + 508  [0x19b2c538c]
+                          + !   : | + ! :   |   1 get_format  (in system.vpi) + 152  [0x101b715ec]
+                          + !   : | + ! :   |     1 _realloc  (in libsystem_malloc.dylib) + 456  [0x19b2c5358]
+                          + !   : | + ! :   |       1 _malloc_zone_realloc  (in libsystem_malloc.dylib) + 148  [0x19b2c4b2c]
+                          + !   : | + ! :   |         1 xzm_malloc_zone_malloc_type_realloc  (in libsystem_malloc.dylib) + 24  [0x19b2b5028]
+                          + !   : | + ! :   1 sys_display_calltf  (in system.vpi) + 320  [0x101b6f32c]
+                          + !   : | + ! :     1 array_from_iterator  (in system.vpi) + 40  [0x101b70d2c]
+                          + !   : | + ! :       1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 92  [0x19b2bf864]
+                          + !   : | + ! 3 of_ALLOC(vthread_s*, vvp_code_s*)  (in vvp) + 328  [0x10095cca4]
+                          + !   : | + ! : 2 context_in_stacked_chain_(void**, void**)  (in vvp) + 140  [0x10095d424]
+                          + !   : | + ! : | 2 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! : |   1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 336  [0x19b2bf958]
+                          + !   : | + ! : |   1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 452  [0x19b2b8c10]
+                          + !   : | + ! : 1 context_in_stacked_chain_(void**, void**)  (in vvp) + 264  [0x10095d4a0]
+                          + !   : | + ! :   1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 52  [0x100a0a1c8]
+                          + !   : | + ! :     1 _xzm_free_main  (in libsystem_malloc.dylib) + 20  [0x19b2c0ed0]
+                          + !   : | + ! 3 of_CALLF_VEC4_V(vthread_s*, vvp_code_s*)  (in vvp) + 280  [0x100961a18]
+                          + !   : | + ! : 2 do_callf_void(vthread_s*, vthread_s*)  (in vvp) + 736  [0x10095f574]
+                          + !   : | + ! : | 2 vpi_get_str  (in vvp) + 316  [0x100b1f510]
+                          + !   : | + ! : |   1 __dynamic_cast  (in libc++abi.dylib) + 96  [0x19b43f5b8]
+                          + !   : | + ! : |   + 1 std::type_info::operator==[abi:nqe220106](std::type_info const&) const  (in libc++abi.dylib) + 24  [0x19b452e80]
+                          + !   : | + ! : |   1 __vpiScope::vpi_get_str(int)  (in vvp) + 132  [0x100b24050]
+                          + !   : | + ! : |     1 construct_scope_fullname(__vpiScope*, char*)  (in vvp) + 36  [0x100b26d48]
+                          + !   : | + ! : |       1 construct_scope_fullname(__vpiScope*, char*)  (in vvp) + 36  [0x100b26d48]
+                          + !   : | + ! : |         1 construct_scope_fullname(__vpiScope*, char*)  (in vvp) + 88  [0x100b26d7c]
+                          + !   : | + ! : |           1 strcat  (in libsystem_c.dylib) + 64  [0x19b32d5bc]
+                          + !   : | + ! : |             1 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x19b4a7f0c]
+                          + !   : | + ! : 1 do_callf_void(vthread_s*, vthread_s*)  (in vvp) + 664  [0x10095f52c]
+                          + !   : | + ! :   1 vpi_get_str  (in vvp) + 316  [0x100b1f510]
+                          + !   : | + ! :     1 __vpiScope::vpi_get_str(int)  (in vvp) + 132  [0x100b24050]
+                          + !   : | + ! :       1 construct_scope_fullname(__vpiScope*, char*)  (in vvp) + 36  [0x100b26d48]
+                          + !   : | + ! :         1 construct_scope_fullname(__vpiScope*, char*)  (in vvp) + 36  [0x100b26d48]
+                          + !   : | + ! :           1 construct_scope_fullname(__vpiScope*, char*)  (in vvp) + 92  [0x100b26d80]
+                          + !   : | + ! 3 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 196  [0x10098b0e8]
+                          + !   : | + ! : 3 vvp_fun_signal_object_aa::get_object() const  (in vvp) + 44  [0x100a45594]
+                          + !   : | + ! :   3 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + !   : | + ! :     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + !   : | + ! :     | 1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! :     |   1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 92  [0x19b2bf864]
+                          + !   : | + ! :     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 248  [0x10095b068]
+                          + !   : | + ! :     | 1 std::__tree_balance_after_insert[abi:nqe220106]<std::__tree_node_base<void*>*>(std::__tree_node_base<void*>*, std::__tree_node_base<void*>*)  (in vvp) + 424  [0x1008d7e68]
+                          + !   : | + ! :     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 760  [0x10095b268]
+                          + !   : | + ! :       1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 40  [0x100a0a1bc]
+                          + !   : | + ! :         1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 52  [0x100a0a1c8]
+                          + !   : | + ! :           1 _free  (in libsystem_malloc.dylib) + 44  [0x19b2c513c]
+                          + !   : | + ! 3 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 212  [0x10098b0f8]
+                          + !   : | + ! : 3 vvp_fun_signal_object_aa::get_root_net() const  (in vvp) + 24  [0x100a45c10]
+                          + !   : | + ! :   1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 504  [0x10095b804]
+                          + !   : | + ! :   | 1 context_live_matches_scope_(void**, __vpiScope*)  (in vvp) + 160  [0x1009583a0]
+                          + !   : | + ! :   1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 552  [0x10095b834]
+                          + !   : | + ! :   | 1 context_live_matches_scope_(void**, __vpiScope*)  (in vvp) + 36  [0x100958324]
+                          + !   : | + ! :   1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + !   : | + ! :     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 760  [0x10095b268]
+                          + !   : | + ! :       1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 40  [0x100a0a1bc]
+                          + !   : | + ! :         1 _xzm_free_main  (in libsystem_malloc.dylib) + 1080  [0x19b2c12f4]
+                          + !   : | + ! 3 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 1352  [0x10098b56c]
+                          + !   : | + ! : 3 std::deque<vvp_object_t>::push_back(vvp_object_t const&)  (in vvp) + 72  [0x1009d4e40]
+                          + !   : | + ! :   2 std::deque<vvp_object_t>::__add_back_capacity()  (in vvp) + 176  [0x1009d5130]
+                          + !   : | + ! :   | 2 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! :   |   2 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 288  [0x19b2bf928]
+                          + !   : | + ! :   1 std::deque<vvp_object_t>::__add_back_capacity()  (in vvp) + 188  [0x1009d513c]
+                          + !   : | + ! :     1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! :       1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 104  [0x19b2b8ab4]
+                          + !   : | + ! 3 of_LOAD_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 256  [0x10098feb4]
+                          + !   : | + ! : 3 vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&) const  (in vvp) + 48  [0x100a3a640]
+                          + !   : | + ! :   2 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + !   : | + ! :   | 1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 760  [0x10095b268]
+                          + !   : | + ! :   | + 1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 52  [0x100a0a1c8]
+                          + !   : | + ! :   | +   1 _free  (in libsystem_malloc.dylib) + 12  [0x19b2c511c]
+                          + !   : | + ! :   | 1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 524  [0x10095b17c]
+                          + !   : | + ! :   1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 436  [0x10095b7c0]
+                          + !   : | + ! :     1 context_live_matches_scope_(void**, __vpiScope*)  (in vvp) + 360  [0x100958468]
+                          + !   : | + ! 2 of_ALLOC(vthread_s*, vvp_code_s*)  (in vvp) + 492  [0x10095cd48]
+                          + !   : | + ! : 1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + !   : | + ! : | 1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! : |   1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 192  [0x19b2bf8c8]
+                          + !   : | + ! : 1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 240  [0x10095b060]
+                          + !   : | + ! 2 of_LOAD_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 160  [0x10098fe54]
+                          + !   : | + ! : 1 vthread_s::push_vec4(vvp_vector4_t const&)  (in vvp) + 300  [0x10092b79c]
+                          + !   : | + ! : | 1 std::vector<vvp_vector4_t>::__emplace_back_slow_path<vvp_vector4_t const&>(vvp_vector4_t const&)  (in vvp) + 156  [0x100919180]
+                          + !   : | + ! : |   1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! : |     1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 288  [0x19b2bf928]
+                          + !   : | + ! : 1 vthread_s::push_vec4(vvp_vector4_t const&)  (in vvp) + 8  [0x10092b678]
+                          + !   : | + ! 2 of_SHIFTR(vthread_s*, vvp_code_s*)  (in vvp) + 372  [0x1009b4304]
+                          + !   : | + ! : 2 vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 420,500  [0x100a2dfe0,0x100a2e030]
+                          + !   : | + ! 2 of_STORE_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 1048  [0x1009c9388]
+                          + !   : | + ! : 1 vvp_fun_signal4_aa::recv_vec4_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, unsigned int, unsigned int, void**)  (in vvp) + 84  [0x100a3a1f4]
+                          + !   : | + ! : | 1 recover_automatic_recv_context_(void**, __vpiScope*, char const*)  (in vvp) + 32  [0x100a3a0d4]
+                          + !   : | + ! : |   1 vthread_recover_context_for_scope(void**, __vpiScope*)  (in vvp) + 252  [0x10095c554]
+                          + !   : | + ! : |     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + !   : | + ! : |       1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! : |         1 malloc_type_malloc  (in libsystem_malloc.dylib) + 44  [0x19b2a3768]
+                          + !   : | + ! : 1 vvp_fun_signal4_aa::recv_vec4_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, unsigned int, unsigned int, void**)  (in vvp) + 332  [0x100a3a2ec]
+                          + !   : | + ! :   1 vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp) + 0  [0x1008c74f0]
+                          + !   : | + ! 1 ???  (in <unknown binary>)  [0x1a2cf052c]
+                          + !   : | + ! 1 class_type::get_vec4(class_type::inst_x*, unsigned long, vvp_vector4_t&, unsigned long) const  (in vvp) + 256  [0x1008f0510]
+                          + !   : | + ! 1 of_ALLOC(vthread_s*, vvp_code_s*)  (in vvp) + 204  [0x10095cc28]
+                          + !   : | + ! : 1 vthread_alloc_context(__vpiScope*)  (in vvp) + 352  [0x10095d330]
+                          + !   : | + ! :   1 std::__hash_table<void**>::__emplace_unique[abi:nqe220106]<void** const&>(void** const&)::'lambda'(void** const&, void** const&)::operator()(void** const&, void** const&) const  (in vvp) + 168  [0x100a0aa9c]
+                          + !   : | + ! :     1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! :       1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x19b2ba0f8]
+                          + !   : | + ! :         1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 340  [0x19b2ba9e4]
+                          + !   : | + ! :           1 _xzm_xzone_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 188  [0x19b2ba55c]
+                          + !   : | + ! 1 of_DISABLE_FLOW(vthread_s*, vvp_code_s*)  (in vvp) + 48  [0x10096e8c4]
+                          + !   : | + ! : 1 vpi_get_str  (in vvp) + 316  [0x100b1f510]
+                          + !   : | + ! :   1 __vpiScope::vpi_get_str(int)  (in vvp) + 288  [0x100b240ec]
+                          + !   : | + ! :     1 simple_set_rbuf_str(char const*)  (in vvp) + 100  [0x100b28904]
+                          + !   : | + ! :       1 _platform_strcpy  (in libsystem_platform.dylib) + 188  [0x19b4a4ecc]
+                          + !   : | + ! 1 of_END(vthread_s*, vvp_code_s*)  (in vvp) + 1284  [0x100970a2c]
+                          + !   : | + ! : 1 std::__tree<vthread_s*>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<vthread_s*, void*>*)  (in vvp) + 72  [0x1009d39cc]
+                          + !   : | + ! 1 of_FREE(vthread_s*, vvp_code_s*)  (in vvp) + 972  [0x10097419c]
+                          + !   : | + ! : 1 __dynamic_cast  (in libc++abi.dylib) + 204  [0x19b43f624]
+                          + !   : | + ! :   1 __cxxabiv1::(anonymous namespace)::dyn_cast_try_downcast(void const*, void const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, long, bool)  (in libc++abi.dylib) + 144  [0x19b452c78]
+                          + !   : | + ! :     1 __cxxabiv1::__vmi_class_type_info::search_above_dst(__cxxabiv1::__dynamic_cast_info*, void const*, void const*, int, bool) const  (in libc++abi.dylib) + 260  [0x19b43ff28]
+                          + !   : | + ! :       1 __cxxabiv1::__vmi_class_type_info::search_above_dst(__cxxabiv1::__dynamic_cast_info*, void const*, void const*, int, bool) const  (in libc++abi.dylib) + 348  [0x19b43ff80]
+                          + !   : | + ! 1 of_FREE(vthread_s*, vvp_code_s*)  (in vvp) + 1140  [0x100974244]
+                          + !   : | + ! : 1 context_live_in_owner(void**)  (in vvp) + 180  [0x10095c094]
+                          + !   : | + ! 1 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 236  [0x10098b110]
+                          + !   : | + ! : 1 vvp_fun_signal_object_aa::get_root_object() const  (in vvp) + 32  [0x100a45cac]
+                          + !   : | + ! :   1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + !   : | + ! :     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 140  [0x10095affc]
+                          + !   : | + ! 1 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 1340  [0x10098b560]
+                          + !   : | + ! : 1 std::deque<vvp_object_t>::push_back(vvp_object_t const&)  (in vvp) + 72  [0x1009d4e40]
+                          + !   : | + ! :   1 std::deque<vvp_object_t>::__add_back_capacity()  (in vvp) + 188  [0x1009d513c]
+                          + !   : | + ! :     1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! :       1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 260  [0x19b2ba0b8]
+                          + !   : | + ! :         1 _malloc_ulock_self_owner_value  (in libsystem_malloc.dylib) + 4  [0x19b2ba884]
+                          + !   : | + ! 1 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 1408  [0x10098b5a4]
+                          + !   : | + ! : 1 std::deque<vvp_net_t*>::__add_back_capacity()  (in vvp) + 188  [0x1009d5898]
+                          + !   : | + ! :   1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! :     1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x19b2ba0f8]
+                          + !   : | + ! :       1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 340  [0x19b2ba9e4]
+                          + !   : | + ! :         1 _xzm_xzone_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 76  [0x19b2ba4ec]
+                          + !   : | + ! 1 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 1788  [0x10098b720]
+                          + !   : | + ! : 1 vvp_object::pointer_is_live(vvp_object const*)  (in vvp) + 136  [0x100a4d148]
+                          + !   : | + ! 1 of_MOD(vthread_s*, vvp_code_s*)  (in vvp) + 300  [0x100990fb8]
+                          + !   : | + ! : 1 vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp) + 80  [0x1008c7540]
+                          + !   : | + ! 1 of_POP_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 20  [0x10099d930]
+                          + !   : | + ! : 1 vthread_s::pop_object(unsigned int, unsigned int)  (in vvp) + 912  [0x10092e4fc]
+                          + !   : | + ! :   1 std::deque<vvp_object_t>::__erase_to_end(std::__deque_iterator<vvp_object_t, vvp_object_t const*, vvp_object_t const&, vvp_object_t const* const*, long, 512l>)  (in vvp) + 108  [0x1009d6574]
+                          + !   : | + ! 1 of_PROP_V(vthread_s*, vvp_code_s*)  (in vvp) + 804  [0x1009a36a0]
+                          + !   : | + ! : 1 event_expr_record_property_read_(vthread_s*, vvp_object_t const&, unsigned int, unsigned int)  (in vvp) + 20  [0x10099f5c8]
+                          + !   : | + ! 1 of_RET_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 764  [0x1009b02ec]
+                          + !   : | + ! : 1 resize_rval_vec(vvp_vector4_t&, long long&, unsigned int)  (in vvp) + 0  [0x10095e184]
+                          + !   : | + ! 1 of_SHIFTR(vthread_s*, vvp_code_s*)  (in vvp) + 516  [0x1009b4394]
+                          + !   : | + ! : 1 vthread_s::push_vec4(vvp_vector4_t const&)  (in vvp) + 208  [0x10092b740]
+                          + !   : | + ! 1 of_SHIFTR(vthread_s*, vvp_code_s*)  (in vvp) + 540  [0x1009b43ac]
+                          + !   : | + ! : 1 _xzm_free_main  (in libsystem_malloc.dylib) + 684  [0x19b2c1168]
+                          + !   : | + ! 1 of_STORE_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 808  [0x1009b70d4]
+                          + !   : | + ! : 1 vvp_send_object(vvp_sub_pointer_t<vvp_net_t>, vvp_object_t, void**)  (in vvp) + 340  [0x1008d93ec]
+                          + !   : | + ! :   1 vvp_object::pointer_is_live(vvp_object const*)  (in vvp) + 88  [0x100a4d118]
+                          + !   : | + ! 1 of_STORE_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 980  [0x1009c9344]
+                          + !   : | + ! : 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 84  [0x1008c7a04]
+                          + !   : | + ! :   1 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 1812  [0x100a47fbc]
+                          + !   : | + ! :     1 _xzm_free_main  (in libsystem_malloc.dylib) + 332  [0x19b2c1008]
+                          + !   : | + ! 1 of_STORE_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 904  [0x1009c92f8]
+                          + !   : | + 3 vthread_run(vthread_s*)  (in vvp) + 2564  [0x10092cf10]
+                          + !   : | + ! 1 copy_method_ports_to_context_(__vpiScope*, vthread_s*, __vpiScope*, void**, bool)  (in vvp) + 2232  [0x100a0c8e8]
+                          + !   : | + ! 1 do_join(vthread_s*, vthread_s*)  (in vvp) + 88  [0x100958534]
+                          + !   : | + ! : 1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + !   : | + ! :   1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   : | + ! :     1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 832  [0x19b2b8d8c]
+                          + !   : | + ! 1 do_join(vthread_s*, vthread_s*)  (in vvp) + 1496  [0x100958ab4]
+                          + !   : | + !   1 vpiScopeFunction::get_type_code() const  (in vvp) + 0  [0x100b27ac0]
+                          + !   : | + 1 vthread_run(vthread_s*)  (in vvp) + 3180  [0x10092d178]
+                          + !   : | 1 do_fork_(vthread_s*, vvp_code_s*, bool)  (in vvp) + 48  [0x10097302c]
+                          + !   : |   1 vthread_new_(vvp_code_s*, __vpiScope*, bool)  (in vvp) + 800  [0x100956d80]
+                          + !   : |     1 vvp_object::register_live_ptr_(vvp_object const*)  (in vvp) + 48  [0x100a4d084]
+                          + !   : |       1 std::__hash_table<vvp_object const*>::__emplace_unique[abi:nqe220106]<vvp_object const* const&>(vvp_object const* const&)::'lambda'(vvp_object const* const&, vvp_object const* const&)::operator()(vvp_object const* const&, vvp_object const* const&) const  (in vvp) + 24  [0x100a4efb0]
+                          + !   : 4 of_FREE(vthread_s*, vvp_code_s*)  (in vvp) + 972  [0x10097419c]
+                          + !   : | 3 vthread_free_context(void**, __vpiScope*)  (in vvp) + 1140  [0x100974868]
+                          + !   : | + 2 __cxxabiv1::(anonymous namespace)::dyn_cast_slow(void const*, void const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, long)  (in libc++abi.dylib) + 136  [0x19b452d20]
+                          + !   : | + ! 1 __cxxabiv1::__vmi_class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib) + 160  [0x19b43fa9c]
+                          + !   : | + ! : 1 __cxxabiv1::__class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib) + 40  [0x19b43fd24]
+                          + !   : | + ! 1 __cxxabiv1::__vmi_class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib) + 584  [0x19b43fc44]
+                          + !   : | + !   1 __cxxabiv1::__vmi_class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib) + 296  [0x19b43fb24]
+                          + !   : | + !     1 std::type_info::operator==[abi:nqe220106](std::type_info const&) const  (in libc++abi.dylib) + 24  [0x19b452e80]
+                          + !   : | + 1 __cxxabiv1::(anonymous namespace)::dyn_cast_slow(void const*, void const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, long)  (in libc++abi.dylib) + 124  [0x19b452d14]
+                          + !   : | 1 vthread_free_context(void**, __vpiScope*)  (in vvp) + 196  [0x1009744b8]
+                          + !   : 1 of_ALLOC(vthread_s*, vvp_code_s*)  (in vvp) + 356  [0x10095ccc0]
+                          + !   : | 1 context_in_stacked_chain_(void**, void**)  (in vvp) + 264  [0x10095d4a0]
+                          + !   : |   1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 40  [0x100a0a1bc]
+                          + !   : |     1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 52  [0x100a0a1c8]
+                          + !   : |       1 _xzm_free_main  (in libsystem_malloc.dylib) + 288  [0x19b2c0fdc]
+                          + !   : 1 of_JOIN(vthread_s*, vvp_code_s*)  (in vvp) + 132  [0x100976784]
+                          + !   : | 1 do_join(vthread_s*, vthread_s*)  (in vvp) + 136  [0x100958564]
+                          + !   : |   1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 760  [0x10095b268]
+                          + !   : |     1 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 52  [0x100a0a1c8]
+                          + !   : |       1 _free  (in libsystem_malloc.dylib) + 76  [0x19b2c515c]
+                          + !   : 1 of_LOAD_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 256  [0x10098feb4]
+                          + !   :   1 vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&) const  (in vvp) + 48  [0x100a3a640]
+                          + !   :     1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 32  [0x10095b62c]
+                          + !   1 vthread_run(vthread_s*)  (in vvp) + 1252  [0x10092c9f0]
+                          + 6 of_VPI_CALL(vthread_s*, vvp_code_s*)  (in vvp) + 532  [0x1009cb178]
+                          + ! 6 vpip_execute_vpi_call(vthread_s*, __vpiHandle*)  (in vvp) + 124  [0x100b2f838]
+                          + !   4 isunknown_calltf  (in v2009.vpi) + 112  [0x100f9d76c]
+                          + !   : 4 vpi_get_value  (in vvp) + 64  [0x100b20750]
+                          + !   :   4 format_vpiVectorVal(vvp_signal_value const*, int, unsigned int, t_vpi_value*)  (in vvp) + 236  [0x100b2a8fc]
+                          + !   :     4 vvp_fun_signal4_aa::value(unsigned int) const  (in vvp) + 32  [0x100a3a42c]
+                          + !   :       4 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + !   :         2 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 760  [0x10095b268]
+                          + !   :         | 2 std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 0,68  [0x100a0a194,0x100a0a1d8]
+                          + !   :         1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + !   :         | 1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !   :         |   1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 672  [0x19b2b8cec]
+                          + !   :         1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 488  [0x10095b158]
+                          + !   1 isunknown_calltf  (in v2009.vpi) + 164  [0x100f9d7a0]
+                          + !   : 1 put_scalar_value  (in system.vpi) + 40  [0x101b8a274]
+                          + !   :   1 vpi_put_value  (in vvp) + 400  [0x100b20a10]
+                          + !   1 isunknown_calltf  (in v2009.vpi) + 0  [0x100f9d6fc]
+                          + 3 of_STORE_PROP_V(vthread_s*, vvp_code_s*)  (in vvp) + 936  [0x1009bc3e8]
+                          + ! 3 notify_mutated_object_root_(vthread_s*, vvp_object_t const&, vvp_net_t*, vvp_object_t const&, char const*)  (in vvp) + 1000  [0x100931d6c]
+                          + !   3 notify_mutated_object_root_(vthread_s*, vvp_object_t const&, vvp_net_t*, vvp_object_t const&, char const*)::$_0::operator()(vvp_object_t const&) const  (in vvp) + 516  [0x100a103d0]
+                          + !     3 vvp_fun_signal_object_aa::peek_object() const  (in vvp) + 32  [0x100a45990]
+                          + !       3 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + !         1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + !         : 1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !         :   1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 672  [0x19b2b8cec]
+                          + !         1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 248  [0x10095b068]
+                          + !         : 1 std::__tree_balance_after_insert[abi:nqe220106]<std::__tree_node_base<void*>*>(std::__tree_node_base<void*>*, std::__tree_node_base<void*>*)  (in vvp) + 356  [0x1008d7e24]
+                          + !         1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 240  [0x10095b060]
+                          + 2 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 196  [0x10098b0e8]
+                          + ! 1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 1164  [0x10095ba98]
+                          + ! 1 vvp_fun_signal_object_aa::get_object() const  (in vvp) + 44  [0x100a45594]
+                          + !   1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 552  [0x10095b834]
+                          + !     1 context_live_matches_scope_(void**, __vpiScope*)  (in vvp) + 0  [0x100958300]
+                          + 2 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 236  [0x10098b110]
+                          + ! 1 vvp_fun_signal_object_aa::get_root_object() const  (in vvp) + 32  [0x100a45cac]
+                          + ! : 1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + ! :   1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + ! :     1 DYLD-STUB$$operator new(unsigned long)  (in vvp) + 4  [0x100b444b0]
+                          + ! 1 vvp_fun_signal_object_aa::get_root_object() const  (in vvp) + 300  [0x100a45db8]
+                          + !   1 vvp_object::pointer_is_live(vvp_object const*)  (in vvp) + 88  [0x100a4d118]
+                          + 2 of_LOAD_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 256  [0x10098feb4]
+                          + ! 2 vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&) const  (in vvp) + 48  [0x100a3a640]
+                          + !   2 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+                          + !     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+                          + !     : 1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !     :   1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 764  [0x19b2b8d48]
+                          + !     1 first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 388  [0x10095b0f4]
+                          + 1 __dynamic_cast  (in libc++abi.dylib) + 96  [0x19b43f5b8]
+                          + ! 1 std::type_info::operator==[abi:nqe220106](std::type_info const&) const  (in libc++abi.dylib) + 16  [0x19b452e78]
+                          + 1 __dynamic_cast  (in libc++abi.dylib) + 288  [0x19b43f678]
+                          + 1 of_AA_LOAD_OBJ_V(vthread_s*, vvp_code_s*)  (in vvp) + 140  [0x10097cc40]
+                          + ! 1 vvp_assoc_map<vvp_object_t>::get(vvp_vector4_t const&, vvp_object_t&) const  (in vvp) + 52  [0x1009fd738]
+                          + !   1 vvp_assoc_base::vec4_key_(vvp_vector4_t const&)  (in vvp) + 128  [0x100a52998]
+                          + 1 of_AA_LOAD_V_V(vthread_s*, vvp_code_s*)  (in vvp) + 172  [0x10097e664]
+                          + ! 1 vvp_assoc_map<vvp_vector4_t>::get(vvp_vector4_t const&, vvp_vector4_t&) const  (in vvp) + 52  [0x100a00e64]
+                          + !   1 vvp_assoc_base::vec4_key_(vvp_vector4_t const&)  (in vvp) + 52  [0x100a5294c]
+                          + !     1 std::basic_string<char>::append(unsigned long, char)  (in libc++.1.dylib) + 120  [0x19b3aac84]
+                          + !       1 std::basic_string<char>::__grow_by(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long)  (in libc++.1.dylib) + 104  [0x19b3aad48]
+                          + !         1 $_0::operator()() const::'lambda0'(unsigned long, std::__type_descriptor_t)::__invoke(unsigned long, std::__type_descriptor_t)  (in libc++abi.dylib) + 16  [0x19b453080]
+                          + !           1 operator_new_impl[abi:nqe220106](unsigned long, std::__type_descriptor_t)  (in libc++abi.dylib) + 36  [0x19b4530b4]
+                          + !             1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 264  [0x19b2bf910]
+                          + 1 of_ALLOC(vthread_s*, vvp_code_s*)  (in vvp) + 204  [0x10095cc28]
+                          + ! 1 vthread_alloc_context(__vpiScope*)  (in vvp) + 352  [0x10095d330]
+                          + !   1 std::__hash_table<void**>::__emplace_unique[abi:nqe220106]<void** const&>(void** const&)::'lambda'(void** const&, void** const&)::operator()(void** const&, void** const&) const  (in vvp) + 168  [0x100a0aa9c]
+                          + !     1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+                          + !       1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x19b2ba0f8]
+                          + !         1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 332  [0x19b2ba9dc]
+                          + 1 of_ALLOC(vthread_s*, vvp_code_s*)  (in vvp) + 28  [0x10095cb78]
+                          + 1 of_CALLF_VEC4_V(vthread_s*, vvp_code_s*)  (in vvp) + 220  [0x1009619dc]
+                          + ! 1 virtual_dispatch_trace_enabled_()  (in vvp) + 100  [0x100a0b690]
+                          + 1 of_CAST2(vthread_s*, vvp_code_s*)  (in vvp) + 164  [0x1009641c8]
+                          + 1 of_FREE(vthread_s*, vvp_code_s*)  (in vvp) + 792  [0x1009740e8]
+                          + ! 1 remove_context_from_stacked_chain_(void**, void**)  (in vvp) + 212  [0x10095d5b0]
+                          + 1 of_JOIN(vthread_s*, vvp_code_s*)  (in vvp) + 132  [0x100976784]
+                          + ! 1 do_join(vthread_s*, vthread_s*)  (in vvp) + 2980  [0x100959080]
+                          + !   1 vthread_reap(vthread_s*)  (in vvp) + 1232  [0x1009711ac]
+                          + !     1 _xzm_free_main  (in libsystem_malloc.dylib) + 268  [0x19b2c0fc8]
+                          + 1 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 212  [0x10098b0f8]
+                          + ! 1 vvp_fun_signal_object_aa::get_root_net() const  (in vvp) + 24  [0x100a45c10]
+                          + !   1 vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 200  [0x10095b6d4]
+                          + !     1 load_str_trace_scope_match_(__vpiScope*)  (in vvp) + 40  [0x10095bad4]
+                          + 1 of_LOAD_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 1352  [0x10098b56c]
+                          + ! 1 std::deque<vvp_object_t>::push_back(vvp_object_t const&)  (in vvp) + 296  [0x1009d4f20]
+                          + !   1 vvp_object::pointer_is_live(vvp_object const*)  (in vvp) + 0  [0x100a4d0c0]
+                          + 1 of_LOAD_QO_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 44  [0x10097c054]
+                          + ! 1 vthread_s::pop_object(vvp_object_t&)  (in vvp) + 324  [0x10092f60c]
+                          + 1 of_POP_OBJ(vthread_s*, vvp_code_s*)  (in vvp) + 20  [0x10099d930]
+                          + ! 1 vthread_s::pop_object(unsigned int, unsigned int)  (in vvp) + 940  [0x10092e518]
+                          + 1 of_PROP_INDEX_CHECK(vthread_s*, vvp_code_s*)  (in vvp) + 64  [0x10099e250]
+                          + 1 of_STORE_PROP_V(vthread_s*, vvp_code_s*)  (in vvp) + 588  [0x1009bc28c]
+                          + ! 1 vvp_cobject::set_vec4(unsigned long, vvp_vector4_t const&, unsigned long)  (in vvp) + 264  [0x100a5c78c]
+                          + !   1 property_atom<unsigned int>::get_vec4(char*, vvp_vector4_t&, unsigned long long)  (in vvp) + 100  [0x1008ff9ac]
+                          + !     1 vvp_vector4_t::setarray(unsigned int, unsigned int, unsigned long const*)  (in vvp) + 92  [0x100a2e6dc]
+                          + 1 of_STORE_VEC4(vthread_s*, vvp_code_s*)  (in vvp) + 68  [0x1009c8fb4]
+                          +   1 automatic_signal_base::as_signal_value()  (in vvp) + 0  [0x100a4a98c]
+                          3 vthread_run(vthread_s*)  (in vvp) + 2656  [0x10092cf6c]
+                          + 2 vthread_delete(vthread_s*)  (in vvp) + 220  [0x1009570ec]
+                          + ! 2 vthread_s::cleanup()  (in vvp) + 140  [0x1009571a0]
+                          + !   2 release_owned_context_(vthread_s*)  (in vvp) + 716  [0x100a09b10]
+                          + !     1 __cxxabiv1::(anonymous namespace)::dyn_cast_try_downcast(void const*, void const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, long, bool)  (in libc++abi.dylib) + 172  [0x19b452c94]
+                          + !     1 vthread_free_context(void**, __vpiScope*)  (in vvp) + 1184  [0x100974894]
+                          + !       1 __cxxabiv1::(anonymous namespace)::dyn_cast_slow(void const*, void const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, long)  (in libc++abi.dylib) + 136  [0x19b452d20]
+                          + !         1 __cxxabiv1::__vmi_class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib) + 584  [0x19b43fc44]
+                          + !           1 __cxxabiv1::__class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib) + 292  [0x19b43fe20]
+                          + 1 vthread_delete(vthread_s*)  (in vvp) + 232  [0x1009570f8]
+                          +   1 vthread_s::~vthread_s()  (in vvp) + 420  [0x100a09cf8]
+                          +     1 std::__tree<vthread_s*>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<vthread_s*, void*>*)  (in vvp) + 0  [0x1009d3984]
+                          1 vthread_run(vthread_s*)  (in vvp) + 2564  [0x10092cf10]
+                            1 do_join(vthread_s*, vthread_s*)  (in vvp) + 248  [0x1009585d4]
+                              1 lookup_scope_item_(__vpiScope*, char const*)  (in vvp) + 136  [0x100a0b720]
+                                1 vpi_get_str  (in vvp) + 316  [0x100b1f510]
+                                  1 __vpiSignal::vpi_get_str(int)  (in vvp) + 176  [0x100b2b580]
+                                    1 _platform_memmove  (in libsystem_platform.dylib) + 452  [0x19b4a7f24]
+
+Total number in stack (recursive counted multiple, when >=5):
+        15       operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+        8       <deduplicated_symbol>  (in libsystem_malloc.dylib) + 0  [0x19b2bf808]
+        8       _xzm_free_main  (in libsystem_malloc.dylib) + 0  [0x19b2c0ebc]
+        8       first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 204  [0x10095b03c]
+        8       vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)  (in vvp) + 592  [0x10095b85c]
+        7       first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 0  [0x10095af70]
+        6       _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 0  [0x19b2b8a4c]
+        5       find_scope(char const*, __vpiHandle*, int)  (in vvp) + 700  [0x100b21e44]
+        5       first_live_context_for_scope(void**, __vpiScope*)  (in vvp) + 760  [0x10095b268]
+        5       std::__tree<void**>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<void**, void*>*)  (in vvp) + 52  [0x100a0a1c8]
+        5       vthread_run(vthread_s*)  (in vvp) + 1280  [0x10092ca0c]
+
+Sort by top of stack, same collapsed (when >= 5):
+        vvp_assoc_map<vvp_vector4_t>::compare_vec_keys_(vvp_vector4_t const&, vvp_vector4_t const&, bool)  (in vvp)        6753
+        vvp_assoc_map<vvp_vector4_t>::next_key_(std::map<std::basic_string<char>, vvp_assoc_map<vvp_vector4_t>::vec_entry_t> const&, vvp_vector4_t&, bool)  (in vvp)        780
+        <deduplicated_symbol>  (in libsystem_malloc.dylib)        9
+        _xzm_free_main  (in libsystem_malloc.dylib)        8
+        dpi_call_common_(vthread_s*, vvp_code_s*, char, unsigned int, char, bool, dpi_import_kind_t)  (in vvp)        7
+        first_live_context_for_scope(void**, __vpiScope*)  (in vvp)        7
+        _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib)        6
+
+Binary Images:
+       0x1008bc000 -        0x100b9aa4f +vvp (0) <DE8A31AF-3748-32C5-8118-7DCE5AE7DCDC> /Users/*/vvp
+       0x100ee8000 -        0x100ef8557 +libffi.8.dylib (0) <B9483517-EE77-37A2-AEC0-5B6D32ED34D0> /opt/homebrew/*/libffi.8.dylib
+       0x100f08000 -        0x100f0a977 +vhdl_sys.vpi (0) <66591C30-B4A1-3D30-A0F3-3AE55F262BDC> /Users/*/vhdl_sys.vpi
+       0x100f20000 -        0x100f28f27 +matrix-dpi.so (0) <23E5F341-8441-3CE6-9459-2F41EFCFAF9F> /tmp/*/matrix-dpi.so
+       0x100f38000 -        0x100f4069b +uvm_dpi.vpi (0) <E20FE653-D599-372D-BEE0-D82ADAE27F41> /Users/*/uvm_dpi.vpi
+       0x100f50000 -        0x100f5191f +v2005_math.vpi (0) <5EC4D4BD-6350-3C15-A08A-19081072DC27> /Users/*/v2005_math.vpi
+       0x100f64000 -        0x100f684c7 +vhdl_textio.vpi (0) <0E6CDA13-9C1E-32AD-82A9-A336839E9851> /Users/*/vhdl_textio.vpi
+       0x100f78000 -        0x100f79373 +va_math.vpi (0) <29DD9CB3-2350-3399-93F6-CD39C921ED28> /Users/*/va_math.vpi
+       0x100f9c000 -        0x100fa2723 +v2009.vpi (0) <82951491-DA86-3EDD-BC80-2FA812B13B58> /Users/*/v2009.vpi
+       0x101010000 -        0x10109feb7 +libssl.3.dylib (0) <7860C2A2-633C-31BF-BACA-BCC36CA7B5D4> /opt/homebrew/*/libssl.3.dylib
+       0x101b6c000 -        0x101bce0d3 +system.vpi (0) <A94A21C1-272D-31BB-95A2-C9C030328D3A> /Users/*/system.vpi
+       0x1021dc000 -        0x102d5a1fb +libz3.5.1.0.0.dylib (0) <EEC282D4-133C-3CC9-8328-7FEFDC4DD713> /opt/homebrew/*/libz3.5.1.0.0.dylib
+       0x1070e4000 -        0x1074231d7 +libcrypto.3.dylib (0) <536FFF50-1802-319A-AF00-2B227B1855DE> /opt/homebrew/*/libcrypto.3.dylib
+       0x19b014000 -        0x19b0635f7  libobjc.A.dylib (973.1) <C0680DF6-9900-3C29-A071-95A031686EF8> /usr/lib/libobjc.A.dylib
+       0x19b064000 -        0x19b06e23f  libsharedcache.dylib (0) <117C1ED6-AE11-3D9E-B05B-844F35395552> /usr/lib/libsharedcache.dylib
+       0x19b06f000 -        0x19b095d3b  libdyld.dylib (27062) <62863BCA-DD60-3D32-A9DB-89099BA6F3D7> /usr/lib/system/libdyld.dylib
+       0x19b096000 -        0x19b1556e3  dyld (1.0.0 - 27062) <D341DDCB-7969-3A9C-8E03-0CF4751398A9> /usr/lib/dyld
+       0x19b156000 -        0x19b15901f  libsystem_blocks.dylib (98.1) <6F304731-D95D-3501-B4AD-F2934F7F2446> /usr/lib/system/libsystem_blocks.dylib
+       0x19b15a000 -        0x19b1af0df  libxpc.dylib (3298.1.1) <0791121F-B5FC-3F84-BF04-115E86D2D882> /usr/lib/system/libxpc.dylib
+       0x19b1b0000 -        0x19b1cfc13  libsystem_trace.dylib (1966.1.1) <B48A8E3E-A12A-3342-8321-428B555E965E> /usr/lib/system/libsystem_trace.dylib
+       0x19b1d0000 -        0x19b284f27  libcorecrypto.dylib (2109.0.22) <807AA6C9-5D8A-3CA5-B4CE-FACE5296EF6A> /usr/lib/system/libcorecrypto.dylib
+       0x19b285000 -        0x19b2dac5f  libsystem_malloc.dylib (886.0.8) <2339CB57-FE5A-3154-A206-A76059C749EB> /usr/lib/system/libsystem_malloc.dylib
+       0x19b2db000 -        0x19b32119f  libdispatch.dylib (1605.0.2) <022BF08F-0B3A-3225-9E65-16D1553CE90D> /usr/lib/system/libdispatch.dylib
+       0x19b322000 -        0x19b324d2b  libsystem_featureflags.dylib (108) <20C1CAB2-1F13-3426-8146-9CAE9FF2A33D> /usr/lib/system/libsystem_featureflags.dylib
+       0x19b325000 -        0x19b3a7ca3  libsystem_c.dylib (1786.0.3) <FBA7B23E-AA60-3A90-9AA4-A7A2E0AD63EE> /usr/lib/system/libsystem_c.dylib
+       0x19b3a8000 -        0x19b43d033  libc++.1.dylib (2200.27) <1E9BA4AA-B5DA-3CF3-80AC-4B880049573F> /usr/lib/libc++.1.dylib
+       0x19b43e000 -        0x19b457eff  libc++abi.dylib (2200.27) <A21743EE-6E1C-3E74-97EA-7AF793DE4BDF> /usr/lib/libc++abi.dylib
+       0x19b458000 -        0x19b4969ab  libsystem_kernel.dylib (13432.1.9) <F63BF418-8F75-34A4-AAF1-8CAF2B9B6A05> /usr/lib/system/libsystem_kernel.dylib
+       0x19b497000 -        0x19b4a391b  libsystem_pthread.dylib (553.0.1) <5A1828C3-CBC2-3B85-BD07-C8ED10021A41> /usr/lib/system/libsystem_pthread.dylib
+       0x19b4a4000 -        0x19b4ad4f3  libsystem_platform.dylib (402.0.1.0.1) <080E4444-A0FB-3913-9756-4E470015F32F> /usr/lib/system/libsystem_platform.dylib
+       0x19b4ae000 -        0x19b4dc903  libsystem_info.dylib (603) <BC387AEB-1CEF-3513-92D7-D7F913596711> /usr/lib/system/libsystem_info.dylib
+       0x19f606000 -        0x19f60fb13  libsystem_darwin.dylib (1786.0.3) <4E66C888-993C-3E6A-A8DA-A949C01C5B67> /usr/lib/system/libsystem_darwin.dylib
+       0x19fa60000 -        0x19fa71b8b  libsystem_notify.dylib (368) <58FD36D8-37A7-311C-80F2-8E64DD8710CF> /usr/lib/system/libsystem_notify.dylib
+       0x1a1bbd000 -        0x1a1bd7d93  libsystem_networkextension.dylib (2340.1.2) <22E1D190-486F-324F-ABA4-F36AB841BFE9> /usr/lib/system/libsystem_networkextension.dylib
+       0x1a1c65000 -        0x1a1c7c247  libsystem_asl.dylib (409) <B4D449B7-A821-3A9A-8019-E917B291F10A> /usr/lib/system/libsystem_asl.dylib
+       0x1a2c10000 -        0x1a2c10f2f  libobjcMsgSend.dylib (973.1) <41179EDE-DC97-3BBE-8848-6400D12C1436> /usr/lib/objc/libobjcMsgSend.dylib
+       0x1a3d5c000 -        0x1a3d63edf  libsystem_symptoms.dylib (2394.0.4) <60EE7884-9F4E-3184-A6AC-FA40A7A0297D> /usr/lib/system/libsystem_symptoms.dylib
+       0x1a80f4000 -        0x1a812eaeb  libsystem_containermanager.dylib (833.0.8.0.1) <08A57205-555D-3792-8931-9D5B585AF326> /usr/lib/system/libsystem_containermanager.dylib
+       0x1a9747000 -        0x1a974b317  libsystem_configuration.dylib (1446) <F3EB66A7-7A24-3AE5-B6E8-9A37BB00F119> /usr/lib/system/libsystem_configuration.dylib
+       0x1a974c000 -        0x1a9752e03  libsystem_sandbox.dylib (3051.0.52) <1E892B56-092E-3832-BDE3-DCE356D7A4FA> /usr/lib/system/libsystem_sandbox.dylib
+       0x1aac10000 -        0x1aac10f2f  libobjcMsgSend1.dylib (973.1) <B40D9B2A-E1EE-37ED-8004-711A1F263DE1> /usr/lib/objc/libobjcMsgSend1.dylib
+       0x1ab330000 -        0x1ab332f93  libquarantine.dylib (217.0.4) <7FD4AE22-86EF-382B-83F5-ADF9336C1160> /usr/lib/system/libquarantine.dylib
+       0x1aba35000 -        0x1aba4148b  libbz2.1.0.dylib (49) <C53E464D-6E83-37EE-8454-ACC2C20EF446> /usr/lib/libbz2.1.0.dylib
+       0x1aba42000 -        0x1aba481e7  libsystem_coreservices.dylib (203) <57248E07-11A5-3857-918E-4A3A63B69FE8> /usr/lib/system/libsystem_coreservices.dylib
+       0x1abffb000 -        0x1ac009b87  libz.1.dylib (105) <09881E57-159D-3E5F-B9EB-B708249AC31E> /usr/lib/libz.1.dylib
+       0x1ac00a000 -        0x1ac047b27  libsystem_m.dylib (3326.0.1) <A3FB340F-3ED5-30F4-8B64-9D5860F64D35> /usr/lib/system/libsystem_m.dylib
+       0x1ac049000 -        0x1ac04c4f7  libmacho.dylib (27062) <50DEADEC-3E99-3519-AFC3-4A3FEB3F14C3> /usr/lib/system/libmacho.dylib
+       0x1ac066000 -        0x1ac072707  libcommonCrypto.dylib (600041) <41C99F45-C5E6-39DB-B1F2-A1BEA9D242A4> /usr/lib/system/libcommonCrypto.dylib
+       0x1ac073000 -        0x1ac07cc87  libunwind.dylib (2200.5) <3070AB81-B082-39E8-8A00-EF88DDE9AC47> /usr/lib/system/libunwind.dylib
+       0x1ac084000 -        0x1ac08e7eb  libcopyfile.dylib (260.0.3) <72D95AF9-BF5E-3A84-81A6-BCC5BDB99857> /usr/lib/system/libcopyfile.dylib
+       0x1ac08f000 -        0x1ac0928bf  libcompiler_rt.dylib (103.4) <DFB5CE7F-A36E-36AA-BECE-1392D3D43607> /usr/lib/system/libcompiler_rt.dylib
+       0x1ac093000 -        0x1ac098077  libsystem_collections.dylib (1786.0.3) <1E8022D4-5A37-3A7A-8936-603E6FA88358> /usr/lib/system/libsystem_collections.dylib
+       0x1ac099000 -        0x1ac09bf1f  libsystem_secinit.dylib (182) <DE037464-4C5D-3E96-A33F-2A4557CC6A20> /usr/lib/system/libsystem_secinit.dylib
+       0x1ac09c000 -        0x1ac09e97f  libremovefile.dylib (96) <E6E6DFCF-6B2C-3F30-A59D-816CAB1190CE> /usr/lib/system/libremovefile.dylib
+       0x1ac09f000 -        0x1ac09fe27  libkeymgr.dylib (31) <5EC997EF-3ADA-360B-9FCD-5F940C83FA4E> /usr/lib/system/libkeymgr.dylib
+       0x1ac0a0000 -        0x1ac0a8af7  libsystem_dnssd.dylib (3111.0.5.0.1) <DE22096F-1E5B-3D6E-8164-771582DD6391> /usr/lib/system/libsystem_dnssd.dylib
+       0x1ac0a9000 -        0x1ac0adf1b  libcache.dylib (95) <80BAE197-E285-3F6E-A1EE-B77FE37D7E5D> /usr/lib/system/libcache.dylib
+       0x1ac0ae000 -        0x1ac0af8f3  libSystem.B.dylib (1359) <4FDC9AA6-B344-37FE-B8C6-A4C94A038F57> /usr/lib/libSystem.B.dylib
+       0x1b2c10000 -        0x1b2c10f2f  libobjcMsgSend2.dylib (973.1) <BD27A84B-C9AE-3282-BBEA-3B6119837B5A> /usr/lib/objc/libobjcMsgSend2.dylib
+       0x1bac10000 -        0x1bac10f2f  libobjcMsgSend3.dylib (973.1) <C0860D68-DDFC-3BD7-8B06-DB0645CBBED4> /usr/lib/objc/libobjcMsgSend3.dylib
+       0x1c2c10000 -        0x1c2c10f2f  libobjcMsgSend4.dylib (973.1) <A6153BF5-622B-3B01-81B6-F64A365EF613> /usr/lib/objc/libobjcMsgSend4.dylib
+       0x1cac10000 -        0x1cac10f2f  libobjcMsgSend5.dylib (973.1) <3913A71C-B29A-3AEA-820B-BEC40AC1861A> /usr/lib/objc/libobjcMsgSend5.dylib
+       0x1d0cb6000 -        0x1d0cf277b  libncurses.5.4.dylib (81) <0DF50E07-5220-3B89-BBC1-967D9225A75F> /usr/lib/libncurses.5.4.dylib
+       0x1d2c10000 -        0x1d2c10f2f  libobjcMsgSend6.dylib (973.1) <9BC523A3-E167-3F6C-8CAE-0F3EBA671791> /usr/lib/objc/libobjcMsgSend6.dylib
+       0x1dac10000 -        0x1dac10f2f  libobjcMsgSend7.dylib (973.1) <248B7BCE-5B4C-34C7-A340-43D5228628C5> /usr/lib/objc/libobjcMsgSend7.dylib
+       0x1e2c10000 -        0x1e2c10f2f  libobjcMsgSend8.dylib (973.1) <3E041BAD-A8E8-3069-B741-78CD1A45B176> /usr/lib/objc/libobjcMsgSend8.dylib
+       0x1eac10000 -        0x1eac10f2f  libobjcMsgSend9.dylib (973.1) <34A67969-21A0-39D6-BB81-8FDA5A2409DB> /usr/lib/objc/libobjcMsgSend9.dylib
+       0x1f2c10000 -        0x1f2c10f2f  libobjcMsgSend10.dylib (973.1) <678186C0-8EAD-3B35-8CBB-00285B41E4A0> /usr/lib/objc/libobjcMsgSend10.dylib
+       0x1f972d000 -        0x1f974a987  libedit.3.dylib (65) <9FB32838-0CCE-3870-97EE-B704D6CD28DD> /usr/lib/libedit.3.dylib
+       0x1fac10000 -        0x1fac10f2f  libobjcMsgSend11.dylib (973.1) <E05CB08C-E956-36FA-8967-AE8E346A8D2C> /usr/lib/objc/libobjcMsgSend11.dylib
+       0x222c10000 -        0x222c10f2f  libobjcMsgSend12.dylib (973.1) <10AB03AA-FF1F-3FDC-9DFB-BFC40042C501> /usr/lib/objc/libobjcMsgSend12.dylib
+       0x22ac10000 -        0x22ac10f2f  libobjcMsgSend13.dylib (973.1) <ABF53427-FA6F-3D0D-8F9D-7AD795CA5C92> /usr/lib/objc/libobjcMsgSend13.dylib
+       0x232c10000 -        0x232c10f2f  libobjcMsgSend14.dylib (973.1) <9A844C46-A6DA-34D4-8EBF-2AD775C30684> /usr/lib/objc/libobjcMsgSend14.dylib
+       0x23ac10000 -        0x23ac10f2f  libobjcMsgSend15.dylib (973.1) <7C995666-2B2D-3284-AA0A-EBF7C922838E> /usr/lib/objc/libobjcMsgSend15.dylib
+       0x242c10000 -        0x242c10f2f  libobjcMsgSend16.dylib (973.1) <B6C0E14B-53AE-3E22-9ED5-1729C49F46F2> /usr/lib/objc/libobjcMsgSend16.dylib
+       0x24ac10000 -        0x24ac10f2f  libobjcMsgSend17.dylib (973.1) <07B4CF85-251B-301B-832B-20B315A59E19> /usr/lib/objc/libobjcMsgSend17.dylib
+       0x252c10000 -        0x252c10f2f  libobjcMsgSend18.dylib (973.1) <43E575B7-04DB-3999-A633-1A3B638BA6E3> /usr/lib/objc/libobjcMsgSend18.dylib
+       0x25ac10000 -        0x25ac10f2f  libobjcMsgSend19.dylib (973.1) <736F4D85-76F7-3B28-8D87-C07E8F7A0EF4> /usr/lib/objc/libobjcMsgSend19.dylib
+       0x262c10000 -        0x262c10f2f  libobjcMsgSend20.dylib (973.1) <74E67C8B-6BCA-3184-A18E-A97F370052C6> /usr/lib/objc/libobjcMsgSend20.dylib
+       0x26ac10000 -        0x26ac10f2f  libobjcMsgSend21.dylib (973.1) <CC0D732F-98E7-3888-9E15-70984DA2FB04> /usr/lib/objc/libobjcMsgSend21.dylib
+       0x272c10000 -        0x272c10f2f  libobjcMsgSend22.dylib (973.1) <85A60286-5DE3-32BA-B18C-2A498B065C88> /usr/lib/objc/libobjcMsgSend22.dylib
+       0x27ac10000 -        0x27ac10f2f  libobjcMsgSend23.dylib (973.1) <5452A0D2-6B19-39BE-ADDD-80B7BCDE3A98> /usr/lib/objc/libobjcMsgSend23.dylib
+       0x282c10000 -        0x282c10f2f  libobjcMsgSend24.dylib (973.1) <94BBF2D6-722B-350D-8557-4D25A8E8D53A> /usr/lib/objc/libobjcMsgSend24.dylib
+       0x28ac10000 -        0x28ac10f2f  libobjcMsgSend25.dylib (973.1) <35481387-5A8E-3AE4-86A6-94CEB3CC8726> /usr/lib/objc/libobjcMsgSend25.dylib
+       0x2a2c10000 -        0x2a2c10f2f  libobjcMsgSend26.dylib (973.1) <9E0C8664-E7F4-39D1-AAFC-BD92B255E4E8> /usr/lib/objc/libobjcMsgSend26.dylib
+       0x2aac10000 -        0x2aac10f2f  libobjcMsgSend27.dylib (973.1) <FD424935-55A9-3650-955A-EED3441A1D19> /usr/lib/objc/libobjcMsgSend27.dylib
+       0x2b2c10000 -        0x2b2c10f2f  libobjcMsgSend28.dylib (973.1) <09BA7B97-7DF7-3C7F-932A-B6847662FC49> /usr/lib/objc/libobjcMsgSend28.dylib
+       0x2bac10000 -        0x2bac10f2f  libobjcMsgSend29.dylib (973.1) <36D5BA3F-2139-30B0-8558-556764BE9813> /usr/lib/objc/libobjcMsgSend29.dylib
+       0x2c2c10000 -        0x2c2c10f2f  libobjcMsgSend30.dylib (973.1) <9F05564A-9D12-372C-98FC-E9F0E6BE4F04> /usr/lib/objc/libobjcMsgSend30.dylib
+       0x2c792a000 -        0x2c7930fe5  libRosetta.dylib (385) <E359944B-D230-33F9-A04E-0C3B17C3326E> /usr/lib/libRosetta.dylib
+       0x2c8319000 -        0x2c831c75b  libsystem_darwindirectory.dylib (129.0.1) <61264923-2AA5-3658-B8C4-550C71E9D4B3> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x2c831d000 -        0x2c8327d9b  libsystem_eligibility.dylib (446.1.3) <EDDE8E9C-A2CF-3931-BBB3-321CB852EB30> /usr/lib/system/libsystem_eligibility.dylib
+       0x2c8328000 -        0x2c833142b  libsystem_sanitizers.dylib (32) <7138ED99-7AA0-34EA-B35B-20EF6ADB1EED> /usr/lib/system/libsystem_sanitizers.dylib
+       0x2c8332000 -        0x2c8332a13  libsystem_trial.dylib (511) <6AE48824-EC44-3A8C-B501-BE57DBE892E7> /usr/lib/system/libsystem_trial.dylib
+       0x2cac10000 -        0x2cac10f2f  libobjcMsgSend31.dylib (973.1) <0985E20F-78C3-3466-A2B2-DBB95F7104A3> /usr/lib/objc/libobjcMsgSend31.dylib
+       0x2d2c10000 -        0x2d2c10f2f  libobjcMsgSend32.dylib (973.1) <0D309D58-D576-3E5D-AD4B-6D55AB491702> /usr/lib/objc/libobjcMsgSend32.dylib
+       0x2dac10000 -        0x2dac10f2f  libobjcMsgSend33.dylib (973.1) <346E0484-48FA-369B-8A64-93B5F5341CFE> /usr/lib/objc/libobjcMsgSend33.dylib
+       0x2e2c10000 -        0x2e2c10f2f  libobjcMsgSend34.dylib (973.1) <6A31F809-BCBE-3E01-A367-E91FDACCE324> /usr/lib/objc/libobjcMsgSend34.dylib

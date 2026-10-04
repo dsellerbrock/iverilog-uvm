@@ -79,8 +79,8 @@ duration = round(time.monotonic() - start, 1)
 log_text = log_path.read_text(errors='replace')
 pass_marker = 'TEST PASSED CHECKS' in log_text
 failed_marker = 'TEST FAILED CHECKS' in log_text
-errors = [line for line in log_text.splitlines() if re.search(r'\bUVM_ERROR\b', line)]
-fatals = [line for line in log_text.splitlines() if re.search(r'\bUVM_FATAL\b', line)]
+errors = [line for line in log_text.splitlines() if re.match(r'^\s*UVM_ERROR\s*@', line)]
+fatals = [line for line in log_text.splitlines() if re.match(r'^\s*UVM_FATAL\s*@', line)]
 seed_match = re.search(r'DefaultSeed\s*=\s*(0x[0-9a-fA-F]+),\s*DefaultSeedLocal\s*=\s*(0x[0-9a-fA-F]+)', log_text)
 ops = re.findall(r'Starting flash_ctrl op:\s*([^\n]+)', log_text)
 markers = re.findall(r'UVM_INFO @\s*([0-9.]+ ns): \(flash_ctrl_scoreboard\.sv:[^\n]+', log_text)

@@ -63,7 +63,10 @@ and clock callbacks. `flash-sample-operation4-53m.txt` and
 `compare_vec_keys_`. These are profiler sample counts, not direct elapsed-time
 percentages. A third capture at 75 minutes (`flash-sample-operation4-75m.txt`)
 still shows 7,563 of 7,656 stacks under `of_AA_NEXT_SIG_V`, with 6,870 flat
-samples in `compare_vec_keys_`.
+samples in `compare_vec_keys_`. An automatic capture at 86 minutes
+(`flash-sample-followup-5.txt`) independently confirms the same path: 7,533 of
+7,656 stacks under the associative-array opcode and 6,753 flat comparator
+samples.
 
 The VVP image maps this opcode in
 `flash_ctrl_env_cfg.check_partition_mem_model()` to the loop over
@@ -86,10 +89,20 @@ functions with more aggressive compiler flags may help smaller costs, but it
 cannot remove the measured whole-map scan. The associative-array successor
 algorithm is the high-value optimization target.
 
-`capture-followup-samples.py` schedules additional low-overhead samples while
-the replay runs. `sample-progress.jsonl` and `sample-result.json` record which
-captures completed. The run's final status, output, peak RSS, and last
-simulation progress marker will be added here after it exits.
+`capture-followup-samples.py` scheduled additional low-overhead samples while
+the replay ran. `sample-progress.jsonl` and `sample-result.json` record which
+captures completed.
+
+## Final result
+
+The replay exited normally after 5,349.4 seconds (89m 9s), below the five-hour
+wall cap. Peak RSS was 1,748,877,312 bytes, below the 10,000,000,000-byte cap.
+All seven operation starts were recorded, the log ended with `TEST PASSED
+CHECKS`, and the UVM report summary shows zero errors and fatals. The initial
+`clean_checked_pass` value was a false negative: its classifier treated the
+summary rows `UVM_ERROR : 0` and `UVM_FATAL : 0` as failures. The classifier
+now checks actual `UVM_ERROR @` / `UVM_FATAL @` reports, and the stored result
+was re-evaluated from the completed log. It is a clean pass.
 
 ## Comparison
 

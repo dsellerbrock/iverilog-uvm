@@ -7,9 +7,11 @@ directed targets. The full run will follow the dedicated five-hour Flash replay.
 
 ## Run configuration
 
-- OpenTitan source: `/private/tmp/ot-corpus-after-fixes-20260929/source`, pinned
-  revision `a78922f14a8cc20c7ee569f322a04626f2ac6127`, with the existing
-  compatibility overlay edits.
+- OpenTitan source: `/private/tmp/ot-corpus-current-spid-passthrough-20261003/source`,
+  based on pinned revision `a78922f14a8cc20c7ee569f322a04626f2ac6127`, with the
+  existing compatibility overlay edits. The earlier source copy had a dangling
+  `top_englishbreakfast/top_pkg.core` symlink, so the validated complete copy is
+  used for this run.
 - Compiler wrapper: `/private/tmp/current-tools/bin/iverilog`; its VVP runtime
   resolves to this worktree's `vvp/vvp` executable.
 - UVM: the pinned UVM 1.2 source tree used by census11.
@@ -21,9 +23,10 @@ directed targets. The full run will follow the dedicated five-hour Flash replay.
 - OpenSSL and libelf flags are resolved through the OpenTitan Python 3.13
   environment's `pkg-config`.
 
-The exact command is in [`run-census12.sh`](run-census12.sh). Results and logs
-will be written to `result-census12.json`, `result-census12.md`, and
-`/private/tmp/pi/census12/build`.
+The exact command is in [`run-census12.sh`](run-census12.sh). Native samples are
+scheduled for every VVP runtime process that lasts at least 30 seconds, with
+additional samples at 180 and 900 seconds. Results and logs will be written to
+`result-census12.json`, `result-census12.md`, and `/private/tmp/pi/census12/build`.
 
 ## Previous coherent census
 

@@ -14,7 +14,7 @@ import time
 
 BUILD_ROOT = Path("/private/tmp/pi/census12/build")
 ROOT = Path(__file__).resolve().parent
-SAMPLE_AT = (120, 900)
+SAMPLE_AT = (30, 180, 900)
 POLL_SECONDS = 15
 PROGRESS = ROOT / "hotpath-samples.jsonl"
 
