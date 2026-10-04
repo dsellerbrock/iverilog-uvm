@@ -159,6 +159,16 @@ MATRIX_SOURCE_CORE_DEPENDENCIES = (
             "lowrisc:prim:subreg",
         ),
     ),
+    (
+        "hw/ip/prim/prim_dom_and_2share.core",
+        "lowrisc:prim:assert",
+        ("lowrisc:prim:xor2", "lowrisc:prim:flop_en"),
+    ),
+    (
+        "hw/ip/tlul/tlul_lc_gate.core",
+        "lowrisc:tlul:common",
+        ("lowrisc:tlul:socket_1n", "lowrisc:prim:sec_anchor"),
+    ),
 )
 ENGLISHBREAKFAST_MAPPING = "local:matrix:top_englishbreakfast:0.1"
 ENGLISHBREAKFAST_MAPPING_CORE = """CAPI=2:
@@ -3426,9 +3436,9 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         source_cores = []
         for relative_core, anchor, additions in MATRIX_SOURCE_CORE_DEPENDENCIES:
             source_core = source_root / relative_core
-            source_core.parent.mkdir(parents=True)
-            (source_core.parent / "rtl").mkdir()
-            (source_core.parent / "lint").mkdir()
+            source_core.parent.mkdir(parents=True, exist_ok=True)
+            (source_core.parent / "rtl").mkdir(exist_ok=True)
+            (source_core.parent / "lint").mkdir(exist_ok=True)
             source_core.write_text(
                 "CAPI=2:\nname: local:matrix:test:0.1\nfilesets:\n"
                 "  files_rtl:\n    depend:\n"
