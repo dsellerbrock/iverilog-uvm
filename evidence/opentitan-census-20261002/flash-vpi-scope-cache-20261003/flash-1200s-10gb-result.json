@@ -1,0 +1,21 @@
+{
+  "runtime": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/vvp/vvp",
+  "image": "/private/tmp/flash-read32-probe/matrix-runtime.vvp",
+  "dpi_library": "/private/tmp/pi/census11/build/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi.so",
+  "test": "flash_ctrl_base_test",
+  "sequence": "flash_ctrl_smoke_vseq",
+  "wall_cap_seconds": 1200,
+  "rss_cap_bytes": 10000000000,
+  "duration_seconds": 1201.0,
+  "returncode": 0,
+  "timed_out": true,
+  "memory_limit_hit": false,
+  "peak_rss_bytes": 1250607104,
+  "log_bytes_after_exit": 3666,
+  "log_bytes_while_running": 0,
+  "last_logged_sim_time_ns": 1414652.8,
+  "last_logged_milestone": "operation 2/3 started at 1414248.5 ns; scoreboard recorded a bank-1 Data-partition erase at 1414652.8 ns",
+  "pass_marker": false,
+  "uvm_error_or_fatal_marker": false,
+  "qualified": false
+}

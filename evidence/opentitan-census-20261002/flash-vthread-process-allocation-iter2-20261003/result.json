@@ -1,0 +1,62 @@
+{
+  "iteration": 2,
+  "candidate": "Skip vvp_process allocation for synchronous task and named-block frames, which are logical-process continuations.",
+  "candidate_retained": false,
+  "runtime_sha256": "e1e7646251e6a25cb921aed735b5c72767555cbb3b3478ae4a529d28f3f64794",
+  "baseline_runtime_sha256_after_restore": "5737616f59fbcd305e1c9baf340acd5983050c42d9024702ed632611e29ca523",
+  "flash_image_sha256": "4b25c822438e9553e50454a188f53a031f9261f212e8692f3e83aae0ba848260",
+  "dpi_library_sha256": "b77b12c4c2ff467faf5ec324affdd5e588bcb1de61f4a1ab1a951463565794eb",
+  "flash_run": {
+    "test": "flash_ctrl_base_test",
+    "sequence": "flash_ctrl_smoke_vseq",
+    "default_seed": "0xa8cee782",
+    "default_seed_local": "0x219b79a0",
+    "wall_cap_seconds": 1200,
+    "rss_cap_bytes": 10000000000,
+    "duration_seconds": 1200.8,
+    "returncode": 0,
+    "timed_out": true,
+    "memory_limit_hit": false,
+    "peak_rss_bytes": 1407877120,
+    "last_checked_milestone": "operation 2/3, bank-1 FlashPartData erase at 1,414,652.8 ns (same as prior baseline)",
+    "subsequent_checked_milestone": null,
+    "pass_marker": false,
+    "uvm_error_count": 1,
+    "uvm_fatal_count": 0,
+    "shutdown_diagnostic": "At forced shutdown, noOutstandingReqsAtEndOfSim_A was reported at 2,024,558.0 ns; TEST FAILED CHECKS.",
+    "qualified": false,
+    "log": "flash.log"
+  },
+  "microbenchmark": {
+    "workload": "1,000,000 synchronous task calls with checked accumulated result",
+    "baseline_seconds": [
+      1.009054,
+      1.276991,
+      1.140518,
+      1.104817,
+      1.127636
+    ],
+    "baseline_median_seconds": 1.127636,
+    "candidate_seconds": [
+      1.085342,
+      1.247989,
+      1.120176,
+      1.054578,
+      1.076038
+    ],
+    "candidate_median_seconds": 1.085342,
+    "median_improvement_percent": 3.751,
+    "result": "PASS, accumulator 499999500000"
+  },
+  "focused_regressions": {
+    "passed": 4,
+    "total": 4,
+    "tests": [
+      "m6_process_identity_test",
+      "m6_sync_call_characterization_test",
+      "g68_process_status_test",
+      "fork_disable_detached_test"
+    ]
+  },
+  "conclusion": "No 10% end-to-end gain was established: both capped runs have the same last comparable checked Flash milestone. Candidate implementation removed; iteration 2/5."
+}

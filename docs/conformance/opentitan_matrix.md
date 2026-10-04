@@ -1,5 +1,13 @@
 # OpenTitan synthesis, SVA, UVM and runtime matrix
 
+The latest selected Earlgrey runtime census is the 2026-10-04
+[49/49 result](../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md),
+qualified with three disposable source overlays. See its
+[replication guide](opentitan_49of49_reproduction.md). The older discovery
+totals below come from OpenTitan revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` and describe a broader RTL/SVA/UVM
+inventory; they are not the current 49-target runtime result.
+
 `scripts/opentitan_matrix.py` is the canonical census driver for the current
 OpenTitan closure campaign.  It replaces one-off source lists with a pinned,
 machine-readable result for every selected FuseSoC core.
@@ -79,8 +87,9 @@ OpenTitan's hashed requirements and pass its logical `bin/python` path through
 `--fusesoc-python`. The matrix records and validates the selected machine
 architecture as well as the Python and FuseSoC versions.
 
-At OpenTitan revision `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`, current
-discovery finds 264 RTL/default-target jobs, 128 standalone SVA/formal jobs, 61
+The earlier inventory at OpenTitan revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` found 264 RTL/default-target jobs,
+128 standalone SVA/formal jobs, 61
 UVM compile jobs, and 77 runtime jobs. The runtime total is the 61 configured
 UVM targets plus 16 directed simulations; eight Verilator-only and six
 elaboration-only targets remain inventoried but are not mislabeled as Icarus

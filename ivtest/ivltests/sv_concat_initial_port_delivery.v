@@ -135,7 +135,10 @@ module sv_concat_initial_port_delivery;
     tree_d = 1'b1;
 
     #1;
-    if (rsp_events != 2 || rsp_torn != 0 ||
+    // The number of intermediate updates depends on the order the two
+    // always_comb producers wake at time zero (unspecified); what matters
+    // is that the final value arrives and no torn state is observed.
+    if (rsp_events < 2 || rsp_events > 3 || rsp_torn != 0 ||
         rsp_b.d_valid !== 1'b0 || rsp_b.d_user.rsp_intg !== '0) begin
       $display("rsp init FAILED events=%0d torn=%0d rsp=%b",
                rsp_events, rsp_torn, rsp_b);

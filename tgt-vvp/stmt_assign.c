@@ -5403,15 +5403,13 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  }
 
 	    } else if (whole_fixed_container_array) {
-		  /* %store/prop/arr/dar currently marshals only scalar/object
-		   * leaves; dynamic-container metadata falls through its vec4 path
-		   * and loses every container. Do not silently corrupt the value. */
-		  fprintf(stderr, "%s:%u: sorry: whole-array assignment to a fixed "
-			  "unpacked class property with queue, dynamic-array, or associative-array "
-			  "elements is not supported. Assign individual slots instead.\n",
-			  ivl_stmt_file(net), ivl_stmt_lineno(net));
-		  fprintf(vvp_out, "    %%pop/obj 1, 0; unsupported whole fixed container array store\n");
-		  errors += 1;
+		  /* Whole-array assignment to a fixed property whose words are
+		   * queues / dynamic / associative arrays: the source is a
+		   * container-per-word array and the copy-back installs a
+		   * by-value copy of each word (7.6). */
+		  errors += draw_eval_object(rval);
+		  fprintf(vvp_out, "    %%store/prop/arr/dar %d;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 
 	    } else if (whole_fixed_array
 		&& (ivl_expr_value(rval) == IVL_VT_DARRAY
@@ -6074,6 +6072,12 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 	    break;
 	  case IVL_VT_CLASS:
 	    kind = VVP_ARRDAR_OBJ;
+	    break;
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_DARRAY:
+	      /* Fixed arrays of queues, dynamic arrays and associative arrays
+		 move one container object per word, copied by value. */
+	    kind = VVP_ARRDAR_OBJ | VVP_ARRDAR_COPY;
 	    break;
 	  default:
 	    fprintf(stderr, "%s:%u: sorry: the whole unpacked array `%s' "

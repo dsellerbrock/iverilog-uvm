@@ -153,6 +153,8 @@ class class_type : public __vpiHandle {
       bool property_is_void(size_t idx) const;
       const class_type*property_declared_class_type(size_t idx) const;
       uint64_t property_array_size(size_t idx) const;
+        // A rand dynamic array of dynamic arrays: layout D,D (rows are leaves).
+      bool property_is_dyn2(size_t idx) const;
       uint64_t property_queue_max_size(size_t idx) const;
       const std::vector<std::pair<int,int> >&
             property_dimensions(size_t idx) const;

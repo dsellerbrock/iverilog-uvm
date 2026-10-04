@@ -453,6 +453,17 @@ assoc_array_type_match_t assoc_array_expr_type_match(ivl_type_t target,
       if (!source)
 	    return ASSOC_ARRAY_TYPE_NOT_ASSOC;
 
+	/* A whole unpacked-array variable carries only its element type as its
+	 * expression type; the array shape (and so the equivalence with a fixed
+	 * array of associative arrays) lives on the signal. */
+      if (const NetESignal*whole = dynamic_cast<const NetESignal*>(source)) {
+	    if (whole->sig() && !whole->word_index()
+		&& whole->sig()->unpacked_dimensions() > 0
+		&& whole->sig()->array_type()
+		&& dynamic_cast<const netuarray_t*>(target))
+		  return assoc_array_type_match(target, whole->sig()->array_type());
+      }
+
       if (source->net_type())
 	    return assoc_array_type_match(target, source->net_type());
 

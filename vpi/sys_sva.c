@@ -22,6 +22,7 @@
 # include  <stdio.h>
 # include  <stdlib.h>
 # include  <string.h>
+# include  <stdint.h>
 
 static PLI_INT32 sva_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
@@ -112,12 +113,18 @@ typedef struct sva_control_rule_s {
 static sva_control_entry_t*sva_control_entries;
 static size_t sva_control_entry_count;
 static size_t sva_control_entry_cap;
+/* Store indices, since sva_control_entries may move when it is reallocated. */
+static size_t*sva_control_entry_index;
+static size_t sva_control_entry_index_cap;
+static int sva_control_entry_index_disabled;
 static sva_control_rule_t*sva_control_rules;
 static size_t sva_control_rule_count;
 static size_t sva_control_rule_cap;
 static int sva_assert_enabled = 1;
 
 enum { SVA_CONTROL_RULE_LIMIT = 4096, SVA_CONTROL_SELECTOR_LIMIT = 4096 };
+
+#define SVA_CONTROL_INDEX_EMPTY ((size_t)-1)
 
 static char*sva_control_strdup_(const char*text)
 {
@@ -210,9 +217,87 @@ static int sva_control_append_rule_(const char*selector, PLI_INT32 levels,
       return 1;
 }
 
+static size_t sva_control_hash_(vpiHandle scope, PLI_INT32 idx)
+{
+      size_t hash = (size_t)(uintptr_t)scope;
+      hash ^= (size_t)(unsigned int)idx + (size_t)0x9e3779b9U
+	    + (hash << 6) + (hash >> 2);
+      hash ^= hash >> 16;
+      hash *= (size_t)0x7feb352dU;
+      hash ^= hash >> 15;
+      return hash;
+}
+
+static void sva_control_index_insert_(size_t*index, size_t capacity,
+				      size_t entry_index)
+{
+      sva_control_entry_t*entry = &sva_control_entries[entry_index];
+      size_t slot = sva_control_hash_(entry->scope, entry->idx)
+	    & (capacity - 1);
+      while (index[slot] != SVA_CONTROL_INDEX_EMPTY)
+	    slot = (slot + 1) & (capacity - 1);
+      index[slot] = entry_index;
+}
+
+static int sva_control_index_resize_(size_t capacity)
+{
+      size_t*index;
+      size_t i;
+      if (capacity > ((size_t)-1) / sizeof *index) return 0;
+      index = (size_t*)malloc(capacity * sizeof *index);
+      if (!index) return 0;
+      for (i = 0; i < capacity; i += 1)
+	    index[i] = SVA_CONTROL_INDEX_EMPTY;
+      for (i = 0; i < sva_control_entry_count; i += 1)
+	    sva_control_index_insert_(index, capacity, i);
+      free(sva_control_entry_index);
+      sva_control_entry_index = index;
+      sva_control_entry_index_cap = capacity;
+      return 1;
+}
+
+static void sva_control_index_disable_(void)
+{
+      free(sva_control_entry_index);
+      sva_control_entry_index = 0;
+      sva_control_entry_index_cap = 0;
+      sva_control_entry_index_disabled = 1;
+}
+
+static void sva_control_index_prepare_(void)
+{
+      size_t capacity;
+      if (sva_control_entry_index_disabled) return;
+      if (sva_control_entry_index_cap
+	  && sva_control_entry_count < sva_control_entry_index_cap / 2)
+	    return;
+      if (!sva_control_entry_index_cap) {
+	    capacity = 128;
+      } else {
+	    if (sva_control_entry_index_cap > ((size_t)-1) / 2) {
+		  sva_control_index_disable_();
+		  return;
+	    }
+	    capacity = sva_control_entry_index_cap * 2;
+      }
+      if (!sva_control_index_resize_(capacity))
+	    sva_control_index_disable_();
+}
+
 static sva_control_entry_t*sva_control_find_(vpiHandle scope, PLI_INT32 idx)
 {
       size_t i;
+      if (sva_control_entry_index_cap) {
+	    size_t slot = sva_control_hash_(scope, idx)
+		  & (sva_control_entry_index_cap - 1);
+	    while (sva_control_entry_index[slot] != SVA_CONTROL_INDEX_EMPTY) {
+		  sva_control_entry_t*entry =
+			&sva_control_entries[sva_control_entry_index[slot]];
+		  if (entry->scope == scope && entry->idx == idx) return entry;
+		  slot = (slot + 1) & (sva_control_entry_index_cap - 1);
+	    }
+	    return 0;
+      }
       for (i = 0; i < sva_control_entry_count; i += 1)
 	    if (sva_control_entries[i].scope == scope
 		&& sva_control_entries[i].idx == idx)
@@ -239,11 +324,16 @@ static void sva_control_register_(PLI_INT32 idx, const char*name,
 	    sva_control_entries = (sva_control_entry_t*)mem;
 	    sva_control_entry_cap = next;
       }
+      sva_control_index_prepare_();
       entry = &sva_control_entries[sva_control_entry_count++];
       memset(entry, 0, sizeof *entry);
       entry->idx = idx;
       entry->scope = scope;
       entry->enabled = 1;
+      if (sva_control_entry_index_cap)
+	    sva_control_index_insert_(sva_control_entry_index,
+				      sva_control_entry_index_cap,
+				      sva_control_entry_count - 1);
       scope_name = scope ? vpi_get_str(vpiFullName, scope) : 0;
       slen = scope_name ? strlen(scope_name) : 0;
       nlen = name ? strlen(name) : 0;

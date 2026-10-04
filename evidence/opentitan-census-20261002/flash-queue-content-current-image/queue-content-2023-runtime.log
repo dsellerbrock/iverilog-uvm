@@ -1,0 +1,5 @@
+command: /private/tmp/current-tools/bin/vvp -n /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-queue-content-current-image/queue-content-2023.vvp
+returncode: 0
+stdout:
+PASSED
+stderr:

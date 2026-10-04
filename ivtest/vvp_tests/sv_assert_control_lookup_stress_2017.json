@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assert_control_lookup_stress.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_assert_control_lookup_stress" ],
+    "gold"          : "sv_assert_control_lookup_stress"
+}

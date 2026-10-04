@@ -1,0 +1,1 @@
+{"returncode": 0, "duration_seconds": 1200.5, "timed_out": true, "memory_limit_hit": false, "memory_limit_bytes": 10000000000, "peak_rss_bytes": 1266155520, "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-full-path-cache-iter1-20261003/flash.log"}

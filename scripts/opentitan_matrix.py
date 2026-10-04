@@ -177,6 +177,9 @@ OPENTITAN_RUNTIME_PASS_RE = re.compile(
     r"^TEST PASSED (?:UVM_)?CHECKS$", re.I | re.M
 )
 SPID_JEDEC_CHECKED_PASS_RE = re.compile(r"^SPI Flash Read JEDEC ID Tested!!:$", re.M)
+SPID_UPLOAD_CHECKED_PASS_RE = re.compile(r"^All payloads are read out\.$", re.M)
+SPI_TPM_COMPLETION_RE = re.compile(r"^Host transactions has ended\.$", re.M)
+SPI_TPM_PASS_RE = re.compile(r"^TEST PASSED!$", re.M)
 
 
 def opentitan_runtime_pass_marker(core: str, output: str) -> bool:
@@ -185,6 +188,16 @@ def opentitan_runtime_pass_marker(core: str, output: str) -> bool:
         or (
             core == "lowrisc:dv:spid_jedec_sim:0.1"
             and SPID_JEDEC_CHECKED_PASS_RE.search(output)
+        )
+        or (
+            core == "lowrisc:dv:spid_upload_sim:0.1"
+            and SPID_UPLOAD_CHECKED_PASS_RE.search(output)
+        )
+        or (
+            core == "lowrisc:dv:spi_tpm_sim:0.1"
+            and SPI_TPM_COMPLETION_RE.search(output)
+            and SPI_TPM_PASS_RE.search(output)
+            and not re.search(r"^TEST TIMED OUT!!$", output, re.M)
         )
     )
 
@@ -209,6 +222,9 @@ RUNTIME_DEBT_ALLOWLIST = (
     # VPI runtime; Slang and Verilator accept the same call without warning.
     re.compile(r"Warning: Calling system function \$system\(\) as a task\.", re.I),
     re.compile(r"The functions return value will be ignored\.", re.I),
+    # OpenTitan's scoreboard reports these counters as info; zero means no data
+    # was dropped. Positive counts remain runtime debt.
+    re.compile(r"\b(?:seeds|words) assumed dropped from [^:]+:\s*0\s*$", re.I),
 )
 # Compiler warnings that describe the source accurately and change nothing
 # about how it simulates. They stay in the record as benign diagnostics.
@@ -229,6 +245,21 @@ COMPILE_DEBT_ALLOWLIST = (
     re.compile(r"warning: .* (?:cannot be synthesized|must be automatic to be "
                r"synthesized) in an always_(?:comb|ff|latch) process\.", re.I),
 )
+TIMESCALE_MIXED_WARNING_RE = re.compile(
+    r"^warning: Found both default and explicit timescale based delays\. Use$",
+    re.I,
+)
+
+
+def compile_debt_allowlist(timescale: str | None) -> tuple[re.Pattern[str], ...]:
+    """Allow mixed-timescale notice only when the job declares its default."""
+    if not timescale:
+        return COMPILE_DEBT_ALLOWLIST
+    # OpenTitan's simulation config supplies the default for modules without
+    # timeunit declarations; modules with explicit timeunits keep their units.
+    return (*COMPILE_DEBT_ALLOWLIST, TIMESCALE_MIXED_WARNING_RE)
+
+
 SETUP_ALLOWLIST = (
     re.compile(r"No trustfile configured .* signatures will not be checked", re.I),
     # This is an Edalize API-lifecycle notice.  It does not change the selected
@@ -2540,6 +2571,55 @@ def native_dpi_commands(
     return commands
 
 
+OTBN_MODEL_SOURCE_SHA256 = "751102f30ec5f8c28cd05aff653f4ff4baf641bc6fba286faae99697424bfb4e"
+
+
+def otbn_trace_finish_overlay(
+    native_sources: Sequence[str],
+    opentitan_root: Path,
+    source_list: Path,
+    work_root: Path,
+) -> tuple[tuple[str, ...], dict[str, str]]:
+    """Run the OTBN trace check at final model destruction on the pinned source."""
+    source = opentitan_root / "hw/ip/otbn/dv/model/otbn_model.cc"
+    source_hash = file_sha256(source)
+    if source_hash != OTBN_MODEL_SOURCE_SHA256:
+        raise ValueError(
+            "OTBN trace-finish overlay source hash mismatch: "
+            f"expected {OTBN_MODEL_SOURCE_SHA256}, got {source_hash}"
+        )
+    text = source.read_text()
+    original = "void otbn_model_destroy(OtbnModel *model) { delete model; }"
+    replacement = """void otbn_model_destroy(OtbnModel *model) {
+  if (model && model->has_rtl()) {
+    OtbnTraceChecker::get().Finish();
+  }
+  delete model;
+}"""
+    if text.count(original) != 1:
+        raise ValueError("OTBN trace-finish overlay anchor is not unique")
+    if not any(Path(item).resolve() == source.resolve() for item in native_sources):
+        raise ValueError("OTBN model source is missing from the native source list")
+
+    overlay = (
+        source_list.parent.parent
+        / "src/lowrisc_dv_otbn_model_0.1/otbn_model.cc"
+    )
+    if overlay.is_symlink() or work_root.resolve() not in overlay.resolve().parents:
+        raise ValueError("OTBN trace-finish overlay staging path is unsafe")
+    overlay.write_text(text.replace(original, replacement))
+    sources = tuple(
+        str(overlay) if Path(item).resolve() == source.resolve() else item
+        for item in native_sources
+    )
+    return sources, {
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": file_sha256(overlay),
+    }
+
+
 # Defines the command builder sets itself, from the job's lane and category.
 HARNESS_MANAGED_DEFINES = {
     "UVM",
@@ -2758,11 +2838,14 @@ def run_job(
             f"{compile_result.returncode} without a recognized hard diagnostic; "
             "see the complete compile log"
         ]
+    compile_allowlist = compile_debt_allowlist(
+        job.simulation.timescale if job.simulation else None
+    )
     semantic_debt = matching_lines(
-        compile_result.output, DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST
+        compile_result.output, DEBT_PATTERNS, compile_allowlist
     )
     compile_benign_diagnostics = matching_lines(
-        compile_result.output, COMPILE_DEBT_ALLOWLIST
+        compile_result.output, compile_allowlist
     )
     record.update(
         {
@@ -2837,8 +2920,32 @@ def run_job(
     runtime_arguments = merge_runtime_arguments(
         configured_arguments, args.runtime_arg
     )
+    otbn_smoke = (
+        job.core.vlnv == "lowrisc:dv:otbn_sim:0.1"
+        and job.simulation is not None
+        and job.simulation.dvsim_test == "otbn_smoke"
+    )
+    otbn_elf_dir = work_root / "otbn-binaries"
+    if otbn_smoke and not any(
+        argument.startswith("+otbn_elf_dir=") for argument in runtime_arguments
+    ):
+        runtime_arguments.append(f"+otbn_elf_dir={otbn_elf_dir}")
     dpi_libraries = list(args.dpi_library)
     native_sources = job.simulation.native_sources if job.simulation else ()
+    if otbn_smoke:
+        try:
+            native_sources, source_overlay = otbn_trace_finish_overlay(
+                native_sources, opentitan_root, source_list, work_root
+            )
+        except (OSError, ValueError) as exc:
+            record.update(
+                {
+                    "status": "SOURCE_OVERLAY_FAIL",
+                    "runtime_blockers": [str(exc)],
+                }
+            )
+            return record
+        record["source_overlays"] = [source_overlay]
     native_library = work_root / "matrix-dpi.so" if native_sources else None
     skipped_sources = []
     if native_sources:
@@ -2895,13 +3002,59 @@ def run_job(
         for library in dpi_libraries
         for option in ("-d", str(library))
     ]
+    runtime_env = {**env, "IVL_SVA_NFA": "1"}
+    if otbn_smoke:
+        otbn_dir = opentitan_root / "hw/ip/otbn"
+        binary_generator = otbn_dir / "dv/uvm/gen-binaries.py"
+        smoke_dir = otbn_dir / "dv/smoke"
+        generator_args = [
+            str(binary_generator), "--src-dir", str(smoke_dir), str(otbn_elf_dir)
+        ]
+        if env.get("RV32_TOOL_AS") and env.get("RV32_TOOL_LD"):
+            pre_run_command = [sys.executable, *generator_args]
+        else:
+            toolchain_setup = otbn_dir / "dv/uvm/get-toolchain-paths.sh"
+            pre_run_command = [
+                "/bin/bash", "-c",
+                f"source {shlex.quote(str(toolchain_setup))} && "
+                f"exec {shlex.join([sys.executable, *generator_args])}",
+            ]
+        pre_run = command_result(
+            pre_run_command,
+            cwd=opentitan_root,
+            env=env,
+            timeout=args.setup_timeout,
+        )
+        pre_run_log = work_root / "matrix-pre-run.log"
+        write_log(pre_run_log, "OpenTitan DV pre-run mode", pre_run)
+        record.update(
+            {
+                "pre_run_command": short_command(pre_run.command),
+                "pre_run_returncode": pre_run.returncode,
+                "pre_run_duration_seconds": round(pre_run.duration_seconds, 3),
+                "pre_run_timed_out": pre_run.timed_out,
+                "pre_run_log": str(pre_run_log),
+            }
+        )
+        smoke_elf = otbn_elf_dir / "smoke_test.elf"
+        if pre_run.timed_out or pre_run.returncode != 0 or not smoke_elf.is_file():
+            record["status"] = (
+                "PRE_RUN_TIMEOUT" if pre_run.timed_out else "PRE_RUN_FAIL"
+            )
+            record["runtime_blockers"] = [
+                "OpenTitan's OTBN smoke pre-run mode did not produce smoke_test.elf"
+            ]
+            return record
+        record["otbn_smoke_elf"] = str(smoke_elf)
+        record["otbn_smoke_elf_sha256"] = file_sha256(smoke_elf)
+        runtime_env["REPO_TOP"] = str(opentitan_root)
     runtime_command = [
         str(vvp), "-n", *dpi_options, str(executable), *runtime_arguments
     ]
     runtime_result = command_result(
         runtime_command,
         cwd=source_list.parent,
-        env={**env, "IVL_SVA_NFA": "1"},
+        env=runtime_env,
         timeout=args.runtime_timeout,
         memory_limit_bytes=(
             args.runtime_memory_mib * 1024 * 1024
@@ -3290,6 +3443,19 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
                           DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) == []
     assert matching_lines("x.sv:4: warning: something degraded.",
                           DEBT_PATTERNS, COMPILE_DEBT_ALLOWLIST) != []
+    mixed_timescale_warning = (
+        "warning: Found both default and explicit timescale based delays. Use\n"
+        "       : -Wtimescale to find the design element(s) with no explicit\n"
+        "       : timescale.\n"
+    )
+    assert matching_lines(
+        mixed_timescale_warning, DEBT_PATTERNS,
+        compile_debt_allowlist("1ns/1ps"),
+    ) == []
+    assert matching_lines(
+        mixed_timescale_warning, DEBT_PATTERNS,
+        compile_debt_allowlist(None),
+    ) == ["warning: Found both default and explicit timescale based delays. Use"]
     dpi_build = native_dpi_commands(
         ("/src/a.cc", "/src/b.c"),
         ("/src",),
@@ -3508,6 +3674,19 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         ENGLISHBREAKFAST_MAPPING,
     ]
     assert matching_lines("x: warning: compile-progress fallback", DEBT_PATTERNS)
+    zero_scoreboard_drops = (
+        "UVM_INFO @ 0 ps: Seeds assumed dropped from entropy_data: 0\n"
+        "UVM_INFO @ 0 ps: Words assumed dropped from observe fifo: 0\n"
+    )
+    positive_scoreboard_drops = (
+        "UVM_INFO @ 0 ps: Seeds assumed dropped from entropy_data: 1\n"
+    )
+    assert matching_lines(
+        zero_scoreboard_drops, DEBT_PATTERNS, RUNTIME_DEBT_ALLOWLIST
+    ) == []
+    assert matching_lines(
+        positive_scoreboard_drops, DEBT_PATTERNS, RUNTIME_DEBT_ALLOWLIST
+    ) == [positive_scoreboard_drops.splitlines()[0]]
     discarded_system_result = (
         "x.sv:3: Warning: Calling system function $system() as a task.\n"
         "x.sv:3:          The functions return value will be ignored.\n"
@@ -3539,8 +3718,23 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     jedec_pass = "SPI Flash Read JEDEC ID Tested!!:\n"
     assert opentitan_runtime_pass_marker(jedec_core, jedec_pass)
     assert not opentitan_runtime_pass_marker("lowrisc:dv:spid_upload_sim:0.1", jedec_pass)
+    upload_core = "lowrisc:dv:spid_upload_sim:0.1"
+    upload_pass = "All payloads are read out.\n"
+    assert opentitan_runtime_pass_marker(upload_core, upload_pass)
+    assert not opentitan_runtime_pass_marker("lowrisc:dv:spid_status_sim:0.1", upload_pass)
+    assert not opentitan_runtime_pass_marker(upload_core, "All payloads are still being read out.\n")
     assert not opentitan_runtime_pass_marker(
         jedec_core, "Jedec ID Received: Manufacturer ID [be], JEDEC_ID [a55a]\n"
+    )
+    tpm_core = "lowrisc:dv:spi_tpm_sim:0.1"
+    tpm_pass = "Host transactions has ended.\nTEST PASSED!\n"
+    assert opentitan_runtime_pass_marker(tpm_core, tpm_pass)
+    assert not opentitan_runtime_pass_marker(tpm_core, "TEST PASSED!\n")
+    assert not opentitan_runtime_pass_marker(
+        "lowrisc:dv:spi_device_sim:0.1", tpm_pass
+    )
+    assert not opentitan_runtime_pass_marker(
+        tpm_core, tpm_pass + "TEST TIMED OUT!!\n"
     )
     assert matching_lines("TEST TIMED OUT!!", OPENTITAN_RUNTIME_FAIL_PATTERNS)
     assert matching_lines(

@@ -1,0 +1,234 @@
+--- a/hw/ip/otp_ctrl/data/otp_ctrl_env_cov.sv.tpl
++++ b/hw/ip/otp_ctrl/data/otp_ctrl_env_cov.sv.tpl
+@@ -33,0 +34,21 @@
++
++offset_expr_groups = [
++    ["ral." + part["name"].lower() + "_digest[" + str(idx) + "].get_offset()"
++     for part in parts for idx in range(2)]
++    for parts in [unbuffered_parts_with_digest,
++                  buffered_nonsecret_parts_with_digest,
++                  buffered_secret_parts_with_digest]
++]
++offset_expr_groups.extend([
++    ["ral.direct_access_rdata[0].get_offset()",
++     "ral.direct_access_rdata[1].get_offset()"],
++    ["ral.status.get_offset()"],
++    ["ral.err_code[" + str(idx) + "].get_offset()"
++     for idx in range(num_err_code)],
++])
++offset_exprs = [expr for group in offset_expr_groups for expr in group]
++offset_indices = []
++next_offset = 0
++for group in offset_expr_groups:
++    offset_indices.append(list(range(next_offset, next_offset + len(group))))
++    next_offset += len(group)
+@@ -82,2 +103,5 @@
+-  covergroup csr_rd_after_alert_cg(otp_ctrl_core_reg_block ral) with function sample(bit[TL_DW-1:0]
+-                                                                                     csr_offset);
++  covergroup csr_rd_after_alert_cg(
++% for idx in range(len(offset_exprs)):
++    uvm_reg_addr_t offset_${idx}${"," if not loop.last else ""}
++% endfor
++  ) with function sample(bit[TL_DW-1:0] csr_offset);
+@@ -86,3 +110,2 @@
+-% for part in unbuffered_parts_with_digest:
+-        ral.${part["name"].lower()}_digest[0].get_offset(),
+-        ral.${part["name"].lower()}_digest[1].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[0]:
++        offset_${idx}${"," if not loop.last else ""}
+@@ -92,3 +115,2 @@
+-% for part in buffered_nonsecret_parts_with_digest:
+-        ral.${part["name"].lower()}_digest[0].get_offset(),
+-        ral.${part["name"].lower()}_digest[1].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[1]:
++        offset_${idx}${"," if not loop.last else ""}
+@@ -98,3 +120,2 @@
+-% for part in buffered_secret_parts_with_digest:
+-        ral.${part["name"].lower()}_digest[0].get_offset(),
+-        ral.${part["name"].lower()}_digest[1].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[2]:
++        offset_${idx}${"," if not loop.last else ""}
+@@ -104,2 +125,3 @@
+-        ral.direct_access_rdata[0].get_offset(),
+-        ral.direct_access_rdata[1].get_offset()
++% for idx in offset_indices[3]:
++        offset_${idx}${"," if not loop.last else ""}
++% endfor
+@@ -108 +130,3 @@
+-        ral.status.get_offset()
++% for idx in offset_indices[4]:
++        offset_${idx}${"," if not loop.last else ""}
++% endfor
+@@ -111,2 +135,2 @@
+-% for k in range(num_err_code):
+-        ral.err_code[${k}].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[5]:
++        offset_${idx}${"," if not loop.last else ""}
+@@ -119 +143,5 @@
+-    csr_rd_after_alert_cg = new(ral);
++    csr_rd_after_alert_cg = new(
++% for expr in offset_exprs:
++      ${expr}${"," if not loop.last else ""}
++% endfor
++    );
+--- a/hw/ip/otp_ctrl/dv/env/otp_ctrl_env_cov.sv
++++ b/hw/ip/otp_ctrl/dv/env/otp_ctrl_env_cov.sv
+@@ -59,2 +59,38 @@
+-  covergroup csr_rd_after_alert_cg(otp_ctrl_core_reg_block ral) with function sample(bit[TL_DW-1:0]
+-                                                                                     csr_offset);
++  covergroup csr_rd_after_alert_cg(
++    uvm_reg_addr_t offset_0,
++    uvm_reg_addr_t offset_1,
++    uvm_reg_addr_t offset_2,
++    uvm_reg_addr_t offset_3,
++    uvm_reg_addr_t offset_4,
++    uvm_reg_addr_t offset_5,
++    uvm_reg_addr_t offset_6,
++    uvm_reg_addr_t offset_7,
++    uvm_reg_addr_t offset_8,
++    uvm_reg_addr_t offset_9,
++    uvm_reg_addr_t offset_10,
++    uvm_reg_addr_t offset_11,
++    uvm_reg_addr_t offset_12,
++    uvm_reg_addr_t offset_13,
++    uvm_reg_addr_t offset_14,
++    uvm_reg_addr_t offset_15,
++    uvm_reg_addr_t offset_16,
++    uvm_reg_addr_t offset_17,
++    uvm_reg_addr_t offset_18,
++    uvm_reg_addr_t offset_19,
++    uvm_reg_addr_t offset_20,
++    uvm_reg_addr_t offset_21,
++    uvm_reg_addr_t offset_22,
++    uvm_reg_addr_t offset_23,
++    uvm_reg_addr_t offset_24,
++    uvm_reg_addr_t offset_25,
++    uvm_reg_addr_t offset_26,
++    uvm_reg_addr_t offset_27,
++    uvm_reg_addr_t offset_28,
++    uvm_reg_addr_t offset_29,
++    uvm_reg_addr_t offset_30,
++    uvm_reg_addr_t offset_31,
++    uvm_reg_addr_t offset_32,
++    uvm_reg_addr_t offset_33,
++    uvm_reg_addr_t offset_34,
++    uvm_reg_addr_t offset_35
++  ) with function sample(bit[TL_DW-1:0] csr_offset);
+@@ -63,10 +99,10 @@
+-        ral.vendor_test_digest[0].get_offset(),
+-        ral.vendor_test_digest[1].get_offset(),
+-        ral.creator_sw_cfg_digest[0].get_offset(),
+-        ral.creator_sw_cfg_digest[1].get_offset(),
+-        ral.owner_sw_cfg_digest[0].get_offset(),
+-        ral.owner_sw_cfg_digest[1].get_offset(),
+-        ral.rot_creator_auth_codesign_digest[0].get_offset(),
+-        ral.rot_creator_auth_codesign_digest[1].get_offset(),
+-        ral.rot_creator_auth_state_digest[0].get_offset(),
+-        ral.rot_creator_auth_state_digest[1].get_offset()
++        offset_0,
++        offset_1,
++        offset_2,
++        offset_3,
++        offset_4,
++        offset_5,
++        offset_6,
++        offset_7,
++        offset_8,
++        offset_9
+@@ -75,4 +111,4 @@
+-        ral.hw_cfg0_digest[0].get_offset(),
+-        ral.hw_cfg0_digest[1].get_offset(),
+-        ral.hw_cfg1_digest[0].get_offset(),
+-        ral.hw_cfg1_digest[1].get_offset()
++        offset_10,
++        offset_11,
++        offset_12,
++        offset_13
+@@ -81,6 +117,6 @@
+-        ral.secret0_digest[0].get_offset(),
+-        ral.secret0_digest[1].get_offset(),
+-        ral.secret1_digest[0].get_offset(),
+-        ral.secret1_digest[1].get_offset(),
+-        ral.secret2_digest[0].get_offset(),
+-        ral.secret2_digest[1].get_offset()
++        offset_14,
++        offset_15,
++        offset_16,
++        offset_17,
++        offset_18,
++        offset_19
+@@ -89,2 +125,2 @@
+-        ral.direct_access_rdata[0].get_offset(),
+-        ral.direct_access_rdata[1].get_offset()
++        offset_20,
++        offset_21
+@@ -93 +129 @@
+-        ral.status.get_offset()
++        offset_22
+@@ -96,13 +132,13 @@
+-        ral.err_code[0].get_offset(),
+-        ral.err_code[1].get_offset(),
+-        ral.err_code[2].get_offset(),
+-        ral.err_code[3].get_offset(),
+-        ral.err_code[4].get_offset(),
+-        ral.err_code[5].get_offset(),
+-        ral.err_code[6].get_offset(),
+-        ral.err_code[7].get_offset(),
+-        ral.err_code[8].get_offset(),
+-        ral.err_code[9].get_offset(),
+-        ral.err_code[10].get_offset(),
+-        ral.err_code[11].get_offset(),
+-        ral.err_code[12].get_offset()
++        offset_23,
++        offset_24,
++        offset_25,
++        offset_26,
++        offset_27,
++        offset_28,
++        offset_29,
++        offset_30,
++        offset_31,
++        offset_32,
++        offset_33,
++        offset_34,
++        offset_35
+@@ -114 +150,38 @@
+-    csr_rd_after_alert_cg = new(ral);
++    csr_rd_after_alert_cg = new(
++      ral.vendor_test_digest[0].get_offset(),
++      ral.vendor_test_digest[1].get_offset(),
++      ral.creator_sw_cfg_digest[0].get_offset(),
++      ral.creator_sw_cfg_digest[1].get_offset(),
++      ral.owner_sw_cfg_digest[0].get_offset(),
++      ral.owner_sw_cfg_digest[1].get_offset(),
++      ral.rot_creator_auth_codesign_digest[0].get_offset(),
++      ral.rot_creator_auth_codesign_digest[1].get_offset(),
++      ral.rot_creator_auth_state_digest[0].get_offset(),
++      ral.rot_creator_auth_state_digest[1].get_offset(),
++      ral.hw_cfg0_digest[0].get_offset(),
++      ral.hw_cfg0_digest[1].get_offset(),
++      ral.hw_cfg1_digest[0].get_offset(),
++      ral.hw_cfg1_digest[1].get_offset(),
++      ral.secret0_digest[0].get_offset(),
++      ral.secret0_digest[1].get_offset(),
++      ral.secret1_digest[0].get_offset(),
++      ral.secret1_digest[1].get_offset(),
++      ral.secret2_digest[0].get_offset(),
++      ral.secret2_digest[1].get_offset(),
++      ral.direct_access_rdata[0].get_offset(),
++      ral.direct_access_rdata[1].get_offset(),
++      ral.status.get_offset(),
++      ral.err_code[0].get_offset(),
++      ral.err_code[1].get_offset(),
++      ral.err_code[2].get_offset(),
++      ral.err_code[3].get_offset(),
++      ral.err_code[4].get_offset(),
++      ral.err_code[5].get_offset(),
++      ral.err_code[6].get_offset(),
++      ral.err_code[7].get_offset(),
++      ral.err_code[8].get_offset(),
++      ral.err_code[9].get_offset(),
++      ral.err_code[10].get_offset(),
++      ral.err_code[11].get_offset(),
++      ral.err_code[12].get_offset()
++    );

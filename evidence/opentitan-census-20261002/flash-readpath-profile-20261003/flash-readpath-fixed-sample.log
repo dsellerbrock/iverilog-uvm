@@ -1,0 +1,50 @@
+tb.dut.u_lfsr.p_randomize_default_seed: DefaultSeed = 0xa8cee782, DefaultSeedLocal = 0x219b79a0
+tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.$unm_blk_13133: ReadLatency:1 ProgLatency:50 EraseLatency:200
+tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.$unm_blk_13133: ReadLatency:1 ProgLatency:50 EraseLatency:200
+UVM_INFO @ 0.0 ns: reporter [RNTST] Running test flash_ctrl_base_test...
+UVM_INFO @    0.0 ns: (flash_ctrl_env_cfg.sv:325) [cfg] ral_model_names: '{"flash_ctrl_core_reg_block", "flash_ctrl_eflash_reg_block", "flash_ctrl_prim_reg_block"}
+UVM_INFO @    0.0 ns: (flash_ctrl_base_vseq.sv:814) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.flash_ctrl_smoke_vseq] Starting OTP Model ...
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartData][0]] Set memory
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartData][1]] Set memory
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartInfo][0]] Set memory
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartInfo][1]] Set memory
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartInfo1][0]] Set memory
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartInfo1][1]] Set memory
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartInfo2][0]] Set memory
+UVM_INFO @ 2115.3 ns: (mem_bkdr_util.sv:539) [mem_bkdr_util[FlashPartInfo2][1]] Set memory
+UVM_INFO @ 18541.2 ns: (flash_ctrl_rand_ops_base_vseq.sv:344) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.flash_ctrl_smoke_vseq] Starting flash_ctrl op: 1/3: 130373871483047440853616387
+UVM_INFO @ 18541.2 ns: (mem_bkdr_util.sv:559) [mem_bkdr_util[FlashPartData][0]] Invalidating (Xs) mem contents
+UVM_INFO @ 18541.2 ns: (mem_bkdr_util.sv:559) [mem_bkdr_util[FlashPartData][1]] Invalidating (Xs) mem contents
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=1 addr=0x0 time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=10000 addr=0x9c3c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=20000 addr=0x1387c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=30000 addr=0x1d4bc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=40000 addr=0x270fc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=50000 addr=0x30d3c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=60000 addr=0x3a97c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=70000 addr=0x445bc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=80000 addr=0x4e1fc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=90000 addr=0x57e3c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=100000 addr=0x61a7c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=110000 addr=0x6b6bc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=120000 addr=0x752fc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=130000 addr=0x7ef3c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=1 addr=0x0 time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=10000 addr=0x9c3c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=20000 addr=0x1387c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=30000 addr=0x1d4bc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=40000 addr=0x270fc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=50000 addr=0x30d3c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=60000 addr=0x3a97c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=70000 addr=0x445bc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=80000 addr=0x4e1fc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=90000 addr=0x57e3c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=100000 addr=0x61a7c time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=110000 addr=0x6b6bc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=120000 addr=0x752fc time=18541.0 ns
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=130000 addr=0x7ef3c time=18541.0 ns
+UVM_INFO @ 18945.4 ns: (flash_ctrl_scoreboard.sv:268) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] erase_sel: 0x1 part sel: 0x0 info sel 0x0
+UVM_INFO @ 18945.4 ns: (flash_ctrl_scoreboard.sv:272) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] part: FlashPartData addr: 0x9c700 erase_bank_en: 0x3
+UVM_INFO @ 18945.4 ns: (flash_ctrl_scoreboard.sv:723) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] erase_access bank: 0x1
+UVM_INFO @ 18945.4 ns: (flash_ctrl_scoreboard.sv:279) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] erase_access: 0x1 part:FlashPartData erase_addr: 0x9c700
+FLASH_READ32_PROBE path=tb.dut.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.u_mem.gen_generic.u_impl_generic.mem calls=140000 addr=0x8b7c time=18967.0 ns

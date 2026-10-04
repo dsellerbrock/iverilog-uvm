@@ -1,0 +1,266 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv
+@@ -36,6 +36,8 @@
+   localparam time SckPeriod = 14000;
+ 
+   wire sck, sck_rst_n;
++  wire tpm_rst_ni;
++  assign tpm_rst_ni = rst_n & ~tif.csb;
+   clk_rst_if sck_clk (
+     .clk   (sck),
+     .rst_n (sck_rst_n)
+@@ -93,16 +95,16 @@
+   logic cmdaddr_rvalid, cmdaddr_rready;
+   logic [31:0] cmdaddr_rdata;
+ 
+-  logic wrfifo_rvalid, wrfifo_rready;
+-  logic [7:0] wrfifo_rdata;
+-
+   logic rdfifo_wvalid, rdfifo_wready;
+-  logic [7:0] rdfifo_wdata;
+-
+-  // status
++  logic [31:0] rdfifo_wdata;
++
++  spi_device_pkg::sram_l2m_t sck_sram_req, sys_sram_req;
++  spi_device_pkg::sram_m2l_t sck_sram_rsp, sys_sram_rsp;
++  logic sys_wrfifo_release, sys_wrfifo_pending;
+   logic cmdaddr_notempty;
+-  logic [WrFifoPtrW-1:0] wrfifo_depth;
+-  logic [RdFifoPtrW-1:0] rdfifo_depth;
++  logic [spi_device_pkg::SramDw-1:0] tpm_sram [spi_device_pkg::SramDepth];
++  logic [7:0] wrfifo_capture_data [128];
++  int wrfifo_capture_count, wrfifo_read_index;
+ 
+   spi_tpm #(
+     .CmdAddrFifoDepth (CmdAddrFifoDepth),
+@@ -111,11 +113,12 @@
+     .clk_in_i  (gated_sck),
+     .clk_out_i (gated_sck_inverted),
+ 
+-    .sys_clk_i  (clk),
+-    .sys_rst_ni (rst_n),
+-
+-    .scan_rst_ni ( 1'b 1 ),
+-    .scanmode_i  (prim_mubi_pkg::MuBi4False),
++    .rst_ni     (tpm_rst_ni),
++    .rst_out_ni (tpm_rst_ni),
++
++    .sys_clk_i       (clk),
++    .sys_rst_ni      (rst_n),
++    .sys_tpm_rst_ni  (~tif.csb),
+ 
+     .csb_i     (tif.csb     ),
+     .mosi_i    (tif.mosi    ),
+@@ -144,19 +147,76 @@
+     .sys_cmdaddr_rdata_o  (cmdaddr_rdata ),
+     .sys_cmdaddr_rready_i (cmdaddr_rready),
+ 
+-    .sys_wrfifo_rvalid_o (wrfifo_rvalid),
+-    .sys_wrfifo_rdata_o  (wrfifo_rdata ),
+-    .sys_wrfifo_rready_i (wrfifo_rready),
++    .sck_sram_o (sck_sram_req),
++    .sck_sram_i (sck_sram_rsp),
++    .sys_sram_o (sys_sram_req),
++    .sys_sram_i (sys_sram_rsp),
++    .sys_sram_gnt_i (1'b1),
+ 
+     .sys_rdfifo_wvalid_i (rdfifo_wvalid),
+     .sys_rdfifo_wdata_i  (rdfifo_wdata ),
+     .sys_rdfifo_wready_o (rdfifo_wready),
++    .sys_rdfifo_cmd_end_o (),
++    .sys_tpm_rdfifo_drop_o (),
++    .sys_wrfifo_release_i (sys_wrfifo_release),
+ 
+     .sys_cmdaddr_notempty_o (cmdaddr_notempty),
+-    .sys_rdfifo_notempty_o  (),
+-    .sys_rdfifo_depth_o     (rdfifo_depth),
+-    .sys_wrfifo_depth_o     (wrfifo_depth)
+-  );
++    .sys_wrfifo_pending_o   (sys_wrfifo_pending),
++    .sys_rdfifo_aborted_o   ()
++  );
++
++  initial begin
++    for (int i = 0; i < spi_device_pkg::SramDepth; i++) tpm_sram[i] = '0;
++    sys_wrfifo_release = 1'b0;
++    wrfifo_read_index = 0;
++  end
++
++  // Dual-clock SRAM model. The SPI-side monitor preserves the byte stream
++  // exposed through the write FIFO for this legacy pre-DV software task.
++  always_ff @(posedge sck or negedge sck_rst_n) begin
++    if (!sck_rst_n) begin
++      sck_sram_rsp <= '0;
++      wrfifo_capture_count <= 0;
++    end else begin
++      sck_sram_rsp.rvalid <= sck_sram_req.req && !sck_sram_req.we;
++      sck_sram_rsp.rerror <= '0;
++      if (sck_sram_req.req) begin
++        if (sck_sram_req.we) begin
++          int next_wr_count;
++          next_wr_count = wrfifo_capture_count;
++          for (int lane = 0; lane < spi_device_pkg::SramStrbW; lane++) begin
++            if (sck_sram_req.wstrb[lane]) begin
++              tpm_sram[sck_sram_req.addr][8*lane+:8] <= sck_sram_req.wdata[8*lane+:8];
++              wrfifo_capture_data[next_wr_count] <= sck_sram_req.wdata[8*lane+:8];
++              next_wr_count++;
++            end
++          end
++          wrfifo_capture_count <= next_wr_count;
++        end else begin
++          sck_sram_rsp.rdata <= tpm_sram[sck_sram_req.addr];
++        end
++      end
++    end
++  end
++
++  always_ff @(posedge clk or negedge rst_n) begin
++    if (!rst_n) begin
++      sys_sram_rsp <= '0;
++    end else begin
++      sys_sram_rsp.rvalid <= sys_sram_req.req && !sys_sram_req.we;
++      sys_sram_rsp.rerror <= '0;
++      if (sys_sram_req.req) begin
++        if (sys_sram_req.we) begin
++          for (int lane = 0; lane < spi_device_pkg::SramStrbW; lane++) begin
++            if (sys_sram_req.wstrb[lane])
++              tpm_sram[sys_sram_req.addr][8*lane+:8] <= sys_sram_req.wdata[8*lane+:8];
++          end
++        end else begin
++          sys_sram_rsp.rdata <= tpm_sram[sys_sram_req.addr];
++        end
++      end
++    end
++  end
+ 
+   initial begin
+     sck_clk.set_period_ps(SckPeriod);
+@@ -278,7 +338,6 @@
+     automatic logic       wait_n;
+ 
+     tpm_start();
+-
+     tpm_header(1'b 1, addr, xfer_size, wait_n);
+ 
+     forever begin
+@@ -383,6 +442,8 @@
+     logic [31:0] tpm_reg;
+     logic [6:0] xfer_size;
+     logic [7:0] data;
++    int write_start, word_count;
++    logic [31:0] word_data;
+ 
+     // Initial
+     cmdaddr_rready = 1'b 0;
+@@ -397,77 +458,63 @@
+     };
+ 
+     rdfifo_wvalid = 1'b 0;
+-    rdfifo_wdata = 8'h 0;
++    rdfifo_wdata = '0;
+ 
+     forever begin
+       wait (cmdaddr_notempty == 1'b 1);
+ 
+       // Read entry from cmd fifo
+-      cmdaddr_read(cmdaddr_rvalid, cmdaddr_rready, cmdaddr_rdata, cmd);
++      cmdaddr_read(cmd);
+       xfer_size = cmd[24+:6] + 1; // xfer_size in the header is 0 based
+ 
+       case (cmd[31])
+         1'b 0: begin : write
+           $display("TPM Write command process: Xfer Size (%d)", xfer_size);
+-          // pop from write fifo
+-          do begin
+-            wrfifo_read(wrfifo_rvalid, wrfifo_rready, wrfifo_rdata, data);
+-            xfer_size = xfer_size - 1;
++          // Read bytes captured by the SRAM model for this write command.
++          write_start = wrfifo_read_index;
++          wait (wrfifo_capture_count >= write_start + xfer_size);
++          repeat (xfer_size) begin
++            data = wrfifo_capture_data[wrfifo_read_index];
++            wrfifo_read_index++;
+             $display("TPM Write Data: %2x", data);
+-          end while (xfer_size != '0);
++          end
++          @(negedge clk);
++          sys_wrfifo_release = 1'b1;
++          @(negedge clk);
++          sys_wrfifo_release = 1'b0;
++          wait (!sys_wrfifo_pending);
+         end
+ 
+         1'b 1: begin : read
+-          // Prepare random data up to xfer_size
++          // The current SRAM-backed interface accepts four bytes per write.
+           $display("TPM Read command process: Xfer Size (%d)", xfer_size);
+-          do begin
+-            data = $urandom_range(255);
+-            rdfifo_write(rdfifo_wvalid, rdfifo_wready, rdfifo_wdata, data);
+-            xfer_size = xfer_size - 1;
+-          end while (xfer_size != '0);
++          word_count = (xfer_size + 3) / 4;
++          repeat (word_count) begin
++            word_data = $urandom;
++            rdfifo_write(word_data);
++          end
+         end
+       endcase
+     end
+   endtask : sw
+ 
+-  task cmdaddr_read (
+-    const ref              rvalid,
+-    ref       logic        rready, // output
+-    const ref logic [31:0] rdata,
+-    output    logic [31:0] data
+-  );
+-    @(posedge clk && rvalid);
+-    data   = rdata;
+-    rready = 1'b 1;
+-
++  task cmdaddr_read (output logic [31:0] data);
++    wait (cmdaddr_rvalid == 1'b1);
++    @(negedge clk);
++    cmdaddr_rready = 1'b1;
+     @(posedge clk);
+-    rready = 1'b 0;
++    data = cmdaddr_rdata;
++    @(negedge clk);
++    cmdaddr_rready = 1'b0;
+   endtask : cmdaddr_read
+ 
+-  task wrfifo_read (
+-    const ref             rvalid,
+-    ref       logic       rready, // output
+-    const ref logic [7:0] rdata,
+-    output    logic [7:0] data
+-  );
+-    @(posedge clk iff rvalid);
+-    data   = rdata;
+-    rready = 1'b 1;
+-
++  task rdfifo_write (input logic [31:0] data);
++    rdfifo_wdata = data;
++    rdfifo_wvalid = 1'b1;
++    wait (rdfifo_wready == 1'b1);
+     @(posedge clk);
+-    rready = 1'b 0;
+-  endtask : wrfifo_read
+-
+-  task rdfifo_write (
+-    ref   logic       wvalid, // output
+-    const ref         wready,
+-    ref   logic [7:0] wdata,  // output
+-    input logic [7:0] data
+-  );
+-    wvalid = 1'b 1;
+-    wdata  = data;
+-    @(posedge clk iff wready);
+-    wvalid = 1'b 0;
++    @(negedge clk);
++    rdfifo_wvalid = 1'b0;
+   endtask : rdfifo_write
+   // SW --------------------------------------------------------------
+ 

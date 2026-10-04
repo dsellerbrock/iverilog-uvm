@@ -1,0 +1,75 @@
+OpenTitan UVM runtime
+command: /private/tmp/current-tools/bin/vvp -n -d /private/tmp/pi/chip-current-qualified-20261002/runtime/lowrisc_dv_chip_sim_0.1/matrix-dpi.so /private/tmp/pi/chip-current-qualified-20261002/runtime/lowrisc_dv_chip_sim_0.1/matrix-runtime.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +xbar_mode=1 +UVM_TESTNAME=xbar_base_test +UVM_TEST_SEQ=xbar_smoke_vseq
+returncode: 0
+duration_seconds: 453.108
+
+tb.dut.u_ast.u_rng.u_rng_lfsr.p_randomize_default_seed: DefaultSeed = 0x1d033d20eed3b14, DefaultSeedLocal = 0x165988c7e0d6c6a2
+tb.dut.top_earlgrey.u_otp_ctrl.u_otp_ctrl_lfsr_timer.u_prim_double_lfsr.gen_double_lfsr[0].u_prim_lfsr.p_randomize_default_seed: DefaultSeed = 0x23d532c0ab, DefaultSeedLocal = 0x23d532c0ab
+tb.dut.top_earlgrey.u_otp_ctrl.u_otp_ctrl_lfsr_timer.u_prim_double_lfsr.gen_double_lfsr[1].u_prim_lfsr.p_randomize_default_seed: DefaultSeed = 0x23d532c0ab, DefaultSeedLocal = 0xb3f2967cce
+tb.dut.top_earlgrey.u_otp_ctrl.u_otp_ctrl_lfsr_timer.u_prim_double_lfsr.p_sync_lfsr_default_seed: Updated gen_double_lfsr[1].u_prim_lfsr.DefaultSeedLocal = 0x23d532c0ab
+tb.dut.top_earlgrey.u_alert_handler.u_ping_timer.u_prim_double_lfsr.gen_double_lfsr[0].u_prim_lfsr.p_randomize_default_seed: DefaultSeed = 0xfbf8b708, DefaultSeedLocal = 0x1d5a8078
+tb.dut.top_earlgrey.u_alert_handler.u_ping_timer.u_prim_double_lfsr.gen_double_lfsr[1].u_prim_lfsr.p_randomize_default_seed: DefaultSeed = 0xfbf8b708, DefaultSeedLocal = 0xfbf8b708
+tb.dut.top_earlgrey.u_alert_handler.u_ping_timer.u_prim_double_lfsr.p_sync_lfsr_default_seed: Updated gen_double_lfsr[1].u_prim_lfsr.DefaultSeedLocal = 0x1d5a8078
+tb.dut.top_earlgrey.u_sram_ctrl_ret_aon.u_lfsr.p_randomize_default_seed: DefaultSeed = 0x9b2c7aec, DefaultSeedLocal = 0x26eeeec6
+tb.dut.top_earlgrey.u_flash_ctrl.u_lfsr.p_randomize_default_seed: DefaultSeed = 0xb4f5b43b, DefaultSeedLocal = 0x35fc978e
+tb.dut.top_earlgrey.u_flash_ctrl.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[0].u_prim_flash_bank.$unm_blk_29623: ReadLatency:1 ProgLatency:50 EraseLatency:200
+tb.dut.top_earlgrey.u_flash_ctrl.u_eflash.u_flash.gen_generic.u_impl_generic.gen_prim_flash_banks[1].u_prim_flash_bank.$unm_blk_29623: ReadLatency:1 ProgLatency:50 EraseLatency:200
+tb.dut.top_earlgrey.u_aes.u_aes_core.u_aes_prng_clearing.u_lfsr.p_randomize_default_seed: DefaultSeed = 0xec27f13eb602172c, DefaultSeedLocal = 0xec27f13eb602172c
+tb.dut.top_earlgrey.u_keymgr.u_lfsr.p_randomize_default_seed: DefaultSeed = 0x6ca8a8225c8e1705, DefaultSeedLocal = 0x6ca8a8225c8e1705
+tb.dut.top_earlgrey.u_sram_ctrl_main.u_lfsr.p_randomize_default_seed: DefaultSeed = 0x6ec98106, DefaultSeedLocal = 0xf44a2448
+tb.dut.top_earlgrey.u_rv_core_ibex.u_core.gen_lockstep.u_ibex_lockstep.u_shadow_core.if_stage_i.gen_dummy_instr.dummy_instr_i.lfsr_i.p_randomize_default_seed: DefaultSeed = 0xcf346d96, DefaultSeedLocal = 0x57ffc70f
+tb.dut.top_earlgrey.u_rv_core_ibex.u_core.u_ibex_core.if_stage_i.gen_dummy_instr.dummy_instr_i.lfsr_i.p_randomize_default_seed: DefaultSeed = 0xcf346d96, DefaultSeedLocal = 0x2ce192e
+
+USBDPI: Monitor output file created at /private/tmp/pi/chip-current-qualified-20261002/runtime/lowrisc_dv_chip_sim_0.1/sim-icarus/usb0.log. Works well with tail:
+$ tail -f /private/tmp/pi/chip-current-qualified-20261002/runtime/lowrisc_dv_chip_sim_0.1/sim-icarus/usb0.log
+UVM_INFO @ 0.000000 us: reporter [RNTST] Running test xbar_base_test...
+
+tb.dut.u_ast.u_sys_clk.u_sys_osc: System Clock Power-up Frequency: 37394360 Hz
+
+tb.dut.u_ast.u_usb_clk.u_usb_osc: USB Clock Power-up Frequency: 22462319 Hz
+tb.dut.u_ast.u_usb_clk.u_usb_osc: USB Clock Drift: 22 ps
+
+tb.dut.u_ast.u_aon_clk.u_aon_osc: AON Base Clock Power-up Frequency: 146305 Hz
+tb.dut.u_ast.u_aon_clk.u_aon_osc: AON 1.0xBase Clock Power-up Frequency: 146305 Hz
+
+tb.dut.u_ast.u_io_clk.u_io_osc: IO Clock Power-up Frequency: 51101231 Hz
+UVM_INFO @   5.621962 us: (xbar_base_vseq.sv:94) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.xbar_smoke_vseq] uvm_test_top.env.rv_core_ibex__corei_agent.sequencer.rv_core_ibex__corei_seq finished sending 172 requests
+UVM_INFO @  27.281962 us: (xbar_base_vseq.sv:94) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.xbar_smoke_vseq] uvm_test_top.env.rv_core_ibex__cored_agent.sequencer.rv_core_ibex__cored_seq finished sending 174 requests
+UVM_INFO @  41.741962 us: (xbar_base_vseq.sv:94) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.xbar_smoke_vseq] uvm_test_top.env.rv_dm__sba_agent.sequencer.rv_dm__sba_seq finished sending 113 requests
+UVM_INFO @  46.741962 us: (scoreboard.sv:160) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Totally 918 items processed
+UVM_INFO @  46.741962 us: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] 
+--- UVM Report catcher Summary ---
+
+
+Number of demoted UVM_FATAL reports  :    0
+Number of demoted UVM_ERROR reports  :    0
+Number of demoted UVM_WARNING reports:    0
+Number of caught UVM_FATAL reports   :    0
+Number of caught UVM_ERROR reports   :    0
+Number of caught UVM_WARNING reports :    0
+
+UVM_INFO @  46.741962 us: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+Quit count :     0 of    50
+** Report counts by severity
+UVM_INFO :    6
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[RNTST]     1
+[UVM/REPORT/CATCHER]     1
+[uvm_test_top.env.scoreboard]     1
+[uvm_test_top.env.virtual_sequencer.xbar_smoke_vseq]     3
+
+
+TEST PASSED CHECKS
+ _____         _                                  _ _ 
+|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |
+  | |/ _ \/ __| __| | '_ \ / _` / __/ __|/ _ \/ _` | |
+  | |  __/\__ \ |_  | |_) | (_| \__ \__ \  __/ (_| |_|
+  |_|\___||___/\__| | .__/ \__,_|___/___/\___|\__,_(_)
+                    |_|                               
+
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 46741962 (1ps)

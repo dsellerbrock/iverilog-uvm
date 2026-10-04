@@ -1,7 +1,20 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-compile-blockers-20260927
-checkpoint_head: 70ae3be50
+branch: agent/rand-2d-dynamic-arrays-20261002
+checkpoint_head: 8527d1fd44eb812aa58d894fb5791e4e3d089742
+active_opentitan_coherent_census_lane:
+  blocker: "OT-COHERENT-49-CENSUS-20261004"
+  phase: "DONE"
+  baseline_head: "8527d1fd44eb812aa58d894fb5791e4e3d089742"
+  baseline: "Census13 completed one coherent 49-target runtime invocation: 49 PASS, zero hard errors, semantic debt, runtime errors/debt, timeouts, or memory-cap hits. All rows emitted pass banners."
+  source: "Disposable OpenTitan source snapshot based on pinned revision a78922f14a8cc20c7ee569f322a04626f2ac6127; OTP covergroup-purity, Flash element-wise solve-before, and SPI-TPM SRAM/reset compatibility overlays were reverse-dry-run verified. OTBN used xPack RV32 as/ld. Runner metadata reports revision unknown because this snapshot has no Git metadata."
+  compiler: "ivl SHA-256 8dae711b38f7229b74b29455db587238ef76452928a66faeb5085aa429ef184c; VVP SHA-256 2dee1367fb1c984aa8e77d58ddd6f87808b39489d2862fe9bf03e78f1739f570."
+  command: "evidence/opentitan-census-20261002/census13-full-corpus-20261004/run-census13-coherent.sh"
+  output: "evidence/opentitan-census-20261002/census13-full-corpus-20261004/result-census13.json and result-census13.md"
+  envelope: "49 runtime targets, two jobs, 18,000-second timeout, 9,536 MiB memory cap, commercial-unsafe, pinned UVM 1.2, native OpenSSL/libelf."
+  acceptance: "MET: one invocation records 49 PASS, all pass banners, and zero setup/compile failures, hard errors, semantic debt, runtime errors/debt, timeouts, or memory-cap hits. Flash passed in 6,674.724 seconds under the 18,000-second / 9,536 MiB envelope."
+  performance_profiles: "Census13 used the same compiler-engine and VVP hashes as census12 profiles. Existing profiles include 61 unique native sample captures across 27 targets plus Xcode Time Profiler traces for SRAM, SPI host, and SPI device; all 27 census13 targets over 30 seconds are represented. See evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md and census13 README."
+  next: "Update existing draft PR #398 with the coherent result and hot-path cross-check. Complete required CI/review before merge, preserve the other worker clone during checkout cleanup, then continue IEEE 1800-2017/2023 support."
 active_ot_compile_constraint_batch2_lane:
   blocker: "OT-COMPILE-CONSTRAINT-BATCH2-20261001"
   phase: "DONE"
@@ -593,3 +606,10 @@ preservation:
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
 next_command: "PR376 is published with local qualification; preserve Caliptra work and respond only if CI later reports an issue, without polling."
+current_execution_checkpoint:
+  active_work_item: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
+  source_head: "71fb85413525ba1caabb3bc1e2ef41789bd459f9"
+  phase: "ACTIVE; user-directed 60-minute Flash fallback timed out without PASS after reaching operation 4/4"
+  completed: "Iterations 1-4 showed no significant end-to-end Flash gain. The VPI cache and process-object candidates were removed; -O3 builds of vvp/vthread.cc and vvp/vvp_z3.cc each matched the prior operation-2 marker at 1,414,652.8 ns. The user directed on 2026-10-03 to skip iteration 5. The 3,600-second replay hit its wall cap at 3,600.4 seconds, peak RSS 1,742,995,456 bytes, no UVM_ERROR/UVM_FATAL marker and no TEST PASSED CHECKS. It advanced to the later four-operation phase and op 4/4; last scoreboard marker was 5,622,434.9 ns. No full corpus was started. Evidence: evidence/opentitan-census-20261002/flash-60m-user-directed-fallback-20261003/."
+  next_action: "Profile operation preparation from operation 4/4 at 5,622,051.9 ns: measure full-bank invalidation (`uvm_hdl_deposit`) separately from partition-model population (`read32`). The 3,600-second replay hit its cap without a checked PASS. Preserve current checks and do not start the 49-target corpus until Flash has a clean checked PASS and zero semantic/runtime debt."
+  next_command: "Inspect evidence/opentitan-census-20261002/flash-60m-user-directed-fallback-20261003/result.json and the op 4/4 scoreboard path; continue focused profiling, with no full corpus rerun."

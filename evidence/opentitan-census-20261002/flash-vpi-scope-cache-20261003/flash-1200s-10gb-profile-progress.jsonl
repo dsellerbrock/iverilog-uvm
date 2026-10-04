@@ -1,0 +1,44 @@
+{"event": "progress", "elapsed_s": 30.3, "rss_bytes": 959561728, "peak_rss_bytes": 961085440, "log_bytes": 1536}
+{"event": "progress", "elapsed_s": 60.6, "rss_bytes": 1022443520, "peak_rss_bytes": 1022443520, "log_bytes": 1971}
+{"event": "progress", "elapsed_s": 90.9, "rss_bytes": 1206370304, "peak_rss_bytes": 1216233472, "log_bytes": 2594}
+{"event": "sample", "sample": 1, "scheduled_elapsed_s": 120, "actual_elapsed_s": 130.5, "capture_duration_s": 10.3, "returncode": 0, "bytes": 1080578, "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-1-20261003.txt", "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-1-20261003.txt\n"}
+{"event": "progress", "elapsed_s": 130.5, "rss_bytes": 1212153856, "peak_rss_bytes": 1216233472, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 160.8, "rss_bytes": 1217724416, "peak_rss_bytes": 1217724416, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 191.1, "rss_bytes": 1222197248, "peak_rss_bytes": 1222197248, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 221.5, "rss_bytes": 1227374592, "peak_rss_bytes": 1227374592, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 251.8, "rss_bytes": 1232863232, "peak_rss_bytes": 1232863232, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 282.1, "rss_bytes": 1238499328, "peak_rss_bytes": 1238499328, "log_bytes": 2594}
+{"event": "sample", "sample": 2, "scheduled_elapsed_s": 300, "actual_elapsed_s": 310.5, "capture_duration_s": 10.2, "returncode": 0, "bytes": 1108742, "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-2-20261003.txt", "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-2-20261003.txt\n"}
+{"event": "progress", "elapsed_s": 312.6, "rss_bytes": 1243873280, "peak_rss_bytes": 1243873280, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 342.9, "rss_bytes": 1248346112, "peak_rss_bytes": 1248346112, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 373.2, "rss_bytes": 1252917248, "peak_rss_bytes": 1252917248, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 403.6, "rss_bytes": 1257422848, "peak_rss_bytes": 1257422848, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 433.9, "rss_bytes": 1262682112, "peak_rss_bytes": 1262682112, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 464.2, "rss_bytes": 1268203520, "peak_rss_bytes": 1268203520, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 494.5, "rss_bytes": 1274167296, "peak_rss_bytes": 1274167296, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 524.9, "rss_bytes": 1279868928, "peak_rss_bytes": 1279868928, "log_bytes": 2594}
+{"event": "sample", "sample": 3, "scheduled_elapsed_s": 540, "actual_elapsed_s": 550.2, "capture_duration_s": 10.2, "returncode": 0, "bytes": 996785, "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-3-20261003.txt", "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-3-20261003.txt\n"}
+{"event": "progress", "elapsed_s": 555.3, "rss_bytes": 1285226496, "peak_rss_bytes": 1285226496, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 585.6, "rss_bytes": 1290616832, "peak_rss_bytes": 1290616832, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 615.9, "rss_bytes": 1296154624, "peak_rss_bytes": 1296154624, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 646.3, "rss_bytes": 1301315584, "peak_rss_bytes": 1301315584, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 676.6, "rss_bytes": 1305886720, "peak_rss_bytes": 1305886720, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 706.9, "rss_bytes": 1312325632, "peak_rss_bytes": 1312325632, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 737.2, "rss_bytes": 1318961152, "peak_rss_bytes": 1318961152, "log_bytes": 2594}
+{"event": "progress", "elapsed_s": 767.5, "rss_bytes": 1322663936, "peak_rss_bytes": 1322680320, "log_bytes": 3035}
+{"event": "sample", "sample": 4, "scheduled_elapsed_s": 780, "actual_elapsed_s": 790.9, "capture_duration_s": 10.2, "returncode": 0, "bytes": 1661598, "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-4-20261003.txt", "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-4-20261003.txt\n"}
+{"event": "progress", "elapsed_s": 798.0, "rss_bytes": 1330036736, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 828.3, "rss_bytes": 960462848, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 858.7, "rss_bytes": 966754304, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 889.1, "rss_bytes": 973389824, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 919.4, "rss_bytes": 983646208, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 949.8, "rss_bytes": 990199808, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 980.0, "rss_bytes": 995622912, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 1010.2, "rss_bytes": 1000570880, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "sample", "sample": 5, "scheduled_elapsed_s": 1020, "actual_elapsed_s": 1030.6, "capture_duration_s": 10.3, "returncode": 0, "bytes": 1017236, "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-5-20261003.txt", "stderr": "Sampling process 7327 for 10 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 7327 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/flash-vpi-scope-cache-20261003/flash-cpu-sample-5-20261003.txt\n"}
+{"event": "progress", "elapsed_s": 1040.7, "rss_bytes": 1005715456, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 1070.9, "rss_bytes": 1011482624, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 1101.1, "rss_bytes": 1017561088, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 1131.4, "rss_bytes": 1022967808, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 1161.6, "rss_bytes": 1027571712, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
+{"event": "progress", "elapsed_s": 1191.8, "rss_bytes": 1031192576, "peak_rss_bytes": 1330036736, "log_bytes": 3666}
