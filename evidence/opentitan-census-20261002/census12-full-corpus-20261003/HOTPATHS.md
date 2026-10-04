@@ -110,7 +110,10 @@ compiler-wait profiles are excluded from the runtime analysis.
 
 The entropy-source profile has 1,797/6,884 root stacks under `of_VPI_CALL`,
 including `sva_enabled_calltf`; its other visible branches include 781
-`randomize_with_` and 720 `uvm_hdl_read` stacks. The early Flash profile includes
+`randomize_with_` and 720 `uvm_hdl_read` stacks. OTP controller also shows
+`of_VPI_CALL` in 1,481/6,814 root stacks at 30s, with repeated `sva_enabled_calltf`
+and VPI iterator/get/put work. This reinforces the SVA callback path as a
+cross-target hot spot. The early Flash profile includes
 `uvm_ivl_hdl_put`, `uvm_hdl_read`, `vpi_handle_by_name`, and `find_name` under
 DPI calls. CSRNG also shows nested randomization/sparse-domain enumeration and
 UVM HDL reads. These establish several workloads for checking whether the VPI
@@ -129,6 +132,7 @@ repeated SVA callback work is a larger visible VPI path than scope resolution
 in the sampled ADC, entropy-source, and 900s Flash phases.
 
 Profiles: [entropy source](lowrisc_dv_entropy_src_sim_0.1-after-30s-pid9242.sample.txt),
+[OTP controller](lowrisc_dv_otp_ctrl_sim_0.1-after-30s-pid16949.sample.txt),
 [Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid9372.sample.txt), and
 [CSRNG](lowrisc_dv_csrng_sim_0.1-after-30s-pid8923.sample.txt).
 
