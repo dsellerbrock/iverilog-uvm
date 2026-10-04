@@ -178,6 +178,8 @@ OPENTITAN_RUNTIME_PASS_RE = re.compile(
 )
 SPID_JEDEC_CHECKED_PASS_RE = re.compile(r"^SPI Flash Read JEDEC ID Tested!!:$", re.M)
 SPID_UPLOAD_CHECKED_PASS_RE = re.compile(r"^All payloads are read out\.$", re.M)
+SPI_TPM_COMPLETION_RE = re.compile(r"^Host transactions has ended\.$", re.M)
+SPI_TPM_PASS_RE = re.compile(r"^TEST PASSED!$", re.M)
 
 
 def opentitan_runtime_pass_marker(core: str, output: str) -> bool:
@@ -190,6 +192,12 @@ def opentitan_runtime_pass_marker(core: str, output: str) -> bool:
         or (
             core == "lowrisc:dv:spid_upload_sim:0.1"
             and SPID_UPLOAD_CHECKED_PASS_RE.search(output)
+        )
+        or (
+            core == "lowrisc:dv:spi_tpm_sim:0.1"
+            and SPI_TPM_COMPLETION_RE.search(output)
+            and SPI_TPM_PASS_RE.search(output)
+            and not re.search(r"^TEST TIMED OUT!!$", output, re.M)
         )
     )
 
@@ -3717,6 +3725,13 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert not opentitan_runtime_pass_marker(upload_core, "All payloads are still being read out.\n")
     assert not opentitan_runtime_pass_marker(
         jedec_core, "Jedec ID Received: Manufacturer ID [be], JEDEC_ID [a55a]\n"
+    )
+    tpm_core = "lowrisc:dv:spi_tpm_sim:0.1"
+    tpm_pass = "Host transactions has ended.\nTEST PASSED!\n"
+    assert opentitan_runtime_pass_marker(tpm_core, tpm_pass)
+    assert not opentitan_runtime_pass_marker(tpm_core, "TEST PASSED!\n")
+    assert not opentitan_runtime_pass_marker(
+        tpm_core, tpm_pass + "TEST TIMED OUT!!\n"
     )
     assert matching_lines("TEST TIMED OUT!!", OPENTITAN_RUNTIME_FAIL_PATTERNS)
     assert matching_lines(

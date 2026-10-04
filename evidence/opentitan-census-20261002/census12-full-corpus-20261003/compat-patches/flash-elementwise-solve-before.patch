@@ -1,0 +1,77 @@
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
+@@ -46,7 +46,35 @@
+   flash_mem_init_e otf_flash_init = FlashMemInitEccMode;
+ 
+   constraint all_ent_c {
+-    solve all_entry_en before rand_regions, rand_info;
++    solve all_entry_en before rand_regions;
++    // Expand the configured info-page queues to their packed entries.
++    solve all_entry_en before
++      rand_info[0][0][0],
++      rand_info[0][0][1],
++      rand_info[0][0][2],
++      rand_info[0][0][3],
++      rand_info[0][0][4],
++      rand_info[0][0][5],
++      rand_info[0][0][6],
++      rand_info[0][0][7],
++      rand_info[0][0][8],
++      rand_info[0][0][9],
++      rand_info[0][1][0],
++      rand_info[0][2][0],
++      rand_info[0][2][1],
++      rand_info[1][0][0],
++      rand_info[1][0][1],
++      rand_info[1][0][2],
++      rand_info[1][0][3],
++      rand_info[1][0][4],
++      rand_info[1][0][5],
++      rand_info[1][0][6],
++      rand_info[1][0][7],
++      rand_info[1][0][8],
++      rand_info[1][0][9],
++      rand_info[1][1][0],
++      rand_info[1][2][0],
++      rand_info[1][2][1];
+     if (cfg.en_always_any) all_entry_en == 1;
+     else all_entry_en dist { 1 := 1, 0 := 4};
+   }
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv
+@@ -40,7 +40,34 @@
+   mp_info_pages[NumBanks][flash_ctrl_pkg::InfoTypes][$];
+ 
+   constraint solv_order_c {
+-    solve mp_regions, mp_info_pages before flash_op;
++    solve mp_regions before flash_op;
++    // Order each configured info-page queue entry before the flash operation.
++    solve mp_info_pages[0][0][0],
++      mp_info_pages[0][0][1],
++      mp_info_pages[0][0][2],
++      mp_info_pages[0][0][3],
++      mp_info_pages[0][0][4],
++      mp_info_pages[0][0][5],
++      mp_info_pages[0][0][6],
++      mp_info_pages[0][0][7],
++      mp_info_pages[0][0][8],
++      mp_info_pages[0][0][9],
++      mp_info_pages[0][1][0],
++      mp_info_pages[0][2][0],
++      mp_info_pages[0][2][1],
++      mp_info_pages[1][0][0],
++      mp_info_pages[1][0][1],
++      mp_info_pages[1][0][2],
++      mp_info_pages[1][0][3],
++      mp_info_pages[1][0][4],
++      mp_info_pages[1][0][5],
++      mp_info_pages[1][0][6],
++      mp_info_pages[1][0][7],
++      mp_info_pages[1][0][8],
++      mp_info_pages[1][0][9],
++      mp_info_pages[1][1][0],
++      mp_info_pages[1][2][0],
++      mp_info_pages[1][2][1] before flash_op;
+   }
+   // Constraint address to be in relevant range for the selected partition.
+   constraint addr_c {
