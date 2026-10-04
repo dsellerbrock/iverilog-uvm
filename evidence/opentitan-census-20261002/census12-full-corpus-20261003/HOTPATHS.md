@@ -18,7 +18,7 @@ at different times and have different sample counts.
 
 | Rank | Hot path | Evidence and scope | Candidate |
 | --- | --- | --- | --- |
-| 1 | Flash scoreboard associative-array successor walk | A separate five-hour Flash replay spent nearly all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; the exact-default retry had 98.3% of its 4,500s sample in this path, and the current element-wise retry has 98.4% at 3,600s and 98.1% at 4,500s. The walk traverses a 262,144-entry scoreboard. | Replace repeated full-order successor searches with an order-aware traversal or iterator, preserving four-state key ordering. |
+| 1 | Flash scoreboard associative-array successor walk | A separate five-hour Flash replay spent nearly all late samples in `of_AA_NEXT_SIG_V` / `compare_vec_keys_`; the exact-default retry had 98.3% of its 4,500s sample in this path, and the current element-wise retry has 98.4% at 3,600s, 98.1% at 4,500s, and 97.6% at 5,400s. The walk traverses a 262,144-entry scoreboard. | Replace repeated full-order successor searches with an order-aware traversal or iterator, preserving four-state key ordering. |
 | 2 | Flash scoreboard population through backdoor reads | The default-args Flash Instruments capture has 2,471/30,355 stacks through `uvm_hdl_read`, 2,334 through `vpi_handle_by_name`, and 1,415 through `find_name`. Source walks 262,144 words; `read32()` issues four `read()`/`uvm_hdl_read()` calls per word. | Avoid redundant full-word backdoor reads and indexed path formatting across `read32()`'s four byte reads; reuse packed values only where Flash layout and ECC semantics permit. |
 | 3 | Repeated Z3 domain/tuple enumeration | HMAC, I2C, TL-agent, ROM, SPI host/device, UART and other tests repeatedly sample `z3_enumerate_sparse_wide_domain_`; RV-DM has a distinct joint-tuple enumeration burst. | Reduce solver checks, model extraction and blocking-clause churn while preserving exact randomization semantics. |
 | 4 | SRAM indexed backdoor name lookup | SRAM Time Profiler: 16,525/30,298 samples include `uvm_hdl_read`; 11,230 include `__vpiArray::get_word_str`, with 7,806 in `snprintf`. | Cache the resolved array base per scope/name and profile remaining path formatting and fallback scans. |
@@ -450,14 +450,17 @@ include `compare_vec_keys_`; only 9 enter `uvm_hdl_read`. This independently
 reproduces the late Flash scoreboard bottleneck in the element-wise retry.
 At 75 minutes, 3,738/3,809 stacks (98.1%) remain in `of_AA_NEXT_SIG_V`, and
 3,416 include `compare_vec_keys_`; only 7 include `uvm_hdl_read`. The scan
-therefore remains above 98% across the 60- and 75-minute samples. The raw
+therefore remains above 98% across the 60- and 75-minute samples. At 90
+minutes, 3,762/3,856 stacks (97.6%) remain under `of_AA_NEXT_SIG_V`, with
+3,358 under `compare_vec_keys_`; only 10 include `uvm_hdl_read`. The raw
 captures are at
 `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-5m.sample.txt`,
 `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-15m.sample.txt`,
 `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-30m.sample.txt`,
 `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-45m.sample.txt`,
 `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-60m.sample.txt`,
-and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-75m.sample.txt`.
+and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-75m.sample.txt`,
+and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-90m.sample.txt`.
 
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz),
 [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
