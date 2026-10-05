@@ -121,7 +121,11 @@ The latest selected OpenTitan runtime census, census18, passed **49/49 targets**
 with zero runtime errors, debt, timeouts, or memory-cap hits. It ran one target
 at a time with a 9,536-MiB per-process footprint cap and the xPack OTBN
 toolchain. This qualifies the selected matrix on the installed pre-candidate
-compiler, not all OpenTitan DV tests or the candidate compiler's compile lanes.
+compiler, not all OpenTitan DV tests. The refreshed candidate RTL/SVA/UVM
+compile census is not passing: all 31 UVM simulation targets fail on the
+`uvm_hdl_release` argument mismatch, alongside RTL board/setup failures and
+classified debt. The source snapshot was unpinned, and candidate runtime
+validation remains outstanding. See the [candidate census](evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
 See the [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md),
 [matrix runner reference](docs/conformance/opentitan_matrix.md),
 [latest results](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),

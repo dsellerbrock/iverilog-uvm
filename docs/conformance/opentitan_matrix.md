@@ -14,6 +14,22 @@ inventory; they are not the current 49-target runtime result.
 OpenTitan closure campaign.  It replaces one-off source lists with a pinned,
 machine-readable result for every selected FuseSoC core.
 
+## Candidate compile census (2026-10-05)
+
+The refreshed RTL/SVA/UVM run completed 309 entries on the candidate compiler
+with `--jobs 1`; it is not a passing acceptance result. It records 34 hard
+failures, 13 semantic-debt rows, 7 setup failures, and 10 upstream-invalid
+rows. The 31 UVM failures all report a one-argument `uvm_hdl_release` call
+against a candidate binding that requires a `value` argument. Three RTL
+failures are Xilinx board tops with unresolved primitive cells. See the
+[full candidate census and RAM guard record](../../evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
+
+This diagnostic run used an OpenTitan source copy with no Git metadata
+(`revision: unknown`, `dirty: true`) and did not run the candidate runtime
+lane. Census18's 49/49 runtime result used the pre-candidate compiler, so full
+candidate acceptance remains pending a pinned source refresh and resolution of
+the compile debt and failures.
+
 ## Pass criteria
 
 The runner keeps these outcomes distinct:
