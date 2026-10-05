@@ -68,6 +68,11 @@ The Keccak round FPV row also passes on engine `367e…` after its testbench
 clear signal was changed to the DUT's `mubi4_t` encoding. See its
 [focused result](../../evidence/opentitan-census-20261002/candidate-keccak-round-fpv-mubi4-clear-20261005/README.md).
 
+The `lowrisc:fpv:prim_lfsr_fpv:0.1` row also passes on engine `367e…` after a
+hash-checked build-local overlay assigns disjoint vector indices to its
+linear and nonlinear LFSR instances. This focused follow-up does not recompute
+the 309-row census; see the [result and patch](../../evidence/opentitan-census-20261002/candidate-prim-lfsr-fpv-disjoint-slots-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on

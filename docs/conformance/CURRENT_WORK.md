@@ -46,6 +46,12 @@ The Keccak round FPV target also passes; its clear signal now uses the DUT's
 `mubi4_t` encoding. See the
 [focused result](../../evidence/opentitan-census-20261002/candidate-keccak-round-fpv-mubi4-clear-20261005/README.md).
 
+The `prim_lfsr` FPV target now passes with disjoint build-local vector indices
+for its linear and nonlinear instances. This resolves duplicate `state_o`
+drivers without changing pinned source. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-prim-lfsr-fpv-disjoint-slots-20261005/README.md).
+The 309-row census totals remain unchanged.
+
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 

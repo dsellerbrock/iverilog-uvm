@@ -2860,6 +2860,12 @@ KECCAK_ROUND_FPV_SOURCE_SHA256 = (
 KECCAK_ROUND_FPV_OVERLAY_SHA256 = (
     "bef9dc1f9012924600d32766521371a0da390501ae44c8de785f3f496ef0a6c1"
 )
+PRIM_LFSR_FPV_SOURCE_SHA256 = (
+    "e43d078287df5950fd78d33d60c6a02a60666caa3ae5cb877d42db8da20c33ee"
+)
+PRIM_LFSR_FPV_OVERLAY_SHA256 = (
+    "7a7d252fbd82c28d7b17bc4718be5c8bd5f5350a143aa5396a4c096912f2f72c"
+)
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
@@ -3520,6 +3526,41 @@ def keccak_round_fpv_source_text(text: str) -> str:
     return text
 
 
+def prim_lfsr_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            """  begin : gen_gal_xor_duts_nonlinear
+    localparam int unsigned Idx = k - GalXorMinLfsrDw;""",
+            """  begin : gen_gal_xor_duts_nonlinear
+    localparam int unsigned Idx = k - GalXorMinLfsrDw +
+                                  (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);""",
+            "nonlinear GalXor index",
+        ),
+        (
+            """  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) begin : gen_fib_xnor_duts
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw + GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;""",
+            """  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) begin : gen_fib_xnor_duts
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw +
+                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);""",
+            "linear FibXnor index",
+        ),
+        (
+            """  begin : gen_fib_xnor_duts_nonlinear
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw + GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;""",
+            """  begin : gen_fib_xnor_duts_nonlinear
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw +
+                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1) +
+                                  (FibXnorMaxLfsrDw - FibXnorMinLfsrDw + 1);""",
+            "nonlinear FibXnor index",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"prim_lfsr FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
 def keccak_2share_fpv_source_overlay(
     opentitan_root: Path,
     work_root: Path,
@@ -3622,6 +3663,62 @@ def keccak_round_fpv_source_overlay(
     )
     return source_list_overlay, {
         "profile": "keccak_round_fpv_mubi4_clear",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def prim_lfsr_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Give each LFSR FPV instance a disjoint input/output vector slot."""
+    source = opentitan_root / "hw/ip/prim/fpv/tb/prim_lfsr_tb.sv"
+    source_hash = file_sha256(source)
+    if source_hash != PRIM_LFSR_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "prim_lfsr FPV source hash mismatch: "
+            f"expected {PRIM_LFSR_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "prim_lfsr_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("prim_lfsr FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "prim_lfsr_tb.sv"
+    if overlay.is_symlink():
+        raise ValueError("prim_lfsr FPV overlay is a symlink")
+    overlay.write_text(prim_lfsr_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != PRIM_LFSR_FPV_OVERLAY_SHA256:
+        raise ValueError(f"prim_lfsr FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("prim_lfsr FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = (
+        "../src/lowrisc_fpv_prim_lfsr_fpv_0.1/"
+        "tb/prim_lfsr_tb.sv"
+    )
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("prim_lfsr FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("prim_lfsr FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "prim_lfsr_fpv_disjoint_instance_indices",
         "source": str(source),
         "source_sha256": source_hash,
         "overlay": str(overlay),
@@ -3905,6 +4002,22 @@ def run_job(
             try:
                 source_list_for_compile, source_overlay = (
                     keccak_round_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:prim_lfsr_fpv:0.1"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    prim_lfsr_fpv_source_overlay(
                         opentitan_root, work_root, source_list
                     )
                 )
@@ -4759,6 +4872,36 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "  prim_mubi_pkg::mubi4_t clear;\n"
         "    clear = prim_mubi_pkg::MuBi4False;\n"
         "        clear = prim_mubi_pkg::MuBi4True;\n"
+    )
+    prim_lfsr_tb_sample = (
+        "  begin : gen_gal_xor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - GalXorMinLfsrDw;\n"
+        "  end\n"
+        "  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) "
+        "begin : gen_fib_xnor_duts\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw + "
+        "GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;\n"
+        "  end\n"
+        "  begin : gen_fib_xnor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw + "
+        "GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;\n"
+        "  end\n"
+    )
+    assert prim_lfsr_fpv_source_text(prim_lfsr_tb_sample) == (
+        "  begin : gen_gal_xor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - GalXorMinLfsrDw +\n"
+        "                                  (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);\n"
+        "  end\n"
+        "  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) "
+        "begin : gen_fib_xnor_duts\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw +\n"
+        "                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);\n"
+        "  end\n"
+        "  begin : gen_fib_xnor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw +\n"
+        "                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1) +\n"
+        "                                  (FibXnorMaxLfsrDw - FibXnorMinLfsrDw + 1);\n"
+        "  end\n"
     )
     spi_host_core_sample = (
         "  formal:\n"
