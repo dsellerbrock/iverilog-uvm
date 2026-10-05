@@ -1,0 +1,6 @@
+--- a/hw/ip/spi_host/dv/sva/spi_host_sva.core
++++ b/hw/ip/spi_host/dv/sva/spi_host_sva.core
+@@ -34,3 +34,2 @@
+     filesets:
+-      - files_formal
+       - files_dv

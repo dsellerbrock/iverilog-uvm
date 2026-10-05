@@ -175,6 +175,13 @@ MATRIX_SOURCE_CORE_DEPENDENCIES = (
         ("lowrisc:tlul:socket_1n", "lowrisc:prim:sec_anchor"),
     ),
 )
+SPI_HOST_SVA_CORE = "hw/ip/spi_host/dv/sva/spi_host_sva.core"
+SPI_HOST_SVA_CORE_SOURCE_SHA256 = (
+    "16322a562961389fd9f0b4ca4ff7a266e60adb32547ba16b4921f2efbbc27122"
+)
+SPI_HOST_SVA_CORE_OVERLAY_SHA256 = (
+    "7d7b4e3297492e04f77a44cec2c050f475172a9a723f1e6c43fc88512072be11"
+)
 ENGLISHBREAKFAST_MAPPING = "local:matrix:top_englishbreakfast:0.1"
 ENGLISHBREAKFAST_MAPPING_CORE = """CAPI=2:
 name: local:matrix:top_englishbreakfast:0.1
@@ -2112,6 +2119,60 @@ def provider_mappings(job: Job, requested_top: str) -> list[str]:
     return [PRIM_MAPPING, DEFAULT_TOPS[top]]
 
 
+def spi_host_sva_core_source_text(text: str) -> str:
+    before = "    filesets:\n      - files_formal\n      - files_dv\n    toplevel: spi_host"
+    after = "    filesets:\n      - files_dv\n    toplevel: spi_host"
+    if text.count(before) != 1:
+        raise ValueError("SPI host formal fileset reference is not unique")
+    return text.replace(before, after)
+
+
+def stage_spi_host_sva_core_override(
+    opentitan_root: Path, source_override_root: Path
+) -> None:
+    source_core = opentitan_root / SPI_HOST_SVA_CORE
+    overlay_core = source_override_root / SPI_HOST_SVA_CORE
+    if not source_core.is_file():
+        overlay_core.unlink(missing_ok=True)
+        return
+    if file_sha256(source_core) != SPI_HOST_SVA_CORE_SOURCE_SHA256:
+        overlay_core.unlink(missing_ok=True)
+        return
+
+    overlay_text = spi_host_sva_core_source_text(source_core.read_text())
+    overlay_hash = hashlib.sha256(overlay_text.encode()).hexdigest()
+    if overlay_hash != SPI_HOST_SVA_CORE_OVERLAY_SHA256:
+        raise RuntimeError(f"SPI host SVA core overlay hash mismatch: {overlay_hash}")
+    if overlay_core.is_symlink():
+        raise RuntimeError("SPI host SVA core overlay is a symlink")
+    overlay_core.parent.mkdir(parents=True, exist_ok=True)
+    if not overlay_core.is_file() or overlay_core.read_text() != overlay_text:
+        overlay_core.write_text(overlay_text)
+
+    source_dir = source_core.parent
+    overlay_dir = overlay_core.parent
+    for name in ("spi_host_data_stable_sva.sv", "spi_host_bind.sv"):
+        link = overlay_dir / name
+        target = source_dir / name
+        if link.is_symlink():
+            if link.resolve() == target.resolve():
+                continue
+            link.unlink()
+        elif link.exists():
+            raise RuntimeError(f"SPI host SVA overlay path already exists: {link}")
+        link.symlink_to(target)
+
+    data_link = overlay_dir.parent.parent / "data"
+    data_target = source_dir.parent.parent / "data"
+    if data_link.is_symlink():
+        if data_link.resolve() != data_target.resolve():
+            data_link.unlink()
+    elif data_link.exists():
+        raise RuntimeError(f"SPI host SVA overlay data path already exists: {data_link}")
+    if not data_link.exists():
+        data_link.symlink_to(data_target, target_is_directory=True)
+
+
 def prepare_matrix_core_root(build_root: Path, opentitan_root: Path) -> Path:
     """Prepare FuseSoC mappings and pinned-source core metadata overlays."""
     core_root = build_root / "matrix-provider-cores"
@@ -2200,6 +2261,7 @@ def prepare_matrix_core_root(build_root: Path, opentitan_root: Path) -> Path:
                     overlay_dir.symlink_to(source_dir, target_is_directory=True)
             elif not overlay_dir.exists():
                 overlay_dir.symlink_to(source_dir, target_is_directory=True)
+    stage_spi_host_sva_core_override(opentitan_root, source_override_root)
     return core_root
 
 
@@ -4400,6 +4462,21 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "      end\n"
         "      StPhase2Cycle1: begin"
     )
+    spi_host_core_sample = (
+        "  formal:\n"
+        "    <<: *default_target\n"
+        "    filesets:\n"
+        "      - files_formal\n"
+        "      - files_dv\n"
+        "    toplevel: spi_host\n"
+    )
+    assert spi_host_sva_core_source_text(spi_host_core_sample) == (
+        "  formal:\n"
+        "    <<: *default_target\n"
+        "    filesets:\n"
+        "      - files_dv\n"
+        "    toplevel: spi_host\n"
+    )
     guarded_memload = guard_memload_debug(memload_sample)
     assert "`ifndef SYNTHESIS" in guarded_memload
     assert guarded_memload.index("`endif") < guarded_memload.index(
@@ -5228,6 +5305,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if (matrix_core_root / "source-overrides" / relative_core).is_file()
     ]
+    spi_host_core_overlay = matrix_core_root / "source-overrides" / SPI_HOST_SVA_CORE
+    if spi_host_core_overlay.is_file():
+        metadata["matrix_source_core_text_overrides"] = [
+            {
+                "source_core": SPI_HOST_SVA_CORE,
+                "source_sha256": file_sha256(opentitan_root / SPI_HOST_SVA_CORE),
+                "overlay_sha256": file_sha256(spi_host_core_overlay),
+                "change": "remove nonexistent files_formal target fileset",
+            }
+        ]
     if native_pkg_config is not None:
         metadata["native_pkg_config"] = native_pkg_config
     if formal_targets is not None:

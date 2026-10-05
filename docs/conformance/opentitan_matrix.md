@@ -56,6 +56,10 @@ classifier confirms that warned non-HDL files are not in Icarus's source lists.
 The focused [SVA result](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md)
 does not recompute the full census.
 
+`lowrisc:dv:spi_host_sva:0.1` also passes after a build-local core overlay
+removes its reference to an undefined `files_formal` fileset. The original
+`files_dv` content remains selected; see the [focused result](../../evidence/opentitan-census-20261002/candidate-spi-host-sva-fileset-20261005/README.md).
+
 The Keccak 2-share FPV row remains upstream-invalid after a diagnostic syntax
 and package-import correction reveals obsolete DUT port hookups. The current
 testbench needs a control-model update; see its [audit](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-upstream-audit-20261005/README.md).
