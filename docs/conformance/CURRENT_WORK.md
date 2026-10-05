@@ -18,9 +18,9 @@ This qualifies the matrix's 49 selected runtime targets, not every OpenTitan
 DV test.
 
 A corrected runtime census17 is still running from the updated source-overlay
-driver. At 2026-10-05 02:50 UTC its persisted result JSON records **28/49
-PASS**, one `PRE_RUN_FAIL` on `lowrisc:dv:otbn_sim:0.1`, and 20 targets still
-unreported.
+driver. At 2026-10-05 02:59 UTC its persisted result JSON records **30/49
+PASS**, one `PRE_RUN_FAIL` on `lowrisc:dv:otbn_sim:0.1`, and 18 targets still
+unreported. Flash and SPI-device simulations are actively running.
 OTBN setup and compile returned 0 with zero hard compiler errors; its pre-run
 failed before simulation on the fallback toolchain path: this source snapshot
 has no Git metadata, and OpenTitan's Bazelisk wrapper requires Bash
