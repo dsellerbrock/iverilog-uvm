@@ -2209,10 +2209,12 @@ def actionable_setup_lines(output: str) -> list[str]:
     return findings
 
 
-def classify_rtl_native_setup_warnings(
-    findings: Sequence[str], source_list: Path
+def classify_compile_setup_warnings(
+    lane: str, findings: Sequence[str], source_list: Path
 ) -> tuple[list[str], list[str]]:
-    """Clear C/C++ setup notices only when the staged file is unused by RTL."""
+    """Classify native-file warnings only when RTL/UVM .scr files omit them."""
+    if lane not in {"rtl", "uvm"}:
+        return list(findings), []
     native_sources: set[Path] = set()
     pending = [source_list]
     seen: set[Path] = set()
@@ -2989,9 +2991,9 @@ def run_job(
     except (FileNotFoundError, OSError, ValueError) as exc:
         record.update({"status": "SETUP_FAIL", "matrix_error": str(exc)})
         return record
-    if job.lane == "rtl":
+    if job.lane in {"rtl", "uvm"}:
         setup_actionable_findings, setup_benign_diagnostics = (
-            classify_rtl_native_setup_warnings(setup_findings, source_list)
+            classify_compile_setup_warnings(job.lane, setup_findings, source_list)
         )
         record.update(
             {
@@ -4046,9 +4048,15 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             "WARNING: ../src/listed.cc has unknown file type 'cppSource'",
             "WARNING: waiver has unknown file type ''",
         ]
-        assert classify_rtl_native_setup_warnings(warnings, source_list) == (
+        assert classify_compile_setup_warnings("rtl", warnings, source_list) == (
             warnings[1:], warnings[:1]
         )
+        assert classify_compile_setup_warnings(
+            "uvm", warnings, source_list
+        ) == (warnings[1:], warnings[:1])
+        assert classify_compile_setup_warnings(
+            "runtime", warnings, source_list
+        ) == (warnings, [])
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         staged = root / "src" / "native_core" / "util.c"
