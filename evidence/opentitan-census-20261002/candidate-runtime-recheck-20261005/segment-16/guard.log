@@ -1,0 +1,136 @@
+RAM guard started; min_free=60%; command=['env', 'RV32_TOOL_AS=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/as', 'RV32_TOOL_LD=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/ld', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', 'scripts/opentitan_matrix.py', '--opentitan-root', '/private/tmp/ot-corpus-current-spid-passthrough-20261003/source', '--build-root', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/build/candidate-runtime-remainder-20261005', '--iverilog', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/install/bin/iverilog', '--uvm-home', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src', '--fusesoc', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc', '--fusesoc-python', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', '--lane', 'runtime', '--jobs', '1', '--setup-timeout', '600', '--compile-timeout', '600', '--runtime-timeout', '18000', '--runtime-memory-mib', '9536', '--commercial-unsafe', '--native-pkg-config', 'openssl', '--native-pkg-config', 'libelf', '--core', 'lowrisc:dv:spi_host_sim:1.0', '--core', 'lowrisc:dv:spi_tpm_sim:0.1', '--core', 'lowrisc:dv:spid_jedec_sim:0.1', '--core', 'lowrisc:dv:spid_passthrough_sim:0.1', '--core', 'lowrisc:dv:spid_readcmd_sim:0.1', '--core', 'lowrisc:dv:spid_status_sim:0.1', '--core', 'lowrisc:dv:spid_upload_sim:0.1', '--core', 'lowrisc:dv:sram_ctrl_sim:0.1', '--core', 'lowrisc:dv:sysrst_ctrl_sim:0.1', '--core', 'lowrisc:dv:tl_agent_sim:0.1', '--core', 'lowrisc:dv:top_earlgrey_xbar_main_sim:0.1', '--core', 'lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1', '--core', 'lowrisc:dv:uart_sim:0.1', '--core', 'lowrisc:dv:usbdev_sim:0.1', '--core', 'lowrisc:ip:trial1_sim:0.1', '--core', 'lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1', '--result-json', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/candidate-runtime-remainder-20261005/result.json', '--result-md', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/candidate-runtime-remainder-20261005/result.md']
+RAM guard sample: free=76%, elapsed=0s
+[1/16] runtime lowrisc:dv:spi_host_sim:1.0
+RAM guard sample: free=76%, elapsed=30s
+RAM guard sample: free=76%, elapsed=60s
+RAM guard sample: free=76%, elapsed=90s
+RAM guard sample: free=76%, elapsed=120s
+RAM guard sample: free=76%, elapsed=150s
+RAM guard sample: free=76%, elapsed=180s
+RAM guard sample: free=76%, elapsed=210s
+RAM guard sample: free=76%, elapsed=240s
+RAM guard sample: free=73%, elapsed=270s
+RAM guard sample: free=73%, elapsed=300s
+RAM guard sample: free=75%, elapsed=330s
+RAM guard sample: free=75%, elapsed=360s
+RAM guard sample: free=74%, elapsed=390s
+RAM guard sample: free=75%, elapsed=420s
+RAM guard sample: free=75%, elapsed=451s
+RAM guard sample: free=75%, elapsed=481s
+RAM guard sample: free=75%, elapsed=511s
+RAM guard sample: free=75%, elapsed=541s
+RAM guard sample: free=75%, elapsed=571s
+RAM guard sample: free=75%, elapsed=601s
+RAM guard sample: free=75%, elapsed=631s
+RAM guard sample: free=75%, elapsed=661s
+RAM guard sample: free=75%, elapsed=691s
+RAM guard sample: free=75%, elapsed=721s
+RAM guard sample: free=75%, elapsed=751s
+RAM guard sample: free=75%, elapsed=781s
+RAM guard sample: free=75%, elapsed=811s
+RAM guard sample: free=75%, elapsed=841s
+RAM guard sample: free=66%, elapsed=872s
+RAM guard sample: free=75%, elapsed=902s
+RAM guard sample: free=75%, elapsed=932s
+RAM guard sample: free=75%, elapsed=962s
+RAM guard sample: free=75%, elapsed=992s
+RAM guard sample: free=75%, elapsed=1022s
+RAM guard sample: free=75%, elapsed=1052s
+RAM guard sample: free=75%, elapsed=1082s
+RAM guard sample: free=75%, elapsed=1112s
+RAM guard sample: free=75%, elapsed=1142s
+RAM guard sample: free=75%, elapsed=1172s
+RAM guard sample: free=75%, elapsed=1202s
+RAM guard sample: free=75%, elapsed=1232s
+RAM guard sample: free=75%, elapsed=1263s
+RAM guard sample: free=75%, elapsed=1293s
+RAM guard sample: free=75%, elapsed=1323s
+RAM guard sample: free=75%, elapsed=1353s
+RAM guard sample: free=75%, elapsed=1383s
+RAM guard sample: free=75%, elapsed=1413s
+RAM guard sample: free=75%, elapsed=1443s
+RAM guard sample: free=75%, elapsed=1473s
+  -> PASS
+[2/16] runtime lowrisc:dv:spi_tpm_sim:0.1
+RAM guard sample: free=74%, elapsed=1503s
+  -> PASS
+[3/16] runtime lowrisc:dv:spid_jedec_sim:0.1
+  -> PASS
+[4/16] runtime lowrisc:dv:spid_passthrough_sim:0.1
+  -> PASS
+[5/16] runtime lowrisc:dv:spid_readcmd_sim:0.1
+  -> PASS
+[6/16] runtime lowrisc:dv:spid_status_sim:0.1
+  -> PASS
+[7/16] runtime lowrisc:dv:spid_upload_sim:0.1
+RAM guard sample: free=67%, elapsed=1533s
+  -> PASS
+[8/16] runtime lowrisc:dv:sram_ctrl_sim:0.1
+RAM guard sample: free=75%, elapsed=1563s
+RAM guard sample: free=75%, elapsed=1593s
+RAM guard sample: free=75%, elapsed=1623s
+RAM guard sample: free=75%, elapsed=1653s
+RAM guard sample: free=75%, elapsed=1684s
+RAM guard sample: free=75%, elapsed=1714s
+RAM guard sample: free=75%, elapsed=1744s
+RAM guard sample: free=75%, elapsed=1774s
+RAM guard sample: free=75%, elapsed=1804s
+RAM guard sample: free=75%, elapsed=1834s
+RAM guard sample: free=75%, elapsed=1864s
+RAM guard sample: free=75%, elapsed=1894s
+  -> PASS
+[9/16] runtime lowrisc:dv:sysrst_ctrl_sim:0.1
+RAM guard sample: free=76%, elapsed=1924s
+RAM guard sample: free=76%, elapsed=1954s
+  -> PASS
+[10/16] runtime lowrisc:dv:tl_agent_sim:0.1
+RAM guard sample: free=76%, elapsed=1984s
+RAM guard sample: free=76%, elapsed=2014s
+RAM guard sample: free=76%, elapsed=2044s
+RAM guard sample: free=75%, elapsed=2074s
+RAM guard sample: free=76%, elapsed=2105s
+  -> PASS
+[11/16] runtime lowrisc:dv:top_earlgrey_xbar_main_sim:0.1
+RAM guard sample: free=76%, elapsed=2135s
+RAM guard sample: free=76%, elapsed=2165s
+RAM guard sample: free=76%, elapsed=2195s
+RAM guard sample: free=76%, elapsed=2225s
+RAM guard sample: free=76%, elapsed=2255s
+  -> PASS
+[12/16] runtime lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1
+RAM guard sample: free=76%, elapsed=2285s
+RAM guard sample: free=77%, elapsed=2315s
+  -> PASS
+[13/16] runtime lowrisc:dv:uart_sim:0.1
+RAM guard sample: free=76%, elapsed=2345s
+  -> PASS
+[14/16] runtime lowrisc:dv:usbdev_sim:0.1
+RAM guard sample: free=77%, elapsed=2375s
+  -> PASS
+[15/16] runtime lowrisc:ip:trial1_sim:0.1
+  -> PASS
+[16/16] runtime lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1
+RAM guard sample: free=77%, elapsed=2405s
+RAM guard sample: free=77%, elapsed=2435s
+RAM guard sample: free=77%, elapsed=2465s
+RAM guard sample: free=77%, elapsed=2495s
+RAM guard sample: free=77%, elapsed=2526s
+RAM guard sample: free=77%, elapsed=2556s
+RAM guard sample: free=77%, elapsed=2586s
+RAM guard sample: free=77%, elapsed=2616s
+RAM guard sample: free=77%, elapsed=2646s
+RAM guard sample: free=77%, elapsed=2676s
+RAM guard sample: free=77%, elapsed=2706s
+RAM guard sample: free=77%, elapsed=2736s
+RAM guard sample: free=77%, elapsed=2766s
+RAM guard sample: free=77%, elapsed=2796s
+RAM guard sample: free=77%, elapsed=2826s
+RAM guard sample: free=77%, elapsed=2856s
+RAM guard sample: free=77%, elapsed=2886s
+RAM guard sample: free=77%, elapsed=2916s
+RAM guard sample: free=77%, elapsed=2947s
+RAM guard sample: free=77%, elapsed=2977s
+  -> PASS
+JSON: /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/candidate-runtime-remainder-20261005/result.json
+Markdown: /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/candidate-runtime-remainder-20261005/result.md
+RAM guard finished with exit=0
