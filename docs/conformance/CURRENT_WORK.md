@@ -18,12 +18,16 @@ This qualifies the matrix's 49 selected runtime targets, not every OpenTitan
 DV test.
 
 A corrected runtime census17 is still running from the updated source-overlay
-driver. Its last result snapshot is **13/49 PASS**, with no failures recorded
-so far; it uses the installed pre-candidate compiler and therefore does not
-validate the AST synthesis fix. The generation-guarded Nexus candidate passes
-the OpenTitan AST reproducer 20/20 and three related sparse-case tests 3/3;
-the refreshed RTL/SVA/UVM census remains pending. See the [AST synthesis
-evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
+driver. At 2026-10-05 02:43 UTC its result snapshot is **25/49 PASS**, one
+`PRE_RUN_FAIL` on `lowrisc:dv:otbn_sim:0.1`, and 23 targets still unreported.
+OTBN setup and compile returned 0 with zero hard compiler errors; its pre-run
+failed before simulation because the source snapshot lacks Git metadata and
+OpenTitan's Bazelisk wrapper requires Bash associative arrays while the
+runner invokes macOS `/bin/bash` 3.2. This run uses the installed
+pre-candidate compiler and does not validate the AST synthesis fix. The
+generation-guarded Nexus candidate passes the OpenTitan AST reproducer 20/20
+and three related sparse-case tests 3/3; the refreshed RTL/SVA/UVM census
+remains pending. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
 
 The default `rom_ctrl` RTL compile also passes with a build-local overlay that
 guards only simulation path-printing and retains `$readmemh`; a nonempty image
