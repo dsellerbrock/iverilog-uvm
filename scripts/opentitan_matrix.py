@@ -2215,8 +2215,8 @@ def actionable_setup_lines(output: str) -> list[str]:
 def classify_compile_setup_warnings(
     lane: str, findings: Sequence[str], source_list: Path
 ) -> tuple[list[str], list[str]]:
-    """Classify non-HDL-file warnings only when RTL/UVM .scr files omit them."""
-    if lane not in {"rtl", "uvm"}:
+    """Classify non-HDL setup warnings only when Icarus omits those files."""
+    if lane not in {"rtl", "sva", "uvm"}:
         return list(findings), []
     compiler_sources: set[Path] = set()
     pending = [source_list]
@@ -3486,7 +3486,7 @@ def run_job(
     except (FileNotFoundError, OSError, ValueError) as exc:
         record.update({"status": "SETUP_FAIL", "matrix_error": str(exc)})
         return record
-    if job.lane in {"rtl", "uvm"}:
+    if job.lane in {"rtl", "sva", "uvm"}:
         setup_actionable_findings, setup_benign_diagnostics = (
             classify_compile_setup_warnings(job.lane, setup_findings, source_list)
         )
@@ -4700,6 +4700,9 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         )
         assert classify_compile_setup_warnings(
             "uvm", warnings, source_list
+        ) == (warnings[1:], warnings[:1])
+        assert classify_compile_setup_warnings(
+            "sva", warnings, source_list
         ) == (warnings[1:], warnings[:1])
         assert classify_compile_setup_warnings(
             "runtime", warnings, source_list

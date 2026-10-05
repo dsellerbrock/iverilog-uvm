@@ -1,0 +1,389 @@
+OpenTitan FuseSoC setup
+command: /Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34 --cores-root=/private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/matrix-provider-cores/source-overrides run --target=formal --tool=icarus --setup --build-root=/private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/sva/lowrisc_dv_top_earlgrey_sva_0.1 --flag=fileset_top lowrisc:dv:top_earlgrey_sva:0.1
+returncode: 0
+duration_seconds: 5.483
+
+INFO: Preparing lowrisc:constants:jtag_id_pkg:0
+INFO: Preparing lowrisc:constants:top_pkg:0
+INFO: Preparing lowrisc:dv:crypto_prince_ref:0.1
+INFO: Preparing lowrisc:dv:dv_fcov_macros:0
+INFO: Preparing lowrisc:dv:dv_macros:0
+INFO: Preparing lowrisc:dv:pins_if:0
+INFO: Preparing lowrisc:dv:secded_enc:0
+INFO: Preparing lowrisc:ibex:ibex_pkg:0.1
+INFO: Preparing lowrisc:ip:entropy_src_ack_sm_pkg:0.1
+INFO: Preparing lowrisc:ip:entropy_src_main_sm_pkg:0.1
+INFO: Preparing lowrisc:ip:entropy_src_pkg:0.1
+INFO: Preparing lowrisc:ip:i2c_pkg:0.1
+INFO: Preparing lowrisc:ip:jtag_pkg:0.1
+INFO: Preparing lowrisc:ip:spi_device_pkg:0.1
+INFO: Preparing lowrisc:ip:usbdev_pkg:0.1
+INFO: Preparing lowrisc:prim:assert:0.1
+INFO: Preparing lowrisc:prim:cipher_pkg:0.1
+INFO: Preparing lowrisc:prim:crc32:0
+INFO: Preparing lowrisc:prim:macros:0.1
+INFO: Preparing lowrisc:prim:pad_wrapper_pkg:0
+INFO: Preparing lowrisc:prim:primgen:0.1
+INFO: Preparing lowrisc:prim:ram_1p_pkg:0
+INFO: Preparing lowrisc:prim:ram_2p_pkg:0
+INFO: Preparing lowrisc:prim:rom_pkg:0
+INFO: Preparing lowrisc:prim:secded:0.1
+INFO: Preparing lowrisc:prim:sha2_pkg:0
+INFO: Preparing lowrisc:prim:util_get_scramble_params:0
+INFO: Preparing lowrisc:systems:top_earlgrey_pkg:0.1
+INFO: Preparing lowrisc:tool:check_tool_requirements:0.1
+INFO: Preparing lowrisc:dv:scramble_model:0
+INFO: Preparing lowrisc:dv_verilator:memutil_dpi:0
+INFO: Preparing lowrisc:ibex:ibex_icache:0.1
+INFO: Preparing lowrisc:ip:rv_core_ibex_pkg:0.1
+INFO: Preparing lowrisc:prim:arbiter:0
+INFO: Preparing lowrisc:prim:cdc_rand_delay:0
+INFO: Preparing lowrisc:prim:cipher:0
+INFO: Preparing lowrisc:prim:count:0
+INFO: Preparing lowrisc:prim:gf_mult:0
+INFO: Preparing lowrisc:prim:lfsr:0.1
+INFO: Preparing lowrisc:prim:max_tree:0
+INFO: Preparing lowrisc:prim:msb_extend:0
+INFO: Preparing lowrisc:prim:prim_pkg:0.1
+INFO: Preparing lowrisc:prim:sec_anchor:0.1
+INFO: Preparing lowrisc:prim:sha2:0
+INFO: Preparing lowrisc:prim:sparse_fsm:0
+INFO: Preparing lowrisc:prim:sum_tree:0
+INFO: Preparing lowrisc:prim:util:0.1
+INFO: Preparing lowrisc:prim:xoshiro256pp:0
+INFO: Preparing lowrisc:dv_verilator:memutil_dpi_scrambled:0
+INFO: Preparing lowrisc:ip:lc_ctrl_state_pkg:0.1
+INFO: Preparing lowrisc:prim:and2:0
+INFO: Preparing lowrisc:prim:buf:0
+INFO: Preparing lowrisc:prim:clock_buf:0
+INFO: Preparing lowrisc:prim:clock_div:0
+INFO: Preparing lowrisc:prim:clock_gating:0
+INFO: Preparing lowrisc:prim:clock_inv:0
+INFO: Preparing lowrisc:prim:clock_mux2:0
+INFO: Preparing lowrisc:prim:flop:0
+INFO: Preparing lowrisc:prim:flop_2sync:0
+INFO: Preparing lowrisc:prim:flop_en:0
+INFO: Preparing lowrisc:prim:onehot:0
+INFO: Preparing lowrisc:prim:onehot_check:0
+INFO: Preparing lowrisc:prim:pad_attr:0
+INFO: Preparing lowrisc:prim:pad_wrapper:0
+INFO: Preparing lowrisc:prim:ram_1p:0
+INFO: Preparing lowrisc:prim:ram_1r1w:0
+INFO: Preparing lowrisc:prim:ram_2p:0
+INFO: Preparing lowrisc:prim:rom:0
+INFO: Preparing lowrisc:prim:trivium:0.1
+INFO: Preparing lowrisc:prim:usb_diff_rx:0
+INFO: Preparing lowrisc:prim:xnor2:0
+INFO: Preparing lowrisc:prim:xor2:0
+INFO: Preparing lowrisc:prim:blanker:0
+INFO: Preparing lowrisc:prim:diff_decode:0
+INFO: Preparing lowrisc:prim:double_lfsr:0
+INFO: Preparing lowrisc:prim:edge_detector:0.1
+INFO: Preparing lowrisc:prim:fifo:0
+INFO: Preparing lowrisc:prim:flash:0
+INFO: Preparing lowrisc:prim:mubi:0.1
+INFO: Preparing lowrisc:prim:otp:0
+INFO: Preparing lowrisc:prim:prim_dom_and_2share:0.1
+INFO: Preparing lowrisc:prim:ram_1r1w_async_adv:0.1
+INFO: Preparing lowrisc:prim:ram_2p_async_adv:0.1
+INFO: Preparing lowrisc:prim:reg_we_check:0
+INFO: Preparing lowrisc:prim:rom_adv:0.1
+INFO: Preparing lowrisc:ibex:ibex_core:0.1
+INFO: Preparing lowrisc:ip:rom_ctrl_pkg:0.1
+INFO: Preparing lowrisc:prim:esc:0
+INFO: Preparing lowrisc:prim:ram_1p_adv:0.1
+INFO: Preparing lowrisc:prim:rst_sync:0
+INFO: Preparing lowrisc:prim:subreg:0
+INFO: Preparing lowrisc:tlul:headers:0.1
+INFO: Preparing lowrisc:ip:lc_ctrl_pkg:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_clkmgr_reg:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_flash_ctrl_reg:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_rstmgr_reg:0.1
+INFO: Preparing lowrisc:prim:ram_1p_scr:0.1
+INFO: Preparing lowrisc:systems:pinmux_reg:0.1
+INFO: Preparing lowrisc:tlul:trans_intg:0.1
+INFO: Preparing lowrisc:ibex:ibex_top:0.1
+INFO: Preparing lowrisc:ip:csrng_pkg:0.1
+INFO: Preparing lowrisc:ip:otp_ctrl_pkg:1.0
+INFO: Preparing lowrisc:ip:pinmux_reg:0.1
+INFO: Preparing lowrisc:prim:alert:0
+INFO: Preparing lowrisc:prim:lc_dec:0.1
+INFO: Preparing lowrisc:prim:lc_sender:0.1
+INFO: Preparing lowrisc:prim:lc_sync:0.1
+INFO: Preparing lowrisc:systems:ast_pkg:0
+INFO: Preparing lowrisc:tlul:common:0.1
+INFO: Preparing lowrisc:ip:edn_pkg:0.1
+INFO: Preparing lowrisc:ip:otbn_pkg:0.1
+INFO: Preparing lowrisc:ip:rv_plic_component:0.1
+INFO: Preparing lowrisc:ip:sram_ctrl_pkg:0.1
+INFO: Preparing lowrisc:prim:all:0.1
+INFO: Preparing lowrisc:prim:lc_or_hardened:0.1
+INFO: Preparing lowrisc:tlul:adapter_reg:0.1
+INFO: Preparing lowrisc:tlul:adapter_sram:0.1
+INFO: Preparing lowrisc:tlul:socket_1n:0.1
+INFO: Preparing lowrisc:tlul:socket_m1:0.1
+INFO: Preparing lowrisc:tlul:sram2tlul:0.1
+INFO: Preparing lowrisc:ip:keymgr_pkg:0.1
+INFO: Preparing lowrisc:ip:usb_fs_nb_pe:0.1
+INFO: Preparing lowrisc:prim:edn_req:0.1
+INFO: Preparing lowrisc:prim:measure:0
+INFO: Preparing lowrisc:tlul:adapter_host:0.1
+INFO: Preparing lowrisc:tlul:lc_gate:0.1
+INFO: Preparing pulp-platform:riscv-dbg:0.1:0
+INFO: Preparing lowrisc:ip:tlul:0.1
+INFO: Preparing lowrisc:ip:adc_ctrl:1.0
+INFO: Preparing lowrisc:ip:aes:1.0
+INFO: Preparing lowrisc:ip:aon_timer:0.1
+INFO: Preparing lowrisc:ip:edn:0.1
+INFO: Preparing lowrisc:ip:gpio:0.1
+INFO: Preparing lowrisc:ip:hmac:0.1
+INFO: Preparing lowrisc:ip:i2c:0.1
+INFO: Preparing lowrisc:ip:otbn:0.1
+INFO: Preparing lowrisc:ip:pattgen:0.1
+INFO: Preparing lowrisc:ip:pwm:0.1
+INFO: Preparing lowrisc:ip:rv_dm:0.1
+INFO: Preparing lowrisc:ip:rv_timer:0.1
+INFO: Preparing lowrisc:ip:sha3:0.1
+INFO: Preparing lowrisc:ip:spi_device:0.1
+INFO: Preparing lowrisc:ip:spi_host:1.0
+INFO: Preparing lowrisc:ip:sram_ctrl:0.1
+INFO: Preparing lowrisc:ip:sysrst_ctrl:1.0
+INFO: Preparing lowrisc:ip:uart:0.1
+INFO: Preparing lowrisc:ip:usbdev:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_alert_handler_reg:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_pwrmgr_reg:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_rv_plic:0
+INFO: Preparing lowrisc:systems:sensor_ctrl_reg:0.1
+INFO: Preparing lowrisc:top_earlgrey:xbar_main:0.1
+INFO: Preparing lowrisc:top_earlgrey:xbar_peri:0.1
+INFO: Preparing lowrisc:ip:alert_handler_component:0.1
+INFO: Preparing lowrisc:ip:csrng:0.1
+INFO: Preparing lowrisc:ip:entropy_src:0.1
+INFO: Preparing lowrisc:ip:kmac_pkg:0.1
+INFO: Preparing lowrisc:ip:pinmux_component:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_pwrmgr_pkg:0.1
+INFO: Preparing lowrisc:systems:sensor_ctrl_pkg:0.1
+INFO: Preparing lowrisc:ip:kmac:0.1
+INFO: Preparing lowrisc:ip:lc_ctrl:0.1
+INFO: Preparing lowrisc:ip:otp_ctrl:1.0
+INFO: Preparing lowrisc:ip:pinmux:0.1
+INFO: Preparing lowrisc:ip:pwrmgr_component:0.1
+INFO: Preparing lowrisc:ip:rom_ctrl:0.1
+INFO: Preparing lowrisc:ip:rv_core_ibex:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_alert_handler:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_clkmgr_pkg:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_flash_ctrl_pkg:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_rstmgr_pkg:0.1
+INFO: Preparing lowrisc:systems:sensor_ctrl:0.1
+INFO: Preparing lowrisc:ip:keymgr:0.1
+INFO: Preparing lowrisc:ip:rstmgr_cnsty_chk:0
+INFO: Preparing lowrisc:opentitan:top_earlgrey_clkmgr:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_flash_ctrl:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_pwrmgr:0.1
+INFO: Preparing lowrisc:opentitan:top_earlgrey_rstmgr:0.1
+INFO: Preparing lowrisc:systems:top_earlgrey:0.1
+INFO: Preparing lowrisc:dv:top_earlgrey_sva:0.1
+INFO: Generating lowrisc:prim:prim_pkg-impl:0.1
+Creating prim_pkg.sv
+Core file written to prim_pkg.core.
+INFO: Generating lowrisc:prim:and2-impl:0
+Implementations for primitive and2: xilinx_ultrascale, xilinx, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_and2.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_and2-impl_09oy_6ydu/prim_and2.sv
+Creating core file for primitive and2.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_and2-impl_09oy_6ydu/prim_and2.core
+INFO: Generating lowrisc:prim:buf-impl:0
+Implementations for primitive buf: xilinx, xilinx_ultrascale, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_buf.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_buf-impl_0ywrli2_a/prim_buf.sv
+Creating core file for primitive buf.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_buf-impl_0ywrli2_a/prim_buf.core
+INFO: Generating lowrisc:prim:clock_buf-impl:0
+Implementations for primitive clock_buf: xilinx_ultrascale, generic, xilinx
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_clock_buf.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_buf-impl_0avjsgtyf/prim_clock_buf.sv
+Creating core file for primitive clock_buf.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_buf-impl_0avjsgtyf/prim_clock_buf.core
+INFO: Generating lowrisc:prim:clock_div-impl:0
+Implementations for primitive clock_div: xilinx_ultrascale, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_clock_div.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_div-impl_01lf3pl8o/prim_clock_div.sv
+Creating core file for primitive clock_div.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_div-impl_01lf3pl8o/prim_clock_div.core
+INFO: Generating lowrisc:prim:clock_gating-impl:0
+Implementations for primitive clock_gating: generic, xilinx, xilinx_ultrascale
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_clock_gating.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_gating-impl_0lxjwof51/prim_clock_gating.sv
+Creating core file for primitive clock_gating.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_gating-impl_0lxjwof51/prim_clock_gating.core
+INFO: Generating lowrisc:prim:clock_inv-impl:0
+Implementations for primitive clock_inv: generic, xilinx_ultrascale
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_clock_inv.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_inv-impl_0grozf4_h/prim_clock_inv.sv
+Creating core file for primitive clock_inv.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_inv-impl_0grozf4_h/prim_clock_inv.core
+INFO: Generating lowrisc:prim:clock_mux2-impl:0
+Implementations for primitive clock_mux2: xilinx_ultrascale, xilinx, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_clock_mux2.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_mux2-impl_0o22w8319/prim_clock_mux2.sv
+Creating core file for primitive clock_mux2.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_clock_mux2-impl_0o22w8319/prim_clock_mux2.core
+INFO: Generating lowrisc:prim:flop-impl:0
+Implementations for primitive flop: generic, xilinx, xilinx_ultrascale
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_flop.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flop-impl_0kldbrvs2/prim_flop.sv
+Creating core file for primitive flop.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flop-impl_0kldbrvs2/prim_flop.core
+INFO: Generating lowrisc:prim:flop_2sync-impl:0
+Implementations for primitive flop_2sync: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_flop_2sync.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flop_2sync-impl_0w8gcnerp/prim_flop_2sync.sv
+Creating core file for primitive flop_2sync.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flop_2sync-impl_0w8gcnerp/prim_flop_2sync.core
+INFO: Generating lowrisc:prim:flop_en-impl:0
+Implementations for primitive flop_en: generic, xilinx, xilinx_ultrascale
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_flop_en.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flop_en-impl_0tzvmfw20/prim_flop_en.sv
+Creating core file for primitive flop_en.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flop_en-impl_0tzvmfw20/prim_flop_en.core
+INFO: Generating lowrisc:prim:pad_attr-impl:0
+Implementations for primitive pad_attr: xilinx, xilinx_ultrascale, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_pad_attr.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_pad_attr-impl_0o3qyxwv6/prim_pad_attr.sv
+Creating core file for primitive pad_attr.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_pad_attr-impl_0o3qyxwv6/prim_pad_attr.core
+INFO: Generating lowrisc:prim:pad_wrapper-impl:0
+Implementations for primitive pad_wrapper: xilinx_ultrascale, xilinx, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_pad_wrapper.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_pad_wrapper-impl_0kd5ellp2/prim_pad_wrapper.sv
+Creating core file for primitive pad_wrapper.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_pad_wrapper-impl_0kd5ellp2/prim_pad_wrapper.core
+INFO: Generating lowrisc:prim:ram_1p-impl:0
+Implementations for primitive ram_1p: badbit, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_ram_1p.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_ram_1p-impl_0wjo6ebd_/prim_ram_1p.sv
+Creating core file for primitive ram_1p.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_ram_1p-impl_0wjo6ebd_/prim_ram_1p.core
+INFO: Generating lowrisc:prim:ram_1r1w-impl:0
+Implementations for primitive ram_1r1w: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_ram_1r1w.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_ram_1r1w-impl_0jybomf14/prim_ram_1r1w.sv
+Creating core file for primitive ram_1r1w.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_ram_1r1w-impl_0jybomf14/prim_ram_1r1w.core
+INFO: Generating lowrisc:prim:ram_2p-impl:0
+Implementations for primitive ram_2p: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_ram_2p.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_ram_2p-impl_0q4vgq3k6/prim_ram_2p.sv
+Creating core file for primitive ram_2p.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_ram_2p-impl_0q4vgq3k6/prim_ram_2p.core
+INFO: Generating lowrisc:prim:rom-impl:0
+Implementations for primitive rom: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_rom.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_rom-impl_00kbn99t6/prim_rom.sv
+Creating core file for primitive rom.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_rom-impl_00kbn99t6/prim_rom.core
+INFO: Generating lowrisc:prim:usb_diff_rx-impl:0
+Implementations for primitive usb_diff_rx: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_usb_diff_rx.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_usb_diff_rx-impl_0w_35cu6y/prim_usb_diff_rx.sv
+Creating core file for primitive usb_diff_rx.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_usb_diff_rx-impl_0w_35cu6y/prim_usb_diff_rx.core
+INFO: Generating lowrisc:prim:xnor2-impl:0
+Implementations for primitive xnor2: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_xnor2.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_xnor2-impl_0hmh0zyt3/prim_xnor2.sv
+Creating core file for primitive xnor2.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_xnor2-impl_0hmh0zyt3/prim_xnor2.core
+INFO: Generating lowrisc:prim:xor2-impl:0
+Implementations for primitive xor2: xilinx, xilinx_ultrascale, generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_xor2.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_xor2-impl_0pj_186jr/prim_xor2.sv
+Creating core file for primitive xor2.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_xor2-impl_0pj_186jr/prim_xor2.core
+INFO: Generating lowrisc:prim:flash-impl:0
+Implementations for primitive flash: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_flash.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flash-impl_0wu832wst/prim_flash.sv
+Creating core file for primitive flash.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_flash-impl_0wu832wst/prim_flash.core
+INFO: Generating lowrisc:prim:otp-impl:0
+Implementations for primitive otp: generic
+Inspecting generic module /Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/prim_generic/rtl/prim_generic_otp.sv
+[Errno 2] No such file or directory: 'verible-verilog-syntax'
+Verible parser failed, using regex fallback instead.
+Creating SystemVerilog module for abstract primitive
+Abstract primitive written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_otp-impl_05t3o8kfx/prim_otp.sv
+Creating core file for primitive otp.
+Core file written to /private/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/lowrisc_prim_otp-impl_05t3o8kfx/prim_otp.core
+INFO: Wrote dependency graph to /private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/sva/lowrisc_dv_top_earlgrey_sva_0.1/formal-icarus/lowrisc_dv_top_earlgrey_sva_0.1.deps-after-generators.dot
+INFO: Setting up project
+WARNING: This backend is deprecated and will eventually be removed. Please migrate to the flow API instead.  See https://edalize.readthedocs.io/en/latest/ref/migrations.html#migrating-from-the-tool-api-to-the-flow-api for more details.
+WARNING: ../src/lowrisc_dv_secded_enc_0/secded_enc.c has unknown file type 'cSource'
+WARNING: util/check_tool_requirements.py has unknown file type ''
+WARNING: tool_requirements.py has unknown file type ''
+WARNING: ../src/lowrisc_dv_scramble_model_0/scramble_model.cc has unknown file type 'cppSource'
+WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/dpi_memutil.cc has unknown file type 'cppSource'
+WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/ecc32_mem_area.cc has unknown file type 'cppSource'
+WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/mem_area.cc has unknown file type 'cppSource'
+WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_0/cpp/sv_scoped.cc has unknown file type 'cppSource'
+WARNING: ../src/lowrisc_dv_verilator_memutil_dpi_scrambled_0/cpp/scrambled_ecc32_mem_area.cc has unknown file type 'cppSource'

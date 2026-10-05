@@ -31,6 +31,10 @@ The I2C SVA and UVM compile rows also pass on engine `367e…` with the qualifie
 warning-cleanup overlay; this focused result does not update the census totals.
 See the [I2C follow-up](../../evidence/opentitan-census-20261002/candidate-i2c-qualified-warning-cleanup-20261005/README.md).
 
+Four SVA rows previously marked `DEBT` now pass after the setup-warning
+classifier verifies that warned C/C++/Python files are absent from the Icarus
+source lists. See the [SVA follow-up](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md).
+
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 

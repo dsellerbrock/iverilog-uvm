@@ -1,0 +1,8 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -gassertions -DFPV_ON -o /private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/sva/lowrisc_dv_rv_core_ibex_sva_0.1/matrix-sva.vvp -c /private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/sva/lowrisc_dv_rv_core_ibex_sva_0.1/matrix-sva-tb.scr
+returncode: 0
+duration_seconds: 1.254
+
+../src/lowrisc_ibex_ibex_core_0.1/rtl/ibex_controller.sv:177: warning: System task ($display) cannot be synthesized in an always_ff process.
+../src/lowrisc_ibex_ibex_core_0.1/rtl/ibex_controller.sv:177: warning: System task ($display) cannot be synthesized in an always_ff process.
+iverilog: note: wrote DPI export C stubs to /private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/sva/lowrisc_dv_rv_core_ibex_sva_0.1/matrix-sva.dpiexport.c (compile it into your DPI object).
