@@ -55,6 +55,13 @@ untouched, and records source and overlay hashes in the result JSON. The
 focused seven-core regression and dependency list are documented in the
 [dependency overlay evidence](../../evidence/opentitan-matrix-source-dependency-overlays-20261004/README.md).
 
+The default `lowrisc:ip:rom_ctrl:0.1` RTL row also gets a build-local include
+overlay for the simulation-only memory-path plusarg/display. It is enabled
+only for the `rom_ctrl` top with the pinned empty `BootRomInitFile` default;
+the optional `$readmemh` branch stays intact, and a nonempty-image control
+remains debt. The runner records both pinned source hashes and the generated
+overlay hash. See the [ROM controller overlay evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md).
+
 The `top_englishbreakfast` core intentionally has no virtual-core `mapping`
 stanza. For English Breakfast jobs, the runner generates a build-local CAPI
 mapping core that pins its RACL, AST, flash-register, flash-package, and random

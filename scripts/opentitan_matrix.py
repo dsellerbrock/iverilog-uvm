@@ -2607,6 +2607,7 @@ def compile_command(
     output: Path,
     uvm_home: Path | None = None,
     commercial_unsafe: bool = False,
+    additional_include_dirs: Sequence[Path] = (),
 ) -> list[str]:
     command = [str(iverilog), "-g2012", *top_options]
     if commercial_unsafe and job.lane in {"uvm", "runtime"}:
@@ -2667,6 +2668,7 @@ def compile_command(
             for define in UVM_EXTRA_DEFINES.get(job.core.vlnv, ())
             if define[2:].split("=", 1)[0] not in defined
         )
+    command.extend(f"-I{directory}" for directory in additional_include_dirs)
     if uvm_home is not None and "-uvm" in command:
         command.append(f"--uvm-home={uvm_home}")
     command.extend(["-o", str(output), "-c", str(source_list)])
@@ -2747,6 +2749,76 @@ def native_dpi_commands(
 
 
 OTBN_MODEL_SOURCE_SHA256 = "751102f30ec5f8c28cd05aff653f4ff4baf641bc6fba286faae99697424bfb4e"
+
+ROM_CTRL_MEMLOAD_SOURCE_SHA256 = (
+    "0ae62592964c0648c08f28fdd235ed7e7668f6071dc001aa6c1b6f652eea1956"
+)
+ROM_CTRL_SOURCE_SHA256 = (
+    "72cdd7822b2b5df3de40dc933b85f31384841337c79f59dfe88f961d8e9f4c47"
+)
+ROM_CTRL_MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
+
+  // Print the hierarchical path to the memory to help make formal connectivity checks easy.
+  void'($value$plusargs("show_mem_paths=%0b", show_mem_paths));
+  if (show_mem_paths) $display("%m");'''
+
+
+def guard_rom_ctrl_memload_debug(text: str) -> str:
+    """Exclude only plusarg/display tracing from synthesis; retain readmemh."""
+    if text.count(ROM_CTRL_MEMLOAD_DEBUG_BLOCK) != 1:
+        raise ValueError("prim_util_memload debug block anchor is not unique")
+    guarded = "`ifndef SYNTHESIS\n" + ROM_CTRL_MEMLOAD_DEBUG_BLOCK + "\n`endif"
+    return text.replace(ROM_CTRL_MEMLOAD_DEBUG_BLOCK, guarded)
+
+
+def rom_ctrl_memload_synthesis_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    top_options: Sequence[str],
+) -> tuple[Path, dict[str, str]]:
+    """Stage simulation-only memory-path tracing outside synthesis."""
+    if "-srom_ctrl" not in top_options or any(
+        option.startswith("-P") for option in top_options
+    ):
+        raise ValueError("ROM memory-loader overlay requires the default rom_ctrl top")
+
+    source = opentitan_root / "hw/ip/prim/rtl/prim_util_memload.svh"
+    source_hash = file_sha256(source)
+    if source_hash != ROM_CTRL_MEMLOAD_SOURCE_SHA256:
+        raise ValueError(
+            "ROM memory-loader overlay source hash mismatch: "
+            f"expected {ROM_CTRL_MEMLOAD_SOURCE_SHA256}, got {source_hash}"
+        )
+
+    parameter_source = opentitan_root / "hw/ip/rom_ctrl/rtl/rom_ctrl.sv"
+    parameter_hash = file_sha256(parameter_source)
+    if parameter_hash != ROM_CTRL_SOURCE_SHA256:
+        raise ValueError(
+            "ROM controller source hash mismatch: "
+            f"expected {ROM_CTRL_SOURCE_SHA256}, got {parameter_hash}"
+        )
+    parameter_text = parameter_source.read_text()
+    if not re.search(r'parameter\s+BootRomInitFile\s*=\s*""', parameter_text):
+        raise ValueError("ROM controller default image parameter is not empty")
+
+    overlay_dir = work_root / "source-overlays" / "rom_ctrl_memload"
+    overlay = overlay_dir / "prim_util_memload.svh"
+    if overlay.is_symlink() or work_root.resolve() not in overlay.resolve().parents:
+        raise ValueError("ROM memory-loader overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay_text = guard_rom_ctrl_memload_debug(source.read_text())
+    if "$readmemh(MemInitFile, mem);" not in overlay_text:
+        raise ValueError("ROM memory-loader overlay removed the readmemh path")
+    overlay.write_text(overlay_text)
+    return overlay_dir, {
+        "source": str(source),
+        "source_sha256": source_hash,
+        "parameter_source": str(parameter_source),
+        "parameter_source_sha256": parameter_hash,
+        "parameter_default": "BootRomInitFile=empty",
+        "overlay": str(overlay),
+        "overlay_sha256": file_sha256(overlay),
+    }
 
 
 def otbn_trace_finish_overlay(
@@ -3007,10 +3079,23 @@ def run_job(
         record["sva_topology_notes"] = sva_notes
 
     executable = work_root / f"matrix-{job.lane}.vvp"
+    additional_include_dirs: tuple[Path, ...] = ()
+    if job.lane == "rtl" and job.core.vlnv == "lowrisc:ip:rom_ctrl:0.1":
+        try:
+            overlay_dir, source_overlay = rom_ctrl_memload_synthesis_overlay(
+                opentitan_root, work_root, top_options
+            )
+        except (OSError, ValueError) as exc:
+            record.update(
+                {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+            )
+            return record
+        additional_include_dirs = (overlay_dir,)
+        record["source_overlays"] = [source_overlay]
     compile_result = command_result(
         compile_command(
             job, iverilog, compiler_source_list, top_options, executable,
-            args.uvm_home, args.commercial_unsafe,
+            args.uvm_home, args.commercial_unsafe, additional_include_dirs,
         ),
         cwd=source_list.parent,
         env=env,
@@ -3675,6 +3760,25 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             Path("iverilog"), Path("uvm.scr"), [], Path("uvm.vvp"),
             commercial_unsafe=True,
         )
+    memload_sample = (
+        "initial begin\n"
+        + ROM_CTRL_MEMLOAD_DEBUG_BLOCK
+        + '\n  if (MemInitFile != "") begin\n'
+        + "    $readmemh(MemInitFile, mem);\n  end\nend\n"
+    )
+    guarded_memload = guard_rom_ctrl_memload_debug(memload_sample)
+    assert "`ifndef SYNTHESIS" in guarded_memload
+    assert guarded_memload.index("`endif") < guarded_memload.index(
+        'if (MemInitFile != "")'
+    )
+    assert "$readmemh(MemInitFile, mem);" in guarded_memload
+    rom_ctrl_compile = compile_command(
+        Job("rtl", Core("lowrisc:ip:rom_ctrl:0.1", "")),
+        Path("iverilog"), Path("rom_ctrl.scr"), ["-srom_ctrl"],
+        Path("rom_ctrl.vvp"), additional_include_dirs=(Path("/work/rom-overlay"),),
+    )
+    assert "-I/work/rom-overlay" in rom_ctrl_compile
+    assert rom_ctrl_compile.index("-I/work/rom-overlay") < rom_ctrl_compile.index("-c")
     assert dvsim_define_arguments(
         (
             "+define+EN_MASKING=1",

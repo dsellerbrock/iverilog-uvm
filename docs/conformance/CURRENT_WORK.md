@@ -1,20 +1,34 @@
 # Current evidence and work
 
-## Current OpenTitan status — 2026-10-04
+## Current OpenTitan status — 2026-10-05
 
-The latest complete selected OpenTitan runtime census is
-[census14](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md):
-**49/49 targets passed** with zero setup or compile failures, hard errors,
-semantic debt, runtime errors, runtime debt, timeouts, or memory-cap hits. It
-used UVM 1.2, two parallel jobs, `-gcommercial-unsafe`, a five-hour per-target
-limit, a 9,536-MiB per-process cap, and the three published OTP, Flash, and
-SPI-TPM source overlays. The copied source snapshot came from pinned revision
+The latest completed selected runtime result before census17 is
+[census15](../../evidence/opentitan-census-20261002/census15-full-corpus-20261004/README.md):
+**49/49 targets passed** with zero runtime errors, runtime debt, timeouts, or
+memory-cap hits. The earlier [census14](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md)
+also passed 49/49. Census15 used UVM 1.2, two parallel jobs,
+`-gcommercial-unsafe`, a five-hour per-target limit, a 9,536-MiB per-process
+cap, and the three published OTP, Flash, and SPI-TPM source overlays. The
+copied source snapshot came from pinned revision
 `a78922f14a8cc20c7ee569f322a04626f2ac6127`; because it had no Git metadata, the
 runner records its revision as unknown and the tree as dirty. The pinned source
 checkout itself was left unchanged. Matrix timings were CPU-contended by the
 separate worker; use the isolated Flash comparison for before/after timing.
 This qualifies the matrix's 49 selected runtime targets, not every OpenTitan
 DV test.
+
+A corrected runtime census17 is still running from the updated source-overlay
+driver. Its last result snapshot is **13/49 PASS**, with no failures recorded
+so far; it uses the installed pre-candidate compiler and therefore does not
+validate the AST synthesis fix. The generation-guarded Nexus candidate passes
+the OpenTitan AST reproducer 20/20 and three related sparse-case tests 3/3;
+the refreshed RTL/SVA/UVM census remains pending. See the [AST synthesis
+evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
+
+The default `rom_ctrl` RTL compile also passes with a build-local overlay that
+guards only simulation path-printing and retains `$readmemh`; a nonempty image
+control still emits synthesis debt. Its exact hashes and focused result are
+recorded in the [ROM loader overlay evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md).
 
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
