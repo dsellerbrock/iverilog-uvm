@@ -54,6 +54,10 @@ drivers without changing pinned source. See the
 The `prim_packer` FPV target now passes with separate output slots for each of
 its 17 DUT instances, resolving the shared-output multiple drivers. See the
 [focused result](../../evidence/opentitan-census-20261002/candidate-prim-packer-fpv-disjoint-outputs-20261005/README.md).
+
+The SHA3 FPV wrapper now matches the current DUT ports, MuBi controls, and
+random input width; its focused compile passes without debt. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-sha3-fpv-current-interface-20261005/README.md).
 The 309-row census totals remain unchanged.
 
 The measured hot paths and coverage limits are summarized in the

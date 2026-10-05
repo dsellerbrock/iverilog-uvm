@@ -2872,6 +2872,12 @@ PRIM_PACKER_FPV_SOURCE_SHA256 = (
 PRIM_PACKER_FPV_OVERLAY_SHA256 = (
     "b3c06124823d03b655c282c6a4ae8179e9330b57a48dcab4c01cd2f546aac176"
 )
+SHA3_FPV_SOURCE_SHA256 = (
+    "adb96754fe4d98ce54cf9522d1e677a8970479cb3e828cbbc5a886ebc5add9a0"
+)
+SHA3_FPV_OVERLAY_SHA256 = (
+    "93a708cdec54f628780529f69ed1aaf3006809df03773b38e083fdda964275ce"
+)
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
@@ -3648,6 +3654,52 @@ def prim_packer_fpv_source_text(text: str) -> str:
     return text
 
 
+def sha3_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  input        [StateW-1:0] rand_data_i,",
+            "  input        [StateW/2-1:0] rand_data_i,",
+            "random data width",
+        ),
+        (
+            "  output logic              rand_consumed_o,",
+            "  output logic              rand_update_o,\n"
+            "  output logic              rand_consumed_o,",
+            "random output ports",
+        ),
+        (
+            "  input done_i,    // see sha3pad for details",
+            "  input prim_mubi_pkg::mubi4_t done_i, // see sha3pad for details\n"
+            "  input run_ack_i,\n"
+            "  input lc_ctrl_pkg::lc_tx_t lc_escalate_en_i,",
+            "control input ports",
+        ),
+        (
+            "  output logic absorbed_o,\n\n"
+            "  output sha3_st_e sha3_fsm_o,",
+            "  output prim_mubi_pkg::mubi4_t absorbed_o,\n"
+            "  output logic squeezing_o,\n"
+            "  output logic block_processed_o,\n\n"
+            "  output sha3_st_e sha3_fsm_o,\n"
+            "  output logic run_req_o,",
+            "status output ports",
+        ),
+        (
+            "  output err_t error_o",
+            "  output logic sparse_fsm_error_o,\n"
+            "  output logic count_error_o,\n"
+            "  output logic keccak_storage_rst_error_o,\n\n"
+            "  output err_t error_o",
+            "error output ports",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"SHA3 FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
 def keccak_2share_fpv_source_overlay(
     opentitan_root: Path,
     work_root: Path,
@@ -3859,6 +3911,59 @@ def prim_packer_fpv_source_overlay(
     )
     return source_list_overlay, {
         "profile": "prim_packer_fpv_disjoint_instance_outputs",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def sha3_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Align the SHA3 FPV wrapper with the current DUT interface."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/sha3_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != SHA3_FPV_SOURCE_SHA256:
+        raise ValueError(
+            f"SHA3 FPV source hash mismatch: expected {SHA3_FPV_SOURCE_SHA256}, "
+            f"got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "sha3_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("SHA3 FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "sha3_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("SHA3 FPV overlay is a symlink")
+    overlay.write_text(sha3_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != SHA3_FPV_OVERLAY_SHA256:
+        raise ValueError(f"SHA3 FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("SHA3 FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = "../src/lowrisc_fpv_sha3_fpv_0.1/tb/sha3_fpv.sv"
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("SHA3 FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("SHA3 FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "sha3_fpv_current_dut_interface",
         "source": str(source),
         "source_sha256": source_hash,
         "overlay": str(overlay),
@@ -4176,6 +4281,17 @@ def run_job(
                     prim_packer_fpv_source_overlay(
                         opentitan_root, work_root, source_list
                     )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if job.lane == "sva" and job.core.vlnv == "lowrisc:fpv:sha3_fpv:0.1":
+            try:
+                source_list_for_compile, source_overlay = sha3_fpv_source_overlay(
+                    opentitan_root, work_root, source_list
                 )
             except (OSError, ValueError) as exc:
                 record.update(
@@ -5093,6 +5209,22 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert ".data_o (data_o[16])," in prim_packer_tb_overlay
     assert ".err_o (err_o[Idx])" in prim_packer_tb_overlay
     assert ".err_o (err_o[16])" in prim_packer_tb_overlay
+    sha3_fpv_tb_sample = (
+        "  input        [StateW-1:0] rand_data_i,\n"
+        "  output logic              rand_consumed_o,\n"
+        "  input done_i,    // see sha3pad for details\n"
+        "  output logic absorbed_o,\n\n"
+        "  output sha3_st_e sha3_fsm_o,\n"
+        "  output err_t error_o\n"
+    )
+    sha3_fpv_tb_overlay = sha3_fpv_source_text(sha3_fpv_tb_sample)
+    assert "[StateW/2-1:0] rand_data_i" in sha3_fpv_tb_overlay
+    assert "output logic              rand_update_o" in sha3_fpv_tb_overlay
+    assert "prim_mubi_pkg::mubi4_t done_i" in sha3_fpv_tb_overlay
+    assert "lc_ctrl_pkg::lc_tx_t lc_escalate_en_i" in sha3_fpv_tb_overlay
+    assert "prim_mubi_pkg::mubi4_t absorbed_o" in sha3_fpv_tb_overlay
+    assert "output logic run_req_o" in sha3_fpv_tb_overlay
+    assert "output logic keccak_storage_rst_error_o" in sha3_fpv_tb_overlay
     spi_host_core_sample = (
         "  formal:\n"
         "    <<: *default_target\n"
