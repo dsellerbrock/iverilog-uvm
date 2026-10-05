@@ -64,6 +64,10 @@ The Keccak 2-share FPV row passes on engine `367e…` with a hash-checked,
 build-local control model matching the DOM-based DUT. See the
 [focused result](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-dom-controller-20261005/README.md).
 
+The Keccak round FPV row also passes on engine `367e…` after its testbench
+clear signal was changed to the DUT's `mubi4_t` encoding. See its
+[focused result](../../evidence/opentitan-census-20261002/candidate-keccak-round-fpv-mubi4-clear-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on

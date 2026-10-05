@@ -2854,6 +2854,12 @@ KECCAK_2SHARE_FPV_SOURCE_SHA256 = (
 KECCAK_2SHARE_FPV_OVERLAY_SHA256 = (
     "7b696448599d541922404388981149166e981bba921225ffee2014737cd77791"
 )
+KECCAK_ROUND_FPV_SOURCE_SHA256 = (
+    "c0395c0288979defdaa931394c668ab54646f45e3831b9b43340d03d12809ec7"
+)
+KECCAK_ROUND_FPV_OVERLAY_SHA256 = (
+    "bef9dc1f9012924600d32766521371a0da390501ae44c8de785f3f496ef0a6c1"
+)
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
@@ -3488,6 +3494,32 @@ def keccak_2share_fpv_source_text(text: str) -> str:
     return text
 
 
+def keccak_round_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  logic run, clear, masked_complete, unmasked_complete;",
+            "  logic run, masked_complete, unmasked_complete;\n"
+            "  prim_mubi_pkg::mubi4_t clear;",
+            "clear signal type",
+        ),
+        (
+            "    clear = 1'b 0;",
+            "    clear = prim_mubi_pkg::MuBi4False;",
+            "clear deassertion",
+        ),
+        (
+            "        clear = 1'b1;",
+            "        clear = prim_mubi_pkg::MuBi4True;",
+            "clear assertion",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"Keccak round FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
 def keccak_2share_fpv_source_overlay(
     opentitan_root: Path,
     work_root: Path,
@@ -3534,6 +3566,62 @@ def keccak_2share_fpv_source_overlay(
     )
     return source_list_overlay, {
         "profile": "keccak_2share_fpv_dom_controller",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def keccak_round_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Use the full MuBi encoding on the Keccak round clear signal."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/keccak_round_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != KECCAK_ROUND_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "Keccak round FPV source hash mismatch: "
+            f"expected {KECCAK_ROUND_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "keccak_round_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("Keccak round FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "keccak_round_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("Keccak round FPV overlay is a symlink")
+    overlay.write_text(keccak_round_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != KECCAK_ROUND_FPV_OVERLAY_SHA256:
+        raise ValueError(f"Keccak round FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("Keccak round FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = (
+        "../src/lowrisc_fpv_keccak_round_fpv_0.1/"
+        "tb/keccak_round_fpv.sv"
+    )
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("Keccak round FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("Keccak round FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "keccak_round_fpv_mubi4_clear",
         "source": str(source),
         "source_sha256": source_hash,
         "overlay": str(overlay),
@@ -3801,6 +3889,22 @@ def run_job(
             try:
                 source_list_for_compile, source_overlay = (
                     keccak_2share_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:keccak_round_fpv:0.1"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    keccak_round_fpv_source_overlay(
                         opentitan_root, work_root, source_list
                     )
                 )
@@ -4644,6 +4748,17 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "        end\n"
         "      end\n"
         "      StPhase2Cycle1: begin"
+    )
+    keccak_round_sample = (
+        "  logic run, clear, masked_complete, unmasked_complete;\n"
+        "    clear = 1'b 0;\n"
+        "        clear = 1'b1;\n"
+    )
+    assert keccak_round_fpv_source_text(keccak_round_sample) == (
+        "  logic run, masked_complete, unmasked_complete;\n"
+        "  prim_mubi_pkg::mubi4_t clear;\n"
+        "    clear = prim_mubi_pkg::MuBi4False;\n"
+        "        clear = prim_mubi_pkg::MuBi4True;\n"
     )
     spi_host_core_sample = (
         "  formal:\n"

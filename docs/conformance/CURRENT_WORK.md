@@ -42,6 +42,10 @@ The Keccak 2-share FPV target now passes on engine `367e…` with a build-local
 control model matching the current DOM-based DUT. See the
 [focused result](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-dom-controller-20261005/README.md).
 
+The Keccak round FPV target also passes; its clear signal now uses the DUT's
+`mubi4_t` encoding. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-keccak-round-fpv-mubi4-clear-20261005/README.md).
+
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 
