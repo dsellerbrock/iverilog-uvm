@@ -31,7 +31,7 @@ shasum -a 256 "$RV32_TOOL_AS" "$RV32_TOOL_LD"
   --fusesoc "$tool_env/bin/fusesoc" \
   --fusesoc-python "$tool_env/bin/python" \
   --lane runtime \
-  --jobs 2 \
+  --jobs 1 \
   --setup-timeout 600 \
   --compile-timeout 600 \
   --runtime-timeout 18000 \

@@ -2,8 +2,10 @@
 
 This run is prepared to repeat all 49 runtime rows after census17 exits. It
 uses the existing OpenTitan Python environment and xPack RV32 assembler/linker
-so OTBN does not enter the Bash/Bazelisk fallback path. It keeps the same
-two-job concurrency, 18,000-second per-target limit, and 9,536-MiB memory cap.
+so OTBN does not enter the Bash/Bazelisk fallback path. It runs one target at
+a time with an 18,000-second per-target limit and a 9,536-MiB physical-footprint
+cap per runtime process. Serial execution keeps the aggregate runtime memory
+bounded by that cap instead of allowing multiple capped simulators to overlap.
 
 Run from the repository root after census17 is complete:
 
