@@ -38,11 +38,13 @@ superseded. See the
 [corrected UVM result](../../evidence/opentitan-census-20261002/candidate-census18-patched-uvm-20261005/README.md),
 and [historical diagnostic](../../evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
 
-A focused follow-up on engine `367e…` also passes the default-image
-`top_earlgrey` and `chip_earlgrey_asic` synthesis rows with zero semantic debt.
-It extends the build-local memory-loader trace guard after verifying the exact
-ROM/OTP defaults and wrapper parameters. This does not update the full 309-row
-census; see the [two-row result](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md).
+A focused follow-up on engine `367e…` passes the default-image
+`top_earlgrey`, `chip_earlgrey_asic`, and `chip_earlgrey_verilator` synthesis
+rows with zero semantic debt. It verifies the ROM/OTP defaults and wrapper
+parameters, fixes the Verilator wrapper’s multibit signals and bypass wiring,
+and gives the Ibex trace locals automatic lifetime. These results do not
+update the full 309-row census; see the [default-image pair](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md)
+and [Verilator row](../../evidence/opentitan-census-20261002/candidate-chip-earlgrey-verilator-compile-20261005/README.md).
 
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;

@@ -2766,6 +2766,12 @@ TOP_EARLGREY_SOURCE_SHA256 = (
 CHIP_EARLGREY_ASIC_SOURCE_SHA256 = (
     "d6d07633a708e6186df522777fe7d394e83ee4022e846b73216bf74022228bb2"
 )
+CHIP_EARLGREY_VERILATOR_SOURCE_SHA256 = (
+    "34e397a18d3027ca6f27d0173acd490e5744836ac652e84c8e4df5e9ef1c35b4"
+)
+IBEX_TRACER_SOURCE_SHA256 = (
+    "74326975d4fc618c97d95cf5451dd830ed5c79798c87d141858fcaf479120e29"
+)
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
@@ -2779,6 +2785,21 @@ MEMLOAD_SYNTHESIS_PROFILES = {
     "lowrisc:systems:chip_earlgrey_asic:0.1": (
         "chip_earlgrey_asic",
         "-schip_earlgrey_asic",
+    ),
+    "lowrisc:systems:chip_earlgrey_verilator:0.1": (
+        "chip_earlgrey_verilator",
+        "-schip_earlgrey_verilator",
+    ),
+}
+
+MEMLOAD_PROFILE_WRAPPERS = {
+    "chip_earlgrey_asic": (
+        "hw/top_earlgrey/rtl/autogen/chip_earlgrey_asic.sv",
+        CHIP_EARLGREY_ASIC_SOURCE_SHA256,
+    ),
+    "chip_earlgrey_verilator": (
+        "hw/top_earlgrey/rtl/chip_earlgrey_verilator.sv",
+        CHIP_EARLGREY_VERILATOR_SOURCE_SHA256,
     ),
 }
 
@@ -2866,15 +2887,14 @@ def memload_synthesis_overlay(
         {"path": str(source), "sha256": source_hash},
         {"path": str(parameter_source), "sha256": parameter_hash},
     ]
-    if profile == "chip_earlgrey_asic":
-        wrapper_source = (
-            opentitan_root / "hw/top_earlgrey/rtl/autogen/chip_earlgrey_asic.sv"
-        )
+    wrapper = MEMLOAD_PROFILE_WRAPPERS.get(profile)
+    if wrapper is not None:
+        wrapper_source = opentitan_root / wrapper[0]
         wrapper_hash = file_sha256(wrapper_source)
-        if wrapper_hash != CHIP_EARLGREY_ASIC_SOURCE_SHA256:
-            raise ValueError("Earl Grey ASIC wrapper source hash mismatch")
+        if wrapper_hash != wrapper[1]:
+            raise ValueError(f"{profile} wrapper source hash mismatch")
         if not top_earlgrey_uses_default_mem_images(wrapper_source.read_text()):
-            raise ValueError("Earl Grey ASIC wrapper overrides a memory image")
+            raise ValueError(f"{profile} wrapper overrides a memory image")
         validated_sources.append(
             {"path": str(wrapper_source), "sha256": wrapper_hash}
         )
@@ -2896,6 +2916,128 @@ def memload_synthesis_overlay(
         "parameter_defaults": "ROM and OTP images empty for selected top",
         "overlay": str(overlay),
         "overlay_sha256": file_sha256(overlay),
+    }
+
+
+def chip_earlgrey_verilator_source_text(text: str) -> str:
+    """Correct missing multibit clock-control links in the Verilator wrapper."""
+    replacements = (
+        ("  logic hi_speed_sel;", "  prim_mubi_pkg::mubi4_t hi_speed_sel;"),
+        ("  logic jen;", "  prim_mubi_pkg::mubi4_t jen;"),
+        (
+            "  logic scan_en;",
+            "  logic scan_en;\n  prim_mubi_pkg::mubi4_t scanmode;",
+        ),
+        (
+            ".all_clk_byp_req_i     ( ast_clk_byp_req ),",
+            ".all_clk_byp_req_i     ( all_clk_byp_req ),",
+        ),
+        (
+            ".all_clk_byp_ack_o     ( ast_clk_byp_ack ),",
+            ".all_clk_byp_ack_o     ( all_clk_byp_ack ),",
+        ),
+    )
+    for original, replacement in replacements:
+        if text.count(original) != 1:
+            raise ValueError("Earl Grey Verilator wrapper anchor is not unique")
+        text = text.replace(original, replacement)
+    return text
+
+
+def ibex_tracer_automatic_locals(text: str) -> str:
+    """Give per-activation trace locals automatic lifetime in procedural blocks."""
+    file_handle_declaration = "      int fh = file_handle;"
+    if text.count(file_handle_declaration) != 2:
+        raise ValueError("Ibex tracer file-handle anchors are not unique")
+    text = text.replace(
+        file_handle_declaration,
+        "      automatic int fh = file_handle;",
+    )
+    filename_declaration = '        string file_name_base = "trace_core";'
+    if text.count(filename_declaration) != 1:
+        raise ValueError("Ibex tracer filename anchor is not unique")
+    return text.replace(
+        filename_declaration,
+        '        automatic string file_name_base = "trace_core";',
+    )
+
+
+def chip_earlgrey_verilator_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    compiler_source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Stage hash-checked RTL fixes and redirect only this target's source list."""
+    wrapper_source = opentitan_root / "hw/top_earlgrey/rtl/chip_earlgrey_verilator.sv"
+    tracer_source = opentitan_root / "hw/vendor/lowrisc_ibex/rtl/ibex_tracer.sv"
+    for source, expected_hash in (
+        (wrapper_source, CHIP_EARLGREY_VERILATOR_SOURCE_SHA256),
+        (tracer_source, IBEX_TRACER_SOURCE_SHA256),
+    ):
+        actual_hash = file_sha256(source)
+        if actual_hash != expected_hash:
+            raise ValueError(
+                f"{source.name} source hash mismatch: "
+                f"expected {expected_hash}, got {actual_hash}"
+            )
+
+    overlay_dir = work_root / "source-overlays" / "chip_earlgrey_verilator"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("Earl Grey Verilator overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    wrapper_overlay = overlay_dir / "chip_earlgrey_verilator.sv"
+    tracer_overlay = overlay_dir / "ibex_tracer.sv"
+    wrapper_overlay.write_text(
+        chip_earlgrey_verilator_source_text(wrapper_source.read_text())
+    )
+    tracer_overlay.write_text(
+        ibex_tracer_automatic_locals(tracer_source.read_text())
+    )
+
+    if (
+        compiler_source_list.is_symlink()
+        or work_root.resolve() not in compiler_source_list.resolve().parents
+    ):
+        raise ValueError("Earl Grey Verilator source list is outside its build root")
+    source_list_text = compiler_source_list.read_text()
+    source_replacements = (
+        (
+            "../src/lowrisc_systems_chip_earlgrey_verilator_0.1/rtl/"
+            "chip_earlgrey_verilator.sv",
+            str(wrapper_overlay),
+        ),
+        (
+            "../src/lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer.sv",
+            str(tracer_overlay),
+        ),
+    )
+    for original, replacement in source_replacements:
+        if source_list_text.splitlines().count(original) != 1:
+            raise ValueError("Earl Grey Verilator source-list anchor is not unique")
+        source_list_text = source_list_text.replace(original, replacement)
+    patched_source_list = compiler_source_list.with_name(
+        f"{compiler_source_list.stem}-source-overlays{compiler_source_list.suffix}"
+    )
+    if patched_source_list.is_symlink():
+        raise ValueError("Earl Grey Verilator source-list overlay is a symlink")
+    patched_source_list.write_text(source_list_text)
+    overlays = [
+        {
+            "source": str(source),
+            "source_sha256": file_sha256(source),
+            "overlay": str(overlay),
+            "overlay_sha256": file_sha256(overlay),
+        }
+        for source, overlay in (
+            (wrapper_source, wrapper_overlay),
+            (tracer_source, tracer_overlay),
+        )
+    ]
+    return patched_source_list, {
+        "profile": "chip_earlgrey_verilator",
+        "source_list": str(compiler_source_list),
+        "source_list_overlay": str(patched_source_list),
+        "overlays": overlays,
     }
 
 
@@ -3158,6 +3300,7 @@ def run_job(
 
     executable = work_root / f"matrix-{job.lane}.vvp"
     additional_include_dirs: tuple[Path, ...] = ()
+    source_overlays: list[dict[str, object]] = []
     if job.lane == "rtl" and memload_synthesis_profile(
         job.core.vlnv, top_options
     ) is not None:
@@ -3171,7 +3314,25 @@ def run_job(
             )
             return record
         additional_include_dirs = (overlay_dir,)
-        record["source_overlays"] = [source_overlay]
+        source_overlays.append(source_overlay)
+    if (
+        job.lane == "rtl"
+        and job.core.vlnv == "lowrisc:systems:chip_earlgrey_verilator:0.1"
+    ):
+        try:
+            compiler_source_list, source_overlay = (
+                chip_earlgrey_verilator_source_overlay(
+                    opentitan_root, work_root, compiler_source_list
+                )
+            )
+        except (OSError, ValueError) as exc:
+            record.update(
+                {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+            )
+            return record
+        source_overlays.append(source_overlay)
+    if source_overlays:
+        record["source_overlays"] = source_overlays
     compile_result = command_result(
         compile_command(
             job, iverilog, compiler_source_list, top_options, executable,
@@ -3847,6 +4008,10 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "lowrisc:systems:chip_earlgrey_asic:0.1", ["-schip_earlgrey_asic"]
     ) == "chip_earlgrey_asic"
     assert memload_synthesis_profile(
+        "lowrisc:systems:chip_earlgrey_verilator:0.1",
+        ["-schip_earlgrey_verilator"],
+    ) == "chip_earlgrey_verilator"
+    assert memload_synthesis_profile(
         "lowrisc:systems:chip_earlgrey_cw310:0.1", ["-schip_earlgrey_cw310"]
     ) is None
     assert memload_synthesis_profile(
@@ -3874,6 +4039,33 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert not top_earlgrey_uses_default_mem_images(
         'top_earlgrey #(.RomCtrlBootRomInitFile("boot.vmem")) top_earlgrey ('
     )
+    verilator_wrapper_sample = "\n".join(
+        (
+            "  logic hi_speed_sel;",
+            "  logic scan_en;",
+            "  logic jen;",
+            "    .all_clk_byp_req_i     ( ast_clk_byp_req ),",
+            "    .all_clk_byp_ack_o     ( ast_clk_byp_ack ),",
+        )
+    )
+    verilator_wrapper_overlay = chip_earlgrey_verilator_source_text(
+        verilator_wrapper_sample
+    )
+    assert "prim_mubi_pkg::mubi4_t hi_speed_sel;" in verilator_wrapper_overlay
+    assert "prim_mubi_pkg::mubi4_t scanmode;" in verilator_wrapper_overlay
+    assert "prim_mubi_pkg::mubi4_t jen;" in verilator_wrapper_overlay
+    assert ".all_clk_byp_req_i     ( all_clk_byp_req )," in verilator_wrapper_overlay
+    assert ".all_clk_byp_ack_o     ( all_clk_byp_ack )," in verilator_wrapper_overlay
+    ibex_tracer_sample = "\n".join(
+        (
+            "      int fh = file_handle;",
+            "      int fh = file_handle;",
+            '        string file_name_base = "trace_core";',
+        )
+    )
+    ibex_tracer_overlay = ibex_tracer_automatic_locals(ibex_tracer_sample)
+    assert ibex_tracer_overlay.count("automatic int fh = file_handle;") == 2
+    assert 'automatic string file_name_base = "trace_core";' in ibex_tracer_overlay
     guarded_memload = guard_memload_debug(memload_sample)
     assert "`ifndef SYNTHESIS" in guarded_memload
     assert guarded_memload.index("`endif") < guarded_memload.index(

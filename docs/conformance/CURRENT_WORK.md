@@ -14,9 +14,9 @@ Census18 used UVM 1.2 and `-gcommercial-unsafe`. This qualifies the selected
 
 The broader candidate compile census is still mixed. Its 309-row snapshot has
 137 PASS, 120 dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10
-upstream-invalid rows. Two default Earl Grey synthesis rows have since passed
-in a focused follow-up; this does not recompute the 309-row totals. The patched
-UVM lane also passes 35/35. See the [compile census](opentitan_matrix.md).
+upstream-invalid rows. Three default Earl Grey synthesis rows and the patched
+35-row UVM lane have since passed focused follow-ups; these do not recompute
+the 309-row totals. See the [compile census](opentitan_matrix.md).
 The candidate passes the standalone OpenTitan AST reproducer 20/20 and three
 related sparse-case regressions 3/3. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
 
