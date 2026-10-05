@@ -179,6 +179,13 @@ The RTL lane uses synthesis mode and defines
 `SYNTHESIS_MEMORY_BLACK_BOXING`, matching OpenTitan's GTECH flow for generic
 RAM models.
 
+In RTL and UVM compile lanes, FuseSoC C/C++ file-type notices are benign only
+when the staged file is absent from the direct and nested Icarus `.scr` source
+lists. The runner preserves the raw notices and records the classification
+separately. Runtime rows use separate native-DPI build and checked-pass
+evidence. The [13-row UVM follow-up](../../evidence/opentitan-uvm-setup-warning-followup-20261004/README.md)
+records this distinction.
+
 The default reports are `opentitan-matrix.json` and `opentitan-matrix.md` under
 the build root.  `DEBT` and all failure/timeout statuses make the runner return
 nonzero, allowing the matrix to become a genuine zero-debt gate.
