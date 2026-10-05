@@ -83,6 +83,11 @@ hash-checked build-local overlay updates the FPV wrapper to the current DUT
 interface and types. This focused follow-up does not recompute the census; see
 the [result and patch](../../evidence/opentitan-census-20261002/candidate-sha3-fpv-current-interface-20261005/README.md).
 
+The `lowrisc:ip:aes_wrap:1.0` RTL row passes on engine `367e…` after removing a
+redundant data-integrity encoder from the wrapper. This focused follow-up does
+not recompute the census; see the
+[result and patch](../../evidence/opentitan-census-20261002/candidate-aes-wrap-single-data-integrity-driver-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on

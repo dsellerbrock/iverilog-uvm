@@ -58,6 +58,10 @@ its 17 DUT instances, resolving the shared-output multiple drivers. See the
 The SHA3 FPV wrapper now matches the current DUT ports, MuBi controls, and
 random input width; its focused compile passes without debt. See the
 [focused result](../../evidence/opentitan-census-20261002/candidate-sha3-fpv-current-interface-20261005/README.md).
+
+The AES wrapper RTL row now passes after removing its duplicate data-integrity
+driver and matching the AES idle output's MuBi width. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-aes-wrap-single-data-integrity-driver-20261005/README.md).
 The 309-row census totals remain unchanged.
 
 The measured hot paths and coverage limits are summarized in the
