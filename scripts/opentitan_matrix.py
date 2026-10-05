@@ -4807,7 +4807,7 @@ def markdown_report(report: dict[str, object]) -> str:
         f"- Icarus: `{metadata['iverilog_version']}`",
         f"- Compiler engine SHA-256: `{engine.get('sha256', 'unavailable')}`",
         f"- UVM/runtime compile profile: `{metadata['uvm_runtime_compile_profile']}`",
-        f"- Jobs: `{len(results)}`",
+        f"- Matrix workers: `{metadata['matrix_jobs']}`",
         "- Status counts: "
         + ", ".join(f"`{key}={value}`" for key, value in sorted(counts.items())),
         "",
@@ -4887,6 +4887,21 @@ def print_inventory(
 
 def self_test() -> None:
     _require_python313("3.13.15")
+    markdown_sample = markdown_report(
+        {
+            "metadata": {
+                "generated_at": "now",
+                "opentitan_revision": "revision",
+                "opentitan_dirty": False,
+                "iverilog_version": "version",
+                "compiler_fingerprint": {"components": {}},
+                "uvm_runtime_compile_profile": "default",
+                "matrix_jobs": 1,
+            },
+            "results": [],
+        }
+    )
+    assert "- Matrix workers: `1`" in markdown_sample
     for version in ("3.12.11", "3.14.7"):
         try:
             _require_python313(version)

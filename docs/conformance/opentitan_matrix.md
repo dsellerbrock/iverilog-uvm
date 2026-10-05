@@ -20,41 +20,44 @@ inventory; they are not the current 49-target runtime result.
 OpenTitan closure campaign.  It replaces one-off source lists with a pinned,
 machine-readable result for every selected FuseSoC core.
 
-## Candidate compile census (2026-10-05)
+## Candidate compile census (2026-10-05, engine 367e)
 
-The refreshed RTL/SVA/UVM run completed 309 entries on the candidate compiler
-against clean OpenTitan commit `a78922f14a8cc20c7ee569f322a04626f2ac6127`,
-with `--jobs 1` and the corrected UVM DPI runtime. It records 137 PASS, 120
-dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid
-rows. The 3 RTL hard failures are Xilinx board tops with unresolved primitive
-cells; 13 UVM compile failures remain on the unmodified release. The corrected
-UVM-only lane passes 35/35 with the source overlays. Re-running that
-complete patched UVM lane after the inside-range fix also passes 35/35
-with engine SHA-256 `367e44671b5aabf7786a200c2af4c3dcbd17c449bffa3ea2bc30fbfcfbaa1abc`; see the
-[latest patched UVM result](../../evidence/opentitan-census-20261002/candidate-patched-uvm-final-20261005/README.md).
+The latest serial compile-only census completed 309 RTL/SVA/UVM rows against
+clean OpenTitan commit `a78922f14a8cc20c7ee569f322a04626f2ac6127`. It records
+157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures, and 3
+upstream-invalid rows. The [full result and remaining-row list](../../evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md)
+includes per-lane counts and reproduction details. The 3 RTL hard failures are
+Xilinx board tops that need vendor primitives. Thirteen baseline UVM rows
+still fail, while the separate [patched UVM lane passes 35/35](../../evidence/opentitan-census-20261002/candidate-patched-uvm-final-20261005/README.md)
+on this engine.
+
+The census excludes runtime. The 49/49 selected runtime gate is verified on
+engine `890c…`, not `367e…`; full OpenTitan completion remains unverified until
+the outstanding compile blockers are resolved and that runtime gate is
+rechecked. The earlier engine `890c…` compile snapshot recorded 137 PASS, 120
+dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid;
+see the [historical census](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md).
 The earlier 31 UVM failure count was a missing-DPI setup artifact and is
-superseded. See the
-[pinned candidate census](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
-[corrected UVM result](../../evidence/opentitan-census-20261002/candidate-census18-patched-uvm-20261005/README.md),
-and [historical diagnostic](../../evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
+superseded.
 
 A focused follow-up on engine `367e…` passes the default-image
 `top_earlgrey`, `chip_earlgrey_asic`, and `chip_earlgrey_verilator` synthesis
 rows with zero semantic debt. It verifies the ROM/OTP defaults and wrapper
 parameters, fixes the Verilator wrapper’s multibit signals and bypass wiring,
-and gives the Ibex trace locals automatic lifetime. These results do not
-update the full 309-row census; see the [default-image pair](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md)
+and gives the Ibex trace locals automatic lifetime. The RTL results are
+included in the refreshed census; its `chip_earlgrey_asic` SVA row remains
+`DEBT`. See the [default-image pair](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md)
 and [Verilator row](../../evidence/opentitan-census-20261002/candidate-chip-earlgrey-verilator-compile-20261005/README.md).
 
 The I2C SVA and UVM compile rows also pass on engine `367e…` with the existing
 qualified warning-cleanup patch staged as hash-checked build-local overlays.
-This focused follow-up does not change the census totals; see the
+Both rows are included as passes in the refreshed census; see the
 [I2C result](../../evidence/opentitan-census-20261002/candidate-i2c-qualified-warning-cleanup-20261005/README.md).
 
 Four additional SVA rows previously marked `DEBT` now pass after the setup
 classifier confirms that warned non-HDL files are not in Icarus's source lists.
 The focused [SVA result](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md)
-does not recompute the full census.
+is reflected in the refreshed census.
 
 `lowrisc:dv:spi_host_sva:0.1` also passes after a build-local core overlay
 removes its reference to an undefined `files_formal` fileset. The original
@@ -71,21 +74,22 @@ clear signal was changed to the DUT's `mubi4_t` encoding. See its
 The `lowrisc:fpv:prim_lfsr_fpv:0.1` row also passes on engine `367e…` after a
 hash-checked build-local overlay assigns disjoint vector indices to its
 linear and nonlinear LFSR instances. This focused follow-up does not recompute
-the 309-row census; see the [result and patch](../../evidence/opentitan-census-20261002/candidate-prim-lfsr-fpv-disjoint-slots-20261005/README.md).
+the census separately; its `PASS` is included in the refreshed 309-row result.
+See the [result and patch](../../evidence/opentitan-census-20261002/candidate-prim-lfsr-fpv-disjoint-slots-20261005/README.md).
 
 The `lowrisc:fpv:prim_packer_fpv:0` row also passes on engine `367e…` after a
 hash-checked build-local overlay gives each DUT instance separate outputs.
-This focused follow-up does not recompute the census; see the
+Its `PASS` is included in the refreshed census; see the
 [result and patch](../../evidence/opentitan-census-20261002/candidate-prim-packer-fpv-disjoint-outputs-20261005/README.md).
 
 The `lowrisc:fpv:sha3_fpv:0.1` row passes on engine `367e…` after a
 hash-checked build-local overlay updates the FPV wrapper to the current DUT
-interface and types. This focused follow-up does not recompute the census; see
-the [result and patch](../../evidence/opentitan-census-20261002/candidate-sha3-fpv-current-interface-20261005/README.md).
+interface and types. Its `PASS` is included in the refreshed census; see the
+[result and patch](../../evidence/opentitan-census-20261002/candidate-sha3-fpv-current-interface-20261005/README.md).
 
 The `lowrisc:ip:aes_wrap:1.0` RTL row passes on engine `367e…` after removing a
 redundant data-integrity encoder from the wrapper. This focused follow-up does
-not recompute the census; see the
+not need a separate census run; its `PASS` is in the refreshed result. See the
 [result and patch](../../evidence/opentitan-census-20261002/candidate-aes-wrap-single-data-integrity-driver-20261005/README.md).
 
 The candidate now propagates the subject width to a direct unbased fill literal

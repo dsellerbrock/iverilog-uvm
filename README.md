@@ -117,14 +117,14 @@ versions, and legacy recording limitations, and the
 
 ## OpenTitan runtime matrix
 
-The selected OpenTitan runtime gate passed **49/49 targets** on the installed
-pre-candidate compiler and candidate engine `890c…`. The later engine `367e…`
-passes the patched 35-target UVM lane, but has not had a full 49-target runtime
-recheck. The pinned 309-row RTL/SVA/UVM compile snapshot records 137 PASS, 120
-dependency only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid
-rows; focused fixes do not refresh those totals. OpenTitan is not fully
-qualified while the broader compile census retains unresolved rows. See the
-[pinned candidate compile census](evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
+The selected OpenTitan runtime gate passed **49/49 targets** on candidate
+engine `890c…`. Engine `367e…` passes the patched 35-target UVM lane, but has
+not had a full 49-target runtime recheck. Its latest 309-row compile census
+records 157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures, and 3
+upstream-invalid rows. OpenTitan is not fully qualified on `367e…` while these
+compile blockers remain. See the
+[latest candidate compile census](evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md),
+[historical candidate compile census](evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
 [latest patched UVM lane](evidence/opentitan-census-20261002/candidate-patched-uvm-final-20261005/README.md),
 [candidate runtime recheck](evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md),
 [historical 49/49 result](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),

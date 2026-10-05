@@ -12,28 +12,31 @@ also passed 49/49, on the installed pre-candidate compiler.
 Census18 used UVM 1.2 and `-gcommercial-unsafe`. This qualifies the selected
 49-row runtime matrix, not every OpenTitan DV test.
 
-The broader candidate compile census is still mixed. Its 309-row snapshot has
-137 PASS, 120 dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10
-upstream-invalid rows. Three default Earl Grey synthesis rows and the patched
-35-row UVM lane have since passed focused follow-ups; these do not recompute
-the 309-row totals. See the [compile census](opentitan_matrix.md).
+The latest compile-only census covers 309 RTL/SVA/UVM rows on engine `367e…`:
+157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures, and 3
+upstream-invalid. The [full census report](../../evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md)
+lists the remaining rows. The patched UVM lane passes 35/35 on this engine, but
+the selected 49/49 runtime result remains on engine `890c…`; OpenTitan is not
+fully qualified on `367e…` yet. See the [compile matrix](opentitan_matrix.md).
 The candidate passes the standalone OpenTitan AST reproducer 20/20 and three
 related sparse-case regressions 3/3. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
 
 The default `rom_ctrl`, `top_earlgrey`, and `chip_earlgrey_asic` synthesis
 rows pass with a build-local overlay that guards only simulation path-printing
-and retains `$readmemh`. The Earl Grey two-row follow-up is on engine `367e…`;
-it is not a refreshed full census or a 49-target runtime run on that engine.
+and retains `$readmemh`. These RTL results are included in the refreshed
+engine `367e…` census; its `chip_earlgrey_asic` SVA row still has debt. This is
+not a 49-target runtime run on that engine.
 See the [ROM loader evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md)
 and [Earl Grey result](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md).
 
 The I2C SVA and UVM compile rows also pass on engine `367e…` with the qualified
-warning-cleanup overlay; this focused result does not update the census totals.
-See the [I2C follow-up](../../evidence/opentitan-census-20261002/candidate-i2c-qualified-warning-cleanup-20261005/README.md).
+warning-cleanup overlay; both are included in the refreshed census. See the
+[I2C follow-up](../../evidence/opentitan-census-20261002/candidate-i2c-qualified-warning-cleanup-20261005/README.md).
 
 Four SVA rows previously marked `DEBT` now pass after the setup-warning
 classifier verifies that warned C/C++/Python files are absent from the Icarus
-source lists. See the [SVA follow-up](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md).
+source lists. Their clean statuses are included in the refreshed census. See
+the [SVA follow-up](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md).
 
 The SPI Host SVA target also passes after a build-local correction removes its
 reference to an undefined FuseSoC fileset. See the [SPI Host result](../../evidence/opentitan-census-20261002/candidate-spi-host-sva-fileset-20261005/README.md).
