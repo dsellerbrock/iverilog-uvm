@@ -2560,7 +2560,7 @@ def setup_command(
         f"--cores-root={opentitan_root}",
     ]
     source_override_root = matrix_core_root / "source-overrides"
-    if any(source_override_root.rglob("*.core")):
+    if job.lane in {"rtl", "sva"} and any(source_override_root.rglob("*.core")):
         command.append(f"--cores-root={source_override_root}")
     command.extend(
         [
@@ -3553,6 +3553,20 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         assert overlay_command.index(overlay_root_arg) > overlay_command.index(
             source_root_arg
         )
+        for lane, uses_source_overrides in (
+            ("sva", True),
+            ("uvm", False),
+            ("runtime", False),
+        ):
+            lane_command = setup_command(
+                Job(lane, Core("lowrisc:ip:lc_ctrl_pkg:0.1", "")),
+                Path("fusesoc"),
+                source_root,
+                matrix_root,
+                temp_root / f"build/{lane}",
+                "earlgrey",
+            )
+            assert (overlay_root_arg in lane_command) == uses_source_overrides
         for source_core, _relative_core, additions in source_cores:
             source_core.write_text(
                 source_core.read_text()
