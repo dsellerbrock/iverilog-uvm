@@ -117,17 +117,16 @@ versions, and legacy recording limitations, and the
 
 ## OpenTitan runtime matrix
 
-The latest completed OpenTitan runtime census, census18, passed **49/49
-targets** on the installed pre-candidate compiler. The candidate's pinned
-309-row RTL/SVA/UVM compile census is now recorded: 137 PASS, 120 dependency
-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid rows. Its
-corrected UVM-only lane passes 35/35 on a reproducible patched source snapshot;
-the old 31 UVM failures came from a missing DPI module. The full candidate
-49-target runtime revalidation is running under a 70%-free-memory guard, one
-job at a time, with a 9,536-MiB per-process cap and an 18,000-second timeout.
-OpenTitan is not yet fully qualified on the candidate compiler. See the
+The selected OpenTitan runtime gate passed **49/49 targets** on the installed
+pre-candidate compiler and candidate engine `890c…`. The later engine `367e…`
+passes the patched 35-target UVM lane, but has not had a full 49-target runtime
+recheck. The pinned 309-row RTL/SVA/UVM compile snapshot records 137 PASS, 120
+dependency only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid
+rows; focused fixes do not refresh those totals. OpenTitan is not fully
+qualified while the broader compile census retains unresolved rows. See the
 [pinned candidate compile census](evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
-[corrected UVM lane](evidence/opentitan-census-20261002/candidate-census18-patched-uvm-20261005/README.md),
+[latest patched UVM lane](evidence/opentitan-census-20261002/candidate-patched-uvm-final-20261005/README.md),
+[candidate runtime recheck](evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md),
 [historical 49/49 result](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
 and [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md).
 The [matrix runner reference](docs/conformance/opentitan_matrix.md) and
