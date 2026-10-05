@@ -46,6 +46,11 @@ and gives the Ibex trace locals automatic lifetime. These results do not
 update the full 309-row census; see the [default-image pair](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md)
 and [Verilator row](../../evidence/opentitan-census-20261002/candidate-chip-earlgrey-verilator-compile-20261005/README.md).
 
+The I2C SVA and UVM compile rows also pass on engine `367e…` with the existing
+qualified warning-cleanup patch staged as hash-checked build-local overlays.
+This focused follow-up does not change the census totals; see the
+[I2C result](../../evidence/opentitan-census-20261002/candidate-i2c-qualified-warning-cleanup-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on

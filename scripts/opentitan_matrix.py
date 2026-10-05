@@ -30,7 +30,7 @@ import sys
 import tempfile
 import threading
 import time
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 
 def _require_python313(
@@ -2772,6 +2772,18 @@ CHIP_EARLGREY_VERILATOR_SOURCE_SHA256 = (
 IBEX_TRACER_SOURCE_SHA256 = (
     "74326975d4fc618c97d95cf5451dd830ed5c79798c87d141858fcaf479120e29"
 )
+I2C_PROTOCOL_COV_SOURCE_SHA256 = (
+    "d517b297226819233253bfe7ff9982c27bba2a97ff4759362bce5732b28d1611"
+)
+I2C_IF_SOURCE_SHA256 = (
+    "9d27370ef1612a09cdc9e75e4b2c7d9eca22c5b310573a42a8c64b713d8579f8"
+)
+I2C_HOST_PERF_VSEQ_SOURCE_SHA256 = (
+    "29802640c4558ce3eea87e6818a1b2e1b2ad36839b500d39c5de39089c09c3a8"
+)
+I2C_VSEQ_LIST_SOURCE_SHA256 = (
+    "b778f251338cee17f82eda70ec5364233fce221fbb3a3a886e0bfdecca49d0cc"
+)
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
@@ -3041,6 +3053,168 @@ def chip_earlgrey_verilator_source_overlay(
     }
 
 
+def i2c_protocol_cov_source_text(text: str) -> str:
+    """Move I2C coverage object construction into the existing enable branch."""
+    before = '''    if (en_cov) begin
+      i2c_protocol_cov_cg   i2c_protocol_cov = new();
+      i2c_rd_wr_cg          i2c_rd_wr_cov = new();
+      i2c_cmd_complete_cg   cmd_complete_cg = new();'''
+    after = '''    i2c_protocol_cov_cg   i2c_protocol_cov;
+    i2c_rd_wr_cg          i2c_rd_wr_cov;
+    i2c_cmd_complete_cg   cmd_complete_cg;
+    if (en_cov) begin
+      i2c_protocol_cov = new();
+      i2c_rd_wr_cov = new();
+      cmd_complete_cg = new();'''
+    if text.count(before) != 1:
+        raise ValueError("I2C coverage constructor block is not unique")
+    return text.replace(before, after)
+
+
+def i2c_if_source_text(text: str) -> str:
+    before = "if (sample.size() > tc.tSetupBit) sample.pop_back();"
+    after = "if (sample.size() > tc.tSetupBit) void'(sample.pop_back());"
+    if text.count(before) != 1:
+        raise ValueError("I2C interface pop_back call is not unique")
+    return text.replace(before, after)
+
+
+def i2c_host_perf_vseq_source_text(text: str) -> str:
+    before = "    solve cfg.clk_freq_mhz before speed_mode;\n"
+    if text.count(before) != 1:
+        raise ValueError("I2C host performance solve constraint is not unique")
+    return text.replace(before, "")
+
+
+def i2c_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+    *,
+    sim_sources: bool,
+) -> tuple[Path, dict[str, object]]:
+    """Stage the qualified I2C warning cleanup without modifying OpenTitan."""
+    overlay_dir = work_root / "source-overlays" / "i2c_runtime_warning_cleanup"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("I2C overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+
+    files: list[dict[str, str]] = []
+
+    def stage_source(
+        relative_source: str,
+        output_name: str,
+        expected_source_hash: str,
+        expected_overlay_hash: str,
+        transform: Callable[[str], str],
+    ) -> Path:
+        source = opentitan_root / relative_source
+        source_hash = file_sha256(source)
+        if source_hash != expected_source_hash:
+            raise ValueError(
+                f"I2C overlay source hash mismatch for {relative_source}: "
+                f"expected {expected_source_hash}, got {source_hash}"
+            )
+        overlay = overlay_dir / output_name
+        if overlay.is_symlink():
+            raise ValueError(f"I2C overlay destination is a symlink: {overlay}")
+        overlay.parent.mkdir(parents=True, exist_ok=True)
+        overlay.write_text(transform(source.read_text()))
+        overlay_hash = file_sha256(overlay)
+        if overlay_hash != expected_overlay_hash:
+            raise ValueError(
+                f"I2C overlay result hash mismatch for {relative_source}: "
+                f"expected {expected_overlay_hash}, got {overlay_hash}"
+            )
+        files.append(
+            {
+                "source": str(source),
+                "source_sha256": source_hash,
+                "overlay": str(overlay),
+                "overlay_sha256": overlay_hash,
+            }
+        )
+        return overlay
+
+    coverage_overlay = stage_source(
+        "hw/ip/i2c/dv/sva/i2c_protocol_cov.sv",
+        "i2c_protocol_cov.sv",
+        I2C_PROTOCOL_COV_SOURCE_SHA256,
+        "7acaf1466513f2fd8f28b31261b0d78f9d5e388bdb0ee73f5ce883e2030ef2fa",
+        i2c_protocol_cov_source_text,
+    )
+    if sim_sources:
+        interface_overlay = stage_source(
+            "hw/dv/sv/i2c_agent/i2c_if.sv",
+            "i2c_if.sv",
+            I2C_IF_SOURCE_SHA256,
+            "c9a24cfa67030cb6defb6fed64528f019ca5885d34adb324681762b04a40b34e",
+            i2c_if_source_text,
+        )
+        sequence_overlay = stage_source(
+            "hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv",
+            "seq_lib/i2c_host_perf_vseq.sv",
+            I2C_HOST_PERF_VSEQ_SOURCE_SHA256,
+            "c22bd8423b64065942b43f39a924389b9f665dc30ce7a1cff3d8c7999bea3f9f",
+            i2c_host_perf_vseq_source_text,
+        )
+        sequence_list = opentitan_root / "hw/ip/i2c/dv/env/seq_lib/i2c_vseq_list.sv"
+        sequence_list_hash = file_sha256(sequence_list)
+        if sequence_list_hash != I2C_VSEQ_LIST_SOURCE_SHA256:
+            raise ValueError(
+                "I2C sequence-list source hash mismatch: "
+                f"expected {I2C_VSEQ_LIST_SOURCE_SHA256}, got {sequence_list_hash}"
+            )
+        sequence_list_overlay = overlay_dir / "seq_lib/i2c_vseq_list.sv"
+        if sequence_list_overlay.is_symlink():
+            raise ValueError("I2C sequence-list overlay is a symlink")
+        sequence_list_overlay.parent.mkdir(parents=True, exist_ok=True)
+        sequence_list_overlay.write_bytes(sequence_list.read_bytes())
+        files.append(
+            {
+                "source": str(sequence_list),
+                "source_sha256": sequence_list_hash,
+                "overlay": str(sequence_list_overlay),
+                "overlay_sha256": file_sha256(sequence_list_overlay),
+            }
+        )
+
+    if source_list.is_symlink() or work_root.resolve() not in source_list.resolve().parents:
+        raise ValueError("I2C source list is outside its build root")
+    source_list_text = source_list.read_text()
+    replacements = {
+        "../src/lowrisc_dv_i2c_sva_0.1/i2c_protocol_cov.sv": str(coverage_overlay),
+    }
+    if sim_sources:
+        replacements["../src/lowrisc_dv_i2c_agent_0.1/i2c_if.sv"] = str(
+            interface_overlay
+        )
+        sequence_include = "+incdir+../src/lowrisc_dv_i2c_env_0.1/seq_lib"
+        if source_list_text.splitlines().count(sequence_include) != 1:
+            raise ValueError("I2C sequence include-directory anchor is not unique")
+        source_list_text = source_list_text.replace(
+            sequence_include,
+            f"+incdir+{sequence_overlay.parent}\n{sequence_include}",
+        )
+    for anchor, replacement in replacements.items():
+        if source_list_text.splitlines().count(anchor) != 1:
+            raise ValueError(f"I2C source-list anchor is not unique: {anchor}")
+        source_list_text = source_list_text.replace(anchor, replacement)
+
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("I2C source-list overlay is a symlink")
+    source_list_overlay.write_text(source_list_text)
+    return source_list_overlay, {
+        "profile": "i2c_runtime_warning_cleanup",
+        "sources": files,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
 def otbn_trace_finish_overlay(
     native_sources: Sequence[str],
     opentitan_root: Path,
@@ -3267,16 +3441,45 @@ def run_job(
         record["status"] = "SETUP_DEBT" if setup_findings else "SETUP_ONLY"
         return record
 
+    source_overlays: list[dict[str, object]] = []
     try:
         source_list, top_options = parse_makefile(work_root)
-        top_options, top_notes, package_wrapper = validated_top_options(
-            job, source_list, top_options, work_root
+        source_list_for_compile = source_list
+        i2c_sva_job = (
+            job.lane == "sva" and job.core.vlnv == "lowrisc:dv:i2c_sva:0.1"
         )
-        compiler_source_list = simulation_source_list(job, source_list, work_root)
+        i2c_sim_job = (
+            job.lane in {"uvm", "runtime"}
+            and job.core.vlnv == "lowrisc:dv:i2c_sim:0.1"
+        )
+        if i2c_sva_job or i2c_sim_job:
+            try:
+                source_list_for_compile, source_overlay = i2c_source_overlay(
+                    opentitan_root,
+                    work_root,
+                    source_list,
+                    sim_sources=i2c_sim_job,
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        top_options, top_notes, package_wrapper = validated_top_options(
+            job, source_list_for_compile, top_options, work_root
+        )
+        compiler_source_list = simulation_source_list(
+            job, source_list_for_compile, work_root
+        )
         if package_wrapper is not None:
             compiler_source_list = package_wrapper
         top_options, sva_notes, sva_wrapper = sva_testbench_wrapper(
-            job, source_list, top_options, work_root, compiler_source_list
+            job,
+            source_list_for_compile,
+            top_options,
+            work_root,
+            compiler_source_list,
         )
         if sva_wrapper is not None:
             compiler_source_list = sva_wrapper
@@ -3300,7 +3503,6 @@ def run_job(
 
     executable = work_root / f"matrix-{job.lane}.vvp"
     additional_include_dirs: tuple[Path, ...] = ()
-    source_overlays: list[dict[str, object]] = []
     if job.lane == "rtl" and memload_synthesis_profile(
         job.core.vlnv, top_options
     ) is not None:
@@ -4066,6 +4268,26 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     ibex_tracer_overlay = ibex_tracer_automatic_locals(ibex_tracer_sample)
     assert ibex_tracer_overlay.count("automatic int fh = file_handle;") == 2
     assert 'automatic string file_name_base = "trace_core";' in ibex_tracer_overlay
+    i2c_coverage_sample = (
+        "    if (en_cov) begin\n"
+        "      i2c_protocol_cov_cg   i2c_protocol_cov = new();\n"
+        "      i2c_rd_wr_cg          i2c_rd_wr_cov = new();\n"
+        "      i2c_cmd_complete_cg   cmd_complete_cg = new();"
+    )
+    i2c_coverage_overlay = i2c_protocol_cov_source_text(i2c_coverage_sample)
+    assert i2c_coverage_overlay.startswith(
+        "    i2c_protocol_cov_cg   i2c_protocol_cov;\n"
+        "    i2c_rd_wr_cg          i2c_rd_wr_cov;\n"
+        "    i2c_cmd_complete_cg   cmd_complete_cg;\n"
+        "    if (en_cov) begin\n"
+    )
+    assert "      i2c_protocol_cov = new();" in i2c_coverage_overlay
+    assert i2c_if_source_text(
+        "if (sample.size() > tc.tSetupBit) sample.pop_back();"
+    ) == "if (sample.size() > tc.tSetupBit) void'(sample.pop_back());"
+    assert i2c_host_perf_vseq_source_text(
+        "constraint c {\n    solve cfg.clk_freq_mhz before speed_mode;\n}"
+    ) == "constraint c {\n}"
     guarded_memload = guard_memload_debug(memload_sample)
     assert "`ifndef SYNTHESIS" in guarded_memload
     assert guarded_memload.index("`endif") < guarded_memload.index(
