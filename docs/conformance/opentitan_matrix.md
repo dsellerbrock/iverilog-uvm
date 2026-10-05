@@ -56,6 +56,10 @@ classifier confirms that warned non-HDL files are not in Icarus's source lists.
 The focused [SVA result](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md)
 does not recompute the full census.
 
+The Keccak 2-share FPV row remains upstream-invalid after a diagnostic syntax
+and package-import correction reveals obsolete DUT port hookups. The current
+testbench needs a control-model update; see its [audit](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-upstream-audit-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on

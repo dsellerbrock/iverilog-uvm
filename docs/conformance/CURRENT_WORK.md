@@ -35,6 +35,10 @@ Four SVA rows previously marked `DEBT` now pass after the setup-warning
 classifier verifies that warned C/C++/Python files are absent from the Icarus
 source lists. See the [SVA follow-up](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md).
 
+One formal target remains upstream-invalid: correcting the Keccak 2-share
+FPV syntax exposes obsolete DUT port connections that require a control-model
+update. See the [diagnostic result](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-upstream-audit-20261005/README.md).
+
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 

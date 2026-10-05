@@ -632,11 +632,13 @@ KNOWN_UPSTREAM_DEFECTS = (
         re.compile(
             r"keccak_2share_fpv\.sv:\d+: (?:syntax error|error: )"
         ),
-        "keccak_2share_fpv.sv's StPhase1 case item is missing an `end` "
-        "(the else-begin block and the case-item begin share one), so "
-        "the file cannot parse. slang 11.0 reports the same "
-        "\"expected 'end'\"; the FPV testbench is syntactically broken "
-        "at the pinned revision.",
+        "At the pinned revision, keccak_2share_fpv.sv is missing an `end` "
+        "after the StPhase1 else block and does not import prim_mubi_pkg. "
+        "Correcting those exposes obsolete cycle_i and rand_aux_i port "
+        "connections on both keccak_2share instances; the current DUT instead "
+        "has DOM control and lifecycle inputs. Matching those requires an "
+        "FPV control-model update, so this target remains upstream-invalid. "
+        "Slang 11.0 independently reports the original missing `end`.",
     ),
     UpstreamDefect(
         "lowrisc:fpv:rv_timer_fpv",
@@ -2784,6 +2786,12 @@ I2C_HOST_PERF_VSEQ_SOURCE_SHA256 = (
 I2C_VSEQ_LIST_SOURCE_SHA256 = (
     "b778f251338cee17f82eda70ec5364233fce221fbb3a3a886e0bfdecca49d0cc"
 )
+KECCAK_2SHARE_FPV_SOURCE_SHA256 = (
+    "d5bb74f7ee9fa85829c7c13690ec7b0f0805c8bfee3291da67fe14b83655f75c"
+)
+KECCAK_2SHARE_FPV_OVERLAY_SHA256 = (
+    "9be795c467ca35f9f4f4d402a63c01dc4f3e22308f55c5e77173937cf98442c3"
+)
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
@@ -3215,6 +3223,81 @@ def i2c_source_overlay(
     }
 
 
+def keccak_2share_fpv_source_text(text: str) -> str:
+    import_anchor = ");\n\n  localparam int W"
+    if text.count(import_anchor) != 1:
+        raise ValueError("Keccak 2-share SVA module header is not unique")
+    text = text.replace(
+        import_anchor,
+        ");\n  import prim_mubi_pkg::*;\n\n  localparam int W",
+    )
+    before = '''          keccak_st_d = StPhase1;
+      end
+      StPhase2Cycle1: begin'''
+    after = '''          keccak_st_d = StPhase1;
+        end
+      end
+      StPhase2Cycle1: begin'''
+    if text.count(before) != 1:
+        raise ValueError("Keccak 2-share SVA case block is not unique")
+    return text.replace(before, after)
+
+
+def keccak_2share_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Close the missing StPhase1 case-item block in the pinned FPV source."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/keccak_2share_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != KECCAK_2SHARE_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "Keccak 2-share SVA source hash mismatch: "
+            f"expected {KECCAK_2SHARE_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "keccak_2share_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("Keccak 2-share SVA overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "keccak_2share_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("Keccak 2-share SVA overlay is a symlink")
+    overlay.write_text(keccak_2share_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != KECCAK_2SHARE_FPV_OVERLAY_SHA256:
+        raise ValueError(f"Keccak 2-share SVA overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("Keccak 2-share SVA source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = (
+        "../src/lowrisc_fpv_keccak_2share_fpv_0.1/tb/keccak_2share_fpv.sv"
+    )
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("Keccak 2-share SVA source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("Keccak 2-share SVA source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "keccak_2share_fpv_missing_case_end",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
 def otbn_trace_finish_overlay(
     native_sources: Sequence[str],
     opentitan_root: Path,
@@ -3459,6 +3542,22 @@ def run_job(
                     work_root,
                     source_list,
                     sim_sources=i2c_sim_job,
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:keccak_2share_fpv:0.1"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    keccak_2share_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
                 )
             except (OSError, ValueError) as exc:
                 record.update(
@@ -4288,6 +4387,19 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert i2c_host_perf_vseq_source_text(
         "constraint c {\n    solve cfg.clk_freq_mhz before speed_mode;\n}"
     ) == "constraint c {\n}"
+    keccak_2share_sample = (
+        ");\n\n  localparam int W\n"
+        "          keccak_st_d = StPhase1;\n"
+        "      end\n"
+        "      StPhase2Cycle1: begin"
+    )
+    assert keccak_2share_fpv_source_text(keccak_2share_sample) == (
+        ");\n  import prim_mubi_pkg::*;\n\n  localparam int W\n"
+        "          keccak_st_d = StPhase1;\n"
+        "        end\n"
+        "      end\n"
+        "      StPhase2Cycle1: begin"
+    )
     guarded_memload = guard_memload_debug(memload_sample)
     assert "`ifndef SYNTHESIS" in guarded_memload
     assert guarded_memload.index("`endif") < guarded_memload.index(
