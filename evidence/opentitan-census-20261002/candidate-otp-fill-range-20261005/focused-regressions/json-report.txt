@@ -1,0 +1,11 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/candidate-fill-range-build/focus-vvp.list
+----------------------------------------------------------------------------
+     sv_constraint_inside_fill_range_context: Passed.
+sv_constraint_inside_fill_range_context_2023: Passed.
+          sv_constraint_unbased_fill_context: Passed.
+     sv_constraint_unbased_fill_context_2023: Passed.
+     sv_constraint_unbased_fill_context_fail: Passed - CE.
+sv_constraint_unbased_fill_context_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 6, Failed 0.
