@@ -18,7 +18,7 @@ active_opentitan_runtime_census17_lane:
   baseline_head: "6871b92d8dc42bc819fea449682dbc469d11603a"
   previous: "Census16 produced 47/49 PASS; RV-DM and UART failed from old runtime overlay scope. Focused corrected-scope reruns passed both (UART 84.289s; RV-DM passed)."
   command: "49 targets, --jobs 2, --runtime-timeout 18000, --runtime-memory-mib 9536, --commercial-unsafe; result /private/tmp/pi/opentitan-runtime-census17-corrected-20261004/result.json."
-  last_observed: "9/49 PASS at 2026-10-05 01:59 UTC; Flash and HMAC runtime processes were both active. The runner uses the installed pre-candidate compiler."
+  last_observed: "10/49 PASS at 2026-10-05 02:12 UTC. The runner uses the installed pre-candidate compiler."
   acceptance: "One coherent current invocation with all 49 PASS, pass banners, zero hard errors/debt/runtime errors/timeouts/memory-cap hits."
   boundary: "This runtime lane does not cover RTL/SVA/UVM compile census; refresh those lanes after the AST synthesis blocker is resolved."
 active_opentitan_coherent_census_lane:
