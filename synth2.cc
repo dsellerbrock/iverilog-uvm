@@ -3715,24 +3715,35 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	    }
       }
 
-	// Nested explicit branches can merge and delete the nexuses connected to
-	// default_out/default_ena. Wait until all branches are synthesized before
-	// caching those pointers. Each recorded mux data pin is still unconnected,
-	// so these links can then be added without invalidating the cached nexuses.
-	// Caching keeps sparse defaults from repeatedly walking the growing link
-	// list once per implicit selector value.
+	// Nested branches can merge and delete the nexuses connected to
+	// default_out/default_ena. Cache the current identities after synthesizing
+	// all branches, and refresh each cached pointer if any later connect merged
+	// a Nexus. The generation check preserves the fast append-only path without
+	// dereferencing a deleted Nexus.
       vector<Nexus*> default_out_nex (nex_out.pin_count());
       vector<Nexus*> default_ena_nex (nex_out.pin_count());
+      vector<std::uint64_t> default_out_gen(nex_out.pin_count());
+      vector<std::uint64_t> default_ena_gen(nex_out.pin_count());
       for (size_t mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
 	    default_out_nex[mdx] = default_out.pin(mdx).nexus();
 	    default_ena_nex[mdx] = default_ena.pin(mdx).nexus();
+	    default_out_gen[mdx] = Nexus::identity_generation();
+	    default_ena_gen[mdx] = Nexus::identity_generation();
       }
 
       ivl_assert(*this, default_out.pin_count() == out_mux.size());
       for (size_t idx = 0 ; idx < default_mux_inputs.size() ; idx += 1) {
 	    unsigned mux_idx = default_mux_inputs[idx];
 	    for (unsigned mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
+		  if (default_out_gen[mdx] != Nexus::identity_generation()) {
+			default_out_nex[mdx] = default_out.pin(mdx).nexus();
+			default_out_gen[mdx] = Nexus::identity_generation();
+		  }
 		  connect(default_out_nex[mdx], out_mux[mdx]->pin_Data(mux_idx));
+		  if (default_ena_gen[mdx] != Nexus::identity_generation()) {
+			default_ena_nex[mdx] = default_ena.pin(mdx).nexus();
+			default_ena_gen[mdx] = Nexus::identity_generation();
+		  }
 		  connect(default_ena_nex[mdx], ena_mux[mdx]->pin_Data(mux_idx));
                   if (outer_pending) {
                         connect(default_p_out.pin(mdx),

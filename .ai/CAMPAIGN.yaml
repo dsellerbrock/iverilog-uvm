@@ -1,7 +1,26 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/rand-2d-dynamic-arrays-20261002
-checkpoint_head: 8527d1fd44eb812aa58d894fb5791e4e3d089742
+branch: agent/opentitan-hotpath-repros-20261004
+checkpoint_head: 6871b92d8dc42bc819fea449682dbc469d11603a
+active_ast_synth_abort_lane:
+  blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
+  phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_FULL_CENSUS_PENDING"
+  baseline_head: "6871b92d8dc42bc819fea449682dbc469d11603a"
+  source: "Pinned OpenTitan ast core lowrisc:systems:ast:0.1, rglts_pdm_3p3v.sv; do not edit pinned source."
+  reproducer: "/private/tmp/pi/ast_rglts_full_standalone.sv: component-sized standalone aborts 20/20. The extracted FSM/stretch pair and generic analogues do not reproduce; no small reducer yet."
+  crash: "macOS malloc abort report /Users/danielellerbrock/Library/Logs/DiagnosticReports/ivl-2026-10-04-143802.ips; Nexus::connect called by NetCase::synth_async during synthesis."
+  hypothesis: "Stale Nexus pointer in the sparse-case default cache is supported by the 20/20 cache-bypass control. The generation-guarded candidate refreshes from stable Links after Nexus identity changes and passes the component reproducer 20/20 plus three related synthesis regressions."
+  next: "Finish census17, then run the refreshed RTL/SVA/UVM census with the candidate compiler and resolve every actionable failure or semantic debt."
+  boundary: "No pinned OpenTitan source edit. Current runtime census17 uses the pre-candidate installed compiler; do not treat it as candidate validation."
+active_opentitan_runtime_census17_lane:
+  blocker: "OT-COHERENT-RUNTIME-CENSUS17-20261004"
+  phase: "RUNNING"
+  baseline_head: "6871b92d8dc42bc819fea449682dbc469d11603a"
+  previous: "Census16 produced 47/49 PASS; RV-DM and UART failed from old runtime overlay scope. Focused corrected-scope reruns passed both (UART 84.289s; RV-DM passed)."
+  command: "49 targets, --jobs 2, --runtime-timeout 18000, --runtime-memory-mib 9536, --commercial-unsafe; result /private/tmp/pi/opentitan-runtime-census17-corrected-20261004/result.json."
+  last_observed: "9/49 PASS at 2026-10-05 01:59 UTC; Flash and HMAC runtime processes were both active. The runner uses the installed pre-candidate compiler."
+  acceptance: "One coherent current invocation with all 49 PASS, pass banners, zero hard errors/debt/runtime errors/timeouts/memory-cap hits."
+  boundary: "This runtime lane does not cover RTL/SVA/UVM compile census; refresh those lanes after the AST synthesis blocker is resolved."
 active_opentitan_coherent_census_lane:
   blocker: "OT-COHERENT-49-CENSUS-20261004"
   phase: "DONE"

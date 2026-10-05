@@ -127,6 +127,7 @@ synth_process_alias_boundary normal,-g2012	ivltests
 synth_process_overlap_reject CE,-g2012	ivltests
 synth_sparse_case	normal,-g2012	ivltests
 synth_case_nested_default_cache normal,-g2012 ivltests
+synth_ast_rglts_pdm_nexus_cache CO,-S,-g2012,-DSYNTHESIS ivltests
 synth_unpacked_array_whole_assign normal,-g2012	ivltests
 synth_unpacked_array_slice_assign normal,-g2012	ivltests
 synth_uarray_partial_index_caliptra normal,-g2012 ivltests
