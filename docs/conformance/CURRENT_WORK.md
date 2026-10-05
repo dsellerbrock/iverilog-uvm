@@ -28,8 +28,10 @@ associative arrays while the runner invokes macOS `/bin/bash` 3.2. The matrix
 runner bypasses that path when `RV32_TOOL_AS` and `RV32_TOOL_LD` are set; a
 prior xPack retry passed OTBN in 136.853 seconds, and the focused
 [census17 pre-run recovery](../../evidence/opentitan-census-20261002/census17-otbn-xpack-20261005/README.md)
-generated the smoke ELF from the current source snapshot. This run uses the installed
-pre-candidate compiler and does not validate the AST synthesis fix. The
+generated the smoke ELF from the current source snapshot. After census17
+exits, the prepared [census18 full runtime invocation](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
+will rerun all 49 rows with xPack. Census17 uses the installed pre-candidate
+compiler and does not validate the AST synthesis fix. The
 generation-guarded Nexus candidate passes the OpenTitan AST reproducer 20/20
 and three related sparse-case tests 3/3; the refreshed RTL/SVA/UVM census
 remains pending. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).

@@ -10,7 +10,7 @@ active_ast_synth_abort_lane:
   reproducer: "/private/tmp/pi/ast_rglts_full_standalone.sv: component-sized standalone aborts 20/20. The extracted FSM/stretch pair and generic analogues do not reproduce; no small reducer yet."
   crash: "macOS malloc abort report /Users/danielellerbrock/Library/Logs/DiagnosticReports/ivl-2026-10-04-143802.ips; Nexus::connect called by NetCase::synth_async during synthesis."
   hypothesis: "Stale Nexus pointer in the sparse-case default cache is supported by the 20/20 cache-bypass control. The generation-guarded candidate refreshes from stable Links after Nexus identity changes and passes the component reproducer 20/20 plus three related synthesis regressions."
-  next: "Finish census17, then run the refreshed RTL/SVA/UVM census with the candidate compiler and default-ROM loader overlay; resolve every actionable failure or semantic debt."
+  next: "Finish census17; run the prepared coherent census18 runtime invocation with xPack; then run candidate RTL/SVA/UVM lanes with the default-ROM loader overlay and resolve every actionable failure or semantic debt."
   boundary: "No pinned OpenTitan source edit. Current runtime census17 uses the pre-candidate installed compiler; do not treat it as candidate validation."
 active_opentitan_runtime_census17_lane:
   blocker: "OT-COHERENT-RUNTIME-CENSUS17-20261004"
@@ -19,6 +19,7 @@ active_opentitan_runtime_census17_lane:
   previous: "Census16 produced 47/49 PASS; RV-DM and UART failed from old runtime overlay scope. Focused corrected-scope reruns passed both (UART 84.289s; RV-DM passed)."
   command: "49 targets, --jobs 2, --runtime-timeout 18000, --runtime-memory-mib 9536, --commercial-unsafe; result /private/tmp/pi/opentitan-runtime-census17-corrected-20261004/result.json."
   last_observed: "31/49 PASS and 1 OTBN PRE_RUN_FAIL in the result JSON at 2026-10-05 03:10 UTC; 17 targets remain unreported, with Flash and SPI-host simulations active. OTBN setup and compile returned 0 with zero hard errors; pre-run hit the non-git snapshot/Bash 3.2 fallback toolchain path. The exact census17 source generated smoke_test.elf when run with RV32_TOOL_AS/RV32_TOOL_LD and the OpenTitan Python environment on PATH; see the focused evidence note. A full runtime rerun is still required. The runner uses the installed pre-candidate compiler."
+  next: "After census17 exits, run evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/run-census18.sh as a new coherent full runtime invocation; do not combine the targeted OTBN pre-run result with census17."
   acceptance: "One coherent current invocation with all 49 PASS, pass banners, zero hard errors/debt/runtime errors/timeouts/memory-cap hits."
   boundary: "This runtime lane does not cover RTL/SVA/UVM compile census; refresh those lanes after the AST synthesis blocker is resolved."
 active_opentitan_coherent_census_lane:
