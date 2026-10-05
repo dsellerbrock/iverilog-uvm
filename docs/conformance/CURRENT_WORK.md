@@ -18,12 +18,15 @@ This qualifies the matrix's 49 selected runtime targets, not every OpenTitan
 DV test.
 
 A corrected runtime census17 is still running from the updated source-overlay
-driver. At 2026-10-05 02:43 UTC its result snapshot is **25/49 PASS**, one
-`PRE_RUN_FAIL` on `lowrisc:dv:otbn_sim:0.1`, and 23 targets still unreported.
+driver. At 2026-10-05 02:50 UTC its persisted result JSON records **28/49
+PASS**, one `PRE_RUN_FAIL` on `lowrisc:dv:otbn_sim:0.1`, and 20 targets still
+unreported.
 OTBN setup and compile returned 0 with zero hard compiler errors; its pre-run
-failed before simulation because the source snapshot lacks Git metadata and
-OpenTitan's Bazelisk wrapper requires Bash associative arrays while the
-runner invokes macOS `/bin/bash` 3.2. This run uses the installed
+failed before simulation on the fallback toolchain path: this source snapshot
+has no Git metadata, and OpenTitan's Bazelisk wrapper requires Bash
+associative arrays while the runner invokes macOS `/bin/bash` 3.2. The matrix
+runner bypasses that path when `RV32_TOOL_AS` and `RV32_TOOL_LD` are set; a
+prior xPack retry passed OTBN in 136.853 seconds. This run uses the installed
 pre-candidate compiler and does not validate the AST synthesis fix. The
 generation-guarded Nexus candidate passes the OpenTitan AST reproducer 20/20
 and three related sparse-case tests 3/3; the refreshed RTL/SVA/UVM census
