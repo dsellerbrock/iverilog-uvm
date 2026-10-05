@@ -2866,6 +2866,12 @@ PRIM_LFSR_FPV_SOURCE_SHA256 = (
 PRIM_LFSR_FPV_OVERLAY_SHA256 = (
     "7a7d252fbd82c28d7b17bc4718be5c8bd5f5350a143aa5396a4c096912f2f72c"
 )
+PRIM_PACKER_FPV_SOURCE_SHA256 = (
+    "a69d994507dec68874b9cfa0847d4517c16ba23b554cf66b2674c11196914b4f"
+)
+PRIM_PACKER_FPV_OVERLAY_SHA256 = (
+    "b3c06124823d03b655c282c6a4ae8179e9330b57a48dcab4c01cd2f546aac176"
+)
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
@@ -3561,6 +3567,87 @@ def prim_lfsr_fpv_source_text(text: str) -> str:
     return text
 
 
+def prim_packer_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  output                     ready_o,\n\n"
+            "  output logic               valid_o,\n"
+            "  output logic [MaxOutW-1:0] data_o,\n"
+            "  output logic [MaxOutW-1:0] mask_o,",
+            "  output logic [16:0] ready_o,\n\n"
+            "  output logic [16:0] valid_o,\n"
+            "  output logic [16:0][MaxOutW-1:0] data_o,\n"
+            "  output logic [16:0][MaxOutW-1:0] mask_o,",
+            "packed output declarations",
+        ),
+        (
+            "  output logic               flush_done_o,\n"
+            "  output logic               err_o",
+            "  output logic [16:0] flush_done_o,\n"
+            "  output logic [16:0] err_o",
+            "status output declarations",
+        ),
+        (
+            ");\n\n  for (genvar k = 1; k <= 16; k++) begin : gen_prim_packer",
+            ");\n\n  for (genvar k = 1; k <= 16; k++) begin : gen_prim_packer\n"
+            "    localparam int unsigned Idx = k - 1;",
+            "generated instance index",
+        ),
+        (
+            "      .ready_o,\n"
+            "      .valid_o,\n"
+            "      .data_o (data_o[16-k:0]),\n"
+            "      .mask_o (mask_o[16-k:0]),",
+            "      .ready_o (ready_o[Idx]),\n"
+            "      .valid_o (valid_o[Idx]),\n"
+            "      .data_o (data_o[Idx][16-k:0]),\n"
+            "      .mask_o (mask_o[Idx][16-k:0]),",
+            "generated output connections",
+        ),
+        (
+            "      .ready_o,\n"
+            "      .valid_o,\n"
+            "      .data_o (data_o),\n"
+            "      .mask_o (mask_o),",
+            "      .ready_o (ready_o[16]),\n"
+            "      .valid_o (valid_o[16]),\n"
+            "      .data_o (data_o[16]),\n"
+            "      .mask_o (mask_o[16]),",
+            "max-width output connections",
+        ),
+        (
+            "      .flush_i,\n"
+            "      .flush_done_o,\n"
+            "      .err_o\n"
+            "    );",
+            "      .flush_i,\n"
+            "      .flush_done_o (flush_done_o[Idx]),\n"
+            "      .err_o (err_o[Idx])\n"
+            "    );",
+            "generated status connections",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"prim_packer FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    max_instance_anchor = "  prim_packer #(.InW(MaxInW), .OutW(MaxOutW)"
+    if text.count(max_instance_anchor) != 1:
+        raise ValueError("prim_packer FPV max-width instance anchor is not unique")
+    start = text.index(max_instance_anchor)
+    tail = text[start:]
+    status_anchor = "      .flush_done_o,\n      .err_o"
+    if tail.count(status_anchor) != 1:
+        raise ValueError("prim_packer FPV max-width status anchor is not unique")
+    text = text[:start] + tail.replace(
+        status_anchor,
+        "      .flush_done_o (flush_done_o[16]),\n"
+        "      .err_o (err_o[16])",
+        1,
+    )
+    return text
+
+
 def keccak_2share_fpv_source_overlay(
     opentitan_root: Path,
     work_root: Path,
@@ -3719,6 +3806,59 @@ def prim_lfsr_fpv_source_overlay(
     )
     return source_list_overlay, {
         "profile": "prim_lfsr_fpv_disjoint_instance_indices",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def prim_packer_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Give each prim_packer FPV instance its own output vector slot."""
+    source = opentitan_root / "hw/ip/prim/fpv/tb/prim_packer_tb.sv"
+    source_hash = file_sha256(source)
+    if source_hash != PRIM_PACKER_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "prim_packer FPV source hash mismatch: "
+            f"expected {PRIM_PACKER_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "prim_packer_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("prim_packer FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "prim_packer_tb.sv"
+    if overlay.is_symlink():
+        raise ValueError("prim_packer FPV overlay is a symlink")
+    overlay.write_text(prim_packer_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != PRIM_PACKER_FPV_OVERLAY_SHA256:
+        raise ValueError(f"prim_packer FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("prim_packer FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = "../src/lowrisc_fpv_prim_packer_fpv_0/tb/prim_packer_tb.sv"
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("prim_packer FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("prim_packer FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "prim_packer_fpv_disjoint_instance_outputs",
         "source": str(source),
         "source_sha256": source_hash,
         "overlay": str(overlay),
@@ -4018,6 +4158,22 @@ def run_job(
             try:
                 source_list_for_compile, source_overlay = (
                     prim_lfsr_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:prim_packer_fpv:0"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    prim_packer_fpv_source_overlay(
                         opentitan_root, work_root, source_list
                     )
                 )
@@ -4903,6 +5059,40 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "                                  (FibXnorMaxLfsrDw - FibXnorMinLfsrDw + 1);\n"
         "  end\n"
     )
+    prim_packer_tb_sample = (
+        "  output                     ready_o,\n\n"
+        "  output logic               valid_o,\n"
+        "  output logic [MaxOutW-1:0] data_o,\n"
+        "  output logic [MaxOutW-1:0] mask_o,\n"
+        "  output logic               flush_done_o,\n"
+        "  output logic               err_o\n"
+        ");\n\n  for (genvar k = 1; k <= 16; k++) begin : gen_prim_packer\n"
+        "    prim_packer (\n"
+        "      .ready_o,\n"
+        "      .valid_o,\n"
+        "      .data_o (data_o[16-k:0]),\n"
+        "      .mask_o (mask_o[16-k:0]),\n"
+        "      .ready_i,\n"
+        "      .flush_i,\n"
+        "      .flush_done_o,\n"
+        "      .err_o\n"
+        "    );\n  end\n"
+        "  prim_packer #(.InW(MaxInW), .OutW(MaxOutW)\n"
+        "      .ready_o,\n"
+        "      .valid_o,\n"
+        "      .data_o (data_o),\n"
+        "      .mask_o (mask_o),\n"
+        "      .flush_done_o,\n"
+        "      .err_o\n"
+    )
+    prim_packer_tb_overlay = prim_packer_fpv_source_text(prim_packer_tb_sample)
+    assert "output logic [16:0] ready_o" in prim_packer_tb_overlay
+    assert "output logic [16:0][MaxOutW-1:0] data_o" in prim_packer_tb_overlay
+    assert "localparam int unsigned Idx = k - 1;" in prim_packer_tb_overlay
+    assert ".data_o (data_o[Idx][16-k:0])," in prim_packer_tb_overlay
+    assert ".data_o (data_o[16])," in prim_packer_tb_overlay
+    assert ".err_o (err_o[Idx])" in prim_packer_tb_overlay
+    assert ".err_o (err_o[16])" in prim_packer_tb_overlay
     spi_host_core_sample = (
         "  formal:\n"
         "    <<: *default_target\n"

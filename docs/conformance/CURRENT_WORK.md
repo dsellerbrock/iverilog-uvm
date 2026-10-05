@@ -50,6 +50,10 @@ The `prim_lfsr` FPV target now passes with disjoint build-local vector indices
 for its linear and nonlinear instances. This resolves duplicate `state_o`
 drivers without changing pinned source. See the
 [focused result](../../evidence/opentitan-census-20261002/candidate-prim-lfsr-fpv-disjoint-slots-20261005/README.md).
+
+The `prim_packer` FPV target now passes with separate output slots for each of
+its 17 DUT instances, resolving the shared-output multiple drivers. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-prim-packer-fpv-disjoint-outputs-20261005/README.md).
 The 309-row census totals remain unchanged.
 
 The measured hot paths and coverage limits are summarized in the

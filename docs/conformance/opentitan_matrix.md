@@ -73,6 +73,11 @@ hash-checked build-local overlay assigns disjoint vector indices to its
 linear and nonlinear LFSR instances. This focused follow-up does not recompute
 the 309-row census; see the [result and patch](../../evidence/opentitan-census-20261002/candidate-prim-lfsr-fpv-disjoint-slots-20261005/README.md).
 
+The `lowrisc:fpv:prim_packer_fpv:0` row also passes on engine `367e…` after a
+hash-checked build-local overlay gives each DUT instance separate outputs.
+This focused follow-up does not recompute the census; see the
+[result and patch](../../evidence/opentitan-census-20261002/candidate-prim-packer-fpv-disjoint-outputs-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on
