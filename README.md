@@ -117,19 +117,22 @@ versions, and legacy recording limitations, and the
 
 ## OpenTitan runtime matrix
 
-The latest selected OpenTitan runtime census, census18, passed **49/49 targets**
-with zero runtime errors, debt, timeouts, or memory-cap hits. It ran one target
-at a time with a 9,536-MiB per-process footprint cap and the xPack OTBN
-toolchain. This qualifies the selected matrix on the installed pre-candidate
-compiler, not all OpenTitan DV tests. The refreshed candidate RTL/SVA/UVM
-compile census is not passing: all 31 UVM simulation targets fail on the
-`uvm_hdl_release` argument mismatch, alongside RTL board/setup failures and
-classified debt. The source snapshot was unpinned, and candidate runtime
-validation remains outstanding. See the [candidate census](evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
-See the [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md),
-[matrix runner reference](docs/conformance/opentitan_matrix.md),
-[latest results](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
-and [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
+The latest completed OpenTitan runtime census, census18, passed **49/49
+targets** on the installed pre-candidate compiler. The candidate's pinned
+309-row RTL/SVA/UVM compile census is now recorded: 137 PASS, 120 dependency
+only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid rows. Its
+corrected UVM-only lane passes 35/35 on a reproducible patched source snapshot;
+the old 31 UVM failures came from a missing DPI module. The full candidate
+49-target runtime revalidation is running under a 70%-free-memory guard, one
+job at a time, with a 9,536-MiB per-process cap and an 18,000-second timeout.
+OpenTitan is not yet fully qualified on the candidate compiler. See the
+[pinned candidate compile census](evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
+[corrected UVM lane](evidence/opentitan-census-20261002/candidate-census18-patched-uvm-20261005/README.md),
+[historical 49/49 result](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
+and [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md).
+The [matrix runner reference](docs/conformance/opentitan_matrix.md) and
+[hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md)
+cover runner behavior and measured optimization work.
 The [optimization plan and reproducers](docs/conformance/opentitan_hotpath_optimization.md)
 link to bounded fixtures and measured next steps.
 

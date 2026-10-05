@@ -10,7 +10,10 @@ The invocation used the installed pre-candidate compiler, pinned UVM 1.2,
 `-gcommercial-unsafe`, native OpenSSL/libelf, and the copied OpenTitan source
 snapshot under `/private/tmp/ot-corpus-current-spid-passthrough-20261003/source`.
 The snapshot has no Git metadata, so the result records its revision as
-`unknown`; the pinned checkout was not edited.
+`unknown`. A later source audit showed the snapshot is reconstructible from the
+clean pinned checkout using the consolidated
+[source-overlay patch and provenance](../candidate-census18-pinned-compile-20261005/README.md#reproducible-source-overlay)
+plus the checked Trial1 relocation helper. The pinned checkout was not edited.
 
 ## RAM guard
 
@@ -23,13 +26,16 @@ during the run ranged from 78% to 82% free.
 
 ## Reproduction and outputs
 
-Run from the repository root:
+The recorded local run can be replayed from the repository root:
 
 ```sh
 bash evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/run-census18.sh
 ```
 
 The script records the branch, commit, and xPack tool hashes in `runner.log`.
+For an independent replication, reconstruct the source with the
+[reproduction guide](../../../docs/conformance/opentitan_49of49_reproduction.md)
+first, then point the matrix command at that disposable copy.
 The complete row-level output is in `result.json` and `result.md`. The sum of
 the 49 recorded runtime durations is 9,387.5 seconds; Flash took 3,398.499
 seconds.

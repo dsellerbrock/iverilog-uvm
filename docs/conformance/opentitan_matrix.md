@@ -1,11 +1,12 @@
 # OpenTitan synthesis, SVA, UVM and runtime matrix
 
-The latest selected Earlgrey runtime census is census18, the 2026-10-05
-[49/49 result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
-qualified with three disposable source overlays and a corrected xPack OTBN
-environment. It uses one runtime job and a 9,536-MiB per-process footprint
-limit. See its
-[replication guide](opentitan_49of49_reproduction.md). The older discovery
+The completed census18 49/49 result used the installed pre-candidate compiler
+and a patched OpenTitan source snapshot. Its source content is now reconstructible
+from the pinned release with the [overlay patch bundle and provenance](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md#reproducible-source-overlay).
+A 49-target runtime revalidation on the candidate compiler is running serially
+with a 9,536-MiB process cap and RAM guard. See the
+[historical result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
+and [replication guide](opentitan_49of49_reproduction.md). The older discovery
 totals below come from OpenTitan revision
 `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` and describe a broader RTL/SVA/UVM
 inventory; they are not the current 49-target runtime result.
@@ -17,18 +18,20 @@ machine-readable result for every selected FuseSoC core.
 ## Candidate compile census (2026-10-05)
 
 The refreshed RTL/SVA/UVM run completed 309 entries on the candidate compiler
-with `--jobs 1`; it is not a passing acceptance result. It records 34 hard
-failures, 13 semantic-debt rows, 7 setup failures, and 10 upstream-invalid
-rows. The 31 UVM failures all report a one-argument `uvm_hdl_release` call
-against a candidate binding that requires a `value` argument. Three RTL
-failures are Xilinx board tops with unresolved primitive cells. See the
-[full candidate census and RAM guard record](../../evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
+against clean OpenTitan commit `a78922f14a8cc20c7ee569f322a04626f2ac6127`,
+with `--jobs 1` and the corrected UVM DPI runtime. It records 137 PASS, 120
+dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid
+rows. The 3 RTL hard failures are Xilinx board tops with unresolved primitive
+cells; 13 UVM compile failures remain on the unmodified release. The corrected
+UVM-only lane passes 35/35 with the source overlays. The earlier 31 UVM failure
+count was a missing-DPI setup artifact and is superseded. See the
+[pinned candidate census](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
+[corrected UVM result](../../evidence/opentitan-census-20261002/candidate-census18-patched-uvm-20261005/README.md),
+and [historical diagnostic](../../evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
 
-This diagnostic run used an OpenTitan source copy with no Git metadata
-(`revision: unknown`, `dirty: true`) and did not run the candidate runtime
-lane. Census18's 49/49 runtime result used the pre-candidate compiler, so full
-candidate acceptance remains pending a pinned source refresh and resolution of
-the compile debt and failures.
+The candidate's 49-target runtime lane is in progress using the reproducible
+census18 source snapshot. The RAM guard remains active at a 70% free-memory
+floor; no candidate runtime verdict is recorded yet.
 
 ## Pass criteria
 

@@ -1,0 +1,3260 @@
+--- a/check_tool_requirements.core
++++ b/check_tool_requirements.core
+@@ -7,6 +7,7 @@
+ 
+ filesets:
+   files_check_tool_requirements:
++    file_type: user
+     files:
+       - util/check_tool_requirements.py : { copyto: util/check_tool_requirements.py }
+       - tool_requirements.py : { copyto: tool_requirements.py }
+--- a/hw/dv/dpi/uartdpi/uartdpi.sv
++++ b/hw/dv/dpi/uartdpi/uartdpi.sv
+@@ -39,7 +39,7 @@
+   string log_file_path = DEFAULT_LOG_FILE;
+ 
+   function automatic void initialize();
+-    $value$plusargs({"UARTDPI_LOG_", NAME, "=%s"}, log_file_path);
++    void'($value$plusargs({"UARTDPI_LOG_", NAME, "=%s"}, log_file_path));
+     ctx = uartdpi_create(NAME, log_file_path);
+   endfunction
+ 
+--- a/hw/dv/sv/i2c_agent/i2c_if.sv
++++ b/hw/dv/sv/i2c_agent/i2c_if.sv
+@@ -52,7 +52,7 @@
+       @(posedge clk_i);
+       sample.push_front(cb.sda_i);
+       // Pop queue to make sure size doesnt exceed tSetupBit
+-      if (sample.size() > tc.tSetupBit) sample.pop_back();
++      if (sample.size() > tc.tSetupBit) void'(sample.pop_back());
+     end
+     data = sample.pop_back();
+   endtask // sample_target_data
+--- a/hw/dv/sv/usb20_agent/usb20_monitor.sv
++++ b/hw/dv/sv/usb20_agent/usb20_monitor.sv
+@@ -517,6 +517,7 @@
+ //-------------------------------------------SOF Packet-------------------------------------------//
+   function void sof_packet(pid_type_e pid, bit low_speed, bit valid_sync, bit valid_eop,
+                            bit valid_stuffing, ref bit destuffed_packet[$]);
++    bit [15:0] packet_fields;
+     m_sof_pkt.m_pid_type = pid;
+     m_sof_pkt.low_speed = low_speed;
+     m_sof_pkt.valid_sync = valid_sync;
+@@ -524,7 +525,9 @@
+     m_sof_pkt.valid_stuffing = valid_stuffing;
+     if (destuffed_packet.size() == 32) begin
+       // Unpack everything following the PID.
+-      {m_sof_pkt.crc5, m_sof_pkt.framenum} = {<<{destuffed_packet[16:31]}};
++      packet_fields = {<<{destuffed_packet[16:31]}};
++      m_sof_pkt.crc5 = packet_fields[15:11];
++      m_sof_pkt.framenum = packet_fields[10:0];
+       if (!m_sof_pkt.valid_crc()) begin
+         // Informational report; the scoreboard may check this using `valid_crc().`
+         `uvm_info(`gfn, $sformatf("Detected SOF packet CRC5 mismatch (0x%0x, expected 0x%0x)",
+@@ -539,6 +542,7 @@
+ //------------------------------------------Token Packet------------------------------------------//
+   function void token_packet(pid_type_e pid, bit low_speed, bit valid_sync, bit valid_eop,
+                              bit valid_stuffing, ref bit destuffed_packet[$]);
++    bit [15:0] packet_fields;
+     m_token_pkt.m_pid_type = pid;
+     m_token_pkt.low_speed = low_speed;
+     m_token_pkt.valid_sync = valid_sync;
+@@ -546,7 +550,10 @@
+     m_token_pkt.valid_stuffing = valid_stuffing;
+     if (destuffed_packet.size() == 32) begin
+       // Unpack everything following the PID.
+-      {m_token_pkt.crc5, m_token_pkt.endpoint, m_token_pkt.address} = {<<{destuffed_packet[16:31]}};
++      packet_fields = {<<{destuffed_packet[16:31]}};
++      m_token_pkt.crc5 = packet_fields[15:11];
++      m_token_pkt.endpoint = packet_fields[10:7];
++      m_token_pkt.address = packet_fields[6:0];
+       if (!m_token_pkt.valid_crc()) begin
+         // Informational report; the scoreboard may check this using `valid_crc().`
+         `uvm_info(`gfn, $sformatf("Detected token packet CRC5 mismatch (0x%0x, expected 0x%0x)",
+--- a/hw/ip/aes/dv/env/seq_lib/aes_base_vseq.sv
++++ b/hw/ip/aes/dv/env/seq_lib/aes_base_vseq.sv
+@@ -442,13 +442,13 @@
+ 
+       if (wait_on_reseed == 0) begin
+         // inject write to reg if enabled 25% of the time
+-        if (cfg.error_types.mal_inject && $urandom(3)==0 && !manual_operation) begin
++        if (cfg.error_types.mal_inject && $urandom_range(3)==0 && !manual_operation) begin
+           int wr_reg = $urandom_range(3,1);
+           case (wr_reg)
+-            1: csr_wr(.ptr(ral.key_share0[$urandom(7)]), .value($urandom()),
++            1: csr_wr(.ptr(ral.key_share0[$urandom_range(7)]), .value($urandom()),
+                       .blocking(is_blocking));
+-            2: csr_wr(.ptr(ral.iv[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
+-            3: csr_wr(.ptr(ral.data_in[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
++            2: csr_wr(.ptr(ral.iv[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
++            3: csr_wr(.ptr(ral.data_in[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
+             default: `uvm_fatal(`gfn, $sformatf("UNREACHABLE BUT NEEDED DUE TO SYNTAX CHECK"))
+           endcase
+         end
+@@ -630,12 +630,12 @@
+     end else begin
+       add_data(data_item.data_in, cfg_item.do_b2b);
+       // sometimes randomly write a reg while busy
+-      if (!manual_operation && cfg.error_types.mal_inject && ($urandom(3) == 1)) begin
++      if (!manual_operation && cfg.error_types.mal_inject && ($urandom_range(3) == 1)) begin
+         int wr_reg = $urandom_range(3,1);
+         case (wr_reg)
+-          1: csr_wr(.ptr(ral.key_share0[$urandom(7)]), .value($urandom()), .blocking(is_blocking));
+-          2: csr_wr(.ptr(ral.iv[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
+-          3: csr_wr(.ptr(ral.data_in[$urandom(3)]), .value($urandom()), .blocking(is_blocking));
++          1: csr_wr(.ptr(ral.key_share0[$urandom_range(7)]), .value($urandom()), .blocking(is_blocking));
++          2: csr_wr(.ptr(ral.iv[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
++          3: csr_wr(.ptr(ral.data_in[$urandom_range(3)]), .value($urandom()), .blocking(is_blocking));
+           default: `uvm_fatal(`gfn, $sformatf("UNREACHABLE BUT NEEDED DUE TO SYNTAX CHECK"))
+         endcase
+       end
+--- a/hw/ip/aes/dv/env/seq_lib/aes_wake_up_vseq.sv
++++ b/hw/ip/aes/dv/env/seq_lib/aes_wake_up_vseq.sv
+@@ -11,7 +11,7 @@
+ 
+ 
+   bit [3:0] [31:0]    plain_text       = 128'hDEADBEEFEEDDBBAABAADBEEFDEAFBEAD;
+-  logic [255:0]       init_key [2]     = '{256'h0000111122223333444455556666777788889999AAAABBBBCCCCDDDDEEEEFFFF, 256'h0};
++  bit [7:0][31:0]     init_key [2]     = '{256'h0000111122223333444455556666777788889999AAAABBBBCCCCDDDDEEEEFFFF, 256'h0};
+   bit [3:0] [31:0]    cypher_text;
+   bit [3:0] [31:0]    decrypted_text;
+   logic [3:0] [31:0]  read_text;
+--- a/hw/ip/csrng/dv/env/seq_lib/csrng_intr_vseq.sv
++++ b/hw/ip/csrng/dv/env/seq_lib/csrng_intr_vseq.sv
+@@ -95,7 +95,7 @@
+ 
+   task trigger_invalid_acmd_sts_err(uint app);
+     // Write an invalid command and expect the corresponding status response.
+-    cs_item.randomize();
++    `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+     cs_item.clen  = 'h0;
+     cs_item.acmd  = cfg.which_invalid_acmd;
+     `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+@@ -116,13 +116,13 @@
+   task trigger_invalid_seq_sts_err(uint app);
+     // Write an invalid sequence of commands and expect the corresponding status response.
+     if (cfg.which_cmd_inv_seq == INS) begin
+-      cs_item.randomize();
++      `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+       cs_item.acmd  = cfg.which_cmd_inv_seq;
+       `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+       send_cmd_req(app, cs_item);
+     end
+ 
+-    cs_item.randomize();
++    `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+     cs_item.acmd  = cfg.which_cmd_inv_seq;
+     cs_item.clen  = 'h0;
+     `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+@@ -145,20 +145,20 @@
+     csr_wr(.ptr(ral.reseed_interval), .value(cfg.reseed_interval));
+ 
+     if (cfg.which_cmd_inv_seq != INS) begin
+-      cs_item.randomize();
++      `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+       cs_item.acmd  = INS;
+       `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+       send_cmd_req(app, cs_item);
+     end
+     `uvm_info(`gfn, $sformatf("Setting the reseed interval to %d", cfg.reseed_interval), UVM_DEBUG)
+     for (int i = 0; i < cfg.reseed_interval; i++) begin
+-      cs_item.randomize();
++      `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+       cs_item.acmd  = GEN;
+       cs_item.glen  = 'h1;
+       `uvm_info(`gfn, $sformatf("%s", cs_item.convert2string()), UVM_DEBUG)
+       send_cmd_req(app, cs_item);
+     end
+-    cs_item.randomize();
++    `DV_CHECK_RANDOMIZE_FATAL(cs_item)
+     cs_item.acmd  = GEN;
+     cs_item.glen  = 'h1;
+     cs_item.clen  = 'h0;
+--- a/hw/ip/csrng/dv/tb.sv
++++ b/hw/ip/csrng/dv/tb.sv
+@@ -10,6 +10,9 @@
+   import csrng_test_pkg::*;
+   import prim_mubi_pkg::*;
+ 
++  // Matches csrng_core.BlkLen for the pinned Earlgrey-PROD-M6 release.
++  localparam int CsrngDrbgBlkLen = 128;
++
+   // macro includes
+   `include "uvm_macros.svh"
+   `include "dv_macros.svh"
+@@ -147,7 +150,7 @@
+       $past(`CTR_DRBG_GEN_FIFO.fifo_incr_wptr) &&
+       `BLOCK_ENCRYPT_PATH.block_encrypt_aes_cipher_sm_err_o |=>
+       $past(`CTR_DRBG_GEN_FIFO.storage[0]
+-          [`CTR_DRBG_GEN.BlkEncAckFifoWidth-1 -: `CTR_DRBG_GEN.BlkLen]) !=
++          [`CTR_DRBG_GEN.BlkEncAckFifoWidth-1 -: CsrngDrbgBlkLen]) !=
+       $past(`BLOCK_ENCRYPT_PATH.cipher_data_out, 2), clk, !rst_n)
+ 
+   `define CTR_DRBG_UPD tb.dut.u_csrng_core.u_csrng_ctr_drbg_upd
+@@ -157,7 +160,7 @@
+       $past(`CTR_DRBG_UPD_FIFO.fifo_incr_wptr) &&
+       `BLOCK_ENCRYPT_PATH.block_encrypt_aes_cipher_sm_err_o |=>
+       $past(`CTR_DRBG_UPD_FIFO.storage[0]
+-          [`CTR_DRBG_UPD.BlkEncAckFifoWidth-1 -: `CTR_DRBG_UPD.BlkLen]) !=
++          [`CTR_DRBG_UPD.BlkEncAckFifoWidth-1 -: CsrngDrbgBlkLen]) !=
+       $past(`BLOCK_ENCRYPT_PATH.cipher_data_out, 2), clk, !rst_n)
+ 
+   // Assertion controls
+--- a/hw/ip/edn/dv/cov/edn_cov_if.sv
++++ b/hw/ip/edn/dv/cov/edn_cov_if.sv
+@@ -56,10 +56,10 @@
+     option.name         = "edn_endpoints_cg";
+     option.per_instance = 1;
+ 
+-    cp_ep_requests: coverpoint ep_requests {
+-      bins none = { $countones(ep_requests) == 0 };
+-      bins some = { $countones(ep_requests) inside { [1:MAX_NUM_ENDPOINTS - 1] } };
+-      bins all  = { $countones(ep_requests) == MAX_NUM_ENDPOINTS };
++    cp_ep_requests: coverpoint $countones(ep_requests) {
++      bins none = { 0 };
++      bins some = { [1:MAX_NUM_ENDPOINTS - 1] };
++      bins all  = { MAX_NUM_ENDPOINTS };
+     }
+   endgroup : edn_endpoints_cg
+ 
+--- a/hw/ip/entropy_src/dv/cov/entropy_src_cov_if.sv
++++ b/hw/ip/entropy_src/dv/cov/entropy_src_cov_if.sv
+@@ -181,7 +181,7 @@
+     cp_otp_en_es_fw_read: coverpoint otp_en_es_fw_read {
+       bins         mubi_true  = { MuBi8True };
+       illegal_bins mubi_false = { MuBi8False };
+-      illegal_bins mubi_inval = {[0:$]} with (!(item inside {MuBi8True, MuBi8False}));
++      illegal_bins mubi_inval = {[8'h00:8'h68], [8'h6a:8'h95], [8'h97:8'hff]};
+     }
+ 
+     // Sample the FW_OV parameters, just to be sure that they
+@@ -498,7 +498,7 @@
+     cp_otp_en_es_fw_over: coverpoint otp_en_es_fw_over {
+       bins         mubi_true  = { MuBi8True };
+       illegal_bins mubi_false = { MuBi8False };
+-      illegal_bins mubi_inval = {[0:$]} with (!(item inside {MuBi8True, MuBi8False}));
++      illegal_bins mubi_inval = {[8'h00:8'h68], [8'h6a:8'h95], [8'h97:8'hff]};
+     }
+ 
+     cp_entropy_insert: coverpoint entropy_insert {
+@@ -833,7 +833,7 @@
+   // Several instances are then created for a targetted handful of window sizes.
+   //
+ 
+-  function automatic unsigned sigma_to_int(real sigma);
++  function automatic int unsigned sigma_to_int(real sigma);
+     return unsigned'($rtoi($floor(sigma/sigma_res)));
+   endfunction
+ 
+@@ -867,15 +867,15 @@
+     cp_threshold : coverpoint sigma_to_int(sigma) {
+       // Very frequent false positive rates 1 in 6 for single-sided test
+       // (good for testing frequent alert scenarios)
+-      bins extremely_tight = { [0 : sigma_to_int(1.0) - 1]};
++      bins extremely_tight = { [0 : 1]};
+       // False positive rate > 2.5% (for testing frequent single failures)
+-      bins very_tight      = { [sigma_to_int(1.0) : sigma_to_int(2.0) - 1] };
++      bins very_tight      = { [2 : 3] };
+       // False positive rate > 3ppm (almost covers up to SP 800-90B's minimum suggested 1 in 2^20)
+-      bins tight           = { [sigma_to_int(2.0) : sigma_to_int(4.5) - 1] };
++      bins tight           = { [4 : 8] };
+       // False positive rate > 1.25 in 1e12 (covers to most of SP 800-90B range down to 1 in 2^40)
+-      bins typical         = { [sigma_to_int(4.5) : sigma_to_int(7.0) - 1] };
++      bins typical         = { [9 : 13] };
+       // All other possible sigma values
+-      bins loose           = { [sigma_to_int(7.0) : 32'hffff_ffff] };
++      bins loose           = { [14 : 32'hffff_ffff] };
+     }
+ 
+     cr_cross : cross cp_winsize, cp_by_line, cp_type, cp_hi_lo, cp_fail, cp_threshold {
+--- a/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
++++ b/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
+@@ -30,7 +30,6 @@
+   // Ensure the input clock frequency is high enough to meet minimum thigh and
+   // tlow cycle counts for a given mode (i.e. 125 ns or 8 MHz)
+   constraint min_peri_clk_period_c {
+-    solve cfg.clk_freq_mhz before speed_mode;
+     if (cfg.clk_freq_mhz < 4) {
+       speed_mode == Standard;
+     } else if (cfg.clk_freq_mhz < 8) {
+--- a/hw/ip/i2c/dv/sva/i2c_protocol_cov.sv
++++ b/hw/ip/i2c/dv/sva/i2c_protocol_cov.sv
+@@ -467,10 +467,13 @@
+   initial begin
+     bit en_cov;
+     void'($value$plusargs("en_cov=%b", en_cov));
++    i2c_protocol_cov_cg   i2c_protocol_cov;
++    i2c_rd_wr_cg          i2c_rd_wr_cov;
++    i2c_cmd_complete_cg   cmd_complete_cg;
+     if (en_cov) begin
+-      i2c_protocol_cov_cg   i2c_protocol_cov = new();
+-      i2c_rd_wr_cg          i2c_rd_wr_cov = new();
+-      i2c_cmd_complete_cg   cmd_complete_cg = new();
++      i2c_protocol_cov = new();
++      i2c_rd_wr_cov = new();
++      cmd_complete_cg = new();
+       fork
+         begin
+             forever begin
+--- a/hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv
++++ b/hw/ip/otbn/dv/tracer/rtl/otbn_trace_if.sv
+@@ -372,7 +372,6 @@
+   assign internal_intg_err_i.rf_bignum_intg_err = rf_bignum_intg_err;
+   assign internal_intg_err_i.mod_ispr_intg_err = alu_bignum_reg_intg_violation_err;
+   assign internal_intg_err_i.acc_ispr_intg_err = mac_bignum_reg_intg_violation_err;
+-  assign internal_intg_err_i.loop_stack_addr_intg_err = controller_bad_int_i.loop_hw_intg_err;
+   assign internal_intg_err_i.insn_fetch_intg_err = insn_fetch_err;
+ 
+   // Bad Internal State Probes
+@@ -387,6 +386,7 @@
+   logic rf_base_spurious_we_err_d, rf_base_spurious_we_err_q;
+   logic rf_bignum_spurious_we_err_d, rf_bignum_spurious_we_err_q;
+ 
++  assign internal_intg_err_i.loop_stack_addr_intg_err = controller_bad_int_i.loop_hw_intg_err;
+   assign missed_gnt_d = (locking_o) ? '0 : (missed_gnt_q | missed_gnt_i);
+   assign predec_err_d = (locking_o) ? '0 : (predec_err_q | predec_err_i);
+   assign urnd_all_zero_d = (locking_o) ? '0 : (urnd_all_zero_q | urnd_all_zero);
+--- a/hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv
++++ b/hw/ip/otbn/dv/uvm/env/otbn_env_cov.sv
+@@ -15,7 +15,7 @@
+   // least) complains if you put an uncast string literal in a position where it expects an integral
+   // value.
+ `define DEF_MNEM(MNEM_NAME, MNEMONIC) \
+-  mnem_str_t MNEM_NAME = mnem_str_t'(MNEMONIC)
++  localparam mnem_str_t MNEM_NAME = mnem_str_t'(MNEMONIC)
+   `DEF_MNEM(mnem_add,           "add");
+   `DEF_MNEM(mnem_addi,          "addi");
+   `DEF_MNEM(mnem_lui,           "lui");
+@@ -112,7 +112,7 @@
+   // Equivalents of DEF_MNEM and DEF_MNEM_BINp, but for external CSRs. Again, we want to use the CSR
+   // names as bins in coverpoints and need sized literals.
+ `define DEF_CSR(CSR_NAME, STR) \
+-  csr_str_t CSR_NAME = csr_str_t'(STR)
++  localparam csr_str_t CSR_NAME = csr_str_t'(STR)
+   `DEF_CSR(csr_load_checksum, "load_checksum");
+   `DEF_CSR(csr_ctrl, "ctrl");
+ `undef DEF_CSR
+--- a/hw/ip/otp_ctrl/data/otp_ctrl_env_cov.sv.tpl
++++ b/hw/ip/otp_ctrl/data/otp_ctrl_env_cov.sv.tpl
+@@ -31,6 +31,27 @@
+                                      part["secret"]]
+ ## Partitions + LCI + DAI
+ num_err_code = len(otp_mmap.config["partitions"]) + 2
++
++offset_expr_groups = [
++    ["ral." + part["name"].lower() + "_digest[" + str(idx) + "].get_offset()"
++     for part in parts for idx in range(2)]
++    for parts in [unbuffered_parts_with_digest,
++                  buffered_nonsecret_parts_with_digest,
++                  buffered_secret_parts_with_digest]
++]
++offset_expr_groups.extend([
++    ["ral.direct_access_rdata[0].get_offset()",
++     "ral.direct_access_rdata[1].get_offset()"],
++    ["ral.status.get_offset()"],
++    ["ral.err_code[" + str(idx) + "].get_offset()"
++     for idx in range(num_err_code)],
++])
++offset_exprs = [expr for group in offset_expr_groups for expr in group]
++offset_indices = []
++next_offset = 0
++for group in offset_expr_groups:
++    offset_indices.append(list(range(next_offset, next_offset + len(group))))
++    next_offset += len(group)
+ %>\
+ class otp_ctrl_unbuf_err_code_cg_wrap;
+   // Unbuffered partition can use TLUL interface to read out but cannot write, thus error_code does
+@@ -79,44 +100,51 @@
+ 
+ class otp_ctrl_csr_rd_after_alert_cg_wrap;
+   // This covergroup samples CSRs being checked (via CSR read) after fatal alert is issued.
+-  covergroup csr_rd_after_alert_cg(otp_ctrl_core_reg_block ral) with function sample(bit[TL_DW-1:0]
+-                                                                                     csr_offset);
++  covergroup csr_rd_after_alert_cg(
++% for idx in range(len(offset_exprs)):
++    uvm_reg_addr_t offset_${idx}${"," if not loop.last else ""}
++% endfor
++  ) with function sample(bit[TL_DW-1:0] csr_offset);
+     read_csr_after_alert_issued: coverpoint csr_offset {
+       bins unbuffered_digests  = {
+-% for part in unbuffered_parts_with_digest:
+-        ral.${part["name"].lower()}_digest[0].get_offset(),
+-        ral.${part["name"].lower()}_digest[1].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[0]:
++        offset_${idx}${"," if not loop.last else ""}
+ % endfor
+       };
+       bins hw_digests          = {
+-% for part in buffered_nonsecret_parts_with_digest:
+-        ral.${part["name"].lower()}_digest[0].get_offset(),
+-        ral.${part["name"].lower()}_digest[1].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[1]:
++        offset_${idx}${"," if not loop.last else ""}
+ % endfor
+       };
+       bins secret_digests      = {
+-% for part in buffered_secret_parts_with_digest:
+-        ral.${part["name"].lower()}_digest[0].get_offset(),
+-        ral.${part["name"].lower()}_digest[1].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[2]:
++        offset_${idx}${"," if not loop.last else ""}
+ % endfor
+       };
+       bins direct_access_rdata = {
+-        ral.direct_access_rdata[0].get_offset(),
+-        ral.direct_access_rdata[1].get_offset()
++% for idx in offset_indices[3]:
++        offset_${idx}${"," if not loop.last else ""}
++% endfor
+       };
+       bins status              = {
+-        ral.status.get_offset()
++% for idx in offset_indices[4]:
++        offset_${idx}${"," if not loop.last else ""}
++% endfor
+       };
+       bins error_code          = {
+-% for k in range(num_err_code):
+-        ral.err_code[${k}].get_offset()${"" if loop.last else ","}
++% for idx in offset_indices[5]:
++        offset_${idx}${"," if not loop.last else ""}
+ % endfor
+       };
+     }
+   endgroup
+ 
+   function new(otp_ctrl_core_reg_block ral);
+-    csr_rd_after_alert_cg = new(ral);
++    csr_rd_after_alert_cg = new(
++% for expr in offset_exprs:
++      ${expr}${"," if not loop.last else ""}
++% endfor
++    );
+   endfunction
+ 
+   function void sample(bit[TL_DW-1:0] csr_offset);
+--- a/hw/ip/otp_ctrl/data/otp_ctrl_if.sv.tpl
++++ b/hw/ip/otp_ctrl/data/otp_ctrl_if.sv.tpl
+@@ -23,16 +23,26 @@
+ `define LC_PART_OTP_CMD_PATH ${"\\"}
+     tb.dut.gen_partitions[LifeCycleIdx].gen_lifecycle.u_part_buf.otp_cmd_o
+ 
+-`define FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL(i) ${"\\"}
+-  if (forced_part_access_sel[``i``].read_lock) begin ${"\\"}
+-    force tb.dut.part_access[``i``].read_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
+-    force tb.dut.part_access_dai[``i``].read_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
+-  end ${"\\"}
+-  if (forced_part_access_sel[``i``].write_lock) begin ${"\\"}
+-    force tb.dut.part_access[``i``].write_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
+-    force tb.dut.part_access_dai[``i``].write_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++`define FORCE_OTP_PART_LOCK_BANKED(i, member, banks, values) ${"\\"}
++  if (forced_part_access_sel[``i``].``member``) begin ${"\\"}
++    if (banks[``i``]) begin ${"\\"}
++      values[1][``i``][0] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access[``i``].``member`` = values[1][``i``][0]; ${"\\"}
++      values[1][``i``][1] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access_dai[``i``].``member`` = values[1][``i``][1]; ${"\\"}
++    end else begin ${"\\"}
++      values[0][``i``][0] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access[``i``].``member`` = values[0][``i``][0]; ${"\\"}
++      values[0][``i``][1] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); ${"\\"}
++      force tb.dut.part_access_dai[``i``].``member`` = values[0][``i``][1]; ${"\\"}
++    end ${"\\"}
++    banks[``i``] = !banks[``i``]; ${"\\"}
+   end
+ 
++`define FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL(i) ${"\\"}
++  `FORCE_OTP_PART_LOCK_BANKED(i, read_lock, next_read_bank, read_lock_values) ${"\\"}
++  `FORCE_OTP_PART_LOCK_BANKED(i, write_lock, next_write_bank, write_lock_values)
++
+ `ifndef PRIM_GENERIC_OTP_PATH
+   `define PRIM_GENERIC_OTP_PATH${"\\"}
+       tb.dut.u_otp
+@@ -51,6 +61,10 @@
+   import otp_ctrl_part_pkg::*;
+   import cip_base_pkg::*;
+ 
++  // Keep the active force on one bank while the next random values are drawn.
++  prim_mubi_pkg::mubi8_t [1:0][NumPart-1:0][1:0] read_lock_values, write_lock_values;
++  bit [NumPart-1:0] next_read_bank, next_write_bank;
++
+   // Output from DUT
+   otp_broadcast_t    otp_broadcast_o;
+   otp_keymgr_key_t   keymgr_key_o;
+@@ -347,4 +361,5 @@
+   `undef PRIM_GENERIC_OTP_PATH
+   `undef PRIM_GENERIC_OTP_CMD_I_PATH
+   `undef FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL
++  `undef FORCE_OTP_PART_LOCK_BANKED
+ endinterface
+--- a/hw/ip/otp_ctrl/data/otp_ctrl_smoke_vseq.sv.tpl
++++ b/hw/ip/otp_ctrl/data/otp_ctrl_smoke_vseq.sv.tpl
+@@ -13,6 +13,8 @@
+   `uvm_object_utils(otp_ctrl_smoke_vseq)
+ 
+   `uvm_object_new
++
++  localparam bit [TL_DW-1:0] TimeoutMax = '1;
+ 
+   rand bit                           do_req_keys, do_lc_trans;
+   rand bit                           access_locked_parts;
+@@ -64,7 +66,7 @@
+   }
+ 
+   constraint check_timeout_val_c {
+-    check_timeout_val inside {0, [100_000:'1]};
++    check_timeout_val inside {0, [100_000:TimeoutMax]};
+   }
+ 
+   constraint ecc_otp_err_c {ecc_otp_err == OtpNoEccErr;}
+--- a/hw/ip/otp_ctrl/dv/env/otp_ctrl_env_cov.sv
++++ b/hw/ip/otp_ctrl/dv/env/otp_ctrl_env_cov.sv
+@@ -56,62 +56,135 @@
+ 
+ class otp_ctrl_csr_rd_after_alert_cg_wrap;
+   // This covergroup samples CSRs being checked (via CSR read) after fatal alert is issued.
+-  covergroup csr_rd_after_alert_cg(otp_ctrl_core_reg_block ral) with function sample(bit[TL_DW-1:0]
+-                                                                                     csr_offset);
++  covergroup csr_rd_after_alert_cg(
++    uvm_reg_addr_t offset_0,
++    uvm_reg_addr_t offset_1,
++    uvm_reg_addr_t offset_2,
++    uvm_reg_addr_t offset_3,
++    uvm_reg_addr_t offset_4,
++    uvm_reg_addr_t offset_5,
++    uvm_reg_addr_t offset_6,
++    uvm_reg_addr_t offset_7,
++    uvm_reg_addr_t offset_8,
++    uvm_reg_addr_t offset_9,
++    uvm_reg_addr_t offset_10,
++    uvm_reg_addr_t offset_11,
++    uvm_reg_addr_t offset_12,
++    uvm_reg_addr_t offset_13,
++    uvm_reg_addr_t offset_14,
++    uvm_reg_addr_t offset_15,
++    uvm_reg_addr_t offset_16,
++    uvm_reg_addr_t offset_17,
++    uvm_reg_addr_t offset_18,
++    uvm_reg_addr_t offset_19,
++    uvm_reg_addr_t offset_20,
++    uvm_reg_addr_t offset_21,
++    uvm_reg_addr_t offset_22,
++    uvm_reg_addr_t offset_23,
++    uvm_reg_addr_t offset_24,
++    uvm_reg_addr_t offset_25,
++    uvm_reg_addr_t offset_26,
++    uvm_reg_addr_t offset_27,
++    uvm_reg_addr_t offset_28,
++    uvm_reg_addr_t offset_29,
++    uvm_reg_addr_t offset_30,
++    uvm_reg_addr_t offset_31,
++    uvm_reg_addr_t offset_32,
++    uvm_reg_addr_t offset_33,
++    uvm_reg_addr_t offset_34,
++    uvm_reg_addr_t offset_35
++  ) with function sample(bit[TL_DW-1:0] csr_offset);
+     read_csr_after_alert_issued: coverpoint csr_offset {
+       bins unbuffered_digests  = {
+-        ral.vendor_test_digest[0].get_offset(),
+-        ral.vendor_test_digest[1].get_offset(),
+-        ral.creator_sw_cfg_digest[0].get_offset(),
+-        ral.creator_sw_cfg_digest[1].get_offset(),
+-        ral.owner_sw_cfg_digest[0].get_offset(),
+-        ral.owner_sw_cfg_digest[1].get_offset(),
+-        ral.rot_creator_auth_codesign_digest[0].get_offset(),
+-        ral.rot_creator_auth_codesign_digest[1].get_offset(),
+-        ral.rot_creator_auth_state_digest[0].get_offset(),
+-        ral.rot_creator_auth_state_digest[1].get_offset()
++        offset_0,
++        offset_1,
++        offset_2,
++        offset_3,
++        offset_4,
++        offset_5,
++        offset_6,
++        offset_7,
++        offset_8,
++        offset_9
+       };
+       bins hw_digests          = {
+-        ral.hw_cfg0_digest[0].get_offset(),
+-        ral.hw_cfg0_digest[1].get_offset(),
+-        ral.hw_cfg1_digest[0].get_offset(),
+-        ral.hw_cfg1_digest[1].get_offset()
++        offset_10,
++        offset_11,
++        offset_12,
++        offset_13
+       };
+       bins secret_digests      = {
+-        ral.secret0_digest[0].get_offset(),
+-        ral.secret0_digest[1].get_offset(),
+-        ral.secret1_digest[0].get_offset(),
+-        ral.secret1_digest[1].get_offset(),
+-        ral.secret2_digest[0].get_offset(),
+-        ral.secret2_digest[1].get_offset()
++        offset_14,
++        offset_15,
++        offset_16,
++        offset_17,
++        offset_18,
++        offset_19
+       };
+       bins direct_access_rdata = {
+-        ral.direct_access_rdata[0].get_offset(),
+-        ral.direct_access_rdata[1].get_offset()
++        offset_20,
++        offset_21
+       };
+       bins status              = {
+-        ral.status.get_offset()
++        offset_22
+       };
+       bins error_code          = {
+-        ral.err_code[0].get_offset(),
+-        ral.err_code[1].get_offset(),
+-        ral.err_code[2].get_offset(),
+-        ral.err_code[3].get_offset(),
+-        ral.err_code[4].get_offset(),
+-        ral.err_code[5].get_offset(),
+-        ral.err_code[6].get_offset(),
+-        ral.err_code[7].get_offset(),
+-        ral.err_code[8].get_offset(),
+-        ral.err_code[9].get_offset(),
+-        ral.err_code[10].get_offset(),
+-        ral.err_code[11].get_offset(),
+-        ral.err_code[12].get_offset()
++        offset_23,
++        offset_24,
++        offset_25,
++        offset_26,
++        offset_27,
++        offset_28,
++        offset_29,
++        offset_30,
++        offset_31,
++        offset_32,
++        offset_33,
++        offset_34,
++        offset_35
+       };
+     }
+   endgroup
+ 
+   function new(otp_ctrl_core_reg_block ral);
+-    csr_rd_after_alert_cg = new(ral);
++    csr_rd_after_alert_cg = new(
++      ral.vendor_test_digest[0].get_offset(),
++      ral.vendor_test_digest[1].get_offset(),
++      ral.creator_sw_cfg_digest[0].get_offset(),
++      ral.creator_sw_cfg_digest[1].get_offset(),
++      ral.owner_sw_cfg_digest[0].get_offset(),
++      ral.owner_sw_cfg_digest[1].get_offset(),
++      ral.rot_creator_auth_codesign_digest[0].get_offset(),
++      ral.rot_creator_auth_codesign_digest[1].get_offset(),
++      ral.rot_creator_auth_state_digest[0].get_offset(),
++      ral.rot_creator_auth_state_digest[1].get_offset(),
++      ral.hw_cfg0_digest[0].get_offset(),
++      ral.hw_cfg0_digest[1].get_offset(),
++      ral.hw_cfg1_digest[0].get_offset(),
++      ral.hw_cfg1_digest[1].get_offset(),
++      ral.secret0_digest[0].get_offset(),
++      ral.secret0_digest[1].get_offset(),
++      ral.secret1_digest[0].get_offset(),
++      ral.secret1_digest[1].get_offset(),
++      ral.secret2_digest[0].get_offset(),
++      ral.secret2_digest[1].get_offset(),
++      ral.direct_access_rdata[0].get_offset(),
++      ral.direct_access_rdata[1].get_offset(),
++      ral.status.get_offset(),
++      ral.err_code[0].get_offset(),
++      ral.err_code[1].get_offset(),
++      ral.err_code[2].get_offset(),
++      ral.err_code[3].get_offset(),
++      ral.err_code[4].get_offset(),
++      ral.err_code[5].get_offset(),
++      ral.err_code[6].get_offset(),
++      ral.err_code[7].get_offset(),
++      ral.err_code[8].get_offset(),
++      ral.err_code[9].get_offset(),
++      ral.err_code[10].get_offset(),
++      ral.err_code[11].get_offset(),
++      ral.err_code[12].get_offset()
++    );
+   endfunction
+ 
+   function void sample(bit[TL_DW-1:0] csr_offset);
+--- a/hw/ip/otp_ctrl/dv/env/otp_ctrl_if.sv
++++ b/hw/ip/otp_ctrl/dv/env/otp_ctrl_if.sv
+@@ -15,16 +15,26 @@
+ `define LC_PART_OTP_CMD_PATH \
+     tb.dut.gen_partitions[LifeCycleIdx].gen_lifecycle.u_part_buf.otp_cmd_o
+ 
+-`define FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL(i) \
+-  if (forced_part_access_sel[``i``].read_lock) begin \
+-    force tb.dut.part_access[``i``].read_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
+-    force tb.dut.part_access_dai[``i``].read_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
+-  end \
+-  if (forced_part_access_sel[``i``].write_lock) begin \
+-    force tb.dut.part_access[``i``].write_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
+-    force tb.dut.part_access_dai[``i``].write_lock = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
++`define FORCE_OTP_PART_LOCK_BANKED(i, member, banks, values) \
++  if (forced_part_access_sel[``i``].``member``) begin \
++    if (banks[``i``]) begin \
++      values[1][``i``][0] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
++      force tb.dut.part_access[``i``].``member`` = values[1][``i``][0]; \
++      values[1][``i``][1] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
++      force tb.dut.part_access_dai[``i``].``member`` = values[1][``i``][1]; \
++    end else begin \
++      values[0][``i``][0] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
++      force tb.dut.part_access[``i``].``member`` = values[0][``i``][0]; \
++      values[0][``i``][1] = get_rand_mubi8_val(.t_weight(0), .f_weight(0)); \
++      force tb.dut.part_access_dai[``i``].``member`` = values[0][``i``][1]; \
++    end \
++    banks[``i``] = !banks[``i``]; \
+   end
+ 
++`define FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL(i) \
++  `FORCE_OTP_PART_LOCK_BANKED(i, read_lock, next_read_bank, read_lock_values) \
++  `FORCE_OTP_PART_LOCK_BANKED(i, write_lock, next_write_bank, write_lock_values)
++
+ `ifndef PRIM_GENERIC_OTP_PATH
+   `define PRIM_GENERIC_OTP_PATH\
+       tb.dut.u_otp
+@@ -43,6 +53,10 @@
+   import otp_ctrl_part_pkg::*;
+   import cip_base_pkg::*;
+ 
++  // Keep the active force on one bank while the next random values are drawn.
++  prim_mubi_pkg::mubi8_t [1:0][NumPart-1:0][1:0] read_lock_values, write_lock_values;
++  bit [NumPart-1:0] next_read_bank, next_write_bank;
++
+   // Output from DUT
+   otp_broadcast_t    otp_broadcast_o;
+   otp_keymgr_key_t   keymgr_key_o;
+@@ -366,4 +380,5 @@
+   `undef PRIM_GENERIC_OTP_PATH
+   `undef PRIM_GENERIC_OTP_CMD_I_PATH
+   `undef FORCE_OTP_PART_LOCK_WITH_RAND_NON_MUBI_VAL
++  `undef FORCE_OTP_PART_LOCK_BANKED
+ endinterface
+--- a/hw/ip/otp_ctrl/dv/env/seq_lib/otp_ctrl_smoke_vseq.sv
++++ b/hw/ip/otp_ctrl/dv/env/seq_lib/otp_ctrl_smoke_vseq.sv
+@@ -12,6 +12,8 @@
+   `uvm_object_utils(otp_ctrl_smoke_vseq)
+ 
+   `uvm_object_new
++
++  localparam bit [TL_DW-1:0] TimeoutMax = '1;
+ 
+   rand bit                           do_req_keys, do_lc_trans;
+   rand bit                           access_locked_parts;
+@@ -77,7 +79,7 @@
+   }
+ 
+   constraint check_timeout_val_c {
+-    check_timeout_val inside {0, [100_000:'1]};
++    check_timeout_val inside {0, [100_000:TimeoutMax]};
+   }
+ 
+   constraint ecc_otp_err_c {ecc_otp_err == OtpNoEccErr;}
+--- a/hw/ip/otp_ctrl/dv/tb.sv
++++ b/hw/ip/otp_ctrl/dv/tb.sv
+@@ -179,11 +179,9 @@
+   // Proprietary IP will instantiate their own backdoor util
+ 
+   if (`PRIM_DEFAULT_IMPL == prim_pkg::ImplGeneric) begin : gen_impl_generic
+-    `define MEM_MODULE_PATH \
+-        tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv
++    `define MEM_MODULE_PATH tb.dut.u_otp.gen_generic.u_impl_generic.u_prim_ram_1p_adv
+ 
+-    `define MEM_ARRAY_PATH \
+-        `MEM_MODULE_PATH.u_mem.gen_generic.u_impl_generic.mem
++    `define MEM_ARRAY_PATH `MEM_MODULE_PATH.u_mem.gen_generic.u_impl_generic.mem
+ 
+     initial begin : mem_bkdr_util_gen
+       mem_bkdr_util m_mem_bkdr_util;
+--- a/hw/ip/pattgen/dv/cov/pattgen_cov_if.sv
++++ b/hw/ip/pattgen/dv/cov/pattgen_cov_if.sv
+@@ -23,18 +23,18 @@
+ 
+   wire rep_cnt_en_ch0 = `CH0_PATH.rep_cnt_en;
+   wire rep_cnt_en_ch1 = `CH1_PATH.rep_cnt_en;
+-  wire len_q0 = `CH0_PATH.len_q;
+-  wire len_q1 = `CH1_PATH.len_q;
+-  wire reps_q0 = `CH0_PATH.reps_q;
+-  wire reps_q1 = `CH1_PATH.reps_q;
+-  wire clk_cnt_q0 = `CH0_PATH.clk_cnt_q;
+-  wire clk_cnt_q1 = `CH1_PATH.clk_cnt_q;
+-  wire bit_cnt_q0 = `CH0_PATH.bit_cnt_q;
+-  wire bit_cnt_q1 = `CH1_PATH.bit_cnt_q;
+-  wire rep_cnt_q0 = `CH0_PATH.rep_cnt_q;
+-  wire rep_cnt_q1 = `CH1_PATH.rep_cnt_q;
+-  wire prediv_q0 = `CH0_PATH.prediv_q;
+-  wire prediv_q1 = `CH1_PATH.prediv_q;
++  wire [5:0] len_q0 = `CH0_PATH.len_q;
++  wire [5:0] len_q1 = `CH1_PATH.len_q;
++  wire [9:0] reps_q0 = `CH0_PATH.reps_q;
++  wire [9:0] reps_q1 = `CH1_PATH.reps_q;
++  wire [31:0] clk_cnt_q0 = `CH0_PATH.clk_cnt_q;
++  wire [31:0] clk_cnt_q1 = `CH1_PATH.clk_cnt_q;
++  wire [5:0] bit_cnt_q0 = `CH0_PATH.bit_cnt_q;
++  wire [5:0] bit_cnt_q1 = `CH1_PATH.bit_cnt_q;
++  wire [9:0] rep_cnt_q0 = `CH0_PATH.rep_cnt_q;
++  wire [9:0] rep_cnt_q1 = `CH1_PATH.rep_cnt_q;
++  wire [31:0] prediv_q0 = `CH0_PATH.prediv_q;
++  wire [31:0] prediv_q1 = `CH1_PATH.prediv_q;
+ 
+ 
+   bit en_full_cov = 1'b1;
+--- a/hw/ip/pattgen/dv/env/seq_lib/pattgen_base_vseq.sv
++++ b/hw/ip/pattgen/dv/env/seq_lib/pattgen_base_vseq.sv
+@@ -1,6 +1,10 @@
+ // Copyright lowRISC contributors (OpenTitan project).
+ // Licensed under the Apache License, Version 2.0, see LICENSE for details.
+ // SPDX-License-Identifier: Apache-2.0
++
++class pattgen_data_word_rand;
++  rand bit [31:0] value;
++endclass
+ 
+ class pattgen_base_vseq extends cip_base_vseq #(
+     .RAL_T               (pattgen_reg_block),
+@@ -343,6 +347,8 @@
+   // this function randomizes the channel config
+   virtual function pattgen_channel_cfg get_random_channel_config(uint channel);
+     pattgen_channel_cfg ch_cfg;
++    pattgen_data_word_rand word;
++    bit [31:0] data_lo;
+     ch_cfg = pattgen_channel_cfg::type_id::create($sformatf("channel_cfg_%0d", channel));
+     if (inactive_level_en) begin
+       // TODO(#23219): Remove this when the scoreboard supports the inactive_level feature.
+@@ -352,17 +358,7 @@
+       ch_cfg.polarity dist {
+         1'b0 :/ cfg.seq_cfg.pattgen_low_polarity_pct,
+         1'b1 :/ (100 - cfg.seq_cfg.pattgen_low_polarity_pct)
+-      };
+-      ch_cfg.data[31:0] dist {
+-        DataMax :/ cfg.seq_cfg.data_top_pct,
+-        DataMin :/ cfg.seq_cfg.data_bottom_pct,
+-        [DataMin + 1:DataMax - 1] :/ cfg.seq_cfg.data_middle_pct
+       };
+-      ch_cfg.data[63:32] dist {
+-        DataMax :/ cfg.seq_cfg.data_top_pct,
+-        DataMin :/ cfg.seq_cfg.data_bottom_pct,
+-        [DataMin:DataMax] :/ cfg.seq_cfg.data_middle_pct
+-      };
+       ch_cfg.prediv dist {
+         cfg.seq_cfg.pattgen_max_prediv :/ cfg.seq_cfg.data_top_pct,
+         cfg.seq_cfg.pattgen_min_prediv :/ cfg.seq_cfg.data_bottom_pct,
+@@ -380,6 +376,23 @@
+         [cfg.seq_cfg.pattgen_min_len:cfg.seq_cfg.pattgen_max_len] :/ cfg.seq_cfg.data_middle_pct
+       };
+     )
++    word = new;
++    `DV_CHECK_RANDOMIZE_WITH_FATAL(word,
++      value dist {
++        DataMax :/ cfg.seq_cfg.data_top_pct,
++        DataMin :/ cfg.seq_cfg.data_bottom_pct,
++        [DataMin + 1:DataMax - 1] :/ cfg.seq_cfg.data_middle_pct
++      };
++    )
++    data_lo = word.value;
++    `DV_CHECK_RANDOMIZE_WITH_FATAL(word,
++      value dist {
++        DataMax :/ cfg.seq_cfg.data_top_pct,
++        DataMin :/ cfg.seq_cfg.data_bottom_pct,
++        [DataMin:DataMax] :/ cfg.seq_cfg.data_middle_pct
++      };
++    )
++    ch_cfg.data = {word.value, data_lo};
+     return ch_cfg;
+   endfunction : get_random_channel_config
+ 
+--- a/hw/ip/prim/pre_dv/prim_flop_2sync/tb.sv
++++ b/hw/ip/prim/pre_dv/prim_flop_2sync/tb.sv
+@@ -26,60 +26,19 @@
+     clk_rst_if.set_active();
+     clk_rst_if.apply_reset(.reset_width_clks(10));
+ 
+-    $display("Using prim_cdc_rand_delay_mode slow");
+-    dut.gen_generic.u_impl_generic.u_prim_cdc_rand_delay.set_prim_cdc_rand_delay_mode(1);
+-    repeat (100) begin
++    // The current CDC model has one runtime enable, not mode/interval tasks.
++    dut.gen_generic.u_impl_generic.u_prim_cdc_rand_delay.gen_enable.cdc_instrumentation_enabled = 1'b1;
++    repeat (500) begin
+       src_d <= $urandom();
+-      clk_rst_if.wait_clks($urandom_range(1, 20));
++      // Each bit can independently retain the old value for one clock.
++      clk_rst_if.wait_clks(4);
++      #1ps;
++      `DV_CHECK_EQ_FATAL(src_q, src_d, , MsgId)
++      clk_rst_if.wait_clks($urandom_range(0, 16));
+     end
+-    clk_rst_if.wait_clks(200);
+ 
+-    $display("Using prim_cdc_rand_delay_mode once");
+-    dut.gen_generic.u_impl_generic.u_prim_cdc_rand_delay.set_prim_cdc_rand_delay_mode(2);
+-    repeat (100) begin
+-      src_d <= $urandom();
+-      clk_rst_if.wait_clks($urandom_range(1, 20));
+-    end
+-    clk_rst_if.wait_clks(200);
+-
+-    $display("Using prim_cdc_rand_delay_mode interval = 10");
+-    dut.gen_generic.u_impl_generic._prim_cdc_rand_delay.set_prim_cdc_rand_delay_mode(3);
+-    dut.gen_generic.u_impl_generic.u_prim_cdc_rand_delay.set_prim_cdc_rand_delay_interval(10);
+-    repeat (100) begin
+-      src_d <= $urandom();
+-      clk_rst_if.wait_clks($urandom_range(1, 20));
+-    end
+-    clk_rst_if.wait_clks(200);
+-
+-    $display("Using prim_cdc_rand_delay_mode interval = 1");
+-    dut.gen_generic.u_impl_generic.u_prim_cdc_rand_delay.set_prim_cdc_rand_delay_interval(1);
+-    repeat (100) begin
+-      src_d <= $urandom();
+-      clk_rst_if.wait_clks($urandom_range(1, 20));
+-    end
+-    clk_rst_if.wait_clks(200);
+-
+-    $display("Using prim_cdc_rand_delay_mode interval = 0");
+-    dut.gen_generic.u_impl_generic.u_prim_cdc_rand_delay.set_prim_cdc_rand_delay_interval(0);
+-    repeat (100) begin
+-      src_d <= $urandom();
+-      clk_rst_if.wait_clks($urandom_range(1, 20));
+-    end
+-    clk_rst_if.wait_clks(200);
+-
+-    // TODO: Add more checks.
+     dv_test_status_pkg::dv_test_status(.passed(1));
+-    `DV_CHECK(!src_d_q.size(), , , MsgId)
+     $finish;
+   end
+ 
+-  // Verify src_d to src_q consistency.
+-  logic [31:0] src_d_q[$];
+-  initial begin
+-    fork
+-      forever @src_d if (rst_n) src_d_q.push_back(src_d);
+-      forever @src_q `DV_CHECK_EQ(src_q, src_d_q.pop_front(), , , MsgId)
+-    join_none
+-  end
+-
+ endmodule
+--- a/hw/ip/prim/prim_flop_2sync.core
++++ b/hw/ip/prim/prim_flop_2sync.core
+@@ -10,6 +10,7 @@
+     depend:
+       - lowrisc:prim:prim_pkg
+       - lowrisc:prim:primgen
++      - lowrisc:prim:flop
+ 
+   files_verilator_waiver:
+     depend:
+--- a/hw/ip/pwm/dv/env/pwm_env_cov.sv
++++ b/hw/ip/pwm/dv/env/pwm_env_cov.sv
+@@ -127,7 +127,14 @@
+       bins a_eq_b = (binsof(duty_cycle_a_cp) && binsof(duty_cycle_b_cp))
+                       with (duty_cycle_a_cp == duty_cycle_b_cp);
+     }
+-    dc_a_b_cross_per_channel_cross_cp: cross dc_a_b_cross_cp, channels_cp;
++    // A cross item must be a coverpoint. Sample the actual relation per channel.
++    dc_a_b_relation_cp: coverpoint {duty_cycle_a < duty_cycle_b,
++                                    duty_cycle_a > duty_cycle_b} {
++      bins a_lt_b = {2'b10};
++      bins a_gt_b = {2'b01};
++      bins a_eq_b = {2'b00};
++    }
++    dc_a_b_cross_per_channel_cross_cp: cross dc_a_b_relation_cp, channels_cp;
+ 
+     // blink parameter
+     blink_x_cp: coverpoint blink_x {
+@@ -156,7 +163,12 @@
+       bins x_eq_y = (binsof(blink_x_cp) && binsof(blink_y_cp))
+                       with (blink_x_cp == blink_y_cp);
+     }
+-    blink_x_y_cross_per_channel_cross_cp: cross blink_x_y_cross_cp, channels_cp;
++    blink_relation_cp: coverpoint {blink_x < blink_y, blink_x > blink_y} {
++      bins x_lt_y = {2'b10};
++      bins x_gt_y = {2'b01};
++      bins x_eq_y = {2'b00};
++    }
++    blink_x_y_cross_per_channel_cross_cp: cross blink_relation_cp, channels_cp;
+   endgroup : pwm_per_channel_cg
+ 
+   covergroup lowpower_cg with function sample(bit tl_clk_gate,
+--- a/hw/ip/rv_timer/dv/env/seq_lib/rv_timer_random_vseq.sv
++++ b/hw/ip/rv_timer/dv/env/seq_lib/rv_timer_random_vseq.sv
+@@ -79,11 +79,11 @@
+ 
+   // Timer expiry needs to occur within reasonable amount of time.
+   constraint timer_exp_c {
+-    solve en_harts before compare_val;
+-    solve en_timers before compare_val;
+-    solve timer_val before compare_val;
+-    solve step before compare_val;
+-    solve ticks before compare_val;
++    solve en_harts before compare_val[0][0];
++    solve en_timers before compare_val[0][0];
++    solve timer_val[0] before compare_val[0][0];
++    solve step[0] before compare_val[0][0];
++    solve ticks[0] before compare_val[0][0];
+     foreach (en_harts[i]) {
+       foreach (en_timers[j]) {
+         if (en_harts[i] && en_timers[j]) {
+--- a/hw/ip/spi_device/dv/env/spi_device_env_cov.sv
++++ b/hw/ip/spi_device/dv/env/spi_device_env_cov.sv
+@@ -102,7 +102,7 @@
+   covergroup flash_cmd_info_cg with function sample(
+       bit is_flash, bit[7:0] opcode, bit is_write, spi_flash_addr_mode_e addr_mode,
+       bit addr_swap_en, bit payload_swap_en, bit upload, bit busy, int dummy_cycles,
+-      bit num_lanes);
++      bit [2:0] num_lanes);
+     cp_is_flash: coverpoint is_flash;
+     cp_opcode: coverpoint opcode {
+       bins internal_process_ops[]   = {`ALL_INTERNAL_PROCESS_CMDS};
+--- a/hw/ip/spi_device/pre_dv/program/prog_passthrough_host.sv
++++ b/hw/ip/spi_device/pre_dv/program/prog_passthrough_host.sv
+@@ -72,7 +72,8 @@
+ 
+     @(negedge clk);
+ 
+-    $value$plusargs("TESTNAME=%s", testname);
++    if (!$value$plusargs("TESTNAME=%s", testname))
++      $fatal(1, "Missing +TESTNAME");
+ 
+     case (testname)
+       "readbasic": begin
+@@ -97,7 +98,7 @@
+       end
+ 
+       default: begin
+-        $display("Passthrough test requires '+TESTNAME=%%s'");
++        $fatal(1, "Unknown +TESTNAME=%s", testname);
+       end
+ 
+     endcase
+@@ -221,13 +222,13 @@
+     automatic logic [31:0] address;
+     automatic int unsigned size;
+ 
+-    SpiTransRead trans = new();
++    automatic SpiTransRead trans = new();
+     // Random address and size
+-    trans.randomize() with {
++    if (!(trans.randomize() with {
+       size < 32;
+       address < FlashSize - size;
+       addr_mode == 0; // 3B only
+-    };
++    })) $fatal(1, "SPI passthrough randomization failed");
+     trans.display();
+ 
+     if (addr_mode != Addr3B) begin
+@@ -260,11 +261,11 @@
+ 
+     trans = new();
+ 
+-    trans.randomize() with {
++    if (!(trans.randomize() with {
+       size      == local::size;
+       address   == local::address;
+       addr_mode == 1; // Addr 4B
+-    };
++    })) $fatal(1, "SPI passthrough randomization failed");
+     trans.display();
+ 
+     // Issue En4B
+@@ -320,7 +321,7 @@
+ 
+       trans = new();
+ 
+-      trans.randomize() with {
++      if (!(trans.randomize() with {
+         cmd inside {
+           CmdWriteDisable,
+           CmdWriteEnable
+@@ -328,7 +329,7 @@
+         size      == 0;
+         address   == '0;
+         addr_mode == 0;
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+ 
+       // TODO: Add to TLM FIFO to sequencer then sequencer to Driver
+ 
+@@ -370,7 +371,8 @@
+ 
+       // WEL cmd
+       trans_wel = new();
+-      trans_wel.randomize();
++      if (!trans_wel.randomize())
++        $fatal(1, "SPI passthrough randomization failed");
+ 
+       // If flip, issue cmd
+       if (((trans_wel.cmd == CmdWriteEnable) && !wel)
+@@ -383,9 +385,9 @@
+ 
+       // Issue page program
+       trans_prog = new();
+-      trans_prog.randomize() with {
++      if (!(trans_prog.randomize() with {
+         address < (local::FlashSize - size);
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+       trans_prog.display();
+ 
+       spiflash_program(
+@@ -411,11 +413,11 @@
+       // Read from Mailbox space only when WEL
+       trans_size = $min(trans_prog.size, 256);
+       trans_read = new();
+-      trans_read.randomize() with {
++      if (!(trans_read.randomize() with {
+         address == local::MailboxAddr;
+         addr_mode == 1'b 0; // 3B
+         size == local::trans_size;
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+ 
+       spiflash_read(
+         sif.tb,
+@@ -434,11 +436,11 @@
+       // Read even if wel = 0. Check if value is written?
+ 
+       trans_read = new();
+-      trans_read.randomize() with {
++      if (!(trans_read.randomize() with {
+         address == local::trans_prog.address;
+         addr_mode == 1'b 0; // 3B
+         size == local::trans_size;
+-      };
++      })) $fatal(1, "SPI passthrough randomization failed");
+ 
+       spiflash_read(
+         sif.tb,
+@@ -486,9 +488,9 @@
+ 
+     // Issue Page Program
+     trans = new();
+-    trans.randomize() with {
++    if (!(trans.randomize() with {
+         address < (local::FlashSize - size);
+-    };
++    })) $fatal(1, "SPI passthrough randomization failed");
+     trans.display();
+ 
+     spiflash_program(
+--- a/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
++++ b/hw/ip/spi_device/pre_dv/program/prog_passthrough_sw.sv
+@@ -3,16 +3,16 @@
+ // SPDX-License-Identifier: Apache-2.0
+ //
+ 
+-`define DPSRAM_DATA(x) tb.dut.u_memory_2p.u_mem.gen_generic.u_impl_generic.mem[(x)]
++`define DPSRAM_DATA(x) tb.dut.u_spid_dpram.gen_ram2p.u_memory_2p.u_mem.gen_generic.u_impl_generic.mem[(x)]
+ 
+ program prog_passthrough_sw
+   import spid_common::*;
+ (
+-  input logic clk,
++  input var logic clk,
+   input logic rst_n,
+ 
+   output tlul_pkg::tl_h2d_t h2d,
+-  input  tlul_pkg::tl_d2h_t d2h,
++  input var tlul_pkg::tl_d2h_t d2h,
+ 
+   input interrupt_t intr
+ );
+@@ -29,7 +29,8 @@
+     $display("Intializing SPI_DEVICE: PassThrough mode");
+     init_spidevice_passthrough();
+ 
+-    $value$plusargs("TESTNAME=%s", testname);
++    if (!$value$plusargs("TESTNAME=%s", testname))
++      $fatal(1, "Missing +TESTNAME");
+ 
+     case (testname)
+       "readbasic": begin
+@@ -51,6 +52,7 @@
+         // TODO: Read and check if cmds...
+         test_upload();
+       end
++      default: $fatal(1, "Unknown +TESTNAME=%s", testname);
+     endcase
+ 
+     forever begin
+--- a/hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv
+@@ -36,6 +36,8 @@
+   localparam time SckPeriod = 14000;
+ 
+   wire sck, sck_rst_n;
++  wire tpm_rst_ni;
++  assign tpm_rst_ni = rst_n & ~tif.csb;
+   clk_rst_if sck_clk (
+     .clk   (sck),
+     .rst_n (sck_rst_n)
+@@ -93,32 +95,30 @@
+   logic cmdaddr_rvalid, cmdaddr_rready;
+   logic [31:0] cmdaddr_rdata;
+ 
+-  logic wrfifo_rvalid, wrfifo_rready;
+-  logic [7:0] wrfifo_rdata;
+-
+   logic rdfifo_wvalid, rdfifo_wready;
+-  logic [7:0] rdfifo_wdata;
++  logic [31:0] rdfifo_wdata;
+ 
+-  // status
++  spi_device_pkg::sram_l2m_t sck_sram_req, sys_sram_req;
++  spi_device_pkg::sram_m2l_t sck_sram_rsp, sys_sram_rsp;
++  logic sys_wrfifo_release, sys_wrfifo_pending;
+   logic cmdaddr_notempty;
+-  logic [WrFifoPtrW-1:0] wrfifo_depth;
+-  logic [RdFifoPtrW-1:0] rdfifo_depth;
++  logic [spi_device_pkg::SramDw-1:0] tpm_sram [spi_device_pkg::SramDepth];
++  logic [7:0] wrfifo_capture_data [128];
++  int wrfifo_capture_count, wrfifo_read_index;
+ 
+   spi_tpm #(
+     .CmdAddrFifoDepth (CmdAddrFifoDepth),
+-    .WrFifoDepth      (WrFifoDepth     ),
+-    .RdFifoDepth      (RdFifoDepth     ),
+-    .RdDataFifoSize   (RdFifoWidth     ),
+     .EnLocality       (EnLocality      )
+   ) dut (
+     .clk_in_i  (gated_sck),
+     .clk_out_i (gated_sck_inverted),
+ 
+-    .sys_clk_i  (clk),
+-    .sys_rst_ni (rst_n),
++    .rst_ni     (tpm_rst_ni),
++    .rst_out_ni (tpm_rst_ni),
+ 
+-    .scan_rst_ni ( 1'b 1 ),
+-    .scanmode_i  (prim_mubi_pkg::MuBi4False),
++    .sys_clk_i       (clk),
++    .sys_rst_ni      (rst_n),
++    .sys_tpm_rst_ni  (~tif.csb),
+ 
+     .csb_i     (tif.csb     ),
+     .mosi_i    (tif.mosi    ),
+@@ -147,19 +147,76 @@
+     .sys_cmdaddr_rdata_o  (cmdaddr_rdata ),
+     .sys_cmdaddr_rready_i (cmdaddr_rready),
+ 
+-    .sys_wrfifo_rvalid_o (wrfifo_rvalid),
+-    .sys_wrfifo_rdata_o  (wrfifo_rdata ),
+-    .sys_wrfifo_rready_i (wrfifo_rready),
++    .sck_sram_o (sck_sram_req),
++    .sck_sram_i (sck_sram_rsp),
++    .sys_sram_o (sys_sram_req),
++    .sys_sram_i (sys_sram_rsp),
++    .sys_sram_gnt_i (1'b1),
+ 
+     .sys_rdfifo_wvalid_i (rdfifo_wvalid),
+     .sys_rdfifo_wdata_i  (rdfifo_wdata ),
+     .sys_rdfifo_wready_o (rdfifo_wready),
++    .sys_rdfifo_cmd_end_o (),
++    .sys_tpm_rdfifo_drop_o (),
++    .sys_wrfifo_release_i (sys_wrfifo_release),
+ 
+     .sys_cmdaddr_notempty_o (cmdaddr_notempty),
+-    .sys_rdfifo_notempty_o  (),
+-    .sys_rdfifo_depth_o     (rdfifo_depth),
+-    .sys_wrfifo_depth_o     (wrfifo_depth)
++    .sys_wrfifo_pending_o   (sys_wrfifo_pending),
++    .sys_rdfifo_aborted_o   ()
+   );
++
++  initial begin
++    for (int i = 0; i < spi_device_pkg::SramDepth; i++) tpm_sram[i] = '0;
++    sys_wrfifo_release = 1'b0;
++    wrfifo_read_index = 0;
++  end
++
++  // Dual-clock SRAM model. The SPI-side monitor preserves the byte stream
++  // exposed through the write FIFO for this legacy pre-DV software task.
++  always_ff @(posedge sck or negedge sck_rst_n) begin
++    if (!sck_rst_n) begin
++      sck_sram_rsp <= '0;
++      wrfifo_capture_count <= 0;
++    end else begin
++      sck_sram_rsp.rvalid <= sck_sram_req.req && !sck_sram_req.we;
++      sck_sram_rsp.rerror <= '0;
++      if (sck_sram_req.req) begin
++        if (sck_sram_req.we) begin
++          int next_wr_count;
++          next_wr_count = wrfifo_capture_count;
++          for (int lane = 0; lane < spi_device_pkg::SramStrbW; lane++) begin
++            if (sck_sram_req.wstrb[lane]) begin
++              tpm_sram[sck_sram_req.addr][8*lane+:8] <= sck_sram_req.wdata[8*lane+:8];
++              wrfifo_capture_data[next_wr_count] <= sck_sram_req.wdata[8*lane+:8];
++              next_wr_count++;
++            end
++          end
++          wrfifo_capture_count <= next_wr_count;
++        end else begin
++          sck_sram_rsp.rdata <= tpm_sram[sck_sram_req.addr];
++        end
++      end
++    end
++  end
++
++  always_ff @(posedge clk or negedge rst_n) begin
++    if (!rst_n) begin
++      sys_sram_rsp <= '0;
++    end else begin
++      sys_sram_rsp.rvalid <= sys_sram_req.req && !sys_sram_req.we;
++      sys_sram_rsp.rerror <= '0;
++      if (sys_sram_req.req) begin
++        if (sys_sram_req.we) begin
++          for (int lane = 0; lane < spi_device_pkg::SramStrbW; lane++) begin
++            if (sys_sram_req.wstrb[lane])
++              tpm_sram[sys_sram_req.addr][8*lane+:8] <= sys_sram_req.wdata[8*lane+:8];
++          end
++        end else begin
++          sys_sram_rsp.rdata <= tpm_sram[sys_sram_req.addr];
++        end
++      end
++    end
++  end
+ 
+   initial begin
+     sck_clk.set_period_ps(SckPeriod);
+@@ -281,7 +338,6 @@
+     automatic logic       wait_n;
+ 
+     tpm_start();
+-
+     tpm_header(1'b 1, addr, xfer_size, wait_n);
+ 
+     forever begin
+@@ -386,6 +442,8 @@
+     logic [31:0] tpm_reg;
+     logic [6:0] xfer_size;
+     logic [7:0] data;
++    int write_start, word_count;
++    logic [31:0] word_data;
+ 
+     // Initial
+     cmdaddr_rready = 1'b 0;
+@@ -400,77 +458,63 @@
+     };
+ 
+     rdfifo_wvalid = 1'b 0;
+-    rdfifo_wdata = 8'h 0;
++    rdfifo_wdata = '0;
+ 
+     forever begin
+       wait (cmdaddr_notempty == 1'b 1);
+ 
+       // Read entry from cmd fifo
+-      cmdaddr_read(cmdaddr_rvalid, cmdaddr_rready, cmdaddr_rdata, cmd);
++      cmdaddr_read(cmd);
+       xfer_size = cmd[24+:6] + 1; // xfer_size in the header is 0 based
+ 
+       case (cmd[31])
+         1'b 0: begin : write
+           $display("TPM Write command process: Xfer Size (%d)", xfer_size);
+-          // pop from write fifo
+-          do begin
+-            wrfifo_read(wrfifo_rvalid, wrfifo_rready, wrfifo_rdata, data);
+-            xfer_size = xfer_size - 1;
++          // Read bytes captured by the SRAM model for this write command.
++          write_start = wrfifo_read_index;
++          wait (wrfifo_capture_count >= write_start + xfer_size);
++          repeat (xfer_size) begin
++            data = wrfifo_capture_data[wrfifo_read_index];
++            wrfifo_read_index++;
+             $display("TPM Write Data: %2x", data);
+-          end while (xfer_size != '0);
++          end
++          @(negedge clk);
++          sys_wrfifo_release = 1'b1;
++          @(negedge clk);
++          sys_wrfifo_release = 1'b0;
++          wait (!sys_wrfifo_pending);
+         end
+ 
+         1'b 1: begin : read
+-          // Prepare random data up to xfer_size
++          // The current SRAM-backed interface accepts four bytes per write.
+           $display("TPM Read command process: Xfer Size (%d)", xfer_size);
+-          do begin
+-            data = $urandom_range(255);
+-            rdfifo_write(rdfifo_wvalid, rdfifo_wready, rdfifo_wdata, data);
+-            xfer_size = xfer_size - 1;
+-          end while (xfer_size != '0);
++          word_count = (xfer_size + 3) / 4;
++          repeat (word_count) begin
++            word_data = $urandom;
++            rdfifo_write(word_data);
++          end
+         end
+       endcase
+     end
+   endtask : sw
+ 
+-  task cmdaddr_read (
+-    const ref              rvalid,
+-    ref       logic        rready, // output
+-    const ref logic [31:0] rdata,
+-    output    logic [31:0] data
+-  );
+-    @(posedge clk && rvalid);
+-    data   = rdata;
+-    rready = 1'b 1;
+-
++  task cmdaddr_read (output logic [31:0] data);
++    wait (cmdaddr_rvalid == 1'b1);
++    @(negedge clk);
++    cmdaddr_rready = 1'b1;
+     @(posedge clk);
+-    rready = 1'b 0;
++    data = cmdaddr_rdata;
++    @(negedge clk);
++    cmdaddr_rready = 1'b0;
+   endtask : cmdaddr_read
+ 
+-  task wrfifo_read (
+-    const ref             rvalid,
+-    ref       logic       rready, // output
+-    const ref logic [7:0] rdata,
+-    output    logic [7:0] data
+-  );
+-    @(posedge clk iff rvalid);
+-    data   = rdata;
+-    rready = 1'b 1;
+-
++  task rdfifo_write (input logic [31:0] data);
++    rdfifo_wdata = data;
++    rdfifo_wvalid = 1'b1;
++    wait (rdfifo_wready == 1'b1);
+     @(posedge clk);
+-    rready = 1'b 0;
+-  endtask : wrfifo_read
+-
+-  task rdfifo_write (
+-    ref   logic       wvalid, // output
+-    const ref         wready,
+-    ref   logic [7:0] wdata,  // output
+-    input logic [7:0] data
+-  );
+-    wvalid = 1'b 1;
+-    wdata  = data;
+-    @(posedge clk iff wready);
+-    wvalid = 1'b 0;
++    @(negedge clk);
++    rdfifo_wvalid = 1'b0;
+   endtask : rdfifo_write
+   // SW --------------------------------------------------------------
+ 
+--- a/hw/ip/spi_device/pre_dv/tb/spid_common.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_common.sv
+@@ -97,6 +97,7 @@
+       payload_en:       4'b 0001, // MISO
+       payload_dir:      PayloadIn,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+ 
+@@ -113,6 +114,7 @@
+       payload_en:       4'b 0001, // MISO
+       payload_dir:      PayloadIn,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+ 
+@@ -129,6 +131,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -145,6 +148,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -161,6 +165,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -177,6 +182,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -193,6 +199,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -209,6 +216,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -225,6 +233,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -241,6 +250,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -257,6 +267,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -273,6 +284,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -289,6 +301,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -305,6 +318,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -321,6 +335,7 @@
+       payload_en:       4'b 0001, // MISO
+       payload_dir:      PayloadIn,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 1,
+       busy:             1'b 1
+     },
+@@ -337,6 +352,7 @@
+       payload_en:       4'b 0000, // MISO
+       payload_dir:      PayloadIn,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 1,
+       busy:             1'b 1
+     },
+@@ -353,6 +369,7 @@
+       payload_en:       4'b 0000, // MISO
+       payload_dir:      PayloadIn,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 1,
+       busy:             1'b 1
+     },
+@@ -369,6 +386,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -385,6 +403,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -401,6 +420,7 @@
+       payload_en:       4'b 1111, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -417,6 +437,7 @@
+       payload_en:       4'b 0011, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -433,6 +454,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -449,6 +471,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -465,6 +488,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -481,6 +505,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -497,6 +522,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -513,6 +539,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     },
+@@ -529,6 +556,7 @@
+       payload_en:       4'b 0010, // MISO
+       payload_dir:      PayloadOut,
+       payload_swap_en:  1'b 0,
++      read_pipeline_mode: RdPipeZeroStages,
+       upload:           1'b 0,
+       busy:             1'b 0
+     }
+--- a/hw/ip/spi_device/pre_dv/tb/spid_jedec_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_jedec_tb.sv
+@@ -46,9 +46,15 @@
+ 
+   assign sck_en = ~sif.csb;
+ 
+-  logic rst_spi_n;
++  logic rst_spi_n, rst_spi_out_n;
+   assign rst_spi_n = sck_rst_n && ~sif.csb;
+ 
++  // Match the RTL output-clock reset release after an input-clock edge.
++  always_ff @(posedge gated_sck or negedge rst_spi_n) begin
++    if (!rst_spi_n) rst_spi_out_n <= 1'b0;
++    else            rst_spi_out_n <= 1'b1;
++  end
++
+   sel_datapath_e dut_sel_dp;
+   // Command info for Read Status
+   // CmdReadStauts1, CmdReadStatus2, CmdReadStatus3
+@@ -66,7 +72,7 @@
+ 
+   spi_mode_e spi_mode;
+ 
+-  logic s2p_valid;
++  logic s2p_valid, cmd_sync_pulse;
+   logic [7:0] s2p_data;
+ 
+   initial begin
+@@ -84,8 +90,7 @@
+     fork
+       begin
+         #20us
+-        $display("TEST TIMED OUT!!");
+-        $finish();
++        $fatal(1, "TEST TIMED OUT!!");
+       end
+       host();
+       sw();
+@@ -105,8 +110,8 @@
+ 
+     // Expect 5 continuous codes and jedec ID
+     spiflash_readjedec(tb_sif, CmdJedecId, ContinuousCode, num_cc, jedec_id);
+-    assert(num_cc == 5)
+-      else $display("Num_CC count (%2d) does not match to 5", num_cc);
++    if (num_cc !== 5 || jedec_id !== 24'hBEA55A)
++      $fatal(1, "JEDEC mismatch: num_cc=%0d id=%h", num_cc, jedec_id);
+ 
+     $display("SPI Flash Read JEDEC ID Tested!!:");
+   endtask : host
+@@ -124,24 +129,6 @@
+ 
+   endtask : sw
+ 
+-  // CSb pulse
+-  logic csb_sckin_sync_d, csb_sckin_sync_q, csb_asserted_pulse_sckin;
+-  prim_flop_2sync #(
+-    .Width      (1),
+-    .ResetValue (1'b 1)
+-  ) u_csb_sckin_sync (
+-    .clk_i (gated_sck),
+-    .rst_ni(rst_spi_n), //Use CSb as a reset
+-    .d_i (1'b 0),
+-    .q_o (csb_sckin_sync_d)
+-  );
+-  always_ff @(posedge gated_sck or negedge rst_spi_n) begin
+-    if (!rst_spi_n) csb_sckin_sync_q <= 1'b 1;
+-    else            csb_sckin_sync_q <= csb_sckin_sync_d;
+-  end
+-
+-  assign csb_asserted_pulse_sckin = csb_sckin_sync_q && !csb_sckin_sync_d;
+-
+   logic p2s_valid, p2s_sent;
+   logic [7:0] p2s_data;
+ 
+@@ -151,9 +138,10 @@
+     .clk_i  (gated_sck),
+     .rst_ni (rst_spi_n),
+ 
+-    .clk_out_i (gated_sck_inverted),
++    .clk_out_i  (gated_sck_inverted),
++    .rst_out_ni (rst_spi_out_n),
+ 
+-    .inclk_csb_asserted_pulse_i (csb_asserted_pulse_sckin),
++    .cmd_sync_pulse_i (cmd_sync_pulse),
+ 
+     .sys_jedec_i (jedec_id),
+ 
+@@ -184,6 +172,7 @@
+     .sel_dp_o       (dut_sel_dp),
+     .cmd_info_o     (cmd_info),
+     .cmd_info_idx_o (cmd_info_idx),
++    .cmd_sync_pulse_o (cmd_sync_pulse),
+ 
+     .cmd_config_req_o (),
+     .cmd_config_idx_o ()
+@@ -197,7 +186,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -215,8 +203,6 @@
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+ 
+-    .cpha_i       (1'b 0),
+-
+     .order_i      (1'b 0),
+ 
+     .io_mode_i    (dut_iomode)
+--- a/hw/ip/spi_device/pre_dv/tb/spid_passthrough_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_passthrough_tb.sv
+@@ -157,14 +157,6 @@
+     .passthrough_i (passthrough_d2h),
+ 
+     // Interrupts
+-    // INTR: Generic mode : Not Testing here
+-    .intr_generic_rx_full_o     (intr.generic_rx_full),
+-    .intr_generic_rx_watermark_o(intr.generic_rx_watermark),
+-    .intr_generic_tx_watermark_o(intr.generic_tx_watermark),
+-    .intr_generic_rx_error_o    (intr.generic_rx_error),
+-    .intr_generic_rx_overflow_o (intr.generic_rx_overflow),
+-    .intr_generic_tx_underflow_o(intr.generic_tx_underflow),
+-
+     // INTR: Flash mode : Not testing here
+     .intr_upload_cmdfifo_not_empty_o(intr.upload_cmdfifo_not_empty),
+     .intr_upload_payload_not_empty_o(intr.upload_payload_not_empty),
+--- a/hw/ip/spi_device/pre_dv/tb/spid_readcmd_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_readcmd_tb.sv
+@@ -63,7 +63,6 @@
+ 
+   logic               s2p_valid;
+   logic [7:0]         s2p_data;
+-  logic [BitCntW-1:0] s2p_bitcnt;
+ 
+   logic               p2s_valid;
+   logic [7:0]         p2s_data;
+@@ -124,7 +123,7 @@
+   logic        cfg_mailbox_en;
+   logic        cfg_intercept_en_mbx;
+   logic [31:0] cfg_mailbox_addr; // Assume the size of mailbox 1kB
+-  logic [7:0]  cfg_readbuf_threshold;
++  logic [SramBufferAw-1:0] cfg_readbuf_threshold;
+ 
+   logic mailbox_assumed;
+   logic [31:0] readbuf_address;
+@@ -715,6 +714,8 @@
+     .clk_i      (gated_sck),
+     .rst_ni     (rst_spi_n),
+     .clk_out_i  (gated_sck_inverted),
++    .rst_out_ni (rst_spi_n),
++    .sys_clk_i  (clk),
+     .sys_rst_ni (rst_n),
+ 
+     .sel_dp_i (dut_sel_dp),
+@@ -724,7 +725,6 @@
+ 
+     .s2p_valid_i  (s2p_valid),
+     .s2p_byte_i   (s2p_data),
+-    .s2p_bitcnt_i (s2p_bitcnt),
+ 
+     .p2s_valid_o (p2s_valid),
+     .p2s_byte_o  (p2s_data),
+@@ -736,6 +736,7 @@
+     .cmd_info_idx_i (cmd_info_idx),
+ 
+     .readbuf_threshold_i (cfg_readbuf_threshold),
++    .sys_readbuf_clr_i (1'b0),
+ 
+     .addr_4b_en_i (cfg_addr_4b_en),
+ 
+@@ -786,7 +787,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (s2p_bitcnt),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -804,8 +804,6 @@
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+ 
+-    .cpha_i       (1'b 0),
+-
+     .order_i      (1'b 0),
+ 
+     .io_mode_i    (dut_iomode)
+--- a/hw/ip/spi_device/pre_dv/tb/spid_status_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_status_tb.sv
+@@ -47,7 +47,19 @@
+   logic rst_spi_n;
+   assign rst_spi_n = sck_rst_n && ~sif.csb;
+ 
+-  sel_datapath_e dut_sel_dp;
++  sel_datapath_e dut_sel_dp, cmd_only_dp_sel;
++  logic sck_status_busy;
++  logic sys_csb_deasserted_pulse, csb_sys_q, csb_sys_qq;
++  always_ff @(posedge clk or negedge rst_n) begin
++    if (!rst_n) begin
++      csb_sys_q <= 1'b1;
++      csb_sys_qq <= 1'b1;
++    end else begin
++      csb_sys_q <= sif.csb;
++      csb_sys_qq <= csb_sys_q;
++    end
++  end
++  assign sys_csb_deasserted_pulse = csb_sys_q && !csb_sys_qq;
+   // Command info for Read Status
+   // CmdReadStauts1, CmdReadStatus2, CmdReadStatus3
+   logic [CmdInfoIdxW-1:0] cmd_info_idx;
+@@ -120,7 +132,7 @@
+     // Read back and check
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+ 
+-    assert(data[1] == 1'b 1);
++    assert(data[1] == 1'b 1) else $fatal(1, "WREN did not set WEL");
+ 
+     repeat(20) @(sck_clk.cbn);
+ 
+@@ -131,28 +143,26 @@
+     // Read back and check
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+ 
+-    assert(data[1] == 1'b 0);
++    assert(data[1] == 1'b 0) else $fatal(1, "WEL should remain clear");
+ 
+     repeat(20) @(sck_clk.cbn);
+     ->wel_test_complete;
+ 
+     @(wel_update_done);
+ 
+-    // Expect SW to set WEL again.
+-    // The SW request is comitted after a SPI transaction is received.
+-    // Sending read status command but expect WEL still 0.
+-    // Then next Read Status will return the correct value (WEL == 1)
++    // Software can update status bits but cannot set WEL, which is HW-set.
++    // The new status value is visible on the next Read Status transaction.
+ 
+     @(sck_clk.cbn);
+     // This should return 0 for WEL
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+-    assert(data[1] == 1'b 0);
++    assert(data[1] == 1'b 0) else $fatal(1, "WEL should remain clear");
+     repeat(20) @(sck_clk.cbn);
+ 
+-    // This should return 1 for WEL
++    // SW wrote 0xD2; the current status block keeps WEL clear (0xD0).
+     spiflash_readstatus(tb_sif, 8'h 05, data);
+ 
+-    assert(data[1] == 1'b 1);
++    assert(data == 8'h D0) else $fatal(1, "SW status update was not returned");
+     repeat(20) @(sck_clk.cbn);
+ 
+ 
+@@ -177,8 +187,7 @@
+ 
+     // Host has issued WREN then WRDI then read back the STATUS and checked if
+     // HW updates the value correctly.
+-    // Now, SW reverts WEL bit (to 1), then informs host system to read back
+-    // the STATUS
++    // Now, SW writes the other status bits; WEL remains HW-controlled.
+ 
+     @(posedge clk);
+ 
+@@ -207,13 +216,15 @@
+     .rst_ni (rst_spi_n),
+ 
+     .clk_out_i (gated_sck_inverted),
++    .rst_out_ni (rst_spi_n),
+ 
+     .clk_csb_i (sif.csb),
+ 
+     .sys_clk_i  (clk),
+     .sys_rst_ni (rst_n),
+ 
+-    .sys_csb_deasserted_pulse_i (sys_csb_deasserted_pulse), // TODO
++    .sys_csb_deasserted_pulse_i (sys_csb_deasserted_pulse),
++    .sys_update_clr_i (1'b0),
+ 
+     .sys_status_we_i (sys_status_we ),
+     .sys_status_i    (sys_status_in ),
+@@ -233,6 +244,10 @@
+ 
+     .inclk_we_set_i (sck_we_set),
+     .inclk_we_clr_i (sck_we_clr),
++    .inclk_status_commit_i (s2p_valid),
++    .sck_status_busy_o (sck_status_busy),
++    .scan_rst_ni (1'b1),
++    .scanmode_i (prim_mubi_pkg::MuBi4False),
+ 
+     .csb_busy_broadcast_o () // SCK domain
+   );
+@@ -247,10 +262,12 @@
+     .spi_mode_i   (spi_mode),
+ 
+     .cmd_info_i   (spid_common::CmdInfo),
++    .sck_status_busy_i (sck_status_busy),
+ 
+     .io_mode_o    (s2p_iomode),
+ 
+     .sel_dp_o       (dut_sel_dp),
++    .cmd_only_sel_dp_o (cmd_only_dp_sel),
+     .cmd_info_o     (cmd_info),
+     .cmd_info_idx_o (cmd_info_idx),
+ 
+@@ -268,8 +285,8 @@
+     .cmd_config_idx_o ()
+   );
+ 
+-  assign sck_we_set = (dut_sel_dp == DpWrEn);
+-  assign sck_we_clr = (dut_sel_dp == DpWrDi);
++  assign sck_we_set = (cmd_only_dp_sel == DpWrEn);
++  assign sck_we_clr = (cmd_only_dp_sel == DpWrDi);
+ 
+   spi_s2p s2p (
+     .clk_i  (gated_sck),
+@@ -279,7 +296,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -297,8 +313,6 @@
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+ 
+-    .cpha_i       (1'b 0),
+-
+     .order_i      (1'b 0),
+ 
+     .io_mode_i    (dut_iomode)
+--- a/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv
+@@ -47,10 +47,10 @@
+   logic rst_spi_n;
+   assign rst_spi_n = sck_rst_n && ~sif.csb;
+ 
+-  sel_datapath_e dut_sel_dp;
++  sel_datapath_e dut_sel_dp, dut_cmd_only_sel_dp;
+ 
+-  logic [CmdInfoIdxW-1:0] cmd_info_idx;
+-  cmd_info_t cmd_info;
++  logic [CmdInfoIdxW-1:0] cmd_only_info_idx;
++  cmd_info_t cmd_only_info;
+ 
+   // CmdInfo is defined in spid_common.sv
+   // ReserveStart:ReserveStart+2 are for upload test
+@@ -61,7 +61,6 @@
+ 
+   logic               s2p_valid;
+   logic [7:0]         s2p_data;
+-  logic [BitCntW-1:0] s2p_bitcnt;
+ 
+   // Memory interface
+   logic              bus_mem_req;
+@@ -134,7 +133,7 @@
+ 
+   // FIFO
+   logic cmdfifo_rvalid, cmdfifo_rready;
+-  logic [7:0] cmdfifo_rdata;
++  logic [15:0] cmdfifo_rdata;
+   logic addrfifo_rvalid, addrfifo_rready;
+   logic [31:0] addrfifo_rdata;
+   logic cmdfifo_notempty, addrfifo_notempty;
+@@ -302,7 +301,7 @@
+       // due to the latency that FIFO reads from DPSRAM.
+       // Check cmdfifo_rvalid rather than cmdfifo_notempty
+       @(posedge clk iff (cmdfifo_set_pulse == 1'b 1));
+-      cmd = cmdfifo_rdata;
++      cmd = cmdfifo_rdata[7:0];
+       $display("Cmd %x is uploaded", cmd);
+       cmdfifo_rready = 1'b 1;
+       @(posedge clk);
+@@ -436,10 +435,9 @@
+ 
+     .clk_csb_i  (sif.csb),
+ 
+-    .sys_csb_deasserted_pulse_i (csb_deasserted_busclk),
++    .sel_dp_i          (dut_sel_dp),
++    .cmd_only_sel_dp_i (dut_cmd_only_sel_dp),
+ 
+-    .sel_dp_i (dut_sel_dp),
+-
+     .sck_sram_o (sck_l2m),
+     .sck_sram_i (sck_m2l),
+ 
+@@ -463,7 +461,6 @@
+     // Interface: SPI to Parallel
+     .s2p_valid_i  (s2p_valid),
+     .s2p_byte_i   (s2p_data),
+-    .s2p_bitcnt_i (s2p_bitcnt),
+ 
+     // Interface: Parallel to SPI
+     .p2s_valid_o (p2s_valid),
+@@ -472,10 +469,12 @@
+ 
+     .spi_mode_i (spi_mode),
+ 
+-    .cfg_addr_4b_en_i (cfg_addr_4b_en),
++    .cmd_sync_cfg_addr_4b_en_i (cfg_addr_4b_en),
++    .cmd_sync_status_wel_i     (1'b0),
++    .cmd_sync_status_busy_i    (1'b0),
+ 
+-    .cmd_info_i     (cmd_info),
+-    .cmd_info_idx_i (cmd_info_idx),
++    .cmd_only_info_i     (cmd_only_info),
++    .cmd_only_info_idx_i (cmd_only_info_idx),
+ 
+     .io_mode_o (dut_iomode),
+ 
+@@ -504,12 +503,20 @@
+     .spi_mode_i   (spi_mode),
+ 
+     .cmd_info_i   (spid_common::CmdInfo),
++    .sck_status_busy_i (1'b0),
+ 
+     .io_mode_o    (s2p_iomode),
+ 
+-    .sel_dp_o       (dut_sel_dp),
+-    .cmd_info_o     (cmd_info),
+-    .cmd_info_idx_o (cmd_info_idx),
++    .sel_dp_o          (dut_sel_dp),
++    .cmd_only_sel_dp_o (dut_cmd_only_sel_dp),
++    .cmd_info_o        (),
++    .cmd_info_idx_o    (),
++    .cmd_only_info_o     (cmd_only_info),
++    .cmd_only_info_idx_o (cmd_only_info_idx),
++
++    .cfg_intercept_en_status_i (1'b0),
++    .cfg_intercept_en_jedec_i  (1'b0),
++    .cfg_intercept_en_sfdp_i   (1'b0),
+ 
+     .cmd_config_req_o (),
+     .cmd_config_idx_o ()
+@@ -523,7 +530,6 @@
+ 
+     .data_valid_o (s2p_valid),
+     .data_o       (s2p_data),
+-    .bitcnt_o     (s2p_bitcnt),
+ 
+     .order_i      (1'b 0),
+     .io_mode_i    (s2p_iomode)
+@@ -541,8 +547,6 @@
+     .s_en_o       (dut_sd_en),
+     .s_o          (dut_sd),
+ 
+-    .cpha_i       (1'b 0),
+-
+     .order_i      (1'b 0),
+ 
+     .io_mode_i    (dut_iomode)
+@@ -620,7 +624,7 @@
+     .sram_rerror_i (bus_mem_rerror)
+   );
+ 
+-  static task read_sram(
++  task automatic read_sram(
+     ref       sram_l2m_t l2m,
+     const ref sram_m2l_t m2l,
+     input logic [SramAw-1:0] addr,
+@@ -659,7 +663,7 @@
+     data = result;
+   endtask : read_sram
+ 
+-  static task read_sram_wrap(
++  task automatic read_sram_wrap(
+     ref       sram_l2m_t      l2m,
+     const ref sram_m2l_t      m2l,
+     input logic [SramAw-1:0]  BaseAddr, // Buffer Base Address
+--- a/hw/ip/spi_device/rtl/spi_device.sv
++++ b/hw/ip/spi_device/rtl/spi_device.sv
+@@ -868,26 +868,19 @@
+   end
+ 
+   always_comb begin
+-    // SRAM comb logic is in SCK clock domain
+-    mem_b_l2m = '{ default: '0 };
+-
+-    flash_sram_m2l = '{
+-      rvalid: 1'b 0,
+-      rdata: '0,
+-      rerror: '{uncorr: 1'b 0, corr: 1'b 0}
+-    };
+-    tpm_sram_m2l = '{
+-      rvalid: 1'b 0,
+-      rdata: '0,
+-      rerror: '{uncorr: 1'b 0, corr: 1'b 0}
+-    };
+-
++    // Assign each output once per path to avoid zero-time default/override feedback.
+     if (!sck_csb && ((spi_mode == FlashMode) || (spi_mode == PassThrough))) begin
+       mem_b_l2m = flash_sram_l2m;
+       flash_sram_m2l = mem_b_m2l;
++      tpm_sram_m2l = '0;
+     end else if (cfg_tpm_en) begin
+       mem_b_l2m = tpm_sram_l2m;
++      flash_sram_m2l = '0;
+       tpm_sram_m2l = mem_b_m2l;
++    end else begin
++      mem_b_l2m = '0;
++      flash_sram_m2l = '0;
++      tpm_sram_m2l = '0;
+     end
+   end
+ 
+--- a/hw/ip/spi_device/rtl/spi_readcmd.sv
++++ b/hw/ip/spi_device/rtl/spi_readcmd.sv
+@@ -433,7 +433,6 @@
+   end
+ 
+   always_comb begin : addr_cnt
+-    addr_cnt_d = addr_cnt_q;
+     if (addr_cnt_set) begin
+       // Set to the addr size based on cmd_info_i
+       // If addr_mode && addr_4b_en is Addr4B, then 32, if not, 24
+@@ -442,12 +441,13 @@
+       // datapath should latch the Address[31] or Address[23] too. So, it
+       // already counts one beat.
+       addr_cnt_d = (cmdinfo_addr_mode == Addr4B) ? 5'd 31 : 5'd 23;
+-
+     end else if (addr_cnt_q == '0) begin
+       addr_cnt_d = addr_cnt_q;
+     end else if (addr_shift_en) begin
+       // Stacking the address, decrease the address counter
+       addr_cnt_d = addr_cnt_q - 1'b 1;
++    end else begin
++      addr_cnt_d = addr_cnt_q;
+     end
+   end
+   // END:   Address Count -----------------------------------------------------
+--- a/hw/ip/spi_host/dv/tb.sv
++++ b/hw/ip/spi_host/dv/tb.sv
+@@ -104,6 +104,8 @@
+ 
+     if (i < NumCS) begin : gen_drive_csb
+       assign spi_if.csb[i] = cio_csb_en_o[i] ? cio_csb_o[i] : 1'b1;
++    end else if (i < spi_agent_pkg::CSB_WIDTH) begin : gen_inactive_csb
++      assign spi_if.csb[i] = 1'b1;
+     end
+   end
+ 
+--- a/hw/ip/sram_ctrl/dv/env/sram_ctrl_env_cov.sv
++++ b/hw/ip/sram_ctrl/dv/env/sram_ctrl_env_cov.sv
+@@ -56,7 +56,7 @@
+   // covers various scenarios that enable/disable SRAM executability
+   covergroup executable_cg with function sample(logic [3:0] lc_hw_debug_en,
+                                                 logic [7:0] en_sram_ifetch,
+-                                                logic [2:0] csr_exec);
++                                                logic [3:0] csr_exec);
+     // placeholder comment
+     en_sram_ifetch_cp: coverpoint en_sram_ifetch {
+       bins sram_ifetch_enable = {prim_mubi_pkg::MuBi8True};
+--- a/hw/ip/sysrst_ctrl/dv/env/seq_lib/sysrst_ctrl_in_out_inverted_vseq.sv
++++ b/hw/ip/sysrst_ctrl/dv/env/seq_lib/sysrst_ctrl_in_out_inverted_vseq.sv
+@@ -45,28 +45,40 @@
+     cp_bat_disable: coverpoint bat_disable;
+     cp_lid_open: coverpoint lid_open;
+     cp_z3_wakeup: coverpoint z3_wakeup;
++    cp_vif_key0_in: coverpoint cfg.vif.key0_in;
++    cp_vif_key0_out: coverpoint cfg.vif.key0_out;
++    cp_vif_key1_in: coverpoint cfg.vif.key1_in;
++    cp_vif_key1_out: coverpoint cfg.vif.key1_out;
++    cp_vif_key2_in: coverpoint cfg.vif.key2_in;
++    cp_vif_key2_out: coverpoint cfg.vif.key2_out;
++    cp_vif_pwrb_in: coverpoint cfg.vif.pwrb_in;
++    cp_vif_pwrb_out: coverpoint cfg.vif.pwrb_out;
++    cp_vif_ac_present: coverpoint cfg.vif.ac_present;
++    cp_vif_bat_disable: coverpoint cfg.vif.bat_disable;
++    cp_vif_lid_open: coverpoint cfg.vif.lid_open;
++    cp_vif_z3_wakeup: coverpoint cfg.vif.z3_wakeup;
+ 
+-    key0_inXval: cross cp_key0_in, cfg.vif.key0_in;
+-    key0_outXval: cross cp_key0_out, cfg.vif.key0_out;
+-    key1_inXval: cross cp_key1_in, cfg.vif.key1_in;
+-    key1_outXval: cross cp_key1_out, cfg.vif.key1_out;
+-    key2_inXval: cross cp_key2_in, cfg.vif.key2_in;
+-    key2_outXval: cross cp_key2_out, cfg.vif.key2_out;
+-    pwrb_inXval: cross cp_pwrb_in, cfg.vif.pwrb_in;
+-    pwrb_outXval: cross cp_pwrb_out, cfg.vif.pwrb_out;
+-    ac_presentXval: cross cp_ac_present, cfg.vif.ac_present;
+-    bat_disableXval: cross cp_bat_disable, cfg.vif.bat_disable {
++    key0_inXval: cross cp_key0_in, cp_vif_key0_in;
++    key0_outXval: cross cp_key0_out, cp_vif_key0_out;
++    key1_inXval: cross cp_key1_in, cp_vif_key1_in;
++    key1_outXval: cross cp_key1_out, cp_vif_key1_out;
++    key2_inXval: cross cp_key2_in, cp_vif_key2_in;
++    key2_outXval: cross cp_key2_out, cp_vif_key2_out;
++    pwrb_inXval: cross cp_pwrb_in, cp_vif_pwrb_in;
++    pwrb_outXval: cross cp_pwrb_out, cp_vif_pwrb_out;
++    ac_presentXval: cross cp_ac_present, cp_vif_ac_present;
++    bat_disableXval: cross cp_bat_disable, cp_vif_bat_disable {
+       ignore_bins invalid0 = binsof(cp_bat_disable) intersect {0} &&
+-                             binsof(cfg.vif.bat_disable) intersect {1};
++                             binsof(cp_vif_bat_disable) intersect {1};
+       ignore_bins invalid1 = binsof(cp_bat_disable) intersect {1} &&
+-                             binsof(cfg.vif.bat_disable) intersect {0};
++                             binsof(cp_vif_bat_disable) intersect {0};
+     }
+-    lid_openXval: cross cp_lid_open, cfg.vif.lid_open;
+-    z3_wakeupXval: cross cp_z3_wakeup, cfg.vif.z3_wakeup {
++    lid_openXval: cross cp_lid_open, cp_vif_lid_open;
++    z3_wakeupXval: cross cp_z3_wakeup, cp_vif_z3_wakeup {
+       ignore_bins invalid0 = binsof(cp_z3_wakeup) intersect {0} &&
+-                             binsof(cfg.vif.z3_wakeup) intersect {1};
++                             binsof(cp_vif_z3_wakeup) intersect {1};
+       ignore_bins invalid1 = binsof(cp_z3_wakeup) intersect {1} &&
+-                             binsof(cfg.vif.z3_wakeup) intersect {0};
++                             binsof(cp_vif_z3_wakeup) intersect {0};
+     }
+ 
+   endgroup // sysrst_ctrl_key_invert_ctl_cg
+--- a/hw/ip/trial1/dv/tb.sv
++++ b/hw/ip/trial1/dv/tb.sv
+@@ -2,6 +2,8 @@
+ // Licensed under the Apache License, Version 2.0, see LICENSE for details.
+ // SPDX-License-Identifier: Apache-2.0
+ 
++`include "prim_assert_sec_cm.svh"
++
+ module tb;
+ 
+   import tlul_pkg::*;
+@@ -28,6 +30,8 @@
+ 
+   // BUS interface
+   tl_h2d_t tl_h2d;
++  tl_h2d_t tl_h2d_intg;
++  tlul_cmd_intg_gen u_cmd_intg_gen (.tl_i(tl_h2d), .tl_o(tl_h2d_intg));
+   tl_d2h_t tl_d2h;
+ 
+   //logic bus_reg_valid;
+@@ -46,7 +50,7 @@
+     .clk_i  (clk),
+     .rst_ni (rst_n),
+ 
+-    .tl_i   (tl_h2d),
++    .tl_i   (tl_h2d_intg),
+     .tl_o   (tl_d2h),
+     //.bus_reg_valid,
+     //.bus_reg_ready,
+@@ -60,6 +64,9 @@
+     .hw2reg
+   );
+ 
++  `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ERR(Trial1RegWe, dut,
++                                                dut.intg_err_o, 0, 2, clk, !rst_n)
++
+   trial1_test test (
+     .clk,
+     .rst_n,
+--- a/hw/ip/trial1/dv/trial1_test.sv
++++ b/hw/ip/trial1/dv/trial1_test.sv
+@@ -343,8 +343,8 @@
+     test_reg("MIXTYPE0", 12'h228, expdata & 32'h0fffffff);  // [31:28] is write-only
+     // hold value
+     repeat(5) @(posedge clk);
+-    // [31:28] is write-only, [27:24] is read-clear
+-    test_reg("MIXTYPE0", 12'h228, expdata & 32'h00ffffff);
++    // [31:28] is write-only; [27:24] is read-write
++    test_reg("MIXTYPE0", 12'h228, expdata & 32'h0fffffff);
+     // test q
+     test_q("MIXTYPE0.field0", reg2hw.mixtype0.field0.q, expdata[3:0]);
+     test_q("MIXTYPE0.field1", reg2hw.mixtype0.field1.q, expdata[7:4]);
+@@ -352,7 +352,7 @@
+     test_q("MIXTYPE0.field3", reg2hw.mixtype0.field3.q, expdata[15:12]);
+     test_q("MIXTYPE0.field4", reg2hw.mixtype0.field4.q, expdata[19:16]);
+     test_q("MIXTYPE0.field5", reg2hw.mixtype0.field5.q, expdata[23:20]);
+-    test_q("MIXTYPE0.field6", reg2hw.mixtype0.field6.q, 4'h0); // read-clear
++    test_q("MIXTYPE0.field6", reg2hw.mixtype0.field6.q, expdata[27:24]);
+     test_q("MIXTYPE0.field7", reg2hw.mixtype0.field7.q, expdata[31:28]);
+   endtask
+ 
+@@ -473,7 +473,7 @@
+     my_rotype1_d = 32'hxxxxxxxx;
+     tl_h2d.a_valid = 1'b0;
+     tl_h2d.a_opcode = Get;
+-    tl_h2d.a_user = 16'h0;
++    tl_h2d.a_user = TL_A_USER_DEFAULT;
+     repeat(20) @(posedge clk);
+      ///////
+     //
+@@ -1004,14 +1004,12 @@
+     // default value is 0x87654321
+     hold_q = 32'h87654321;
+     test_mixtype0(hold_q);
+-    // read cleared bits [27:24]
+-    hold_q  &= 32'hf0ffffff;
+     // write value
+     hold_wd = 32'h55555555;
+     send_wr(12'h228, hold_wd);
+     @(posedge clk);
+     hold_q = { hold_wd[31:28],                  // write-only
+-                                hold_q[27:24],  // read-only-clear
++                                hold_wd[27:24], // rw
+                hold_wd[23:20] | hold_q[23:20],  // rw1s
+               ~hold_wd[19:16] & hold_q[19:16],  // rw1c
+                                 hold_q[15:12],  // ro
+@@ -1024,7 +1022,7 @@
+     send_wr(12'h228, hold_wd);
+     @(posedge clk);
+     hold_q = { hold_wd[31:28],                  // write-only
+-                                hold_q[27:24],  // read-only-clear
++                                hold_wd[27:24], // rw
+                hold_wd[23:20] | hold_q[23:20],  // rw1s
+               ~hold_wd[19:16] & hold_q[19:16],  // rw1c
+                                 hold_q[15:12],  // ro
+@@ -1085,7 +1083,6 @@
+       @(posedge clk);
+       hold_q = {hold_q[31:28],hold_wd[27:24],hold_q[23:0]};
+       test_mixtype0(hold_q);
+-      hold_q &= 32'hf0ffffff; // read-clear
+     end
+     // try and get both the we and the de's at the same time, we should win
+     repeat(2) begin
+@@ -1123,7 +1120,7 @@
+       join
+       @(posedge clk);
+       hold_q = { hold_wd[31:28],                  // write-only
+-                                  hold_q[27:24],  // read-only-clear
++                                  hold_wd[27:24], // rw
+                  hold_wd[23:20] | hold_q[23:20],  // rw1s
+                 ~hold_wd[19:16] & hold_q[19:16],  // rw1c
+                                   hold_q[15:12],  // ro
+@@ -1135,7 +1132,7 @@
+      ///////
+     //
+     // test RWTYPE5, RW + HRW + HWQE
+-    // test that only sw writes effect captured value
++    // both software and hardware writes update the captured value
+     //
+     // default value is 0xbabababa
+     test_rwtype5(32'hbabababa);
+@@ -1150,7 +1147,6 @@
+     test_rwtype5(hold_wd);
+     test_rwtype5_capture(hold_wd);
+     // write from HW side
+-    hold_q = hold_wd;
+     hold_wd = $urandom;
+     hw2reg.rwtype5.de <= 1'b1;
+     hw2reg.rwtype5.d  <= hold_wd;
+@@ -1159,7 +1155,7 @@
+     hw2reg.rwtype5.d  <= 32'hxxxxxxxx;
+     @(posedge clk);
+     test_rwtype5(hold_wd);
+-    test_rwtype5_capture(hold_q);
++    test_rwtype5_capture(hold_wd);
+     // write from HW side inverted
+     hold_wd = ~hold_wd;
+     hw2reg.rwtype5.de <= 1'b1;
+@@ -1169,7 +1165,7 @@
+     hw2reg.rwtype5.d  <= 32'hxxxxxxxx;
+     @(posedge clk);
+     test_rwtype5(hold_wd);
+-    test_rwtype5_capture(hold_q);
++    test_rwtype5_capture(hold_wd);
+     // try and get both the we and the de at the same time, we should win
+     hold_wd = 32'haaaaaaaa;
+     fork
+--- a/hw/ip_templates/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
++++ b/hw/ip_templates/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
+@@ -25,7 +25,8 @@
+       control_ip_clocks();
+ 
+       // If some units were not idle, make them so.
+-      idle = '1;
++      idle = {NUM_TRANS{MuBi4True}};
++      cfg.clkmgr_vif.update_idle(idle);
+       // Wait for idle to percolate.
+       cfg.clk_rst_vif.wait_clks(10);
+     end
+--- a/hw/ip_templates/rstmgr/dv/env/seq_lib/rstmgr_base_vseq.sv
++++ b/hw/ip_templates/rstmgr/dv/env/seq_lib/rstmgr_base_vseq.sv
+@@ -275,8 +275,8 @@
+ 
+   virtual protected task clear_sw_rst_ctrl_n();
+     const sw_rst_t sw_rst_all_ones = '1;
+-    rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_ctrl_n), .value(sw_rst_all_ones));
+-    rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_ctrl_n), .compare_value(sw_rst_all_ones),
++    rstmgr_csr_wr_unpack(.use_regwen(1'b0), .value(sw_rst_all_ones));
++    rstmgr_csr_rd_check_unpack(.use_regwen(1'b0), .compare_value(sw_rst_all_ones),
+                                .err_msg("Expected sw_rst_ctrl_n to be set"));
+   endtask
+ 
+@@ -287,7 +287,7 @@
+   endtask
+ 
+   virtual protected task check_sw_rst_regwen(sw_rst_t expected_regwen);
+-    rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_regwen), .compare_value(expected_regwen),
++    rstmgr_csr_rd_check_unpack(.use_regwen(1'b1), .compare_value(expected_regwen),
+                                .err_msg("Mismatching sw_rst_regwen"));
+   endtask
+ 
+@@ -546,17 +546,23 @@
+ 
+   // csr method wrapper for unpacked array registers
+   virtual task rstmgr_csr_rd_check_unpack(
+-      input uvm_object ptr[], input uvm_reg_data_t compare_value = 0, input string err_msg = "");
+-    foreach (ptr[i]) begin
++      input bit use_regwen, input uvm_reg_data_t compare_value = 0, input string err_msg = "");
++    for (int i = 0; i < NumSwResets; i++) begin
++      uvm_object ptr;
+       if (cfg.under_reset) return;
+-      csr_rd_check(.ptr(ptr[i]), .compare_value(compare_value[i]), .err_msg(err_msg));
++      if (use_regwen) ptr = ral.sw_rst_regwen[i];
++      else            ptr = ral.sw_rst_ctrl_n[i];
++      csr_rd_check(.ptr(ptr), .compare_value(compare_value[i]), .err_msg(err_msg));
+     end
+   endtask : rstmgr_csr_rd_check_unpack
+ 
+-  virtual task rstmgr_csr_wr_unpack(input uvm_object ptr[], input uvm_reg_data_t value);
+-    foreach (ptr[i]) begin
++  virtual task rstmgr_csr_wr_unpack(input bit use_regwen, input uvm_reg_data_t value);
++    for (int i = 0; i < NumSwResets; i++) begin
++      uvm_object ptr;
+       if (cfg.under_reset) return;
+-      csr_wr(.ptr(ptr[i]), .value(value[i]));
++      if (use_regwen) ptr = ral.sw_rst_regwen[i];
++      else            ptr = ral.sw_rst_ctrl_n[i];
++      csr_wr(.ptr(ptr), .value(value[i]));
+     end
+   endtask
+ endclass : rstmgr_base_vseq
+--- a/hw/ip_templates/rstmgr/dv/env/seq_lib/rstmgr_smoke_vseq.sv
++++ b/hw/ip_templates/rstmgr/dv/env/seq_lib/rstmgr_smoke_vseq.sv
+@@ -12,7 +12,7 @@
+ 
+   constraint rstreqs_non_zero_c {rstreqs != '0;}
+   constraint sw_rst_regwen_non_trivial_c {sw_rst_regwen != '0 && sw_rst_regwen != '1;}
+-  constraint sw_rst_some_reset_c {sw_rst_regwen & ~sw_rst_ctrl_n != '0;}
++  constraint sw_rst_some_reset_c {(sw_rst_regwen & ~sw_rst_ctrl_n) != '0;}
+ 
+   local task wait_between_resets();
+     cfg.io_div4_clk_rst_vif.wait_clks(10);
+@@ -89,21 +89,21 @@
+       cpu_crash_dump_t bogus_cpu_dump = '1;
+ 
+       set_alert_and_cpu_info_for_capture(bogus_alert_dump, bogus_cpu_dump);
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_ctrl_n), .compare_value(sw_rst_all_ones),
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b0), .compare_value(sw_rst_all_ones),
+                                  .err_msg("expected no reset on"));
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_regwen), .value(sw_rst_regwen));
++      rstmgr_csr_wr_unpack(.use_regwen(1'b1), .value(sw_rst_regwen));
+       `uvm_info(`gfn, $sformatf("sw_rst_regwen set to 0x%0h", sw_rst_regwen), UVM_LOW)
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_regwen), .compare_value(sw_rst_regwen));
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b1), .compare_value(sw_rst_regwen));
+ 
+       // This is probably also tested by common CSR tests.
+       // Check sw_rst_regwen can not be set to all ones again because it is rw0c.
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_regwen), .value({NumSwResets{1'b1}}));
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_regwen), .compare_value(sw_rst_regwen),
++      rstmgr_csr_wr_unpack(.use_regwen(1'b1), .value({NumSwResets{1'b1}}));
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b1), .compare_value(sw_rst_regwen),
+            .err_msg("Expected sw_rst_regwen block raising individual bits because rw0c"));
+ 
+       // Check that the regwen disabled bits block corresponding updated to ctrl_n.
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_ctrl_n), .value(sw_rst_regwen));
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_ctrl_n), .compare_value(sw_rst_all_ones),
++      rstmgr_csr_wr_unpack(.use_regwen(1'b0), .value(sw_rst_regwen));
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b0), .compare_value(sw_rst_all_ones),
+                                  .err_msg("Expected sw_rst_ctrl_n not to change"));
+ 
+       check_sw_rst_ctrl_n(sw_rst_ctrl_n, sw_rst_regwen, 1);
+--- a/hw/ip_templates/rstmgr/dv/env/seq_lib/rstmgr_sw_rst_vseq.sv
++++ b/hw/ip_templates/rstmgr/dv/env/seq_lib/rstmgr_sw_rst_vseq.sv
+@@ -28,7 +28,7 @@
+     // messes things up since setting the sw_rst_regwen CSR is irreversible.
+     if (is_running_sequence("rstmgr_sw_rst_vseq")) begin
+       // In preparation for the per-bit enable test, set sw_rst_ctrl_n to all 1.
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_ctrl_n), .value({NumSwResets{1'b1}}));
++      rstmgr_csr_wr_unpack(.use_regwen(1'b0), .value({NumSwResets{1'b1}}));
+       for (int i = 0; i < NumSwResets; ++i) begin
+         // Clear the regwen.
+         bit [NumSwResets-1:0] val_regwen = ~(1 << i);
+--- a/hw/top_earlgrey/dv/env/chip_env.sv
++++ b/hw/top_earlgrey/dv/env/chip_env.sv
+@@ -31,6 +31,13 @@
+       `uvm_fatal(`gfn, "failed to get chip_vif from uvm_config_db")
+     end
+ 
++    cfg.spi_host_vif = cfg.chip_vif.spi_host_if;
++    cfg.mios_vif = cfg.chip_vif.mios_if;
++    cfg.dios_vif = cfg.chip_vif.dios_if;
++    cfg.pwrb_in_vif = cfg.chip_vif.pwrb_in_if;
++    cfg.sysrst_ctrl_vif = cfg.chip_vif.sysrst_ctrl_if;
++    cfg.gpios_vif = cfg.chip_vif.gpios_if;
++
+     // Set tl_agent's is_active bit based on the stub_cpu value.
+     cfg.m_tl_agent_cfg.is_active = cfg.chip_vif.stub_cpu;
+ 
+--- a/hw/top_earlgrey/dv/env/chip_env_cfg.sv
++++ b/hw/top_earlgrey/dv/env/chip_env_cfg.sv
+@@ -22,6 +22,13 @@
+ 
+   // chip top interfaces
+   virtual chip_if       chip_vif;
++  // Icarus workaround: bind typed handles to chip_if's physical child instances.
++  virtual spi_if spi_host_vif;
++  virtual pins_if #(.Width(top_earlgrey_pkg::MioPadCount), .PullStrength("Weak")) mios_vif;
++  virtual pins_if #(.Width(top_earlgrey_pkg::DioPadCount), .PullStrength("Weak")) dios_vif;
++  virtual pins_if #(.Width(1), .PullStrength("Weak")) pwrb_in_vif;
++  virtual pins_if #(.Width(8), .PullStrength("Weak")) sysrst_ctrl_vif;
++  virtual pins_if #(.Width(NUM_GPIOS), .PullStrength("Weak")) gpios_vif;
+ 
+   // Indicates which clock source to use for chip simulations.
+   chip_clock_source_e   chip_clock_source;
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_common_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_common_vseq.sv
+@@ -26,7 +26,7 @@
+     void'($value$plusargs("+csr_%0s", csr_test_type));
+     // sio are driven X when csb is inactive, but these pins can be configured as wakeup cause,
+     // assign a known value to avoid X propagation in case that `PINMUX.WKUP_CAUSE` is programmed.
+-    cfg.chip_vif.spi_host_if.sio_out = $urandom;
++    cfg.spi_host_vif.sio_out = $urandom;
+ 
+     // These types of CSR tests are quite long; run them only once.
+     if (csr_test_type inside {"bit_bash", "aliasing"}) num_trans = 1;
+@@ -37,8 +37,8 @@
+     // CSR tests write to chip CSRs, which includes the pinmux registers. Random writes to the
+     // pinmux may inadvertently connect the chip IOs to peripherals, causing Xs to propagate, if
+     // the chip MIOs are not initialized. Hence, we weakly pull down ALL MIOs for these tests.
+-    cfg.chip_vif.mios_if.pins_pd = '1;
+-    cfg.chip_vif.dios_if.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
++    cfg.mios_vif.pins_pd = '1;
++    cfg.dios_vif.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
+                                  top_earlgrey_pkg::DioPadSpiHostD0] = '1;
+ 
+     super.pre_start();
+@@ -55,8 +55,8 @@
+         "tb.dut.top_earlgrey.u_adc_ctrl_aon.u_adc_ctrl_core.u_adc_ctrl_fsm.LpSampleCntCfg_M");
+     $asserton(0,
+         "tb.dut.top_earlgrey.u_adc_ctrl_aon.u_adc_ctrl_core.u_adc_ctrl_fsm.NpSampleCntCfg_M");
+-    cfg.chip_vif.mios_if.pins_pd = '0;
+-    cfg.chip_vif.dios_if.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
++    cfg.mios_vif.pins_pd = '0;
++    cfg.dios_vif.pins_pd[top_earlgrey_pkg::DioPadSpiDevD3:
+                                  top_earlgrey_pkg::DioPadSpiHostD0] = '0;
+   endtask
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_padctrl_attributes_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_padctrl_attributes_vseq.sv
+@@ -397,18 +397,18 @@
+       pinmux_mio_insel_config();
+       `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph_oe)
+       `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph)
+-      cfg.chip_vif.mios_if.pins_oe = mio_to_periph_oe;
+-      cfg.chip_vif.mios_if.pins_o = mio_to_periph;
++      cfg.mios_vif.pins_oe = mio_to_periph_oe;
++      cfg.mios_vif.pins_o = mio_to_periph;
+       repeat ($urandom_range(4, 20)) begin
+         cfg.chip_vif.io_div4_clk_rst_if.wait_clks($urandom_range(1, 20));
+         randcase
+           1: begin
+             `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph)
+-            cfg.chip_vif.mios_if.pins_o = mio_to_periph;
++            cfg.mios_vif.pins_o = mio_to_periph;
+           end
+           1: begin
+             `DV_CHECK_MEMBER_RANDOMIZE_FATAL(mio_to_periph_oe)
+-            cfg.chip_vif.mios_if.pins_oe = mio_to_periph_oe;
++            cfg.mios_vif.pins_oe = mio_to_periph_oe;
+           end
+         endcase
+         cfg.chip_vif.io_div4_clk_rst_if.wait_clks(1);
+@@ -534,15 +534,15 @@
+   endtask
+ 
+   function void pinmux_dio_drive_inputs();
+-    cfg.chip_vif.dios_if.pins_oe = '0;
++    cfg.dios_vif.pins_oe = '0;
+     void'(cfg.chip_vif.signal_probe_pinmux_periph_to_dio_i_11_0(SignalProbeForce,
+                                                                 periph_to_dio[11:0]));
+     void'(cfg.chip_vif.signal_probe_pinmux_periph_to_dio_i_15_14(SignalProbeForce,
+                                                                  periph_to_dio[15:14]));
+     void'(cfg.chip_vif.signal_probe_pinmux_periph_to_dio_oe_i(SignalProbeForce, periph_to_dio_oe));
+     for (int i = 0; i < DioCount; i++) begin
+-      cfg.chip_vif.dios_if.pins_oe[DioToDioPadMap[i]] = dio_to_periph_oe[i];
+-      cfg.chip_vif.dios_if.pins_o[DioToDioPadMap[i]] = dio_to_periph[i];
++      cfg.dios_vif.pins_oe[DioToDioPadMap[i]] = dio_to_periph_oe[i];
++      cfg.dios_vif.pins_o[DioToDioPadMap[i]] = dio_to_periph[i];
+     end
+   endfunction
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_ctrl_integrity_check_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_ctrl_integrity_check_vseq.sv
+@@ -68,15 +68,20 @@
+     bit [38:0]                                      flip_bit;
+     bit [sram_scrambler_pkg::SRAM_BLOCK_WIDTH-1:0]  nonce;
+     bit [sram_scrambler_pkg::SRAM_KEY_WIDTH-1:0]    key;
++    bit [31:0] rom_size_bytes, rom_bytes_per_word;
+ 
++    // Cache the ROM geometry before the constraint solver evaluates it.
++    rom_size_bytes = cfg.mem_bkdr_util_h[Rom].get_size_bytes();
++    rom_bytes_per_word = cfg.mem_bkdr_util_h[Rom].get_bytes_per_word();
++
+     // Pick any random addr and corrupt a single bit. We limit the addr selection to the digest
+     // portion, since we need the ROM code to execute properly to completion in the first phase of
+     // the test. The upper 32 bytes of the ROM is reserved for storing the digest.
+     `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(
+         addr,
+-        addr inside {[cfg.mem_bkdr_util_h[Rom].get_size_bytes()-32:
+-                      cfg.mem_bkdr_util_h[Rom].get_size_bytes()-1]};
+-        (addr % cfg.mem_bkdr_util_h[Rom].get_bytes_per_word()) == 0;
++        addr inside {[rom_size_bytes-32:
++                      rom_size_bytes-1]};
++        (addr % rom_bytes_per_word) == 0;
+     )
+     // TODO(lowrisc/opentitan#16072): Limiting the bit-flip to the data bits. Revisit later.
+     `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(flip_bit, $onehot(flip_bit); flip_bit[38:32] == 0;)
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_asm_init_vseq.sv
+@@ -25,6 +25,13 @@
+     return (addr >> 2);
+   endfunction
+ 
++  // Read the whole packed entry before selecting the access bits.
++  function automatic logic [2:0] pmp_access(int unsigned idx);
++    ibex_pkg::pmp_cfg_t entry;
++    entry = cfg.chip_vif.pmp_cfg[idx];
++    return {entry.exec, entry.write, entry.read};
++  endfunction
++
+   virtual task body();
+     lc_ctrl_state_pkg::lc_state_e lc_state = cfg.mem_bkdr_util_h[Otp].otp_read_lc_partition_state();
+     bit [31:0] otp_creator_sw_cfg_ast_init_en = 32'b0;
+@@ -103,31 +110,31 @@
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[1].lock)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[2].lock)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[11].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[1][2:0], EPMP_ACCESS_RX)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[2][2:0], EPMP_ACCESS_RO)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[11][2:0], EPMP_ACCESS_RW)
++    `DV_CHECK_EQ(pmp_access(1), EPMP_ACCESS_RX)
++    `DV_CHECK_EQ(pmp_access(2), EPMP_ACCESS_RO)
++    `DV_CHECK_EQ(pmp_access(11), EPMP_ACCESS_RW)
+ 
+     // ePMP regions for RAM
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[14].mode, ibex_pkg::PMP_MODE_NA4)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[15].mode, ibex_pkg::PMP_MODE_NAPOT)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[14].lock)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[15].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[14][2:0], EPMP_ACCESS_NONE)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[15][2:0], EPMP_ACCESS_RW)
++    `DV_CHECK_EQ(pmp_access(14), EPMP_ACCESS_NONE)
++    `DV_CHECK_EQ(pmp_access(15), EPMP_ACCESS_RW)
+ 
+     // ePMP regions for Flash
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[4].mode, ibex_pkg::PMP_MODE_OFF)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[5].mode, ibex_pkg::PMP_MODE_NAPOT)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[5].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[5][2:0], EPMP_ACCESS_RO)
++    `DV_CHECK_EQ(pmp_access(5), EPMP_ACCESS_RO)
+ 
+     // ePMP regions for Debug (only enabled in non-prod states)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[13].mode, ibex_pkg::PMP_MODE_NAPOT)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[13].lock)
+     if (lc_state inside {LcStProd, LcStProdEnd}) begin
+-      `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[13][2:0], EPMP_ACCESS_NONE)
++      `DV_CHECK_EQ(pmp_access(13), EPMP_ACCESS_NONE)
+     end else begin
+-      `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[13][2:0], EPMP_ACCESS_RWX)
++      `DV_CHECK_EQ(pmp_access(13), EPMP_ACCESS_RWX)
+     end
+ 
+     // ePMP address entries
+@@ -172,7 +179,7 @@
+     // ePMP is unlocked for flash once the signature verification succeeds.
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[4].mode, ibex_pkg::PMP_MODE_TOR)
+     `DV_CHECK(cfg.chip_vif.pmp_cfg[4].lock)
+-    `DV_CHECK_EQ(cfg.chip_vif.pmp_cfg[4][2:0], EPMP_ACCESS_RX)
++    `DV_CHECK_EQ(pmp_access(4), EPMP_ACCESS_RX)
+     `DV_CHECK_EQ(cfg.chip_vif.pmp_addr[3], epmp_addr_tor(FLASH_TEXT_START_ADDRESS))
+   endtask
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_shutdown_output_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_rom_e2e_shutdown_output_vseq.sv
+@@ -13,7 +13,7 @@
+     foreach (lc_state_2_rom_lcv[lc_state]) begin
+       `uvm_info(`gfn, $sformatf("Backdoor overwriting the lifecycle state and applying POR ..."),
+         UVM_LOW)
+-      cfg.mem_bkdr_util_h[Otp].otp_write_lc_partition_state(lc_state);
++      cfg.mem_bkdr_util_h[Otp].otp_write_lc_partition_state(lc_ctrl_state_pkg::lc_state_e'(lc_state));
+       apply_reset();
+ 
+       // Wait for retention SRAM initialization to be done before hooking up the UART agent to
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_mio_dio_val_vseq.sv
+@@ -136,28 +136,28 @@
+ 
+     // High-Z for all ports
+     `uvm_info(`gfn, "Testing Retention Outputs with no pulls", UVM_LOW)
+-    cfg.chip_vif.dios_if.pins_pd = '0;
+-    cfg.chip_vif.dios_if.pins_pu = '0;
+-    cfg.chip_vif.mios_if.pins_pd = '0;
+-    cfg.chip_vif.mios_if.pins_pu = '0;
++    cfg.dios_vif.pins_pd = '0;
++    cfg.dios_vif.pins_pu = '0;
++    cfg.mios_vif.pins_pd = '0;
++    cfg.mios_vif.pins_pu = '0;
+     @(cfg.chip_vif.pwrmgr_low_power_if.cb);
+     check_pad_retention_out();
+ 
+     // Pull-down then check
+     `uvm_info(`gfn, "Testing Retention Outputs with Pull-down", UVM_LOW)
+-    cfg.chip_vif.dios_if.pins_pd = '1;
+-    cfg.chip_vif.dios_if.pins_pu = '0;
+-    cfg.chip_vif.mios_if.pins_pd = '1;
+-    cfg.chip_vif.mios_if.pins_pu = '0;
++    cfg.dios_vif.pins_pd = '1;
++    cfg.dios_vif.pins_pu = '0;
++    cfg.mios_vif.pins_pd = '1;
++    cfg.mios_vif.pins_pu = '0;
+     @(cfg.chip_vif.pwrmgr_low_power_if.cb);
+     check_pad_retention_out();
+ 
+     // Pull-up then check
+     `uvm_info(`gfn, "Testing Retention Outputs with Pull-up", UVM_LOW)
+-    cfg.chip_vif.dios_if.pins_pd = '0;
+-    cfg.chip_vif.dios_if.pins_pu = '1;
+-    cfg.chip_vif.mios_if.pins_pd = '0;
+-    cfg.chip_vif.mios_if.pins_pu = '1;
++    cfg.dios_vif.pins_pd = '0;
++    cfg.dios_vif.pins_pu = '1;
++    cfg.mios_vif.pins_pd = '0;
++    cfg.mios_vif.pins_pu = '1;
+     @(cfg.chip_vif.pwrmgr_low_power_if.cb);
+     check_pad_retention_out();
+   endtask : check_pads_retention_type
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_retention_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sleep_pin_retention_vseq.sv
+@@ -27,7 +27,7 @@
+     cfg.chip_vif.gpios_if.drive_pin(GpioForWakeup, 0);
+ 
+     // Treat test GPIOs as chip outputs.
+-    cfg.chip_vif.gpios_if.pins_oe[GpiosTested-1:0] = '0;
++    cfg.gpios_vif.pins_oe[GpiosTested-1:0] = '0;
+ 
+     for (int round = rounds - 1 ; round >= 0 ; round--) begin
+       logic [GpiosTested-1:0] gpio_exp, gpio_act;
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_device_pinmux_sleep_retention_vseq.sv
+@@ -23,7 +23,7 @@
+ 
+     // Wait until we reach the SW test state.
+     `DV_WAIT(cfg.sw_test_status_vif.sw_test_status == SwTestStatusInTest)
+-    cfg.chip_vif.spi_host_if.disconnected = 1;
++    cfg.spi_host_vif.disconnected = 1;
+ 
+     // SW uses IOA7=0 to indicate chip is sleeping
+     `DV_WAIT(cfg.sw_logger_vif.printed_log == "Setting SPI_DIO1 to high when sleeping")
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_collision_vseq.sv
+@@ -202,7 +202,7 @@
+     passthrough_filters[spi_device_pkg::CmdInfoReadStatus3:spi_device_pkg::CmdInfoReadStatus1] = '1;
+     passthrough_filters[spi_device_pkg::CmdInfoReadCmdEnd:spi_device_pkg::CmdInfoReadCmdStart] = '0;
+     passthrough_filters[spi_device_pkg::NumTotalCmdInfo-1:spi_device_pkg::CmdInfoReserveStart] = '1;
+-    sw_filter_config = {<<byte{passthrough_filters}};
++    sw_filter_config = {<<byte{32'(passthrough_filters)}};
+     sw_symbol_backdoor_overwrite("kFilteredCommands", sw_filter_config);
+     sw_symbol_backdoor_overwrite("kUploadWriteCommands", upload_config);
+   endtask
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_spi_passthrough_vseq.sv
+@@ -132,7 +132,7 @@
+     bit [7:0] sw_filter_config[4];
+     super.cpu_init();
+     `DV_CHECK_MEMBER_RANDOMIZE_FATAL(passthrough_filters);
+-    sw_filter_config = {<<byte{passthrough_filters}};
++    sw_filter_config = {<<byte{32'(passthrough_filters)}};
+     sw_symbol_backdoor_overwrite("kFilteredCommands", sw_filter_config);
+   endtask
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ec_rst_l_vseq.sv
+@@ -32,10 +32,10 @@
+   virtual task pre_start();
+     super.pre_start();
+     // Initialize the pad input to 0 to avoid having X values in the initial test phase.
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey1] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey2] = 1;
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey1] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey2] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
+   endtask
+ 
+   virtual function void write_test_phase(input byte phase);
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_outputs_vseq.sv
+@@ -31,10 +31,10 @@
+   virtual task pre_start();
+     super.pre_start();
+     // Initialize the pad input to 0 to avoid having X values in the initial test phase.
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey1] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[SysrstCtrlPadKey2] = 1;
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey1] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[SysrstCtrlPadKey2] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
+   endtask
+ 
+   virtual function void write_test_phase(input test_phases_e phase);
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_sysrst_ctrl_ulp_z3_wakeup_vseq.sv
+@@ -34,17 +34,17 @@
+     super.pre_start();
+     // Initialize the pad input to 0 to avoid having X values in the initial test phase.
+     // The following correspond to IOR13, IOC7, IOC9 respectively
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[4] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[5] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[4] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[5] = 1;
+   endtask
+ 
+   virtual task post_start();
+     //cfg.chip_vif.pwrb_in_if.disconnect();
+     //cfg.chip_vif.sysrst_ctrl_if.disconnect();
+-    cfg.chip_vif.pwrb_in_if.pins_pd[0] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[4] = 1;
+-    cfg.chip_vif.sysrst_ctrl_if.pins_pd[5] = 1;
++    cfg.pwrb_in_vif.pins_pd[0] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[4] = 1;
++    cfg.sysrst_ctrl_vif.pins_pd[5] = 1;
+     super.post_start();
+   endtask
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_sw_uart_rand_baudrate_vseq.sv
+@@ -46,7 +46,7 @@
+ 
+   virtual task cpu_init();
+     // sw_symbol_backdoor_overwrite takes an array as the input
+-    bit [7:0] uart_freq_arr[8] = {<<byte{cfg.uart_baud_rate}};
++    bit [7:0] uart_freq_arr[8] = {<<byte{64'(cfg.uart_baud_rate)}};
+ 
+     super.cpu_init();
+     sw_symbol_backdoor_overwrite("kUartBaudrate", uart_freq_arr);
+@@ -59,7 +59,7 @@
+     if (cfg.chip_clock_source != ChipClockSourceInternal) begin
+       bit [7:0] use_extclk_arr[] = {cfg.chip_clock_source != ChipClockSourceInternal};
+       bit [7:0] low_speed_sel_arr[] = {cfg.chip_clock_source == ChipClockSourceExternal48Mhz};
+-      bit [7:0] uart_clk_freq_arr[8] = {<<byte{uart_clk_freq_khz * 1000}};
++      bit [7:0] uart_clk_freq_arr[8] = {<<byte{64'(uart_clk_freq_khz * 1000)}};
+ 
+       sw_symbol_backdoor_overwrite("kUseExtClk", use_extclk_arr);
+       sw_symbol_backdoor_overwrite("kUseLowSpeedSel", low_speed_sel_arr);
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_tap_straps_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_tap_straps_vseq.sv
+@@ -277,9 +277,13 @@
+   virtual function void randomize_dft_straps();
+     if ($value$plusargs("PARTNER_N=%b",partner))
+     begin
+-        randomize(dft_straps_val) with {dft_straps_val inside {0,2,3};};
++        if (!randomize(dft_straps_val) with {dft_straps_val inside {0,2,3};}) begin
++          `uvm_fatal(`gfn, "Failed to randomize DFT straps for PARTNER_N")
++        end
+     end else begin
+-        randomize(dft_straps_val) with {dft_straps_val inside {0,1,2,3};};
++        if (!randomize(dft_straps_val) with {dft_straps_val inside {0,1,2,3};}) begin
++          `uvm_fatal(`gfn, "Failed to randomize DFT straps")
++        end
+     end
+     `uvm_info(`gfn, $sformatf("LC state is = %0s, DFT straps = %2b\n",
+               cur_lc_state.name(),dft_straps_val), UVM_LOW)
+--- a/hw/top_earlgrey/ip_autogen/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/clkmgr/dv/env/seq_lib/clkmgr_clk_status_vseq.sv
+@@ -25,7 +25,8 @@
+       control_ip_clocks();
+ 
+       // If some units were not idle, make them so.
+-      idle = '1;
++      idle = {NUM_TRANS{MuBi4True}};
++      cfg.clkmgr_vif.update_idle(idle);
+       // Wait for idle to percolate.
+       cfg.clk_rst_vif.wait_clks(10);
+     end
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_mp_regions_vseq.sv
+@@ -40,7 +40,34 @@
+   mp_info_pages[NumBanks][flash_ctrl_pkg::InfoTypes][$];
+ 
+   constraint solv_order_c {
+-    solve mp_regions, mp_info_pages before flash_op;
++    solve mp_regions before flash_op;
++    // Order each configured info-page queue entry before the flash operation.
++    solve mp_info_pages[0][0][0],
++      mp_info_pages[0][0][1],
++      mp_info_pages[0][0][2],
++      mp_info_pages[0][0][3],
++      mp_info_pages[0][0][4],
++      mp_info_pages[0][0][5],
++      mp_info_pages[0][0][6],
++      mp_info_pages[0][0][7],
++      mp_info_pages[0][0][8],
++      mp_info_pages[0][0][9],
++      mp_info_pages[0][1][0],
++      mp_info_pages[0][2][0],
++      mp_info_pages[0][2][1],
++      mp_info_pages[1][0][0],
++      mp_info_pages[1][0][1],
++      mp_info_pages[1][0][2],
++      mp_info_pages[1][0][3],
++      mp_info_pages[1][0][4],
++      mp_info_pages[1][0][5],
++      mp_info_pages[1][0][6],
++      mp_info_pages[1][0][7],
++      mp_info_pages[1][0][8],
++      mp_info_pages[1][0][9],
++      mp_info_pages[1][1][0],
++      mp_info_pages[1][2][0],
++      mp_info_pages[1][2][1] before flash_op;
+   }
+   // Constraint address to be in relevant range for the selected partition.
+   constraint addr_c {
+@@ -93,40 +120,32 @@
+   }
+ 
+   constraint mp_info_pages_c {
+-
+-    foreach (mp_info_pages[i]) {
+-      if (cfg.seq_cfg.op_readonly_on_info_partition) {
+-        foreach (mp_info_pages[i][0][k]) {
+-          mp_info_pages[i][0][k].program_en == MuBi4False;
+-          mp_info_pages[i][0][k].erase_en == MuBi4False;
+-        }
+-      }
+-      if (cfg.seq_cfg.op_readonly_on_info1_partition) {
+-        foreach (mp_info_pages[i][1][k]) {
+-          mp_info_pages[i][1][k].program_en == MuBi4False;
+-          mp_info_pages[i][1][k].erase_en == MuBi4False;
+-        }
+-      }
+-    }
+-
+     foreach (mp_info_pages[i, j]) {
+       mp_info_pages[i][j].size() == flash_ctrl_pkg::InfoTypeSize[j];
++    }
+ 
+-      foreach (mp_info_pages[i][j][k]) {
+-       mp_info_pages[i][j][k].en dist {
+-                               MuBi4True := 4,
+-                               MuBi4False := 1
+-                               };
++    foreach (mp_info_pages[i, j, k]) {
++      if (j == 0 && cfg.seq_cfg.op_readonly_on_info_partition) {
++        mp_info_pages[i][j][k].program_en == MuBi4False;
++        mp_info_pages[i][j][k].erase_en == MuBi4False;
++      }
++      if (j == 1 && cfg.seq_cfg.op_readonly_on_info1_partition) {
++        mp_info_pages[i][j][k].program_en == MuBi4False;
++        mp_info_pages[i][j][k].erase_en == MuBi4False;
++      }
+ 
+-        mp_info_pages[i][j][k].scramble_en == MuBi4False;
++      mp_info_pages[i][j][k].en dist {
++        MuBi4True := 4,
++        MuBi4False := 1
++      };
+ 
+-        mp_info_pages[i][j][k].ecc_en == MuBi4False;
++      mp_info_pages[i][j][k].scramble_en == MuBi4False;
++      mp_info_pages[i][j][k].ecc_en == MuBi4False;
+ 
+-        mp_info_pages[i][j][k].he_en dist {
+-          MuBi4False :/ (100 - cfg.seq_cfg.mp_info_page_he_en_pc[i][j]),
+-          MuBi4True  :/ cfg.seq_cfg.mp_info_page_he_en_pc[i][j]
+-        };
+-      }
++      mp_info_pages[i][j][k].he_en dist {
++        MuBi4False :/ (100 - cfg.seq_cfg.mp_info_page_he_en_pc[i][j]),
++        MuBi4True  :/ cfg.seq_cfg.mp_info_page_he_en_pc[i][j]
++      };
+     }
+   }
+ 
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/seq_lib/flash_ctrl_otf_base_vseq.sv
+@@ -46,7 +46,35 @@
+   flash_mem_init_e otf_flash_init = FlashMemInitEccMode;
+ 
+   constraint all_ent_c {
+-    solve all_entry_en before rand_regions, rand_info;
++    solve all_entry_en before rand_regions;
++    // Expand the configured info-page queues to their packed entries.
++    solve all_entry_en before
++      rand_info[0][0][0],
++      rand_info[0][0][1],
++      rand_info[0][0][2],
++      rand_info[0][0][3],
++      rand_info[0][0][4],
++      rand_info[0][0][5],
++      rand_info[0][0][6],
++      rand_info[0][0][7],
++      rand_info[0][0][8],
++      rand_info[0][0][9],
++      rand_info[0][1][0],
++      rand_info[0][2][0],
++      rand_info[0][2][1],
++      rand_info[1][0][0],
++      rand_info[1][0][1],
++      rand_info[1][0][2],
++      rand_info[1][0][3],
++      rand_info[1][0][4],
++      rand_info[1][0][5],
++      rand_info[1][0][6],
++      rand_info[1][0][7],
++      rand_info[1][0][8],
++      rand_info[1][0][9],
++      rand_info[1][1][0],
++      rand_info[1][2][0],
++      rand_info[1][2][1];
+     if (cfg.en_always_any) all_entry_en == 1;
+     else all_entry_en dist { 1 := 1, 0 := 4};
+   }
+--- a/hw/top_earlgrey/ip_autogen/rstmgr/dv/env/seq_lib/rstmgr_base_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/rstmgr/dv/env/seq_lib/rstmgr_base_vseq.sv
+@@ -275,8 +275,8 @@
+ 
+   virtual protected task clear_sw_rst_ctrl_n();
+     const sw_rst_t sw_rst_all_ones = '1;
+-    rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_ctrl_n), .value(sw_rst_all_ones));
+-    rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_ctrl_n), .compare_value(sw_rst_all_ones),
++    rstmgr_csr_wr_unpack(.use_regwen(1'b0), .value(sw_rst_all_ones));
++    rstmgr_csr_rd_check_unpack(.use_regwen(1'b0), .compare_value(sw_rst_all_ones),
+                                .err_msg("Expected sw_rst_ctrl_n to be set"));
+   endtask
+ 
+@@ -287,7 +287,7 @@
+   endtask
+ 
+   virtual protected task check_sw_rst_regwen(sw_rst_t expected_regwen);
+-    rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_regwen), .compare_value(expected_regwen),
++    rstmgr_csr_rd_check_unpack(.use_regwen(1'b1), .compare_value(expected_regwen),
+                                .err_msg("Mismatching sw_rst_regwen"));
+   endtask
+ 
+@@ -546,17 +546,23 @@
+ 
+   // csr method wrapper for unpacked array registers
+   virtual task rstmgr_csr_rd_check_unpack(
+-      input uvm_object ptr[], input uvm_reg_data_t compare_value = 0, input string err_msg = "");
+-    foreach (ptr[i]) begin
++      input bit use_regwen, input uvm_reg_data_t compare_value = 0, input string err_msg = "");
++    for (int i = 0; i < NumSwResets; i++) begin
++      uvm_object ptr;
+       if (cfg.under_reset) return;
+-      csr_rd_check(.ptr(ptr[i]), .compare_value(compare_value[i]), .err_msg(err_msg));
++      if (use_regwen) ptr = ral.sw_rst_regwen[i];
++      else            ptr = ral.sw_rst_ctrl_n[i];
++      csr_rd_check(.ptr(ptr), .compare_value(compare_value[i]), .err_msg(err_msg));
+     end
+   endtask : rstmgr_csr_rd_check_unpack
+ 
+-  virtual task rstmgr_csr_wr_unpack(input uvm_object ptr[], input uvm_reg_data_t value);
+-    foreach (ptr[i]) begin
++  virtual task rstmgr_csr_wr_unpack(input bit use_regwen, input uvm_reg_data_t value);
++    for (int i = 0; i < NumSwResets; i++) begin
++      uvm_object ptr;
+       if (cfg.under_reset) return;
+-      csr_wr(.ptr(ptr[i]), .value(value[i]));
++      if (use_regwen) ptr = ral.sw_rst_regwen[i];
++      else            ptr = ral.sw_rst_ctrl_n[i];
++      csr_wr(.ptr(ptr), .value(value[i]));
+     end
+   endtask
+ endclass : rstmgr_base_vseq
+--- a/hw/top_earlgrey/ip_autogen/rstmgr/dv/env/seq_lib/rstmgr_smoke_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/rstmgr/dv/env/seq_lib/rstmgr_smoke_vseq.sv
+@@ -12,7 +12,7 @@
+ 
+   constraint rstreqs_non_zero_c {rstreqs != '0;}
+   constraint sw_rst_regwen_non_trivial_c {sw_rst_regwen != '0 && sw_rst_regwen != '1;}
+-  constraint sw_rst_some_reset_c {sw_rst_regwen & ~sw_rst_ctrl_n != '0;}
++  constraint sw_rst_some_reset_c {(sw_rst_regwen & ~sw_rst_ctrl_n) != '0;}
+ 
+   local task wait_between_resets();
+     cfg.io_div4_clk_rst_vif.wait_clks(10);
+@@ -89,21 +89,21 @@
+       cpu_crash_dump_t bogus_cpu_dump = '1;
+ 
+       set_alert_and_cpu_info_for_capture(bogus_alert_dump, bogus_cpu_dump);
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_ctrl_n), .compare_value(sw_rst_all_ones),
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b0), .compare_value(sw_rst_all_ones),
+                                  .err_msg("expected no reset on"));
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_regwen), .value(sw_rst_regwen));
++      rstmgr_csr_wr_unpack(.use_regwen(1'b1), .value(sw_rst_regwen));
+       `uvm_info(`gfn, $sformatf("sw_rst_regwen set to 0x%0h", sw_rst_regwen), UVM_LOW)
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_regwen), .compare_value(sw_rst_regwen));
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b1), .compare_value(sw_rst_regwen));
+ 
+       // This is probably also tested by common CSR tests.
+       // Check sw_rst_regwen can not be set to all ones again because it is rw0c.
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_regwen), .value({NumSwResets{1'b1}}));
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_regwen), .compare_value(sw_rst_regwen),
++      rstmgr_csr_wr_unpack(.use_regwen(1'b1), .value({NumSwResets{1'b1}}));
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b1), .compare_value(sw_rst_regwen),
+            .err_msg("Expected sw_rst_regwen block raising individual bits because rw0c"));
+ 
+       // Check that the regwen disabled bits block corresponding updated to ctrl_n.
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_ctrl_n), .value(sw_rst_regwen));
+-      rstmgr_csr_rd_check_unpack(.ptr(ral.sw_rst_ctrl_n), .compare_value(sw_rst_all_ones),
++      rstmgr_csr_wr_unpack(.use_regwen(1'b0), .value(sw_rst_regwen));
++      rstmgr_csr_rd_check_unpack(.use_regwen(1'b0), .compare_value(sw_rst_all_ones),
+                                  .err_msg("Expected sw_rst_ctrl_n not to change"));
+ 
+       check_sw_rst_ctrl_n(sw_rst_ctrl_n, sw_rst_regwen, 1);
+--- a/hw/top_earlgrey/ip_autogen/rstmgr/dv/env/seq_lib/rstmgr_sw_rst_vseq.sv
++++ b/hw/top_earlgrey/ip_autogen/rstmgr/dv/env/seq_lib/rstmgr_sw_rst_vseq.sv
+@@ -28,7 +28,7 @@
+     // messes things up since setting the sw_rst_regwen CSR is irreversible.
+     if (is_running_sequence("rstmgr_sw_rst_vseq")) begin
+       // In preparation for the per-bit enable test, set sw_rst_ctrl_n to all 1.
+-      rstmgr_csr_wr_unpack(.ptr(ral.sw_rst_ctrl_n), .value({NumSwResets{1'b1}}));
++      rstmgr_csr_wr_unpack(.use_regwen(1'b0), .value({NumSwResets{1'b1}}));
+       for (int i = 0; i < NumSwResets; ++i) begin
+         // Clear the regwen.
+         bit [NumSwResets-1:0] val_regwen = ~(1 << i);
+--- a/hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/env/ibex_icache_env.core
++++ b/hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/env/ibex_icache_env.core
+@@ -11,7 +11,7 @@
+       - lowrisc:dv:ibex_icache_core_agent
+       - lowrisc:dv:ibex_icache_mem_agent
+       - lowrisc:dv:push_pull_agent
+-      - lowrisc:ibex:bus_params_pkg
++      - lowrisc:opentitan:bus_params_pkg
+     files:
+       - ibex_icache_env_pkg.sv
+       - ibex_icache_ram_if.sv
+--- a/hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/fcov/ibex_icache_fcov_if.sv
++++ b/hw/vendor/lowrisc_ibex/dv/uvm/icache/dv/fcov/ibex_icache_fcov_if.sv
+@@ -265,10 +265,10 @@
+       }
+       cp_state: coverpoint fill_buffer_state;
+       cp_fill_buffer_done_reason : coverpoint fill_buffer_done_reason;
+-      cp_state_when_disabling: coverpoint fill_buffer_state iff icache_just_disabled;
+-      cp_state_when_enabling: coverpoint fill_buffer_state iff icache_just_enabled;
+-      cp_state_when_inval_start: coverpoint fill_buffer_state iff icache_inval_start;
+-      cp_starting_beat: coverpoint starting_beat iff fill_alloc[i_fb];
++      cp_state_when_disabling: coverpoint fill_buffer_state iff (icache_just_disabled);
++      cp_state_when_enabling: coverpoint fill_buffer_state iff (icache_just_enabled);
++      cp_state_when_inval_start: coverpoint fill_buffer_state iff (icache_inval_start);
++      cp_starting_beat: coverpoint starting_beat iff (fill_alloc[i_fb]);
+     endgroup
+ 
+     `DV_FCOV_INSTANTIATE_CG(icache_fillbuf_cg, en_icache_fcov)
+--- a/hw/vendor/lowrisc_ibex/rtl/ibex_tracer.sv
++++ b/hw/vendor/lowrisc_ibex/rtl/ibex_tracer.sv
+@@ -740,7 +740,7 @@
+       // as a blocking assignment to xx. They then complain about the mixture with that an the
+       // non-blocking assignment we use when opening the file. The bug is fixed with recent versions
+       // of Verilator, but this hack is probably worth it for now.
+-      int fh = file_handle;
++      automatic int fh = file_handle;
+       $fclose(fh);
+     end
+   end
+@@ -749,10 +749,10 @@
+   always @(posedge clk_i) begin
+     if (rvfi_valid && trace_log_enable) begin
+ 
+-      int fh = file_handle;
++      automatic int fh = file_handle;
+ 
+       if (fh == 32'h0) begin
+-        string file_name_base = "trace_core";
++        automatic string file_name_base = "trace_core";
+         void'($value$plusargs("ibex_tracer_file_base=%s", file_name_base));
+         $sformat(file_name, "%s_%h.log", file_name_base, hart_id_i);
+ 

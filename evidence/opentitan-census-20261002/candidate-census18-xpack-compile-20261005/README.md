@@ -1,4 +1,6 @@
-# Census18 candidate compile lanes
+# Census18 candidate compile lanes — historical diagnostic
+
+This first 309-row result is superseded by the [pinned-source candidate census](../candidate-census18-pinned-compile-20261005/README.md). It used an unpinned source copy and an install missing `uvm_dpi.vpi`; its UVM failure counts are not the current status. Keep the raw files below as historical diagnostics.
 
 This refresh evaluated the candidate compiler on the RTL, SVA, and UVM lanes
 after the separate census18 runtime run reached 49/49. It completed all 309
@@ -14,20 +16,21 @@ census and it did not include the runtime lane.
 
 ## Blocking results
 
-- All 31 UVM `FAIL` rows have the same hard error: the source calls
-  `uvm_hdl_release` with one argument, while this candidate's `-uvm` binding
-  requires a second `value` argument. Four UVM rows compile with semantic debt
-  because the candidate install lacks the bundled standard UVM DPI runtime;
-  `make install` reported that the UVM submodule was not checked out.
+- The 31 UVM `FAIL` rows shared a setup cause: the candidate install lacked the
+  bundled standard UVM DPI runtime. The driver fell back to `UVM_NO_DPI`, whose
+  stub `uvm_hdl_release` signature rejected OpenTitan's normal one-argument DPI
+  calls. Installing `uvm_dpi.vpi` removed that failure; the corrected UVM-only
+  lane passed 35/35 on the patched source copy. This does not replace the
+  pinned-source full compile census linked above.
 - Three RTL failures are board tops with unresolved Xilinx primitives such as
   `MMCME2_ADV`, `BUFG`, and `USR_ACCESSE2`.
 - The seven RTL setup failures include FuseSoC `NoneType.toplevel` errors and
   conflicting-core requirements. The remaining RTL/SVA debt and upstream
   invalid rows are detailed in `result.md` and `result.json`.
 
-The earlier 49/49 result used the installed **pre-candidate** compiler. Until
-the candidate's UVM failures and actionable RTL/SVA debt are resolved and the
-candidate runtime lane is run, full OpenTitan acceptance remains open.
+The earlier 49/49 result used the installed **pre-candidate** compiler. This
+historical candidate compile run did not use a pinned source checkout; consult
+the pinned census and candidate runtime evidence for current acceptance.
 
 ## RAM guard
 

@@ -1,43 +1,44 @@
 # OpenTitan 49-target runtime matrix
 
-The 2026-10-05 census18 passed all 49 selected Earlgrey runtime targets. It used
-the copied OpenTitan snapshot, UVM 1.2, `-gcommercial-unsafe`, one runtime job,
-an 18,000-second per-target timeout, a 9,536-MiB per-process footprint cap,
-and the three source overlays below. The result had zero runtime/debt errors,
-timeouts, or cap hits; its largest physical footprint was 3,116 MiB. This
-qualifies the selected runtime lane, not every OpenTitan DV test. See the latest
-[census results and provenance](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
+The 2026-10-05 census18 passed all 49 selected Earlgrey runtime targets on the
+installed pre-candidate compiler. Its historical source copy had no Git
+metadata; its exact source content is now reconstructible from the pinned
+Earlgrey-PROD-M6 revision. The candidate compiler's matching 49-target runtime
+revalidation is a separate run. See the
+[historical census results](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
+[candidate compile and source provenance](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
 [hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md),
-and the general [matrix runner reference](opentitan_matrix.md).
+and the [matrix runner reference](opentitan_matrix.md).
 
-## Apply the published overlays
+## Reconstruct the census18 source
 
-The patch files are in this repository and should be applied only to a
-disposable OpenTitan checkout. From the compiler fork root, run:
+Keep the pinned checkout pristine. Create a disposable copy at the pinned
+Earlgrey-PROD-M6 commit, apply the consolidated source overlay, then run the
+hash-checked Trial1 relocation helper. The bundle captures the materialized
+source overlay used by census18; individual per-test patches remain listed in
+the [release overlay index](release_overlays/README.md).
 
-- [OTP covergroup purity](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/otp-get-offset-covergroup-purity.patch)
-- [Flash element-wise solve ordering](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/flash-elementwise-solve-before.patch)
-- [SPI TPM SRAM/reset wiring](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/spi-tpm-sram-csb-reset.patch)
+From the compiler fork root:
 
 ```bash
+CHECKOUT=/tmp/opentitan-pinned-checkout
 OT_ROOT=/tmp/opentitan-census18
-git clone https://github.com/lowRISC/opentitan.git "$OT_ROOT"
-git -C "$OT_ROOT" checkout a78922f14a8cc20c7ee569f322a04626f2ac6127
-PATCH_DIR="$PWD/evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches"
+git clone --recursive https://github.com/lowRISC/opentitan.git "$CHECKOUT"
+git -C "$CHECKOUT" checkout a78922f14a8cc20c7ee569f322a04626f2ac6127
+git -C "$CHECKOUT" submodule update --init --recursive
+mkdir -p "$OT_ROOT"
+rsync -a --exclude='.git' "$CHECKOUT/" "$OT_ROOT/"
 
-for name in \
-  otp-get-offset-covergroup-purity.patch \
-  flash-elementwise-solve-before.patch \
-  spi-tpm-sram-csb-reset.patch; do
-  patch --dry-run -p1 -d "$OT_ROOT" < "$PATCH_DIR/$name"
-done
-for name in \
-  otp-get-offset-covergroup-purity.patch \
-  flash-elementwise-solve-before.patch \
-  spi-tpm-sram-csb-reset.patch; do
-  patch -p1 -d "$OT_ROOT" < "$PATCH_DIR/$name"
-done
+OVERLAY="$PWD/evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/source-overlay.patch"
+patch --dry-run -p1 -d "$OT_ROOT" < "$OVERLAY"
+patch -p1 -d "$OT_ROOT" < "$OVERLAY"
+python3 docs/conformance/release_overlays/opentitan/trial1_core_layout_overlay.py "$OT_ROOT"
 ```
+
+The overlay SHA-256 and per-file output hashes are in
+[`source-provenance.json`](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/source-provenance.json).
+It verifies the reconstructed tree against the prior runtime input while
+excluding `.git` metadata and Python bytecode caches.
 
 ## Run the matrix concurrently
 
