@@ -2852,7 +2852,7 @@ KECCAK_2SHARE_FPV_SOURCE_SHA256 = (
     "d5bb74f7ee9fa85829c7c13690ec7b0f0805c8bfee3291da67fe14b83655f75c"
 )
 KECCAK_2SHARE_FPV_OVERLAY_SHA256 = (
-    "9be795c467ca35f9f4f4d402a63c01dc4f3e22308f55c5e77173937cf98442c3"
+    "7b696448599d541922404388981149166e981bba921225ffee2014737cd77791"
 )
 MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
@@ -3285,7 +3285,7 @@ def i2c_source_overlay(
     }
 
 
-def keccak_2share_fpv_source_text(text: str) -> str:
+def keccak_2share_fpv_syntax_source_text(text: str) -> str:
     import_anchor = ");\n\n  localparam int W"
     if text.count(import_anchor) != 1:
         raise ValueError("Keccak 2-share SVA module header is not unique")
@@ -3305,12 +3305,195 @@ def keccak_2share_fpv_source_text(text: str) -> str:
     return text.replace(before, after)
 
 
+def keccak_2share_fpv_source_text(text: str) -> str:
+    text = keccak_2share_fpv_syntax_source_text(text)
+    replacements = (
+        (
+            "  logic [1:0] cycle;",
+            """  logic low_then_high_d, low_then_high_q;
+  logic dom_out_low_d, dom_out_low_q;
+  logic dom_in_low_d, dom_in_low_q;
+  logic dom_in_rand_ext_d, dom_in_rand_ext_q;
+  logic dom_update;""",
+            "DOM control declarations",
+        ),
+        (
+            "    cycle = 2'h0;\n    unique case (keccak_st)",
+            """    low_then_high_d = low_then_high_q;
+    dom_in_low_d = dom_in_low_q;
+    dom_in_rand_ext_d = dom_in_rand_ext_q;
+    dom_update = 1'b0;
+    unique case (keccak_st)""",
+            "DOM control defaults",
+        ),
+        (
+            """      StIdle: begin
+        sel_mux = MuBi4False;
+        if (valid_i) begin
+          keccak_st_d = StPhase1;""",
+            """      StIdle: begin
+        sel_mux = MuBi4False;
+        if (valid_i) begin
+          keccak_st_d = StPhase1;
+          dom_in_low_d = low_then_high_q;
+          dom_in_rand_ext_d = 1'b0;""",
+            "idle transition controls",
+        ),
+        (
+            """      StPhase1: begin
+        sel_mux = MuBi4False;
+        cycle = 2'h0;
+
+        if (rand_early_i || rand_valid_i) begin
+          keccak_st_d = StPhase2Cycle1;
+          update_state = 1'b1;""",
+            """      StPhase1: begin
+        sel_mux = MuBi4False;
+
+        if (rand_early_i || rand_valid_i) begin
+          keccak_st_d = StPhase2Cycle1;
+          update_state = 1'b1;
+          low_then_high_d = rand_aux_i;
+          dom_in_low_d = low_then_high_d;
+          dom_in_rand_ext_d = 1'b1;""",
+            "phase-one transition controls",
+        ),
+        (
+            """      StPhase2Cycle1: begin
+        sel_mux = MuBi4True;
+        cycle = 2'h1;
+        keccak_st_d = StPhase2Cycle2;""",
+            """      StPhase2Cycle1: begin
+        sel_mux = MuBi4True;
+        dom_update = 1'b1;
+        dom_in_low_d = ~low_then_high_q;
+        dom_in_rand_ext_d = 1'b1;
+        keccak_st_d = StPhase2Cycle2;""",
+            "phase-two cycle-one controls",
+        ),
+        (
+            """      StPhase2Cycle2: begin
+        sel_mux = MuBi4True;
+        cycle = 2'h2;
+        update_state = 1'b1;
+        keccak_st_d = StPhase2Cycle3;""",
+            """      StPhase2Cycle2: begin
+        sel_mux = MuBi4True;
+        dom_update = 1'b1;
+        dom_in_low_d = low_then_high_q;
+        dom_in_rand_ext_d = 1'b0;
+        update_state = 1'b1;
+        keccak_st_d = StPhase2Cycle3;""",
+            "phase-two cycle-two controls",
+        ),
+        (
+            """      StPhase2Cycle3: begin
+        sel_mux = MuBi4True;
+        cycle = 2'h3;
+        update_state = 1'b1;
+        if (round == NumRound-1) begin
+          keccak_st_d = StIdle;
+          inc_round = 1'b1;
+        end else begin
+          keccak_st_d = StPhase1;
+
+          inc_round = 1'b1;
+        end""",
+            """      StPhase2Cycle3: begin
+        sel_mux = MuBi4True;
+        update_state = 1'b1;
+        if (round == NumRound-1) begin
+          keccak_st_d = StIdle;
+          inc_round = 1'b1;
+        end else begin
+          keccak_st_d = StPhase1;
+          inc_round = 1'b1;
+          dom_in_low_d = low_then_high_q;
+          dom_in_rand_ext_d = 1'b0;
+        end""",
+            "phase-two cycle-three controls",
+        ),
+        (
+            """    endcase
+  end
+
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin""",
+            """    endcase
+    dom_out_low_d = ~dom_in_low_d;
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      low_then_high_q <= 1'b0;
+      dom_out_low_q <= 1'b0;
+      dom_in_low_q <= 1'b0;
+      dom_in_rand_ext_q <= 1'b0;
+    end else begin
+      low_then_high_q <= low_then_high_d;
+      dom_out_low_q <= dom_out_low_d;
+      dom_in_low_q <= dom_in_low_d;
+      dom_in_rand_ext_q <= dom_in_rand_ext_d;
+    end
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin""",
+            "DOM control registers",
+        ),
+        (
+            """    .clk_i,
+    .rst_ni,
+
+    .rnd_i        (round),
+    .phase_sel_i  (sel_mux),
+    .cycle_i      (cycle),
+    .rand_aux_i   (rand_aux_i),""",
+            """    .clk_i,
+    .rst_ni,
+    .lc_escalate_en_i(lc_ctrl_pkg::LC_TX_DEFAULT),
+
+    .rnd_i            (round),
+    .phase_sel_i      (sel_mux),
+    .dom_out_low_i    (dom_out_low_q),
+    .dom_in_low_i     (dom_in_low_q),
+    .dom_in_rand_ext_i(dom_in_rand_ext_q),
+    .dom_update_i     (dom_update),""",
+            "masked DUT control ports",
+        ),
+        (
+            """    .clk_i,
+    .rst_ni,
+
+    .rnd_i      (round),
+    .phase_sel_i('0),
+    .cycle_i    ('0),
+    .rand_aux_i ('0),""",
+            """    .clk_i,
+    .rst_ni,
+    .lc_escalate_en_i(lc_ctrl_pkg::LC_TX_DEFAULT),
+
+    .rnd_i            (round),
+    .phase_sel_i      ('0),
+    .dom_out_low_i    (1'b0),
+    .dom_in_low_i     (1'b0),
+    .dom_in_rand_ext_i(1'b0),
+    .dom_update_i     (1'b0),""",
+            "unmasked DUT control ports",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"Keccak 2-share SVA {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
 def keccak_2share_fpv_source_overlay(
     opentitan_root: Path,
     work_root: Path,
     source_list: Path,
 ) -> tuple[Path, dict[str, object]]:
-    """Close the missing StPhase1 case-item block in the pinned FPV source."""
+    """Adapt the pinned FPV controller to the DOM-based Keccak interface."""
     source = opentitan_root / "hw/ip/kmac/fpv/tb/keccak_2share_fpv.sv"
     source_hash = file_sha256(source)
     if source_hash != KECCAK_2SHARE_FPV_SOURCE_SHA256:
@@ -3350,7 +3533,7 @@ def keccak_2share_fpv_source_overlay(
         source_list_text.replace(source_anchor, str(overlay))
     )
     return source_list_overlay, {
-        "profile": "keccak_2share_fpv_missing_case_end",
+        "profile": "keccak_2share_fpv_dom_controller",
         "source": str(source),
         "source_sha256": source_hash,
         "overlay": str(overlay),
@@ -4455,7 +4638,7 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "      end\n"
         "      StPhase2Cycle1: begin"
     )
-    assert keccak_2share_fpv_source_text(keccak_2share_sample) == (
+    assert keccak_2share_fpv_syntax_source_text(keccak_2share_sample) == (
         ");\n  import prim_mubi_pkg::*;\n\n  localparam int W\n"
         "          keccak_st_d = StPhase1;\n"
         "        end\n"

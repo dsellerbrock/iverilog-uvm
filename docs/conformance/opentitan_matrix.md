@@ -60,9 +60,9 @@ does not recompute the full census.
 removes its reference to an undefined `files_formal` fileset. The original
 `files_dv` content remains selected; see the [focused result](../../evidence/opentitan-census-20261002/candidate-spi-host-sva-fileset-20261005/README.md).
 
-The Keccak 2-share FPV row remains upstream-invalid after a diagnostic syntax
-and package-import correction reveals obsolete DUT port hookups. The current
-testbench needs a control-model update; see its [audit](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-upstream-audit-20261005/README.md).
+The Keccak 2-share FPV row passes on engine `367e…` with a hash-checked,
+build-local control model matching the DOM-based DUT. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-dom-controller-20261005/README.md).
 
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;

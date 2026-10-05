@@ -38,9 +38,9 @@ source lists. See the [SVA follow-up](../../evidence/opentitan-census-20261002/c
 The SPI Host SVA target also passes after a build-local correction removes its
 reference to an undefined FuseSoC fileset. See the [SPI Host result](../../evidence/opentitan-census-20261002/candidate-spi-host-sva-fileset-20261005/README.md).
 
-One formal target remains upstream-invalid: correcting the Keccak 2-share
-FPV syntax exposes obsolete DUT port connections that require a control-model
-update. See the [diagnostic result](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-upstream-audit-20261005/README.md).
+The Keccak 2-share FPV target now passes on engine `367e…` with a build-local
+control model matching the current DOM-based DUT. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-dom-controller-20261005/README.md).
 
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
