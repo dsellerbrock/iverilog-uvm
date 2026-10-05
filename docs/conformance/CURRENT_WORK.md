@@ -2,32 +2,30 @@
 
 ## Current OpenTitan status — 2026-10-05
 
-The latest coherent selected runtime result is
-[census18](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md):
-**49/49 targets passed**, with zero hard errors, semantic debt, runtime errors
-or debt, timeouts, memory-cap hits, or memory-monitor errors. The corrected
-xPack/Python environment let OTBN pass in the same invocation after census17's
-single `PRE_RUN_FAIL` on the fallback toolchain path.
+The latest candidate selected runtime result is the
+[candidate recheck](../../evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md):
+**49/49 targets passed** in matching 33- and 16-row serial segments, with no
+failed completed rows or runtime debt. The earlier
+[census18 result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
+also passed 49/49, on the installed pre-candidate compiler.
 
-Census18 used the installed pre-candidate compiler, UVM 1.2,
-`-gcommercial-unsafe`, one runtime job, an 18,000-second per-target timeout,
-and a 9,536-MiB physical-footprint cap. Its largest recorded process footprint
-was 3,116 MiB for `chip_sim`; Flash peaked at 915 MiB. Sampled system memory
-pressure stayed between 78% and 82% free. The copied source snapshot has no Git
-metadata, so its result records the revision as unknown; the pinned source
-checkout was left unchanged. This qualifies the selected 49-row runtime
-matrix, not every OpenTitan DV test.
+Census18 used UVM 1.2 and `-gcommercial-unsafe`. This qualifies the selected
+49-row runtime matrix, not every OpenTitan DV test.
 
-The runtime gate is met, but OpenTitan completion still requires the refreshed
-candidate RTL/SVA/UVM census. Census18 used the installed pre-candidate
-compiler, so it does not validate the generation-guarded AST synthesis fix.
+The broader candidate compile census is still mixed. Its 309-row snapshot has
+137 PASS, 120 dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10
+upstream-invalid rows. Two default Earl Grey synthesis rows have since passed
+in a focused follow-up; this does not recompute the 309-row totals. The patched
+UVM lane also passes 35/35. See the [compile census](opentitan_matrix.md).
 The candidate passes the standalone OpenTitan AST reproducer 20/20 and three
 related sparse-case regressions 3/3. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
 
-The default `rom_ctrl` RTL compile passes with a build-local overlay that
-guards only simulation path-printing and retains `$readmemh`; a nonempty image
-control still emits synthesis debt. Its exact hashes and focused result are
-recorded in the [ROM loader overlay evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md).
+The default `rom_ctrl`, `top_earlgrey`, and `chip_earlgrey_asic` synthesis
+rows pass with a build-local overlay that guards only simulation path-printing
+and retains `$readmemh`. The Earl Grey two-row follow-up is on engine `367e…`;
+it is not a refreshed full census or a 49-target runtime run on that engine.
+See the [ROM loader evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md)
+and [Earl Grey result](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md).
 
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).

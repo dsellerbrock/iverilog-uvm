@@ -1,0 +1,4 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -schip_earlgrey_asic -S -DSYNTHESIS -DSYNTHESIS_MEMORY_BLACK_BOXING -I/private/tmp/pi/iverilog-uvm-memload-synth-overlay-20261005/rtl/lowrisc_systems_chip_earlgrey_asic_0.1/source-overlays/memload_synthesis -o /private/tmp/pi/iverilog-uvm-memload-synth-overlay-20261005/rtl/lowrisc_systems_chip_earlgrey_asic_0.1/matrix-rtl.vvp -c /private/tmp/pi/iverilog-uvm-memload-synth-overlay-20261005/rtl/lowrisc_systems_chip_earlgrey_asic_0.1/default-icarus/lowrisc_systems_chip_earlgrey_asic_0.1.scr
+returncode: 0
+duration_seconds: 142.314

@@ -38,6 +38,12 @@ superseded. See the
 [corrected UVM result](../../evidence/opentitan-census-20261002/candidate-census18-patched-uvm-20261005/README.md),
 and [historical diagnostic](../../evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
 
+A focused follow-up on engine `367e…` also passes the default-image
+`top_earlgrey` and `chip_earlgrey_asic` synthesis rows with zero semantic debt.
+It extends the build-local memory-loader trace guard after verifying the exact
+ROM/OTP defaults and wrapper parameters. This does not update the full 309-row
+census; see the [two-row result](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on
@@ -95,12 +101,13 @@ untouched, and records source and overlay hashes in the result JSON. The
 focused seven-core regression and dependency list are documented in the
 [dependency overlay evidence](../../evidence/opentitan-matrix-source-dependency-overlays-20261004/README.md).
 
-The default `lowrisc:ip:rom_ctrl:0.1` RTL row also gets a build-local include
-overlay for the simulation-only memory-path plusarg/display. It is enabled
-only for the `rom_ctrl` top with the pinned empty `BootRomInitFile` default;
-the optional `$readmemh` branch stays intact, and a nonempty-image control
-remains debt. The runner records both pinned source hashes and the generated
-overlay hash. See the [ROM controller overlay evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md).
+The `rom_ctrl`, default `top_earlgrey`, and default `chip_earlgrey_asic` RTL
+rows can use a build-local include overlay for the simulation-only memory-path
+plusarg/display. It is enabled only for hash-checked source and verified empty
+image defaults, with no parameter override; the optional `$readmemh` branch
+stays intact. The runner records source and generated overlay hashes. See the
+[ROM controller overlay evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md)
+and the [Earl Grey follow-up](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md).
 
 The `top_englishbreakfast` core intentionally has no virtual-core `mapping`
 stanza. For English Breakfast jobs, the runner generates a build-local CAPI

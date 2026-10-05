@@ -306,6 +306,9 @@ SETUP_ALLOWLIST = (
 NATIVE_SOURCE_SETUP_WARNING_RE = re.compile(
     r"^WARNING: (?P<path>.+) has unknown file type '(?:cSource|cppSource)'$"
 )
+PYTHON_SOURCE_SETUP_WARNING_RE = re.compile(
+    r"^WARNING: (?P<path>.+\.py) has unknown file type ''$"
+)
 NO_TOPLEVEL_RE = re.compile(r"Target '[^']+' has no toplevel", re.I)
 MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|macromodule)\s+(?:automatic\s+|static\s+)?([A-Za-z_][\w$]*)",
@@ -2212,10 +2215,10 @@ def actionable_setup_lines(output: str) -> list[str]:
 def classify_compile_setup_warnings(
     lane: str, findings: Sequence[str], source_list: Path
 ) -> tuple[list[str], list[str]]:
-    """Classify native-file warnings only when RTL/UVM .scr files omit them."""
+    """Classify non-HDL-file warnings only when RTL/UVM .scr files omit them."""
     if lane not in {"rtl", "uvm"}:
         return list(findings), []
-    native_sources: set[Path] = set()
+    compiler_sources: set[Path] = set()
     pending = [source_list]
     seen: set[Path] = set()
     try:
@@ -2232,24 +2235,25 @@ def classify_compile_setup_warnings(
                         pending.append(
                             nested if nested.is_absolute() else current.parent / nested
                         )
-                    elif (
-                        len(tokens) == 1
-                        and not token.startswith(("-", "+", "@"))
-                        and Path(token).suffix.casefold()
-                        in {".c", ".cc", ".cpp", ".cxx"}
-                    ):
+                    elif len(tokens) == 1 and not token.startswith(("-", "+", "@")):
                         source = Path(token)
-                        native_sources.add(
-                            source.resolve() if source.is_absolute()
-                            else (current.parent / source).resolve()
-                        )
+                        if source.suffix.casefold() in {
+                            ".c", ".cc", ".cpp", ".cxx", ".py"
+                        }:
+                            compiler_sources.add(
+                                source.resolve() if source.is_absolute()
+                                else (current.parent / source).resolve()
+                            )
     except (OSError, ValueError):
         return list(findings), []
 
     actionable: list[str] = []
     benign: list[str] = []
     for line in findings:
-        match = NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+        match = (
+            NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+            or PYTHON_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+        )
         if match:
             path = Path(match.group("path"))
             staged = (
@@ -2257,7 +2261,7 @@ def classify_compile_setup_warnings(
                 if path.is_absolute()
                 else (source_list.parent / path).resolve()
             )
-            if staged.is_file() and staged not in native_sources:
+            if staged.is_file() and staged not in compiler_sources:
                 benign.append(line)
                 continue
         actionable.append(line)
@@ -2750,72 +2754,146 @@ def native_dpi_commands(
 
 OTBN_MODEL_SOURCE_SHA256 = "751102f30ec5f8c28cd05aff653f4ff4baf641bc6fba286faae99697424bfb4e"
 
-ROM_CTRL_MEMLOAD_SOURCE_SHA256 = (
+MEMLOAD_SOURCE_SHA256 = (
     "0ae62592964c0648c08f28fdd235ed7e7668f6071dc001aa6c1b6f652eea1956"
 )
 ROM_CTRL_SOURCE_SHA256 = (
     "72cdd7822b2b5df3de40dc933b85f31384841337c79f59dfe88f961d8e9f4c47"
 )
-ROM_CTRL_MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
+TOP_EARLGREY_SOURCE_SHA256 = (
+    "392bb28af6e913941f422b7745de4f3dd06514cdfbe66e3753d82dadd21867a3"
+)
+CHIP_EARLGREY_ASIC_SOURCE_SHA256 = (
+    "d6d07633a708e6186df522777fe7d394e83ee4022e846b73216bf74022228bb2"
+)
+MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 
   // Print the hierarchical path to the memory to help make formal connectivity checks easy.
   void'($value$plusargs("show_mem_paths=%0b", show_mem_paths));
   if (show_mem_paths) $display("%m");'''
 
 
-def guard_rom_ctrl_memload_debug(text: str) -> str:
+MEMLOAD_SYNTHESIS_PROFILES = {
+    "lowrisc:ip:rom_ctrl:0.1": ("rom_ctrl", "-srom_ctrl"),
+    "lowrisc:systems:top_earlgrey:0.1": ("top_earlgrey", "-stop_earlgrey"),
+    "lowrisc:systems:chip_earlgrey_asic:0.1": (
+        "chip_earlgrey_asic",
+        "-schip_earlgrey_asic",
+    ),
+}
+
+
+def memload_synthesis_profile(
+    core_vlnv: str, top_options: Sequence[str]
+) -> str | None:
+    profile = MEMLOAD_SYNTHESIS_PROFILES.get(core_vlnv)
+    if profile is None or any(option.startswith("-P") for option in top_options):
+        return None
+    profile_name, top_option = profile
+    return profile_name if top_option in top_options else None
+
+
+def empty_string_parameter(text: str, name: str) -> bool:
+    return re.search(
+        rf'\bparameter\s+(?:[A-Za-z_]\w*\s+)?{re.escape(name)}\s*=\s*""',
+        text,
+    ) is not None
+
+
+def top_earlgrey_uses_default_mem_images(text: str) -> bool:
+    match = re.search(
+        r"\btop_earlgrey\s*#\s*\((.*?)\)\s*top_earlgrey\s*\(",
+        text,
+        re.S,
+    )
+    return match is not None and not re.search(
+        r"\b(?:OtpCtrlMemInitFile|RomCtrlBootRomInitFile)\b",
+        match.group(1),
+    )
+
+
+def guard_memload_debug(text: str) -> str:
     """Exclude only plusarg/display tracing from synthesis; retain readmemh."""
-    if text.count(ROM_CTRL_MEMLOAD_DEBUG_BLOCK) != 1:
+    if text.count(MEMLOAD_DEBUG_BLOCK) != 1:
         raise ValueError("prim_util_memload debug block anchor is not unique")
-    guarded = "`ifndef SYNTHESIS\n" + ROM_CTRL_MEMLOAD_DEBUG_BLOCK + "\n`endif"
-    return text.replace(ROM_CTRL_MEMLOAD_DEBUG_BLOCK, guarded)
+    guarded = "`ifndef SYNTHESIS\n" + MEMLOAD_DEBUG_BLOCK + "\n`endif"
+    return text.replace(MEMLOAD_DEBUG_BLOCK, guarded)
 
 
-def rom_ctrl_memload_synthesis_overlay(
+def memload_synthesis_overlay(
     opentitan_root: Path,
     work_root: Path,
+    core_vlnv: str,
     top_options: Sequence[str],
 ) -> tuple[Path, dict[str, str]]:
-    """Stage simulation-only memory-path tracing outside synthesis."""
-    if "-srom_ctrl" not in top_options or any(
-        option.startswith("-P") for option in top_options
-    ):
-        raise ValueError("ROM memory-loader overlay requires the default rom_ctrl top")
+    """Stage the trace guard only when all selected memory images default empty."""
+    profile = memload_synthesis_profile(core_vlnv, top_options)
+    if profile is None:
+        raise ValueError("memory-loader overlay requires a known empty-image top")
 
     source = opentitan_root / "hw/ip/prim/rtl/prim_util_memload.svh"
     source_hash = file_sha256(source)
-    if source_hash != ROM_CTRL_MEMLOAD_SOURCE_SHA256:
+    if source_hash != MEMLOAD_SOURCE_SHA256:
         raise ValueError(
             "ROM memory-loader overlay source hash mismatch: "
-            f"expected {ROM_CTRL_MEMLOAD_SOURCE_SHA256}, got {source_hash}"
+            f"expected {MEMLOAD_SOURCE_SHA256}, got {source_hash}"
         )
 
-    parameter_source = opentitan_root / "hw/ip/rom_ctrl/rtl/rom_ctrl.sv"
+    if profile == "rom_ctrl":
+        parameter_source = opentitan_root / "hw/ip/rom_ctrl/rtl/rom_ctrl.sv"
+        expected_hash = ROM_CTRL_SOURCE_SHA256
+    else:
+        parameter_source = opentitan_root / "hw/top_earlgrey/rtl/autogen/top_earlgrey.sv"
+        expected_hash = TOP_EARLGREY_SOURCE_SHA256
+
     parameter_hash = file_sha256(parameter_source)
-    if parameter_hash != ROM_CTRL_SOURCE_SHA256:
+    if parameter_hash != expected_hash:
         raise ValueError(
-            "ROM controller source hash mismatch: "
-            f"expected {ROM_CTRL_SOURCE_SHA256}, got {parameter_hash}"
+            f"{profile} memory parameter source hash mismatch: "
+            f"expected {expected_hash}, got {parameter_hash}"
         )
-    parameter_text = parameter_source.read_text()
-    if not re.search(r'parameter\s+BootRomInitFile\s*=\s*""', parameter_text):
-        raise ValueError("ROM controller default image parameter is not empty")
 
-    overlay_dir = work_root / "source-overlays" / "rom_ctrl_memload"
+    parameter_text = parameter_source.read_text()
+    if profile == "rom_ctrl":
+        if not empty_string_parameter(parameter_text, "BootRomInitFile"):
+            raise ValueError("ROM controller default image parameter is not empty")
+    elif not empty_string_parameter(
+        parameter_text, "OtpCtrlMemInitFile"
+    ) or not empty_string_parameter(parameter_text, "RomCtrlBootRomInitFile"):
+        raise ValueError("Earl Grey ROM/OTP image defaults are not empty")
+
+    validated_sources = [
+        {"path": str(source), "sha256": source_hash},
+        {"path": str(parameter_source), "sha256": parameter_hash},
+    ]
+    if profile == "chip_earlgrey_asic":
+        wrapper_source = (
+            opentitan_root / "hw/top_earlgrey/rtl/autogen/chip_earlgrey_asic.sv"
+        )
+        wrapper_hash = file_sha256(wrapper_source)
+        if wrapper_hash != CHIP_EARLGREY_ASIC_SOURCE_SHA256:
+            raise ValueError("Earl Grey ASIC wrapper source hash mismatch")
+        if not top_earlgrey_uses_default_mem_images(wrapper_source.read_text()):
+            raise ValueError("Earl Grey ASIC wrapper overrides a memory image")
+        validated_sources.append(
+            {"path": str(wrapper_source), "sha256": wrapper_hash}
+        )
+
+    overlay_dir = work_root / "source-overlays" / "memload_synthesis"
     overlay = overlay_dir / "prim_util_memload.svh"
     if overlay.is_symlink() or work_root.resolve() not in overlay.resolve().parents:
         raise ValueError("ROM memory-loader overlay staging path is unsafe")
     overlay_dir.mkdir(parents=True, exist_ok=True)
-    overlay_text = guard_rom_ctrl_memload_debug(source.read_text())
+    overlay_text = guard_memload_debug(source.read_text())
     if "$readmemh(MemInitFile, mem);" not in overlay_text:
         raise ValueError("ROM memory-loader overlay removed the readmemh path")
     overlay.write_text(overlay_text)
     return overlay_dir, {
+        "profile": profile,
         "source": str(source),
         "source_sha256": source_hash,
-        "parameter_source": str(parameter_source),
-        "parameter_source_sha256": parameter_hash,
-        "parameter_default": "BootRomInitFile=empty",
+        "validated_sources": validated_sources,
+        "parameter_defaults": "ROM and OTP images empty for selected top",
         "overlay": str(overlay),
         "overlay_sha256": file_sha256(overlay),
     }
@@ -3080,10 +3158,12 @@ def run_job(
 
     executable = work_root / f"matrix-{job.lane}.vvp"
     additional_include_dirs: tuple[Path, ...] = ()
-    if job.lane == "rtl" and job.core.vlnv == "lowrisc:ip:rom_ctrl:0.1":
+    if job.lane == "rtl" and memload_synthesis_profile(
+        job.core.vlnv, top_options
+    ) is not None:
         try:
-            overlay_dir, source_overlay = rom_ctrl_memload_synthesis_overlay(
-                opentitan_root, work_root, top_options
+            overlay_dir, source_overlay = memload_synthesis_overlay(
+                opentitan_root, work_root, job.core.vlnv, top_options
             )
         except (OSError, ValueError) as exc:
             record.update(
@@ -3760,13 +3840,41 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             Path("iverilog"), Path("uvm.scr"), [], Path("uvm.vvp"),
             commercial_unsafe=True,
         )
+    assert memload_synthesis_profile(
+        "lowrisc:systems:top_earlgrey:0.1", ["-stop_earlgrey"]
+    ) == "top_earlgrey"
+    assert memload_synthesis_profile(
+        "lowrisc:systems:chip_earlgrey_asic:0.1", ["-schip_earlgrey_asic"]
+    ) == "chip_earlgrey_asic"
+    assert memload_synthesis_profile(
+        "lowrisc:systems:chip_earlgrey_cw310:0.1", ["-schip_earlgrey_cw310"]
+    ) is None
+    assert memload_synthesis_profile(
+        "lowrisc:systems:top_earlgrey:0.1",
+        ["-stop_earlgrey", "-Ptop_earlgrey.RomCtrlBootRomInitFile=rom.vmem"],
+    ) is None
     memload_sample = (
         "initial begin\n"
-        + ROM_CTRL_MEMLOAD_DEBUG_BLOCK
+        + MEMLOAD_DEBUG_BLOCK
         + '\n  if (MemInitFile != "") begin\n'
         + "    $readmemh(MemInitFile, mem);\n  end\nend\n"
     )
-    guarded_memload = guard_rom_ctrl_memload_debug(memload_sample)
+    assert memload_synthesis_profile(
+        "lowrisc:ip:rom_ctrl:0.1", ["-srom_ctrl"]
+    ) == "rom_ctrl"
+    assert empty_string_parameter(
+        'parameter BootRomInitFile = "";', "BootRomInitFile"
+    )
+    assert not empty_string_parameter(
+        'parameter BootRomInitFile = "boot.vmem";', "BootRomInitFile"
+    )
+    assert top_earlgrey_uses_default_mem_images(
+        "top_earlgrey #(.ResetDelay(1)) top_earlgrey ("
+    )
+    assert not top_earlgrey_uses_default_mem_images(
+        'top_earlgrey #(.RomCtrlBootRomInitFile("boot.vmem")) top_earlgrey ('
+    )
+    guarded_memload = guard_memload_debug(memload_sample)
     assert "`ifndef SYNTHESIS" in guarded_memload
     assert guarded_memload.index("`endif") < guarded_memload.index(
         'if (MemInitFile != "")'
@@ -4157,17 +4265,24 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         source_list.parent.mkdir()
         unused = root / "src" / "unused.c"
         listed = root / "src" / "listed.cc"
+        requirements = root / "src" / "tool_requirements.py"
         unused.parent.mkdir()
         unused.write_text("int unused;\n")
         listed.write_text("int listed;\n")
+        requirements.write_text("pass\n")
         source_list.write_text("../src/listed.cc\n")
         warnings = [
             "WARNING: ../src/unused.c has unknown file type 'cSource'",
             "WARNING: ../src/listed.cc has unknown file type 'cppSource'",
             "WARNING: waiver has unknown file type ''",
+            "WARNING: ../src/tool_requirements.py has unknown file type ''",
         ]
         assert classify_compile_setup_warnings("rtl", warnings, source_list) == (
-            warnings[1:], warnings[:1]
+            warnings[1:3], [warnings[0], warnings[3]]
+        )
+        source_list.write_text("../src/listed.cc\n../src/tool_requirements.py\n")
+        assert classify_compile_setup_warnings("rtl", warnings, source_list) == (
+            [warnings[1], warnings[2], warnings[3]], [warnings[0]]
         )
         assert classify_compile_setup_warnings(
             "uvm", warnings, source_list
