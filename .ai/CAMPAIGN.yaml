@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/opentitan-hotpath-repros-20261004
-checkpoint_head: 6871b92d8dc42bc819fea449682dbc469d11603a
+checkpoint_head: 2478b3a118af25535d2feb9388b88af989d3bcd2
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
   phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_FULL_CENSUS_PENDING"
