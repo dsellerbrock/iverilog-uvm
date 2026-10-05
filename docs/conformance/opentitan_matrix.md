@@ -23,11 +23,22 @@ with `--jobs 1` and the corrected UVM DPI runtime. It records 137 PASS, 120
 dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid
 rows. The 3 RTL hard failures are Xilinx board tops with unresolved primitive
 cells; 13 UVM compile failures remain on the unmodified release. The corrected
-UVM-only lane passes 35/35 with the source overlays. The earlier 31 UVM failure
-count was a missing-DPI setup artifact and is superseded. See the
+UVM-only lane passes 35/35 with the source overlays. Re-running that
+complete patched UVM lane after the inside-range fix also passes 35/35
+with engine SHA-256 `367e44671b5aabf7786a200c2af4c3dcbd17c449bffa3ea2bc30fbfcfbaa1abc`; see the
+[latest patched UVM result](../../evidence/opentitan-census-20261002/candidate-patched-uvm-final-20261005/README.md).
+The earlier 31 UVM failure count was a missing-DPI setup artifact and is
+superseded. See the
 [pinned candidate census](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
 [corrected UVM result](../../evidence/opentitan-census-20261002/candidate-census18-patched-uvm-20261005/README.md),
 and [historical diagnostic](../../evidence/opentitan-census-20261002/candidate-census18-xpack-compile-20261005/README.md).
+
+The candidate now propagates the subject width to a direct unbased fill literal
+used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
+the clean pinned OTP row no longer reports that error but remains `FAIL` on
+procedural-force diagnostics and coverage-constructor debt. The focused OTP row
+passes with zero debt on the reproduced source overlay; see its
+[current candidate result](../../evidence/opentitan-census-20261002/candidate-otp-fill-range-20261005/README.md).
 
 The candidate's 49-target runtime lane is in progress using the reproducible
 census18 source snapshot. The RAM guard remains active at a 70% free-memory

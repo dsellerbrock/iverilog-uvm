@@ -38307,13 +38307,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    constraint_dist_ir_shape_t inside_subject_shape;
 	    if (!is_dist) inside_subject_shape = constraint_dist_ir_shape_(
 		  s, value_slots, constraint_ir_design_ctx_, scope);
-	    if (!is_dist)
-		  for (const auto&range : ins->get_ranges())
-			if (range.is_range
-			    && (constraint_context_sensitive_fill_(range.lo)
-				|| constraint_context_sensitive_fill_(range.hi)))
-			      return constraint_unsupported_fill_context_(
-				ins, "inside range endpoint");
+	    /* A plain inside range endpoint is compared to the inside subject, so
+	     * a direct unbased fill literal gets the subject's width just like a
+	     * member expression. payload_ir materializes that context once the
+	     * subject shape is known; composite fills remain explicitly unsupported. */
 	    bool dist_subject_signed = is_dist && dist_subject_shape.is_signed;
 	    if (is_dist && !constraint_dist_compared_shape_supported_(
 		  dist_subject_shape, dist_subject_shape.width)) {
@@ -38343,7 +38340,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  || !constraint_context_fill_ir_(
 					payload, inside_subject_shape.width, ir))
 				    return constraint_unsupported_fill_context_(
-					payload, "inside item");
+					payload, "inside range endpoint");
 			} else {
 			      ir = pexpr_to_constraint_ir(payload, cls, value_slots,
 						  scope, loop_env);
