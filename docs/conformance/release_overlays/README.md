@@ -17,8 +17,8 @@ copies and record unmodified-source results separately.
 ## Known-needed source patches
 
 The latest complete selected OpenTitan runtime census is
-[census14](../../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md):
-49/49 targets passed on the pinned revision with the
+[census18](../../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md):
+49/49 targets passed with the
 [OTP covergroup-purity](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/otp-get-offset-covergroup-purity.patch),
 [Flash solve-ordering](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/flash-elementwise-solve-before.patch),
 and [SPI TPM reset](../../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/compat-patches/spi-tpm-sram-csb-reset.patch)

@@ -1,21 +1,38 @@
-# Corrected full runtime census invocation
+# Census18: corrected full runtime census
 
-This run is prepared to repeat all 49 runtime rows after census17 exits. It
-uses the existing OpenTitan Python environment and xPack RV32 assembler/linker
-so OTBN does not enter the Bash/Bazelisk fallback path. It runs one target at
-a time with an 18,000-second per-target limit and a 9,536-MiB physical-footprint
-cap per runtime process. Serial execution keeps the aggregate runtime memory
-bounded by that cap instead of allowing multiple capped simulators to overlap.
+Census18 completed on 2026-10-05 with **49/49 runtime targets passing**. All
+rows emitted their checked pass markers. There were zero hard errors, semantic
+debt, runtime errors or debt, timeouts, memory-cap hits, or memory-monitor
+errors. The OTBN row passed with its xPack RV32 tools, resolving census17's
+toolchain setup failure.
 
-Run from the repository root after census17 is complete:
+The invocation used the installed pre-candidate compiler, pinned UVM 1.2,
+`-gcommercial-unsafe`, native OpenSSL/libelf, and the copied OpenTitan source
+snapshot under `/private/tmp/ot-corpus-current-spid-passthrough-20261003/source`.
+The snapshot has no Git metadata, so the result records its revision as
+`unknown`; the pinned checkout was not edited.
+
+## RAM guard
+
+The run executes one target at a time (`--jobs 1`) and gives each runtime
+process an 18,000-second timeout and a 9,536-MiB physical-footprint limit. This
+keeps capped simulators from overlapping. No process hit the limit. The largest
+recorded process footprint was **3,116 MiB** for `lowrisc:dv:chip_sim:0.1`;
+Flash peaked at 915 MiB and OTBN at 921 MiB. System memory-pressure samples
+during the run ranged from 78% to 82% free.
+
+## Reproduction and outputs
+
+Run from the repository root:
 
 ```sh
 bash evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/run-census18.sh
 ```
 
-The script records its branch, commit, and assembler/linker hashes in
-`runner.log`, with the full matrix results in `result.json` and `result.md`.
-This is a prepared invocation, not a result; census18 must finish with 49
-`PASS` rows and no hard errors, debt, runtime errors, timeouts, or memory-cap
-hits to satisfy the runtime gate. It uses the installed pre-candidate
-compiler; the candidate compiler's RTL/SVA/UVM census remains a separate gate.
+The script records the branch, commit, and xPack tool hashes in `runner.log`.
+The complete row-level output is in `result.json` and `result.md`. The sum of
+the 49 recorded runtime durations is 9,387.5 seconds; Flash took 3,398.499
+seconds.
+
+This result clears the selected runtime gate only. The candidate compiler's
+refreshed RTL/SVA/UVM census remains a separate gate.

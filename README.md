@@ -117,11 +117,14 @@ versions, and legacy recording limitations, and the
 
 ## OpenTitan runtime matrix
 
-The latest pinned OpenTitan runtime census passed **49/49 selected targets**
-with three published source overlays. This qualifies the matrix selection, not
-all OpenTitan DV tests. See the [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md),
+The latest selected OpenTitan runtime census, census18, passed **49/49 targets**
+with zero runtime errors, debt, timeouts, or memory-cap hits. It ran one target
+at a time with a 9,536-MiB per-process footprint cap and the xPack OTBN
+toolchain. This qualifies the selected matrix on the installed pre-candidate
+compiler, not all OpenTitan DV tests or the candidate compiler's compile lanes.
+See the [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md),
 [matrix runner reference](docs/conformance/opentitan_matrix.md),
-[latest results](evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md),
+[latest results](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
 and [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 The [optimization plan and reproducers](docs/conformance/opentitan_hotpath_optimization.md)
 link to bounded fixtures and measured next steps.
@@ -139,7 +142,7 @@ link to bounded fixtures and measured next steps.
   support. Compilation alone does not prove meaningful traffic or checking.
   The [release overlays](docs/conformance/release_overlays/README.md) record
   pinned application sources, known-needed patches, and target run options.
-  The current [OpenTitan census](evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md)
+  The current [OpenTitan census](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
   and [work status](docs/conformance/CURRENT_WORK.md) record revisions,
   commands, and qualification boundaries; historical `DEBT` results are not
   passes.

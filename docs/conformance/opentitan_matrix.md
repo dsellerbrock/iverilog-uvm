@@ -1,8 +1,10 @@
 # OpenTitan synthesis, SVA, UVM and runtime matrix
 
-The latest selected Earlgrey runtime census is the 2026-10-04
-[49/49 result](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md),
-qualified with three disposable source overlays. See its
+The latest selected Earlgrey runtime census is census18, the 2026-10-05
+[49/49 result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
+qualified with three disposable source overlays and a corrected xPack OTBN
+environment. It uses one runtime job and a 9,536-MiB per-process footprint
+limit. See its
 [replication guide](opentitan_49of49_reproduction.md). The older discovery
 totals below come from OpenTitan revision
 `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` and describe a broader RTL/SVA/UVM

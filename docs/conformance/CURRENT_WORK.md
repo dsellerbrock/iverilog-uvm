@@ -2,41 +2,29 @@
 
 ## Current OpenTitan status — 2026-10-05
 
-The latest completed selected runtime result before census17 is
-[census15](../../evidence/opentitan-census-20261002/census15-full-corpus-20261004/README.md):
-**49/49 targets passed** with zero runtime errors, runtime debt, timeouts, or
-memory-cap hits. The earlier [census14](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md)
-also passed 49/49. Census15 used UVM 1.2, two parallel jobs,
-`-gcommercial-unsafe`, a five-hour per-target limit, a 9,536-MiB per-process
-cap, and the three published OTP, Flash, and SPI-TPM source overlays. The
-copied source snapshot came from pinned revision
-`a78922f14a8cc20c7ee569f322a04626f2ac6127`; because it had no Git metadata, the
-runner records its revision as unknown and the tree as dirty. The pinned source
-checkout itself was left unchanged. Matrix timings were CPU-contended by the
-separate worker; use the isolated Flash comparison for before/after timing.
-This qualifies the matrix's 49 selected runtime targets, not every OpenTitan
-DV test.
+The latest coherent selected runtime result is
+[census18](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md):
+**49/49 targets passed**, with zero hard errors, semantic debt, runtime errors
+or debt, timeouts, memory-cap hits, or memory-monitor errors. The corrected
+xPack/Python environment let OTBN pass in the same invocation after census17's
+single `PRE_RUN_FAIL` on the fallback toolchain path.
 
-A corrected runtime census17 is still running from the updated source-overlay
-driver. At 2026-10-05 03:10 UTC its persisted result JSON records **31/49
-PASS**, one `PRE_RUN_FAIL` on `lowrisc:dv:otbn_sim:0.1`, and 17 targets still
-unreported. Flash and SPI-host simulations are actively running.
-OTBN setup and compile returned 0 with zero hard compiler errors; its pre-run
-failed before simulation on the fallback toolchain path: this source snapshot
-has no Git metadata, and OpenTitan's Bazelisk wrapper requires Bash
-associative arrays while the runner invokes macOS `/bin/bash` 3.2. The matrix
-runner bypasses that path when `RV32_TOOL_AS` and `RV32_TOOL_LD` are set; a
-prior xPack retry passed OTBN in 136.853 seconds, and the focused
-[census17 pre-run recovery](../../evidence/opentitan-census-20261002/census17-otbn-xpack-20261005/README.md)
-generated the smoke ELF from the current source snapshot. After census17
-exits, the prepared [census18 full runtime invocation](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
-will rerun all 49 rows with xPack. Census17 uses the installed pre-candidate
-compiler and does not validate the AST synthesis fix. The
-generation-guarded Nexus candidate passes the OpenTitan AST reproducer 20/20
-and three related sparse-case tests 3/3; the refreshed RTL/SVA/UVM census
-remains pending. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
+Census18 used the installed pre-candidate compiler, UVM 1.2,
+`-gcommercial-unsafe`, one runtime job, an 18,000-second per-target timeout,
+and a 9,536-MiB physical-footprint cap. Its largest recorded process footprint
+was 3,116 MiB for `chip_sim`; Flash peaked at 915 MiB. Sampled system memory
+pressure stayed between 78% and 82% free. The copied source snapshot has no Git
+metadata, so its result records the revision as unknown; the pinned source
+checkout was left unchanged. This qualifies the selected 49-row runtime
+matrix, not every OpenTitan DV test.
 
-The default `rom_ctrl` RTL compile also passes with a build-local overlay that
+The runtime gate is met, but OpenTitan completion still requires the refreshed
+candidate RTL/SVA/UVM census. Census18 used the installed pre-candidate
+compiler, so it does not validate the generation-guarded AST synthesis fix.
+The candidate passes the standalone OpenTitan AST reproducer 20/20 and three
+related sparse-case regressions 3/3. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
+
+The default `rom_ctrl` RTL compile passes with a build-local overlay that
 guards only simulation path-printing and retains `$readmemh`; a nonempty image
 control still emits synthesis debt. Its exact hashes and focused result are
 recorded in the [ROM loader overlay evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md).
