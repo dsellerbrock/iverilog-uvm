@@ -2878,6 +2878,12 @@ SHA3_FPV_SOURCE_SHA256 = (
 SHA3_FPV_OVERLAY_SHA256 = (
     "93a708cdec54f628780529f69ed1aaf3006809df03773b38e083fdda964275ce"
 )
+SHA3PAD_FPV_SOURCE_SHA256 = (
+    "d88ed8ec4aecc66b229a787843bf04b0fb9c3ae580e33c11deebfcd8f503abe0"
+)
+SHA3PAD_FPV_OVERLAY_SHA256 = (
+    "c49982baddface8c04575e59504bcfc981d36d8860c00ab179b03b51ae4b4584"
+)
 AES_WRAP_SOURCE_SHA256 = (
     "0738798e55b4c5543e1a92b0f7742dbb1afb459211f8592a9597ce7db11b7fbb"
 )
@@ -3706,6 +3712,120 @@ def sha3_fpv_source_text(text: str) -> str:
     return text
 
 
+def sha3pad_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  input rst_ni,\n",
+            "  input rst_ni,\n"
+            "  input lc_ctrl_pkg::lc_tx_t lc_escalate_en_i,\n",
+            "lifecycle input",
+        ),
+        (
+            "  input done_i,\n",
+            "  input prim_mubi_pkg::mubi4_t done_i,\n",
+            "done MuBi type",
+        ),
+        (
+            "  output logic absorbed_o",
+            "  output prim_mubi_pkg::mubi4_t absorbed_o",
+            "absorbed MuBi type",
+        ),
+        (
+            "  logic [1599:0] state [Share];\n",
+            "  logic [1599:0] state [Share];\n"
+            "  logic [255:0] sha3pad_digest_state;\n"
+            "  assign sha3pad_digest_state = {<<8{state[0][255:0]}};\n"
+            "  logic sha3pad_sparse_fsm_error, sha3pad_msg_count_error;\n"
+            "  logic keccak_rand_update, keccak_sparse_fsm_error;\n"
+            "  logic keccak_round_count_error, keccak_rst_storage_error;\n",
+            "internal status signals",
+        ),
+        (
+            "    .absorbed_o\n"
+            "  );",
+            "    .absorbed_o,\n"
+            "    .lc_escalate_en_i,\n"
+            "    .sparse_fsm_error_o (sha3pad_sparse_fsm_error),\n"
+            "    .msg_count_error_o (sha3pad_msg_count_error)\n"
+            "  );",
+            "sha3pad status and lifecycle connections",
+        ),
+        (
+            "  keccak_round #(\n"
+            "    .Width     (1600),\n"
+            "    .DInWidth  (MsgWidth),\n"
+            "    .EnMasking (EnMasking)\n"
+            "  ) u_keccak (\n"
+            "    .valid_i    (keccak_valid),\n"
+            "    .ready_o    (keccak_ready),\n"
+            "    .addr_i     (keccak_addr),\n"
+            "    .data_i     (keccak_data),\n\n"
+            "    .run_i      (keccak_run),\n"
+            "    .complete_o (keccak_complete),\n\n"
+            "    .rand_valid_i    (rand_valid),\n"
+            "    .rand_early_i    (rand_early),\n"
+            "    .rand_data_i     (rand_data),\n"
+            "    .rand_aux_i      (rand_aux),\n"
+            "    .rand_consumed_o (rand_consumed),\n\n"
+            "    .state_o    (state),\n\n"
+            "    .clear_i    (done_i),\n\n"
+            "    .*\n"
+            "  );",
+            "  keccak_round #(\n"
+            "    .Width     (1600),\n"
+            "    .DInWidth  (MsgWidth),\n"
+            "    .EnMasking (EnMasking)\n"
+            "  ) u_keccak (\n"
+            "    .clk_i,\n"
+            "    .rst_ni,\n"
+            "    .valid_i    (keccak_valid),\n"
+            "    .ready_o    (keccak_ready),\n"
+            "    .addr_i     (keccak_addr),\n"
+            "    .data_i     (keccak_data),\n"
+            "    .run_i      (keccak_run),\n"
+            "    .complete_o (keccak_complete),\n"
+            "    .rand_valid_i    (rand_valid),\n"
+            "    .rand_early_i    (rand_early),\n"
+            "    .rand_data_i     (rand_data),\n"
+            "    .rand_aux_i      (rand_aux),\n"
+            "    .rand_update_o   (keccak_rand_update),\n"
+            "    .rand_consumed_o (rand_consumed),\n"
+            "    .state_o    (state),\n"
+            "    .lc_escalate_en_i,\n"
+            "    .sparse_fsm_error_o (keccak_sparse_fsm_error),\n"
+            "    .round_count_error_o (keccak_round_count_error),\n"
+            "    .rst_storage_error_o (keccak_rst_storage_error),\n"
+            "    .clear_i    (done_i)\n"
+            "  );",
+            "keccak_round current interface connections",
+        ),
+        (
+            "  `ASSUME(DoneControl_a, absorbed_o |=> ##5 done_i )",
+            "  `ASSUME(DoneControl_a,\n"
+            "    (absorbed_o == prim_mubi_pkg::MuBi4True) |=> ##5\n"
+            "    (done_i == prim_mubi_pkg::MuBi4True))",
+            "MuBi done assumption",
+        ),
+        (
+            "  `ASSERT(AbcVector_A, absorbed_o |->\n",
+            "  `ASSERT(AbcVector_A,\n"
+            "      (absorbed_o == prim_mubi_pkg::MuBi4True) |->\n",
+            "MuBi digest assertion",
+        ),
+        (
+            "      256'({<<8{state[0][255:0]}})\n"
+            "          == 256'h",
+            "      sha3pad_digest_state == 256'h",
+            "packed digest comparison",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"SHA3PAD FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
 def aes_wrap_source_text(text: str) -> str:
     replacements = (
         (
@@ -4000,6 +4120,59 @@ def sha3_fpv_source_overlay(
     )
     return source_list_overlay, {
         "profile": "sha3_fpv_current_dut_interface",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def sha3pad_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Update SHA3PAD FPV control types and sample its digest assertion."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/sha3pad_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != SHA3PAD_FPV_SOURCE_SHA256:
+        raise ValueError(
+            f"SHA3PAD FPV source hash mismatch: expected {SHA3PAD_FPV_SOURCE_SHA256}, "
+            f"got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "sha3pad_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("SHA3PAD FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "sha3pad_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("SHA3PAD FPV overlay is a symlink")
+    overlay.write_text(sha3pad_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != SHA3PAD_FPV_OVERLAY_SHA256:
+        raise ValueError(f"SHA3PAD FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("SHA3PAD FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = "../src/lowrisc_fpv_sha3pad_fpv_0.1/tb/sha3pad_fpv.sv"
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("SHA3PAD FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("SHA3PAD FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "sha3pad_fpv_current_dut_interface_and_sampling",
         "source": str(source),
         "source_sha256": source_hash,
         "overlay": str(overlay),
@@ -4392,6 +4565,19 @@ def run_job(
             try:
                 source_list_for_compile, source_overlay = sha3_fpv_source_overlay(
                     opentitan_root, work_root, source_list
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if job.lane == "sva" and job.core.vlnv == "lowrisc:fpv:sha3pad_fpv:0.1":
+            try:
+                source_list_for_compile, source_overlay = (
+                    sha3pad_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
                 )
             except (OSError, ValueError) as exc:
                 record.update(
@@ -5340,6 +5526,47 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert "prim_mubi_pkg::mubi4_t absorbed_o" in sha3_fpv_tb_overlay
     assert "output logic run_req_o" in sha3_fpv_tb_overlay
     assert "output logic keccak_storage_rst_error_o" in sha3_fpv_tb_overlay
+    sha3pad_fpv_tb_sample = (
+        "  input rst_ni,\n"
+        "  input done_i,\n"
+        "  output logic absorbed_o\n"
+        "  logic [1599:0] state [Share];\n"
+        "    .absorbed_o\n  );\n"
+        "  keccak_round #(\n"
+        "    .Width     (1600),\n"
+        "    .DInWidth  (MsgWidth),\n"
+        "    .EnMasking (EnMasking)\n"
+        "  ) u_keccak (\n"
+        "    .valid_i    (keccak_valid),\n"
+        "    .ready_o    (keccak_ready),\n"
+        "    .addr_i     (keccak_addr),\n"
+        "    .data_i     (keccak_data),\n\n"
+        "    .run_i      (keccak_run),\n"
+        "    .complete_o (keccak_complete),\n\n"
+        "    .rand_valid_i    (rand_valid),\n"
+        "    .rand_early_i    (rand_early),\n"
+        "    .rand_data_i     (rand_data),\n"
+        "    .rand_aux_i      (rand_aux),\n"
+        "    .rand_consumed_o (rand_consumed),\n\n"
+        "    .state_o    (state),\n\n"
+        "    .clear_i    (done_i),\n\n"
+        "    .*\n"
+        "  );\n"
+        "  `ASSUME(DoneControl_a, absorbed_o |=> ##5 done_i )\n"
+        "  `ASSERT(AbcVector_A, absorbed_o |->\n"
+        "      256'({<<8{state[0][255:0]}})\n"
+        "          == 256'h 0123\n"
+    )
+    sha3pad_fpv_tb_overlay = sha3pad_fpv_source_text(sha3pad_fpv_tb_sample)
+    assert "prim_mubi_pkg::mubi4_t done_i" in sha3pad_fpv_tb_overlay
+    assert "prim_mubi_pkg::mubi4_t absorbed_o" in sha3pad_fpv_tb_overlay
+    assert ".rand_update_o   (keccak_rand_update)" in sha3pad_fpv_tb_overlay
+    assert ".lc_escalate_en_i," in sha3pad_fpv_tb_overlay
+    assert ".*" not in sha3pad_fpv_tb_overlay
+    assert "assign sha3pad_digest_state = {<<8{state[0][255:0]}};" in sha3pad_fpv_tb_overlay
+    assert "sha3pad_digest_state == 256'h 0123" in sha3pad_fpv_tb_overlay
+    assert "absorbed_o == prim_mubi_pkg::MuBi4True" in sha3pad_fpv_tb_overlay
+    assert ".*" not in sha3pad_fpv_tb_overlay
     aes_wrap_sample = (
         "  logic unused_idle;\n"
         "  logic [31:0] unused_wdata;\n"

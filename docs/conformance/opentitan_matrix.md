@@ -92,6 +92,11 @@ redundant data-integrity encoder from the wrapper. This focused follow-up does
 not need a separate census run; its `PASS` is in the refreshed result. See the
 [result and patch](../../evidence/opentitan-census-20261002/candidate-aes-wrap-single-data-integrity-driver-20261005/README.md).
 
+The `lowrisc:fpv:sha3pad_fpv:0.1` SVA row now passes a focused compile with a
+hash-checked overlay for the current DUT ports, MuBi controls, and sampled
+digest. The pinned source is unchanged, and the frozen census totals were not
+recomputed. See the [result and patch](../../evidence/opentitan-census-20261002/candidate-sha3pad-fpv-sampled-mubi-20261005/README.md).
+
 The candidate now propagates the subject width to a direct unbased fill literal
 used as a plain `inside` range endpoint. Its strict 2017/2023 regression passes;
 the clean pinned OTP row no longer reports that error but remains `FAIL` on

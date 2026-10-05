@@ -67,6 +67,12 @@ driver and matching the AES idle output's MuBi width. See the
 [focused result](../../evidence/opentitan-census-20261002/candidate-aes-wrap-single-data-integrity-driver-20261005/README.md).
 The 309-row census totals remain unchanged.
 
+The `lowrisc:fpv:sha3pad_fpv:0.1` SVA row now passes a focused compile with a
+hash-checked overlay for its current DUT ports, MuBi controls, and sampled
+digest. The pinned source is unchanged; the frozen 309-row census still records
+this row as upstream-invalid. See the
+[focused result and patch](../../evidence/opentitan-census-20261002/candidate-sha3pad-fpv-sampled-mubi-20261005/README.md).
+
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 

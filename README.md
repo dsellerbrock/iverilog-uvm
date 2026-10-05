@@ -129,6 +129,9 @@ compile blockers remain. See the
 [candidate runtime recheck](evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md),
 [historical 49/49 result](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
 and [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md).
+The `sha3pad_fpv` row has since passed a focused overlay compile; the frozen
+census totals have not been recomputed. See its
+[result and patch](evidence/opentitan-census-20261002/candidate-sha3pad-fpv-sampled-mubi-20261005/README.md).
 The [matrix runner reference](docs/conformance/opentitan_matrix.md) and
 [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md)
 cover runner behavior and measured optimization work.

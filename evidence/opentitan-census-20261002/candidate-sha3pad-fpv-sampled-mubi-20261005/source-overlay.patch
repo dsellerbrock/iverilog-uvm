@@ -1,0 +1,55 @@
+--- a/hw/ip/kmac/fpv/tb/sha3pad_fpv.sv
++++ b/hw/ip/kmac/fpv/tb/sha3pad_fpv.sv
+@@ -13,0 +14 @@
++  input lc_ctrl_pkg::lc_tx_t lc_escalate_en_i,
+@@ -33 +34 @@
+-  input done_i,
++  input prim_mubi_pkg::mubi4_t done_i,
+@@ -36 +37 @@
+-  output logic absorbed_o
++  output prim_mubi_pkg::mubi4_t absorbed_o
+@@ -46,0 +48,5 @@
++  logic [255:0] sha3pad_digest_state;
++  assign sha3pad_digest_state = {<<8{state[0][255:0]}};
++  logic sha3pad_sparse_fsm_error, sha3pad_msg_count_error;
++  logic keccak_rand_update, keccak_sparse_fsm_error;
++  logic keccak_round_count_error, keccak_rst_storage_error;
+@@ -80 +86,4 @@
+-    .absorbed_o
++    .absorbed_o,
++    .lc_escalate_en_i,
++    .sparse_fsm_error_o (sha3pad_sparse_fsm_error),
++    .msg_count_error_o (sha3pad_msg_count_error)
+@@ -87,0 +97,2 @@
++    .clk_i,
++    .rst_ni,
+@@ -92 +102,0 @@
+-
+@@ -95 +104,0 @@
+-
+@@ -99,0 +109 @@
++    .rand_update_o   (keccak_rand_update),
+@@ -101 +110,0 @@
+-
+@@ -103,4 +112,5 @@
+-
+-    .clear_i    (done_i),
+-
+-    .*
++    .lc_escalate_en_i,
++    .sparse_fsm_error_o (keccak_sparse_fsm_error),
++    .round_count_error_o (keccak_round_count_error),
++    .rst_storage_error_o (keccak_rst_storage_error),
++    .clear_i    (done_i)
+@@ -141 +151,3 @@
+-  `ASSUME(DoneControl_a, absorbed_o |=> ##5 done_i )
++  `ASSUME(DoneControl_a,
++    (absorbed_o == prim_mubi_pkg::MuBi4True) |=> ##5
++    (done_i == prim_mubi_pkg::MuBi4True))
+@@ -167,3 +179,3 @@
+-  `ASSERT(AbcVector_A, absorbed_o |->
+-      256'({<<8{state[0][255:0]}})
+-          == 256'h 3a985da74fe225b2_045c172d6bd390bd_855f086e3e9d525b_46bfe24511431532)
++  `ASSERT(AbcVector_A,
++      (absorbed_o == prim_mubi_pkg::MuBi4True) |->
++      sha3pad_digest_state == 256'h 3a985da74fe225b2_045c172d6bd390bd_855f086e3e9d525b_46bfe24511431532)
