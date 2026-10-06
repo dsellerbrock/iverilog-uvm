@@ -1,0 +1,17 @@
+Tracing can be toggled by sending SIGUSR1 to this process:
+$ kill -USR1 89704
+
+Simulation running, end by pressing CTRL-c.
+- ../src/lowrisc_ibex_tb_cs_registers_0/tb/tb_cs_registers.sv:111: Verilog $finish
+Received $finish() from Verilog, shutting down simulation.
+[Reg driver] drove: 10001 register transactions
+
+//-------------//
+// TEST PASSED //
+//-------------//
+
+Simulation statistics
+=====================
+Executed cycles:  104892
+Wallclock time:   0.041 s
+Simulation speed: 2.55834e+06 cycles/s (2558.34 kHz)

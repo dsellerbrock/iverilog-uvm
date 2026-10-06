@@ -1,0 +1,12 @@
+--- a/hw/vendor/lowrisc_ibex/dv/cs_registers/tb/tb_cs_registers.sv
++++ b/hw/vendor/lowrisc_ibex/dv/cs_registers/tb/tb_cs_registers.sv
+@@ -15,7 +15,7 @@
+     parameter ibex_pkg::rv32b_e RV32B            = ibex_pkg::RV32BNone
+ ) (
+     // Clock and Reset
+-    inout  logic                clk_i,
+-    inout  logic                in_rst_ni,
++    input  logic                clk_i,
++    input  logic                in_rst_ni,
+     output logic                test_passed_o
+ );

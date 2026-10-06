@@ -1,0 +1,11 @@
+{
+  "source_core": "/private/tmp/ot-corpus-current-spid-passthrough-20261003/source/hw/vendor/lowrisc_ibex/dv/cs_registers/tb_cs_registers.core",
+  "source_core_sha256": "5132e5a2811dbeb33a16aeb643cc4a37038d10e8c3aceb804b6395a6f53224c8",
+  "overlay_core_sha256": "a711cd8745011080d4b45c0c4b0c0e4bc837c67c9ebb42ea59c3e320a3847e3d",
+  "change": "Append -llz4 for Verilator 5.050 FST support",
+  "source_file_overlay": "/private/tmp/ot-full-sim-tb-cs-registers-20261006/src/lowrisc_ibex_tb_cs_registers_0/tb/tb_cs_registers.sv",
+  "source_file_sha256_before": "ec7dad115510289dd3563566e3f7adb00516ee7acd9501ee0792ec4aa1b66840",
+  "source_file_sha256_after": "16e6656e6dd0cab4357ab46eb1d44aa39c1375374fc008eff69034afe64abe74",
+  "source_file_change": "In the build-local copy only, changed top-level clk_i and in_rst_ni ports from inout to input so Verilator 5.050 generates the clocked DPI callbacks.",
+  "source_file_patch": "verilator-port.patch"
+}

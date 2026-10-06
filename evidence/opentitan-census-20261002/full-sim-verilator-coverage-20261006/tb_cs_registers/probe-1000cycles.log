@@ -1,0 +1,16 @@
+Tracing can be toggled by sending SIGUSR1 to this process:
+$ kill -USR1 89659
+
+Simulation running, end by pressing CTRL-c.
+Simulation timeout of 1000 cycles reached, shutting down simulation.
+[Reg driver] drove: 94 register transactions
+
+//-------------//
+// TEST PASSED //
+//-------------//
+
+Simulation statistics
+=====================
+Executed cycles:  1000
+Wallclock time:   0 s
+Simulation speed: inf cycles/s (inf kHz)
