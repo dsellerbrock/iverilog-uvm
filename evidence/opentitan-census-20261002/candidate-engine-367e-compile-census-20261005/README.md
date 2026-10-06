@@ -30,9 +30,14 @@ are the Earl Grey ASIC SVA top and five baseline UVM rows (`csrng`, `pattgen`,
 [machine result](result.json) and [table](result.md); the exact run is in
 [`runner.log`](runner.log).
 
-This census excludes runtime. The selected 49/49 runtime result is on engine
-`890c…`; it has not been rerun on `367e…`. Thus these compile results, plus the
-35/35 patched UVM result, do not establish full OpenTitan completion.
+The frozen 309-row table retains its original classifications. A later
+focused SHA3PAD FPV follow-up passes on the same engine; applying that one
+row-level update gives 158 PASS and 2 upstream-invalid rows. See the
+[focused result](../candidate-sha3pad-fpv-sampled-mubi-20261005/result.json).
+
+This census excludes runtime. The separate selected 49/49 runtime gate now
+passes on engine `367e…`. Thus these compile results, plus the 35/35 patched
+UVM result, do not establish full OpenTitan completion.
 
 To reproduce the census:
 
