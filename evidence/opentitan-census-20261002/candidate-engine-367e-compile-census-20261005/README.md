@@ -14,6 +14,17 @@ overlays. The pinned OpenTitan checkout is unchanged.
 | UVM | 17 | 0 | 5 | 13 | 0 | 0 |
 | **Total** | **157** | **120** | **6** | **16** | **7** | **3** |
 
+These 309 entries are compile-matrix rows (`lane` + FuseSoC core + target),
+not 309 runtime tests. `DEPENDENCY_ONLY` means FuseSoC reported that the core
+has no standalone top-level, so the runner did not compile it by itself. The
+120 rows are 119 RTL and 1 SVA; by namespace they are 81 `prim`, 23 `ip`, 9
+`systems`, 4 `ibex`, 2 `tlul`, and 1 `fpv` cores. These are non-standalone
+dependency cores (including packages and filesets), not 120 Icarus defects to
+patch individually. The runner labels
+them `compiled_through_parent_toplevel`, but this result does not record the
+specific parent compile proving each dependency was included; that coverage
+mapping still needs verification before counting them as individually proven.
+
 Compared with the older engine `890c…` census, this result has 20 more PASS
 rows, 13 fewer DEBT rows, and 7 fewer upstream-invalid rows. The regular UVM
 lane still has 13 compile failures and 5 debt rows; the separate
