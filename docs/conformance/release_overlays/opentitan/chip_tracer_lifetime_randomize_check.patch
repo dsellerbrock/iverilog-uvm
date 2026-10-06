@@ -1,0 +1,63 @@
+--- a/hw/vendor/lowrisc_ibex/rtl/ibex_tracer.sv
++++ b/hw/vendor/lowrisc_ibex/rtl/ibex_tracer.sv
+@@ -740,7 +740,7 @@
+       // as a blocking assignment to xx. They then complain about the mixture with that an the
+       // non-blocking assignment we use when opening the file. The bug is fixed with recent versions
+       // of Verilator, but this hack is probably worth it for now.
+-      int fh = file_handle;
++      automatic int fh = file_handle;
+       $fclose(fh);
+     end
+   end
+@@ -749,10 +749,10 @@
+   always @(posedge clk_i) begin
+     if (rvfi_valid && trace_log_enable) begin
+ 
+-      int fh = file_handle;
++      automatic int fh = file_handle;
+ 
+       if (fh == 32'h0) begin
+-        string file_name_base = "trace_core";
++        automatic string file_name_base = "trace_core";
+         void'($value$plusargs("ibex_tracer_file_base=%s", file_name_base));
+         $sformat(file_name, "%s_%h.log", file_name_base, hart_id_i);
+ 
+--- a/hw/top_earlgrey/dv/env/seq_lib/chip_tap_straps_vseq.sv
++++ b/hw/top_earlgrey/dv/env/seq_lib/chip_tap_straps_vseq.sv
+@@ -277,9 +277,13 @@
+   virtual function void randomize_dft_straps();
+     if ($value$plusargs("PARTNER_N=%b",partner))
+     begin
+-        randomize(dft_straps_val) with {dft_straps_val inside {0,2,3};};
++        if (!randomize(dft_straps_val) with {dft_straps_val inside {0,2,3};}) begin
++          `uvm_fatal(`gfn, "Failed to randomize DFT straps for PARTNER_N")
++        end
+     end else begin
+-        randomize(dft_straps_val) with {dft_straps_val inside {0,1,2,3};};
++        if (!randomize(dft_straps_val) with {dft_straps_val inside {0,1,2,3};}) begin
++          `uvm_fatal(`gfn, "Failed to randomize DFT straps")
++        end
+     end
+     `uvm_info(`gfn, $sformatf("LC state is = %0s, DFT straps = %2b\n",
+               cur_lc_state.name(),dft_straps_val), UVM_LOW)
+--- a/hw/dv/dpi/uartdpi/uartdpi.sv
++++ b/hw/dv/dpi/uartdpi/uartdpi.sv
+@@ -39,7 +39,7 @@
+   string log_file_path = DEFAULT_LOG_FILE;
+ 
+   function automatic void initialize();
+-    $value$plusargs({"UARTDPI_LOG_", NAME, "=%s"}, log_file_path);
++    void'($value$plusargs({"UARTDPI_LOG_", NAME, "=%s"}, log_file_path));
+     ctx = uartdpi_create(NAME, log_file_path);
+   endfunction
+ 
+--- a/check_tool_requirements.core
++++ b/check_tool_requirements.core
+@@ -7,6 +7,7 @@
+ 
+ filesets:
+   files_check_tool_requirements:
++    file_type: user
+     files:
+       - util/check_tool_requirements.py : { copyto: util/check_tool_requirements.py }
+       - tool_requirements.py : { copyto: tool_requirements.py }

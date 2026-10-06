@@ -1,0 +1,11 @@
+--- a/hw/ip/spi_device/dv/env/spi_device_env_cov.sv
++++ b/hw/ip/spi_device/dv/env/spi_device_env_cov.sv
+@@ -102,7 +102,7 @@
+   // flash/passthrough related
+   covergroup flash_cmd_info_cg with function sample(
+       bit is_flash, bit[7:0] opcode, bit is_write, spi_flash_addr_mode_e addr_mode,
+       bit addr_swap_en, bit payload_swap_en, bit upload, bit busy, int dummy_cycles,
+-      bit num_lanes);
++      bit [2:0] num_lanes);
+     cp_is_flash: coverpoint is_flash;
+     cp_opcode: coverpoint opcode {

@@ -1,0 +1,5 @@
+--- a/hw/ip/entropy_src/dv/cov/entropy_src_cov_if.sv
++++ b/hw/ip/entropy_src/dv/cov/entropy_src_cov_if.sv
+@@ -836 +836 @@
+-  function automatic unsigned sigma_to_int(real sigma);
++  function automatic int unsigned sigma_to_int(real sigma);

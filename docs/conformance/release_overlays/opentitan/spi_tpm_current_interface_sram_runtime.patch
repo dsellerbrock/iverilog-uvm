@@ -1,0 +1,427 @@
+--- a/hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv
++++ b/hw/ip/spi_device/pre_dv/tb/spi_tpm_tb.sv
+@@ -42,36 +42,19 @@
+   );
+ 
+   wire sck_en, gated_sck, gated_sck_inverted;
+-
++  wire tpm_csb_rst_n;
++
++  assign tpm_csb_rst_n = rst_n & ~tif.csb;
+   assign gated_sck          = (sck_en) ? sck : 1'b 0;
+   assign gated_sck_inverted = ~gated_sck;
+ 
+   assign sck_en = ~tif.csb;
+ 
+   localparam int unsigned CmdAddrFifoDepth = 2;
+-  localparam int unsigned WrFifoDepth      = 64;
+-  localparam int unsigned RdFifoDepth      = 4;
+-  localparam int unsigned RdFifoWidth      = 8;
+ 
+   localparam bit EnLocality = 1;
+ 
+-  // Derived
+-  localparam int unsigned CmdAddrPtrW = $clog2(CmdAddrFifoDepth+1);
+-  localparam int unsigned WrFifoPtrW  = $clog2(WrFifoDepth+1);
+-  localparam int unsigned RdFifoPtrW  = $clog2(RdFifoDepth+1);
+-  localparam int unsigned CmdAddrSize = 32;
+-  localparam int unsigned FifoRegSize = 12; // fifo addr
+-
+-  localparam int unsigned NumLocality = (EnLocality) ? 5 : 1 ;
+-
+-  localparam int unsigned AccessRegSize    = 8 ;
+-  localparam int unsigned IntEnRegSize     = 32;
+-  localparam int unsigned IntVectorRegSize = 8 ;
+-  localparam int unsigned IntStsRegSize    = 32;
+-  localparam int unsigned IntfCapRegSize   = 32;
+-  localparam int unsigned StatusRegSize    = 32;
+-  localparam int unsigned IdRegSize        = 32; // {DID, VID}
+-  localparam int unsigned RidRegSize       = 8 ;
++  // TPM CSB resets the command parser and FIFO pointer in the released RTL.
+ 
+   tpm_if tif(sck);
+   logic miso_en, miso;
+@@ -93,32 +76,92 @@
+   logic cmdaddr_rvalid, cmdaddr_rready;
+   logic [31:0] cmdaddr_rdata;
+ 
+-  logic wrfifo_rvalid, wrfifo_rready;
+-  logic [7:0] wrfifo_rdata;
+-
+   logic rdfifo_wvalid, rdfifo_wready;
+-  logic [7:0] rdfifo_wdata;
+-
+-  // status
++  logic [spi_device_reg_pkg::TpmRdFifoWidth-1:0] rdfifo_wdata;
++
+   logic cmdaddr_notempty;
+-  logic [WrFifoPtrW-1:0] wrfifo_depth;
+-  logic [RdFifoPtrW-1:0] rdfifo_depth;
++
++  // Model the two SRAM ports now used by the released TPM FIFO interface.
++  spi_device_pkg::sram_l2m_t sck_sram_req, sys_sram_req;
++  spi_device_pkg::sram_m2l_t sck_sram_rsp, sys_sram_rsp;
++  localparam int unsigned TpmSramDw = spi_device_pkg::SramDw;
++  localparam int unsigned TpmSramWords = spi_device_pkg::SramDepth;
++  localparam int unsigned TpmBytesPerWord = TpmSramDw / 8;
++  localparam int unsigned TpmWrFifoBytes =
++      spi_device_pkg::SramTpmWrFifoDepth * TpmBytesPerWord;
++  logic [TpmSramDw-1:0] tpm_sram [TpmSramWords];
++  logic sys_sram_gnt;
++  logic sys_wrfifo_pending;
++  logic wrfifo_release;
++  logic [7:0] expected_writes[$];
++
++  assign sys_sram_gnt = 1'b1;
++
++  initial begin
++    for (int unsigned i = 0; i < TpmSramWords; i++) begin
++      tpm_sram[i] = '0;
++    end
++  end
++
++  // The SPI-domain port serves the write and read FIFOs. Reads return one
++  // cycle later, matching the SRAM interface used by the RTL.
++  always @(posedge gated_sck or negedge sck_rst_n or negedge tpm_csb_rst_n) begin
++    if (!sck_rst_n || !tpm_csb_rst_n) begin
++      sck_sram_rsp <= '0;
++    end else begin
++      sck_sram_rsp.rvalid <= 1'b0;
++      if (sck_sram_req.req) begin
++        if (sck_sram_req.we) begin
++          for (int unsigned lane = 0; lane < TpmBytesPerWord; lane++) begin
++            if (sck_sram_req.wstrb[lane]) begin
++              tpm_sram[sck_sram_req.addr][8*lane+:8] <=
++                  sck_sram_req.wdata[8*lane+:8];
++            end
++          end
++        end else begin
++          sck_sram_rsp.rvalid <= 1'b1;
++          sck_sram_rsp.rdata <= tpm_sram[sck_sram_req.addr];
++          sck_sram_rsp.rerror <= '0;
++        end
++      end
++    end
++  end
++
++  // Software fills the read FIFO through the system-domain SRAM port.
++  always @(posedge clk or negedge rst_n) begin
++    if (!rst_n) begin
++      sys_sram_rsp <= '0;
++    end else begin
++      sys_sram_rsp.rvalid <= 1'b0;
++      if (sys_sram_req.req) begin
++        if (sys_sram_req.we) begin
++          for (int unsigned lane = 0; lane < TpmBytesPerWord; lane++) begin
++            if (sys_sram_req.wstrb[lane]) begin
++              tpm_sram[sys_sram_req.addr][8*lane+:8] <=
++                  sys_sram_req.wdata[8*lane+:8];
++            end
++          end
++        end else begin
++          sys_sram_rsp.rvalid <= 1'b1;
++          sys_sram_rsp.rdata <= tpm_sram[sys_sram_req.addr];
++          sys_sram_rsp.rerror <= '0;
++        end
++      end
++    end
++  end
+ 
+   spi_tpm #(
+     .CmdAddrFifoDepth (CmdAddrFifoDepth),
+-    .WrFifoDepth      (WrFifoDepth     ),
+-    .RdFifoDepth      (RdFifoDepth     ),
+-    .RdDataFifoSize   (RdFifoWidth     ),
+     .EnLocality       (EnLocality      )
+   ) dut (
+     .clk_in_i  (gated_sck),
+     .clk_out_i (gated_sck_inverted),
++    .rst_ni    (tpm_csb_rst_n),
++    .rst_out_ni(tpm_csb_rst_n),
+ 
+     .sys_clk_i  (clk),
+     .sys_rst_ni (rst_n),
+-
+-    .scan_rst_ni ( 1'b 1 ),
+-    .scanmode_i  (prim_mubi_pkg::MuBi4False),
++    .sys_tpm_rst_ni (tpm_csb_rst_n),
+ 
+     .csb_i     (tif.csb     ),
+     .mosi_i    (tif.mosi    ),
+@@ -143,22 +186,26 @@
+     .sys_id_reg_i              (32'h 9876_5432     ),
+     .sys_rid_reg_i             ( 8'h 10            ),
+ 
++    .sck_sram_o (sck_sram_req),
++    .sck_sram_i (sck_sram_rsp),
++    .sys_sram_o (sys_sram_req),
++    .sys_sram_i (sys_sram_rsp),
++    .sys_sram_gnt_i (sys_sram_gnt),
++
+     .sys_cmdaddr_rvalid_o (cmdaddr_rvalid),
+     .sys_cmdaddr_rdata_o  (cmdaddr_rdata ),
+     .sys_cmdaddr_rready_i (cmdaddr_rready),
+ 
+-    .sys_wrfifo_rvalid_o (wrfifo_rvalid),
+-    .sys_wrfifo_rdata_o  (wrfifo_rdata ),
+-    .sys_wrfifo_rready_i (wrfifo_rready),
+-
+     .sys_rdfifo_wvalid_i (rdfifo_wvalid),
+     .sys_rdfifo_wdata_i  (rdfifo_wdata ),
+     .sys_rdfifo_wready_o (rdfifo_wready),
++    .sys_rdfifo_cmd_end_o (),
++    .sys_tpm_rdfifo_drop_o(),
++    .sys_wrfifo_release_i(wrfifo_release),
+ 
+     .sys_cmdaddr_notempty_o (cmdaddr_notempty),
+-    .sys_rdfifo_notempty_o  (),
+-    .sys_rdfifo_depth_o     (rdfifo_depth),
+-    .sys_wrfifo_depth_o     (wrfifo_depth)
++    .sys_wrfifo_pending_o   (sys_wrfifo_pending),
++    .sys_rdfifo_aborted_o   ()
+   );
+ 
+   initial begin
+@@ -186,7 +233,10 @@
+       end
+     join_any
+ 
+-    $display("TEST PASSED!");
++    if (expected_writes.size() != 0) begin
++      $fatal(1, "Software did not consume all write FIFO bytes");
++    end
++    $display("TEST PASSED CHECKS");
+     $finish();
+   end
+ 
+@@ -198,28 +248,42 @@
+   // BEGIN: Host ==============================================================
+   task host();
+     automatic logic [7:0] data [$];
++    automatic logic [7:0] actual;
+ 
+     sck_clk.wait_clks(10);
+ 
+     // Read non return-by-HW regs
+-    tpm_read(24'h D4_00CE, 2, data); // invalid locality
+-
+-    for (int i = 0 ; i < 2 ; i++) begin
+-      $display("Byte %d : $x", i, data.pop_front());
++    tpm_read(24'h D4_00CE, 2, data); // software-serviced FIFO read
++    if (data.size() != 2) $fatal(1, "TPM FIFO read returned %0d bytes", data.size());
++    for (int i = 0; i < 2; i++) begin
++      actual = data.pop_front();
++      if (actual !== 8'hA0 + 8'(i)) begin
++        $fatal(1, "TPM FIFO read byte %0d was %02x", i, actual);
++      end
+     end
+ 
+     sck_clk.wait_clks(10);
+ 
+     // Read return-by-HW regs
+     tpm_read(24'h D4_0000, 4, data);
+-
+-    for (int i = 0 ; i < 4 ; i++) begin
+-      $display("Byte %d : $x", i, data.pop_front());
++    if (data.size() != 4) $fatal(1, "TPM hardware-register read returned %0d bytes", data.size());
++    for (int i = 0; i < 4; i++) begin
++      actual = data.pop_front();
++      if (actual !== ((i == 0) ? 8'h15 : 8'hFF)) begin
++        $fatal(1, "TPM hardware-register byte %0d was %02x", i, actual);
++      end
+     end
+ 
+     sck_clk.wait_clks(10);
+ 
+-    tpm_read(24'h D4_ABCE, 2, data); // invalid locality
++    tpm_read(24'h D4_ABCE, 2, data); // unsupported locality returns 0xFF
++    if (data.size() != 2) $fatal(1, "Invalid-locality read returned %0d bytes", data.size());
++    for (int i = 0; i < 2; i++) begin
++      actual = data.pop_front();
++      if (actual !== 8'hFF) begin
++        $fatal(1, "Invalid-locality read byte %0d was %02x", i, actual);
++      end
++    end
+ 
+     sck_clk.wait_clks(10);
+ 
+@@ -229,6 +293,7 @@
+     data.push_back(8'h AD);
+     data.push_back(8'h DE);
+ 
++    foreach (data[i]) expected_writes.push_back(data[i]);
+     tpm_write(24'h D4_0110, 4, data);
+ 
+     sck_clk.wait_clks(10);
+@@ -239,6 +304,7 @@
+       data.push_back($urandom_range(255));
+     end
+ 
++    foreach (data[i]) expected_writes.push_back(data[i]);
+     tpm_write(24'h D4_0110, 64, data);
+ 
+     sck_clk.wait_clks(600);
+@@ -280,6 +346,7 @@
+     automatic logic [7:0] data;
+     automatic logic       wait_n;
+ 
++    rdata.delete();
+     tpm_start();
+ 
+     tpm_header(1'b 1, addr, xfer_size, wait_n);
+@@ -300,6 +367,7 @@
+     tif.mosi = 1'b z;
+     @(sck_clk.cb);
+     for (int i = 0 ; i < xfer_size ; i++) begin
++      if (i != 0) @(sck_clk.cb);
+       tpm_readbyte(data);
+       rdata.push_back(data);
+     end
+@@ -383,12 +451,15 @@
+   task sw();
+     // Wait event and loop
+     logic [31:0] cmd;
+-    logic [31:0] tpm_reg;
+     logic [6:0] xfer_size;
+     logic [7:0] data;
++    logic [7:0] expected_byte;
++    logic [31:0] fifo_word;
++    int unsigned wrfifo_start_ptr;
+ 
+     // Initial
+     cmdaddr_rready = 1'b 0;
++    wrfifo_release = 1'b0;
+ 
+     // Configure
+     tpm_cfg = '{
+@@ -400,78 +471,80 @@
+     };
+ 
+     rdfifo_wvalid = 1'b 0;
+-    rdfifo_wdata = 8'h 0;
++    rdfifo_wdata = '0;
+ 
+     forever begin
+       wait (cmdaddr_notempty == 1'b 1);
+ 
+       // Read entry from cmd fifo
+-      cmdaddr_read(cmdaddr_rvalid, cmdaddr_rready, cmdaddr_rdata, cmd);
++      @(posedge clk iff cmdaddr_rvalid);
++      cmd = cmdaddr_rdata;
++      @(negedge clk);
++      cmdaddr_rready = 1'b1;
++      @(negedge clk);
++      cmdaddr_rready = 1'b0;
+       xfer_size = cmd[24+:6] + 1; // xfer_size in the header is 0 based
+ 
+       case (cmd[31])
+         1'b 0: begin : write
+           $display("TPM Write command process: Xfer Size (%d)", xfer_size);
+           // pop from write fifo
++          wrfifo_start_ptr = 0;
+           do begin
+-            wrfifo_read(wrfifo_rvalid, wrfifo_rready, wrfifo_rdata, data);
+-            xfer_size = xfer_size - 1;
+-            $display("TPM Write Data: %2x", data);
+-          end while (xfer_size != '0);
+-        end
+-
+-        1'b 1: begin : read
+-          // Prepare random data up to xfer_size
+-          $display("TPM Read command process: Xfer Size (%d)", xfer_size);
+-          do begin
+-            data = $urandom_range(255);
+-            rdfifo_write(rdfifo_wvalid, rdfifo_wready, rdfifo_wdata, data);
++            wrfifo_read(wrfifo_start_ptr, data);
++            wrfifo_start_ptr = (wrfifo_start_ptr + 1) % TpmWrFifoBytes;
++            if (expected_writes.size() == 0) begin
++              $fatal(1, "Unexpected TPM write FIFO byte %02x", data);
++            end
++            expected_byte = expected_writes.pop_front();
++            if (data !== expected_byte) begin
++              $fatal(1, "TPM write FIFO mismatch: got %02x expected %02x",
++                     data, expected_byte);
++            end
+             xfer_size = xfer_size - 1;
+           end while (xfer_size != '0);
++          wait (sys_wrfifo_pending);
++          wrfifo_release = 1'b1;
++          @(posedge clk);
++          wrfifo_release = 1'b0;
++          wait (!sys_wrfifo_pending);
++        end
++
++        1'b 1: begin : read
++          // Pack predictable bytes into the 32-bit SRAM FIFO words.
++          $display("TPM Read command process: Xfer Size (%d)", xfer_size);
++          for (int unsigned byte_idx = 0; byte_idx < xfer_size;
++               byte_idx += TpmBytesPerWord) begin
++            fifo_word = '0;
++            for (int unsigned lane = 0;
++                 lane < TpmBytesPerWord && byte_idx + lane < xfer_size;
++                 lane++) begin
++              data = 8'hA0 + 8'(byte_idx + lane);
++              fifo_word[8*lane+:8] = data;
++            end
++            rdfifo_wvalid = 1'b1;
++            rdfifo_wdata = fifo_word;
++            @(posedge clk iff rdfifo_wready);
++            rdfifo_wvalid <= 1'b0;
++          end
+         end
+       endcase
+     end
+   endtask : sw
+ 
+-  task cmdaddr_read (
+-    const ref              rvalid,
+-    ref       logic        rready, // output
+-    const ref logic [31:0] rdata,
+-    output    logic [31:0] data
+-  );
+-    @(posedge clk && rvalid);
+-    data   = rdata;
+-    rready = 1'b 1;
+-
+-    @(posedge clk);
+-    rready = 1'b 0;
+-  endtask : cmdaddr_read
+-
+   task wrfifo_read (
+-    const ref             rvalid,
+-    ref       logic       rready, // output
+-    const ref logic [7:0] rdata,
+-    output    logic [7:0] data
+-  );
+-    @(posedge clk iff rvalid);
+-    data   = rdata;
+-    rready = 1'b 1;
+-
+-    @(posedge clk);
+-    rready = 1'b 0;
++    input  int unsigned fifo_ptr,
++    output logic [7:0] data
++  );
++    automatic int unsigned word_addr;
++    automatic int unsigned byte_offset;
++
++    word_addr = int'(spi_device_pkg::SramTpmWrFifoIdx) +
++                fifo_ptr / TpmBytesPerWord;
++    byte_offset = fifo_ptr % TpmBytesPerWord;
++    data = tpm_sram[word_addr][8*byte_offset+:8];
+   endtask : wrfifo_read
+ 
+-  task rdfifo_write (
+-    ref   logic       wvalid, // output
+-    const ref         wready,
+-    ref   logic [7:0] wdata,  // output
+-    input logic [7:0] data
+-  );
+-    wvalid = 1'b 1;
+-    wdata  = data;
+-    @(posedge clk iff wready);
+-    wvalid = 1'b 0;
+-  endtask : rdfifo_write
+   // SW --------------------------------------------------------------
+ 
+ endmodule : spi_tpm_tb
