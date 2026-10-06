@@ -162,6 +162,16 @@ class wide_fragmented_ranges_uniformity;
     value inside {[65'd1:65'd768], [65'd1025:65'd1280]};
   }
 endclass
+class wide_nine_ranges_uniformity;
+  rand bit [32:0] value;
+  constraint c {
+    value inside {
+      [33'd1:33'd32], [33'd34:33'd65], [33'd67:33'd98],
+      [33'd100:33'd131], [33'd133:33'd164], [33'd166:33'd197],
+      [33'd199:33'd230], [33'd232:33'd263], [33'd265:33'd296]
+    };
+  }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -234,6 +244,7 @@ module main;
   wide_single_range_uniformity wide_single_range = new;
   wide_single_range_257_uniformity wide_single_range_257 = new;
   wide_fragmented_ranges_uniformity wide_fragmented_ranges = new;
+  wide_nine_ranges_uniformity wide_nine_ranges = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -257,6 +268,8 @@ module main;
   int wide_single_range_count[4];
   int wide_single_range_257_count[4];
   int wide_fragmented_ranges_count[4];
+  int wide_nine_ranges_count[9];
+  int wide_nine_ranges_offset;
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -708,6 +721,24 @@ module main;
           || wide_fragmented_ranges_count[i] > 70)
         $fatal(1, "fragmented-range bucket %0d is biased: %0d/200",
                i, wide_fragmented_ranges_count[i]);
+
+    // More than eight disjoint runs must still be sampled by cardinality.
+    wide_nine_ranges.srandom(629);
+    repeat (270) begin
+      if (!wide_nine_ranges.randomize())
+        $fatal(1, "wide nine-range solve failed");
+      wide_nine_ranges_offset = int'(wide_nine_ranges.value) - 1;
+      if (wide_nine_ranges_offset < 0
+          || wide_nine_ranges_offset / 33 >= 9
+          || wide_nine_ranges_offset % 33 >= 32)
+        $fatal(1, "wide nine-range result is outside its constraints");
+      wide_nine_ranges_count[wide_nine_ranges_offset / 33]++;
+    end
+    for (int i = 0; i < 9; ++i)
+      if (wide_nine_ranges_count[i] < 12
+          || wide_nine_ranges_count[i] > 48)
+        $fatal(1, "nine-range bucket %0d is biased: %0d/270",
+               i, wide_nine_ranges_count[i]);
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);

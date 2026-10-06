@@ -372,4 +372,25 @@ The final source-built ARM64 VVP SHA-256 is
 registered full uniformity suite printed `PASSED` under strict `-g2017` in
 92.12 s at 48,824,320-byte maximum RSS and under strict `-g2023` in 88.08 s at
 48,709,632-byte maximum RSS. Widths above 4,096 bits and unions with more than
-eight intervals remain unsupported by this fast exact path.
+eight intervals remain unsupported by the fix-9 fast exact path.
+
+## Isolated wide scalar unions with more than eight runs (fix 10)
+
+The eight-run ceiling sent a nine-run union to the Optimize fallback. A 33-bit
+scalar constrained to nine equal 32-value intervals has 288 legal values, so
+the existing 256-value enumerator cannot mask this path. With seed 910, the
+old fallback returned counts `8, 6, 4, 9, 3, 3, 6, 10, 41` in 90 draws; the
+last interval alone received 41 draws. Raising the exact interval cap to 16
+preserves exact cardinality weighting. With the same seed and 90 draws, the
+new sampler returned `12, 11, 8, 15, 8, 7, 11, 13, 5`. A 270-draw run gave
+`31, 27, 33, 38, 23, 25, 29, 33, 31`. Their runtimes were 5.01 s and 14.97 s,
+with 34,471,936-byte and 34,603,008-byte maximum RSS.
+
+The permanent paired regression uses seed 629 and 270 draws, requiring each
+of nine equal-cardinality bins to fall between 12 and 48. The full registered
+uniformity suite printed `PASSED` under strict `-g2017` in 117.47 s at
+49,283,072-byte maximum RSS and under `-g2023` in 102.49 s at 48,824,320-byte
+maximum RSS. The source-built ARM64 VVP SHA-256 is
+`237fbde41419504ff9734701c615f8fc3dd78fd70a5f0889f6432a8063d9f167`.
+Unions with more than 16 runs and scalar widths above 4,096 bits remain outside
+this exact path.

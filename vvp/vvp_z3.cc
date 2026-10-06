@@ -8254,8 +8254,7 @@ struct dist_wide_uint_t {
 static const unsigned WIDE_INTERVAL_MAX_WIDTH = 4096;
 
 /* Sample a wide scalar uniformly from a bounded union of feasible intervals.
- * ponytail: cap at 8 runs and 4096 bits; use exact model counting before
- * expanding either bound. */
+ * ponytail: cap at 16 runs and 4096 bits; raise after measuring solver cost. */
 static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
                                                 Z3_solver base,
                                                 Z3_ast var,
@@ -8298,7 +8297,7 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
       };
 
       struct interval_t { big first, last; };
-      static const size_t INTERVAL_CAP = 8;
+      static const size_t INTERVAL_CAP = 16;
       vector<interval_t> intervals;
       big total;
       big cursor;
