@@ -65,6 +65,22 @@ class variable_size_array_above_old_cap;
     else payload.size() == 65;
   }
 endclass
+typedef struct {
+  rand bit value;
+} uniform_member_t;
+class uniform_struct_member;
+  rand bit selector;
+  rand uniform_member_t record;
+  constraint c { if (selector) record.value == 0; }
+endclass
+class wide_domain_uniformity;
+  rand bit mode;
+  rand bit [64:0] value;
+  constraint c {
+    if (mode) value == 65'd0;
+    else value inside {65'd1, 65'd2, 65'd3, 65'd4};
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -76,11 +92,15 @@ module main;
   variable_size_array_with_empty variable_size_empty = new;
   correlated_variable_arrays correlated_arrays = new;
   variable_size_array_above_old_cap larger_array = new;
+  uniform_struct_member member_uniform = new;
+  wide_domain_uniformity wide_uniform = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
   int correlated_array_count[12];
   int larger_array_size_count[2];
+  int member_tuple_count[3];
+  int wide_tuple_count[5];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -246,6 +266,47 @@ module main;
         || larger_array_size_count[1] < 170 || larger_array_size_count[1] > 230)
       $fatal(1, "large-array sizes are not weighted by complete tuples: %0d/%0d",
              larger_array_size_count[0], larger_array_size_count[1]);
+
+    // One active struct member participates in the same three legal tuples.
+    member_uniform.srandom(101);
+    repeat (300) begin
+      if (!member_uniform.randomize())
+        $fatal(1, "struct-member uniformity solve failed");
+      if (member_uniform.selector) begin
+        if (member_uniform.record.value != 0)
+          $fatal(1, "invalid selected struct-member tuple");
+        member_tuple_count[0]++;
+      end else
+        member_tuple_count[1 + member_uniform.record.value]++;
+    end
+    for (int i = 0; i < 3; ++i)
+      if (member_tuple_count[i] < 70 || member_tuple_count[i] > 130)
+        $fatal(1, "struct-member legal tuple %0d is biased: %0d/300",
+               i, member_tuple_count[i]);
+
+    // A 65-bit variable has only five feasible values across the mode split.
+    wide_uniform.srandom(211);
+    repeat (1000) begin
+      if (!wide_uniform.randomize())
+        $fatal(1, "wide-domain uniformity solve failed");
+      if (wide_uniform.mode) begin
+        if (wide_uniform.value != 0)
+          $fatal(1, "invalid wide mode-one tuple");
+        wide_tuple_count[0]++;
+      end else begin
+        case (wide_uniform.value)
+          65'd1: wide_tuple_count[1]++;
+          65'd2: wide_tuple_count[2]++;
+          65'd3: wide_tuple_count[3]++;
+          65'd4: wide_tuple_count[4]++;
+          default: $fatal(1, "invalid wide mode-zero tuple");
+        endcase
+      end
+    end
+    for (int i = 0; i < 5; ++i)
+      if (wide_tuple_count[i] < 140 || wide_tuple_count[i] > 260)
+        $fatal(1, "wide legal tuple %0d is biased: %0d/1000",
+               i, wide_tuple_count[i]);
     $display("PASSED");
   end
 endmodule

@@ -81,3 +81,38 @@ complete tuple counts differ by 2:1, and the observed mode counts stayed within
 bytes in 2017 and 44,892,160 bytes in 2023; each run completed in about 31 s.
 
 Source-built ARM64 VVP SHA-256: `39c2d208c6cd8bb92fb989b91e86c84b0143310062e520ecb8962b7c27cf8553`.
+
+## Connected wide-scalar finite-domain slice
+
+A 65-bit scalar reproducer has five complete legal tuples: one mode selects
+value zero, while the other mode selects values one through four. The previous
+per-property path produced `505, 122, 128, 117, 128` over 1,000 draws, instead
+of about 200 per tuple. Sampling a connected wide scalar's complete feasible
+unary domain when that domain has at most 64 values, then rejecting against the
+full component, produced `192, 201, 202, 196, 209` with the same seed.
+
+The registered combined scalar/array regression, including its five-bin
+140–260/1,000 oracle, passed under strict `-g2017` and `-g2023`. The adjacent
+oversized-domain/failure-rollback control also passed in both editions. The
+separate struct-member oracle covers its tested three-tuple case but does not
+qualify all member shapes. Wide domains above the enumeration cap remain open.
+
+Source-built ARM64 VVP SHA-256: `0489a4df64e0e4af251b899f5904462351b9cdaa135e1ce2e668131af67ae271`.
+
+## Adjacent 128-bit nested fixed-element randomization
+
+The existing `sv_constraint_wide_fixed_element_diversity` regression uses a
+128-bit fixed-array element through a nested class handle. Removing the stale
+64-bit metadata rejection exposed a second limit: exact tuple extraction is
+64-bit. Plain unweighted components wider than that now use full-width random
+candidate pins and model-value pins, allowing the diversity and same-seed
+replay checks to pass under both `-g2017` and `-g2023`.
+
+Both runs print `PASSED` and emit the existing warning that an oversized
+ordinary component is sampled against the hard constraints, not uniformly over
+its solutions. This is a runtime-support result only; it does not extend the
+uniformity claim to constrained wide domains above the enumeration cap. The
+paired `sv_randomize_global_uniform` statistical suite and its rollback
+control also pass on the same VVP image.
+
+Source-built ARM64 VVP SHA-256: `3d24d2efddd12f07ad7bedbee2d8d3d6662e6af2ccffda6639ada3a35e000ccb`.

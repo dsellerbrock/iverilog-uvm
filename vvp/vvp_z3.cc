@@ -1973,7 +1973,7 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       vvp_cobject*owner = b.cobj;
       string error;
       if (!b.graph || path.size() < 2 || width_ul > UINT_MAX
-	  || !width || width > 64
+	  || !width
 	  || elem_ul > UINT_MAX || !suffix_ok) {
 	    error = "invalid nested fixed-array constraint metadata";
       } else {
@@ -9974,6 +9974,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       map<Z3_ast, unsigned> uniform_joint_property;
       map<Z3_ast, unsigned> uniform_joint_width;
       map<Z3_ast, vector<uint64_t> > uniform_joint_domains;
+      map<Z3_ast, vector<Z3_ast> > uniform_joint_wide_domains;
       bool uniform_joint_eligible = cobj && !exact_joint
 	    && builder.order_pairs.empty() && builder.dist_specs.empty()
 	    && builder.pending_soft.empty()
@@ -9986,7 +9987,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       vector<Z3_ast> active_uniform_vars;
       for (const auto&pv : builder.prop_vars) {
 	    if (!rand_scalar_active_(builder, prop_active, pv.idx)) continue;
-	    if (pv.width == 0 || pv.width > 64
+	    if (pv.width == 0
 		|| builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
 		  uniform_joint_eligible = false;
 		  break;
@@ -10012,7 +10013,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		       && !uniform_dynamic_size_domains_ready)
 		      || ev.nested || ev.leaf != 0 || !known_size
 		      || !in_size_range || ev.width == 0
-		      || ev.width > 64
 		      || type->property_is_randc(pid)) {
 			uniform_joint_eligible = false;
 			break;
@@ -10083,11 +10083,29 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (uniform_joint_eligible && active_uniform_vars.size() > 1) {
 	    vector<vector<Z3_ast> > components;
 	    if (!z3_joint_components_(ctx, base, active_uniform_vars, components))
-		  uniform_joint_components.push_back(active_uniform_vars);
-	    else
-		  for (const auto&component : components)
-			if (component.size() > 1)
-			      uniform_joint_components.push_back(component);
+		  components.push_back(active_uniform_vars);
+	    for (const auto&component : components) {
+		  if (component.size() <= 1) continue;
+		  // A wide variable joins a coupled sampler only when its complete
+		  // feasible unary domain can be enumerated; otherwise keep this
+		  // component on the existing wide-domain path.
+		  vector<pair<Z3_ast, vector<Z3_ast> > > wide_domains;
+		  bool supported = true;
+		  for (Z3_ast var : component) {
+			if (uniform_joint_width.at(var) <= 64) continue;
+			vector<Z3_ast> values;
+			if (!z3_enumerate_wide_values_(ctx, base, var, values)) {
+			      supported = false;
+			      break;
+			}
+			wide_domains.push_back(make_pair(var, std::move(values)));
+		  }
+		  if (!supported) continue;
+		  for (auto&domain : wide_domains)
+			uniform_joint_wide_domains[domain.first] =
+			      std::move(domain.second);
+		  uniform_joint_components.push_back(component);
+	    }
       }
       set<Z3_ast> uniform_sampled_vars;
 
@@ -10284,19 +10302,35 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      unsigned width = uniform_joint_width.at(var);
 			      unsigned idx = uniform_joint_property.at(var);
 			      z3_rng_stream_t&rng = property_rng(idx);
-			      uint64_t value;
+			      Z3_ast pin;
 			      auto domain = uniform_joint_domains.find(var);
 			      if (domain != uniform_joint_domains.end()) {
 				    if (domain->second.empty())
 					  return fail_joint("a variable-size array has no feasible size");
-				    value = domain->second[rng.uniform_index(
+				    uint64_t value = domain->second[rng.uniform_index(
 					  domain->second.size())];
-			      } else value = width == 64
-				    ? ((uint64_t)rng.next() << 32) | rng.next()
-				    : rng.uniform_u64(UINT64_C(1) << width);
-			      Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
-				    Z3_mk_bv_sort(ctx, width));
-			      pins.push_back(Z3_mk_eq(ctx, var, constant));
+				    Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
+					  Z3_mk_bv_sort(ctx, width));
+				    pin = Z3_mk_eq(ctx, var, constant);
+			      } else {
+				    auto wide_domain = uniform_joint_wide_domains.find(var);
+				    if (wide_domain != uniform_joint_wide_domains.end()) {
+					  if (wide_domain->second.empty())
+						return fail_joint("a wide random variable has no feasible values");
+					  pin = Z3_mk_eq(ctx, var, wide_domain->second[
+						rng.uniform_index(wide_domain->second.size())]);
+				    } else {
+					  if (width > 64)
+						return fail_joint("a wide joint variable lacks a complete feasible domain");
+					  uint64_t value = width == 64
+						? ((uint64_t)rng.next() << 32) | rng.next()
+						: rng.uniform_u64(UINT64_C(1) << width);
+					  Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
+						Z3_mk_bv_sort(ctx, width));
+					  pin = Z3_mk_eq(ctx, var, constant);
+				    }
+			      }
+			      pins.push_back(pin);
 			}
 			feasible = Z3_solver_check_assumptions(ctx, base,
 			      (unsigned)pins.size(), pins.data());
@@ -11255,6 +11289,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             /* A component too large to enumerate that carries no dist, randc or
                solve-before promise needs only a valid joint assignment: sample it
                column by column against the hard solver. */
+            /* ponytail: until a symbolic uniform sampler replaces it, ordinary
+               over-cap components use checked candidates and warn; uniformity is
+               not guaranteed for their constrained solution sets. */
             vector<bool> sampled_component(components.size(), false);
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   bool component_has_randc = any_of(components[ci].begin(),
@@ -11294,8 +11331,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               continue;
                         }
                         if (enumerated == Z3_L_UNDEF && reason
-                            && strcmp(reason,
+                            && (strcmp(reason,
                                "the complete joint solution set exceeds the enumeration limit") == 0
+                                || strcmp(reason,
+                               "a joint variable exceeds the supported 64-bit width") == 0)
                             && distributions[ci].empty() && !component_has_dist_spec
                             && !component_has_randc && !ordered_component) {
                               static bool warned_sampled_component = false;
@@ -11739,14 +11778,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               unsigned width = Z3_get_bv_sort_size(ctx, sort);
                               bool pinned = false;
                               for (unsigned attempt = 0; attempt < 8 && !pinned; ++attempt) {
-                                    uint64_t draw = ((uint64_t)root_rng.next() << 32)
-                                          | root_rng.next();
-                                    if (width < 64) draw &= ((uint64_t)1 << width) - 1;
+                                    vvp_vector4_t draw(width, BIT4_0);
+                                    for (unsigned bit = 0; bit < width; ++bit)
+                                          draw.set_bit(bit, (root_rng.next() & 1)
+                                                ? BIT4_1 : BIT4_0);
                                     Z3_ast pin = Z3_mk_eq(ctx, component[column],
-                                          Z3_mk_unsigned_int64(ctx, draw, sort));
+                                          z3_vec4_constant_(ctx, draw, width));
                                     if (Z3_solver_check_assumptions(ctx, base, 1, &pin)
                                         == Z3_L_TRUE) {
-                                          pin_column(column, draw);
+                                          Z3_solver_assert(ctx, base, pin);
+                                          Z3_optimize_assert(ctx, opt, pin);
                                           pinned = true;
                                     }
                               }
@@ -11755,12 +11796,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     return fail_joint("a sampled joint component became infeasible");
                               Z3_model model = Z3_solver_get_model(ctx, base);
                               Z3_model_inc_ref(ctx, model);
-                              uint64_t value = 0;
-                              bool have = z3_eval_uint64(ctx, model, component[column], value);
+                              Z3_ast value = nullptr;
+                              bool have = Z3_model_eval(ctx, model,
+                                    component[column], true, &value);
+                              if (have) {
+                                    Z3_ast pin = Z3_mk_eq(ctx,
+                                          component[column], value);
+                                    Z3_solver_assert(ctx, base, pin);
+                                    Z3_optimize_assert(ctx, opt, pin);
+                              }
                               Z3_model_dec_ref(ctx, model);
                               if (!have)
                                     return fail_joint("a sampled joint component has no integral model");
-                              pin_column(column, value);
                         }
                         continue;
                   }
