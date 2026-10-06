@@ -9792,6 +9792,47 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert_soft(ctx, opt, sa.a, w_str, grp);
       }
 
+      // A connected component of direct scalar rand properties is one
+      // semantic choice. The accept-current fast path mixed with a different
+      // per-property fallback can bias the legal-tuple distribution. For the
+      // narrow case without dist/soft/order/randc or container state,
+      // draw complete component tuples from the object RNG until the hard
+      // solver accepts one. Rejection sampling is uniform over legal tuples.
+      // ponytail: exact rejection sampling costs inverse solution density;
+      // use exact counting/hash sampling if sparse coupled spaces need bounded
+      // runtime.
+      vector<vector<Z3_ast> > uniform_scalar_components;
+      map<Z3_ast, unsigned> uniform_scalar_property;
+      map<Z3_ast, unsigned> uniform_scalar_width;
+      bool uniform_scalar_eligible = cobj && !exact_joint
+	    && builder.order_pairs.empty() && builder.dist_specs.empty()
+	    && builder.pending_soft.empty() && builder.elem_vars.empty()
+	    && builder.member_vars.empty() && builder.member_elem_vars.empty()
+	    && builder.size_vars.empty() && builder.qelem_vars.empty()
+	    && builder.dyn_foreach.empty() && builder.state_checks.empty();
+      vector<Z3_ast> active_scalar_vars;
+      for (const auto&pv : builder.prop_vars) {
+	    if (!rand_scalar_active_(builder, prop_active, pv.idx)) continue;
+	    if (pv.width == 0 || pv.width > 64
+		|| builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
+		  uniform_scalar_eligible = false;
+		  break;
+	    }
+	    active_scalar_vars.push_back(pv.var);
+	    uniform_scalar_property[pv.var] = pv.idx;
+	    uniform_scalar_width[pv.var] = pv.width;
+      }
+      if (uniform_scalar_eligible && active_scalar_vars.size() > 1) {
+	    vector<vector<Z3_ast> > components;
+	    if (!z3_joint_components_(ctx, base, active_scalar_vars, components))
+		  uniform_scalar_components.push_back(active_scalar_vars);
+	    else
+		  for (const auto&component : components)
+			if (component.size() > 1)
+			      uniform_scalar_components.push_back(component);
+      }
+      set<Z3_ast> uniform_sampled_scalars;
+
       // Check if the already-randomized values satisfy all hard constraints.
       // Use a temporary solver for this fast-path check (opt is slow for pure
       // feasibility when we already have a candidate). RANDOM-DIST
@@ -9930,6 +9971,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    // A symbolic state selection needs the final model to decide whether
 	    // its chosen index names an X/Z leaf or lies outside the declaration.
 	    if (!builder.state_checks.empty()) precheck = Z3_L_FALSE;
+	    if (!uniform_scalar_components.empty()) precheck = Z3_L_FALSE;
 
 	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {
 		  // The candidate check included every active explicit `soft`
@@ -9969,6 +10011,41 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (feasible != Z3_L_TRUE) continue;
 	    Z3_solver_assert(ctx, base, sa.a);
 	    Z3_optimize_assert(ctx, opt, sa.a);
+      }
+
+      if (!uniform_scalar_components.empty()) {
+	    Z3_lbool feasible = Z3_solver_check(ctx, base);
+	    if (feasible == Z3_L_FALSE) return fail_joint(nullptr);
+	    if (feasible == Z3_L_UNDEF)
+		  return fail_joint("the solver returned UNKNOWN before uniform scalar sampling");
+	    for (const auto&component : uniform_scalar_components) {
+		  for (;;) {
+			vector<Z3_ast> pins;
+			pins.reserve(component.size());
+			for (Z3_ast var : component) {
+			      unsigned width = uniform_scalar_width.at(var);
+			      unsigned idx = uniform_scalar_property.at(var);
+			      z3_rng_stream_t&rng = property_rng(idx);
+			      uint64_t value = width == 64
+				    ? ((uint64_t)rng.next() << 32) | rng.next()
+				    : rng.uniform_u64(UINT64_C(1) << width);
+			      Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
+				    Z3_mk_bv_sort(ctx, width));
+			      pins.push_back(Z3_mk_eq(ctx, var, constant));
+			}
+			feasible = Z3_solver_check_assumptions(ctx, base,
+				  (unsigned)pins.size(), pins.data());
+			if (feasible == Z3_L_UNDEF)
+			      return fail_joint("the solver returned UNKNOWN during uniform scalar sampling");
+			if (feasible == Z3_L_FALSE) continue;
+			for (size_t i = 0; i < component.size(); ++i) {
+			      Z3_solver_assert(ctx, base, pins[i]);
+			      Z3_optimize_assert(ctx, opt, pins[i]);
+			      uniform_sampled_scalars.insert(component[i]);
+			}
+			break;
+		  }
+	    }
       }
 
       auto active_randc_var = [&](Z3_ast var) -> bool {
@@ -10281,6 +10358,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             if (graph && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)) != cyclic_only)
                   continue;
 	    if (!rand_scalar_active_(builder, prop_active, pv.idx)) continue;
+	    if (uniform_sampled_scalars.count(pv.var)) continue;
 	    if (dist_resolved_vars.count(pv.var)) continue;
 	    bool fallback_managed = dist_fallback_vars.count(pv.var)
 		  || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0);

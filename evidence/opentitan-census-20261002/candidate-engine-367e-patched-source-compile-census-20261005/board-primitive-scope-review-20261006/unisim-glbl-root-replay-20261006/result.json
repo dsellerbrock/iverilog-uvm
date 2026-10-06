@@ -1,0 +1,143 @@
+{
+  "checked_at": "2026-10-06T04:13:06.653614+00:00",
+  "library": "Xilinx/XilinxUnisimLibrary",
+  "commit": "1c8e05fd1e9a79ceb8b996a0996674122eed086f",
+  "license": "Apache-2.0",
+  "method": "re-run original full-top compile with UNISIM -y path and glbl elaborated as an additional root (-sglbl)",
+  "results": [
+    {
+      "core": "lowrisc:systems:chip_earlgrey_cw310:0.1",
+      "top": "chip_earlgrey_cw310",
+      "returncode": 7,
+      "duration_seconds": 6.62,
+      "compile_log": "lowrisc_systems_chip_earlgrey_cw310_0.1.log",
+      "unknown_module_errors": [],
+      "hard_error_count": 7,
+      "hard_errors": [
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers."
+      ],
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-schip_earlgrey_cw310",
+        "-sglbl",
+        "-S",
+        "-DSYNTHESIS",
+        "-DSYNTHESIS_MEMORY_BLACK_BOXING",
+        "-y",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims",
+        "-o",
+        "/private/tmp/lowrisc_systems_chip_earlgrey_cw310_0.1-with-unisim-glbl.vvp",
+        "-c",
+        "/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw310_0.1/default-icarus/lowrisc_systems_chip_earlgrey_cw310_0.1.scr",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/glbl.v"
+      ],
+      "working_directory": "/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw310_0.1/default-icarus"
+    },
+    {
+      "core": "lowrisc:systems:chip_earlgrey_cw310_hyperdebug:0.1",
+      "top": "chip_earlgrey_cw310",
+      "returncode": 7,
+      "duration_seconds": 6.687,
+      "compile_log": "lowrisc_systems_chip_earlgrey_cw310_hyperdebug_0.1.log",
+      "unknown_module_errors": [],
+      "hard_error_count": 7,
+      "hard_errors": [
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers."
+      ],
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-schip_earlgrey_cw310",
+        "-sglbl",
+        "-S",
+        "-DSYNTHESIS",
+        "-DSYNTHESIS_MEMORY_BLACK_BOXING",
+        "-y",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims",
+        "-o",
+        "/private/tmp/lowrisc_systems_chip_earlgrey_cw310_hyperdebug_0.1-with-unisim-glbl.vvp",
+        "-c",
+        "/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw310_hyperdebug_0.1/default-icarus/lowrisc_systems_chip_earlgrey_cw310_hyperdebug_0.1.scr",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/glbl.v"
+      ],
+      "working_directory": "/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw310_hyperdebug_0.1/default-icarus"
+    },
+    {
+      "core": "lowrisc:systems:chip_earlgrey_cw340:0.1",
+      "top": "chip_earlgrey_cw340",
+      "returncode": 7,
+      "duration_seconds": 6.96,
+      "compile_log": "lowrisc_systems_chip_earlgrey_cw340_0.1.log",
+      "unknown_module_errors": [],
+      "hard_error_count": 7,
+      "hard_errors": [
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.",
+        "../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers."
+      ],
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-schip_earlgrey_cw340",
+        "-sglbl",
+        "-S",
+        "-DSYNTHESIS",
+        "-DSYNTHESIS_MEMORY_BLACK_BOXING",
+        "-y",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims",
+        "-o",
+        "/private/tmp/lowrisc_systems_chip_earlgrey_cw340_0.1-with-unisim-glbl.vvp",
+        "-c",
+        "/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw340_0.1/default-icarus/lowrisc_systems_chip_earlgrey_cw340_0.1.scr",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/glbl.v"
+      ],
+      "working_directory": "/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw340_0.1/default-icarus"
+    },
+    {
+      "core": "lowrisc:systems:chip_englishbreakfast_cw305:0.1",
+      "top": "chip_englishbreakfast_cw305",
+      "returncode": 1,
+      "duration_seconds": 4.289,
+      "compile_log": "lowrisc_systems_chip_englishbreakfast_cw305_0.1.log",
+      "unknown_module_errors": [],
+      "hard_error_count": 1,
+      "hard_errors": [
+        "../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:819: error: port ``clk_osc_byp_i'' is not a port of u_ast."
+      ],
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+        "-g2012",
+        "-schip_englishbreakfast_cw305",
+        "-sglbl",
+        "-S",
+        "-DSYNTHESIS",
+        "-DSYNTHESIS_MEMORY_BLACK_BOXING",
+        "-y",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims",
+        "-o",
+        "/private/tmp/cw305-unisim-glbl-root.vvp",
+        "-c",
+        "/private/tmp/pi/iverilog-uvm-englishbreakfast-replay-r2-20261006/build/rtl/lowrisc_systems_chip_englishbreakfast_cw305_0.1/default-icarus/lowrisc_systems_chip_englishbreakfast_cw305_0.1.scr",
+        "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/glbl.v"
+      ],
+      "working_directory": "/private/tmp/pi/iverilog-uvm-englishbreakfast-replay-r2-20261006/build/rtl/lowrisc_systems_chip_englishbreakfast_cw305_0.1/default-icarus"
+    }
+  ]
+}

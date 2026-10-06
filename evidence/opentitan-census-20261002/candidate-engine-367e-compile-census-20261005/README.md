@@ -14,6 +14,17 @@ overlays. The pinned OpenTitan checkout is unchanged.
 | UVM | 17 | 0 | 5 | 13 | 0 | 0 |
 | **Total** | **157** | **120** | **6** | **16** | **7** | **3** |
 
+These 309 entries are compile-matrix rows (`lane` + FuseSoC core + target),
+not 309 runtime tests. `DEPENDENCY_ONLY` means FuseSoC reported that the core
+has no standalone top-level, so the runner did not compile it by itself. The
+120 rows are 119 RTL and 1 SVA; by namespace they are 81 `prim`, 23 `ip`, 9
+`systems`, 4 `ibex`, 2 `tlul`, and 1 `fpv` cores. These are non-standalone
+dependency cores (including packages and filesets), not 120 Icarus defects to
+patch individually. The runner labels
+them `compiled_through_parent_toplevel`, but this result does not record the
+specific parent compile proving each dependency was included; that coverage
+mapping still needs verification before counting them as individually proven.
+
 Compared with the older engine `890c…` census, this result has 20 more PASS
 rows, 13 fewer DEBT rows, and 7 fewer upstream-invalid rows. The regular UVM
 lane still has 13 compile failures and 5 debt rows; the separate
@@ -30,9 +41,14 @@ are the Earl Grey ASIC SVA top and five baseline UVM rows (`csrng`, `pattgen`,
 [machine result](result.json) and [table](result.md); the exact run is in
 [`runner.log`](runner.log).
 
-This census excludes runtime. The selected 49/49 runtime result is on engine
-`890c…`; it has not been rerun on `367e…`. Thus these compile results, plus the
-35/35 patched UVM result, do not establish full OpenTitan completion.
+The frozen 309-row table retains its original classifications. A later
+focused SHA3PAD FPV follow-up passes on the same engine; applying that one
+row-level update gives 158 PASS and 2 upstream-invalid rows. See the
+[focused result](../candidate-sha3pad-fpv-sampled-mubi-20261005/result.json).
+
+This census excludes runtime. The separate selected 49/49 runtime gate now
+passes on engine `367e…`. Thus these compile results, plus the 35/35 patched
+UVM result, do not establish full OpenTitan completion.
 
 To reproduce the census:
 

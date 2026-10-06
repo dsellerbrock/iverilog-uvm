@@ -1,0 +1,40 @@
+{
+  "repository": "https://github.com/lowRISC/ibex",
+  "revision": "38c070939183cc10940b66c8e9e04eeca6b65470",
+  "opentitan_vendor_lock": "hw/vendor/lowrisc_ibex.lock.hjson",
+  "files": [
+    {
+      "path": "examples/simple_system/ibex_simple_system_core.core",
+      "sha256": "f4313230a1a4107ffec641d3b9d5f3259c808045a87b55d81c954fa807cda755"
+    },
+    {
+      "path": "examples/simple_system/rtl/ibex_simple_system.sv",
+      "sha256": "3eb362e2a365e2e2eb526867239747a872d72d3b6bc684c66d7d0f5dc8e1159d"
+    },
+    {
+      "path": "rtl/bus.sv",
+      "sha256": "292353ffc798a5deda6d8d99b6b4b9ee8a2e1c5590c24d8b156123fa44651a97"
+    },
+    {
+      "path": "rtl/ram_1p.sv",
+      "sha256": "d2803b2a05084dba95fa430ece83df45b9afdf976ff551b1a4612ab7cd9e33cf"
+    },
+    {
+      "path": "rtl/ram_2p.sv",
+      "sha256": "9cc65b76e2485e0eca6263bd1bfc9275041e869b8298b48692b36664ab003543"
+    },
+    {
+      "path": "rtl/sim/simulator_ctrl.sv",
+      "sha256": "f873a5a68fbdef5647c2f5b8cbc158e5db8d1d468816c18e77d21ef3ce6b0230"
+    },
+    {
+      "path": "rtl/timer.sv",
+      "sha256": "c4fda0e19686f167f242e5dbb0686c92c89c896d8630832acfc9c9f6cf6d7613"
+    },
+    {
+      "path": "sim_shared.core",
+      "sha256": "d28af907c0d5fe469faf3ee46418ebf2507053fc480566043e589af341e59392"
+    }
+  ],
+  "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+}

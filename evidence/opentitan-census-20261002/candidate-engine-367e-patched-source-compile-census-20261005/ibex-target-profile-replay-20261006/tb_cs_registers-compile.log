@@ -1,0 +1,16 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb_cs_registers -DSIMULATION -DDUT_HIER=tb.dut -o /private/tmp/pi/iverilog-uvm-ibex-profile-check-20261006/build/rtl/lowrisc_ibex_tb_cs_registers_0/matrix-rtl.vvp -c /private/tmp/pi/iverilog-uvm-ibex-profile-check-20261006/build/rtl/lowrisc_ibex_tb_cs_registers_0/sim-icarus/lowrisc_ibex_tb_cs_registers_0.scr
+returncode: 0
+duration_seconds: 0.099
+
+../src/lowrisc_ibex_tb_cs_registers_0/tb/tb_cs_registers.sv:120: warning: Assigning to a non-integral variable (name) cannot be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/reg_driver/reg_dpi.sv:9: warning: A non-integral variable (name) cannot be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/reg_driver/reg_dpi.sv:8: warning: user task (monitor_tick) must be automatic to be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/tb/tb_cs_registers.sv:130: warning: Assigning to a non-integral variable (name) cannot be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/reg_driver/reg_dpi.sv:21: warning: A non-integral variable (name) cannot be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/reg_driver/reg_dpi.sv:20: warning: user task (driver_tick) must be automatic to be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/env/env_dpi.sv:19: warning: user task (env_tick) must be automatic to be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/tb/tb_cs_registers.sv:109: warning: Assigning to a non-integral variable (name) cannot be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/rst_driver/rst_dpi.sv:9: warning: A non-integral variable (name) cannot be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/rst_driver/rst_dpi.sv:8: warning: user task (rst_tick) must be automatic to be synthesized in an always_ff process.
+../src/lowrisc_ibex_tb_cs_registers_0/tb/tb_cs_registers.sv:111: warning: System task ($finish) cannot be synthesized in an always_ff process.

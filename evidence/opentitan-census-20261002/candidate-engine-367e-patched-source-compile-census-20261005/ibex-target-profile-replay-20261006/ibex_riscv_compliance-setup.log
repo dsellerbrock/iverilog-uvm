@@ -1,0 +1,12 @@
+OpenTitan FuseSoC setup
+command: /Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/private/tmp/ot-corpus-current-spid-passthrough-20261003/source --cores-root=/private/tmp/pi/iverilog-uvm-ibex-profile-check-20261006/build/matrix-provider-cores/source-overrides run --target=sim --tool=icarus --setup --build-root=/private/tmp/pi/iverilog-uvm-ibex-profile-check-20261006/build/rtl/lowrisc_ibex_ibex_riscv_compliance_0.1 lowrisc:ibex:ibex_riscv_compliance:0.1
+returncode: 1
+duration_seconds: 0.421
+
+ERROR: Conflicting requirements:
+Requirements: 'lowrisc_ibex_ibex_riscv_compliance == 0.1-0' <- 'lowrisc_ibex_sim_shared >= 0-0'
+    +lowrisc_ibex_ibex_riscv_compliance-0.1-0 was ignored because it depends on missing packages
+Requirements: 'lowrisc_ibex_ibex_riscv_compliance == 0.1-0'
+    Install command rule (+lowrisc_ibex_ibex_riscv_compliance-0.1-0)
+
+Failed to resolve dependencies for lowrisc:ibex:ibex_riscv_compliance:0.1

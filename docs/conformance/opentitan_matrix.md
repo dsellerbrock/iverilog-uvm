@@ -9,9 +9,10 @@ engine `890c5b3c…`; see the [engine 890c result](../../evidence/opentitan-cens
 [pre-candidate result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
 and [replication guide](opentitan_49of49_reproduction.md).
 
-The 49-target runtime gate is not the full OpenTitan compile audit. The 309-row
-RTL/SVA/UVM census below still has dependency-only, debt, fail, setup-fail, and
-upstream-invalid outcomes. The direct unbased-fill range-endpoint fix is
+The 49-target runtime gate is not the full OpenTitan DV suite. The latest
+scoped 309-row RTL/SVA/UVM census has four board rows excluded by policy and
+305 in-scope rows: 188 PASS and 117 dependency-only, with no in-scope compile
+failures or debt. The direct unbased-fill range-endpoint fix is
 covered by focused regressions and a 35/35 patched UVM recheck on engine
 `367e4467…`. The older discovery totals below come from OpenTitan revision
 `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` and describe a broader inventory.
@@ -20,7 +21,7 @@ covered by focused regressions and a 35/35 patched UVM recheck on engine
 OpenTitan closure campaign.  It replaces one-off source lists with a pinned,
 machine-readable result for every selected FuseSoC core.
 
-## Candidate compile census (2026-10-05, engine 367e)
+## Clean-source compile census (2026-10-05, engine 367e)
 
 The latest serial compile-only census completed 309 RTL/SVA/UVM rows against
 clean OpenTitan commit `a78922f14a8cc20c7ee569f322a04626f2ac6127`. It records
@@ -32,21 +33,58 @@ still fail, while the separate [patched UVM lane passes 35/35](../../evidence/op
 on this engine.
 
 The census excludes runtime. The selected 49/49 runtime gate now passes on
-engine `367e…`, but full OpenTitan completion remains unverified until the
-outstanding compile blockers are resolved. The earlier engine `890c…` compile
-snapshot recorded 137 PASS, 120 dependency-only, 19 DEBT, 16 FAIL, 7 setup
-failures, and 10 upstream-invalid;
+engine `367e…`; it is a selected target set, not the full OpenTitan DV suite.
+The earlier engine `890c…` compile snapshot recorded 137 PASS, 120
+dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid;
 see the [historical census](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md).
 The earlier 31 UVM failure count was a missing-DPI setup artifact and is
 superseded.
+
+## Patched-source scoped compile census (2026-10-06)
+
+The initial 309-row run against the reproducible OpenTitan overlay snapshot
+recorded 176 PASS, 120 dependency-only, 1 DEBT, 3 FAIL, 7 setup failures, and
+2 upstream-invalid; all 35 UVM rows passed. Its raw result is preserved. The
+latest [scoped aggregate](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/result-scoped-aggregate.md)
+retains all 309 rows. Per project direction, four Xilinx board tops are
+`OUT_OF_SCOPE` because Vivado handles those primitives. Current in-scope counts
+are 188 PASS and 117 dependency-only, with no FAIL, DEBT, setup-fail, or
+upstream-invalid rows. Of the dependency-only rows, 116 are helper cores
+compiled through passing parent top levels; `primgen` is generator-only and
+exercised by passing parents. Focused Ibex replays use the exact support
+library revision pinned by OpenTitan; both `ibex_riscv_compliance` and
+`ibex_simple_system_cosim` pass on their declared `sim` targets. The six
+previously uncovered standalone providers also pass direct compile replays.
+The EnglishBreakfast helpers are dependency-only; the generated
+`top_englishbreakfast` passes after a
+hash-recorded overlay guards only its simulation path-printing block; and its
+Verilator simulation target passes after the runner mirrors its `VERILATOR`
+tool define. This is a compile-only result; its C/C++ simulation harness and
+runtime memory-image arguments are not executed by Icarus. See
+the [Ibex replay](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/ibex-target-profile-replay-20261006/README.md)
+and [EnglishBreakfast replay](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/englishbreakfast-rtl-replay-r3-20261006/result.md),
+plus the [Verilator follow-up](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/englishbreakfast-rtl-replay-r5-20261006/result.md).
+The [generated top replay](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/englishbreakfast-rtl-replay-r6-20261006/result.md)
+records the focused pass.
+The [Ibex compliance replay](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/ibex-support-replay-r1-20261006/result.md)
+uses OpenTitan's exact pinned support library, and the
+[simple-system replay](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/ibex-simple-system-cosim-replay-r2-20261006/result.md)
+passes its declared `sim` target. The [chip SVA replay](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/chip-earlgrey-sva-replay-r8-20261006/result.md)
+applies the chip simulation config's imported `1ns/1ps` default; the mixed
+timescale compiler notice remains recorded as benign.
+The public Apache-2.0 Xilinx UNISIM models were fetched and resolve the board
+primitive references in a focused compile when `glbl` is included as an
+elaboration root. Board rows stay excluded under the current policy. The
+selected 49/49 runtime gate is separate and already passes on this engine; it
+does not claim full OpenTitan DV-suite coverage.
 
 A focused follow-up on engine `367e…` passes the default-image
 `top_earlgrey`, `chip_earlgrey_asic`, and `chip_earlgrey_verilator` synthesis
 rows with zero semantic debt. It verifies the ROM/OTP defaults and wrapper
 parameters, fixes the Verilator wrapper’s multibit signals and bypass wiring,
 and gives the Ibex trace locals automatic lifetime. The RTL results are
-included in the refreshed census; its `chip_earlgrey_asic` SVA row remains
-`DEBT`. See the [default-image pair](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md)
+included in the refreshed census; its `chip_earlgrey_asic` SVA row also now
+passes with the declared simulation timescale. See the [default-image pair](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md)
 and [Verilator row](../../evidence/opentitan-census-20261002/candidate-chip-earlgrey-verilator-compile-20261005/README.md).
 
 The I2C SVA and UVM compile rows also pass on engine `367e…` with the existing

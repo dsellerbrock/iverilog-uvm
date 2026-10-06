@@ -1,0 +1,27 @@
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -schip_earlgrey_cw310 -sglbl -S -DSYNTHESIS -DSYNTHESIS_MEMORY_BLACK_BOXING -y /private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims -o /private/tmp/lowrisc_systems_chip_earlgrey_cw310_0.1-with-unisim-glbl.vvp -c /private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw310_0.1/default-icarus/lowrisc_systems_chip_earlgrey_cw310_0.1.scr /private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/glbl.v
+working_directory: /private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw310_0.1/default-icarus
+returncode: 7
+duration_seconds: 6.620
+
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4439: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4439: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4440: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4440: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4441: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4441: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4442: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4442: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4443: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4443: warning: Choosing typ expression.
+../src/lowrisc_systems_chip_earlgrey_cw310_0.1/rtl/autogen/chip_earlgrey_cw310.sv:914: warning: Port 88 (dft_scan_md_o) of module ast expects 4 bit(s), given 1.
+../src/lowrisc_systems_chip_earlgrey_cw310_0.1/rtl/autogen/chip_earlgrey_cw310.sv:914:        : Padding 3 high bits of the port.
+../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.
+../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.
+../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.
+../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.
+../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.
+../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.
+../src/lowrisc_ip_otbn_0.1/rtl/otbn_rf_bignum_fpga.sv:82: error: Variable 'we_err_o' cannot have multiple drivers.
+../src/lowrisc_systems_chip_earlgrey_cw310_0.1/rtl/autogen/chip_earlgrey_cw310.sv:1094: warning: Port 32 (flash_obs_o) of module top_earlgrey expects 8 bit(s), given 1.
+../src/lowrisc_systems_chip_earlgrey_cw310_0.1/rtl/autogen/chip_earlgrey_cw310.sv:1094:        : Padding 7 high bits of the port.
+7 error(s) during elaboration.

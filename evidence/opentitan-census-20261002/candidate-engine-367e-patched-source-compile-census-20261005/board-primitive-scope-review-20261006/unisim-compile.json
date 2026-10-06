@@ -1,0 +1,31 @@
+{
+  "checked_at": "2026-10-06T03:25:50.168998+00:00",
+  "xilinx_unisim_repository": "https://github.com/Xilinx/XilinxUnisimLibrary",
+  "xilinx_unisim_commit": "1c8e05fd1e9a79ceb8b996a0996674122eed086f",
+  "xilinx_unisim_license": "Apache-2.0",
+  "iverilog": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog",
+    "-g2012",
+    "-schip_earlgrey_cw310",
+    "-S",
+    "-DSYNTHESIS",
+    "-DSYNTHESIS_MEMORY_BLACK_BOXING",
+    "-y",
+    "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims",
+    "-o",
+    "/private/tmp/cw310-unisim-synth-evidence.vvp",
+    "-c",
+    "lowrisc_systems_chip_earlgrey_cw310_0.1.scr",
+    "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/glbl.v"
+  ],
+  "working_directory": "/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-compile-20261005/build-50floor/rtl/lowrisc_systems_chip_earlgrey_cw310_0.1/default-icarus",
+  "returncode": 9,
+  "log": "unisim-compile.log",
+  "models_directory": "/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims",
+  "model_sha256": {
+    "BUFG.v": "de25f10ec56230b8ffd5c8d772ae5d815f47f40604ce4209eed0efccd5a8dd1f",
+    "USR_ACCESSE2.v": "1a50f807a8da9ec977098bbe6cec9995185896a5e92c8bfdb9c54e061b920ba0",
+    "MMCME2_ADV.v": "b45546e314333ec22e0c553e2c36c8d1ef2d1addd4498db2693f5a27cbbcc6e6"
+  }
+}

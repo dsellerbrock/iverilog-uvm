@@ -1,0 +1,12 @@
+RAM guard started; min_free=50%; command=['/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', 'scripts/opentitan_matrix.py', '--opentitan-root', '/private/tmp/ot-corpus-current-spid-passthrough-20261003/source', '--build-root', '/private/tmp/pi/iverilog-uvm-engine-367e-patched-source-overlay-replay-20261005/build', '--iverilog', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog', '--uvm-home', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src', '--fusesoc', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc', '--fusesoc-python', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', '--lane', 'rtl', '--core', 'lowrisc:systems:chip_earlgrey_verilator:0.1', '--jobs', '1', '--setup-timeout', '600', '--compile-timeout', '600', '--commercial-unsafe', '--native-pkg-config', 'openssl', '--native-pkg-config', 'libelf', '--result-json', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/chip-verilator-replay/result.json', '--result-md', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/chip-verilator-replay/result.md']
+RAM guard sample: free=65%, elapsed=0s
+[1/1] rtl lowrisc:systems:chip_earlgrey_verilator:0.1
+RAM guard sample: free=65%, elapsed=30s
+RAM guard sample: free=66%, elapsed=60s
+RAM guard sample: free=64%, elapsed=90s
+RAM guard sample: free=64%, elapsed=120s
+RAM guard sample: free=63%, elapsed=150s
+  -> PASS
+JSON: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/chip-verilator-replay/result.json
+Markdown: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/chip-verilator-replay/result.md
+RAM guard finished with exit=0
