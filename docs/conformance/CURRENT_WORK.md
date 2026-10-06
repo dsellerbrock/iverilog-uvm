@@ -1,5 +1,15 @@
 # Current evidence and work
 
+## Current IEEE 1800 focus
+
+The direct-scalar subset and a fixed-size, one-dimensional integral dynamic-array
+subset now pass paired 2017/2023 statistical regressions. The array test retains
+the ordered `solve m before q` control. The historical 103/400 unordered result
+predates the new array sampler. The overall clause remains partial for other
+array shapes, random sizes, `randc`, ordering, soft constraints, and weighted
+`dist`. See the
+[blocker](BLOCKERS.md#constraint-uniform-dynamic-array-legal-combinations--dynamic-array-tuples-are-biased).
+
 ## Current OpenTitan status — 2026-10-06
 
 The latest candidate selected runtime result is the

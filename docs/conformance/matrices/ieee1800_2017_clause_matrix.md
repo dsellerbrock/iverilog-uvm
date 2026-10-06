@@ -2240,3 +2240,16 @@ reports JSON 4117/0, legacy 6875 total/0 failed, VPI 140/140, negative
 one concrete factory initializer without the explicit-registration overlay;
 its DV runtime and the 49-target census remain unverified. Chapter 8 remains
 PARTIAL.
+
+## 2026-10-06 uniform legal-combination sampling
+
+IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
+strict 2017/2023 regressions now cover coupled direct scalar properties and a
+fixed-size, one-dimensional dynamic array of integral elements. The array
+sampler requires a uniquely proved size tuple and complete active-element
+coverage. Ordering, `dist`, soft constraints, `randc`, variable sizes, and other
+container shapes remain open. See the
+[revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
+and the historical
+[`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
+result. No broader clause-18 qualification is claimed.

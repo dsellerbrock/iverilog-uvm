@@ -31,3 +31,21 @@ The adjacent `sv_randomize_global_sampling_fail` regression also printed
 unsupported-size error remained; it checks failure value/callback atomicity,
 bounded joint sampling, `dist`, and solve-before behavior. It does not qualify
 those excluded paths for uniform legal-tuple sampling.
+
+## Fixed-size dynamic-array subset
+
+The registered `ivtest/ivltests/sv_randomize_global_uniform.v` regression now
+also checks the two-element dynamic-array reproducer from
+[`dynamic_array_order.sv`](dynamic_array_order.sv). It asserts unordered
+`m == 1` at no more than 3/128 draws and the `solve m before q` control between
+40 and 88/128. The source-built ARM64 VVP passed the combined scalar and
+dynamic-array regression under strict `-g2017` and `-g2023`; both runs printed
+`PASSED`.
+
+The sampler admits only active direct scalar properties plus every active
+in-range integral element of a one-dimensional dynamic array materialized by
+the constraints whose size tuple has exactly one solver-proven value. It
+compares the actual active element indices with the expected index set and declines the path for absent elements,
+unsupported widths, `randc`, ordering, soft constraints, `dist`, member state,
+or other unsupported container shapes. Dynamic-size weighting and the broader
+IEEE uniformity requirement remain open.

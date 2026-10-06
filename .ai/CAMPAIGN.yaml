@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/opentitan-hotpath-repros-20261004
-checkpoint_head: ac79953309b1b9c1772dbbff5f2ecf21d0221929
+branch: "agent/ieee-uniform-dynamic-array-20261006"
+checkpoint_head: "994faa8a95ee22f43c17706a19d22e1594a09c76"
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
   phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_RUNTIME_49_OF_49_CANDIDATE_COMPILE_PENDING"
@@ -637,9 +637,9 @@ preservation:
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
 next_command: "PR376 is published with local qualification; preserve Caliptra work and respond only if CI later reports an issue, without polling."
 current_execution_checkpoint:
-  active_work_item: "OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY"
-  source_head: "71fb85413525ba1caabb3bc1e2ef41789bd459f9"
-  phase: "ACTIVE; user-directed 60-minute Flash fallback timed out without PASS after reaching operation 4/4"
-  completed: "Iterations 1-4 showed no significant end-to-end Flash gain. The VPI cache and process-object candidates were removed; -O3 builds of vvp/vthread.cc and vvp/vvp_z3.cc each matched the prior operation-2 marker at 1,414,652.8 ns. The user directed on 2026-10-03 to skip iteration 5. The 3,600-second replay hit its wall cap at 3,600.4 seconds, peak RSS 1,742,995,456 bytes, no UVM_ERROR/UVM_FATAL marker and no TEST PASSED CHECKS. It advanced to the later four-operation phase and op 4/4; last scoreboard marker was 5,622,434.9 ns. No full corpus was started. Evidence: evidence/opentitan-census-20261002/flash-60m-user-directed-fallback-20261003/."
-  next_action: "Profile operation preparation from operation 4/4 at 5,622,051.9 ns: measure full-bank invalidation (`uvm_hdl_deposit`) separately from partition-model population (`read32`). The 3,600-second replay hit its cap without a checked PASS. Preserve current checks and do not start the 49-target corpus until Flash has a clean checked PASS and zero semantic/runtime debt."
-  next_command: "Inspect evidence/opentitan-census-20261002/flash-60m-user-directed-fallback-20261003/result.json and the op 4/4 scoreboard path; continue focused profiling, with no full corpus rerun."
+  active_work_item: "CONSTRAINT-UNIFORM-DYNAMIC-ARRAY-LEGAL-COMBINATIONS"
+  source_head: "994faa8a95ee22f43c17706a19d22e1594a09c76"
+  phase: "FIXED_SIZE_DIRECT_DYNAMIC_ARRAY_SUBSET_IMPLEMENTED_AND_PAIRED_GREEN"
+  completed: "The direct-scalar subset and a fixed-size one-dimensional integral dynamic-array subset pass the registered combined statistical regression under strict -g2017 and -g2023. The new array path proves a unique size tuple, requires exact active-element coverage, and preserves the ordered solve-before control."
+  next_action: "Select the next unsupported IEEE 1800-2017/2023 blocker; keep clause-18 uniformity partial for variable sizes, other container shapes, randc, ordering, soft constraints, and weighted dist."
+  next_command: "Review the remaining conformance blockers and choose the next bounded clause-level reproducer."
