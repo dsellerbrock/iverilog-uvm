@@ -2,15 +2,18 @@
 
 ## Current IEEE 1800 focus
 
-The direct-scalar subset and bounded variable-size, one-dimensional integral
-dynamic arrays now pass paired 2017/2023 statistical regressions. Coverage
+The direct-scalar subset, a fixed two-element unpacked bit array, and bounded
+variable-size, one-dimensional integral dynamic arrays now pass paired
+2017/2023 statistical regressions. The fixed-array regression covers five
+complete legal tuples. The prior sampler chose the constrained mode 161/500
+times; all five new tuple bins fall within 70–130/500. Other coverage
 includes empty arrays, two correlated arrays, a 64/65-element size ratio, and a
 coupled 65-bit scalar with a five-value feasible domain. The combined array
 maximum is capped at 128 elements. The array test retains the
 ordered `solve m before q` control. The overall clause remains partial for
 larger domains, other array shapes, `randc`, ordering, soft constraints, and
 weighted `dist`. See the
-[blocker](BLOCKERS.md#constraint-uniform-dynamic-array-legal-combinations--dynamic-array-tuples-are-biased).
+[blocker](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
 
 A separate 128-bit nested fixed-element diversity regression passes in both
 editions. It uses a warned fallback for an oversized ordinary component and
@@ -127,9 +130,10 @@ The measured hot paths and coverage limits are summarized in the
 ## Current IEEE checkpoint — 2026-10-06
 
 The selected blocker is unordered uniformity over legal constraint
-combinations. The current branch rejection-samples coupled scalar and bounded
-direct-array tuples and passes the paired Table 18-2, empty-array, correlated-
-array, 64/65-element, and 65-bit scalar checks under `-g2017` and `-g2023`.
+combinations. The current branch rejection-samples coupled scalar, tested
+fixed-array, and bounded direct-array tuples and passes the paired Table 18-2,
+five-tuple fixed-array, empty-array, correlated-array, 64/65-element, and
+65-bit scalar checks under `-g2017` and `-g2023`.
 The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
 the recorded threshold when the finite wide-domain cap is 128 values.
 The 128-bit nested fixed-element check also passes through its warned,

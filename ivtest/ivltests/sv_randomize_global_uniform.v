@@ -89,6 +89,13 @@ class wide_domain_uniformity_above_cap;
     else value == 65'd0;
   }
 endclass
+class fixed_array_uniformity;
+  rand bit mode;
+  rand bit payload[2];
+  constraint c {
+    if (mode) { payload[0] == 0; payload[1] == 0; }
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -103,6 +110,7 @@ module main;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
+  fixed_array_uniformity fixed_array = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
@@ -111,6 +119,7 @@ module main;
   int member_tuple_count[3];
   int wide_tuple_count[5];
   int wide_above_cap_mode_one;
+  int fixed_array_tuple_count[5];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -334,6 +343,24 @@ module main;
     if (wide_above_cap_mode_one < 90)
       $fatal(1, "65 legal wide tuples are not sampled uniformly: mode one %0d/100",
              wide_above_cap_mode_one);
+
+    // Fixed unpacked arrays also form five complete legal tuples.
+    fixed_array.srandom(234);
+    repeat (500) begin
+      if (!fixed_array.randomize())
+        $fatal(1, "fixed-array uniformity solve failed");
+      if (fixed_array.mode) begin
+        if (fixed_array.payload[0] || fixed_array.payload[1])
+          $fatal(1, "invalid fixed-array mode-one tuple");
+        fixed_array_tuple_count[0]++;
+      end else
+        fixed_array_tuple_count[1 + fixed_array.payload[0]
+                                  + 2 * fixed_array.payload[1]]++;
+    end
+    for (int i = 0; i < 5; ++i)
+      if (fixed_array_tuple_count[i] < 70 || fixed_array_tuple_count[i] > 130)
+        $fatal(1, "fixed-array legal tuple %0d is biased: %0d/500",
+               i, fixed_array_tuple_count[i]);
     $display("PASSED");
   end
 endmodule

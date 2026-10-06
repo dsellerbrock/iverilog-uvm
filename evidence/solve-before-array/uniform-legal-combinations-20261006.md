@@ -110,6 +110,19 @@ sampling above 128 values.
 Source-built ARM64 VVP SHA-256 after the cap change:
 `140e55df9d08957ee9019955216cb016c3c988bfec8e5589af0635e74de48ccf`.
 
+## Fixed unpacked-array complete tuples
+
+The paired regression adds a fixed two-element unpacked `bit` array with five
+legal tuples: mode one permits only payload `00`, while mode zero permits all
+four payload values. Before adding the array elements to complete-tuple
+sampling, the constrained mode appeared 161/500 times. The new histogram
+requires each of the five tuple bins to land within 70–130/500; it passes under
+strict `-g2017` and `-g2023`. The adjacent oversized-domain/failure-rollback
+and solve-before fixed-array regressions also pass in both editions.
+
+Source-built ARM64 VVP SHA-256 after the fixed-array slice:
+`bbabbf9a1d5c8c51dca2257007ca605f52dfccdc15b7e5069c61f249da717f51`.
+
 ## Adjacent 128-bit nested fixed-element randomization
 
 The existing `sv_constraint_wide_fixed_element_diversity` regression uses a
