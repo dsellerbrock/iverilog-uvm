@@ -22,10 +22,13 @@ oracle uses `[1:768]` and `[1025:1280]`; four equal-cardinality bins stay
 within 30–70/200 despite the 3:1 interval-size ratio. A 33-bit union with
 nine equal 32-value runs has paired exact-sampling evidence; its old fallback
 put 41/90 draws in the last run. Fix 11 removes the fixed run-count ceiling
-and caps searches at 131,072 SAT checks per randomization. A focused 33-run
-focused standalone reducer matching the registered 33-run regression passes
-in both editions; wider-than-4,096-bit values and cases that exceed the query
-budget remain open.
+and caps searches at 131,072 SAT checks per randomization. Fix 12 adds exact
+full-domain rejection proposals for dense domains, keeping periodic 33-bit
+legal-value bins at 100, 89, and 111/300 versus the biased fallback's 73, 74,
+and 153. If interval search is indeterminate, bounded rejection is attempted
+and randomization fails rather than using the biased diversity fallback.
+Wider-than-4,096-bit values and cases that exceed both exact-work ceilings
+remain open.
 Variable-size arrays
 with constrained element leaves retain the 512-element combined solver-model
 cap. Arrays with no constrained element leaves use SAT binary searches to find
@@ -38,12 +41,16 @@ singleton-enum oracle produces four equal-size bins 108,99,96,97/400; the old
 complete-model enumerator ran for 197.55 s before an interrupted run stopped
 without a histogram. A 257-bit scalar interval now samples four bins 40,54,53,53
 out of 200, versus 26,14,26,134 on the old fallback; the paired 80-draw oracle
-passes under both editions. The last full paired suites passed on fix 10:
-2017 took 117.47 s at 49,283,072-byte maximum RSS, and 2023 took 102.49 s at
-48,824,320-byte maximum RSS. On fix 11, the focused 33-run oracle passes with
-all bins 1–22/300 in both editions, and the full suite sources compile in both;
-the full suites have not been rerun on this image. The evidence page records
-both image hashes. The 128/129-size oracle now yields counts 91/209 out of 300; the
+passes under both editions. Fix 12's full registered suites pass in both
+editions on source-built VVP SHA-256
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`:
+2017 took 266.23 s (maximum RSS not captured), and 2023 took 231.86 s at
+50,970,624-byte maximum RSS. Failure-rollback and fixed-array solve-before
+controls also pass in both editions. After formatting and test-name cleanup,
+the rebuilt image `e9c40812d1d49636fcc37c26135c62710d1465b8b2d64b1c89b1e54e9f479d39`
+passes the focused periodic reducer and both registered suite sources compile;
+the full suites were not repeated on that hash. The evidence page records the
+paired full-run and latest focused results. The 128/129-size oracle now yields counts 91/209 out of 300; the
 pre-fix path gave the size-128 mode 139/300. At 256/257, the new counts are
 44/76 out of 120, versus 166/134 in the pre-fix 300-draw probe. Fixed
 integral/enum arrays are sampled from referenced leaves without a declared-extent cap; the registered regression currently
@@ -176,11 +183,16 @@ fixed-array, and bounded direct integral/enum-array tuples. Paired `-g2017` and
 65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200.
 The fix-10 nine-run regression remains historical paired evidence. Fix 11
 removes its fixed 16-run ceiling and caps boundary searches at 131,072 SAT
-checks per randomization. A focused standalone reducer matching the registered
-33-run, 33-bit regression passes in both editions with every equal-cardinality
-bin between 1 and 22/300. Cases that
-exhaust the query budget, unconnected widths above 4,096 bits, and fixed-array
-ranks above three remain open.
+checks per randomization. Fix 12 adds exact uniform rejection proposals for
+dense domains and explicit failure when bounded exact sampling cannot decide.
+The registered dense periodic 33-bit regression samples bins 100, 89, and
+111/300; its old fallback gave 73, 74, and 153. Full registered suites passed
+under strict `-g2017` and `-g2023` on fix-12 image
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`. The
+post-cleanup rebuild passes the focused periodic reducer and both registered
+suite sources compile; the full suites were not repeated on it. Cases that
+exhaust both exact-work budgets, unconnected widths above 4,096 bits, and
+fixed-array ranks above three remain open.
 The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
 the recorded threshold when the finite wide-domain cap is 256 values. Variable-size
 dynamic arrays now use the exact sampler through 512 combined elements. The

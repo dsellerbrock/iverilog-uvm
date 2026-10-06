@@ -190,6 +190,10 @@ class wide_thirty_three_ranges_uniformity;
     };
   }
 endclass
+class wide_periodic_domain_uniformity;
+  rand bit [32:0] value;
+  constraint c { value[1:0] != 2'b11; }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -264,6 +268,7 @@ module main;
   wide_fragmented_ranges_uniformity wide_fragmented_ranges = new;
   wide_nine_ranges_uniformity wide_nine_ranges = new;
   wide_thirty_three_ranges_uniformity wide_thirty_three_ranges = new;
+  wide_periodic_domain_uniformity wide_periodic_domain = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -291,6 +296,7 @@ module main;
   int wide_nine_ranges_offset;
   int wide_thirty_three_ranges_count[33];
   int wide_thirty_three_ranges_offset;
+  int wide_periodic_domain_count[3];
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -779,6 +785,22 @@ module main;
           || wide_thirty_three_ranges_count[i] > 22)
         $fatal(1, "33-range bucket %0d is biased: %0d/300",
                i, wide_thirty_three_ranges_count[i]);
+
+    // Dense periodic legal values expose bias from the diversity fallback.
+    wide_periodic_domain.srandom(632);
+    repeat (300) begin
+      if (!wide_periodic_domain.randomize())
+        $fatal(1, "wide periodic-domain solve failed");
+      if (wide_periodic_domain.value[1:0] == 2'b11)
+        $fatal(1, "wide periodic-domain result is outside its constraints");
+      wide_periodic_domain_count[
+          wide_periodic_domain.value[1:0]]++;
+    end
+    for (int i = 0; i < 3; ++i)
+      if (wide_periodic_domain_count[i] < 70
+          || wide_periodic_domain_count[i] > 130)
+        $fatal(1, "periodic-domain bucket %0d is biased: %0d/300",
+               i, wide_periodic_domain_count[i]);
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);

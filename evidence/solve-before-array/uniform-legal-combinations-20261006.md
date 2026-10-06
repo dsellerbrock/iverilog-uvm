@@ -412,3 +412,34 @@ registered 1–22/bin threshold. The focused runs took 76.07 s under `-g2017`
 (37,027,840-byte max RSS) and 77.25 s under `-g2023` (36,388,864-byte max RSS).
 Both full-suite sources compile under both editions, but the full suites have
 not been rerun on this image. The last full-suite pass remains fix 10 above.
+
+## Dense periodic wide scalars (fix 12)
+
+A 33-bit scalar constrained by `value[1:0] != 2'b11` has three equally sized
+legal residue classes. On the old Optimize diversity fallback, seed 632 gave
+class counts `73, 74, 153` in 300 randomizations. The registered paired test
+now requires each count to be between 70 and 130 and observes `100, 89, 111`
+under strict `-g2017` and `-g2023`.
+
+The sampler first tries 64 uniform full-domain candidates; the first SAT
+candidate is exactly uniform over legal values and handles dense periodic
+domains without counting a large number of intervals. If those proposals all
+miss, exact interval counting remains available for sparse domains. If
+boundary solving reaches its query cap or returns unknown, the sampler tries
+up to 65,536 more uniform candidates and then fails explicitly if no exact
+sample can be established. It no longer falls through to biased diversity
+optimization on an indeterminate interval search.
+
+The registered `sv_randomize_global_uniform` suite passed under strict
+`-g2017` and `-g2023` on source-built ARM64 VVP SHA-256
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`.
+2017 completed in 266.23 s; maximum RSS was not captured. 2023 completed in
+231.86 s at 50,970,624-byte maximum RSS. The adjacent sampling-failure
+rollback and fixed-array solve-before controls also printed `PASSED` in both
+editions. This does not close the broader IEEE uniformity requirement.
+
+After formatting and test-identifier cleanup, the rebuilt ARM64 VVP
+`e9c40812d1d49636fcc37c26135c62710d1465b8b2d64b1c89b1e54e9f479d39` passed
+the focused periodic reducer with the same `100, 89, 111` histogram. The
+registered full-suite sources compile under both editions on the cleaned
+source. The full suites were not rerun on this rebuilt hash.

@@ -8253,26 +8253,37 @@ struct dist_wide_uint_t {
 
 static const unsigned WIDE_INTERVAL_MAX_WIDTH = 4096;
 
+enum wide_interval_sampling_t {
+  WIDE_INTERVAL_NOT_APPLICABLE,
+  WIDE_INTERVAL_SAMPLED,
+  WIDE_INTERVAL_INDETERMINATE
+};
+
 /* Sample a wide scalar uniformly from a bounded union of feasible intervals.
- * ponytail: cap boundary search at 131072 SAT checks and 4096 bits. */
-static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
-                                                Z3_solver base,
-                                                Z3_ast var,
-                                                unsigned width,
-                                                z3_rng_stream_t&rng,
-                                                Z3_ast&sample)
+ * Dense domains use exact uniform rejection; sparse domains use boundary
+ * counting. ponytail: cap boundary work and rejection; use exact counting to
+ * extend sparse domains beyond these ceilings. */
+static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context ctx,
+                                                                      Z3_solver base,
+                                                                      Z3_ast var,
+                                                                      unsigned width,
+                                                                      z3_rng_stream_t&rng,
+                                                                      Z3_ast&sample)
 {
       typedef dist_wide_uint_t big;
       sample = nullptr;
-      if (width == 0 || width > WIDE_INTERVAL_MAX_WIDTH) return false;
+      if (width == 0 || width > WIDE_INTERVAL_MAX_WIDTH)
+            return WIDE_INTERVAL_NOT_APPLICABLE;
 
       Z3_ast formula = nullptr;
-      if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
+      if (!z3_isolated_subject_factor_(ctx, base, var, formula))
+            return WIDE_INTERVAL_NOT_APPLICABLE;
       if (Z3_get_bool_value(ctx, formula) == Z3_L_TRUE) {
             big domain;
             domain.set_bit(width);
             sample = big::uniform_below(rng, domain).numeral(ctx, width);
-            return sample != nullptr;
+            return sample ? WIDE_INTERVAL_SAMPLED
+                           : WIDE_INTERVAL_INDETERMINATE;
       }
       Z3_solver outside = Z3_mk_simple_solver(ctx);
       Z3_solver_inc_ref(ctx, outside);
@@ -8299,32 +8310,62 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
             Z3_solver_pop(ctx, solver, 1);
             return result;
       };
+      auto rejection_sample = [&](size_t attempts) -> Z3_lbool {
+            for (size_t i = 0; i < attempts; ++i) {
+                  big candidate = big::uniform_below(rng, power);
+                  Z3_ast value = candidate.numeral(ctx, width);
+                  Z3_solver_push(ctx, base);
+                  Z3_solver_assert(ctx, base, Z3_mk_eq(ctx, var, value));
+                  Z3_lbool result = Z3_solver_check(ctx, base);
+                  Z3_solver_pop(ctx, base, 1);
+                  if (result == Z3_L_TRUE) {
+                        sample = value;
+                        return result;
+                  }
+                  if (result == Z3_L_UNDEF) return result;
+            }
+            return Z3_L_FALSE;
+      };
+      auto finish = [&](wide_interval_sampling_t result) {
+            Z3_solver_dec_ref(ctx, outside);
+            return result;
+      };
+
+      // The first satisfying proposal from a uniform full-domain stream is
+      // uniform over legal values. This avoids walking dense periodic domains.
+      Z3_lbool proposal = rejection_sample(64);
+      if (proposal == Z3_L_TRUE)
+            return finish(WIDE_INTERVAL_SAMPLED);
+      if (proposal == Z3_L_UNDEF)
+            return finish(WIDE_INTERVAL_INDETERMINATE);
+      auto recover_after_boundary_search = [&]() {
+            Z3_lbool result = rejection_sample(65536);
+            if (result == Z3_L_TRUE)
+                  return finish(WIDE_INTERVAL_SAMPLED);
+            return finish(WIDE_INTERVAL_INDETERMINATE);
+      };
 
       struct interval_t { big first, last; };
       vector<interval_t> intervals;
       big total;
       big cursor;
-      auto fail = [&]() -> bool {
-            Z3_solver_dec_ref(ctx, outside);
-            return false;
-      };
       for (;;) {
             Z3_lbool any = exists_in(base, cursor, maximum);
             if (any == Z3_L_FALSE) break;
-            if (any == Z3_L_UNDEF) return fail();
+            if (any == Z3_L_UNDEF) return recover_after_boundary_search();
 
             big lo = cursor, hi = maximum;
             while (big::cmp(lo, hi) < 0) {
                   big mid = big::shift_right_one(big::add(lo, hi));
                   Z3_lbool left = exists_in(base, cursor, mid);
-                  if (left == Z3_L_UNDEF) return fail();
+                  if (left == Z3_L_UNDEF) return recover_after_boundary_search();
                   if (left == Z3_L_TRUE) hi = mid;
                   else lo = big::add(mid, one);
             }
             big first = lo;
 
             Z3_lbool hole = exists_in(outside, first, maximum);
-            if (hole == Z3_L_UNDEF) return fail();
+            if (hole == Z3_L_UNDEF) return recover_after_boundary_search();
             big last = maximum;
             if (hole == Z3_L_TRUE) {
                   lo = first;
@@ -8332,11 +8373,12 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
                   while (big::cmp(lo, hi) < 0) {
                         big mid = big::shift_right_one(big::add(lo, hi));
                         Z3_lbool left = exists_in(outside, first, mid);
-                        if (left == Z3_L_UNDEF) return fail();
+                        if (left == Z3_L_UNDEF) return recover_after_boundary_search();
                         if (left == Z3_L_TRUE) hi = mid;
                         else lo = big::add(mid, one);
                   }
-                  if (big::cmp(lo, first) <= 0) return fail();
+                  if (big::cmp(lo, first) <= 0)
+                        return finish(WIDE_INTERVAL_INDETERMINATE);
                   last = big::sub(lo, one);
             }
 
@@ -8347,7 +8389,8 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
             cursor = big::add(last, one);
       }
       Z3_solver_dec_ref(ctx, outside);
-      if (intervals.empty() || total.zero()) return false;
+      if (intervals.empty() || total.zero())
+            return WIDE_INTERVAL_NOT_APPLICABLE;
 
       big ticket = big::uniform_below(rng, total);
       for (const auto&interval : intervals) {
@@ -8355,11 +8398,12 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
             if (big::cmp(ticket, count) < 0) {
                   big selected = big::add(interval.first, ticket);
                   sample = selected.numeral(ctx, width);
-                  return sample != nullptr;
+                  return sample ? WIDE_INTERVAL_SAMPLED
+                                : WIDE_INTERVAL_INDETERMINATE;
             }
             ticket = big::sub(ticket, count);
       }
-      return false;
+      return WIDE_INTERVAL_INDETERMINATE;
 }
 
 /* Exact dist sampling for items wider than 64 bits (IEEE 1800-2017 18.5.4,
@@ -11015,6 +11059,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    && builder.elem_vars.empty() && builder.size_vars.empty();
 
       bool joint_randc_failed = false;
+      bool wide_scalar_sampling_failed = false;
       map<Z3_ast, uint64_t> sampled_randc_values;
       auto sample_scalars = [&](bool cyclic_only) {
       if (exact_joint && defer_joint) return;
@@ -11094,13 +11139,19 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		&& builder.state_checks.empty() && builder.qelem_vars.empty()
 		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
 		  Z3_ast sampled = nullptr;
-		  if (z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
+		  wide_interval_sampling_t interval_result =
+		z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
 							   pv.width,
-							   property_rng(pv.idx), sampled)) {
+							   property_rng(pv.idx), sampled);
+		  if (interval_result == WIDE_INTERVAL_SAMPLED) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var, sampled);
 			Z3_optimize_assert(ctx, opt, eq);
 			Z3_solver_assert(ctx, base, eq);
 			continue;
+		  }
+		  if (interval_result == WIDE_INTERVAL_INDETERMINATE) {
+			wide_scalar_sampling_failed = true;
+			return;
 		  }
 	    }
 	    if (!fallback_managed && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))
@@ -12669,6 +12720,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// the common shape (`rand bit[N:0] x; constraint { x inside {...}
 	// }`) that dominates the performance-sensitive cases.
       sample_scalars(false);
+      if (wide_scalar_sampling_failed)
+	    return fail_joint("isolated wide scalar exact sampling exceeded its bounded solver work");
       for (auto& mv : builder.member_vars) {
 	    if (!rand_member_active_(builder, prop_active,
 				     mv.outer, mv.member))

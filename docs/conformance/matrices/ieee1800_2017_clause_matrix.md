@@ -2279,9 +2279,16 @@ within 30–70/200 in both editions. The historical nine-run 33-bit scalar
 oracle requires each equal-cardinality bin to stay within 12–48/270 in both
 editions; a seeded standalone 270-draw run produced 31, 27, 33, 38, 23, 25,
 29, 33, and 31. A focused standalone reducer matching the current 33-run
-regression passes in both editions with all bins 1–22/300; the full-suite
-runtime has not yet been repeated on this image. See the revision evidence
-for the image and histogram.
+regression passes in both editions with all bins 1–22/300. Fix 12 adds up to
+64 uniform full-domain proposals before interval counting and retries up to
+65,536 times if exact boundary search becomes indeterminate; persistent
+uncertainty fails explicitly instead of falling through to biased diversity
+optimization. The dense periodic 33-bit regression gives three equal legal
+classes counts 100, 89, and 111/300, versus 73, 74, and 153 on the old
+fallback. The full registered uniformity suite and adjacent rollback and
+solve-before controls pass in both editions on source-built ARM64 VVP
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`. See the
+revision evidence for runtimes and the histogram.
 A 2×2×2 fixed-array oracle samples nine
 complete legal tuples within 12–55/300 in both editions.
 See the [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
