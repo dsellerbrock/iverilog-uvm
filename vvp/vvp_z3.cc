@@ -10019,7 +10019,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (feasible == Z3_L_UNDEF)
 		  return fail_joint("the solver returned UNKNOWN before uniform scalar sampling");
 	    for (const auto&component : uniform_scalar_components) {
-		  for (;;) {
+		  // Bounded: a sparse component (e.g. x == y - 1 over 64-bit
+		  // values) has density ~2^-width, so unbounded rejection never
+		  // terminates. After the cap the component is left to the
+		  // existing solver path below (not marked sampled), which
+		  // preserves termination; uniformity is only claimed for
+		  // components accepted within the cap.
+		  static const unsigned uniform_scalar_attempt_cap = 4096;
+		  bool component_sampled = false;
+		  for (unsigned attempt = 0; attempt < uniform_scalar_attempt_cap; ++attempt) {
 			vector<Z3_ast> pins;
 			pins.reserve(component.size());
 			for (Z3_ast var : component) {
@@ -10043,8 +10051,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      Z3_optimize_assert(ctx, opt, pins[i]);
 			      uniform_sampled_scalars.insert(component[i]);
 			}
+			component_sampled = true;
 			break;
 		  }
+		  (void)component_sampled;
 	    }
       }
 
