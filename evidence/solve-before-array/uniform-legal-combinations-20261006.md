@@ -394,3 +394,21 @@ maximum RSS. The source-built ARM64 VVP SHA-256 is
 `237fbde41419504ff9734701c615f8fc3dd78fd70a5f0889f6432a8063d9f167`.
 Unions with more than 16 runs and scalar widths above 4,096 bits remain outside
 this exact path.
+
+## Wide scalar boundary-query budget (fix 11)
+
+The fixed 16-run ceiling was replaced by a total budget of 131,072 SAT checks
+for interval boundary searches in one randomization call. The existing width
+ceiling remains 4,096 bits; exhaustion or an unknown solver result declines
+the exact path. The new registered 33-run test covers 33 equal eight-value
+intervals (264 legal values, above the existing 256-value enumerator), seed
+631, and 300 draws. A focused standalone reducer matching that oracle was run;
+the prior fallback with the same legal set had empty bins and put
+30/90 draws in its final interval. The current source-built ARM64 VVP
+(`cd7ee20a7203db112a491279160d2ec351883c68731e176b4605e8513bfd5c7d`) produced
+`7, 10, 8, 6, 9, 11, 11, 8, 8, 8, 14, 7, 10, 13, 4, 9, 9, 8, 5, 14, 14, 5,
+4, 15, 6, 9, 9, 10, 11, 10, 9, 7, 12` in both strict editions, within the
+registered 1–22/bin threshold. The focused runs took 76.07 s under `-g2017`
+(37,027,840-byte max RSS) and 77.25 s under `-g2023` (36,388,864-byte max RSS).
+Both full-suite sources compile under both editions, but the full suites have
+not been rerun on this image. The last full-suite pass remains fix 10 above.

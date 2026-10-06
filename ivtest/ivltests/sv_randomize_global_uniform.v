@@ -172,6 +172,24 @@ class wide_nine_ranges_uniformity;
     };
   }
 endclass
+class wide_thirty_three_ranges_uniformity;
+  rand bit [32:0] value;
+  constraint c {
+    value inside {
+      [33'd1:33'd8], [33'd10:33'd17], [33'd19:33'd26],
+      [33'd28:33'd35], [33'd37:33'd44], [33'd46:33'd53],
+      [33'd55:33'd62], [33'd64:33'd71], [33'd73:33'd80],
+      [33'd82:33'd89], [33'd91:33'd98], [33'd100:33'd107],
+      [33'd109:33'd116], [33'd118:33'd125], [33'd127:33'd134],
+      [33'd136:33'd143], [33'd145:33'd152], [33'd154:33'd161],
+      [33'd163:33'd170], [33'd172:33'd179], [33'd181:33'd188],
+      [33'd190:33'd197], [33'd199:33'd206], [33'd208:33'd215],
+      [33'd217:33'd224], [33'd226:33'd233], [33'd235:33'd242],
+      [33'd244:33'd251], [33'd253:33'd260], [33'd262:33'd269],
+      [33'd271:33'd278], [33'd280:33'd287], [33'd289:33'd296]
+    };
+  }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -245,6 +263,7 @@ module main;
   wide_single_range_257_uniformity wide_single_range_257 = new;
   wide_fragmented_ranges_uniformity wide_fragmented_ranges = new;
   wide_nine_ranges_uniformity wide_nine_ranges = new;
+  wide_thirty_three_ranges_uniformity wide_thirty_three_ranges = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -270,6 +289,8 @@ module main;
   int wide_fragmented_ranges_count[4];
   int wide_nine_ranges_count[9];
   int wide_nine_ranges_offset;
+  int wide_thirty_three_ranges_count[33];
+  int wide_thirty_three_ranges_offset;
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -739,6 +760,25 @@ module main;
           || wide_nine_ranges_count[i] > 48)
         $fatal(1, "nine-range bucket %0d is biased: %0d/270",
                i, wide_nine_ranges_count[i]);
+
+    // Many narrow runs fit the bounded SAT-search budget without a run cap.
+    wide_thirty_three_ranges.srandom(631);
+    repeat (300) begin
+      if (!wide_thirty_three_ranges.randomize())
+        $fatal(1, "wide thirty-three-range solve failed");
+      wide_thirty_three_ranges_offset =
+          int'(wide_thirty_three_ranges.value) - 1;
+      if (wide_thirty_three_ranges_offset < 0
+          || wide_thirty_three_ranges_offset / 9 >= 33
+          || wide_thirty_three_ranges_offset % 9 >= 8)
+        $fatal(1, "wide thirty-three-range result is outside its constraints");
+      wide_thirty_three_ranges_count[wide_thirty_three_ranges_offset / 9]++;
+    end
+    for (int i = 0; i < 33; ++i)
+      if (wide_thirty_three_ranges_count[i] < 1
+          || wide_thirty_three_ranges_count[i] > 22)
+        $fatal(1, "33-range bucket %0d is biased: %0d/300",
+               i, wide_thirty_three_ranges_count[i]);
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);

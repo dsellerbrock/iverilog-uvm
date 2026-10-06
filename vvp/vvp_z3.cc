@@ -8254,7 +8254,7 @@ struct dist_wide_uint_t {
 static const unsigned WIDE_INTERVAL_MAX_WIDTH = 4096;
 
 /* Sample a wide scalar uniformly from a bounded union of feasible intervals.
- * ponytail: cap at 16 runs and 4096 bits; raise after measuring solver cost. */
+ * ponytail: cap boundary search at 131072 SAT checks and 4096 bits. */
 static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
                                                 Z3_solver base,
                                                 Z3_ast var,
@@ -8282,9 +8282,13 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
       power.set_bit(width);
       const big one = big::from_u64(1);
       const big maximum = big::sub(power, one);
+      static const size_t BOUNDARY_QUERY_CAP = 131072;
+      size_t boundary_queries = 0;
       auto exists_in = [&](Z3_solver solver, const big&lo,
                            const big&hi) -> Z3_lbool {
             if (big::cmp(lo, hi) > 0) return Z3_L_FALSE;
+            if (boundary_queries == BOUNDARY_QUERY_CAP) return Z3_L_UNDEF;
+            ++boundary_queries;
             Z3_ast bounds[2] = {
                   Z3_mk_bvuge(ctx, var, lo.numeral(ctx, width)),
                   Z3_mk_bvule(ctx, var, hi.numeral(ctx, width))};
@@ -8297,7 +8301,6 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
       };
 
       struct interval_t { big first, last; };
-      static const size_t INTERVAL_CAP = 16;
       vector<interval_t> intervals;
       big total;
       big cursor;
@@ -8308,8 +8311,7 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
       for (;;) {
             Z3_lbool any = exists_in(base, cursor, maximum);
             if (any == Z3_L_FALSE) break;
-            if (any == Z3_L_UNDEF || intervals.size() == INTERVAL_CAP)
-                  return fail();
+            if (any == Z3_L_UNDEF) return fail();
 
             big lo = cursor, hi = maximum;
             while (big::cmp(lo, hi) < 0) {

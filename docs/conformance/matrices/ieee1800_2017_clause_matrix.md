@@ -2270,13 +2270,18 @@ larger mode 200/200 times, versus 150/200 before full-width rejection. The paire
 65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
 64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
-aggregate domains, unions with more than sixteen runs or wider-than-4,096-bit unconnected wide scalars,
-fixed-array ranks above three and other container shapes remain open. An isolated 33–4,096-bit scalar with up to sixteen disjoint feasible intervals
-is sampled uniformly after exact boundary searches; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
+aggregate domains, wide scalar cases that exceed the boundary-query budget or
+4,096-bit width, fixed-array ranks above three and other container shapes
+remain open. An isolated 33–4,096-bit scalar uses exact boundary searches
+under a 131,072-query per-randomization budget; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
 37, and 52/200. The unequal-range union test keeps four equal-cardinality bins
-within 30–70/200 in both editions. The nine-run 33-bit scalar oracle requires
-each equal-cardinality bin to stay within 12–48/270 in both editions; a seeded
-standalone 270-draw run produced 31, 27, 33, 38, 23, 25, 29, 33, and 31.
+within 30–70/200 in both editions. The historical nine-run 33-bit scalar
+oracle requires each equal-cardinality bin to stay within 12–48/270 in both
+editions; a seeded standalone 270-draw run produced 31, 27, 33, 38, 23, 25,
+29, 33, and 31. A focused standalone reducer matching the current 33-run
+regression passes in both editions with all bins 1–22/300; the full-suite
+runtime has not yet been repeated on this image. See the revision evidence
+for the image and histogram.
 A 2×2×2 fixed-array oracle samples nine
 complete legal tuples within 12–55/300 in both editions.
 See the [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
