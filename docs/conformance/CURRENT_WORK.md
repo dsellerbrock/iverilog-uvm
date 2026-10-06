@@ -14,14 +14,16 @@ also passed 49/49, on the installed pre-candidate compiler.
 Census18 used UVM 1.2 and `-gcommercial-unsafe`. This qualifies the selected
 49-row runtime matrix, not every OpenTitan DV test.
 
-The frozen compile-only census covers 309 RTL/SVA/UVM rows on engine `367e…`:
-157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures, and 3
-upstream-invalid. A later focused SHA3PAD follow-up passes, making the effective
-row tally 158 PASS and 2 upstream-invalid. The 120 dependency-only rows are
-non-standalone FuseSoC cores, not individual compiler failures; their parent
-compile coverage still needs explicit mapping. See the [full census report](../../evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md)
-for the status meanings and remaining rows. The patched UVM lane passes 35/35
-on this engine.
+The clean-source compile baseline covered 309 RTL/SVA/UVM rows on engine
+`367e…`: 157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures, and
+3 upstream-invalid. A later compile-only recheck against the reproducible
+patched source snapshot produced 176 PASS, 120 dependency-only, 1 DEBT, 3 FAIL,
+7 setup failures, and 2 upstream-invalid; all 35 UVM rows pass. The 120
+dependency-only rows are non-standalone FuseSoC cores, not individual compiler
+failures, and their parent compile coverage still needs explicit mapping. See
+the [patched-source census](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/README.md)
+and [clean-source baseline](../../evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md)
+for row details.
 The selected runtime gate also passes 49/49 on `367e…`, but OpenTitan is not
 fully qualified while the remaining compile-census outcomes persist. See the
 [compile matrix](opentitan_matrix.md).

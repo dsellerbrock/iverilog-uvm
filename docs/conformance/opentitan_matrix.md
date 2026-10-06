@@ -20,7 +20,7 @@ covered by focused regressions and a 35/35 patched UVM recheck on engine
 OpenTitan closure campaign.  It replaces one-off source lists with a pinned,
 machine-readable result for every selected FuseSoC core.
 
-## Candidate compile census (2026-10-05, engine 367e)
+## Clean-source compile census (2026-10-05, engine 367e)
 
 The latest serial compile-only census completed 309 RTL/SVA/UVM rows against
 clean OpenTitan commit `a78922f14a8cc20c7ee569f322a04626f2ac6127`. It records
@@ -39,6 +39,18 @@ failures, and 10 upstream-invalid;
 see the [historical census](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md).
 The earlier 31 UVM failure count was a missing-DPI setup artifact and is
 superseded.
+
+## Patched-source compile recheck (2026-10-05, engine 367e)
+
+The same 309 rows were compiled against the reproducible OpenTitan overlay
+snapshot: 176 PASS, 120 dependency-only, 1 DEBT, 3 FAIL, 7 setup failures, and
+2 upstream-invalid. All 35 UVM rows pass. A focused replay replaced one
+idempotent-overlay staging failure in the full run; the [aggregate report](../../evidence/opentitan-census-20261002/candidate-engine-367e-patched-source-compile-census-20261005/README.md)
+preserves both raw results and the corrected 309-row table. The remaining
+compile blockers are the three Xilinx board tops, seven setup failures, two
+upstream-invalid rows, one SVA debt, and the unverified parent coverage for
+dependency-only entries. The selected 49/49 runtime gate is separate and
+already passes on this engine.
 
 A focused follow-up on engine `367e…` passes the default-image
 `top_earlgrey`, `chip_earlgrey_asic`, and `chip_earlgrey_verilator` synthesis
