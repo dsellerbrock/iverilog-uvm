@@ -10,6 +10,10 @@ array shapes, random sizes, `randc`, ordering, soft constraints, and weighted
 `dist`. See the
 [blocker](BLOCKERS.md#constraint-uniform-dynamic-array-legal-combinations--dynamic-array-tuples-are-biased).
 
+The 2023 §5.9 triple-quoted string lexer and multiline macro paths also pass a
+focused 2023 runtime check; strict 2017 rejects the delimiter. See the
+[session record](session_logs/2026-10-06_triple_quoted_strings.md).
+
 ## Current OpenTitan status — 2026-10-06
 
 The latest candidate selected runtime result is the

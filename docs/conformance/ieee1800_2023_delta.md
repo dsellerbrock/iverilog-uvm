@@ -5,6 +5,12 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+IEEE 1800-2023 §5.9 triple-quoted strings now preserve embedded double quotes,
+raw newlines, and escaped-newline joining in multiline macro definitions.
+Strict `-g2017` rejects the 2023 delimiter. See the
+[focused record](session_logs/2026-10-06_triple_quoted_strings.md); this does
+not claim full string-clause qualification.
+
 The 2023 clause-18 unbraced implication-before-`dist` candidate shares the
 [2017 parser scope and focused evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-2026--implication-before-distribution).
 The distribution clause is 18.5.3 in this edition. The same direct and nested
@@ -121,7 +127,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 
 | # | Item | Scoping confidence | Fork status (historically probed) | Size |
 |---|------|------------|----------------------|------|
-| 1 | Triple-quoted strings `"""…"""` (5.9) | CERTAIN | UNSUPPORTED (lexer) | S |
+| 1 | Triple-quoted strings `"""…"""` (5.9) | CERTAIN | FOCUSED IMPLEMENTATION (lexer, multiline macros, 2017 gate; see 2026-10-06 record) | S |
 | 2 | `ref static` tf arguments | CERTAIN | UNSUPPORTED (grammar) | M |
 | 3 | Associative-array-typed parameters | CERTAIN | UNSUPPORTED | M |
 | 4 | Restricted type parameters (`type enum/struct/class`) | CERTAIN | UNSUPPORTED | S–M |

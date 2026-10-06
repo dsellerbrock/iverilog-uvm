@@ -5390,3 +5390,5 @@ sv_constraint_wide_param_table normal,-g2017 ivltests gold=sv_constraint_wide_pa
 sv_constraint_wide_param_table_2023 normal,-g2023 ivltests gold=sv_constraint_wide_param_table.gold
 sv_constraint_dyn2d_array normal,-g2017 ivltests gold=sv_constraint_dyn2d_array.gold
 sv_constraint_dyn2d_array_2023 normal,-g2023 ivltests gold=sv_constraint_dyn2d_array_2023.gold
+sv_triple_quoted_string_2023 normal,-g2023 ivltests gold=sv_triple_quoted_string.gold
+sv_triple_quoted_string_2017_fail CE,-g2017 ivltests

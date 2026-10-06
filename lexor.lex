@@ -73,7 +73,8 @@ extern bool pform_in_task_function_scope();
  */
 extern YYLTYPE yylloc;
 
-char* yytext_string_filter(const char*str, size_t str_len)
+char* yytext_string_filter(const char*str, size_t str_len,
+			  bool preserve_newlines = false)
 {
       if (str == 0) return 0;
       char*buf = new char[str_len+1];
@@ -89,7 +90,8 @@ char* yytext_string_filter(const char*str, size_t str_len)
 		  } else {
 			buf[didx] = str[sidx];
 		  }
-	    } else if (str[sidx] == '\n') { /* bare newline from macro stringification */
+	    } else if (str[sidx] == '\n' && !preserve_newlines) {
+		  /* bare newline from macro stringification */
 		  buf[didx] = ' ';
 	    } else {
 		  buf[didx] = str[sidx];
@@ -200,6 +202,7 @@ void lex_in_package_scope(PPackage*pkg)
 %x PCOMMENT
 %x LCOMMENT
 %x CSTRING
+%x TRIPLESTRING
 %s UDPTABLE
 %x PPTIMESCALE_SCALE
 %x PPTIMESCALE_UNITS
@@ -356,6 +359,11 @@ TU [munpf]
       return yytext[0];
 }
 
+\"\"\"        {
+		if (generation_flag < GN_VER2023)
+		      VLerror(yylloc, "error: Triple-quoted string literals require IEEE 1800-2023 (-g2023).");
+		BEGIN(TRIPLESTRING);
+      }
 \"            { BEGIN(CSTRING); }
 <CSTRING>\\\\ { yymore(); /* Catch \\, which is a \ escaping itself */ }
 <CSTRING>\\\" { yymore(); /* Catch \", which is an escaped quote */ }
@@ -368,6 +376,17 @@ TU [munpf]
 		yylval.text[strlen(yylval.text)-1] = 0;
 		return STRING; }
 <CSTRING>.    { yymore(); }
+<TRIPLESTRING>\\\\ { yymore(); }
+<TRIPLESTRING>\\\" { yymore(); }
+<TRIPLESTRING>\\\n { yymore(); yylloc.first_line += 1; }
+<TRIPLESTRING>\n   { yymore(); yylloc.first_line += 1; }
+<TRIPLESTRING>\"\"\" {
+		BEGIN(0);
+		yylval.text = yytext_string_filter(yytext, yyleng, true);
+		yylval.text[strlen(yylval.text)-3] = 0;
+		return STRING;
+      }
+<TRIPLESTRING>.    { yymore(); }
 
   /* The UDP Table is a unique lexical environment. These are most
      tokens that we can expect in a table. */
