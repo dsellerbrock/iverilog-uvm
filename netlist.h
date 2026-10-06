@@ -27,6 +27,7 @@
  * processors.
  */
 # include  <string>
+# include  <cstdint>
 # include  <map>
 # include  <list>
 # include  <memory>
@@ -404,8 +405,12 @@ class Nexus {
       ~Nexus();
 
     public:
+	// Nexus objects are deleted when their link rings are merged. Users that
+	// cache a Nexus pointer across connect operations can compare this epoch
+	// before dereferencing the cached identity.
+	static std::uint64_t identity_generation();
 
-      void connect(Link&r);
+	  void connect(Link&r);
 
       const char* name() const;
 

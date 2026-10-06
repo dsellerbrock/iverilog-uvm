@@ -1,0 +1,6 @@
+--- a/hw/ip/kmac/fpv/tb/keccak_2share_fpv.sv
++++ b/hw/ip/kmac/fpv/tb/keccak_2share_fpv.sv
+@@ -20,0 +21 @@
++  import prim_mubi_pkg::*;
+@@ -82,0 +83 @@
++        end

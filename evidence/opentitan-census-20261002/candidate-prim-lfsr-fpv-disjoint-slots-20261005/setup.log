@@ -1,0 +1,12 @@
+OpenTitan FuseSoC setup
+command: /Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34 --cores-root=/private/tmp/pi/iverilog-uvm-prim-lfsr-disjoint-slots-20261005/matrix-provider-cores/source-overrides run --target=formal --tool=icarus --setup --build-root=/private/tmp/pi/iverilog-uvm-prim-lfsr-disjoint-slots-20261005/sva/lowrisc_fpv_prim_lfsr_fpv_0.1 --flag=fileset_ip lowrisc:fpv:prim_lfsr_fpv:0.1
+returncode: 0
+duration_seconds: 0.418
+
+INFO: Preparing lowrisc:prim:assert:0.1
+INFO: Preparing lowrisc:prim:cipher_pkg:0.1
+INFO: Preparing lowrisc:prim:lfsr:0.1
+INFO: Preparing lowrisc:fpv:prim_lfsr_fpv:0.1
+INFO: Wrote dependency graph to /private/tmp/pi/iverilog-uvm-prim-lfsr-disjoint-slots-20261005/sva/lowrisc_fpv_prim_lfsr_fpv_0.1/formal-icarus/lowrisc_fpv_prim_lfsr_fpv_0.1.deps-after-generators.dot
+INFO: Setting up project
+WARNING: This backend is deprecated and will eventually be removed. Please migrate to the flow API instead.  See https://edalize.readthedocs.io/en/latest/ref/migrations.html#migrating-from-the-tool-api-to-the-flow-api for more details.

@@ -30,7 +30,7 @@ import sys
 import tempfile
 import threading
 import time
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 
 def _require_python313(
@@ -138,6 +138,50 @@ mapping:
   "lowrisc:prim:xnor2": "lowrisc:prim_generic:xnor2"
   "lowrisc:prim:xor2": "lowrisc:prim_generic:xor2"
 """
+MATRIX_SOURCE_CORE_DEPENDENCIES = (
+    (
+        "hw/ip/prim/prim_mubi.core",
+        "lowrisc:prim:flop",
+        ("lowrisc:prim:flop_2sync",),
+    ),
+    (
+        "hw/ip/prim/prim_ram_1p_adv.core",
+        "lowrisc:prim:ram_1p",
+        ("lowrisc:prim:mubi",),
+    ),
+    (
+        "hw/top_earlgrey/ip_autogen/flash_ctrl/flash_ctrl_prim_reg_top.core",
+        "lowrisc:ip_interfaces:flash_ctrl_pkg",
+        ("lowrisc:prim:reg_we_check",),
+    ),
+    (
+        "hw/ip/otp_ctrl/otp_ctrl_prim_reg_top.core",
+        "lowrisc:ip:otp_ctrl_pkg",
+        (
+            "lowrisc:prim:reg_we_check",
+            "lowrisc:tlul:trans_intg",
+            "lowrisc:tlul:adapter_reg",
+            "lowrisc:prim:subreg",
+        ),
+    ),
+    (
+        "hw/ip/prim/prim_dom_and_2share.core",
+        "lowrisc:prim:assert",
+        ("lowrisc:prim:xor2", "lowrisc:prim:flop_en"),
+    ),
+    (
+        "hw/ip/tlul/tlul_lc_gate.core",
+        "lowrisc:tlul:common",
+        ("lowrisc:tlul:socket_1n", "lowrisc:prim:sec_anchor"),
+    ),
+)
+SPI_HOST_SVA_CORE = "hw/ip/spi_host/dv/sva/spi_host_sva.core"
+SPI_HOST_SVA_CORE_SOURCE_SHA256 = (
+    "16322a562961389fd9f0b4ca4ff7a266e60adb32547ba16b4921f2efbbc27122"
+)
+SPI_HOST_SVA_CORE_OVERLAY_SHA256 = (
+    "7d7b4e3297492e04f77a44cec2c050f475172a9a723f1e6c43fc88512072be11"
+)
 ENGLISHBREAKFAST_MAPPING = "local:matrix:top_englishbreakfast:0.1"
 ENGLISHBREAKFAST_MAPPING_CORE = """CAPI=2:
 name: local:matrix:top_englishbreakfast:0.1
@@ -268,6 +312,9 @@ SETUP_ALLOWLIST = (
 )
 NATIVE_SOURCE_SETUP_WARNING_RE = re.compile(
     r"^WARNING: (?P<path>.+) has unknown file type '(?:cSource|cppSource)'$"
+)
+PYTHON_SOURCE_SETUP_WARNING_RE = re.compile(
+    r"^WARNING: (?P<path>.+\.py) has unknown file type ''$"
 )
 NO_TOPLEVEL_RE = re.compile(r"Target '[^']+' has no toplevel", re.I)
 MODULE_DECL_RE = re.compile(
@@ -592,11 +639,13 @@ KNOWN_UPSTREAM_DEFECTS = (
         re.compile(
             r"keccak_2share_fpv\.sv:\d+: (?:syntax error|error: )"
         ),
-        "keccak_2share_fpv.sv's StPhase1 case item is missing an `end` "
-        "(the else-begin block and the case-item begin share one), so "
-        "the file cannot parse. slang 11.0 reports the same "
-        "\"expected 'end'\"; the FPV testbench is syntactically broken "
-        "at the pinned revision.",
+        "At the pinned revision, keccak_2share_fpv.sv is missing an `end` "
+        "after the StPhase1 else block and does not import prim_mubi_pkg. "
+        "Correcting those exposes obsolete cycle_i and rand_aux_i port "
+        "connections on both keccak_2share instances; the current DUT instead "
+        "has DOM control and lifecycle inputs. Matching those requires an "
+        "FPV control-model update, so this target remains upstream-invalid. "
+        "Slang 11.0 independently reports the original missing `end`.",
     ),
     UpstreamDefect(
         "lowrisc:fpv:rv_timer_fpv",
@@ -2070,8 +2119,62 @@ def provider_mappings(job: Job, requested_top: str) -> list[str]:
     return [PRIM_MAPPING, DEFAULT_TOPS[top]]
 
 
-def prepare_matrix_core_root(build_root: Path) -> Path:
-    """Create local mapping cores needed for deterministic dependency solves."""
+def spi_host_sva_core_source_text(text: str) -> str:
+    before = "    filesets:\n      - files_formal\n      - files_dv\n    toplevel: spi_host"
+    after = "    filesets:\n      - files_dv\n    toplevel: spi_host"
+    if text.count(before) != 1:
+        raise ValueError("SPI host formal fileset reference is not unique")
+    return text.replace(before, after)
+
+
+def stage_spi_host_sva_core_override(
+    opentitan_root: Path, source_override_root: Path
+) -> None:
+    source_core = opentitan_root / SPI_HOST_SVA_CORE
+    overlay_core = source_override_root / SPI_HOST_SVA_CORE
+    if not source_core.is_file():
+        overlay_core.unlink(missing_ok=True)
+        return
+    if file_sha256(source_core) != SPI_HOST_SVA_CORE_SOURCE_SHA256:
+        overlay_core.unlink(missing_ok=True)
+        return
+
+    overlay_text = spi_host_sva_core_source_text(source_core.read_text())
+    overlay_hash = hashlib.sha256(overlay_text.encode()).hexdigest()
+    if overlay_hash != SPI_HOST_SVA_CORE_OVERLAY_SHA256:
+        raise RuntimeError(f"SPI host SVA core overlay hash mismatch: {overlay_hash}")
+    if overlay_core.is_symlink():
+        raise RuntimeError("SPI host SVA core overlay is a symlink")
+    overlay_core.parent.mkdir(parents=True, exist_ok=True)
+    if not overlay_core.is_file() or overlay_core.read_text() != overlay_text:
+        overlay_core.write_text(overlay_text)
+
+    source_dir = source_core.parent
+    overlay_dir = overlay_core.parent
+    for name in ("spi_host_data_stable_sva.sv", "spi_host_bind.sv"):
+        link = overlay_dir / name
+        target = source_dir / name
+        if link.is_symlink():
+            if link.resolve() == target.resolve():
+                continue
+            link.unlink()
+        elif link.exists():
+            raise RuntimeError(f"SPI host SVA overlay path already exists: {link}")
+        link.symlink_to(target)
+
+    data_link = overlay_dir.parent.parent / "data"
+    data_target = source_dir.parent.parent / "data"
+    if data_link.is_symlink():
+        if data_link.resolve() != data_target.resolve():
+            data_link.unlink()
+    elif data_link.exists():
+        raise RuntimeError(f"SPI host SVA overlay data path already exists: {data_link}")
+    if not data_link.exists():
+        data_link.symlink_to(data_target, target_is_directory=True)
+
+
+def prepare_matrix_core_root(build_root: Path, opentitan_root: Path) -> Path:
+    """Prepare FuseSoC mappings and pinned-source core metadata overlays."""
     core_root = build_root / "matrix-provider-cores"
     core_root.mkdir(parents=True, exist_ok=True)
     mapping_core = core_root / "top_englishbreakfast_mapping.core"
@@ -2086,18 +2189,147 @@ def prepare_matrix_core_root(build_root: Path) -> Path:
         or prim_mapping_core.read_text() != PRIM_MAPPING_CORE
     ):
         prim_mapping_core.write_text(PRIM_MAPPING_CORE)
+
+    # Some pinned OpenTitan core files omit direct dependencies for modules
+    # that their RTL instantiates. Keep these corrections in a build-local
+    # overlay so FuseSoC sees the complete dependency closure without editing
+    # the input source checkout.
+    source_override_root = core_root / "source-overrides"
+    for relative_core, anchor_dependency, added_dependencies in (
+        MATRIX_SOURCE_CORE_DEPENDENCIES
+    ):
+        source_core = opentitan_root / relative_core
+        overlay_core = source_override_root / relative_core
+        if not source_core.is_file():
+            if overlay_core.is_file():
+                overlay_core.unlink()
+            continue
+
+        source_text = source_core.read_text()
+        source_lines = source_text.splitlines(keepends=True)
+        present_dependencies = {
+            line.strip()[2:].strip()
+            for line in source_lines
+            if line.strip().startswith("- ")
+        }
+        missing_dependencies = [
+            dependency
+            for dependency in added_dependencies
+            if dependency not in present_dependencies
+        ]
+        if not missing_dependencies:
+            if overlay_core.is_file():
+                overlay_core.unlink()
+            continue
+
+        anchors = [
+            index
+            for index, line in enumerate(source_lines)
+            if line.strip() == f"- {anchor_dependency}"
+        ]
+        if len(anchors) != 1:
+            raise RuntimeError(
+                f"cannot prepare FuseSoC overlay for {relative_core}: expected "
+                f"one {anchor_dependency} dependency, found {len(anchors)}"
+            )
+
+        anchor_index = anchors[0]
+        anchor_line = source_lines[anchor_index]
+        indent = anchor_line[: len(anchor_line) - len(anchor_line.lstrip())]
+        newline = "\r\n" if anchor_line.endswith("\r\n") else "\n"
+        inserted_lines = [
+            f"{indent}- {dependency}{newline}"
+            for dependency in missing_dependencies
+        ]
+        overlay_text = "".join(
+            source_lines[: anchor_index + 1]
+            + inserted_lines
+            + source_lines[anchor_index + 1 :]
+        )
+        overlay_core_dir = overlay_core.parent
+        overlay_core_dir.mkdir(parents=True, exist_ok=True)
+        if not overlay_core.is_file() or overlay_core.read_text() != overlay_text:
+            overlay_core.write_text(overlay_text)
+        for dirname in ("rtl", "lint"):
+            source_dir = source_core.parent / dirname
+            if not source_dir.is_dir():
+                continue
+            overlay_dir = overlay_core_dir / dirname
+            if overlay_dir.is_symlink():
+                if overlay_dir.resolve() != source_dir.resolve():
+                    overlay_dir.unlink()
+                    overlay_dir.symlink_to(source_dir, target_is_directory=True)
+            elif not overlay_dir.exists():
+                overlay_dir.symlink_to(source_dir, target_is_directory=True)
+    stage_spi_host_sva_core_override(opentitan_root, source_override_root)
     return core_root
 
 
 def actionable_setup_lines(output: str) -> list[str]:
     findings: list[str] = []
     for line in output.splitlines():
-        if "warning" not in line.casefold():
+        if not line.lstrip().casefold().startswith("warning:"):
             continue
         if any(pattern.search(line) for pattern in SETUP_ALLOWLIST):
             continue
         findings.append(line.strip())
     return findings
+
+
+def classify_compile_setup_warnings(
+    lane: str, findings: Sequence[str], source_list: Path
+) -> tuple[list[str], list[str]]:
+    """Classify non-HDL setup warnings only when Icarus omits those files."""
+    if lane not in {"rtl", "sva", "uvm"}:
+        return list(findings), []
+    compiler_sources: set[Path] = set()
+    pending = [source_list]
+    seen: set[Path] = set()
+    try:
+        while pending:
+            current = pending.pop().resolve()
+            if current in seen:
+                continue
+            seen.add(current)
+            for line in current.read_text(errors="replace").splitlines():
+                tokens = shlex.split(line, comments=True)
+                for index, token in enumerate(tokens):
+                    if token in ("-c", "-f") and index + 1 < len(tokens):
+                        nested = Path(tokens[index + 1])
+                        pending.append(
+                            nested if nested.is_absolute() else current.parent / nested
+                        )
+                    elif len(tokens) == 1 and not token.startswith(("-", "+", "@")):
+                        source = Path(token)
+                        if source.suffix.casefold() in {
+                            ".c", ".cc", ".cpp", ".cxx", ".py"
+                        }:
+                            compiler_sources.add(
+                                source.resolve() if source.is_absolute()
+                                else (current.parent / source).resolve()
+                            )
+    except (OSError, ValueError):
+        return list(findings), []
+
+    actionable: list[str] = []
+    benign: list[str] = []
+    for line in findings:
+        match = (
+            NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+            or PYTHON_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+        )
+        if match:
+            path = Path(match.group("path"))
+            staged = (
+                path.resolve()
+                if path.is_absolute()
+                else (source_list.parent / path).resolve()
+            )
+            if staged.is_file() and staged not in compiler_sources:
+                benign.append(line)
+                continue
+        actionable.append(line)
+    return actionable, benign
 
 
 def verified_native_setup_warnings(
@@ -2387,20 +2619,26 @@ def setup_command(
     # sva lanes this driver exercises. provider_mappings()/PRIM_MAPPING/
     # ENGLISHBREAKFAST_MAPPING are kept (and still self-tested) as the
     # mechanism a newer OpenTitan revision with the real fusesoc --mapping
-    # feature would need again, but are not applied to this command. Their
-    # cores root is not scanned either: this fusesoc ignores `mapping` and
-    # warns "Unknown item mapping in section Root", which marked every
-    # otherwise clean run as debt.
-    del matrix_core_root
+    # feature would need again, but are not applied to this command. The
+    # mapping-core root is not scanned because this FuseSoC ignores `mapping`
+    # and warns "Unknown item mapping in section Root". A separate source
+    # overlay root contains only corrected source cores and is safe to scan.
     command = [
         str(fusesoc),
         f"--cores-root={opentitan_root}",
-        "run",
-        f"--target={job.target}",
-        "--tool=icarus",
-        "--setup",
-        f"--build-root={work_root}",
     ]
+    source_override_root = matrix_core_root / "source-overrides"
+    if job.lane in {"rtl", "sva"} and any(source_override_root.rglob("*.core")):
+        command.append(f"--cores-root={source_override_root}")
+    command.extend(
+        [
+            "run",
+            f"--target={job.target}",
+            "--tool=icarus",
+            "--setup",
+            f"--build-root={work_root}",
+        ]
+    )
     # OpenTitan's register cores deliberately gate their RTL filesets behind
     # these flags.  A direct IP simulation needs the IP-generated register
     # package, while system-level cores use the selected top's autogen copy.
@@ -2437,12 +2675,18 @@ def compile_command(
     output: Path,
     uvm_home: Path | None = None,
     commercial_unsafe: bool = False,
+    additional_include_dirs: Sequence[Path] = (),
 ) -> list[str]:
     command = [str(iverilog), "-g2012", *top_options]
     if commercial_unsafe and job.lane in {"uvm", "runtime"}:
         command.append("-gcommercial-unsafe")
     if job.lane == "rtl":
-        command.extend(["-S", "-DSYNTHESIS"])
+        # Match OpenTitan's GTECH synthesis flow for generic RAM models.
+        command.extend([
+            "-S",
+            "-DSYNTHESIS",
+            "-DSYNTHESIS_MEMORY_BLACK_BOXING",
+        ])
     elif job.lane == "sva":
         # OpenTitan's formal flows define FPV_ON. This controls assumption and
         # cover semantics in prim_assert.sv as well as FPV-specific RTL; the
@@ -2492,6 +2736,7 @@ def compile_command(
             for define in UVM_EXTRA_DEFINES.get(job.core.vlnv, ())
             if define[2:].split("=", 1)[0] not in defined
         )
+    command.extend(f"-I{directory}" for directory in additional_include_dirs)
     if uvm_home is not None and "-uvm" in command:
         command.append(f"--uvm-home={uvm_home}")
     command.extend(["-o", str(output), "-c", str(source_list)])
@@ -2572,6 +2817,1433 @@ def native_dpi_commands(
 
 
 OTBN_MODEL_SOURCE_SHA256 = "751102f30ec5f8c28cd05aff653f4ff4baf641bc6fba286faae99697424bfb4e"
+
+MEMLOAD_SOURCE_SHA256 = (
+    "0ae62592964c0648c08f28fdd235ed7e7668f6071dc001aa6c1b6f652eea1956"
+)
+ROM_CTRL_SOURCE_SHA256 = (
+    "72cdd7822b2b5df3de40dc933b85f31384841337c79f59dfe88f961d8e9f4c47"
+)
+TOP_EARLGREY_SOURCE_SHA256 = (
+    "392bb28af6e913941f422b7745de4f3dd06514cdfbe66e3753d82dadd21867a3"
+)
+CHIP_EARLGREY_ASIC_SOURCE_SHA256 = (
+    "d6d07633a708e6186df522777fe7d394e83ee4022e846b73216bf74022228bb2"
+)
+CHIP_EARLGREY_VERILATOR_SOURCE_SHA256 = (
+    "34e397a18d3027ca6f27d0173acd490e5744836ac652e84c8e4df5e9ef1c35b4"
+)
+IBEX_TRACER_SOURCE_SHA256 = (
+    "74326975d4fc618c97d95cf5451dd830ed5c79798c87d141858fcaf479120e29"
+)
+I2C_PROTOCOL_COV_SOURCE_SHA256 = (
+    "d517b297226819233253bfe7ff9982c27bba2a97ff4759362bce5732b28d1611"
+)
+I2C_IF_SOURCE_SHA256 = (
+    "9d27370ef1612a09cdc9e75e4b2c7d9eca22c5b310573a42a8c64b713d8579f8"
+)
+I2C_HOST_PERF_VSEQ_SOURCE_SHA256 = (
+    "29802640c4558ce3eea87e6818a1b2e1b2ad36839b500d39c5de39089c09c3a8"
+)
+I2C_VSEQ_LIST_SOURCE_SHA256 = (
+    "b778f251338cee17f82eda70ec5364233fce221fbb3a3a886e0bfdecca49d0cc"
+)
+KECCAK_2SHARE_FPV_SOURCE_SHA256 = (
+    "d5bb74f7ee9fa85829c7c13690ec7b0f0805c8bfee3291da67fe14b83655f75c"
+)
+KECCAK_2SHARE_FPV_OVERLAY_SHA256 = (
+    "7b696448599d541922404388981149166e981bba921225ffee2014737cd77791"
+)
+KECCAK_ROUND_FPV_SOURCE_SHA256 = (
+    "c0395c0288979defdaa931394c668ab54646f45e3831b9b43340d03d12809ec7"
+)
+KECCAK_ROUND_FPV_OVERLAY_SHA256 = (
+    "bef9dc1f9012924600d32766521371a0da390501ae44c8de785f3f496ef0a6c1"
+)
+PRIM_LFSR_FPV_SOURCE_SHA256 = (
+    "e43d078287df5950fd78d33d60c6a02a60666caa3ae5cb877d42db8da20c33ee"
+)
+PRIM_LFSR_FPV_OVERLAY_SHA256 = (
+    "7a7d252fbd82c28d7b17bc4718be5c8bd5f5350a143aa5396a4c096912f2f72c"
+)
+PRIM_PACKER_FPV_SOURCE_SHA256 = (
+    "a69d994507dec68874b9cfa0847d4517c16ba23b554cf66b2674c11196914b4f"
+)
+PRIM_PACKER_FPV_OVERLAY_SHA256 = (
+    "b3c06124823d03b655c282c6a4ae8179e9330b57a48dcab4c01cd2f546aac176"
+)
+SHA3_FPV_SOURCE_SHA256 = (
+    "adb96754fe4d98ce54cf9522d1e677a8970479cb3e828cbbc5a886ebc5add9a0"
+)
+SHA3_FPV_OVERLAY_SHA256 = (
+    "93a708cdec54f628780529f69ed1aaf3006809df03773b38e083fdda964275ce"
+)
+SHA3PAD_FPV_SOURCE_SHA256 = (
+    "d88ed8ec4aecc66b229a787843bf04b0fb9c3ae580e33c11deebfcd8f503abe0"
+)
+SHA3PAD_FPV_OVERLAY_SHA256 = (
+    "c49982baddface8c04575e59504bcfc981d36d8860c00ab179b03b51ae4b4584"
+)
+AES_WRAP_SOURCE_SHA256 = (
+    "0738798e55b4c5543e1a92b0f7742dbb1afb459211f8592a9597ce7db11b7fbb"
+)
+AES_WRAP_OVERLAY_SHA256 = (
+    "46096cce75cf14f48738237bde617df72f81a284a69e6d0b26935e6d956957ea"
+)
+MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
+
+  // Print the hierarchical path to the memory to help make formal connectivity checks easy.
+  void'($value$plusargs("show_mem_paths=%0b", show_mem_paths));
+  if (show_mem_paths) $display("%m");'''
+
+
+MEMLOAD_SYNTHESIS_PROFILES = {
+    "lowrisc:ip:rom_ctrl:0.1": ("rom_ctrl", "-srom_ctrl"),
+    "lowrisc:systems:top_earlgrey:0.1": ("top_earlgrey", "-stop_earlgrey"),
+    "lowrisc:systems:chip_earlgrey_asic:0.1": (
+        "chip_earlgrey_asic",
+        "-schip_earlgrey_asic",
+    ),
+    "lowrisc:systems:chip_earlgrey_verilator:0.1": (
+        "chip_earlgrey_verilator",
+        "-schip_earlgrey_verilator",
+    ),
+}
+
+MEMLOAD_PROFILE_WRAPPERS = {
+    "chip_earlgrey_asic": (
+        "hw/top_earlgrey/rtl/autogen/chip_earlgrey_asic.sv",
+        CHIP_EARLGREY_ASIC_SOURCE_SHA256,
+    ),
+    "chip_earlgrey_verilator": (
+        "hw/top_earlgrey/rtl/chip_earlgrey_verilator.sv",
+        CHIP_EARLGREY_VERILATOR_SOURCE_SHA256,
+    ),
+}
+
+
+def memload_synthesis_profile(
+    core_vlnv: str, top_options: Sequence[str]
+) -> str | None:
+    profile = MEMLOAD_SYNTHESIS_PROFILES.get(core_vlnv)
+    if profile is None or any(option.startswith("-P") for option in top_options):
+        return None
+    profile_name, top_option = profile
+    return profile_name if top_option in top_options else None
+
+
+def empty_string_parameter(text: str, name: str) -> bool:
+    return re.search(
+        rf'\bparameter\s+(?:[A-Za-z_]\w*\s+)?{re.escape(name)}\s*=\s*""',
+        text,
+    ) is not None
+
+
+def top_earlgrey_uses_default_mem_images(text: str) -> bool:
+    match = re.search(
+        r"\btop_earlgrey\s*#\s*\((.*?)\)\s*top_earlgrey\s*\(",
+        text,
+        re.S,
+    )
+    return match is not None and not re.search(
+        r"\b(?:OtpCtrlMemInitFile|RomCtrlBootRomInitFile)\b",
+        match.group(1),
+    )
+
+
+def guard_memload_debug(text: str) -> str:
+    """Exclude only plusarg/display tracing from synthesis; retain readmemh."""
+    if text.count(MEMLOAD_DEBUG_BLOCK) != 1:
+        raise ValueError("prim_util_memload debug block anchor is not unique")
+    guarded = "`ifndef SYNTHESIS\n" + MEMLOAD_DEBUG_BLOCK + "\n`endif"
+    return text.replace(MEMLOAD_DEBUG_BLOCK, guarded)
+
+
+def memload_synthesis_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    core_vlnv: str,
+    top_options: Sequence[str],
+) -> tuple[Path, dict[str, str]]:
+    """Stage the trace guard only when all selected memory images default empty."""
+    profile = memload_synthesis_profile(core_vlnv, top_options)
+    if profile is None:
+        raise ValueError("memory-loader overlay requires a known empty-image top")
+
+    source = opentitan_root / "hw/ip/prim/rtl/prim_util_memload.svh"
+    source_hash = file_sha256(source)
+    if source_hash != MEMLOAD_SOURCE_SHA256:
+        raise ValueError(
+            "ROM memory-loader overlay source hash mismatch: "
+            f"expected {MEMLOAD_SOURCE_SHA256}, got {source_hash}"
+        )
+
+    if profile == "rom_ctrl":
+        parameter_source = opentitan_root / "hw/ip/rom_ctrl/rtl/rom_ctrl.sv"
+        expected_hash = ROM_CTRL_SOURCE_SHA256
+    else:
+        parameter_source = opentitan_root / "hw/top_earlgrey/rtl/autogen/top_earlgrey.sv"
+        expected_hash = TOP_EARLGREY_SOURCE_SHA256
+
+    parameter_hash = file_sha256(parameter_source)
+    if parameter_hash != expected_hash:
+        raise ValueError(
+            f"{profile} memory parameter source hash mismatch: "
+            f"expected {expected_hash}, got {parameter_hash}"
+        )
+
+    parameter_text = parameter_source.read_text()
+    if profile == "rom_ctrl":
+        if not empty_string_parameter(parameter_text, "BootRomInitFile"):
+            raise ValueError("ROM controller default image parameter is not empty")
+    elif not empty_string_parameter(
+        parameter_text, "OtpCtrlMemInitFile"
+    ) or not empty_string_parameter(parameter_text, "RomCtrlBootRomInitFile"):
+        raise ValueError("Earl Grey ROM/OTP image defaults are not empty")
+
+    validated_sources = [
+        {"path": str(source), "sha256": source_hash},
+        {"path": str(parameter_source), "sha256": parameter_hash},
+    ]
+    wrapper = MEMLOAD_PROFILE_WRAPPERS.get(profile)
+    if wrapper is not None:
+        wrapper_source = opentitan_root / wrapper[0]
+        wrapper_hash = file_sha256(wrapper_source)
+        if wrapper_hash != wrapper[1]:
+            raise ValueError(f"{profile} wrapper source hash mismatch")
+        if not top_earlgrey_uses_default_mem_images(wrapper_source.read_text()):
+            raise ValueError(f"{profile} wrapper overrides a memory image")
+        validated_sources.append(
+            {"path": str(wrapper_source), "sha256": wrapper_hash}
+        )
+
+    overlay_dir = work_root / "source-overlays" / "memload_synthesis"
+    overlay = overlay_dir / "prim_util_memload.svh"
+    if overlay.is_symlink() or work_root.resolve() not in overlay.resolve().parents:
+        raise ValueError("ROM memory-loader overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay_text = guard_memload_debug(source.read_text())
+    if "$readmemh(MemInitFile, mem);" not in overlay_text:
+        raise ValueError("ROM memory-loader overlay removed the readmemh path")
+    overlay.write_text(overlay_text)
+    return overlay_dir, {
+        "profile": profile,
+        "source": str(source),
+        "source_sha256": source_hash,
+        "validated_sources": validated_sources,
+        "parameter_defaults": "ROM and OTP images empty for selected top",
+        "overlay": str(overlay),
+        "overlay_sha256": file_sha256(overlay),
+    }
+
+
+def chip_earlgrey_verilator_source_text(text: str) -> str:
+    """Correct missing multibit clock-control links in the Verilator wrapper."""
+    replacements = (
+        ("  logic hi_speed_sel;", "  prim_mubi_pkg::mubi4_t hi_speed_sel;"),
+        ("  logic jen;", "  prim_mubi_pkg::mubi4_t jen;"),
+        (
+            "  logic scan_en;",
+            "  logic scan_en;\n  prim_mubi_pkg::mubi4_t scanmode;",
+        ),
+        (
+            ".all_clk_byp_req_i     ( ast_clk_byp_req ),",
+            ".all_clk_byp_req_i     ( all_clk_byp_req ),",
+        ),
+        (
+            ".all_clk_byp_ack_o     ( ast_clk_byp_ack ),",
+            ".all_clk_byp_ack_o     ( all_clk_byp_ack ),",
+        ),
+    )
+    for original, replacement in replacements:
+        if text.count(original) != 1:
+            raise ValueError("Earl Grey Verilator wrapper anchor is not unique")
+        text = text.replace(original, replacement)
+    return text
+
+
+def ibex_tracer_automatic_locals(text: str) -> str:
+    """Give per-activation trace locals automatic lifetime in procedural blocks."""
+    file_handle_declaration = "      int fh = file_handle;"
+    if text.count(file_handle_declaration) != 2:
+        raise ValueError("Ibex tracer file-handle anchors are not unique")
+    text = text.replace(
+        file_handle_declaration,
+        "      automatic int fh = file_handle;",
+    )
+    filename_declaration = '        string file_name_base = "trace_core";'
+    if text.count(filename_declaration) != 1:
+        raise ValueError("Ibex tracer filename anchor is not unique")
+    return text.replace(
+        filename_declaration,
+        '        automatic string file_name_base = "trace_core";',
+    )
+
+
+def chip_earlgrey_verilator_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    compiler_source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Stage hash-checked RTL fixes and redirect only this target's source list."""
+    wrapper_source = opentitan_root / "hw/top_earlgrey/rtl/chip_earlgrey_verilator.sv"
+    tracer_source = opentitan_root / "hw/vendor/lowrisc_ibex/rtl/ibex_tracer.sv"
+    for source, expected_hash in (
+        (wrapper_source, CHIP_EARLGREY_VERILATOR_SOURCE_SHA256),
+        (tracer_source, IBEX_TRACER_SOURCE_SHA256),
+    ):
+        actual_hash = file_sha256(source)
+        if actual_hash != expected_hash:
+            raise ValueError(
+                f"{source.name} source hash mismatch: "
+                f"expected {expected_hash}, got {actual_hash}"
+            )
+
+    overlay_dir = work_root / "source-overlays" / "chip_earlgrey_verilator"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("Earl Grey Verilator overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    wrapper_overlay = overlay_dir / "chip_earlgrey_verilator.sv"
+    tracer_overlay = overlay_dir / "ibex_tracer.sv"
+    wrapper_overlay.write_text(
+        chip_earlgrey_verilator_source_text(wrapper_source.read_text())
+    )
+    tracer_overlay.write_text(
+        ibex_tracer_automatic_locals(tracer_source.read_text())
+    )
+
+    if (
+        compiler_source_list.is_symlink()
+        or work_root.resolve() not in compiler_source_list.resolve().parents
+    ):
+        raise ValueError("Earl Grey Verilator source list is outside its build root")
+    source_list_text = compiler_source_list.read_text()
+    source_replacements = (
+        (
+            "../src/lowrisc_systems_chip_earlgrey_verilator_0.1/rtl/"
+            "chip_earlgrey_verilator.sv",
+            str(wrapper_overlay),
+        ),
+        (
+            "../src/lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer.sv",
+            str(tracer_overlay),
+        ),
+    )
+    for original, replacement in source_replacements:
+        if source_list_text.splitlines().count(original) != 1:
+            raise ValueError("Earl Grey Verilator source-list anchor is not unique")
+        source_list_text = source_list_text.replace(original, replacement)
+    patched_source_list = compiler_source_list.with_name(
+        f"{compiler_source_list.stem}-source-overlays{compiler_source_list.suffix}"
+    )
+    if patched_source_list.is_symlink():
+        raise ValueError("Earl Grey Verilator source-list overlay is a symlink")
+    patched_source_list.write_text(source_list_text)
+    overlays = [
+        {
+            "source": str(source),
+            "source_sha256": file_sha256(source),
+            "overlay": str(overlay),
+            "overlay_sha256": file_sha256(overlay),
+        }
+        for source, overlay in (
+            (wrapper_source, wrapper_overlay),
+            (tracer_source, tracer_overlay),
+        )
+    ]
+    return patched_source_list, {
+        "profile": "chip_earlgrey_verilator",
+        "source_list": str(compiler_source_list),
+        "source_list_overlay": str(patched_source_list),
+        "overlays": overlays,
+    }
+
+
+def i2c_protocol_cov_source_text(text: str) -> str:
+    """Move I2C coverage object construction into the existing enable branch."""
+    before = '''    if (en_cov) begin
+      i2c_protocol_cov_cg   i2c_protocol_cov = new();
+      i2c_rd_wr_cg          i2c_rd_wr_cov = new();
+      i2c_cmd_complete_cg   cmd_complete_cg = new();'''
+    after = '''    i2c_protocol_cov_cg   i2c_protocol_cov;
+    i2c_rd_wr_cg          i2c_rd_wr_cov;
+    i2c_cmd_complete_cg   cmd_complete_cg;
+    if (en_cov) begin
+      i2c_protocol_cov = new();
+      i2c_rd_wr_cov = new();
+      cmd_complete_cg = new();'''
+    if text.count(before) != 1:
+        raise ValueError("I2C coverage constructor block is not unique")
+    return text.replace(before, after)
+
+
+def i2c_if_source_text(text: str) -> str:
+    before = "if (sample.size() > tc.tSetupBit) sample.pop_back();"
+    after = "if (sample.size() > tc.tSetupBit) void'(sample.pop_back());"
+    if text.count(before) != 1:
+        raise ValueError("I2C interface pop_back call is not unique")
+    return text.replace(before, after)
+
+
+def i2c_host_perf_vseq_source_text(text: str) -> str:
+    before = "    solve cfg.clk_freq_mhz before speed_mode;\n"
+    if text.count(before) != 1:
+        raise ValueError("I2C host performance solve constraint is not unique")
+    return text.replace(before, "")
+
+
+def i2c_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+    *,
+    sim_sources: bool,
+) -> tuple[Path, dict[str, object]]:
+    """Stage the qualified I2C warning cleanup without modifying OpenTitan."""
+    overlay_dir = work_root / "source-overlays" / "i2c_runtime_warning_cleanup"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("I2C overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+
+    files: list[dict[str, str]] = []
+
+    def stage_source(
+        relative_source: str,
+        output_name: str,
+        expected_source_hash: str,
+        expected_overlay_hash: str,
+        transform: Callable[[str], str],
+    ) -> Path:
+        source = opentitan_root / relative_source
+        source_hash = file_sha256(source)
+        if source_hash == expected_overlay_hash:
+            files.append(
+                {
+                    "source": str(source),
+                    "source_sha256": source_hash,
+                    "overlay": str(source),
+                    "overlay_sha256": source_hash,
+                    "already_overlaid": "true",
+                }
+            )
+            return source
+        if source_hash != expected_source_hash:
+            raise ValueError(
+                f"I2C overlay source hash mismatch for {relative_source}: "
+                f"expected {expected_source_hash}, got {source_hash}"
+            )
+        overlay = overlay_dir / output_name
+        if overlay.is_symlink():
+            raise ValueError(f"I2C overlay destination is a symlink: {overlay}")
+        overlay.parent.mkdir(parents=True, exist_ok=True)
+        overlay.write_text(transform(source.read_text()))
+        overlay_hash = file_sha256(overlay)
+        if overlay_hash != expected_overlay_hash:
+            raise ValueError(
+                f"I2C overlay result hash mismatch for {relative_source}: "
+                f"expected {expected_overlay_hash}, got {overlay_hash}"
+            )
+        files.append(
+            {
+                "source": str(source),
+                "source_sha256": source_hash,
+                "overlay": str(overlay),
+                "overlay_sha256": overlay_hash,
+            }
+        )
+        return overlay
+
+    coverage_overlay = stage_source(
+        "hw/ip/i2c/dv/sva/i2c_protocol_cov.sv",
+        "i2c_protocol_cov.sv",
+        I2C_PROTOCOL_COV_SOURCE_SHA256,
+        "7acaf1466513f2fd8f28b31261b0d78f9d5e388bdb0ee73f5ce883e2030ef2fa",
+        i2c_protocol_cov_source_text,
+    )
+    if sim_sources:
+        interface_overlay = stage_source(
+            "hw/dv/sv/i2c_agent/i2c_if.sv",
+            "i2c_if.sv",
+            I2C_IF_SOURCE_SHA256,
+            "c9a24cfa67030cb6defb6fed64528f019ca5885d34adb324681762b04a40b34e",
+            i2c_if_source_text,
+        )
+        sequence_overlay = stage_source(
+            "hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv",
+            "seq_lib/i2c_host_perf_vseq.sv",
+            I2C_HOST_PERF_VSEQ_SOURCE_SHA256,
+            "c22bd8423b64065942b43f39a924389b9f665dc30ce7a1cff3d8c7999bea3f9f",
+            i2c_host_perf_vseq_source_text,
+        )
+        sequence_list = opentitan_root / "hw/ip/i2c/dv/env/seq_lib/i2c_vseq_list.sv"
+        sequence_list_hash = file_sha256(sequence_list)
+        if sequence_list_hash != I2C_VSEQ_LIST_SOURCE_SHA256:
+            raise ValueError(
+                "I2C sequence-list source hash mismatch: "
+                f"expected {I2C_VSEQ_LIST_SOURCE_SHA256}, got {sequence_list_hash}"
+            )
+        sequence_list_overlay = overlay_dir / "seq_lib/i2c_vseq_list.sv"
+        if sequence_list_overlay.is_symlink():
+            raise ValueError("I2C sequence-list overlay is a symlink")
+        sequence_list_overlay.parent.mkdir(parents=True, exist_ok=True)
+        sequence_list_overlay.write_bytes(sequence_list.read_bytes())
+        files.append(
+            {
+                "source": str(sequence_list),
+                "source_sha256": sequence_list_hash,
+                "overlay": str(sequence_list_overlay),
+                "overlay_sha256": file_sha256(sequence_list_overlay),
+            }
+        )
+
+    if source_list.is_symlink() or work_root.resolve() not in source_list.resolve().parents:
+        raise ValueError("I2C source list is outside its build root")
+    source_list_text = source_list.read_text()
+    replacements = {
+        "../src/lowrisc_dv_i2c_sva_0.1/i2c_protocol_cov.sv": str(coverage_overlay),
+    }
+    if sim_sources:
+        replacements["../src/lowrisc_dv_i2c_agent_0.1/i2c_if.sv"] = str(
+            interface_overlay
+        )
+        sequence_include = "+incdir+../src/lowrisc_dv_i2c_env_0.1/seq_lib"
+        if source_list_text.splitlines().count(sequence_include) != 1:
+            raise ValueError("I2C sequence include-directory anchor is not unique")
+        source_list_text = source_list_text.replace(
+            sequence_include,
+            f"+incdir+{sequence_overlay.parent}\n{sequence_include}",
+        )
+    for anchor, replacement in replacements.items():
+        if source_list_text.splitlines().count(anchor) != 1:
+            raise ValueError(f"I2C source-list anchor is not unique: {anchor}")
+        source_list_text = source_list_text.replace(anchor, replacement)
+
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("I2C source-list overlay is a symlink")
+    source_list_overlay.write_text(source_list_text)
+    return source_list_overlay, {
+        "profile": "i2c_runtime_warning_cleanup",
+        "sources": files,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def keccak_2share_fpv_syntax_source_text(text: str) -> str:
+    import_anchor = ");\n\n  localparam int W"
+    if text.count(import_anchor) != 1:
+        raise ValueError("Keccak 2-share SVA module header is not unique")
+    text = text.replace(
+        import_anchor,
+        ");\n  import prim_mubi_pkg::*;\n\n  localparam int W",
+    )
+    before = '''          keccak_st_d = StPhase1;
+      end
+      StPhase2Cycle1: begin'''
+    after = '''          keccak_st_d = StPhase1;
+        end
+      end
+      StPhase2Cycle1: begin'''
+    if text.count(before) != 1:
+        raise ValueError("Keccak 2-share SVA case block is not unique")
+    return text.replace(before, after)
+
+
+def keccak_2share_fpv_source_text(text: str) -> str:
+    text = keccak_2share_fpv_syntax_source_text(text)
+    replacements = (
+        (
+            "  logic [1:0] cycle;",
+            """  logic low_then_high_d, low_then_high_q;
+  logic dom_out_low_d, dom_out_low_q;
+  logic dom_in_low_d, dom_in_low_q;
+  logic dom_in_rand_ext_d, dom_in_rand_ext_q;
+  logic dom_update;""",
+            "DOM control declarations",
+        ),
+        (
+            "    cycle = 2'h0;\n    unique case (keccak_st)",
+            """    low_then_high_d = low_then_high_q;
+    dom_in_low_d = dom_in_low_q;
+    dom_in_rand_ext_d = dom_in_rand_ext_q;
+    dom_update = 1'b0;
+    unique case (keccak_st)""",
+            "DOM control defaults",
+        ),
+        (
+            """      StIdle: begin
+        sel_mux = MuBi4False;
+        if (valid_i) begin
+          keccak_st_d = StPhase1;""",
+            """      StIdle: begin
+        sel_mux = MuBi4False;
+        if (valid_i) begin
+          keccak_st_d = StPhase1;
+          dom_in_low_d = low_then_high_q;
+          dom_in_rand_ext_d = 1'b0;""",
+            "idle transition controls",
+        ),
+        (
+            """      StPhase1: begin
+        sel_mux = MuBi4False;
+        cycle = 2'h0;
+
+        if (rand_early_i || rand_valid_i) begin
+          keccak_st_d = StPhase2Cycle1;
+          update_state = 1'b1;""",
+            """      StPhase1: begin
+        sel_mux = MuBi4False;
+
+        if (rand_early_i || rand_valid_i) begin
+          keccak_st_d = StPhase2Cycle1;
+          update_state = 1'b1;
+          low_then_high_d = rand_aux_i;
+          dom_in_low_d = low_then_high_d;
+          dom_in_rand_ext_d = 1'b1;""",
+            "phase-one transition controls",
+        ),
+        (
+            """      StPhase2Cycle1: begin
+        sel_mux = MuBi4True;
+        cycle = 2'h1;
+        keccak_st_d = StPhase2Cycle2;""",
+            """      StPhase2Cycle1: begin
+        sel_mux = MuBi4True;
+        dom_update = 1'b1;
+        dom_in_low_d = ~low_then_high_q;
+        dom_in_rand_ext_d = 1'b1;
+        keccak_st_d = StPhase2Cycle2;""",
+            "phase-two cycle-one controls",
+        ),
+        (
+            """      StPhase2Cycle2: begin
+        sel_mux = MuBi4True;
+        cycle = 2'h2;
+        update_state = 1'b1;
+        keccak_st_d = StPhase2Cycle3;""",
+            """      StPhase2Cycle2: begin
+        sel_mux = MuBi4True;
+        dom_update = 1'b1;
+        dom_in_low_d = low_then_high_q;
+        dom_in_rand_ext_d = 1'b0;
+        update_state = 1'b1;
+        keccak_st_d = StPhase2Cycle3;""",
+            "phase-two cycle-two controls",
+        ),
+        (
+            """      StPhase2Cycle3: begin
+        sel_mux = MuBi4True;
+        cycle = 2'h3;
+        update_state = 1'b1;
+        if (round == NumRound-1) begin
+          keccak_st_d = StIdle;
+          inc_round = 1'b1;
+        end else begin
+          keccak_st_d = StPhase1;
+
+          inc_round = 1'b1;
+        end""",
+            """      StPhase2Cycle3: begin
+        sel_mux = MuBi4True;
+        update_state = 1'b1;
+        if (round == NumRound-1) begin
+          keccak_st_d = StIdle;
+          inc_round = 1'b1;
+        end else begin
+          keccak_st_d = StPhase1;
+          inc_round = 1'b1;
+          dom_in_low_d = low_then_high_q;
+          dom_in_rand_ext_d = 1'b0;
+        end""",
+            "phase-two cycle-three controls",
+        ),
+        (
+            """    endcase
+  end
+
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin""",
+            """    endcase
+    dom_out_low_d = ~dom_in_low_d;
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      low_then_high_q <= 1'b0;
+      dom_out_low_q <= 1'b0;
+      dom_in_low_q <= 1'b0;
+      dom_in_rand_ext_q <= 1'b0;
+    end else begin
+      low_then_high_q <= low_then_high_d;
+      dom_out_low_q <= dom_out_low_d;
+      dom_in_low_q <= dom_in_low_d;
+      dom_in_rand_ext_q <= dom_in_rand_ext_d;
+    end
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin""",
+            "DOM control registers",
+        ),
+        (
+            """    .clk_i,
+    .rst_ni,
+
+    .rnd_i        (round),
+    .phase_sel_i  (sel_mux),
+    .cycle_i      (cycle),
+    .rand_aux_i   (rand_aux_i),""",
+            """    .clk_i,
+    .rst_ni,
+    .lc_escalate_en_i(lc_ctrl_pkg::LC_TX_DEFAULT),
+
+    .rnd_i            (round),
+    .phase_sel_i      (sel_mux),
+    .dom_out_low_i    (dom_out_low_q),
+    .dom_in_low_i     (dom_in_low_q),
+    .dom_in_rand_ext_i(dom_in_rand_ext_q),
+    .dom_update_i     (dom_update),""",
+            "masked DUT control ports",
+        ),
+        (
+            """    .clk_i,
+    .rst_ni,
+
+    .rnd_i      (round),
+    .phase_sel_i('0),
+    .cycle_i    ('0),
+    .rand_aux_i ('0),""",
+            """    .clk_i,
+    .rst_ni,
+    .lc_escalate_en_i(lc_ctrl_pkg::LC_TX_DEFAULT),
+
+    .rnd_i            (round),
+    .phase_sel_i      ('0),
+    .dom_out_low_i    (1'b0),
+    .dom_in_low_i     (1'b0),
+    .dom_in_rand_ext_i(1'b0),
+    .dom_update_i     (1'b0),""",
+            "unmasked DUT control ports",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"Keccak 2-share SVA {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
+def keccak_round_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  logic run, clear, masked_complete, unmasked_complete;",
+            "  logic run, masked_complete, unmasked_complete;\n"
+            "  prim_mubi_pkg::mubi4_t clear;",
+            "clear signal type",
+        ),
+        (
+            "    clear = 1'b 0;",
+            "    clear = prim_mubi_pkg::MuBi4False;",
+            "clear deassertion",
+        ),
+        (
+            "        clear = 1'b1;",
+            "        clear = prim_mubi_pkg::MuBi4True;",
+            "clear assertion",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"Keccak round FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
+def prim_lfsr_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            """  begin : gen_gal_xor_duts_nonlinear
+    localparam int unsigned Idx = k - GalXorMinLfsrDw;""",
+            """  begin : gen_gal_xor_duts_nonlinear
+    localparam int unsigned Idx = k - GalXorMinLfsrDw +
+                                  (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);""",
+            "nonlinear GalXor index",
+        ),
+        (
+            """  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) begin : gen_fib_xnor_duts
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw + GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;""",
+            """  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) begin : gen_fib_xnor_duts
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw +
+                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);""",
+            "linear FibXnor index",
+        ),
+        (
+            """  begin : gen_fib_xnor_duts_nonlinear
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw + GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;""",
+            """  begin : gen_fib_xnor_duts_nonlinear
+    localparam int unsigned Idx = k - FibXnorMinLfsrDw +
+                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1) +
+                                  (FibXnorMaxLfsrDw - FibXnorMinLfsrDw + 1);""",
+            "nonlinear FibXnor index",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"prim_lfsr FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
+def prim_packer_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  output                     ready_o,\n\n"
+            "  output logic               valid_o,\n"
+            "  output logic [MaxOutW-1:0] data_o,\n"
+            "  output logic [MaxOutW-1:0] mask_o,",
+            "  output logic [16:0] ready_o,\n\n"
+            "  output logic [16:0] valid_o,\n"
+            "  output logic [16:0][MaxOutW-1:0] data_o,\n"
+            "  output logic [16:0][MaxOutW-1:0] mask_o,",
+            "packed output declarations",
+        ),
+        (
+            "  output logic               flush_done_o,\n"
+            "  output logic               err_o",
+            "  output logic [16:0] flush_done_o,\n"
+            "  output logic [16:0] err_o",
+            "status output declarations",
+        ),
+        (
+            ");\n\n  for (genvar k = 1; k <= 16; k++) begin : gen_prim_packer",
+            ");\n\n  for (genvar k = 1; k <= 16; k++) begin : gen_prim_packer\n"
+            "    localparam int unsigned Idx = k - 1;",
+            "generated instance index",
+        ),
+        (
+            "      .ready_o,\n"
+            "      .valid_o,\n"
+            "      .data_o (data_o[16-k:0]),\n"
+            "      .mask_o (mask_o[16-k:0]),",
+            "      .ready_o (ready_o[Idx]),\n"
+            "      .valid_o (valid_o[Idx]),\n"
+            "      .data_o (data_o[Idx][16-k:0]),\n"
+            "      .mask_o (mask_o[Idx][16-k:0]),",
+            "generated output connections",
+        ),
+        (
+            "      .ready_o,\n"
+            "      .valid_o,\n"
+            "      .data_o (data_o),\n"
+            "      .mask_o (mask_o),",
+            "      .ready_o (ready_o[16]),\n"
+            "      .valid_o (valid_o[16]),\n"
+            "      .data_o (data_o[16]),\n"
+            "      .mask_o (mask_o[16]),",
+            "max-width output connections",
+        ),
+        (
+            "      .flush_i,\n"
+            "      .flush_done_o,\n"
+            "      .err_o\n"
+            "    );",
+            "      .flush_i,\n"
+            "      .flush_done_o (flush_done_o[Idx]),\n"
+            "      .err_o (err_o[Idx])\n"
+            "    );",
+            "generated status connections",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"prim_packer FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    max_instance_anchor = "  prim_packer #(.InW(MaxInW), .OutW(MaxOutW)"
+    if text.count(max_instance_anchor) != 1:
+        raise ValueError("prim_packer FPV max-width instance anchor is not unique")
+    start = text.index(max_instance_anchor)
+    tail = text[start:]
+    status_anchor = "      .flush_done_o,\n      .err_o"
+    if tail.count(status_anchor) != 1:
+        raise ValueError("prim_packer FPV max-width status anchor is not unique")
+    text = text[:start] + tail.replace(
+        status_anchor,
+        "      .flush_done_o (flush_done_o[16]),\n"
+        "      .err_o (err_o[16])",
+        1,
+    )
+    return text
+
+
+def sha3_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  input        [StateW-1:0] rand_data_i,",
+            "  input        [StateW/2-1:0] rand_data_i,",
+            "random data width",
+        ),
+        (
+            "  output logic              rand_consumed_o,",
+            "  output logic              rand_update_o,\n"
+            "  output logic              rand_consumed_o,",
+            "random output ports",
+        ),
+        (
+            "  input done_i,    // see sha3pad for details",
+            "  input prim_mubi_pkg::mubi4_t done_i, // see sha3pad for details\n"
+            "  input run_ack_i,\n"
+            "  input lc_ctrl_pkg::lc_tx_t lc_escalate_en_i,",
+            "control input ports",
+        ),
+        (
+            "  output logic absorbed_o,\n\n"
+            "  output sha3_st_e sha3_fsm_o,",
+            "  output prim_mubi_pkg::mubi4_t absorbed_o,\n"
+            "  output logic squeezing_o,\n"
+            "  output logic block_processed_o,\n\n"
+            "  output sha3_st_e sha3_fsm_o,\n"
+            "  output logic run_req_o,",
+            "status output ports",
+        ),
+        (
+            "  output err_t error_o",
+            "  output logic sparse_fsm_error_o,\n"
+            "  output logic count_error_o,\n"
+            "  output logic keccak_storage_rst_error_o,\n\n"
+            "  output err_t error_o",
+            "error output ports",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"SHA3 FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
+def sha3pad_fpv_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  input rst_ni,\n",
+            "  input rst_ni,\n"
+            "  input lc_ctrl_pkg::lc_tx_t lc_escalate_en_i,\n",
+            "lifecycle input",
+        ),
+        (
+            "  input done_i,\n",
+            "  input prim_mubi_pkg::mubi4_t done_i,\n",
+            "done MuBi type",
+        ),
+        (
+            "  output logic absorbed_o",
+            "  output prim_mubi_pkg::mubi4_t absorbed_o",
+            "absorbed MuBi type",
+        ),
+        (
+            "  logic [1599:0] state [Share];\n",
+            "  logic [1599:0] state [Share];\n"
+            "  logic [255:0] sha3pad_digest_state;\n"
+            "  assign sha3pad_digest_state = {<<8{state[0][255:0]}};\n"
+            "  logic sha3pad_sparse_fsm_error, sha3pad_msg_count_error;\n"
+            "  logic keccak_rand_update, keccak_sparse_fsm_error;\n"
+            "  logic keccak_round_count_error, keccak_rst_storage_error;\n",
+            "internal status signals",
+        ),
+        (
+            "    .absorbed_o\n"
+            "  );",
+            "    .absorbed_o,\n"
+            "    .lc_escalate_en_i,\n"
+            "    .sparse_fsm_error_o (sha3pad_sparse_fsm_error),\n"
+            "    .msg_count_error_o (sha3pad_msg_count_error)\n"
+            "  );",
+            "sha3pad status and lifecycle connections",
+        ),
+        (
+            "  keccak_round #(\n"
+            "    .Width     (1600),\n"
+            "    .DInWidth  (MsgWidth),\n"
+            "    .EnMasking (EnMasking)\n"
+            "  ) u_keccak (\n"
+            "    .valid_i    (keccak_valid),\n"
+            "    .ready_o    (keccak_ready),\n"
+            "    .addr_i     (keccak_addr),\n"
+            "    .data_i     (keccak_data),\n\n"
+            "    .run_i      (keccak_run),\n"
+            "    .complete_o (keccak_complete),\n\n"
+            "    .rand_valid_i    (rand_valid),\n"
+            "    .rand_early_i    (rand_early),\n"
+            "    .rand_data_i     (rand_data),\n"
+            "    .rand_aux_i      (rand_aux),\n"
+            "    .rand_consumed_o (rand_consumed),\n\n"
+            "    .state_o    (state),\n\n"
+            "    .clear_i    (done_i),\n\n"
+            "    .*\n"
+            "  );",
+            "  keccak_round #(\n"
+            "    .Width     (1600),\n"
+            "    .DInWidth  (MsgWidth),\n"
+            "    .EnMasking (EnMasking)\n"
+            "  ) u_keccak (\n"
+            "    .clk_i,\n"
+            "    .rst_ni,\n"
+            "    .valid_i    (keccak_valid),\n"
+            "    .ready_o    (keccak_ready),\n"
+            "    .addr_i     (keccak_addr),\n"
+            "    .data_i     (keccak_data),\n"
+            "    .run_i      (keccak_run),\n"
+            "    .complete_o (keccak_complete),\n"
+            "    .rand_valid_i    (rand_valid),\n"
+            "    .rand_early_i    (rand_early),\n"
+            "    .rand_data_i     (rand_data),\n"
+            "    .rand_aux_i      (rand_aux),\n"
+            "    .rand_update_o   (keccak_rand_update),\n"
+            "    .rand_consumed_o (rand_consumed),\n"
+            "    .state_o    (state),\n"
+            "    .lc_escalate_en_i,\n"
+            "    .sparse_fsm_error_o (keccak_sparse_fsm_error),\n"
+            "    .round_count_error_o (keccak_round_count_error),\n"
+            "    .rst_storage_error_o (keccak_rst_storage_error),\n"
+            "    .clear_i    (done_i)\n"
+            "  );",
+            "keccak_round current interface connections",
+        ),
+        (
+            "  `ASSUME(DoneControl_a, absorbed_o |=> ##5 done_i )",
+            "  `ASSUME(DoneControl_a,\n"
+            "    (absorbed_o == prim_mubi_pkg::MuBi4True) |=> ##5\n"
+            "    (done_i == prim_mubi_pkg::MuBi4True))",
+            "MuBi done assumption",
+        ),
+        (
+            "  `ASSERT(AbcVector_A, absorbed_o |->\n",
+            "  `ASSERT(AbcVector_A,\n"
+            "      (absorbed_o == prim_mubi_pkg::MuBi4True) |->\n",
+            "MuBi digest assertion",
+        ),
+        (
+            "      256'({<<8{state[0][255:0]}})\n"
+            "          == 256'h",
+            "      sha3pad_digest_state == 256'h",
+            "packed digest comparison",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"SHA3PAD FPV {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
+def aes_wrap_source_text(text: str) -> str:
+    replacements = (
+        (
+            "  logic unused_idle;\n",
+            "  prim_mubi_pkg::mubi4_t unused_idle;\n",
+            "idle status type",
+        ),
+        ("  logic [31:0] unused_wdata;\n", "", "unused encoder output"),
+        (
+            "  // Data integrity generation\n"
+            "  prim_secded_inv_39_32_enc u_data_gen (\n"
+            "    .data_i (h2d.a_data),\n"
+            "    .data_o ({h2d_intg.a_user.data_intg, unused_wdata})\n"
+            "  );\n",
+            "",
+            "duplicate data integrity encoder",
+        ),
+        (
+            "h2d.a_user.data_intg  = '0;                        // will be driven by prim_secded_enc",
+            "h2d.a_user.data_intg  = '0;                        // generated by tlul_cmd_intg_gen",
+            "data integrity source comment",
+        ),
+    )
+    for before, after, label in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"AES wrapper {label} anchor is not unique")
+        text = text.replace(before, after)
+    return text
+
+
+def keccak_2share_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Adapt the pinned FPV controller to the DOM-based Keccak interface."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/keccak_2share_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != KECCAK_2SHARE_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "Keccak 2-share SVA source hash mismatch: "
+            f"expected {KECCAK_2SHARE_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "keccak_2share_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("Keccak 2-share SVA overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "keccak_2share_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("Keccak 2-share SVA overlay is a symlink")
+    overlay.write_text(keccak_2share_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != KECCAK_2SHARE_FPV_OVERLAY_SHA256:
+        raise ValueError(f"Keccak 2-share SVA overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("Keccak 2-share SVA source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = (
+        "../src/lowrisc_fpv_keccak_2share_fpv_0.1/tb/keccak_2share_fpv.sv"
+    )
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("Keccak 2-share SVA source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("Keccak 2-share SVA source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "keccak_2share_fpv_dom_controller",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def keccak_round_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Use the full MuBi encoding on the Keccak round clear signal."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/keccak_round_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != KECCAK_ROUND_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "Keccak round FPV source hash mismatch: "
+            f"expected {KECCAK_ROUND_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "keccak_round_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("Keccak round FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "keccak_round_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("Keccak round FPV overlay is a symlink")
+    overlay.write_text(keccak_round_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != KECCAK_ROUND_FPV_OVERLAY_SHA256:
+        raise ValueError(f"Keccak round FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("Keccak round FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = (
+        "../src/lowrisc_fpv_keccak_round_fpv_0.1/"
+        "tb/keccak_round_fpv.sv"
+    )
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("Keccak round FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("Keccak round FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "keccak_round_fpv_mubi4_clear",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def prim_lfsr_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Give each LFSR FPV instance a disjoint input/output vector slot."""
+    source = opentitan_root / "hw/ip/prim/fpv/tb/prim_lfsr_tb.sv"
+    source_hash = file_sha256(source)
+    if source_hash != PRIM_LFSR_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "prim_lfsr FPV source hash mismatch: "
+            f"expected {PRIM_LFSR_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "prim_lfsr_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("prim_lfsr FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "prim_lfsr_tb.sv"
+    if overlay.is_symlink():
+        raise ValueError("prim_lfsr FPV overlay is a symlink")
+    overlay.write_text(prim_lfsr_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != PRIM_LFSR_FPV_OVERLAY_SHA256:
+        raise ValueError(f"prim_lfsr FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("prim_lfsr FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = (
+        "../src/lowrisc_fpv_prim_lfsr_fpv_0.1/"
+        "tb/prim_lfsr_tb.sv"
+    )
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("prim_lfsr FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("prim_lfsr FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "prim_lfsr_fpv_disjoint_instance_indices",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def prim_packer_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Give each prim_packer FPV instance its own output vector slot."""
+    source = opentitan_root / "hw/ip/prim/fpv/tb/prim_packer_tb.sv"
+    source_hash = file_sha256(source)
+    if source_hash != PRIM_PACKER_FPV_SOURCE_SHA256:
+        raise ValueError(
+            "prim_packer FPV source hash mismatch: "
+            f"expected {PRIM_PACKER_FPV_SOURCE_SHA256}, got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "prim_packer_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("prim_packer FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "prim_packer_tb.sv"
+    if overlay.is_symlink():
+        raise ValueError("prim_packer FPV overlay is a symlink")
+    overlay.write_text(prim_packer_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != PRIM_PACKER_FPV_OVERLAY_SHA256:
+        raise ValueError(f"prim_packer FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("prim_packer FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = "../src/lowrisc_fpv_prim_packer_fpv_0/tb/prim_packer_tb.sv"
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("prim_packer FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("prim_packer FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "prim_packer_fpv_disjoint_instance_outputs",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def sha3_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Align the SHA3 FPV wrapper with the current DUT interface."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/sha3_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != SHA3_FPV_SOURCE_SHA256:
+        raise ValueError(
+            f"SHA3 FPV source hash mismatch: expected {SHA3_FPV_SOURCE_SHA256}, "
+            f"got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "sha3_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("SHA3 FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "sha3_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("SHA3 FPV overlay is a symlink")
+    overlay.write_text(sha3_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != SHA3_FPV_OVERLAY_SHA256:
+        raise ValueError(f"SHA3 FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("SHA3 FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = "../src/lowrisc_fpv_sha3_fpv_0.1/tb/sha3_fpv.sv"
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("SHA3 FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("SHA3 FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "sha3_fpv_current_dut_interface",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def sha3pad_fpv_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Update SHA3PAD FPV control types and sample its digest assertion."""
+    source = opentitan_root / "hw/ip/kmac/fpv/tb/sha3pad_fpv.sv"
+    source_hash = file_sha256(source)
+    if source_hash != SHA3PAD_FPV_SOURCE_SHA256:
+        raise ValueError(
+            f"SHA3PAD FPV source hash mismatch: expected {SHA3PAD_FPV_SOURCE_SHA256}, "
+            f"got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "sha3pad_fpv"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("SHA3PAD FPV overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "sha3pad_fpv.sv"
+    if overlay.is_symlink():
+        raise ValueError("SHA3PAD FPV overlay is a symlink")
+    overlay.write_text(sha3pad_fpv_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != SHA3PAD_FPV_OVERLAY_SHA256:
+        raise ValueError(f"SHA3PAD FPV overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("SHA3PAD FPV source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = "../src/lowrisc_fpv_sha3pad_fpv_0.1/tb/sha3pad_fpv.sv"
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("SHA3PAD FPV source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("SHA3PAD FPV source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "sha3pad_fpv_current_dut_interface_and_sampling",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
+
+
+def aes_wrap_source_overlay(
+    opentitan_root: Path,
+    work_root: Path,
+    source_list: Path,
+) -> tuple[Path, dict[str, object]]:
+    """Remove a duplicate data-integrity driver from the AES wrapper."""
+    source = opentitan_root / "hw/ip/aes/rtl/aes_wrap.sv"
+    source_hash = file_sha256(source)
+    if source_hash != AES_WRAP_SOURCE_SHA256:
+        raise ValueError(
+            f"AES wrapper source hash mismatch: expected {AES_WRAP_SOURCE_SHA256}, "
+            f"got {source_hash}"
+        )
+    overlay_dir = work_root / "source-overlays" / "aes_wrap"
+    if work_root.resolve() not in overlay_dir.resolve().parents:
+        raise ValueError("AES wrapper overlay staging path is unsafe")
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    overlay = overlay_dir / "aes_wrap.sv"
+    if overlay.is_symlink():
+        raise ValueError("AES wrapper overlay is a symlink")
+    overlay.write_text(aes_wrap_source_text(source.read_text()))
+    overlay_hash = file_sha256(overlay)
+    if overlay_hash != AES_WRAP_OVERLAY_SHA256:
+        raise ValueError(f"AES wrapper overlay hash mismatch: {overlay_hash}")
+
+    if (
+        source_list.is_symlink()
+        or work_root.resolve() not in source_list.resolve().parents
+    ):
+        raise ValueError("AES wrapper source list is outside its build root")
+    source_list_text = source_list.read_text()
+    source_anchor = "../src/lowrisc_ip_aes_wrap_1.0/rtl/aes_wrap.sv"
+    if source_list_text.splitlines().count(source_anchor) != 1:
+        raise ValueError("AES wrapper source-list anchor is not unique")
+    source_list_overlay = source_list.with_name(
+        f"{source_list.stem}-source-overlays{source_list.suffix}"
+    )
+    if source_list_overlay.is_symlink():
+        raise ValueError("AES wrapper source-list overlay is a symlink")
+    source_list_overlay.write_text(
+        source_list_text.replace(source_anchor, str(overlay))
+    )
+    return source_list_overlay, {
+        "profile": "aes_wrap_single_data_integrity_driver",
+        "source": str(source),
+        "source_sha256": source_hash,
+        "overlay": str(overlay),
+        "overlay_sha256": overlay_hash,
+        "source_list": str(source_list),
+        "source_list_overlay": str(source_list_overlay),
+    }
 
 
 def otbn_trace_finish_overlay(
@@ -2762,6 +4434,8 @@ def run_job(
     setup_log = work_root / "matrix-setup.log"
     write_log(setup_log, "OpenTitan FuseSoC setup", setup)
     setup_findings = actionable_setup_lines(setup.output)
+    setup_actionable_findings = setup_findings
+    setup_benign_diagnostics: list[str] = []
     record.update(
         {
             "setup_command": short_command(setup.command),
@@ -2798,32 +4472,203 @@ def run_job(
         record["status"] = "SETUP_DEBT" if setup_findings else "SETUP_ONLY"
         return record
 
+    source_overlays: list[dict[str, object]] = []
     try:
         source_list, top_options = parse_makefile(work_root)
-        top_options, top_notes, package_wrapper = validated_top_options(
-            job, source_list, top_options, work_root
+        source_list_for_compile = source_list
+        if job.lane == "rtl" and job.core.vlnv == "lowrisc:ip:aes_wrap:1.0":
+            try:
+                source_list_for_compile, source_overlay = aes_wrap_source_overlay(
+                    opentitan_root, work_root, source_list
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        i2c_sva_job = (
+            job.lane == "sva" and job.core.vlnv == "lowrisc:dv:i2c_sva:0.1"
         )
-        compiler_source_list = simulation_source_list(job, source_list, work_root)
+        i2c_sim_job = (
+            job.lane in {"uvm", "runtime"}
+            and job.core.vlnv == "lowrisc:dv:i2c_sim:0.1"
+        )
+        if i2c_sva_job or i2c_sim_job:
+            try:
+                source_list_for_compile, source_overlay = i2c_source_overlay(
+                    opentitan_root,
+                    work_root,
+                    source_list,
+                    sim_sources=i2c_sim_job,
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:keccak_2share_fpv:0.1"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    keccak_2share_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:keccak_round_fpv:0.1"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    keccak_round_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:prim_lfsr_fpv:0.1"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    prim_lfsr_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if (
+            job.lane == "sva"
+            and job.core.vlnv == "lowrisc:fpv:prim_packer_fpv:0"
+        ):
+            try:
+                source_list_for_compile, source_overlay = (
+                    prim_packer_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if job.lane == "sva" and job.core.vlnv == "lowrisc:fpv:sha3_fpv:0.1":
+            try:
+                source_list_for_compile, source_overlay = sha3_fpv_source_overlay(
+                    opentitan_root, work_root, source_list
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        if job.lane == "sva" and job.core.vlnv == "lowrisc:fpv:sha3pad_fpv:0.1":
+            try:
+                source_list_for_compile, source_overlay = (
+                    sha3pad_fpv_source_overlay(
+                        opentitan_root, work_root, source_list
+                    )
+                )
+            except (OSError, ValueError) as exc:
+                record.update(
+                    {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+                )
+                return record
+            source_overlays.append(source_overlay)
+        top_options, top_notes, package_wrapper = validated_top_options(
+            job, source_list_for_compile, top_options, work_root
+        )
+        compiler_source_list = simulation_source_list(
+            job, source_list_for_compile, work_root
+        )
         if package_wrapper is not None:
             compiler_source_list = package_wrapper
         top_options, sva_notes, sva_wrapper = sva_testbench_wrapper(
-            job, source_list, top_options, work_root, compiler_source_list
+            job,
+            source_list_for_compile,
+            top_options,
+            work_root,
+            compiler_source_list,
         )
         if sva_wrapper is not None:
             compiler_source_list = sva_wrapper
     except (FileNotFoundError, OSError, ValueError) as exc:
         record.update({"status": "SETUP_FAIL", "matrix_error": str(exc)})
         return record
+    if job.lane in {"rtl", "sva", "uvm"}:
+        setup_actionable_findings, setup_benign_diagnostics = (
+            classify_compile_setup_warnings(job.lane, setup_findings, source_list)
+        )
+        record.update(
+            {
+                "setup_actionable_warnings": setup_actionable_findings,
+                "setup_benign_diagnostics": setup_benign_diagnostics,
+            }
+        )
     if top_notes:
         record["top_selection_notes"] = top_notes
     if sva_notes:
         record["sva_topology_notes"] = sva_notes
 
     executable = work_root / f"matrix-{job.lane}.vvp"
+    additional_include_dirs: tuple[Path, ...] = ()
+    if job.lane == "rtl" and memload_synthesis_profile(
+        job.core.vlnv, top_options
+    ) is not None:
+        try:
+            overlay_dir, source_overlay = memload_synthesis_overlay(
+                opentitan_root, work_root, job.core.vlnv, top_options
+            )
+        except (OSError, ValueError) as exc:
+            record.update(
+                {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+            )
+            return record
+        additional_include_dirs = (overlay_dir,)
+        source_overlays.append(source_overlay)
+    if (
+        job.lane == "rtl"
+        and job.core.vlnv == "lowrisc:systems:chip_earlgrey_verilator:0.1"
+    ):
+        try:
+            compiler_source_list, source_overlay = (
+                chip_earlgrey_verilator_source_overlay(
+                    opentitan_root, work_root, compiler_source_list
+                )
+            )
+        except (OSError, ValueError) as exc:
+            record.update(
+                {"status": "SOURCE_OVERLAY_FAIL", "matrix_error": str(exc)}
+            )
+            return record
+        source_overlays.append(source_overlay)
+    if source_overlays:
+        record["source_overlays"] = source_overlays
     compile_result = command_result(
         compile_command(
             job, iverilog, compiler_source_list, top_options, executable,
-            args.uvm_home, args.commercial_unsafe,
+            args.uvm_home, args.commercial_unsafe, additional_include_dirs,
         ),
         cwd=source_list.parent,
         env=env,
@@ -2881,10 +4726,10 @@ def run_job(
         else:
             record["status"] = "FAIL"
         return record
-    if setup_findings or semantic_debt:
+    if setup_actionable_findings or semantic_debt:
         defect = (
             upstream_defect_for(job.core.vlnv, "compile", semantic_debt)
-            if semantic_debt and not setup_findings
+            if semantic_debt and not setup_actionable_findings
             else None
         )
         if defect is not None:
@@ -3159,7 +5004,7 @@ def markdown_report(report: dict[str, object]) -> str:
         f"- Icarus: `{metadata['iverilog_version']}`",
         f"- Compiler engine SHA-256: `{engine.get('sha256', 'unavailable')}`",
         f"- UVM/runtime compile profile: `{metadata['uvm_runtime_compile_profile']}`",
-        f"- Jobs: `{len(results)}`",
+        f"- Matrix workers: `{metadata['matrix_jobs']}`",
         "- Status counts: "
         + ", ".join(f"`{key}={value}`" for key, value in sorted(counts.items())),
         "",
@@ -3239,6 +5084,21 @@ def print_inventory(
 
 def self_test() -> None:
     _require_python313("3.13.15")
+    markdown_sample = markdown_report(
+        {
+            "metadata": {
+                "generated_at": "now",
+                "opentitan_revision": "revision",
+                "opentitan_dirty": False,
+                "iverilog_version": "version",
+                "compiler_fingerprint": {"components": {}},
+                "uvm_runtime_compile_profile": "default",
+                "matrix_jobs": 1,
+            },
+            "results": [],
+        }
+    )
+    assert "- Matrix workers: `1`" in markdown_sample
     for version in ("3.12.11", "3.14.7"):
         try:
             _require_python313(version)
@@ -3320,6 +5180,76 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "--flag=fileset_top"
     ]
     assert setup_flags(Job("rtl", Core("lowrisc:prim:arbiter:0", ""))) == []
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_root = Path(temp_dir)
+        source_root = temp_root / "opentitan"
+        source_cores = []
+        for relative_core, anchor, additions in MATRIX_SOURCE_CORE_DEPENDENCIES:
+            source_core = source_root / relative_core
+            source_core.parent.mkdir(parents=True, exist_ok=True)
+            (source_core.parent / "rtl").mkdir(exist_ok=True)
+            (source_core.parent / "lint").mkdir(exist_ok=True)
+            source_core.write_text(
+                "CAPI=2:\nname: local:matrix:test:0.1\nfilesets:\n"
+                "  files_rtl:\n    depend:\n"
+                f"      - {anchor}\n"
+            )
+            source_cores.append((source_core, relative_core, additions))
+        matrix_root = prepare_matrix_core_root(temp_root / "build", source_root)
+        for source_core, relative_core, additions in source_cores:
+            overlay_core = matrix_root / "source-overrides" / relative_core
+            overlay_text = overlay_core.read_text()
+            for dependency in additions:
+                assert f"      - {dependency}\n" in overlay_text
+            assert all(
+                dependency not in source_core.read_text()
+                for dependency in additions
+            )
+            assert (overlay_core.parent / "rtl").resolve() == (
+                source_core.parent / "rtl"
+            ).resolve()
+        assert (
+            "hw/ip/prim/prim_ram_1p_adv.core",
+            "lowrisc:prim:ram_1p",
+            ("lowrisc:prim:mubi",),
+        ) in MATRIX_SOURCE_CORE_DEPENDENCIES
+        overlay_command = setup_command(
+            Job("rtl", Core("lowrisc:ip:lc_ctrl_pkg:0.1", "")),
+            Path("fusesoc"),
+            source_root,
+            matrix_root,
+            temp_root / "build/lc_ctrl_pkg",
+            "earlgrey",
+        )
+        source_root_arg = f"--cores-root={source_root}"
+        overlay_root_arg = f"--cores-root={matrix_root / 'source-overrides'}"
+        assert overlay_command.index(overlay_root_arg) > overlay_command.index(
+            source_root_arg
+        )
+        for lane, uses_source_overrides in (
+            ("sva", True),
+            ("uvm", False),
+            ("runtime", False),
+        ):
+            lane_command = setup_command(
+                Job(lane, Core("lowrisc:ip:lc_ctrl_pkg:0.1", "")),
+                Path("fusesoc"),
+                source_root,
+                matrix_root,
+                temp_root / f"build/{lane}",
+                "earlgrey",
+            )
+            assert (overlay_root_arg in lane_command) == uses_source_overrides
+        for source_core, _relative_core, additions in source_cores:
+            source_core.write_text(
+                source_core.read_text()
+                + "".join(f"      - {dependency}\n" for dependency in additions)
+            )
+        prepare_matrix_core_root(temp_root / "build", source_root)
+        assert all(
+            not (matrix_root / "source-overrides" / relative_core).is_file()
+            for _source_core, relative_core, _additions in source_cores
+        )
     directed_core = Core("lowrisc:dv:prim_flop_2sync_sim:0.1", "")
     directed_target = SimulationTarget(
         directed_core.vlnv,
@@ -3418,6 +5348,279 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             Path("iverilog"), Path("uvm.scr"), [], Path("uvm.vvp"),
             commercial_unsafe=True,
         )
+    assert memload_synthesis_profile(
+        "lowrisc:systems:top_earlgrey:0.1", ["-stop_earlgrey"]
+    ) == "top_earlgrey"
+    assert memload_synthesis_profile(
+        "lowrisc:systems:chip_earlgrey_asic:0.1", ["-schip_earlgrey_asic"]
+    ) == "chip_earlgrey_asic"
+    assert memload_synthesis_profile(
+        "lowrisc:systems:chip_earlgrey_verilator:0.1",
+        ["-schip_earlgrey_verilator"],
+    ) == "chip_earlgrey_verilator"
+    assert memload_synthesis_profile(
+        "lowrisc:systems:chip_earlgrey_cw310:0.1", ["-schip_earlgrey_cw310"]
+    ) is None
+    assert memload_synthesis_profile(
+        "lowrisc:systems:top_earlgrey:0.1",
+        ["-stop_earlgrey", "-Ptop_earlgrey.RomCtrlBootRomInitFile=rom.vmem"],
+    ) is None
+    memload_sample = (
+        "initial begin\n"
+        + MEMLOAD_DEBUG_BLOCK
+        + '\n  if (MemInitFile != "") begin\n'
+        + "    $readmemh(MemInitFile, mem);\n  end\nend\n"
+    )
+    assert memload_synthesis_profile(
+        "lowrisc:ip:rom_ctrl:0.1", ["-srom_ctrl"]
+    ) == "rom_ctrl"
+    assert empty_string_parameter(
+        'parameter BootRomInitFile = "";', "BootRomInitFile"
+    )
+    assert not empty_string_parameter(
+        'parameter BootRomInitFile = "boot.vmem";', "BootRomInitFile"
+    )
+    assert top_earlgrey_uses_default_mem_images(
+        "top_earlgrey #(.ResetDelay(1)) top_earlgrey ("
+    )
+    assert not top_earlgrey_uses_default_mem_images(
+        'top_earlgrey #(.RomCtrlBootRomInitFile("boot.vmem")) top_earlgrey ('
+    )
+    verilator_wrapper_sample = "\n".join(
+        (
+            "  logic hi_speed_sel;",
+            "  logic scan_en;",
+            "  logic jen;",
+            "    .all_clk_byp_req_i     ( ast_clk_byp_req ),",
+            "    .all_clk_byp_ack_o     ( ast_clk_byp_ack ),",
+        )
+    )
+    verilator_wrapper_overlay = chip_earlgrey_verilator_source_text(
+        verilator_wrapper_sample
+    )
+    assert "prim_mubi_pkg::mubi4_t hi_speed_sel;" in verilator_wrapper_overlay
+    assert "prim_mubi_pkg::mubi4_t scanmode;" in verilator_wrapper_overlay
+    assert "prim_mubi_pkg::mubi4_t jen;" in verilator_wrapper_overlay
+    assert ".all_clk_byp_req_i     ( all_clk_byp_req )," in verilator_wrapper_overlay
+    assert ".all_clk_byp_ack_o     ( all_clk_byp_ack )," in verilator_wrapper_overlay
+    ibex_tracer_sample = "\n".join(
+        (
+            "      int fh = file_handle;",
+            "      int fh = file_handle;",
+            '        string file_name_base = "trace_core";',
+        )
+    )
+    ibex_tracer_overlay = ibex_tracer_automatic_locals(ibex_tracer_sample)
+    assert ibex_tracer_overlay.count("automatic int fh = file_handle;") == 2
+    assert 'automatic string file_name_base = "trace_core";' in ibex_tracer_overlay
+    i2c_coverage_sample = (
+        "    if (en_cov) begin\n"
+        "      i2c_protocol_cov_cg   i2c_protocol_cov = new();\n"
+        "      i2c_rd_wr_cg          i2c_rd_wr_cov = new();\n"
+        "      i2c_cmd_complete_cg   cmd_complete_cg = new();"
+    )
+    i2c_coverage_overlay = i2c_protocol_cov_source_text(i2c_coverage_sample)
+    assert i2c_coverage_overlay.startswith(
+        "    i2c_protocol_cov_cg   i2c_protocol_cov;\n"
+        "    i2c_rd_wr_cg          i2c_rd_wr_cov;\n"
+        "    i2c_cmd_complete_cg   cmd_complete_cg;\n"
+        "    if (en_cov) begin\n"
+    )
+    assert "      i2c_protocol_cov = new();" in i2c_coverage_overlay
+    assert i2c_if_source_text(
+        "if (sample.size() > tc.tSetupBit) sample.pop_back();"
+    ) == "if (sample.size() > tc.tSetupBit) void'(sample.pop_back());"
+    assert i2c_host_perf_vseq_source_text(
+        "constraint c {\n    solve cfg.clk_freq_mhz before speed_mode;\n}"
+    ) == "constraint c {\n}"
+    keccak_2share_sample = (
+        ");\n\n  localparam int W\n"
+        "          keccak_st_d = StPhase1;\n"
+        "      end\n"
+        "      StPhase2Cycle1: begin"
+    )
+    assert keccak_2share_fpv_syntax_source_text(keccak_2share_sample) == (
+        ");\n  import prim_mubi_pkg::*;\n\n  localparam int W\n"
+        "          keccak_st_d = StPhase1;\n"
+        "        end\n"
+        "      end\n"
+        "      StPhase2Cycle1: begin"
+    )
+    keccak_round_sample = (
+        "  logic run, clear, masked_complete, unmasked_complete;\n"
+        "    clear = 1'b 0;\n"
+        "        clear = 1'b1;\n"
+    )
+    assert keccak_round_fpv_source_text(keccak_round_sample) == (
+        "  logic run, masked_complete, unmasked_complete;\n"
+        "  prim_mubi_pkg::mubi4_t clear;\n"
+        "    clear = prim_mubi_pkg::MuBi4False;\n"
+        "        clear = prim_mubi_pkg::MuBi4True;\n"
+    )
+    prim_lfsr_tb_sample = (
+        "  begin : gen_gal_xor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - GalXorMinLfsrDw;\n"
+        "  end\n"
+        "  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) "
+        "begin : gen_fib_xnor_duts\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw + "
+        "GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;\n"
+        "  end\n"
+        "  begin : gen_fib_xnor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw + "
+        "GalXorMaxLfsrDw - GalXorMinLfsrDw + 1;\n"
+        "  end\n"
+    )
+    assert prim_lfsr_fpv_source_text(prim_lfsr_tb_sample) == (
+        "  begin : gen_gal_xor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - GalXorMinLfsrDw +\n"
+        "                                  (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);\n"
+        "  end\n"
+        "  for (genvar k = FibXnorMinLfsrDw; k <= FibXnorMaxLfsrDw; k++) "
+        "begin : gen_fib_xnor_duts\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw +\n"
+        "                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1);\n"
+        "  end\n"
+        "  begin : gen_fib_xnor_duts_nonlinear\n"
+        "    localparam int unsigned Idx = k - FibXnorMinLfsrDw +\n"
+        "                                  2 * (GalXorMaxLfsrDw - GalXorMinLfsrDw + 1) +\n"
+        "                                  (FibXnorMaxLfsrDw - FibXnorMinLfsrDw + 1);\n"
+        "  end\n"
+    )
+    prim_packer_tb_sample = (
+        "  output                     ready_o,\n\n"
+        "  output logic               valid_o,\n"
+        "  output logic [MaxOutW-1:0] data_o,\n"
+        "  output logic [MaxOutW-1:0] mask_o,\n"
+        "  output logic               flush_done_o,\n"
+        "  output logic               err_o\n"
+        ");\n\n  for (genvar k = 1; k <= 16; k++) begin : gen_prim_packer\n"
+        "    prim_packer (\n"
+        "      .ready_o,\n"
+        "      .valid_o,\n"
+        "      .data_o (data_o[16-k:0]),\n"
+        "      .mask_o (mask_o[16-k:0]),\n"
+        "      .ready_i,\n"
+        "      .flush_i,\n"
+        "      .flush_done_o,\n"
+        "      .err_o\n"
+        "    );\n  end\n"
+        "  prim_packer #(.InW(MaxInW), .OutW(MaxOutW)\n"
+        "      .ready_o,\n"
+        "      .valid_o,\n"
+        "      .data_o (data_o),\n"
+        "      .mask_o (mask_o),\n"
+        "      .flush_done_o,\n"
+        "      .err_o\n"
+    )
+    prim_packer_tb_overlay = prim_packer_fpv_source_text(prim_packer_tb_sample)
+    assert "output logic [16:0] ready_o" in prim_packer_tb_overlay
+    assert "output logic [16:0][MaxOutW-1:0] data_o" in prim_packer_tb_overlay
+    assert "localparam int unsigned Idx = k - 1;" in prim_packer_tb_overlay
+    assert ".data_o (data_o[Idx][16-k:0])," in prim_packer_tb_overlay
+    assert ".data_o (data_o[16])," in prim_packer_tb_overlay
+    assert ".err_o (err_o[Idx])" in prim_packer_tb_overlay
+    assert ".err_o (err_o[16])" in prim_packer_tb_overlay
+    sha3_fpv_tb_sample = (
+        "  input        [StateW-1:0] rand_data_i,\n"
+        "  output logic              rand_consumed_o,\n"
+        "  input done_i,    // see sha3pad for details\n"
+        "  output logic absorbed_o,\n\n"
+        "  output sha3_st_e sha3_fsm_o,\n"
+        "  output err_t error_o\n"
+    )
+    sha3_fpv_tb_overlay = sha3_fpv_source_text(sha3_fpv_tb_sample)
+    assert "[StateW/2-1:0] rand_data_i" in sha3_fpv_tb_overlay
+    assert "output logic              rand_update_o" in sha3_fpv_tb_overlay
+    assert "prim_mubi_pkg::mubi4_t done_i" in sha3_fpv_tb_overlay
+    assert "lc_ctrl_pkg::lc_tx_t lc_escalate_en_i" in sha3_fpv_tb_overlay
+    assert "prim_mubi_pkg::mubi4_t absorbed_o" in sha3_fpv_tb_overlay
+    assert "output logic run_req_o" in sha3_fpv_tb_overlay
+    assert "output logic keccak_storage_rst_error_o" in sha3_fpv_tb_overlay
+    sha3pad_fpv_tb_sample = (
+        "  input rst_ni,\n"
+        "  input done_i,\n"
+        "  output logic absorbed_o\n"
+        "  logic [1599:0] state [Share];\n"
+        "    .absorbed_o\n  );\n"
+        "  keccak_round #(\n"
+        "    .Width     (1600),\n"
+        "    .DInWidth  (MsgWidth),\n"
+        "    .EnMasking (EnMasking)\n"
+        "  ) u_keccak (\n"
+        "    .valid_i    (keccak_valid),\n"
+        "    .ready_o    (keccak_ready),\n"
+        "    .addr_i     (keccak_addr),\n"
+        "    .data_i     (keccak_data),\n\n"
+        "    .run_i      (keccak_run),\n"
+        "    .complete_o (keccak_complete),\n\n"
+        "    .rand_valid_i    (rand_valid),\n"
+        "    .rand_early_i    (rand_early),\n"
+        "    .rand_data_i     (rand_data),\n"
+        "    .rand_aux_i      (rand_aux),\n"
+        "    .rand_consumed_o (rand_consumed),\n\n"
+        "    .state_o    (state),\n\n"
+        "    .clear_i    (done_i),\n\n"
+        "    .*\n"
+        "  );\n"
+        "  `ASSUME(DoneControl_a, absorbed_o |=> ##5 done_i )\n"
+        "  `ASSERT(AbcVector_A, absorbed_o |->\n"
+        "      256'({<<8{state[0][255:0]}})\n"
+        "          == 256'h 0123\n"
+    )
+    sha3pad_fpv_tb_overlay = sha3pad_fpv_source_text(sha3pad_fpv_tb_sample)
+    assert "prim_mubi_pkg::mubi4_t done_i" in sha3pad_fpv_tb_overlay
+    assert "prim_mubi_pkg::mubi4_t absorbed_o" in sha3pad_fpv_tb_overlay
+    assert ".rand_update_o   (keccak_rand_update)" in sha3pad_fpv_tb_overlay
+    assert ".lc_escalate_en_i," in sha3pad_fpv_tb_overlay
+    assert ".*" not in sha3pad_fpv_tb_overlay
+    assert "assign sha3pad_digest_state = {<<8{state[0][255:0]}};" in sha3pad_fpv_tb_overlay
+    assert "sha3pad_digest_state == 256'h 0123" in sha3pad_fpv_tb_overlay
+    assert "absorbed_o == prim_mubi_pkg::MuBi4True" in sha3pad_fpv_tb_overlay
+    assert ".*" not in sha3pad_fpv_tb_overlay
+    aes_wrap_sample = (
+        "  logic unused_idle;\n"
+        "  logic [31:0] unused_wdata;\n"
+        "  // Data integrity generation\n"
+        "  prim_secded_inv_39_32_enc u_data_gen (\n"
+        "    .data_i (h2d.a_data),\n"
+        "    .data_o ({h2d_intg.a_user.data_intg, unused_wdata})\n"
+        "  );\n"
+        "    h2d.a_user.data_intg  = '0;                        // will be driven by prim_secded_enc\n"
+    )
+    aes_wrap_overlay_sample = aes_wrap_source_text(aes_wrap_sample)
+    assert "prim_mubi_pkg::mubi4_t unused_idle;" in aes_wrap_overlay_sample
+    assert "unused_wdata" not in aes_wrap_overlay_sample
+    assert "prim_secded_inv_39_32_enc u_data_gen" not in aes_wrap_overlay_sample
+    assert "generated by tlul_cmd_intg_gen" in aes_wrap_overlay_sample
+    spi_host_core_sample = (
+        "  formal:\n"
+        "    <<: *default_target\n"
+        "    filesets:\n"
+        "      - files_formal\n"
+        "      - files_dv\n"
+        "    toplevel: spi_host\n"
+    )
+    assert spi_host_sva_core_source_text(spi_host_core_sample) == (
+        "  formal:\n"
+        "    <<: *default_target\n"
+        "    filesets:\n"
+        "      - files_dv\n"
+        "    toplevel: spi_host\n"
+    )
+    guarded_memload = guard_memload_debug(memload_sample)
+    assert "`ifndef SYNTHESIS" in guarded_memload
+    assert guarded_memload.index("`endif") < guarded_memload.index(
+        'if (MemInitFile != "")'
+    )
+    assert "$readmemh(MemInitFile, mem);" in guarded_memload
+    rom_ctrl_compile = compile_command(
+        Job("rtl", Core("lowrisc:ip:rom_ctrl:0.1", "")),
+        Path("iverilog"), Path("rom_ctrl.scr"), ["-srom_ctrl"],
+        Path("rom_ctrl.vvp"), additional_include_dirs=(Path("/work/rom-overlay"),),
+    )
+    assert "-I/work/rom-overlay" in rom_ctrl_compile
+    assert rom_ctrl_compile.index("-I/work/rom-overlay") < rom_ctrl_compile.index("-c")
     assert dvsim_define_arguments(
         (
             "+define+EN_MASKING=1",
@@ -3557,6 +5760,8 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         Path("spi-device-rtl.vvp"),
     )
     assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in spi_device_rtl_compile
+    assert "-DSYNTHESIS_MEMORY_BLACK_BOXING" in spi_device_rtl_compile
+    assert "-DSYNTHESIS_MEMORY_BLACK_BOXING" not in spi_device_compile
     directed_runtime_compile = compile_command(
         Job("runtime", directed_core, directed_target),
         Path("iverilog"),
@@ -3785,6 +5990,43 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
         "signatures will not be checked."
     )
+    assert not actionable_setup_lines(
+        "INFO: Wrote dependency graph to /tmp/opentitan-warning-build/core.dot"
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        source_list = root / "build" / "core.scr"
+        source_list.parent.mkdir()
+        unused = root / "src" / "unused.c"
+        listed = root / "src" / "listed.cc"
+        requirements = root / "src" / "tool_requirements.py"
+        unused.parent.mkdir()
+        unused.write_text("int unused;\n")
+        listed.write_text("int listed;\n")
+        requirements.write_text("pass\n")
+        source_list.write_text("../src/listed.cc\n")
+        warnings = [
+            "WARNING: ../src/unused.c has unknown file type 'cSource'",
+            "WARNING: ../src/listed.cc has unknown file type 'cppSource'",
+            "WARNING: waiver has unknown file type ''",
+            "WARNING: ../src/tool_requirements.py has unknown file type ''",
+        ]
+        assert classify_compile_setup_warnings("rtl", warnings, source_list) == (
+            warnings[1:3], [warnings[0], warnings[3]]
+        )
+        source_list.write_text("../src/listed.cc\n../src/tool_requirements.py\n")
+        assert classify_compile_setup_warnings("rtl", warnings, source_list) == (
+            [warnings[1], warnings[2], warnings[3]], [warnings[0]]
+        )
+        assert classify_compile_setup_warnings(
+            "uvm", warnings, source_list
+        ) == (warnings[1:], warnings[:1])
+        assert classify_compile_setup_warnings(
+            "sva", warnings, source_list
+        ) == (warnings[1:], warnings[:1])
+        assert classify_compile_setup_warnings(
+            "runtime", warnings, source_list
+        ) == (warnings, [])
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         staged = root / "src" / "native_core" / "util.c"
@@ -4072,7 +6314,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not opentitan_root.is_dir():
         parser().error(f"OpenTitan root does not exist: {opentitan_root}")
     build_root.mkdir(parents=True, exist_ok=True)
-    matrix_core_root = prepare_matrix_core_root(build_root)
+    matrix_core_root = prepare_matrix_core_root(build_root, opentitan_root)
 
     env = os.environ.copy()
     env["PATH"] = os.pathsep.join(
@@ -4169,6 +6411,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             PRIM_MAPPING_CORE.encode()
         ).hexdigest(),
     }
+    metadata["matrix_source_core_overrides"] = [
+        {
+            "source_core": relative_core,
+            "added_dependencies": [
+                dependency
+                for dependency in added_dependencies
+                if dependency
+                not in {
+                    line.strip()[2:].strip()
+                    for line in (opentitan_root / relative_core)
+                    .read_text()
+                    .splitlines()
+                    if line.strip().startswith("- ")
+                }
+            ],
+            "source_sha256": file_sha256(opentitan_root / relative_core),
+            "overlay_sha256": file_sha256(
+                matrix_core_root / "source-overrides" / relative_core
+            ),
+        }
+        for relative_core, _anchor, added_dependencies in (
+            MATRIX_SOURCE_CORE_DEPENDENCIES
+        )
+        if (matrix_core_root / "source-overrides" / relative_core).is_file()
+    ]
+    spi_host_core_overlay = matrix_core_root / "source-overrides" / SPI_HOST_SVA_CORE
+    if spi_host_core_overlay.is_file():
+        metadata["matrix_source_core_text_overrides"] = [
+            {
+                "source_core": SPI_HOST_SVA_CORE,
+                "source_sha256": file_sha256(opentitan_root / SPI_HOST_SVA_CORE),
+                "overlay_sha256": file_sha256(spi_host_core_overlay),
+                "change": "remove nonexistent files_formal target fileset",
+            }
+        ]
     if native_pkg_config is not None:
         metadata["native_pkg_config"] = native_pkg_config
     if formal_targets is not None:

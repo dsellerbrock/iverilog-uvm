@@ -1,0 +1,693 @@
+RAM guard started; min_free=70%; command=['/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/scripts/opentitan_matrix.py', '--opentitan-root', '/private/tmp/ot-corpus-current-spid-passthrough-20261003/source', '--build-root', '/private/tmp/pi/opentitan-candidate-census18-20261005/build', '--iverilog', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/install/bin/iverilog', '--uvm-home', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src', '--fusesoc', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc', '--fusesoc-python', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', '--lane', 'rtl', '--lane', 'sva', '--lane', 'uvm', '--jobs', '1', '--setup-timeout', '600', '--compile-timeout', '600', '--commercial-unsafe', '--native-pkg-config', 'openssl', '--native-pkg-config', 'libelf', '--result-json', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/result.json', '--result-md', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/result.md']
+RAM guard sample: free=79%, elapsed=0s
+[1/309] rtl lowrisc:ibex:bus_params_pkg:0
+  -> DEPENDENCY_ONLY
+[2/309] rtl lowrisc:ibex:ibex_core:0.1
+  -> PASS
+[3/309] rtl lowrisc:ibex:ibex_icache:0.1
+  -> PASS
+[4/309] rtl lowrisc:ibex:ibex_multdiv:0.1
+  -> DEPENDENCY_ONLY
+[5/309] rtl lowrisc:ibex:ibex_pkg:0.1
+  -> DEPENDENCY_ONLY
+[6/309] rtl lowrisc:ibex:ibex_riscv_compliance:0.1
+  -> SETUP_FAIL
+[7/309] rtl lowrisc:ibex:ibex_simple_system_cosim:0
+  -> UPSTREAM_INVALID
+[8/309] rtl lowrisc:ibex:ibex_top:0.1
+  -> PASS
+[9/309] rtl lowrisc:ibex:ibex_tracer:0.1
+  -> DEPENDENCY_ONLY
+[10/309] rtl lowrisc:ibex:tb_cs_registers:0
+  -> SETUP_FAIL
+[11/309] rtl lowrisc:ip:adc_ctrl:1.0
+  -> PASS
+[12/309] rtl lowrisc:ip:aes:1.0
+  -> PASS
+[13/309] rtl lowrisc:ip:aes_wrap:1.0
+  -> UPSTREAM_INVALID
+[14/309] rtl lowrisc:ip:alert_handler_component:0.1
+  -> DEPENDENCY_ONLY
+[15/309] rtl lowrisc:ip:aon_timer:0.1
+  -> PASS
+[16/309] rtl lowrisc:ip:ascon:0.1
+  -> PASS
+[17/309] rtl lowrisc:ip:csrng:0.1
+  -> PASS
+[18/309] rtl lowrisc:ip:csrng_pkg:0.1
+  -> DEPENDENCY_ONLY
+[19/309] rtl lowrisc:ip:edn:0.1
+  -> PASS
+[20/309] rtl lowrisc:ip:edn_pkg:0.1
+  -> DEPENDENCY_ONLY
+[21/309] rtl lowrisc:ip:entropy_src:0.1
+RAM guard sample: free=79%, elapsed=30s
+  -> PASS
+[22/309] rtl lowrisc:ip:entropy_src_ack_sm_pkg:0.1
+  -> DEPENDENCY_ONLY
+[23/309] rtl lowrisc:ip:entropy_src_main_sm_pkg:0.1
+  -> DEPENDENCY_ONLY
+[24/309] rtl lowrisc:ip:entropy_src_pkg:0.1
+  -> DEPENDENCY_ONLY
+[25/309] rtl lowrisc:ip:flash_ctrl_prim_reg_top:1.0
+  -> PASS
+[26/309] rtl lowrisc:ip:gpio:0.1
+  -> PASS
+[27/309] rtl lowrisc:ip:hmac:0.1
+  -> PASS
+[28/309] rtl lowrisc:ip:i2c:0.1
+  -> PASS
+[29/309] rtl lowrisc:ip:i2c_pkg:0.1
+  -> DEPENDENCY_ONLY
+[30/309] rtl lowrisc:ip:jtag_pkg:0.1
+  -> DEPENDENCY_ONLY
+[31/309] rtl lowrisc:ip:keymgr:0.1
+  -> PASS
+[32/309] rtl lowrisc:ip:keymgr_pkg:0.1
+  -> DEPENDENCY_ONLY
+[33/309] rtl lowrisc:ip:kmac:0.1
+  -> PASS
+[34/309] rtl lowrisc:ip:kmac_pkg:0.1
+  -> DEPENDENCY_ONLY
+[35/309] rtl lowrisc:ip:kmac_reduced:0.1
+  -> PASS
+[36/309] rtl lowrisc:ip:lc_ctrl:0.1
+  -> PASS
+[37/309] rtl lowrisc:ip:lc_ctrl_pkg:0.1
+  -> PASS
+[38/309] rtl lowrisc:ip:lc_ctrl_state_pkg:0.1
+  -> DEPENDENCY_ONLY
+[39/309] rtl lowrisc:ip:otbn:0.1
+RAM guard sample: free=79%, elapsed=60s
+RAM guard sample: free=79%, elapsed=90s
+  -> PASS
+[40/309] rtl lowrisc:ip:otbn_pkg:0.1
+  -> DEPENDENCY_ONLY
+[41/309] rtl lowrisc:ip:otbn_tracer:0
+  -> DEPENDENCY_ONLY
+[42/309] rtl lowrisc:ip:otp_ctrl:1.0
+  -> PASS
+[43/309] rtl lowrisc:ip:otp_ctrl_pkg:1.0
+  -> PASS
+[44/309] rtl lowrisc:ip:otp_ctrl_prim_reg_top:1.0
+  -> PASS
+[45/309] rtl lowrisc:ip:pattgen:0.1
+  -> PASS
+[46/309] rtl lowrisc:ip:pinmux:0.1
+RAM guard sample: free=79%, elapsed=120s
+RAM guard sample: free=79%, elapsed=150s
+RAM guard sample: free=79%, elapsed=180s
+RAM guard sample: free=79%, elapsed=210s
+  -> PASS
+[47/309] rtl lowrisc:ip:pinmux_component:0.1
+  -> DEPENDENCY_ONLY
+[48/309] rtl lowrisc:ip:pinmux_reg:0.1
+  -> DEPENDENCY_ONLY
+[49/309] rtl lowrisc:ip:pwm:0.1
+  -> PASS
+[50/309] rtl lowrisc:ip:pwrmgr_component:0.1
+RAM guard sample: free=79%, elapsed=240s
+  -> PASS
+[51/309] rtl lowrisc:ip:rom_ctrl:0.1
+  -> PASS
+[52/309] rtl lowrisc:ip:rom_ctrl_pkg:0.1
+  -> DEPENDENCY_ONLY
+[53/309] rtl lowrisc:ip:rstmgr_cnsty_chk:0
+  -> DEPENDENCY_ONLY
+[54/309] rtl lowrisc:ip:rv_core_ibex:0.1
+  -> PASS
+[55/309] rtl lowrisc:ip:rv_core_ibex_pkg:0.1
+  -> DEPENDENCY_ONLY
+[56/309] rtl lowrisc:ip:rv_dm:0.1
+  -> PASS
+[57/309] rtl lowrisc:ip:rv_plic_component:0.1
+  -> DEPENDENCY_ONLY
+[58/309] rtl lowrisc:ip:rv_timer:0.1
+  -> PASS
+[59/309] rtl lowrisc:ip:sha3:0.1
+  -> PASS
+[60/309] rtl lowrisc:ip:spi_device:0.1
+RAM guard sample: free=79%, elapsed=270s
+  -> PASS
+[61/309] rtl lowrisc:ip:spi_device_pkg:0.1
+  -> DEPENDENCY_ONLY
+[62/309] rtl lowrisc:ip:spi_host:1.0
+  -> PASS
+[63/309] rtl lowrisc:ip:sram_ctrl:0.1
+  -> PASS
+[64/309] rtl lowrisc:ip:sram_ctrl_pkg:0.1
+  -> DEPENDENCY_ONLY
+[65/309] rtl lowrisc:ip:sysrst_ctrl:1.0
+  -> PASS
+[66/309] rtl lowrisc:ip:tlul:0.1
+  -> DEPENDENCY_ONLY
+[67/309] rtl lowrisc:ip:uart:0.1
+  -> PASS
+[68/309] rtl lowrisc:ip:usb_fs_nb_pe:0.1
+  -> PASS
+[69/309] rtl lowrisc:ip:usbdev:0.1
+  -> PASS
+[70/309] rtl lowrisc:ip:usbdev_pkg:0.1
+  -> DEPENDENCY_ONLY
+[71/309] rtl lowrisc:prim:alert:0
+  -> DEPENDENCY_ONLY
+[72/309] rtl lowrisc:prim:all:0.1
+RAM guard sample: free=79%, elapsed=300s
+  -> DEPENDENCY_ONLY
+[73/309] rtl lowrisc:prim:and2:0
+  -> DEPENDENCY_ONLY
+[74/309] rtl lowrisc:prim:arbiter:0
+  -> DEPENDENCY_ONLY
+[75/309] rtl lowrisc:prim:assert:0.1
+  -> DEPENDENCY_ONLY
+[76/309] rtl lowrisc:prim:blanker:0
+  -> DEPENDENCY_ONLY
+[77/309] rtl lowrisc:prim:buf:0
+  -> DEPENDENCY_ONLY
+[78/309] rtl lowrisc:prim:cdc_rand_delay:0
+  -> DEPENDENCY_ONLY
+[79/309] rtl lowrisc:prim:cipher:0
+  -> DEPENDENCY_ONLY
+[80/309] rtl lowrisc:prim:cipher_pkg:0.1
+  -> DEPENDENCY_ONLY
+[81/309] rtl lowrisc:prim:clock_buf:0
+  -> DEPENDENCY_ONLY
+[82/309] rtl lowrisc:prim:clock_div:0
+  -> DEPENDENCY_ONLY
+[83/309] rtl lowrisc:prim:clock_gating:0
+  -> DEPENDENCY_ONLY
+[84/309] rtl lowrisc:prim:clock_gp_mux2:0
+  -> DEPENDENCY_ONLY
+[85/309] rtl lowrisc:prim:clock_inv:0
+  -> DEPENDENCY_ONLY
+[86/309] rtl lowrisc:prim:clock_mux2:0
+  -> DEPENDENCY_ONLY
+[87/309] rtl lowrisc:prim:count:0
+  -> DEPENDENCY_ONLY
+[88/309] rtl lowrisc:prim:crc32:0
+  -> DEPENDENCY_ONLY
+[89/309] rtl lowrisc:prim:diff_decode:0
+  -> DEPENDENCY_ONLY
+[90/309] rtl lowrisc:prim:double_lfsr:0
+  -> DEPENDENCY_ONLY
+[91/309] rtl lowrisc:prim:edge_detector:0.1
+  -> DEPENDENCY_ONLY
+[92/309] rtl lowrisc:prim:edn_req:0.1
+  -> DEPENDENCY_ONLY
+[93/309] rtl lowrisc:prim:esc:0
+  -> DEPENDENCY_ONLY
+[94/309] rtl lowrisc:prim:fifo:0
+  -> DEPENDENCY_ONLY
+[95/309] rtl lowrisc:prim:flash:0
+  -> DEPENDENCY_ONLY
+[96/309] rtl lowrisc:prim:flop:0
+RAM guard sample: free=79%, elapsed=330s
+  -> DEPENDENCY_ONLY
+[97/309] rtl lowrisc:prim:flop_2sync:0
+  -> DEPENDENCY_ONLY
+[98/309] rtl lowrisc:prim:flop_en:0
+  -> DEPENDENCY_ONLY
+[99/309] rtl lowrisc:prim:gf_mult:0
+  -> DEPENDENCY_ONLY
+[100/309] rtl lowrisc:prim:lc_and_hardened:0.1
+  -> DEPENDENCY_ONLY
+[101/309] rtl lowrisc:prim:lc_combine:0.1
+  -> DEPENDENCY_ONLY
+[102/309] rtl lowrisc:prim:lc_dec:0.1
+  -> DEPENDENCY_ONLY
+[103/309] rtl lowrisc:prim:lc_or_hardened:0.1
+  -> DEPENDENCY_ONLY
+[104/309] rtl lowrisc:prim:lc_sender:0.1
+  -> DEPENDENCY_ONLY
+[105/309] rtl lowrisc:prim:lc_sync:0.1
+  -> DEPENDENCY_ONLY
+[106/309] rtl lowrisc:prim:lfsr:0.1
+  -> DEPENDENCY_ONLY
+[107/309] rtl lowrisc:prim:macros:0.1
+  -> DEPENDENCY_ONLY
+[108/309] rtl lowrisc:prim:max_tree:0
+  -> DEPENDENCY_ONLY
+[109/309] rtl lowrisc:prim:measure:0
+  -> DEPENDENCY_ONLY
+[110/309] rtl lowrisc:prim:msb_extend:0
+  -> DEPENDENCY_ONLY
+[111/309] rtl lowrisc:prim:mubi:0.1
+  -> DEPENDENCY_ONLY
+[112/309] rtl lowrisc:prim:multibit_sync:0.1
+  -> DEPENDENCY_ONLY
+[113/309] rtl lowrisc:prim:onehot:0
+  -> DEPENDENCY_ONLY
+[114/309] rtl lowrisc:prim:onehot_check:0
+  -> DEPENDENCY_ONLY
+[115/309] rtl lowrisc:prim:otp:0
+  -> DEPENDENCY_ONLY
+[116/309] rtl lowrisc:prim:otp_pkg:0.1
+  -> DEPENDENCY_ONLY
+[117/309] rtl lowrisc:prim:pad_attr:0
+  -> DEPENDENCY_ONLY
+[118/309] rtl lowrisc:prim:pad_wrapper:0
+  -> DEPENDENCY_ONLY
+[119/309] rtl lowrisc:prim:pad_wrapper_pkg:0
+  -> DEPENDENCY_ONLY
+[120/309] rtl lowrisc:prim:prim_dom_and_2share:0.1
+RAM guard sample: free=79%, elapsed=360s
+  -> PASS
+[121/309] rtl lowrisc:prim:prim_pkg:0.1
+  -> DEPENDENCY_ONLY
+[122/309] rtl lowrisc:prim:primgen:0.1
+  -> SETUP_FAIL
+[123/309] rtl lowrisc:prim:ram_1p:0
+  -> DEPENDENCY_ONLY
+[124/309] rtl lowrisc:prim:ram_1p_adv:0.1
+  -> DEPENDENCY_ONLY
+[125/309] rtl lowrisc:prim:ram_1p_pkg:0
+  -> DEPENDENCY_ONLY
+[126/309] rtl lowrisc:prim:ram_1p_scr:0.1
+  -> DEPENDENCY_ONLY
+[127/309] rtl lowrisc:prim:ram_1r1w:0
+  -> DEPENDENCY_ONLY
+[128/309] rtl lowrisc:prim:ram_1r1w_adv:0.1
+  -> DEPENDENCY_ONLY
+[129/309] rtl lowrisc:prim:ram_1r1w_async_adv:0.1
+  -> DEPENDENCY_ONLY
+[130/309] rtl lowrisc:prim:ram_2p:0
+  -> DEPENDENCY_ONLY
+[131/309] rtl lowrisc:prim:ram_2p_adv:0.1
+  -> DEPENDENCY_ONLY
+[132/309] rtl lowrisc:prim:ram_2p_async_adv:0.1
+  -> DEPENDENCY_ONLY
+[133/309] rtl lowrisc:prim:ram_2p_pkg:0
+  -> DEPENDENCY_ONLY
+[134/309] rtl lowrisc:prim:reg_we_check:0
+  -> DEPENDENCY_ONLY
+[135/309] rtl lowrisc:prim:rom:0
+  -> DEPENDENCY_ONLY
+[136/309] rtl lowrisc:prim:rom_adv:0.1
+  -> DEPENDENCY_ONLY
+[137/309] rtl lowrisc:prim:rom_pkg:0
+  -> DEPENDENCY_ONLY
+[138/309] rtl lowrisc:prim:rst_sync:0
+  -> DEPENDENCY_ONLY
+[139/309] rtl lowrisc:prim:sec_anchor:0.1
+  -> DEPENDENCY_ONLY
+[140/309] rtl lowrisc:prim:secded:0.1
+  -> DEPENDENCY_ONLY
+[141/309] rtl lowrisc:prim:sha2:0
+  -> DEPENDENCY_ONLY
+[142/309] rtl lowrisc:prim:sha2_pkg:0
+  -> DEPENDENCY_ONLY
+[143/309] rtl lowrisc:prim:sparse_fsm:0
+  -> DEPENDENCY_ONLY
+[144/309] rtl lowrisc:prim:subreg:0
+  -> DEPENDENCY_ONLY
+[145/309] rtl lowrisc:prim:sum_tree:0
+  -> DEPENDENCY_ONLY
+[146/309] rtl lowrisc:prim:trivium:0.1
+  -> DEPENDENCY_ONLY
+[147/309] rtl lowrisc:prim:usb_diff_rx:0
+  -> DEPENDENCY_ONLY
+[148/309] rtl lowrisc:prim:util:0.1
+RAM guard sample: free=79%, elapsed=391s
+  -> DEPENDENCY_ONLY
+[149/309] rtl lowrisc:prim:util_get_scramble_params:0
+  -> DEPENDENCY_ONLY
+[150/309] rtl lowrisc:prim:util_memload:0
+  -> DEPENDENCY_ONLY
+[151/309] rtl lowrisc:prim:xnor2:0
+  -> DEPENDENCY_ONLY
+[152/309] rtl lowrisc:prim:xor2:0
+  -> DEPENDENCY_ONLY
+[153/309] rtl lowrisc:prim:xoshiro256pp:0
+  -> DEPENDENCY_ONLY
+[154/309] rtl lowrisc:systems:ast:0.1
+  -> PASS
+[155/309] rtl lowrisc:systems:ast_pkg:0
+  -> DEPENDENCY_ONLY
+[156/309] rtl lowrisc:systems:chip_earlgrey_asic:0.1
+RAM guard sample: free=79%, elapsed=421s
+RAM guard sample: free=79%, elapsed=451s
+RAM guard sample: free=79%, elapsed=481s
+RAM guard sample: free=79%, elapsed=511s
+RAM guard sample: free=79%, elapsed=541s
+RAM guard sample: free=79%, elapsed=571s
+  -> DEBT
+[157/309] rtl lowrisc:systems:chip_earlgrey_cw310:0.1
+RAM guard sample: free=79%, elapsed=601s
+  -> FAIL
+[158/309] rtl lowrisc:systems:chip_earlgrey_cw310_hyperdebug:0.1
+  -> FAIL
+[159/309] rtl lowrisc:systems:chip_earlgrey_cw340:0.1
+  -> FAIL
+[160/309] rtl lowrisc:systems:chip_earlgrey_verilator:0.1
+RAM guard sample: free=79%, elapsed=631s
+RAM guard sample: free=79%, elapsed=661s
+RAM guard sample: free=79%, elapsed=691s
+RAM guard sample: free=79%, elapsed=721s
+RAM guard sample: free=79%, elapsed=752s
+RAM guard sample: free=79%, elapsed=782s
+  -> DEBT
+[161/309] rtl lowrisc:systems:chip_englishbreakfast_cw305:0.1
+  -> UPSTREAM_INVALID
+[162/309] rtl lowrisc:systems:chip_englishbreakfast_verilator:0.1
+  -> SETUP_FAIL
+[163/309] rtl lowrisc:systems:clkgen_xil7series:0
+  -> DEPENDENCY_ONLY
+[164/309] rtl lowrisc:systems:padring:0.1
+RAM guard sample: free=79%, elapsed=812s
+  -> DEPENDENCY_ONLY
+[165/309] rtl lowrisc:systems:physical_pads:0.1
+  -> DEPENDENCY_ONLY
+[166/309] rtl lowrisc:systems:pinmux_reg:0.1
+  -> DEPENDENCY_ONLY
+[167/309] rtl lowrisc:systems:scan_role_pkg:0.1
+  -> DEPENDENCY_ONLY
+[168/309] rtl lowrisc:systems:sensor_ctrl:0.1
+  -> PASS
+[169/309] rtl lowrisc:systems:sensor_ctrl_pkg:0.1
+  -> DEPENDENCY_ONLY
+[170/309] rtl lowrisc:systems:sensor_ctrl_reg:0.1
+  -> DEPENDENCY_ONLY
+[171/309] rtl lowrisc:systems:top_earlgrey:0.1
+RAM guard sample: free=79%, elapsed=842s
+RAM guard sample: free=79%, elapsed=872s
+RAM guard sample: free=79%, elapsed=902s
+RAM guard sample: free=79%, elapsed=932s
+RAM guard sample: free=79%, elapsed=962s
+RAM guard sample: free=79%, elapsed=992s
+RAM guard sample: free=79%, elapsed=1022s
+RAM guard sample: free=79%, elapsed=1052s
+  -> DEBT
+[172/309] rtl lowrisc:systems:top_earlgrey_pkg:0.1
+  -> DEPENDENCY_ONLY
+[173/309] rtl lowrisc:systems:top_englishbreakfast:0.1
+  -> SETUP_FAIL
+[174/309] rtl lowrisc:systems:topgen-reg-only:0
+  -> SETUP_FAIL
+[175/309] rtl lowrisc:systems:topgen:0
+  -> SETUP_FAIL
+[176/309] rtl lowrisc:tlul:adapter_host:0.1
+  -> PASS
+[177/309] rtl lowrisc:tlul:adapter_reg:0.1
+  -> PASS
+[178/309] rtl lowrisc:tlul:adapter_sram:0.1
+  -> PASS
+[179/309] rtl lowrisc:tlul:common:0.1
+  -> DEPENDENCY_ONLY
+[180/309] rtl lowrisc:tlul:headers:0.1
+  -> DEPENDENCY_ONLY
+[181/309] rtl lowrisc:tlul:lc_gate:0.1
+  -> PASS
+[182/309] rtl lowrisc:tlul:socket_1n:0.1
+  -> PASS
+[183/309] rtl lowrisc:tlul:socket_m1:0.1
+RAM guard sample: free=79%, elapsed=1082s
+  -> PASS
+[184/309] rtl lowrisc:tlul:sram2tlul:0.1
+  -> PASS
+[185/309] rtl lowrisc:tlul:trans_intg:0.1
+  -> PASS
+[186/309] sva lowrisc:dv:adc_ctrl_sva:0.1
+  -> PASS
+[187/309] sva lowrisc:dv:aes_sva:0.1
+  -> PASS
+[188/309] sva lowrisc:dv:aon_timer_sva:0.1
+  -> PASS
+[189/309] sva lowrisc:dv:clkmgr_sva:0.1
+  -> PASS
+[190/309] sva lowrisc:dv:csrng_sva:0.1
+  -> PASS
+[191/309] sva lowrisc:dv:edn_sva:0.1
+RAM guard sample: free=79%, elapsed=1113s
+  -> PASS
+[192/309] sva lowrisc:dv:entropy_src_sva:0.1
+  -> PASS
+[193/309] sva lowrisc:dv:flash_ctrl_sva:0.1
+  -> PASS
+[194/309] sva lowrisc:dv:gpio_sva:0.1
+  -> PASS
+[195/309] sva lowrisc:dv:hmac_sva:0.1
+  -> PASS
+[196/309] sva lowrisc:dv:i2c_sva:0.1
+  -> PASS
+[197/309] sva lowrisc:dv:keymgr_sva:0.1
+  -> PASS
+[198/309] sva lowrisc:dv:kmac_sva:0.1
+RAM guard sample: free=79%, elapsed=1143s
+  -> PASS
+[199/309] sva lowrisc:dv:lc_ctrl_sva:0.1
+  -> PASS
+[200/309] sva lowrisc:dv:otbn_sva:0.1
+  -> DEBT
+[201/309] sva lowrisc:dv:otp_ctrl_sva:0.1
+  -> PASS
+[202/309] sva lowrisc:dv:pattgen_sva:0.1
+  -> PASS
+[203/309] sva lowrisc:dv:pwm_sva:0.1
+  -> PASS
+[204/309] sva lowrisc:dv:pwrmgr_sva:0.1
+  -> PASS
+[205/309] sva lowrisc:dv:pwrmgr_unit_only_sva:0.1
+RAM guard sample: free=79%, elapsed=1173s
+  -> PASS
+[206/309] sva lowrisc:dv:rom_ctrl_sva:0.1
+  -> PASS
+[207/309] sva lowrisc:dv:rstmgr_sva:0.1
+  -> PASS
+[208/309] sva lowrisc:dv:rv_core_ibex_sva:0.1
+  -> DEBT
+[209/309] sva lowrisc:dv:rv_dm_sva:0.1
+  -> PASS
+[210/309] sva lowrisc:dv:rv_timer_sva:0.1
+  -> PASS
+[211/309] sva lowrisc:dv:spi_device_sva:0.1
+  -> PASS
+[212/309] sva lowrisc:dv:spi_host_sva:0.1
+  -> UPSTREAM_INVALID
+[213/309] sva lowrisc:dv:sram_ctrl_sva:0.1
+RAM guard sample: free=79%, elapsed=1203s
+  -> DEBT
+[214/309] sva lowrisc:dv:sysrst_ctrl_sva:0.1
+  -> PASS
+[215/309] sva lowrisc:dv:top_earlgrey_sva:0.1
+  -> DEBT
+[216/309] sva lowrisc:dv:uart_sva:0.1
+  -> PASS
+[217/309] sva lowrisc:dv:usbdev_sva:0.1
+  -> PASS
+[218/309] sva lowrisc:fpv:keccak_2share_fpv:0.1
+  -> UPSTREAM_INVALID
+[219/309] sva lowrisc:fpv:keccak_round_fpv:0.1
+  -> UPSTREAM_INVALID
+[220/309] sva lowrisc:fpv:pinmux_common_fpv:0.1
+RAM guard sample: free=79%, elapsed=1233s
+  -> DEPENDENCY_ONLY
+[221/309] sva lowrisc:fpv:pinmux_fpv:0.1
+RAM guard sample: free=79%, elapsed=1263s
+RAM guard sample: free=79%, elapsed=1293s
+  -> PASS
+[222/309] sva lowrisc:fpv:prim_alert_rxtx_async_fatal_fpv:0.1
+  -> PASS
+[223/309] sva lowrisc:fpv:prim_alert_rxtx_async_fpv:0.1
+  -> PASS
+[224/309] sva lowrisc:fpv:prim_alert_rxtx_fatal_fpv:0.1
+  -> PASS
+[225/309] sva lowrisc:fpv:prim_alert_rxtx_fpv:0.1
+  -> PASS
+[226/309] sva lowrisc:fpv:prim_arbiter_fixed_fpv:0.1
+  -> PASS
+[227/309] sva lowrisc:fpv:prim_arbiter_ppc_fpv:0.1
+  -> PASS
+[228/309] sva lowrisc:fpv:prim_arbiter_tree_fpv:0.1
+RAM guard sample: free=79%, elapsed=1323s
+  -> PASS
+[229/309] sva lowrisc:fpv:prim_count_fpv:0.1
+  -> PASS
+[230/309] sva lowrisc:fpv:prim_esc_rxtx_fpv:0.1
+  -> PASS
+[231/309] sva lowrisc:fpv:prim_fifo_async_sram_adapter_fpv:0.1
+  -> PASS
+[232/309] sva lowrisc:fpv:prim_fifo_sync_fpv:0.1
+  -> PASS
+[233/309] sva lowrisc:fpv:prim_keccak_fpv:0.1
+  -> PASS
+[234/309] sva lowrisc:fpv:prim_lfsr_fpv:0.1
+  -> UPSTREAM_INVALID
+[235/309] sva lowrisc:fpv:prim_packer_fpv:0
+  -> UPSTREAM_INVALID
+[236/309] sva lowrisc:fpv:prim_secded_22_16_fpv:0.1
+RAM guard sample: free=79%, elapsed=1353s
+  -> PASS
+[237/309] sva lowrisc:fpv:prim_secded_28_22_fpv:0.1
+  -> PASS
+[238/309] sva lowrisc:fpv:prim_secded_39_32_fpv:0.1
+  -> PASS
+[239/309] sva lowrisc:fpv:prim_secded_64_57_fpv:0.1
+  -> PASS
+[240/309] sva lowrisc:fpv:prim_secded_72_64_fpv:0.1
+  -> PASS
+[241/309] sva lowrisc:fpv:prim_secded_hamming_22_16_fpv:0.1
+  -> PASS
+[242/309] sva lowrisc:fpv:prim_secded_hamming_39_32_fpv:0.1
+  -> PASS
+[243/309] sva lowrisc:fpv:prim_secded_hamming_72_64_fpv:0.1
+  -> PASS
+[244/309] sva lowrisc:fpv:prim_secded_hamming_76_68_fpv:0.1
+  -> PASS
+[245/309] sva lowrisc:fpv:prim_secded_inv_22_16_fpv:0.1
+  -> PASS
+[246/309] sva lowrisc:fpv:prim_secded_inv_28_22_fpv:0.1
+RAM guard sample: free=79%, elapsed=1383s
+  -> PASS
+[247/309] sva lowrisc:fpv:prim_secded_inv_39_32_fpv:0.1
+  -> PASS
+[248/309] sva lowrisc:fpv:prim_secded_inv_64_57_fpv:0.1
+  -> PASS
+[249/309] sva lowrisc:fpv:prim_secded_inv_72_64_fpv:0.1
+  -> PASS
+[250/309] sva lowrisc:fpv:prim_secded_inv_hamming_22_16_fpv:0.1
+  -> PASS
+[251/309] sva lowrisc:fpv:prim_secded_inv_hamming_39_32_fpv:0.1
+  -> PASS
+[252/309] sva lowrisc:fpv:prim_secded_inv_hamming_72_64_fpv:0.1
+  -> PASS
+[253/309] sva lowrisc:fpv:prim_secded_inv_hamming_76_68_fpv:0.1
+  -> PASS
+[254/309] sva lowrisc:fpv:sha3_fpv:0.1
+  -> UPSTREAM_INVALID
+[255/309] sva lowrisc:fpv:sha3pad_fpv:0.1
+RAM guard sample: free=79%, elapsed=1413s
+  -> UPSTREAM_INVALID
+[256/309] sva lowrisc:ip:keymgr:0.1
+  -> PASS
+[257/309] sva lowrisc:ip:kmac:0.1
+  -> PASS
+[258/309] sva lowrisc:ip:kmac_reduced:0.1
+  -> PASS
+[259/309] sva lowrisc:ip:lc_ctrl:0.1
+  -> PASS
+[260/309] sva lowrisc:ip:pinmux:0.1
+RAM guard sample: free=79%, elapsed=1443s
+RAM guard sample: free=79%, elapsed=1474s
+  -> PASS
+[261/309] sva lowrisc:ip:rom_ctrl:0.1
+  -> PASS
+[262/309] sva lowrisc:ip:sha3:0.1
+RAM guard sample: free=79%, elapsed=1504s
+  -> PASS
+[263/309] sva lowrisc:ip:sysrst_ctrl:1.0
+  -> PASS
+[264/309] sva lowrisc:opentitan:top_earlgrey_alert_handler_esc_timer_fpv:0.1
+  -> PASS
+[265/309] sva lowrisc:opentitan:top_earlgrey_alert_handler_ping_timer_fpv:0.1
+  -> PASS
+[266/309] sva lowrisc:opentitan:top_earlgrey_alert_handler_sva:0.1
+RAM guard sample: free=83%, elapsed=1542s
+  -> PASS
+[267/309] sva lowrisc:opentitan:top_earlgrey_rv_plic_fpv:0.1
+RAM guard sample: free=81%, elapsed=1572s
+  -> PASS
+[268/309] sva lowrisc:prim:max_tree:0
+  -> PASS
+[269/309] sva lowrisc:prim:onehot_check:0
+  -> PASS
+[270/309] sva lowrisc:prim:prim_dom_and_2share:0.1
+  -> PASS
+[271/309] sva lowrisc:prim:sum_tree:0
+  -> PASS
+[272/309] sva lowrisc:systems:chip_earlgrey_asic:0.1
+RAM guard sample: free=81%, elapsed=1602s
+RAM guard sample: free=81%, elapsed=1632s
+RAM guard sample: free=82%, elapsed=1662s
+RAM guard sample: free=82%, elapsed=1692s
+RAM guard sample: free=82%, elapsed=1722s
+  -> DEBT
+[273/309] sva lowrisc:systems:pinmux_chip_fpv:0.1
+RAM guard sample: free=81%, elapsed=1752s
+RAM guard sample: free=81%, elapsed=1782s
+RAM guard sample: free=82%, elapsed=1813s
+RAM guard sample: free=81%, elapsed=1843s
+RAM guard sample: free=82%, elapsed=1873s
+  -> PASS
+[274/309] sva lowrisc:systems:top_earlgrey:0.1
+RAM guard sample: free=82%, elapsed=1903s
+RAM guard sample: free=82%, elapsed=1933s
+  -> DEBT
+[275/309] uvm lowrisc:dv:adc_ctrl_sim:0.1
+RAM guard sample: free=81%, elapsed=1963s
+  -> FAIL
+[276/309] uvm lowrisc:dv:aes_sim:0.1
+  -> FAIL
+[277/309] uvm lowrisc:dv:aon_timer_sim:0.1
+  -> FAIL
+[278/309] uvm lowrisc:dv:chip_sim:0.1
+RAM guard sample: free=82%, elapsed=1993s
+  -> FAIL
+[279/309] uvm lowrisc:dv:clkmgr_sim:0.1
+  -> FAIL
+[280/309] uvm lowrisc:dv:csrng_sim:0.1
+  -> FAIL
+[281/309] uvm lowrisc:dv:edn_sim:0.1
+  -> FAIL
+[282/309] uvm lowrisc:dv:entropy_src_sim:0.1
+  -> FAIL
+[283/309] uvm lowrisc:dv:flash_ctrl_sim:0.1
+  -> FAIL
+[284/309] uvm lowrisc:dv:gpio_sim:0.1
+  -> FAIL
+[285/309] uvm lowrisc:dv:hmac_sim:0.1
+RAM guard sample: free=82%, elapsed=2023s
+  -> FAIL
+[286/309] uvm lowrisc:dv:i2c_sim:0.1
+  -> FAIL
+[287/309] uvm lowrisc:dv:ibex_icache_sim:0.1
+  -> DEBT
+[288/309] uvm lowrisc:dv:keymgr_sim:0.1
+  -> FAIL
+[289/309] uvm lowrisc:dv:kmac_sim:0.1
+  -> FAIL
+[290/309] uvm lowrisc:dv:lc_ctrl_sim:0.1
+  -> FAIL
+[291/309] uvm lowrisc:dv:otbn_sim:0.1
+  -> FAIL
+[292/309] uvm lowrisc:dv:otp_ctrl_sim:0.1
+RAM guard sample: free=82%, elapsed=2053s
+  -> FAIL
+[293/309] uvm lowrisc:dv:pattgen_sim:0.1
+  -> FAIL
+[294/309] uvm lowrisc:dv:pwm_sim:0.1
+  -> FAIL
+[295/309] uvm lowrisc:dv:pwrmgr_sim:0.1
+  -> FAIL
+[296/309] uvm lowrisc:dv:rom_ctrl_sim:0.1
+  -> FAIL
+[297/309] uvm lowrisc:dv:rstmgr_sim:0.1
+  -> FAIL
+[298/309] uvm lowrisc:dv:rv_dm_sim:0.1
+  -> FAIL
+[299/309] uvm lowrisc:dv:rv_timer_sim:0.1
+  -> FAIL
+[300/309] uvm lowrisc:dv:spi_device_sim:0.1
+RAM guard sample: free=82%, elapsed=2083s
+  -> FAIL
+[301/309] uvm lowrisc:dv:spi_host_sim:1.0
+  -> FAIL
+[302/309] uvm lowrisc:dv:sram_ctrl_sim:0.1
+  -> FAIL
+[303/309] uvm lowrisc:dv:sysrst_ctrl_sim:0.1
+  -> FAIL
+[304/309] uvm lowrisc:dv:tl_agent_sim:0.1
+  -> DEBT
+[305/309] uvm lowrisc:dv:top_earlgrey_xbar_main_sim:0.1
+  -> DEBT
+[306/309] uvm lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1
+  -> DEBT
+[307/309] uvm lowrisc:dv:uart_sim:0.1
+  -> FAIL
+[308/309] uvm lowrisc:dv:usbdev_sim:0.1
+  -> FAIL
+[309/309] uvm lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1
+RAM guard sample: free=82%, elapsed=2113s
+  -> FAIL
+JSON: /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/result.json
+Markdown: /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/result.md
+RAM guard finished with exit=1

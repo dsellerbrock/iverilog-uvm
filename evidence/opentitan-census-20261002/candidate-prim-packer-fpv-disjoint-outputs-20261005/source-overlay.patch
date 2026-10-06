@@ -1,0 +1,71 @@
+--- a/hw/ip/prim/fpv/tb/prim_packer_tb.sv
++++ b/hw/ip/prim/fpv/tb/prim_packer_tb.sv
+@@ -15,19 +15,20 @@
+   input                      valid_i,
+   input        [MaxInW-1:0]  data_i,
+   input        [MaxInW-1:0]  mask_i,
+-  output                     ready_o,
++  output logic [16:0] ready_o,
+ 
+-  output logic               valid_o,
+-  output logic [MaxOutW-1:0] data_o,
+-  output logic [MaxOutW-1:0] mask_o,
++  output logic [16:0] valid_o,
++  output logic [16:0][MaxOutW-1:0] data_o,
++  output logic [16:0][MaxOutW-1:0] mask_o,
+   input                      ready_i,
+ 
+   input                      flush_i,
+-  output logic               flush_done_o,
+-  output logic               err_o
++  output logic [16:0] flush_done_o,
++  output logic [16:0] err_o
+ );
+ 
+   for (genvar k = 1; k <= 16; k++) begin : gen_prim_packer
++    localparam int unsigned Idx = k - 1;
+     prim_packer #(.InW(k), .OutW(17-k)
+     ) i_prim_packer (
+       .clk_i,
+@@ -35,14 +36,14 @@
+       .valid_i,
+       .data_i (data_i[k-1:0]),
+       .mask_i (mask_i[k-1:0]),
+-      .ready_o,
+-      .valid_o,
+-      .data_o (data_o[16-k:0]),
+-      .mask_o (mask_o[16-k:0]),
++      .ready_o (ready_o[Idx]),
++      .valid_o (valid_o[Idx]),
++      .data_o (data_o[Idx][16-k:0]),
++      .mask_o (mask_o[Idx][16-k:0]),
+       .ready_i,
+       .flush_i,
+-      .flush_done_o,
+-      .err_o
++      .flush_done_o (flush_done_o[Idx]),
++      .err_o (err_o[Idx])
+     );
+   end
+ 
+@@ -53,14 +54,14 @@
+       .valid_i,
+       .data_i (data_i),
+       .mask_i (mask_i),
+-      .ready_o,
+-      .valid_o,
+-      .data_o (data_o),
+-      .mask_o (mask_o),
++      .ready_o (ready_o[16]),
++      .valid_o (valid_o[16]),
++      .data_o (data_o[16]),
++      .mask_o (mask_o[16]),
+       .ready_i,
+       .flush_i,
+-      .flush_done_o,
+-      .err_o
++      .flush_done_o (flush_done_o[16]),
++      .err_o (err_o[16])
+   );
+ 
+ endmodule : prim_packer_tb

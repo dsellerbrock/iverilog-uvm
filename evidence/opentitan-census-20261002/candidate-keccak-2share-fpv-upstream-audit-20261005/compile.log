@@ -1,0 +1,10 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -gassertions -DFPV_ON -o /private/tmp/pi/iverilog-uvm-keccak-2share-upstream-audit-20261005/sva/lowrisc_fpv_keccak_2share_fpv_0.1/matrix-sva.vvp -c /private/tmp/pi/iverilog-uvm-keccak-2share-upstream-audit-20261005/sva/lowrisc_fpv_keccak_2share_fpv_0.1/matrix-sva-tb.scr
+returncode: 4
+duration_seconds: 0.141
+
+/private/tmp/pi/iverilog-uvm-keccak-2share-upstream-audit-20261005/sva/lowrisc_fpv_keccak_2share_fpv_0.1/source-overlays/keccak_2share_fpv/keccak_2share_fpv.sv:142: error: port ``cycle_i'' is not a port of u_keccak.
+/private/tmp/pi/iverilog-uvm-keccak-2share-upstream-audit-20261005/sva/lowrisc_fpv_keccak_2share_fpv_0.1/source-overlays/keccak_2share_fpv/keccak_2share_fpv.sv:142: error: port ``rand_aux_i'' is not a port of u_keccak.
+/private/tmp/pi/iverilog-uvm-keccak-2share-upstream-audit-20261005/sva/lowrisc_fpv_keccak_2share_fpv_0.1/source-overlays/keccak_2share_fpv/keccak_2share_fpv.sv:169: error: port ``cycle_i'' is not a port of u_golden.
+/private/tmp/pi/iverilog-uvm-keccak-2share-upstream-audit-20261005/sva/lowrisc_fpv_keccak_2share_fpv_0.1/source-overlays/keccak_2share_fpv/keccak_2share_fpv.sv:169: error: port ``rand_aux_i'' is not a port of u_golden.
+4 error(s) during elaboration.

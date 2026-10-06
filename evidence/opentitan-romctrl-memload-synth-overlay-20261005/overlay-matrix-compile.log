@@ -1,0 +1,4 @@
+OpenTitan Icarus compile
+command: /private/tmp/pi/rom-memload-matrix-focus-20261005/bin/iverilog -g2012 -srom_ctrl -S -DSYNTHESIS -DSYNTHESIS_MEMORY_BLACK_BOXING -I/private/tmp/pi/rom-memload-matrix-focus-20261005/build/rtl/lowrisc_ip_rom_ctrl_0.1/source-overlays/rom_ctrl_memload -o /private/tmp/pi/rom-memload-matrix-focus-20261005/build/rtl/lowrisc_ip_rom_ctrl_0.1/matrix-rtl.vvp -c /private/tmp/pi/rom-memload-matrix-focus-20261005/build/rtl/lowrisc_ip_rom_ctrl_0.1/default-icarus/lowrisc_ip_rom_ctrl_0.1.scr
+returncode: 0
+duration_seconds: 0.405

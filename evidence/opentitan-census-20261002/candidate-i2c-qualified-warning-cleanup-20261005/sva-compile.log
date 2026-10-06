@@ -1,0 +1,6 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -gassertions -DFPV_ON -o /private/tmp/pi/iverilog-uvm-i2c-qualified-cleanup-20261005/sva/lowrisc_dv_i2c_sva_0.1/matrix-sva.vvp -c /private/tmp/pi/iverilog-uvm-i2c-qualified-cleanup-20261005/sva/lowrisc_dv_i2c_sva_0.1/matrix-sva-tb.scr
+returncode: 0
+duration_seconds: 0.289
+
+iverilog: note: wrote DPI export C stubs to /private/tmp/pi/iverilog-uvm-i2c-qualified-cleanup-20261005/sva/lowrisc_dv_i2c_sva_0.1/matrix-sva.dpiexport.c (compile it into your DPI object).

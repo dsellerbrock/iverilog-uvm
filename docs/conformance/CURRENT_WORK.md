@@ -1,18 +1,81 @@
 # Current evidence and work
 
-## Current OpenTitan status — 2026-10-04
+## Current OpenTitan status — 2026-10-05
 
-The latest complete selected OpenTitan runtime census is
-[census13](../../evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md):
-**49/49 targets passed** with zero setup or compile failures, hard errors,
-semantic debt, runtime errors, runtime debt, timeouts, or memory-cap hits. It
-used the pinned Earlgrey-PROD-M6 source revision
-`a78922f14a8cc20c7ee569f322a04626f2ac6127`, UVM 1.2, two parallel jobs,
-`-gcommercial-unsafe`, and three published test-source overlays: OTP covergroup
-purity, Flash element-wise solve ordering, and SPI TPM SRAM/reset wiring. The
-run report includes result files, tool fingerprints, runtime limits, and patch
-preflight records. This qualifies the matrix's 49 selected runtime targets,
-not every OpenTitan DV test. The pinned source checkout was left unchanged.
+The latest candidate selected runtime result is the
+[engine 367e aggregate](../../evidence/opentitan-census-20261002/candidate-runtime-engine-367e-aggregate-20261005/README.md):
+**49/49 targets passed**. It combines 48 completed rows with a focused I2C
+replay after making overlay staging idempotent. The earlier
+[engine 890c candidate recheck](../../evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md)
+also passed 49/49 in matching 33- and 16-row serial segments. The earlier
+[census18 result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
+also passed 49/49, on the installed pre-candidate compiler.
+
+Census18 used UVM 1.2 and `-gcommercial-unsafe`. This qualifies the selected
+49-row runtime matrix, not every OpenTitan DV test.
+
+The latest compile-only census covers 309 RTL/SVA/UVM rows on engine `367e…`:
+157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures, and 3
+upstream-invalid. The [full census report](../../evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md)
+lists the remaining rows. The patched UVM lane passes 35/35 on this engine.
+The selected runtime gate also passes 49/49 on `367e…`, but OpenTitan is not
+fully qualified while the remaining compile-census outcomes persist. See the
+[compile matrix](opentitan_matrix.md).
+The candidate passes the standalone OpenTitan AST reproducer 20/20 and three
+related sparse-case regressions 3/3. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
+
+The default `rom_ctrl`, `top_earlgrey`, and `chip_earlgrey_asic` synthesis
+rows pass with a build-local overlay that guards only simulation path-printing
+and retains `$readmemh`. These RTL results are included in the refreshed
+engine `367e…` census; its `chip_earlgrey_asic` SVA row still has debt. The
+selected 49-target runtime gate also passes on this engine; the RTL/SVA census
+still has unresolved compile outcomes.
+See the [ROM loader evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md)
+and [Earl Grey result](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md).
+
+The I2C SVA and UVM compile rows also pass on engine `367e…` with the qualified
+warning-cleanup overlay; both are included in the refreshed census. See the
+[I2C follow-up](../../evidence/opentitan-census-20261002/candidate-i2c-qualified-warning-cleanup-20261005/README.md).
+
+Four SVA rows previously marked `DEBT` now pass after the setup-warning
+classifier verifies that warned C/C++/Python files are absent from the Icarus
+source lists. Their clean statuses are included in the refreshed census. See
+the [SVA follow-up](../../evidence/opentitan-census-20261002/candidate-sva-setup-classification-20261005/README.md).
+
+The SPI Host SVA target also passes after a build-local correction removes its
+reference to an undefined FuseSoC fileset. See the [SPI Host result](../../evidence/opentitan-census-20261002/candidate-spi-host-sva-fileset-20261005/README.md).
+
+The Keccak 2-share FPV target now passes on engine `367e…` with a build-local
+control model matching the current DOM-based DUT. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-keccak-2share-fpv-dom-controller-20261005/README.md).
+
+The Keccak round FPV target also passes; its clear signal now uses the DUT's
+`mubi4_t` encoding. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-keccak-round-fpv-mubi4-clear-20261005/README.md).
+
+The `prim_lfsr` FPV target now passes with disjoint build-local vector indices
+for its linear and nonlinear instances. This resolves duplicate `state_o`
+drivers without changing pinned source. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-prim-lfsr-fpv-disjoint-slots-20261005/README.md).
+
+The `prim_packer` FPV target now passes with separate output slots for each of
+its 17 DUT instances, resolving the shared-output multiple drivers. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-prim-packer-fpv-disjoint-outputs-20261005/README.md).
+
+The SHA3 FPV wrapper now matches the current DUT ports, MuBi controls, and
+random input width; its focused compile passes without debt. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-sha3-fpv-current-interface-20261005/README.md).
+
+The AES wrapper RTL row now passes after removing its duplicate data-integrity
+driver and matching the AES idle output's MuBi width. See the
+[focused result](../../evidence/opentitan-census-20261002/candidate-aes-wrap-single-data-integrity-driver-20261005/README.md).
+The 309-row census totals remain unchanged.
+
+The `lowrisc:fpv:sha3pad_fpv:0.1` SVA row now passes a focused compile with a
+hash-checked overlay for its current DUT ports, MuBi controls, and sampled
+digest. The pinned source is unchanged; the frozen 309-row census still records
+this row as upstream-invalid. See the
+[focused result and patch](../../evidence/opentitan-census-20261002/candidate-sha3pad-fpv-sampled-mubi-20261005/README.md).
 
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).

@@ -39,8 +39,8 @@ namespace {
 
 // A Nexus identity can change when two link rings are joined. Such a join
 // always deletes the superseded Nexus, so this generation lets auxiliary
-// indexes notice stale identities without adding bookkeeping to every
-// connect path.
+// indexes and other pointer caches notice stale identities without adding
+// bookkeeping to every connect path.
 uint64_t nexus_identity_generation = 0;
 
 }
@@ -334,6 +334,11 @@ Nexus::~Nexus()
       assert(list_ == 0);
       delete[] name_;
       nexus_identity_generation += 1;
+}
+
+std::uint64_t Nexus::identity_generation()
+{
+      return nexus_identity_generation;
 }
 
 void Nexus::detach_all_links_()

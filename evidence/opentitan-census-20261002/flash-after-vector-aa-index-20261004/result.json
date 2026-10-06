@@ -1,0 +1,49 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/vvp/vvp",
+    "-d",
+    "/private/tmp/pi/census11/build/runtime/lowrisc_dv_flash_ctrl_sim_0.1/matrix-dpi.so",
+    "/private/tmp/flash-read32-probe/matrix-runtime.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=flash_ctrl_base_test",
+    "+UVM_TEST_SEQ=flash_ctrl_smoke_vseq"
+  ],
+  "runtime_sha256": "105caac4cc9d56ddba0fdd08b4d7672735bcfdc4d2ad606e11790dc5d17315fe",
+  "flash_image_sha256": "4b25c822438e9553e50454a188f53a031f9261f212e8692f3e83aae0ba848260",
+  "dpi_library_sha256": "b77b12c4c2ff467faf5ec324affdd5e588bcb1de61f4a1ab1a951463565794eb",
+  "test": "flash_ctrl_base_test",
+  "sequence": "flash_ctrl_smoke_vseq",
+  "seed": {
+    "default": "0xa8cee782",
+    "local": "0x219b79a0"
+  },
+  "wall_cap_seconds": 18000,
+  "rss_cap_bytes": 10000000000,
+  "duration_seconds": 3338.4,
+  "returncode": 0,
+  "timed_out": false,
+  "memory_limit_hit": false,
+  "stop_reason": null,
+  "peak_rss_bytes": 1474985984,
+  "operation_starts": [
+    "1/3: 130373871483047440853616387",
+    "2/3: 122171576995347975198415151",
+    "3/3: 49032847943664112380421330",
+    "1/4: 133612265495110000877775394",
+    "2/4: 123814178697483784120033419",
+    "3/4: 43675911809586396264910466",
+    "4/4: 51651065421617996697626634"
+  ],
+  "last_scoreboard_sim_time_ns": "5622434.9",
+  "pass_marker": true,
+  "failed_marker": false,
+  "uvm_error_lines": [],
+  "uvm_fatal_lines": [],
+  "clean_checked_pass": true,
+  "log_bytes": 256015,
+  "log": "flash.log",
+  "progress": "progress.jsonl"
+}

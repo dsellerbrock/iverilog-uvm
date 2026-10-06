@@ -117,12 +117,26 @@ versions, and legacy recording limitations, and the
 
 ## OpenTitan runtime matrix
 
-The latest pinned OpenTitan runtime census passed **49/49 selected targets**
-with three published source overlays. This qualifies the matrix selection, not
-all OpenTitan DV tests. See the [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md),
-[matrix runner reference](docs/conformance/opentitan_matrix.md),
-[full results](evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md),
-and [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
+The selected OpenTitan runtime gate now passes **49/49 targets** on candidate
+engine `367e…`; the aggregate combines 48 completed rows with a focused I2C
+replay after fixing idempotent overlay staging. The 309-row compile census
+still records 157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures,
+and 3 upstream-invalid rows, so this does not close the broader compile audit.
+See the [engine 367e runtime result](evidence/opentitan-census-20261002/candidate-runtime-engine-367e-aggregate-20261005/README.md),
+[latest candidate compile census](evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md),
+[historical candidate compile census](evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md),
+[latest patched UVM lane](evidence/opentitan-census-20261002/candidate-patched-uvm-final-20261005/README.md),
+[engine 890c candidate runtime recheck](evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md),
+[historical 49/49 result](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
+and [49/49 reproduction guide](docs/conformance/opentitan_49of49_reproduction.md).
+The `sha3pad_fpv` row has since passed a focused overlay compile; the frozen
+census totals have not been recomputed. See its
+[result and patch](evidence/opentitan-census-20261002/candidate-sha3pad-fpv-sampled-mubi-20261005/README.md).
+The [matrix runner reference](docs/conformance/opentitan_matrix.md) and
+[hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md)
+cover runner behavior and measured optimization work.
+The [optimization plan and reproducers](docs/conformance/opentitan_hotpath_optimization.md)
+link to bounded fixtures and measured next steps.
 
 ## Known limitations
 
@@ -137,7 +151,7 @@ and [hot-path analysis](evidence/opentitan-census-20261002/census12-full-corpus-
   support. Compilation alone does not prove meaningful traffic or checking.
   The [release overlays](docs/conformance/release_overlays/README.md) record
   pinned application sources, known-needed patches, and target run options.
-  The current [OpenTitan census](evidence/opentitan-census-20261002/census13-full-corpus-20261004/README.md)
+  The current [OpenTitan census](evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
   and [work status](docs/conformance/CURRENT_WORK.md) record revisions,
   commands, and qualification boundaries; historical `DEBT` results are not
   passes.

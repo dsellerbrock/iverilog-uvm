@@ -1,0 +1,4 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -gassertions -DFPV_ON -o /private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/sva/lowrisc_dv_top_earlgrey_sva_0.1/matrix-sva.vvp -c /private/tmp/pi/iverilog-uvm-sva-setup-classification-20261005/sva/lowrisc_dv_top_earlgrey_sva_0.1/matrix-sva-tb.scr
+returncode: 0
+duration_seconds: 3.337

@@ -1,0 +1,119 @@
+--- a/hw/ip/kmac/fpv/tb/keccak_2share_fpv.sv
++++ b/hw/ip/kmac/fpv/tb/keccak_2share_fpv.sv
+@@ -20,2 +20,3 @@
+ );
++  import prim_mubi_pkg::*;
+ 
+@@ -46,3 +47,7 @@
+   mubi4_t sel_mux;
+-  logic [1:0] cycle;
++  logic low_then_high_d, low_then_high_q;
++  logic dom_out_low_d, dom_out_low_q;
++  logic dom_in_low_d, dom_in_low_q;
++  logic dom_in_rand_ext_d, dom_in_rand_ext_q;
++  logic dom_update;
+ 
+@@ -62,3 +67,6 @@
+     sel_mux = MuBi4False;
+-    cycle = 2'h0;
++    low_then_high_d = low_then_high_q;
++    dom_in_low_d = dom_in_low_q;
++    dom_in_rand_ext_d = dom_in_rand_ext_q;
++    dom_update = 1'b0;
+     unique case (keccak_st)
+@@ -68,2 +76,4 @@
+           keccak_st_d = StPhase1;
++          dom_in_low_d = low_then_high_q;
++          dom_in_rand_ext_d = 1'b0;
+ 
+@@ -75,3 +85,2 @@
+         sel_mux = MuBi4False;
+-        cycle = 2'h0;
+ 
+@@ -80,4 +89,8 @@
+           update_state = 1'b1;
++          low_then_high_d = rand_aux_i;
++          dom_in_low_d = low_then_high_d;
++          dom_in_rand_ext_d = 1'b1;
+         end else begin
+           keccak_st_d = StPhase1;
++        end
+       end
+@@ -85,3 +98,5 @@
+         sel_mux = MuBi4True;
+-        cycle = 2'h1;
++        dom_update = 1'b1;
++        dom_in_low_d = ~low_then_high_q;
++        dom_in_rand_ext_d = 1'b1;
+         keccak_st_d = StPhase2Cycle2;
+@@ -90,3 +105,5 @@
+         sel_mux = MuBi4True;
+-        cycle = 2'h2;
++        dom_update = 1'b1;
++        dom_in_low_d = low_then_high_q;
++        dom_in_rand_ext_d = 1'b0;
+         update_state = 1'b1;
+@@ -96,3 +113,2 @@
+         sel_mux = MuBi4True;
+-        cycle = 2'h3;
+         update_state = 1'b1;
+@@ -103,4 +119,5 @@
+           keccak_st_d = StPhase1;
+-
+           inc_round = 1'b1;
++          dom_in_low_d = low_then_high_q;
++          dom_in_rand_ext_d = 1'b0;
+         end
+@@ -108,4 +125,18 @@
+     endcase
+-  end
+-
++    dom_out_low_d = ~dom_in_low_d;
++  end
++
++  always_ff @(posedge clk_i or negedge rst_ni) begin
++    if (!rst_ni) begin
++      low_then_high_q <= 1'b0;
++      dom_out_low_q <= 1'b0;
++      dom_in_low_q <= 1'b0;
++      dom_in_rand_ext_q <= 1'b0;
++    end else begin
++      low_then_high_q <= low_then_high_d;
++      dom_out_low_q <= dom_out_low_d;
++      dom_in_low_q <= dom_in_low_d;
++      dom_in_rand_ext_q <= dom_in_rand_ext_d;
++    end
++  end
+ 
+@@ -142,7 +173,10 @@
+     .rst_ni,
+-
+-    .rnd_i        (round),
+-    .phase_sel_i  (sel_mux),
+-    .cycle_i      (cycle),
+-    .rand_aux_i   (rand_aux_i),
++    .lc_escalate_en_i(lc_ctrl_pkg::LC_TX_DEFAULT),
++
++    .rnd_i            (round),
++    .phase_sel_i      (sel_mux),
++    .dom_out_low_i    (dom_out_low_q),
++    .dom_in_low_i     (dom_in_low_q),
++    .dom_in_rand_ext_i(dom_in_rand_ext_q),
++    .dom_update_i     (dom_update),
+     .rand_i       (rand_i[Width/2-1:0]), // keccak_2share requires just Width/2 randomness bits.
+@@ -169,7 +203,10 @@
+     .rst_ni,
+-
+-    .rnd_i      (round),
+-    .phase_sel_i('0),
+-    .cycle_i    ('0),
+-    .rand_aux_i ('0),
++    .lc_escalate_en_i(lc_ctrl_pkg::LC_TX_DEFAULT),
++
++    .rnd_i            (round),
++    .phase_sel_i      ('0),
++    .dom_out_low_i    (1'b0),
++    .dom_in_low_i     (1'b0),
++    .dom_in_rand_ext_i(1'b0),
++    .dom_update_i     (1'b0),
+     .rand_i     ('0),

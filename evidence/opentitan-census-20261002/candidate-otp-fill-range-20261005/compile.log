@@ -1,0 +1,26 @@
+OpenTitan Icarus compile
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -stb -sotp_ctrl_bind -sotp_ctrl_cov_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -gcommercial-unsafe -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/build/otp-fill-range-final-20261005/uvm/lowrisc_dv_otp_ctrl_sim_0.1/matrix-uvm.vvp -c /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/build/otp-fill-range-final-20261005/uvm/lowrisc_dv_otp_ctrl_sim_0.1/matrix-iverilog.scr
+returncode: 0
+duration_seconds: 5.151
+
+../src/lowrisc_dv_otp_ctrl_sim_0.1/tb.sv:68: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:102: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:103: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:104: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:105: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:106: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:107: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:108: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:110: warning: A non-blocking assignment should not be used in an always_comb process.
+iverilog: note: wrote DPI export C stubs to /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/build/otp-fill-range-final-20261005/uvm/lowrisc_dv_otp_ctrl_sim_0.1/matrix-uvm.dpiexport.c (compile it into your DPI object).

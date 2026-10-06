@@ -1,0 +1,87 @@
+RAM guard started; min_free=70%; command=['env', 'RV32_TOOL_AS=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/as', 'RV32_TOOL_LD=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/ld', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', 'scripts/opentitan_matrix.py', '--opentitan-root', '/private/tmp/ot-corpus-current-spid-passthrough-20261003/source', '--build-root', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/build/patched-uvm-final-20261005', '--iverilog', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog', '--uvm-home', '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src', '--fusesoc', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc', '--fusesoc-python', '/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python', '--lane', 'uvm', '--jobs', '1', '--commercial-unsafe', '--native-pkg-config', 'openssl', '--native-pkg-config', 'libelf', '--result-json', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/patched-uvm-final-20261005/result.json', '--result-md', '/private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/patched-uvm-final-20261005/result.md']
+RAM guard sample: free=77%, elapsed=0s
+[1/35] uvm lowrisc:dv:adc_ctrl_sim:0.1
+  -> PASS
+[2/35] uvm lowrisc:dv:aes_sim:0.1
+  -> PASS
+[3/35] uvm lowrisc:dv:aon_timer_sim:0.1
+  -> PASS
+[4/35] uvm lowrisc:dv:chip_sim:0.1
+RAM guard sample: free=77%, elapsed=30s
+RAM guard sample: free=77%, elapsed=60s
+RAM guard sample: free=77%, elapsed=90s
+RAM guard sample: free=76%, elapsed=120s
+RAM guard sample: free=76%, elapsed=150s
+  -> PASS
+[5/35] uvm lowrisc:dv:clkmgr_sim:0.1
+  -> PASS
+[6/35] uvm lowrisc:dv:csrng_sim:0.1
+  -> PASS
+[7/35] uvm lowrisc:dv:edn_sim:0.1
+  -> PASS
+[8/35] uvm lowrisc:dv:entropy_src_sim:0.1
+RAM guard sample: free=77%, elapsed=180s
+  -> PASS
+[9/35] uvm lowrisc:dv:flash_ctrl_sim:0.1
+  -> PASS
+[10/35] uvm lowrisc:dv:gpio_sim:0.1
+  -> PASS
+[11/35] uvm lowrisc:dv:hmac_sim:0.1
+  -> PASS
+[12/35] uvm lowrisc:dv:i2c_sim:0.1
+  -> PASS
+[13/35] uvm lowrisc:dv:ibex_icache_sim:0.1
+RAM guard sample: free=77%, elapsed=210s
+  -> PASS
+[14/35] uvm lowrisc:dv:keymgr_sim:0.1
+  -> PASS
+[15/35] uvm lowrisc:dv:kmac_sim:0.1
+  -> PASS
+[16/35] uvm lowrisc:dv:lc_ctrl_sim:0.1
+  -> PASS
+[17/35] uvm lowrisc:dv:otbn_sim:0.1
+RAM guard sample: free=77%, elapsed=240s
+  -> PASS
+[18/35] uvm lowrisc:dv:otp_ctrl_sim:0.1
+  -> PASS
+[19/35] uvm lowrisc:dv:pattgen_sim:0.1
+  -> PASS
+[20/35] uvm lowrisc:dv:pwm_sim:0.1
+  -> PASS
+[21/35] uvm lowrisc:dv:pwrmgr_sim:0.1
+RAM guard sample: free=77%, elapsed=270s
+  -> PASS
+[22/35] uvm lowrisc:dv:rom_ctrl_sim:0.1
+  -> PASS
+[23/35] uvm lowrisc:dv:rstmgr_sim:0.1
+  -> PASS
+[24/35] uvm lowrisc:dv:rv_dm_sim:0.1
+  -> PASS
+[25/35] uvm lowrisc:dv:rv_timer_sim:0.1
+  -> PASS
+[26/35] uvm lowrisc:dv:spi_device_sim:0.1
+RAM guard sample: free=77%, elapsed=300s
+  -> PASS
+[27/35] uvm lowrisc:dv:spi_host_sim:1.0
+  -> PASS
+[28/35] uvm lowrisc:dv:sram_ctrl_sim:0.1
+  -> PASS
+[29/35] uvm lowrisc:dv:sysrst_ctrl_sim:0.1
+  -> PASS
+[30/35] uvm lowrisc:dv:tl_agent_sim:0.1
+  -> PASS
+[31/35] uvm lowrisc:dv:top_earlgrey_xbar_main_sim:0.1
+RAM guard sample: free=77%, elapsed=330s
+  -> PASS
+[32/35] uvm lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1
+  -> PASS
+[33/35] uvm lowrisc:dv:uart_sim:0.1
+  -> PASS
+[34/35] uvm lowrisc:dv:usbdev_sim:0.1
+  -> PASS
+[35/35] uvm lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1
+RAM guard sample: free=77%, elapsed=360s
+  -> PASS
+JSON: /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/patched-uvm-final-20261005/result.json
+Markdown: /private/tmp/pi/iverilog-uvm-candidate-census18-20261005/results/patched-uvm-final-20261005/result.md
+RAM guard finished with exit=0
