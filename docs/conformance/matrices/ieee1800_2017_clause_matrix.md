@@ -2240,3 +2240,32 @@ reports JSON 4117/0, legacy 6875 total/0 failed, VPI 140/140, negative
 one concrete factory initializer without the explicit-registration overlay;
 its DV runtime and the 49-target census remain unverified. Chapter 8 remains
 PARTIAL.
+
+## 2026-10-06 uniform legal-combination sampling
+
+IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
+strict 2017/2023 regressions cover coupled direct scalar properties, fixed
+unpacked bit arrays declared with two and 129 elements, a 2×2 fixed array, and
+bounded variable-size direct arrays, including size zero and two correlated arrays.
+The 129-element oracle constrains two leaves and projects five legal tuples;
+the old fallback sampled mode one 155/500 times, while the new bins are
+91, 119, 90, 98, and 102/500. The 2×2 oracle has 17 tuples; its old mode-one
+bin was 267/1,000 and all new bins are 48–69/1,000. Direct fixed integral/enum
+arrays sample referenced leaves without a declared-extent cap; unreferenced
+leaves remain independently prefilled. The variable-size sampler enumerates feasible sizes and
+canonicalizes inactive padding when its combined maximum is at most 128
+elements. Connected wide scalars are included
+for connected scalar properties wider than 64 bits. Complete feasible unary
+domains up to 256 values are enumerated; larger connected domains use uniform
+full-width proposals and hard-solver rejection. A 129-tuple 65-bit oracle's
+128-value branch was sampled 520/1,000 times before the cap increase and
+196/200 afterward in both editions. A dense 2⁶⁵-tuple oracle now selects the
+larger mode 200/200 times, versus 150/200 before full-width rejection. The paired
+65-tuple
+64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
+64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
+aggregate domains, and other container shapes remain open. See the
+[revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
+and the historical
+[`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
+result. No broader clause-18 qualification is claimed.

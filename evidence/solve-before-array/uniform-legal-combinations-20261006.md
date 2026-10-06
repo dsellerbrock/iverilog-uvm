@@ -31,3 +31,178 @@ The adjacent `sv_randomize_global_sampling_fail` regression also printed
 unsupported-size error remained; it checks failure value/callback atomicity,
 bounded joint sampling, `dist`, and solve-before behavior. It does not qualify
 those excluded paths for uniform legal-tuple sampling.
+
+## Fixed-size dynamic-array subset
+
+The registered `ivtest/ivltests/sv_randomize_global_uniform.v` regression now
+also checks the two-element dynamic-array reproducer from
+[`dynamic_array_order.sv`](dynamic_array_order.sv). It asserts unordered
+`m == 1` at no more than 3/128 draws and the `solve m before q` control between
+40 and 88/128. The source-built ARM64 VVP passed the combined scalar and
+dynamic-array regression under strict `-g2017` and `-g2023`; both runs printed
+`PASSED`.
+
+The sampler admits only active direct scalar properties plus every active
+in-range integral element of a one-dimensional dynamic array materialized by
+the constraints whose size tuple has exactly one solver-proven value. It
+compares the actual active element indices with the expected index set and declines the path for absent elements,
+unsupported widths, `randc`, ordering, soft constraints, `dist`, member state,
+or other unsupported container shapes. Broader IEEE uniformity remains open.
+
+## Bounded variable-size dynamic-array slice
+
+The paired regression also checks one-dimensional `rand bit payload[]`, with
+size one when `short_case` is true and size two otherwise. The short case
+requires `payload[0] == 0`; the long case leaves both bits free. This produces
+five complete legal tuples: one short tuple and four long tuples. A pre-fix
+source-built run selected the short case 508/1000 times, although uniform
+complete tuples require about 200/1000.
+
+The sampler now enumerates feasible sizes, samples size and active elements in
+one coupled component, and fixes inactive padded elements to zero. It supports
+one or more direct integral dynamic arrays whose combined maximum size is at
+most 128 elements. Larger aggregate domains, absent element references, and
+other excluded shapes remain outside it. The paired strict `-g2017` and
+`-g2023` runs each passed the five-bin 70–130/500 oracle and the existing
+scalar and fixed-size controls. The adjacent oversized-domain/failure-rollback
+regression also passed in both editions.
+
+A second paired oracle includes size zero, one, and two with unconstrained
+active elements. Its eleven complete tuples each landed within 20–70/500 in
+both editions, exercising canonical padding when the selected array is empty.
+
+A third paired oracle couples two arrays through a mode bit. It has twelve
+complete legal tuples across the two size configurations; all twelve landed
+within 20–70/500 in both editions.
+
+A fourth paired oracle compares size-64 and size-65 one-bit arrays. Their
+complete tuple counts differ by 2:1, and the observed mode counts stayed within
+70–130 and 170–230 of 300 in both editions. Peak resident memory was 44,875,776
+bytes in 2017 and 44,892,160 bytes in 2023; each run completed in about 31 s.
+
+Source-built ARM64 VVP SHA-256: `39c2d208c6cd8bb92fb989b91e86c84b0143310062e520ecb8962b7c27cf8553`.
+
+## Connected wide-scalar finite-domain slice
+
+A 65-bit scalar reproducer has five complete legal tuples: one mode selects
+value zero, while the other mode selects values one through four. The previous
+per-property path produced `505, 122, 128, 117, 128` over 1,000 draws, instead
+of about 200 per tuple. Sampling a connected wide scalar's complete feasible
+unary domain when that domain has at most 64 values, then rejecting against the
+full component, produced `192, 201, 202, 196, 209` with the same seed.
+
+The registered combined scalar/array regression, including its five-bin
+140–260/1,000 oracle, passed under strict `-g2017` and `-g2023`. The adjacent
+oversized-domain/failure-rollback control also passed in both editions. The
+separate struct-member oracle covers its tested three-tuple case but does not
+qualify all member shapes. Wide domains above the enumeration cap remain open.
+
+Source-built ARM64 VVP SHA-256: `0489a4df64e0e4af251b899f5904462351b9cdaa135e1ce2e668131af67ae271`.
+
+A second 65-bit scalar oracle has 65 legal complete tuples: 64 select mode one
+and one selects mode zero. With the previous 64-value enumeration cap, the
+paired regression sampled mode one 49/100 times. Raising the cap to 128 lets
+the solver enumerate the complete unary domain; the same deterministic-seed
+regression now passes its mode-one minimum of 90/100 (the uniform expectation
+is 64/65). Both strict editions pass. This does not claim exact wide-domain
+sampling above 128 values.
+
+Source-built ARM64 VVP SHA-256 after the cap change:
+`140e55df9d08957ee9019955216cb016c3c988bfec8e5589af0635e74de48ccf`.
+
+## Fixed unpacked-array complete tuples
+
+The paired regression adds a fixed two-element unpacked `bit` array with five
+legal tuples: mode one permits only payload `00`, while mode zero permits all
+four payload values. Before adding the array elements to complete-tuple
+sampling, the constrained mode appeared 161/500 times. The new histogram
+requires each of the five tuple bins to land within 70–130/500; it passes under
+strict `-g2017` and `-g2023`. The adjacent oversized-domain/failure-rollback
+and solve-before fixed-array regressions also pass in both editions.
+
+Source-built ARM64 VVP SHA-256 after the fixed-array slice:
+`bbabbf9a1d5c8c51dca2257007ca605f52dfccdc15b7e5069c61f249da717f51`.
+
+### Fixed arrays larger than the former 128-element cap
+
+The new oracle declares `rand bit payload[129]` but constrains only the first
+two leaves. The five projected tuples still have equal multiplicity across all
+129 leaves because the other 127 bits are unconstrained. Before this change,
+the declared-size cap selected the non-uniform fallback, which chose mode one
+155/500 times. The updated sampler includes only leaves already referenced by
+constraints; `randomize_cobject_` independently prefills the untouched leaves.
+
+The deterministic bins are 91, 119, 90, 98, and 102 of 500 in both strict
+editions. The full `sv_randomize_global_uniform` suite and the neighboring
+sampling-failure and fixed-array solve-before regressions pass under both
+`-g2017` and `-g2023`.
+
+Source-built ARM64 VVP SHA-256 after referenced-leaf sampling:
+`883423bbd8a32938387944ea7b14b7b0388636e263eb0a04d92375bc3cf58334`.
+
+### Multidimensional fixed unpacked arrays
+
+The new 2×2 fixed-array oracle has 17 legal tuples: mode one forces all four
+bits to zero, while mode zero permits all 16 payload patterns. Before widening
+the fixed-array eligibility guard, the mode-one tuple appeared 267/1,000 times.
+The paired strict `-g2017` and `-g2023` runs now put every tuple between 30 and
+90/1,000; observed bins were 54, 67, 59, 65, 58, 60, 69, 66, 52, 56, 53, 56,
+56, 48, 57, 55, and 69. The full `sv_randomize_global_uniform` suite and the
+neighboring sampling-failure and fixed-array solve-before regressions also
+pass in both editions.
+
+Source-built ARM64 VVP SHA-256 after multidimensional fixed-array sampling:
+`8c9a705bb46707560a7c7e751f39ca201db840668ed776e8fc30d0e43e262643`.
+
+### Connected wide unary domains above 128 values
+
+A 65-bit scalar forms 129 legal tuples: mode zero has only value zero, while
+mode one has values 1 through 128. With the previous 128-value enumeration
+cap, the old fallback selected mode one 520/1,000 times; on the registered
+seed it selected mode one 101/200 times. Raising the complete unary-domain cap
+to 256 lets the joint sampler enumerate and rejection-sample the whole tuple.
+The paired strict `-g2017` and `-g2023` runs both select mode one 196/200 times,
+above the regression minimum of 185/200. The registered full uniformity suite
+and its sampling-failure and fixed-array solve-before neighbors pass under both
+editions.
+
+Source-built ARM64 VVP SHA-256 after 129-tuple wide-domain sampling:
+`b75832e27ccedb5dd5010d42e9430cb3ec2dd3c53e7d608cce9e2074d15980c9`.
+
+### Connected wide domains above the enumeration cap
+
+A connected 65-bit property has one mode with value zero and another with any
+nonzero value, for 2⁶⁵ legal tuples. Before full-width rejection, mode one
+appeared 150/200 times. The sampler now draws a uniform candidate over the
+entire 65-bit domain, combines it with a uniform mode candidate, and rejects
+the whole tuple against the hard constraints. Both strict editions selected
+mode one 200/200 times. The sampler still enumerates complete wide unary
+domains through 256 values first, which avoids full-width rejection for the
+129-tuple bounded case. Rejection is exact for larger connected domains but can
+take impractically many retries when the feasible set is sparse.
+
+The registered full `sv_randomize_global_uniform` suite and its neighboring
+sampling-failure and fixed-array solve-before regressions pass under both
+editions.
+
+Source-built ARM64 VVP SHA-256 after full-width wide-domain proposals:
+`6fd24e3bcf95389846b13b22f719922fa7b5906456f1b9e1a3a173b5f5f05aa5`.
+
+## Adjacent 128-bit nested fixed-element randomization
+
+The existing `sv_constraint_wide_fixed_element_diversity` regression uses a
+128-bit fixed-array element through a nested class handle. Removing the stale
+64-bit metadata rejection exposed a second limit: exact tuple extraction is
+64-bit. Plain unweighted components wider than that now use full-width random
+candidate pins and model-value pins, allowing the diversity and same-seed
+replay checks to pass under both `-g2017` and `-g2023`.
+
+Both runs print `PASSED` and emit the existing warning that an oversized
+ordinary component is sampled against the hard constraints, not uniformly over
+its solutions. This runtime-support result does not qualify nested member
+uniformity or sparse/unconnected wide domains above the 256-value cap; the
+connected dense case is separately covered above. The
+paired `sv_randomize_global_uniform` statistical suite and its rollback
+control also pass on the same VVP image.
+
+Source-built ARM64 VVP SHA-256: `3d24d2efddd12f07ad7bedbee2d8d3d6662e6af2ccffda6639ada3a35e000ccb`.
