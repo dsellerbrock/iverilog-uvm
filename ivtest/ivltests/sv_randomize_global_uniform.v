@@ -48,6 +48,15 @@ class variable_size_array_with_empty;
     else payload.size() == 2;
   }
 endclass
+class correlated_variable_arrays;
+  rand bit mode;
+  rand bit a[];
+  rand bit b[];
+  constraint c {
+    if (mode) { a.size() == 1; b.size() == 2; a[0] == 0; }
+    else { a.size() == 2; b.size() == 1; }
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -57,9 +66,11 @@ module main;
   dynamic_array_ordered dyn_ordered = new;
   variable_size_array_unordered variable_size = new;
   variable_size_array_with_empty variable_size_empty = new;
+  correlated_variable_arrays correlated_arrays = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
+  int correlated_array_count[12];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -179,6 +190,32 @@ module main;
       if (variable_size_empty_count[i] < 20 || variable_size_empty_count[i] > 70)
         $fatal(1, "empty-array legal tuple %0d is biased: %0d/500",
                i, variable_size_empty_count[i]);
+
+    // Two coupled array sizes produce twelve complete tuples in total.
+    correlated_arrays.srandom(99);
+    repeat (500) begin
+      if (!correlated_arrays.randomize())
+        $fatal(1, "correlated variable-size arrays failed");
+      if (correlated_arrays.mode) begin
+        if (correlated_arrays.a.size() != 1
+            || correlated_arrays.b.size() != 2
+            || correlated_arrays.a[0] != 0)
+          $fatal(1, "invalid mode-one array tuple");
+        correlated_array_count[correlated_arrays.b[0]
+                               + 2 * correlated_arrays.b[1]]++;
+      end else begin
+        if (correlated_arrays.a.size() != 2
+            || correlated_arrays.b.size() != 1)
+          $fatal(1, "invalid mode-zero array tuple");
+        correlated_array_count[4 + correlated_arrays.a[0]
+                               + 2 * correlated_arrays.a[1]
+                               + 4 * correlated_arrays.b[0]]++;
+      end
+    end
+    for (int i = 0; i < 12; ++i)
+      if (correlated_array_count[i] < 20 || correlated_array_count[i] > 70)
+        $fatal(1, "correlated array tuple %0d is biased: %0d/500",
+               i, correlated_array_count[i]);
     $display("PASSED");
   end
 endmodule

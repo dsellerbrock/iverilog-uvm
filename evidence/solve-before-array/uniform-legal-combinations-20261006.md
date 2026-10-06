@@ -59,10 +59,10 @@ source-built run selected the short case 508/1000 times, although uniform
 complete tuples require about 200/1000.
 
 The sampler now enumerates feasible sizes, samples size and active elements in
-one coupled component, and fixes inactive padded elements to zero. This slice
-supports one direct integral dynamic array with a maximum size of 64 elements;
-arrays with maximum sizes above 64, multiple variable-size arrays, absent element references,
-and other excluded shapes remain outside it. The paired strict `-g2017` and
+one coupled component, and fixes inactive padded elements to zero. It supports
+one or more direct integral dynamic arrays whose combined maximum size is at
+most 64 elements. Larger aggregate domains, absent element references, and
+other excluded shapes remain outside it. The paired strict `-g2017` and
 `-g2023` runs each passed the five-bin 70–130/500 oracle and the existing
 scalar and fixed-size controls. The adjacent oversized-domain/failure-rollback
 regression also passed in both editions.
@@ -71,4 +71,8 @@ A second paired oracle includes size zero, one, and two with unconstrained
 active elements. Its eleven complete tuples each landed within 20–70/500 in
 both editions, exercising canonical padding when the selected array is empty.
 
-Source-built ARM64 VVP SHA-256: `4b882f566d0b6dc99ff9adca76e9fdcc6fb68a0a218f8896f5e99dfa9f9d9e08`.
+A third paired oracle couples two arrays through a mode bit. It has twelve
+complete legal tuples across the two size configurations; all twelve landed
+within 20–70/500 in both editions.
+
+Source-built ARM64 VVP SHA-256: `cbb6eb6d5857741057bb798b1cf3c84ea62b844f40dd8df9f7e80ed31adf5757`.

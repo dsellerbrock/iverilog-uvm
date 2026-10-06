@@ -2245,11 +2245,11 @@ PARTIAL.
 
 IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
 strict 2017/2023 regressions cover coupled direct scalar properties, a
-fixed-size one-dimensional integral array, and one small variable-size direct
-array, including size zero. The variable-size sampler enumerates feasible
-sizes and canonicalizes inactive padding for arrays of at most 64 elements.
-Ordering, `dist`, soft constraints, `randc`, larger or multiple variable-size arrays, and other
-container shapes remain open. See the
+fixed-size one-dimensional integral array, and bounded variable-size direct
+arrays, including size zero and two correlated arrays. The variable-size
+sampler enumerates feasible sizes and canonicalizes inactive padding when the
+combined maximum is at most 64 elements. Ordering, `dist`, soft constraints,
+`randc`, larger aggregate domains, and other container shapes remain open. See the
 [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical
 [`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
