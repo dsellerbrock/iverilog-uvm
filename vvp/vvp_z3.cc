@@ -9568,6 +9568,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (builder.size_vars.empty() && !builder.elem_vars.empty()) {
 	    bool eligible = true;
 	    map<pair<unsigned,unsigned>, uint64_t> sizes;
+	    // Fixed unpacked ranks share flat class storage and solver element IDs.
 	    for (const auto&ev : builder.elem_vars) {
 		  if (ev.nested || ev.leaf != 0) {
 			eligible = false;
@@ -9579,7 +9580,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  uint64_t size = type->property_array_size(pid);
 		  random_container_desc_t desc = random_container_desc_(base_type);
 		  pair<unsigned,unsigned> id = make_pair(ev.idx, 0u);
-		  if (type->property_dimensions(pid).size() != 1
+		  if (type->property_dimensions(pid).empty()
 		      || type->property_is_dyn2(pid) || base_type.empty()
 		      || base_type[0] == 'D' || base_type[0] == 'Q'
 		      || base_type[0] == 'M'

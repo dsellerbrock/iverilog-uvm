@@ -103,6 +103,18 @@ class fixed_array_uniformity_above_128;
     if (mode) { payload[0] == 0; payload[1] == 0; }
   }
 endclass
+class fixed_array_2d_uniformity;
+  rand bit mode;
+  rand bit payload[2][2];
+  constraint c {
+    if (mode) {
+      payload[0][0] == 0;
+      payload[0][1] == 0;
+      payload[1][0] == 0;
+      payload[1][1] == 0;
+    }
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -119,6 +131,7 @@ module main;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
+  fixed_array_2d_uniformity fixed_array_2d = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
@@ -129,6 +142,7 @@ module main;
   int wide_above_cap_mode_one;
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
+  int fixed_array_2d_tuple_count[17];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -392,6 +406,29 @@ module main;
           || fixed_array_above_128_tuple_count[i] > 130)
         $fatal(1, "129-element fixed-array tuple %0d is biased: %0d/500",
                i, fixed_array_above_128_tuple_count[i]);
+
+    // A two-dimensional fixed array still has the same 17 complete tuples.
+    fixed_array_2d.srandom(401);
+    repeat (1000) begin
+      int value;
+      if (!fixed_array_2d.randomize())
+        $fatal(1, "2D fixed-array uniformity solve failed");
+      value = fixed_array_2d.payload[0][0]
+        + 2 * fixed_array_2d.payload[0][1]
+        + 4 * fixed_array_2d.payload[1][0]
+        + 8 * fixed_array_2d.payload[1][1];
+      if (fixed_array_2d.mode) begin
+        if (value != 0)
+          $fatal(1, "invalid 2D fixed-array mode-one tuple");
+        fixed_array_2d_tuple_count[0]++;
+      end else
+        fixed_array_2d_tuple_count[value + 1]++;
+    end
+    for (int i = 0; i < 17; ++i)
+      if (fixed_array_2d_tuple_count[i] < 30
+          || fixed_array_2d_tuple_count[i] > 90)
+        $fatal(1, "2D fixed-array tuple %0d is biased: %0d/1000",
+               i, fixed_array_2d_tuple_count[i]);
     $display("PASSED");
   end
 endmodule

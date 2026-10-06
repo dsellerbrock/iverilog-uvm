@@ -2245,13 +2245,14 @@ PARTIAL.
 
 IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
 strict 2017/2023 regressions cover coupled direct scalar properties, fixed
-unpacked bit arrays declared with two and 129 elements, and bounded
-variable-size direct arrays, including size zero and two correlated arrays.
+unpacked bit arrays declared with two and 129 elements, a 2×2 fixed array, and
+bounded variable-size direct arrays, including size zero and two correlated arrays.
 The 129-element oracle constrains two leaves and projects five legal tuples;
 the old fallback sampled mode one 155/500 times, while the new bins are
-91, 119, 90, 98, and 102/500. Direct one-dimensional fixed integral/enum arrays
-have no declared-extent cap; unreferenced leaves remain independently
-prefilled. The variable-size sampler enumerates feasible sizes and
+91, 119, 90, 98, and 102/500. The 2×2 oracle has 17 tuples; its old mode-one
+bin was 267/1,000 and all new bins are 48–69/1,000. Direct fixed integral/enum
+arrays sample referenced leaves without a declared-extent cap; unreferenced
+leaves remain independently prefilled. The variable-size sampler enumerates feasible sizes and
 canonicalizes inactive padding when its combined maximum is at most 128
 elements. Connected wide scalars are included
 when their complete feasible unary domain has at most 128 values; the paired

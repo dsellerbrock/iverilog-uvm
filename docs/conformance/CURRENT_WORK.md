@@ -4,17 +4,17 @@
 
 The direct-scalar subset, fixed unpacked bit arrays, and bounded variable-size,
 one-dimensional integral dynamic arrays now pass paired 2017/2023 statistical
-regressions. Fixed-array histograms cover a two-element array and a 129-element
-declaration with five projected legal tuples. The old fallback chose mode one
-155/500 times for the 129-element array; all five new bins fall within
-70–130/500. Other coverage
-includes empty arrays, two correlated arrays, a 64/65-element size ratio, and a
-coupled 65-bit scalar with a five-value feasible domain. The combined array
-maximum for variable-size dynamic arrays is capped at 128 elements. Direct
-one-dimensional fixed integral/enum arrays have no declared-extent cap; only
-referenced leaves enter joint sampling. The array test retains the
-ordered `solve m before q` control. The overall clause remains partial for
-larger dynamic-array domains, other fixed-array shapes, `randc`, ordering, soft
+regressions. Fixed-array coverage includes two- and 129-element one-dimensional
+arrays and a 2×2 array. The 129-element oracle's five bins are 91, 119, 90, 98,
+and 102/500; the 2×2 oracle's 17 bins each land between 30 and 90/1,000 (48–69
+observed). Other coverage includes empty arrays, two correlated arrays, a
+64/65-element size ratio, and a coupled 65-bit scalar with a five-value
+feasible domain. The combined array maximum for variable-size dynamic arrays is
+capped at 128 elements. Fixed integral/enum arrays are sampled from referenced
+leaves without a declared-extent cap; the registered regression currently
+covers one and two unpacked dimensions. The array test retains the ordered
+`solve m before q` control. The overall clause remains partial for larger
+dynamic-array domains, other fixed-array ranks/shapes, `randc`, ordering, soft
 constraints, and weighted `dist`. See the
 [blocker](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
 

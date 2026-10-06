@@ -140,6 +140,20 @@ sampling-failure and fixed-array solve-before regressions pass under both
 Source-built ARM64 VVP SHA-256 after referenced-leaf sampling:
 `883423bbd8a32938387944ea7b14b7b0388636e263eb0a04d92375bc3cf58334`.
 
+### Multidimensional fixed unpacked arrays
+
+The new 2×2 fixed-array oracle has 17 legal tuples: mode one forces all four
+bits to zero, while mode zero permits all 16 payload patterns. Before widening
+the fixed-array eligibility guard, the mode-one tuple appeared 267/1,000 times.
+The paired strict `-g2017` and `-g2023` runs now put every tuple between 30 and
+90/1,000; observed bins were 54, 67, 59, 65, 58, 60, 69, 66, 52, 56, 53, 56,
+56, 48, 57, 55, and 69. The full `sv_randomize_global_uniform` suite and the
+neighboring sampling-failure and fixed-array solve-before regressions also
+pass in both editions.
+
+Source-built ARM64 VVP SHA-256 after multidimensional fixed-array sampling:
+`8c9a705bb46707560a7c7e751f39ca201db840668ed776e8fc30d0e43e262643`.
+
 ## Adjacent 128-bit nested fixed-element randomization
 
 The existing `sv_constraint_wide_fixed_element_diversity` regression uses a
