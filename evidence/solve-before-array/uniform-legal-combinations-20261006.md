@@ -123,6 +123,23 @@ and solve-before fixed-array regressions also pass in both editions.
 Source-built ARM64 VVP SHA-256 after the fixed-array slice:
 `bbabbf9a1d5c8c51dca2257007ca605f52dfccdc15b7e5069c61f249da717f51`.
 
+### Fixed arrays larger than the former 128-element cap
+
+The new oracle declares `rand bit payload[129]` but constrains only the first
+two leaves. The five projected tuples still have equal multiplicity across all
+129 leaves because the other 127 bits are unconstrained. Before this change,
+the declared-size cap selected the non-uniform fallback, which chose mode one
+155/500 times. The updated sampler includes only leaves already referenced by
+constraints; `randomize_cobject_` independently prefills the untouched leaves.
+
+The deterministic bins are 91, 119, 90, 98, and 102 of 500 in both strict
+editions. The full `sv_randomize_global_uniform` suite and the neighboring
+sampling-failure and fixed-array solve-before regressions pass under both
+`-g2017` and `-g2023`.
+
+Source-built ARM64 VVP SHA-256 after referenced-leaf sampling:
+`883423bbd8a32938387944ea7b14b7b0388636e263eb0a04d92375bc3cf58334`.
+
 ## Adjacent 128-bit nested fixed-element randomization
 
 The existing `sv_constraint_wide_fixed_element_diversity` regression uses a

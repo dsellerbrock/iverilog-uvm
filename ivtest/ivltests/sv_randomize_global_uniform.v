@@ -96,6 +96,13 @@ class fixed_array_uniformity;
     if (mode) { payload[0] == 0; payload[1] == 0; }
   }
 endclass
+class fixed_array_uniformity_above_128;
+  rand bit mode;
+  rand bit payload[129];
+  constraint c {
+    if (mode) { payload[0] == 0; payload[1] == 0; }
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -111,6 +118,7 @@ module main;
   wide_domain_uniformity wide_uniform = new;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
   fixed_array_uniformity fixed_array = new;
+  fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
@@ -120,6 +128,7 @@ module main;
   int wide_tuple_count[5];
   int wide_above_cap_mode_one;
   int fixed_array_tuple_count[5];
+  int fixed_array_above_128_tuple_count[5];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -361,6 +370,28 @@ module main;
       if (fixed_array_tuple_count[i] < 70 || fixed_array_tuple_count[i] > 130)
         $fatal(1, "fixed-array legal tuple %0d is biased: %0d/500",
                i, fixed_array_tuple_count[i]);
+
+    // The other 127 leaves are independent free factors; the five projected
+    // tuples still have equal multiplicity across the full 129-bit array.
+    fixed_array_above_128.srandom(235);
+    repeat (500) begin
+      if (!fixed_array_above_128.randomize())
+        $fatal(1, "large fixed-array uniformity solve failed");
+      if (fixed_array_above_128.mode) begin
+        if (fixed_array_above_128.payload[0]
+            || fixed_array_above_128.payload[1])
+          $fatal(1, "invalid large fixed-array mode-one tuple");
+        fixed_array_above_128_tuple_count[0]++;
+      end else
+        fixed_array_above_128_tuple_count[1
+          + fixed_array_above_128.payload[0]
+          + 2 * fixed_array_above_128.payload[1]]++;
+    end
+    for (int i = 0; i < 5; ++i)
+      if (fixed_array_above_128_tuple_count[i] < 70
+          || fixed_array_above_128_tuple_count[i] > 130)
+        $fatal(1, "129-element fixed-array tuple %0d is biased: %0d/500",
+               i, fixed_array_above_128_tuple_count[i]);
     $display("PASSED");
   end
 endmodule

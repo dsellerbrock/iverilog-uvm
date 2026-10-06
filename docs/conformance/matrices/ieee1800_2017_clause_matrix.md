@@ -2244,12 +2244,15 @@ PARTIAL.
 ## 2026-10-06 uniform legal-combination sampling
 
 IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
-strict 2017/2023 regressions cover coupled direct scalar properties, a
-two-element fixed unpacked bit array, and bounded variable-size direct arrays,
-including size zero and two correlated arrays. The fixed-array oracle's five
-legal tuple bins each pass the 70–130/500 threshold; its prior constrained-mode
-count was 161/500. The variable-size sampler enumerates feasible sizes and
-canonicalizes inactive padding when the combined maximum is at most 128
+strict 2017/2023 regressions cover coupled direct scalar properties, fixed
+unpacked bit arrays declared with two and 129 elements, and bounded
+variable-size direct arrays, including size zero and two correlated arrays.
+The 129-element oracle constrains two leaves and projects five legal tuples;
+the old fallback sampled mode one 155/500 times, while the new bins are
+91, 119, 90, 98, and 102/500. Direct one-dimensional fixed integral/enum arrays
+have no declared-extent cap; unreferenced leaves remain independently
+prefilled. The variable-size sampler enumerates feasible sizes and
+canonicalizes inactive padding when its combined maximum is at most 128
 elements. Connected wide scalars are included
 when their complete feasible unary domain has at most 128 values; the paired
 65-tuple 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with

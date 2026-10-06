@@ -9567,11 +9567,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
       if (builder.size_vars.empty() && !builder.elem_vars.empty()) {
 	    bool eligible = true;
-	    uint64_t total_elements = 0;
 	    map<pair<unsigned,unsigned>, uint64_t> sizes;
-	    // ponytail: cap fixed-array joint expansion at 128 elements; lift after
-	    // adding symbolic counting for larger aggregate tuples.
-	    const uint64_t fixed_array_elem_cap = 128;
 	    for (const auto&ev : builder.elem_vars) {
 		  if (ev.nested || ev.leaf != 0) {
 			eligible = false;
@@ -9588,46 +9584,31 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		      || base_type[0] == 'D' || base_type[0] == 'Q'
 		      || base_type[0] == 'M'
 		      || (!desc.elem_integral && !type->property_is_enum(pid))
-		      || size == 0
-		      || (!sizes.count(id)
-			  && size > fixed_array_elem_cap - total_elements)) {
+		      || size == 0 || ev.elem >= size) {
 			eligible = false;
 			break;
 		  }
-		  if (!sizes.count(id)) {
-			sizes[id] = size;
-			total_elements += size;
+		  vvp_cobject*owner = builder.object(ev.idx);
+		  vvp_vector4_t current;
+		  if (!owner) {
+			eligible = false;
+			break;
 		  }
+		  owner->get_vec4(pid, current, ev.elem);
+		  if (current.size() != ev.width) {
+			eligible = false;
+			break;
+		  }
+		  sizes[id] = size;
 	    }
 	    if (eligible && !sizes.empty()) {
-		  for (const auto&entry : sizes) {
-			unsigned pid = builder.local_index(entry.first.first);
-			vvp_cobject*owner = builder.object(entry.first.first);
-			for (unsigned elem = 0; elem < entry.second; ++elem) {
-			      if (!rand_elem_active_(builder, prop_active,
-				    entry.first.first, elem)) continue;
-			      vvp_vector4_t current;
-			      owner->get_vec4(pid, current, elem);
-			      if (!current.size()) {
-				    eligible = false;
-				    break;
-			      }
-			      for (const auto&existing : builder.elem_vars)
-				    if (existing.idx == entry.first.first
-					&& existing.leaf == 0 && !existing.nested
-					&& existing.elem == elem
-					&& existing.width != current.size())
-					  eligible = false;
-			      if (!eligible) break;
-			      builder.get_elem_var(entry.first.first,
-				    current.size(), elem);
-			}
-			if (!eligible) break;
-		  }
-		  if (eligible) {
+		  // Unreferenced leaves are independent free factors: randomize_cobject_
+		  // has already prefilled them, and no constraint expression can couple
+		  // them to the referenced solver variables without materializing a
+		  // corresponding ElemVar. Do not expand a large fixed array just to pin
+		  // those unrelated leaves into the joint sample.
 			uniform_fixed_array_sizes = std::move(sizes);
 			uniform_fixed_array_elements_ready = true;
-		  }
 	    }
       }
       if (graph && !builder.pending_soft.empty()) {
@@ -10152,24 +10133,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			uniform_joint_property[sv.var] = sv.idx;
 			uniform_joint_width[sv.var] = 32;
 			uniform_joint_domains[sv.var] = domain->second;
-		  }
-	    }
-	    if (uniform_fixed_array_elements_ready) {
-		  for (const auto&entry : uniform_fixed_array_sizes) {
-			set<unsigned> expected;
-			set<unsigned> present;
-			for (unsigned elem = 0; elem < entry.second; ++elem)
-			      if (rand_elem_active_(builder, prop_active,
-				    entry.first.first, elem)) expected.insert(elem);
-			for (const auto&ev : builder.elem_vars)
-			      if (ev.idx == entry.first.first && ev.leaf == 0
-				  && !ev.nested
-				  && rand_elem_var_active_(builder, prop_active, ev))
-				    present.insert(ev.elem);
-			if (expected != present) {
-			      uniform_joint_eligible = false;
-			      break;
-			}
 		  }
 	    }
       }
