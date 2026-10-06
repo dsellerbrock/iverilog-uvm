@@ -1,0 +1,50 @@
+--- a/hw/ip_templates/flash_ctrl/dv/env/flash_mem_bkdr_util.sv
++++ b/hw/ip_templates/flash_ctrl/dv/env/flash_mem_bkdr_util.sv
+@@ -17,6 +17,22 @@
+     `DV_CHECK_EQ_FATAL(err_detection_scheme, mem_bkdr_util_pkg::EccHamming_76_68)
+   endfunction
+ 
++  // Flash backdoor words contain 64 data bits plus ECC. Read an aligned
++  // dword from the 64-bit payload with one VPI access.
++  virtual function logic [31:0] read32(bit [bus_params_pkg::BUS_AW-1:0] addr);
++    uvm_hdl_data_t raw;
++    logic [31:0] data32;
++    int unsigned byte_offset;
++
++    if (addr % 4 != 0 || byte_width != 8 || bytes_per_word != 8)
++      return super.read32(addr);
++
++    byte_offset = addr % bytes_per_word;
++    raw = read(addr);
++    data32 = raw >> (byte_offset * byte_width);
++    return data32;
++  endfunction
++
+   // Flash has 2 levels of ECC - first on bits 63:0 applied to bits 71:64.
+   virtual function uvm_hdl_data_t get_ecc_computed_data(uvm_hdl_data_t data);
+     data = prim_secded_pkg::prim_secded_hamming_72_64_enc(data[63:0]);
+--- a/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/flash_mem_bkdr_util.sv
++++ b/hw/top_earlgrey/ip_autogen/flash_ctrl/dv/env/flash_mem_bkdr_util.sv
+@@ -17,6 +17,22 @@
+     `DV_CHECK_EQ_FATAL(err_detection_scheme, mem_bkdr_util_pkg::EccHamming_76_68)
+   endfunction
+ 
++  // Flash backdoor words contain 64 data bits plus ECC. Read an aligned
++  // dword from the 64-bit payload with one VPI access.
++  virtual function logic [31:0] read32(bit [bus_params_pkg::BUS_AW-1:0] addr);
++    uvm_hdl_data_t raw;
++    logic [31:0] data32;
++    int unsigned byte_offset;
++
++    if (addr % 4 != 0 || byte_width != 8 || bytes_per_word != 8)
++      return super.read32(addr);
++
++    byte_offset = addr % bytes_per_word;
++    raw = read(addr);
++    data32 = raw >> (byte_offset * byte_width);
++    return data32;
++  endfunction
++
+   // Flash has 2 levels of ECC - first on bits 63:0 applied to bits 71:64.
+   virtual function uvm_hdl_data_t get_ecc_computed_data(uvm_hdl_data_t data);
+     data = prim_secded_pkg::prim_secded_hamming_72_64_enc(data[63:0]);

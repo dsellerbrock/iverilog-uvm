@@ -190,6 +190,8 @@ top.mem once and then uses vpi_handle_by_index.
 
 The [UVM DPI read reproducer](uvm_hdl_read.md) exercises the real
 `uvm_hdl_read` wrapper and closes the direct-plugin fixture's wrapper gap.
+The [Flash read32 reproducer](flash_read32.md) compares OpenTitan's four-read
+composition with a one-VPI-read Flash specialization.
 
 | Case | VPI operations | Plugin CPU / process wall |
 | --- | --- | ---: |

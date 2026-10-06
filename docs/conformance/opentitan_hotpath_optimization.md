@@ -15,6 +15,11 @@ VVP reproducer passes three times, the isolated seven-operation Flash run is
 [49/49](../../evidence/opentitan-census-20261002/census14-post-vector-aa-index-20261004/README.md).
 Remaining paths below need their own measured optimizations.
 
+The Flash `read32()` candidate now has a real-UVM reproducer and a four-to-one
+VPI-call reduction; its paired microbenchmark is 62% faster. The OpenTitan
+source patch is still pending a focused full-test replay, so this result does
+not qualify an end-to-end Flash speedup. See the [reproducer and patch record](../../benchmarks/opentitan-hotpaths/flash_read32.md).
+
 | Path | First speedup step | Risks and minimum validation |
 | --- | --- | --- |
 | **Flash associative-array next** | **Implemented:** retain the raw-key `std::map` for exact identity and lazily build a pointer-only ordered index per signedness mode. `upper_bound` makes each successor lookup O(log N); the full walk is O(N log N) after index construction. The real VVP `.first/.next` fixture covers 262,144 keys. Hash-only lookup cannot return an ordered successor; hash plus tree was slower than the tree alone in the C++ microbenchmark. | Preserve signed/unsigned ordering, sign extension, four-state order, and raw-width identity. Keep the index live across insert/delete and invalidate it on copy/clear. Both order modes, 0/1/X/Z, absent keys, distinct-width identities, mutation, and copy/clear are covered by the implementation regressions. The C++ standard guarantees logarithmic ordered-container lookup; Pugh's skip list is an academically studied alternative, not evidence of a VVP speedup: [ordered-container requirements](https://eel.is/c++draft/associative.reqmts), [Pugh, Skip Lists](https://doi.org/10.1145/78973.78977). |
