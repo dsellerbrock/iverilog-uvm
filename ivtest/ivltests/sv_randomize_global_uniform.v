@@ -57,6 +57,14 @@ class correlated_variable_arrays;
     else { a.size() == 2; b.size() == 1; }
   }
 endclass
+class variable_size_array_above_old_cap;
+  rand bit mode;
+  rand bit payload[];
+  constraint c {
+    if (mode) payload.size() == 64;
+    else payload.size() == 65;
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -67,10 +75,12 @@ module main;
   variable_size_array_unordered variable_size = new;
   variable_size_array_with_empty variable_size_empty = new;
   correlated_variable_arrays correlated_arrays = new;
+  variable_size_array_above_old_cap larger_array = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
   int correlated_array_count[12];
+  int larger_array_size_count[2];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -216,6 +226,26 @@ module main;
       if (correlated_array_count[i] < 20 || correlated_array_count[i] > 70)
         $fatal(1, "correlated array tuple %0d is biased: %0d/500",
                i, correlated_array_count[i]);
+
+    // The 65-element case has twice as many legal bit tuples as size 64.
+    larger_array.srandom(100);
+    repeat (300) begin
+      if (!larger_array.randomize())
+        $fatal(1, "larger variable-size array failed");
+      if (larger_array.mode) begin
+        if (larger_array.payload.size() != 64)
+          $fatal(1, "invalid size-64 array tuple");
+        larger_array_size_count[0]++;
+      end else begin
+        if (larger_array.payload.size() != 65)
+          $fatal(1, "invalid size-65 array tuple");
+        larger_array_size_count[1]++;
+      end
+    end
+    if (larger_array_size_count[0] < 70 || larger_array_size_count[0] > 130
+        || larger_array_size_count[1] < 170 || larger_array_size_count[1] > 230)
+      $fatal(1, "large-array sizes are not weighted by complete tuples: %0d/%0d",
+             larger_array_size_count[0], larger_array_size_count[1]);
     $display("PASSED");
   end
 endmodule

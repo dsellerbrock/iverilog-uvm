@@ -9808,7 +9808,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
       // Canonical zero padding gives every complete tuple a unique solver
       // representation across correlated direct dynamic arrays.
-      const uint64_t uniform_dynamic_array_elem_cap = 64;
+      // ponytail: bound padded solver models at 128 elements total; add exact
+      // counting before raising this for larger arrays.
+      const uint64_t uniform_dynamic_array_elem_cap = 128;
       if (!dyn_sizes && !builder.row_pass && cobj && !exact_joint
 	  && !builder.size_vars.empty()
 	  && builder.order_pairs.empty() && builder.dist_specs.empty()

@@ -2,12 +2,13 @@
 
 ## Current IEEE 1800 focus
 
-The direct-scalar subset and a fixed-size, one-dimensional integral dynamic-array
-subset now pass paired 2017/2023 statistical regressions. The array test retains
-the ordered `solve m before q` control. The historical 103/400 unordered result
-predates the new array sampler. The overall clause remains partial for other
-array shapes, random sizes, `randc`, ordering, soft constraints, and weighted
-`dist`. See the
+The direct-scalar subset and bounded variable-size, one-dimensional integral
+dynamic arrays now pass paired 2017/2023 statistical regressions. Coverage
+includes empty arrays, two correlated arrays, and a 64/65-element size ratio;
+the combined maximum size is capped at 128 elements. The array test retains the
+ordered `solve m before q` control. The overall clause remains partial for
+larger domains, other array shapes, `randc`, ordering, soft constraints, and
+weighted `dist`. See the
 [blocker](BLOCKERS.md#constraint-uniform-dynamic-array-legal-combinations--dynamic-array-tuples-are-biased).
 
 The 2023 §5.9 triple-quoted string lexer and multiline macro paths also pass a
@@ -120,11 +121,12 @@ The measured hot paths and coverage limits are summarized in the
 
 ## Current IEEE checkpoint — 2026-10-06
 
-The selected next blocker is unordered uniformity over legal constraint
-combinations. The coupled direct-scalar class-property scope now rejection-
-samples complete legal tuples and passes the paired Table 18-2 regression under
-`-g2017` and `-g2023`. The dynamic-array reproducer and other unsupported solver
-shapes remain open; this is not full IEEE constraint-solver qualification. See
+The selected blocker is unordered uniformity over legal constraint
+combinations. The current branch rejection-samples coupled scalar and bounded
+direct-array tuples and passes the paired Table 18-2, empty-array, correlated-
+array, and 64/65-element checks under `-g2017` and `-g2023`. Larger domains and
+other unsupported solver shapes remain open; this is not full IEEE constraint-
+solver qualification. See
 the [focused result](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the [blocker limits](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
 

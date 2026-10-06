@@ -2248,7 +2248,7 @@ strict 2017/2023 regressions cover coupled direct scalar properties, a
 fixed-size one-dimensional integral array, and bounded variable-size direct
 arrays, including size zero and two correlated arrays. The variable-size
 sampler enumerates feasible sizes and canonicalizes inactive padding when the
-combined maximum is at most 64 elements. Ordering, `dist`, soft constraints,
+combined maximum is at most 128 elements. Ordering, `dist`, soft constraints,
 `randc`, larger aggregate domains, and other container shapes remain open. See the
 [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical
