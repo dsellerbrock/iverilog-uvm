@@ -9913,6 +9913,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       map<pair<unsigned,unsigned>, uint64_t> uniform_dynamic_sizes;
       bool uniform_dynamic_size_domains_ready = false;
       map<pair<unsigned,unsigned>, vector<uint64_t> > uniform_dynamic_size_domains;
+      map<pair<unsigned,unsigned>, uint64_t> uniform_dynamic_size_minimum;
       map<pair<unsigned,unsigned>, uint64_t> uniform_dynamic_size_maximum;
       map<pair<unsigned,unsigned>, pair<unsigned,uint64_t> >
 	    uniform_dynamic_size_element_weights;
@@ -10007,6 +10008,42 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    map<pair<unsigned,unsigned>, uint64_t> minima, maxima;
 	    map<pair<unsigned,unsigned>, unsigned> widths;
 	    map<pair<unsigned,unsigned>, pair<unsigned,uint64_t> > element_weights;
+	    auto find_size_range = [&](Z3_ast var, uint64_t upper,
+		  uint64_t&minimum, uint64_t&maximum, bool&variable) -> bool {
+		  if (Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
+		  Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
+		  Z3_ast cap = Z3_mk_unsigned_int64(ctx, upper, sort);
+		  Z3_ast within_cap = Z3_mk_bvule(ctx, var, cap);
+		  if (Z3_solver_check_assumptions(ctx, base, 1, &within_cap)
+		      != Z3_L_TRUE) return false;
+		  uint64_t low = 0, high = upper;
+		  while (low < high) {
+			uint64_t middle = low + (high - low) / 2;
+			Z3_ast bound = Z3_mk_unsigned_int64(ctx, middle, sort);
+			Z3_ast at_most = Z3_mk_bvule(ctx, var, bound);
+			Z3_lbool result = Z3_solver_check_assumptions(ctx, base, 1,
+			      &at_most);
+			if (result == Z3_L_UNDEF) return false;
+			if (result == Z3_L_TRUE) high = middle;
+			else low = middle + 1;
+		  }
+		  minimum = low;
+		  low = minimum;
+		  high = upper;
+		  while (low < high) {
+			uint64_t middle = low + (high - low + 1) / 2;
+			Z3_ast bound = Z3_mk_unsigned_int64(ctx, middle, sort);
+			Z3_ast at_least = Z3_mk_bvuge(ctx, var, bound);
+			Z3_lbool result = Z3_solver_check_assumptions(ctx, base, 1,
+			      &at_least);
+			if (result == Z3_L_UNDEF) return false;
+			if (result == Z3_L_TRUE) low = middle;
+			else high = middle - 1;
+		  }
+		  maximum = low;
+		  variable = minimum < maximum;
+		  return true;
+	    };
 	    for (const auto&pv : builder.prop_vars)
 		  if (rand_scalar_active_(builder, prop_active, pv.idx)
 		      && (pv.width == 0 || pv.width > 64
@@ -10028,20 +10065,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			eligible = false;
 			break;
 		  }
-		  vector<vector<uint64_t> > values;
-		  const char*reason = nullptr;
-		  Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
-			vector<Z3_ast>(1, sv.var), ENUM_DOMAIN_CAP, values, reason);
-		  if (enumerated != Z3_L_TRUE || values.empty()) {
-			eligible = false;
-			break;
-		  }
-		  vector<uint64_t> domain;
-		  for (const auto&tuple : values) domain.push_back(tuple[0]);
-		  sort(domain.begin(), domain.end());
-		  domain.erase(unique(domain.begin(), domain.end()), domain.end());
-		  uint64_t minimum = domain.front();
-		  uint64_t maximum = domain.back();
 		  pair<unsigned,unsigned> id = make_pair(sv.idx, sv.leaf);
 		  bool has_element_vars = false;
 		  for (const auto&ev : builder.elem_vars)
@@ -10051,7 +10074,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      has_element_vars = true;
 			      break;
 			}
+		  vector<uint64_t> domain;
+		  uint64_t minimum = 0, maximum = 0;
+		  bool size_varies = false;
 		  if (has_element_vars) {
+			vector<vector<uint64_t> > values;
+			const char*reason = nullptr;
+			Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
+			      vector<Z3_ast>(1, sv.var), ENUM_DOMAIN_CAP, values, reason);
+			if (enumerated != Z3_L_TRUE || values.empty()) {
+			      eligible = false;
+			      break;
+			}
+			for (const auto&tuple : values) domain.push_back(tuple[0]);
+			sort(domain.begin(), domain.end());
+			domain.erase(unique(domain.begin(), domain.end()), domain.end());
+			minimum = domain.front();
+			maximum = domain.back();
+			size_varies = domain.size() > 1;
 			if (maximum > uniform_dynamic_array_elem_cap - total_elements) {
 			      eligible = false;
 			      break;
@@ -10079,23 +10119,29 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    break;
 			      }
 			}
+			if (!find_size_range(sv.var,
+			      random_container_size_cap_(sv.container_type),
+			      minimum, maximum, size_varies)) {
+			      eligible = false;
+			      break;
+			}
 			element_weights[id] =
 			      make_pair(desc.elem_width, enum_cardinality);
 		  }
-		  has_variable_size |= domain.size() > 1;
-		  domains[id] = std::move(domain);
+		  has_variable_size |= size_varies;
+		  if (!domain.empty()) domains[id] = std::move(domain);
 		  minima[id] = minimum;
 		  maxima[id] = maximum;
 		  widths[id] = desc.elem_width;
 	    }
 	    for (const auto&ev : builder.elem_vars) {
+		  if (!rand_elem_var_active_(builder, prop_active, ev)) continue;
 		  pair<unsigned,unsigned> id = make_pair(ev.idx, ev.leaf);
 		  auto width = widths.find(id);
 		  auto minimum = minima.find(id);
 		  if (width == widths.end() || minimum == minima.end()
 		      || ev.nested || ev.width != width->second
-		      || ev.elem >= minimum->second
-		      || !rand_elem_var_active_(builder, prop_active, ev))
+		      || ev.elem >= minimum->second)
 			eligible = false;
 	    }
 	    for (const auto&entry : maxima)
@@ -10107,12 +10153,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_sort size_sort = Z3_mk_bv_sort(ctx, 32);
 		  for (const auto&sv : builder.size_vars) {
 			pair<unsigned,unsigned> id = make_pair(sv.idx, sv.leaf);
+			if (element_weights.count(id)) continue;
 			unsigned width = widths.at(id);
 			uint64_t minimum = minima.at(id);
 			uint64_t maximum = maxima.at(id);
 			const class_type*type = builder.type(sv.idx);
 			unsigned pid = builder.local_index(sv.idx);
-			if (element_weights.count(id)) continue;
 			for (uint64_t elem = 0; elem < maximum; ++elem) {
 			      Z3_ast value = builder.get_elem_var(sv.idx, width,
 				    (unsigned)elem);
@@ -10142,6 +10188,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				}
 		  }
 	  uniform_dynamic_size_domains = std::move(domains);
+	  uniform_dynamic_size_minimum = std::move(minima);
 	  uniform_dynamic_size_maximum = std::move(maxima);
 	  uniform_dynamic_size_element_weights = std::move(element_weights);
 	  uniform_dynamic_size_domains_ready = true;
@@ -10208,6 +10255,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       map<Z3_ast, unsigned> uniform_joint_width;
       map<Z3_ast, vector<uint64_t> > uniform_joint_domains;
       map<Z3_ast, pair<unsigned,uint64_t> > uniform_joint_dynamic_size_weights;
+      map<Z3_ast, uint64_t> uniform_joint_dynamic_size_minimum;
+      map<Z3_ast, uint64_t> uniform_joint_dynamic_size_maximum;
       map<Z3_ast, vector<Z3_ast> > uniform_joint_wide_domains;
       bool uniform_joint_eligible = cobj && !exact_joint
 	    && builder.order_pairs.empty() && builder.dist_specs.empty()
@@ -10310,7 +10359,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  for (const auto&sv : builder.size_vars) {
 			pair<unsigned,unsigned> id = make_pair(sv.idx, sv.leaf);
 			auto domain = uniform_dynamic_size_domains.find(id);
-			if (domain == uniform_dynamic_size_domains.end()
+			auto weight = uniform_dynamic_size_element_weights.find(id);
+			if ((domain == uniform_dynamic_size_domains.end()
+			     && weight == uniform_dynamic_size_element_weights.end())
 			    || !rand_size_active_(builder, prop_active,
 				  sv.idx, sv.leaf)) {
 			      uniform_joint_eligible = false;
@@ -10319,10 +10370,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			active_uniform_vars.push_back(sv.var);
 			uniform_joint_property[sv.var] = sv.idx;
 			uniform_joint_width[sv.var] = 32;
-			uniform_joint_domains[sv.var] = domain->second;
-			auto weight = uniform_dynamic_size_element_weights.find(id);
+			if (domain != uniform_dynamic_size_domains.end())
+			      uniform_joint_domains[sv.var] = domain->second;
 			if (weight != uniform_dynamic_size_element_weights.end())
 			      uniform_joint_dynamic_size_weights[sv.var] = weight->second;
+			if (weight != uniform_dynamic_size_element_weights.end()) {
+			      uniform_joint_dynamic_size_minimum[sv.var] =
+				    uniform_dynamic_size_minimum.at(id);
+			      uniform_joint_dynamic_size_maximum[sv.var] =
+				    uniform_dynamic_size_maximum.at(id);
+			}
 		  }
 	    }
       }
@@ -10540,14 +10597,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // A geometric offset from the maximum size proposes each s with
       // probability proportional to C^s; holes and connected constraints are
       // rejected by the shared solver.
-      auto sample_weighted_dynamic_size = [&](const vector<uint64_t>&domain,
+      auto sample_weighted_dynamic_size = [&](uint64_t minimum,
+	    uint64_t maximum,
 	    const pair<unsigned,uint64_t>&weight, z3_rng_stream_t&rng) -> uint64_t {
-	    if (domain.size() == 1) return domain.front();
+	    if (minimum == maximum) return maximum;
 	    unsigned width = weight.first;
 	    uint64_t enum_cardinality = weight.second;
 	    if (enum_cardinality == 1)
-		  return domain[rng.uniform_index(domain.size())];
-	    uint64_t maximum = domain.back();
+		  return minimum + rng.uniform_index((size_t)(maximum - minimum) + 1);
 	    for (;;) {
 		  uint64_t offset = 0;
 		  for (;;) {
@@ -10565,16 +10622,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      zero = word == 0;
 			}
 			if (!zero) break;
-			if (offset == maximum) {
-			      offset = maximum + 1;
+			if (offset == maximum - minimum) {
+			      offset = maximum - minimum + 1;
 			      break;
 			}
 			++offset;
 		  }
-		  if (offset > maximum) continue;
-		  uint64_t candidate = maximum - offset;
-		  if (binary_search(domain.begin(), domain.end(), candidate))
-			return candidate;
+		  if (offset > maximum - minimum) continue;
+		  return maximum - offset;
 	    }
       };
 
@@ -10593,17 +10648,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      z3_rng_stream_t&rng = property_rng(idx);
 			      Z3_ast pin;
 			      auto domain = uniform_joint_domains.find(var);
-			      if (domain != uniform_joint_domains.end()) {
+			      auto weight = uniform_joint_dynamic_size_weights.find(var);
+			      if (weight != uniform_joint_dynamic_size_weights.end()) {
+				    auto maximum = uniform_joint_dynamic_size_maximum.find(var);
+				    if (maximum == uniform_joint_dynamic_size_maximum.end())
+					  return fail_joint("a variable-size array has no size bound");
+				    auto minimum = uniform_joint_dynamic_size_minimum.find(var);
+				    if (minimum == uniform_joint_dynamic_size_minimum.end())
+					  return fail_joint("a variable-size array has no lower size bound");
+				    uint64_t value = sample_weighted_dynamic_size(
+					  minimum->second, maximum->second, weight->second, rng);
+				    Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
+					  Z3_mk_bv_sort(ctx, width));
+				    pin = Z3_mk_eq(ctx, var, constant);
+			      } else if (domain != uniform_joint_domains.end()) {
 				    if (domain->second.empty())
 					  return fail_joint("a variable-size array has no feasible size");
-				    uint64_t value;
-				    auto weight = uniform_joint_dynamic_size_weights.find(var);
-				    if (weight != uniform_joint_dynamic_size_weights.end())
-					  value = sample_weighted_dynamic_size(domain->second,
-						weight->second, rng);
-				    else
-					  value = domain->second[rng.uniform_index(
-						domain->second.size())];
+				    uint64_t value = domain->second[rng.uniform_index(
+					  domain->second.size())];
 				    Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
 					  Z3_mk_bv_sort(ctx, width));
 				    pin = Z3_mk_eq(ctx, var, constant);

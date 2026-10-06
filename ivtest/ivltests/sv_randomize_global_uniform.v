@@ -94,6 +94,12 @@ typedef enum bit [1:0] {
   uniform_enum_two = 2,
   uniform_enum_three = 3
 } variable_size_uniform_enum_t;
+typedef enum bit { uniform_size_only_value = 1'b0 }
+  variable_size_singleton_enum_t;
+class variable_size_array_with_1025_sizes;
+  rand variable_size_singleton_enum_t payload[];
+  constraint c { payload.size() inside {[0:1024]}; }
+endclass
 class variable_size_enum_array_uniformity;
   rand bit short_case;
   rand variable_size_uniform_enum_t payload[];
@@ -214,6 +220,7 @@ module main;
   variable_size_array_at_128_129 array_at_cap = new;
   variable_size_array_at_256_257 array_at_next_cap = new;
   variable_size_array_at_512_513 array_above_uniform_cap = new;
+  variable_size_array_with_1025_sizes array_many_sizes = new;
   variable_size_enum_array_uniformity enum_array = new;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
@@ -235,6 +242,7 @@ module main;
   int array_at_next_cap_size_count[2];
   int array_above_uniform_cap_size_count[2];
   int array_above_uniform_cap_first_bit_count;
+  int array_many_size_histogram[4];
   int enum_array_size_count[2];
   int member_tuple_count[3];
   int wide_tuple_count[5];
@@ -483,6 +491,30 @@ module main;
         || array_above_uniform_cap_first_bit_count > 85)
       $fatal(1, "unconstrained array elements are not randomized: %0d/120 ones",
              array_above_uniform_cap_first_bit_count);
+
+    // There are 1,025 legal sizes and one payload tuple at each size.
+    // Size-domain sampling must not enumerate all 1,025 complete models.
+    array_many_sizes.srandom(180008);
+    repeat (400) begin
+      if (!array_many_sizes.randomize())
+        $fatal(1, "1,025-value dynamic-array size domain failed");
+      if (array_many_sizes.payload.size() > 1024)
+        $fatal(1, "dynamic-array size escaped its legal range");
+      if (array_many_sizes.payload.size() <= 255)
+        array_many_size_histogram[0]++;
+      else if (array_many_sizes.payload.size() <= 511)
+        array_many_size_histogram[1]++;
+      else if (array_many_sizes.payload.size() <= 767)
+        array_many_size_histogram[2]++;
+      else
+        array_many_size_histogram[3]++;
+    end
+    foreach (array_many_size_histogram[i])
+      if (array_many_size_histogram[i] < 70
+          || array_many_size_histogram[i] > 130)
+        $fatal(1, "1,025 legal array sizes are not uniformly sampled: %0d,%0d,%0d,%0d",
+               array_many_size_histogram[0], array_many_size_histogram[1],
+               array_many_size_histogram[2], array_many_size_histogram[3]);
 
     // Three one-element tuples compete with nine two-element enum tuples.
     enum_array.srandom(405);

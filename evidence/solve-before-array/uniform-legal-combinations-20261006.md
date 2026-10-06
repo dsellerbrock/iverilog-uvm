@@ -127,8 +127,9 @@ all array elements into Z3 made the focused run correct but took 184.55 s and
 153 MB. The current path leaves unconstrained element leaves out of the solver
 model and weights each feasible size by its element cardinality; constrained
 array leaves retain the 512-element aggregate solver-model cap. The existing
-per-container allocation cap remains 65,536, and feasible size domains must
-enumerate within 1,024 values.
+per-container allocation cap remains 65,536. At this checkpoint, feasible
+size domains still had to enumerate within 1,024 values; fix 8 below removes
+that limit with SAT endpoint searches.
 
 The focused reducer now samples sizes 46/74 and produces a one in
 `payload[0]` 65/120 times. It completes in 0.91 s with 35,815,424-byte maximum
@@ -315,3 +316,39 @@ The latest source-built ARM64 VVP SHA-256 is recorded above; the earlier
 interval-only image was `e03e71b261bcf0f4e98cf6a67e8cae5b4a7cebd180001e961bc1db52f663c5ae`.
 This focused fix does not close the broader uniform-legal-combinations
 requirement.
+
+
+## Non-enumerable dynamic-array size intervals (fix 8)
+
+The unconstrained-element fast path no longer enumerates every complete size
+model up to the previous 1,024-value cap. It finds the minimum and maximum
+feasible size with SAT binary searches, first proving that at least one size is
+within the existing 65,536-element runtime allocation cap. A singleton payload
+domain proposes sizes uniformly over the endpoint interval; larger integral or
+enum domains use a truncated geometric offset, giving each size probability
+proportional to its number of element tuples. The shared hard solver rejects
+holes and coupled constraints. This is exact, though sparse accepted sizes can
+require many rejections.
+
+The registered singleton-enum regression allows sizes 0 through 1,024, so it
+has 1,025 legal sizes with one tuple per size. The old complete-model path ran
+for 197.55 s before its standalone probe was interrupted; it produced no
+histogram, so this is an incomplete performance baseline rather than a
+completed statistical failure. The first fix 8 candidate (`e11ed642a85bd92dfbeb9e4b1789ea4d542cba9aa40d6fa77e32ce836cc39fa4`) completed the focused 400-draw run in 2.63 s
+at 38,633,472-byte maximum RSS, with equal-size bins `108, 99, 96, 97`. The
+final candidate adds a SAT preflight for the allocation cap and is built as
+`c952c79150ac27b424a34d59ec76eee5bade6a9b7b420fa1fb66a8ba14fe74f0`. The
+permanent paired regression requires each bin to stay between 70 and 130.
+
+On the same source-built ARM64 VVP image, strict `-g2017` and `-g2023` full
+`sv_randomize_global_uniform` suites both printed `PASSED`. The 2023 run took
+99.29 s at 46,448,640-byte maximum RSS; time and RSS were not captured for the
+2017 run. The VVP SHA-256 is
+`c952c79150ac27b424a34d59ec76eee5bade6a9b7b420fa1fb66a8ba14fe74f0`.
+The first fix 8 candidate (`e11ed642a85bd92dfbeb9e4b1789ea4d542cba9aa40d6fa77e32ce836cc39fa4`) gave 512/513-bit array sizes `50/70` and 55 ones in
+`payload[0]` out of 120, in 0.64 s at 34,947,072-byte maximum RSS. The final guarded candidate `c952c79150ac27b424a34d59ec76eee5bade6a9b7b420fa1fb66a8ba14fe74f0` passes both complete suites.
+
+The neighboring `sv_randomize_global_sampling_fail` rollback control and
+`sv_constraint_solve_before_fixed_array` regression printed `PASSED` under
+both editions. The failure control's oversized-component warning and supported
+allocation-limit error are expected.

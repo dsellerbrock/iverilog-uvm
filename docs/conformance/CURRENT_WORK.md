@@ -22,13 +22,17 @@ oracle uses `[1:768]` and `[1025:1280]`; four equal-cardinality bins stay
 within 30–70/200 despite the 3:1 interval-size ratio. More than eight runs
 or widths above 256 bits still use the prior fallback. Variable-size arrays
 with constrained element leaves retain the 512-element combined solver-model
-cap. Arrays with no constrained element leaves weight each feasible size by
-element cardinality, when its domain enumerates within 1,024 sizes, up to the
-existing 65,536 per-container allocation cap. The 512/513 bit-array oracle
-now chooses sizes 46/74 times out of 120 and its first payload bit is one
-65/120 times; before the fix it chose them 57/63 times. The paired full suite
-passes in both editions (110.00 s for 2017 and 103.59 s for 2023, below 43 MB
-peak RSS). The 128/129-size oracle now yields counts 91/209 out of 300; the
+cap. Arrays with no constrained element leaves use SAT binary searches to find
+feasible size endpoints, then propose sizes in proportion to element-tuple
+cardinality up to the existing 65,536 per-container allocation cap. Holes and
+connected constraints are checked by the hard solver; sparse accepted sizes
+can take many retries. The 512/513 bit-array oracle now chooses sizes 50/70
+out of 120 and its first payload bit is one 55/120 times. The new 1,025-size
+singleton-enum oracle produces four equal-size bins 108,99,96,97/400; the old
+complete-model enumerator ran for 197.55 s before an interrupted run stopped
+without a histogram. Both full paired suites pass on fix 8. The 2023 run took 99.29 s at
+46,448,640-byte maximum RSS; elapsed time and RSS were not captured for 2017.
+The evidence page records the VVP hash. The 128/129-size oracle now yields counts 91/209 out of 300; the
 pre-fix path gave the size-128 mode 139/300. At 256/257, the new counts are
 44/76 out of 120, versus 166/134 in the pre-fix 300-draw probe. Fixed
 integral/enum arrays are sampled from referenced leaves without a declared-extent cap; the registered regression currently
