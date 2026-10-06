@@ -1,0 +1,91 @@
+--- a/hw/ip/otp_ctrl/dv/env/otp_ctrl_env_cov.sv
++++ b/hw/ip/otp_ctrl/dv/env/otp_ctrl_env_cov.sv
+@@ -60,52 +60,52 @@
+                                                                                      csr_offset);
+     read_csr_after_alert_issued: coverpoint csr_offset {
+       bins unbuffered_digests  = {
+-        ral.vendor_test_digest[0].get_offset(),
+-        ral.vendor_test_digest[1].get_offset(),
+-        ral.creator_sw_cfg_digest[0].get_offset(),
+-        ral.creator_sw_cfg_digest[1].get_offset(),
+-        ral.owner_sw_cfg_digest[0].get_offset(),
+-        ral.owner_sw_cfg_digest[1].get_offset(),
+-        ral.rot_creator_auth_codesign_digest[0].get_offset(),
+-        ral.rot_creator_auth_codesign_digest[1].get_offset(),
+-        ral.rot_creator_auth_state_digest[0].get_offset(),
+-        ral.rot_creator_auth_state_digest[1].get_offset()
++        32'h90,
++        32'h94,
++        32'h98,
++        32'h9c,
++        32'ha0,
++        32'ha4,
++        32'ha8,
++        32'hac,
++        32'hb0,
++        32'hb4
+       };
+       bins hw_digests          = {
+-        ral.hw_cfg0_digest[0].get_offset(),
+-        ral.hw_cfg0_digest[1].get_offset(),
+-        ral.hw_cfg1_digest[0].get_offset(),
+-        ral.hw_cfg1_digest[1].get_offset()
++        32'hb8,
++        32'hbc,
++        32'hc0,
++        32'hc4
+       };
+       bins secret_digests      = {
+-        ral.secret0_digest[0].get_offset(),
+-        ral.secret0_digest[1].get_offset(),
+-        ral.secret1_digest[0].get_offset(),
+-        ral.secret1_digest[1].get_offset(),
+-        ral.secret2_digest[0].get_offset(),
+-        ral.secret2_digest[1].get_offset()
++        32'hc8,
++        32'hcc,
++        32'hd0,
++        32'hd4,
++        32'hd8,
++        32'hdc
+       };
+       bins direct_access_rdata = {
+-        ral.direct_access_rdata[0].get_offset(),
+-        ral.direct_access_rdata[1].get_offset()
++        32'h5c,
++        32'h60
+       };
+       bins status              = {
+-        ral.status.get_offset()
++        32'h10
+       };
+       bins error_code          = {
+-        ral.err_code[0].get_offset(),
+-        ral.err_code[1].get_offset(),
+-        ral.err_code[2].get_offset(),
+-        ral.err_code[3].get_offset(),
+-        ral.err_code[4].get_offset(),
+-        ral.err_code[5].get_offset(),
+-        ral.err_code[6].get_offset(),
+-        ral.err_code[7].get_offset(),
+-        ral.err_code[8].get_offset(),
+-        ral.err_code[9].get_offset(),
+-        ral.err_code[10].get_offset(),
+-        ral.err_code[11].get_offset(),
+-        ral.err_code[12].get_offset()
++        32'h14,
++        32'h18,
++        32'h1c,
++        32'h20,
++        32'h24,
++        32'h28,
++        32'h2c,
++        32'h30,
++        32'h34,
++        32'h38,
++        32'h3c,
++        32'h40,
++        32'h44
+       };
+     }
+   endgroup

@@ -7,11 +7,12 @@ The standalone file omits the `prim_assert.sv` include and supplies the two `ast
 ## Reproduce
 
 ```sh
-/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog \
-  -g2012 -srglts_pdm_3p3v -S -DSYNTHESIS \
+/path/to/affected/iverilog -g2012 -s rglts_pdm_3p3v -S -DSYNTHESIS \
   -o /tmp/ast-rglts.vvp \
-  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/ivtest/ivltests/synth_ast_rglts_pdm_nexus_cache.v
+  ivtest/ivltests/synth_ast_rglts_pdm_nexus_cache.v
 ```
+
+Run from the repository root with the affected compiler build on `PATH`.
 
 On 2026-10-04, the unmodified local compiler aborted 20/20 runs with exit 134 (`SIGABRT`). The census crash report points to invalid free detection in malloc, through `Nexus::connect(Link&)` → `NetCase::synth_async` → `NetProc::synth_sync`.
 

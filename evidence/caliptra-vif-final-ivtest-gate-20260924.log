@@ -1,0 +1,23 @@
+PASS: all 66 covergroup API functions exported
+PASS copy-out context malformed-bytecode checks (6/6)
+=== ivtest sweep (vendored suite) ===
+GATE FAIL: legacy ivtest harness exited nonzero.
+============================================================================
+Test results:
+  Total=6555, Passed=6549, Failed=1, Not Implemented=2, Expected Fail=3
+GATE FAIL: legacy ivtest summary is missing, inconsistent, or has failures.
+
+GATE FAIL: unexplained new ivtest failures:
+  sv_packed_mixed_driver_compound
+Each must be fixed, or added to /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/docs/conformance/ivtest_expected_fails.list with a documented reason.
+
+=== stub type parameters ===
+
+=== bundled VPI suite ===
+Test results: Total=131, Passed=131, Failed=0, Not Implemented=0
+
+=== negative suite ===
+Negative tests: 155 passed, 0 failed
+
+=== VVP runtime invariants ===
+PASS state foreach runtime invariants (15/15)

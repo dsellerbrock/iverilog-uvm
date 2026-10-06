@@ -1,0 +1,9 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/pic-ivtest-harness-20260924/regress-pic.list
+----------------------------------------------------------------------------
+         sv_packed_partial_feedback: Passed.
+    sv_packed_partial_feedback_2023: Passed.
+     sv_packed_partial_overlap_fail: Passed - CE.
+sv_packed_partial_overlap_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 4, Failed 0.

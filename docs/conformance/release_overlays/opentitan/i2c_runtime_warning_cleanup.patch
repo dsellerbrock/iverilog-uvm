@@ -1,0 +1,39 @@
+--- a/hw/ip/i2c/dv/sva/i2c_protocol_cov.sv
++++ b/hw/ip/i2c/dv/sva/i2c_protocol_cov.sv
+@@ -467,9 +467,12 @@
+   initial begin
+     bit en_cov;
+     void'($value$plusargs("en_cov=%b", en_cov));
++    i2c_protocol_cov_cg   i2c_protocol_cov;
++    i2c_rd_wr_cg          i2c_rd_wr_cov;
++    i2c_cmd_complete_cg   cmd_complete_cg;
+     if (en_cov) begin
+-      i2c_protocol_cov_cg   i2c_protocol_cov = new();
+-      i2c_rd_wr_cg          i2c_rd_wr_cov = new();
+-      i2c_cmd_complete_cg   cmd_complete_cg = new();
++      i2c_protocol_cov = new();
++      i2c_rd_wr_cov = new();
++      cmd_complete_cg = new();
+       fork
+         begin
+--- a/hw/dv/sv/i2c_agent/i2c_if.sv
++++ b/hw/dv/sv/i2c_agent/i2c_if.sv
+@@ -52,7 +52,7 @@
+       @(posedge clk_i);
+       sample.push_front(cb.sda_i);
+       // Pop queue to make sure size doesnt exceed tSetupBit
+-      if (sample.size() > tc.tSetupBit) sample.pop_back();
++      if (sample.size() > tc.tSetupBit) void'(sample.pop_back());
+     end
+     data = sample.pop_back();
+   endtask // sample_target_data
+--- a/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
++++ b/hw/ip/i2c/dv/env/seq_lib/i2c_host_perf_vseq.sv
+@@ -30,7 +30,6 @@
+   // Ensure the input clock frequency is high enough to meet minimum thigh and
+   // tlow cycle counts for a given mode (i.e. 125 ns or 8 MHz)
+   constraint min_peri_clk_period_c {
+-    solve cfg.clk_freq_mhz before speed_mode;
+     if (cfg.clk_freq_mhz < 4) {
+       speed_mode == Standard;
+     } else if (cfg.clk_freq_mhz < 8) {
