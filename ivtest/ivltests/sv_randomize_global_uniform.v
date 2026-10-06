@@ -141,6 +141,28 @@ class fixed_array_2d_uniformity;
     }
   }
 endclass
+class fixed_array_3d_uniformity;
+  rand bit mode;
+  rand bit payload[2][2][2];
+  constraint c {
+    if (mode) {
+      payload[0][0][0] == 0;
+      payload[0][0][1] == 0;
+      payload[0][1][0] == 0;
+      payload[0][1][1] == 0;
+      payload[1][0][0] == 0;
+      payload[1][0][1] == 0;
+      payload[1][1][0] == 0;
+      payload[1][1][1] == 0;
+    } else {
+      payload[0][0][0] == 0;
+      payload[0][0][1] == 0;
+      payload[0][1][0] == 0;
+      payload[0][1][1] == 0;
+      payload[1][0][0] == 0;
+    }
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -162,6 +184,7 @@ module main;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
+  fixed_array_3d_uniformity fixed_array_3d = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
@@ -177,6 +200,7 @@ module main;
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
+  int fixed_array_3d_tuple_count[9];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -544,6 +568,42 @@ module main;
           || fixed_array_2d_tuple_count[i] > 90)
         $fatal(1, "2D fixed-array tuple %0d is biased: %0d/1000",
                i, fixed_array_2d_tuple_count[i]);
+
+    // Three unpacked dimensions also sample complete legal tuples uniformly.
+    fixed_array_3d.srandom(402);
+    repeat (300) begin
+      int code;
+      if (!fixed_array_3d.randomize())
+        $fatal(1, "3D fixed-array uniformity solve failed");
+      if (fixed_array_3d.mode) begin
+        if (fixed_array_3d.payload[0][0][0]
+            || fixed_array_3d.payload[0][0][1]
+            || fixed_array_3d.payload[0][1][0]
+            || fixed_array_3d.payload[0][1][1]
+            || fixed_array_3d.payload[1][0][0]
+            || fixed_array_3d.payload[1][0][1]
+            || fixed_array_3d.payload[1][1][0]
+            || fixed_array_3d.payload[1][1][1])
+          $fatal(1, "invalid 3D fixed-array mode-one tuple");
+        fixed_array_3d_tuple_count[0]++;
+      end else begin
+        if (fixed_array_3d.payload[0][0][0]
+            || fixed_array_3d.payload[0][0][1]
+            || fixed_array_3d.payload[0][1][0]
+            || fixed_array_3d.payload[0][1][1]
+            || fixed_array_3d.payload[1][0][0])
+          $fatal(1, "invalid 3D fixed-array mode-zero tuple");
+        code = {fixed_array_3d.payload[1][1][1],
+                fixed_array_3d.payload[1][1][0],
+                fixed_array_3d.payload[1][0][1]};
+        fixed_array_3d_tuple_count[code + 1]++;
+      end
+    end
+    for (int i = 0; i < 9; ++i)
+      if (fixed_array_3d_tuple_count[i] < 12
+          || fixed_array_3d_tuple_count[i] > 55)
+        $fatal(1, "3D fixed-array tuple %0d is biased: %0d/300",
+               i, fixed_array_3d_tuple_count[i]);
     $display("PASSED");
   end
 endmodule

@@ -5,9 +5,10 @@
 The direct-scalar subset, fixed unpacked bit arrays, and bounded variable-size,
 one-dimensional integral dynamic arrays now pass paired 2017/2023 statistical
 regressions. Fixed-array coverage includes two- and 129-element one-dimensional
-arrays and a 2×2 array. The 129-element oracle's five bins are 91, 119, 90, 98,
-and 102/500; the 2×2 oracle's 17 bins each land between 30 and 90/1,000 (48–69
-observed). Other coverage includes empty arrays, two correlated arrays, a
+arrays, a 2×2 array, and a 2×2×2 array with nine complete tuples at
+12–55/300. The 129-element oracle's five bins are 91, 119, 90, 98, and
+102/500; the 2×2 oracle's 17 bins each land between 30 and 90/1,000
+(48–69 observed). Other coverage includes empty arrays, two correlated arrays, a
 64/65-element size ratio, and 65-bit scalars with five-, 65-, and 129-tuple
 domains. The 129-tuple oracle selects the 128-value branch 196/200 times; before
 the wider-domain change it did so 101/200 times. Connected scalars wider than
@@ -23,10 +24,10 @@ or widths above 256 bits still use the prior fallback. The
 combined array maximum for variable-size dynamic arrays is capped at 128
 elements. Fixed integral/enum arrays are sampled from referenced
 leaves without a declared-extent cap; the registered regression currently
-covers one and two unpacked dimensions. The array test retains the ordered
-`solve m before q` control. The overall clause remains partial for larger
-dynamic-array domains, other fixed-array ranks/shapes, `randc`, ordering, soft
-constraints, and weighted `dist`. See the
+covers one, two, and three unpacked dimensions. The array test retains the
+ordered `solve m before q` control. The overall clause remains partial for
+larger dynamic-array domains, fixed-array ranks above three and other shapes,
+`randc`, ordering, soft constraints, and weighted `dist`. See the
 [blocker](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
 
 A separate 128-bit nested fixed-element diversity regression passes in both
@@ -146,10 +147,12 @@ The measured hot paths and coverage limits are summarized in the
 The selected blocker is unordered uniformity over legal constraint
 combinations. The current branch rejection-samples coupled scalar, referenced
 fixed-array, and bounded direct-array tuples and passes the paired Table 18-2,
-two- and 129-element fixed-array, empty-array, correlated-array, 64/65-element,
-and 65-bit scalar checks under `-g2017` and `-g2023`. The new isolated
+two- and 129-element fixed-array, 2×2 and 2×2×2 fixed-array, empty-array,
+correlated-array, 64/65-element, and 65-bit scalar checks under `-g2017` and
+`-g2023`. The new isolated
 65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200;
-unions with more than eight runs and unconnected widths above 256 bits remain open.
+unions with more than eight runs, unconnected widths above 256 bits, and
+fixed-array ranks above three remain open.
 The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
 the recorded threshold when the finite wide-domain cap is 256 values.
 The 128-bit nested fixed-element check also passes through its warned,

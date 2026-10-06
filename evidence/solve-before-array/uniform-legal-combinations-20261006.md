@@ -235,9 +235,14 @@ eight runs and 256 bits.
 The registered `sv_randomize_global_uniform` suite passes under both strict
 `-g2017` and `-g2023`. A same-seed standalone run gives the four equal
 256-value bins `57, 54, 37, 52` out of 200 in each edition; the permanent
-regression requires every bin to be 30–70. The adjacent sampling-failure and
-fixed-array solve-before controls pass in both editions. The oversized-domain
-warning and fixed-array allocation error in the failure control are expected.
+regression requires every bin to be 30–70. The paired 2×2×2 fixed-array
+oracle has nine complete legal tuples and keeps each count within 12–55/300
+under strict `-g2017` and `-g2023`; it checks that
+the existing flat-storage sampler works through three unpacked dimensions.
+Fixed-array ranks above three and other untested shapes remain outside the
+recorded scope. The adjacent sampling-failure and fixed-array solve-before
+controls pass in both editions. The oversized-domain warning and fixed-array
+allocation error in the failure control are expected.
 
 Paired full-suite commands, from the repository root:
 
