@@ -82,6 +82,23 @@ bytes in 2017 and 44,892,160 bytes in 2023; each run completed in about 31 s.
 
 Source-built ARM64 VVP SHA-256: `39c2d208c6cd8bb92fb989b91e86c84b0143310062e520ecb8962b7c27cf8553`.
 
+## Variable-size arrays through 256 combined elements
+
+A size-128/size-129 one-bit dynamic array has twice as many complete legal
+payload tuples at size 129. Before the extension, the exact variable-size
+sampler declined its 128-element limit and the fallback chose size 128 in
+139/300 draws (uniform complete tuples require about 100/300). The cap is now
+256 combined elements; canonical zero padding represents every legal array
+value once, and uniform whole-tuple rejection preserves the 2:1 size weighting.
+The paired registered oracle requires 70–130 size-128 results and 170–230
+size-129 results in 300 draws. A focused same-seed run produced 91 and 209.
+
+The full `sv_randomize_global_uniform` suite passes under strict `-g2017` and
+`-g2023` with the extension. The source-built VVP stayed near 54 MB RSS during
+the focused runs.
+
+Source-built ARM64 VVP SHA-256: `db3cff9e0226059a6070fef316fed6657070fddec6ab6da8b80ad2a2a3d6786c`.
+
 ## Connected wide-scalar finite-domain slice
 
 A 65-bit scalar reproducer has five complete legal tuples: one mode selects
@@ -248,12 +265,12 @@ Paired full-suite commands, from the repository root:
 
 ```sh
 local-install/bin/iverilog -g2017 -s main -I ivtest -o /tmp/sv-randomize-uniform-2017.vvp ivtest/ivltests/sv_randomize_global_uniform.v
-local-install/bin/vvp /tmp/sv-randomize-uniform-2017.vvp
+vvp/vvp -n /tmp/sv-randomize-uniform-2017.vvp
 local-install/bin/iverilog -g2023 -s main -I ivtest -o /tmp/sv-randomize-uniform-2023.vvp ivtest/ivltests/sv_randomize_global_uniform_2023.v
-local-install/bin/vvp /tmp/sv-randomize-uniform-2023.vvp
+vvp/vvp -n /tmp/sv-randomize-uniform-2023.vvp
 ```
 
-The installed source-built ARM64 VVP SHA-256 for this evidence is
-`e03e71b261bcf0f4e98cf6a67e8cae5b4a7cebd180001e961bc1db52f663c5ae`.
+The latest source-built ARM64 VVP SHA-256 is recorded above; the earlier
+interval-only image was `e03e71b261bcf0f4e98cf6a67e8cae5b4a7cebd180001e961bc1db52f663c5ae`.
 This focused fix does not close the broader uniform-legal-combinations
 requirement.

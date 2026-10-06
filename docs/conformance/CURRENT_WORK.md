@@ -20,9 +20,9 @@ isolated 65-bit scalar interval `[1:1024]` now samples four equal buckets
 57, 54, 37, and 52 times per 200 draws in both editions. The fragmented
 oracle uses `[1:768]` and `[1025:1280]`; four equal-cardinality bins stay
 within 30–70/200 despite the 3:1 interval-size ratio. More than eight runs
-or widths above 256 bits still use the prior fallback. The
-combined array maximum for variable-size dynamic arrays is capped at 128
-elements. Fixed integral/enum arrays are sampled from referenced
+or widths above 256 bits still use the prior fallback. The combined array maximum for variable-size dynamic arrays is capped at
+256 elements. A 128/129-size oracle now yields counts 91/209 out of 300; the
+pre-fix path gave the size-128 mode 139/300. Fixed integral/enum arrays are sampled from referenced
 leaves without a declared-extent cap; the registered regression currently
 covers one, two, and three unpacked dimensions. The array test retains the
 ordered `solve m before q` control. The overall clause remains partial for
@@ -154,7 +154,9 @@ correlated-array, 64/65-element, and 65-bit scalar checks under `-g2017` and
 unions with more than eight runs, unconnected widths above 256 bits, and
 fixed-array ranks above three remain open.
 The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
-the recorded threshold when the finite wide-domain cap is 256 values.
+the recorded threshold when the finite wide-domain cap is 256 values. Variable-size
+dynamic arrays now use the exact sampler through 256 combined elements; the
+128/129 size multiplicities sample 91/209 times in 300 draws.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See
