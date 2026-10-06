@@ -273,12 +273,13 @@ through finite-domain enumeration to Optimize diversity. With seed 626, the
 registered regression failed at 23/200 in its first 256-value bucket. The new
 path applies only to isolated direct scalar properties wider than 32 bits and
 at most 256 bits when solve-before, `dist`, soft constraints, `randc`, exact-joint
-solving, state checks, and queue-element references are absent. It reuses the
-existing isolated-factor proof and searches for the first feasible value and
-the first infeasible value after each run. Up to eight disjoint runs are counted
-by cardinality, then one uniform rank is drawn from their union. Tautological
-factors use a direct full-domain draw. Unknown solver results, unions with more
-than eight runs, and widths above 256 decline this path.
+solving, state checks, and queue-element references are absent. At the fix-8
+checkpoint it supported widths through 256 bits; fix 9 below raises that cap to
+4,096 bits. It reuses the existing isolated-factor proof and searches for the
+first feasible value and the first infeasible value after each run. Up to
+eight disjoint runs are counted by cardinality, then one uniform rank is drawn
+from their union. Tautological factors use a direct full-domain draw. Unknown
+solver results and unions with more than eight runs decline this path.
 
 ### Fragmented wide-scalar intervals
 
@@ -352,3 +353,23 @@ The neighboring `sv_randomize_global_sampling_fail` rollback control and
 `sv_constraint_solve_before_fixed_array` regression printed `PASSED` under
 both editions. The failure control's oversized-component warning and supported
 allocation-limit error are expected.
+
+
+## Isolated wide scalar intervals above 256 bits (fix 9)
+
+The interval sampler's arbitrary-width integer helper already used multi-limb
+arithmetic, but both it and its caller rejected widths above 256 bits. A
+257-bit scalar constrained to `[1:1024]` reproduced the bias at that boundary:
+with seed 628 the fallback produced equal-cardinality bins `26, 14, 26, 134`
+out of 200. Raising the supported interval width to 4,096 bits gives an exact
+uniform draw over the same legal interval. The same-seed 200-draw focused run
+produced `40, 54, 53, 53` in 32.40 s at 37,011,456-byte maximum RSS. The
+permanent paired regression uses 80 draws with four bin limits of 8–32; its
+focused result is `19, 20, 17, 24`.
+
+The final source-built ARM64 VVP SHA-256 is
+`be826871789654ec476f6a0c6a68bef0b0248bbadf379e4f021b43940acdd403`. The
+registered full uniformity suite printed `PASSED` under strict `-g2017` in
+92.12 s at 48,824,320-byte maximum RSS and under strict `-g2023` in 88.08 s at
+48,709,632-byte maximum RSS. Widths above 4,096 bits and unions with more than
+eight intervals remain unsupported by this fast exact path.

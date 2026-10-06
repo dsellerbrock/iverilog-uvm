@@ -2270,8 +2270,8 @@ larger mode 200/200 times, versus 150/200 before full-width rejection. The paire
 65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
 64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
-aggregate domains, unions with more than eight runs or wider-than-256-bit unconnected wide scalars,
-fixed-array ranks above three and other container shapes remain open. An isolated 33–256-bit scalar with up to eight disjoint feasible intervals
+aggregate domains, unions with more than eight runs or wider-than-4,096-bit unconnected wide scalars,
+fixed-array ranks above three and other container shapes remain open. An isolated 33–4,096-bit scalar with up to eight disjoint feasible intervals
 is sampled uniformly after exact boundary searches; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
 37, and 52/200. The unequal-range union test keeps four equal-cardinality bins
 within 30–70/200 in both editions. A 2×2×2 fixed-array oracle samples nine

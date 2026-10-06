@@ -152,6 +152,10 @@ class wide_single_range_uniformity;
   rand bit [64:0] value;
   constraint c { value inside {[65'd1:65'd1024]}; }
 endclass
+class wide_single_range_257_uniformity;
+  rand bit [256:0] value;
+  constraint c { value inside {[257'd1:257'd1024]}; }
+endclass
 class wide_fragmented_ranges_uniformity;
   rand bit [64:0] value;
   constraint c {
@@ -228,6 +232,7 @@ module main;
   wide_domain_uniformity_129 wide_uniform_129 = new;
   wide_domain_dense_uniformity wide_uniform_dense = new;
   wide_single_range_uniformity wide_single_range = new;
+  wide_single_range_257_uniformity wide_single_range_257 = new;
   wide_fragmented_ranges_uniformity wide_fragmented_ranges = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
@@ -250,6 +255,7 @@ module main;
   int wide_129_mode_one;
   int wide_dense_mode_one;
   int wide_single_range_count[4];
+  int wide_single_range_257_count[4];
   int wide_fragmented_ranges_count[4];
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
@@ -653,6 +659,29 @@ module main;
       if (wide_single_range_count[i] < 30 || wide_single_range_count[i] > 70)
         $fatal(1, "wide interval bucket %0d is biased: %0d/200",
                i, wide_single_range_count[i]);
+
+    // The interval sampler also handles widths beyond the former 256-bit cap.
+    wide_single_range_257.srandom(628);
+    repeat (80) begin
+      if (!wide_single_range_257.randomize())
+        $fatal(1, "257-bit wide single-range solve failed");
+      if (wide_single_range_257.value < 257'd1
+          || wide_single_range_257.value > 257'd1024)
+        $fatal(1, "257-bit wide interval result is outside its constraint");
+      if (wide_single_range_257.value <= 257'd256)
+        wide_single_range_257_count[0]++;
+      else if (wide_single_range_257.value <= 257'd512)
+        wide_single_range_257_count[1]++;
+      else if (wide_single_range_257.value <= 257'd768)
+        wide_single_range_257_count[2]++;
+      else
+        wide_single_range_257_count[3]++;
+    end
+    for (int i = 0; i < 4; ++i)
+      if (wide_single_range_257_count[i] < 8
+          || wide_single_range_257_count[i] > 32)
+        $fatal(1, "257-bit wide interval bucket %0d is biased: %0d/80",
+               i, wide_single_range_257_count[i]);
 
     // Unequal disjoint intervals still give every legal value equal weight.
     wide_fragmented_ranges.srandom(627);

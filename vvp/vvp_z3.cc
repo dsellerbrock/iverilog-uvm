@@ -8251,8 +8251,10 @@ struct dist_wide_uint_t {
       }
 };
 
+static const unsigned WIDE_INTERVAL_MAX_WIDTH = 4096;
+
 /* Sample a wide scalar uniformly from a bounded union of feasible intervals.
- * ponytail: cap at 8 runs and 256 bits; use exact model counting before
+ * ponytail: cap at 8 runs and 4096 bits; use exact model counting before
  * expanding either bound. */
 static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
                                                 Z3_solver base,
@@ -8263,7 +8265,7 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
 {
       typedef dist_wide_uint_t big;
       sample = nullptr;
-      if (width == 0 || width > 256) return false;
+      if (width == 0 || width > WIDE_INTERVAL_MAX_WIDTH) return false;
 
       Z3_ast formula = nullptr;
       if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
@@ -11085,7 +11087,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    if (!fallback_managed && single_var_fast_ok
-		&& pv.width > 32 && pv.width <= 256
+		&& pv.width > 32 && pv.width <= WIDE_INTERVAL_MAX_WIDTH
 		&& !exact_joint && builder.order_pairs.empty()
 		&& builder.dist_specs.empty() && builder.pending_soft.empty()
 		&& builder.state_checks.empty() && builder.qelem_vars.empty()

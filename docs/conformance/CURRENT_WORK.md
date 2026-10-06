@@ -20,7 +20,7 @@ isolated 65-bit scalar interval `[1:1024]` now samples four equal buckets
 57, 54, 37, and 52 times per 200 draws in both editions. The fragmented
 oracle uses `[1:768]` and `[1025:1280]`; four equal-cardinality bins stay
 within 30–70/200 despite the 3:1 interval-size ratio. More than eight runs
-or widths above 256 bits still use the prior fallback. Variable-size arrays
+or widths above 4,096 bits still use the prior fallback. Variable-size arrays
 with constrained element leaves retain the 512-element combined solver-model
 cap. Arrays with no constrained element leaves use SAT binary searches to find
 feasible size endpoints, then propose sizes in proportion to element-tuple
@@ -30,9 +30,11 @@ can take many retries. The 512/513 bit-array oracle now chooses sizes 50/70
 out of 120 and its first payload bit is one 55/120 times. The new 1,025-size
 singleton-enum oracle produces four equal-size bins 108,99,96,97/400; the old
 complete-model enumerator ran for 197.55 s before an interrupted run stopped
-without a histogram. Both full paired suites pass on fix 8. The 2023 run took 99.29 s at
-46,448,640-byte maximum RSS; elapsed time and RSS were not captured for 2017.
-The evidence page records the VVP hash. The 128/129-size oracle now yields counts 91/209 out of 300; the
+without a histogram. A 257-bit scalar interval now samples four bins 40,54,53,53
+out of 200, versus 26,14,26,134 on the old fallback; the paired 80-draw oracle
+passes under both editions. Both full paired suites pass on fix 9: 2017 took 92.12 s at 48,824,320-byte
+maximum RSS, and 2023 took 88.08 s at 48,709,632-byte maximum RSS. The evidence
+page records the VVP hash. The 128/129-size oracle now yields counts 91/209 out of 300; the
 pre-fix path gave the size-128 mode 139/300. At 256/257, the new counts are
 44/76 out of 120, versus 166/134 in the pre-fix 300-draw probe. Fixed
 integral/enum arrays are sampled from referenced leaves without a declared-extent cap; the registered regression currently
@@ -163,7 +165,7 @@ fixed-array, and bounded direct integral/enum-array tuples. Paired `-g2017` and
 2×2×2 fixed arrays, empty arrays, correlated arrays, 64/65-element arrays, and
 65-bit scalars. The new isolated
 65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200;
-unions with more than eight runs, unconnected widths above 256 bits, and
+unions with more than eight runs, unconnected widths above 4,096 bits, and
 fixed-array ranks above three remain open.
 The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
 the recorded threshold when the finite wide-domain cap is 256 values. Variable-size
