@@ -2255,9 +2255,12 @@ arrays sample referenced leaves without a declared-extent cap; unreferenced
 leaves remain independently prefilled. The variable-size sampler enumerates feasible sizes and
 canonicalizes inactive padding when its combined maximum is at most 128
 elements. Connected wide scalars are included
-when their complete feasible unary domain has at most 128 values; the paired
-65-tuple 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with
-the former 64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
+for connected scalar properties wider than 64 bits when each complete feasible
+unary domain has at most 256 values. A 129-tuple 65-bit oracle's 128-value
+branch was sampled 520/1,000 times before this
+extension and 196/200 times afterward in both editions. The paired 65-tuple
+64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
+64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
 aggregate domains, and other container shapes remain open. See the
 [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical

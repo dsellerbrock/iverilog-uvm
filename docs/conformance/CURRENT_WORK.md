@@ -8,9 +8,12 @@ regressions. Fixed-array coverage includes two- and 129-element one-dimensional
 arrays and a 2×2 array. The 129-element oracle's five bins are 91, 119, 90, 98,
 and 102/500; the 2×2 oracle's 17 bins each land between 30 and 90/1,000 (48–69
 observed). Other coverage includes empty arrays, two correlated arrays, a
-64/65-element size ratio, and a coupled 65-bit scalar with a five-value
-feasible domain. The combined array maximum for variable-size dynamic arrays is
-capped at 128 elements. Fixed integral/enum arrays are sampled from referenced
+64/65-element size ratio, and 65-bit scalars with five-, 65-, and 129-tuple
+domains. The 129-tuple oracle selects the 128-value branch 196/200 times; before
+the wider-domain change it did so 101/200 times. Connected scalars wider than
+64 bits are enumerated exactly when each feasible unary domain has at most 256 values. The
+combined array maximum for variable-size dynamic arrays is capped at 128
+elements. Fixed integral/enum arrays are sampled from referenced
 leaves without a declared-extent cap; the registered regression currently
 covers one and two unpacked dimensions. The array test retains the ordered
 `solve m before q` control. The overall clause remains partial for larger

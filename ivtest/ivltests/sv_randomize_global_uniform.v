@@ -89,6 +89,14 @@ class wide_domain_uniformity_above_cap;
     else value == 65'd0;
   }
 endclass
+class wide_domain_uniformity_129;
+  rand bit mode;
+  rand bit [64:0] value;
+  constraint c {
+    if (mode) value inside {[65'd1:65'd128]};
+    else value == 65'd0;
+  }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -129,6 +137,7 @@ module main;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
+  wide_domain_uniformity_129 wide_uniform_129 = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -140,6 +149,7 @@ module main;
   int member_tuple_count[3];
   int wide_tuple_count[5];
   int wide_above_cap_mode_one;
+  int wide_129_mode_one;
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -366,6 +376,23 @@ module main;
     if (wide_above_cap_mode_one < 90)
       $fatal(1, "65 legal wide tuples are not sampled uniformly: mode one %0d/100",
              wide_above_cap_mode_one);
+
+    // One branch has 128 legal values; the other has one.
+    wide_uniform_129.srandom(624);
+    repeat (200) begin
+      if (!wide_uniform_129.randomize())
+        $fatal(1, "129-tuple wide-domain solve failed");
+      if (wide_uniform_129.mode) begin
+        if (wide_uniform_129.value < 65'd1
+            || wide_uniform_129.value > 65'd128)
+          $fatal(1, "invalid 129-tuple mode-one value");
+        wide_129_mode_one++;
+      end else if (wide_uniform_129.value != 0)
+        $fatal(1, "invalid 129-tuple mode-zero value");
+    end
+    if (wide_129_mode_one < 185)
+      $fatal(1, "129 legal wide tuples are not sampled uniformly: mode one %0d/200",
+             wide_129_mode_one);
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);

@@ -7808,7 +7808,9 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
 static bool z3_enumerate_wide_values_(Z3_context ctx, Z3_solver base,
                                       Z3_ast var, vector<Z3_ast>& out)
 {
-      static const size_t WIDE_DOMAIN_CAP = 128;
+      // ponytail: cap blocking-model work at 256; use exact interval/count
+      // sampling to cover larger dense domains without enumerating values.
+      static const size_t WIDE_DOMAIN_CAP = 256;
       out.clear();
       bool exhausted = false;
       Z3_solver_push(ctx, base);

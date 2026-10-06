@@ -154,6 +154,21 @@ pass in both editions.
 Source-built ARM64 VVP SHA-256 after multidimensional fixed-array sampling:
 `8c9a705bb46707560a7c7e751f39ca201db840668ed776e8fc30d0e43e262643`.
 
+### Connected wide unary domains above 128 values
+
+A 65-bit scalar forms 129 legal tuples: mode zero has only value zero, while
+mode one has values 1 through 128. With the previous 128-value enumeration
+cap, the old fallback selected mode one 520/1,000 times; on the registered
+seed it selected mode one 101/200 times. Raising the complete unary-domain cap
+to 256 lets the joint sampler enumerate and rejection-sample the whole tuple.
+The paired strict `-g2017` and `-g2023` runs both select mode one 196/200 times,
+above the regression minimum of 185/200. The registered full uniformity suite
+and its sampling-failure and fixed-array solve-before neighbors pass under both
+editions.
+
+Source-built ARM64 VVP SHA-256 after 129-tuple wide-domain sampling:
+`b75832e27ccedb5dd5010d42e9430cb3ec2dd3c53e7d608cce9e2074d15980c9`.
+
 ## Adjacent 128-bit nested fixed-element randomization
 
 The existing `sv_constraint_wide_fixed_element_diversity` regression uses a
