@@ -3,9 +3,9 @@
 ## Current IEEE 1800 focus
 
 The direct-scalar subset, fixed unpacked bit arrays, and bounded variable-size,
-one-dimensional integral dynamic arrays now pass paired 2017/2023 statistical
-regressions. Fixed-array coverage includes two- and 129-element one-dimensional
-arrays, a 2×2 array, and a 2×2×2 array with nine complete tuples at
+one-dimensional integral and enum dynamic arrays now pass paired 2017/2023
+statistical regressions. Fixed-array coverage includes two- and 129-element
+one-dimensional arrays, a 2×2 array, and a 2×2×2 array with nine complete tuples at
 12–55/300. The 129-element oracle's five bins are 91, 119, 90, 98, and
 102/500; the 2×2 oracle's 17 bins each land between 30 and 90/1,000
 (48–69 observed). Other coverage includes empty arrays, two correlated arrays, a
@@ -147,10 +147,10 @@ The measured hot paths and coverage limits are summarized in the
 
 The selected blocker is unordered uniformity over legal constraint
 combinations. The current branch rejection-samples coupled scalar, referenced
-fixed-array, and bounded direct-array tuples and passes the paired Table 18-2,
-two- and 129-element fixed-array, 2×2 and 2×2×2 fixed-array, empty-array,
-correlated-array, 64/65-element, and 65-bit scalar checks under `-g2017` and
-`-g2023`. The new isolated
+fixed-array, and bounded direct integral/enum-array tuples. Paired `-g2017` and
+`-g2023` checks cover Table 18-2, two- and 129-element fixed arrays, 2×2 and
+2×2×2 fixed arrays, empty arrays, correlated arrays, 64/65-element arrays, and
+65-bit scalars. The new isolated
 65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200;
 unions with more than eight runs, unconnected widths above 256 bits, and
 fixed-array ranks above three remain open.
@@ -158,7 +158,9 @@ The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
 the recorded threshold when the finite wide-domain cap is 256 values. Variable-size
 dynamic arrays now use the exact sampler through 512 combined elements. The
 128/129 size multiplicities sample 91/209 times in 300 draws; 256/257 samples
-44/76 times in 120 draws.
+44/76 times in 120 draws. A variable-size enum array with three declared
+values and sizes one or two now samples the 3:9 tuple ratio at 29/91 out of
+120, after the prior fallback produced 67/53.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See

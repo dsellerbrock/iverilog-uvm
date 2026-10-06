@@ -104,6 +104,21 @@ observed near 80 MB RSS.
 
 Source-built ARM64 VVP SHA-256: `18b536ad006a8e6b01f23a930f9df13e298d117a961763058fbe96565abd5c1d`.
 
+## Variable-size enum arrays
+
+A two-bit enum with legal values 1, 2, and 3 competes at sizes one and two,
+giving three short tuples and nine long tuples. The old fallback produced
+67/53 short/long results in 120 draws. The bounded exact sampler now retains
+the enum literal constraint on every active element it synthesizes and keeps
+inactive padding fixed at zero, even though zero is not an enum value. The
+registered paired regression produces 29/91 in 120 draws. The full paired
+uniformity suites passed in strict `-g2017` and `-g2023` on the build below;
+the final rebuild also passed focused enum-array and enum-domain checks in both
+editions.
+
+Full-suite source-built ARM64 VVP SHA-256: `dc6b14b305259b2e6f2c59d478703ce29abf4b35ec47a6147e98e6bccdd50908`.
+Final focused-check source-built ARM64 VVP SHA-256: `d6b2f92644daccc0377c71335d6b7fc655c335a41f9ab3f4b49535826c20e8a9`.
+
 ## Connected wide-scalar finite-domain slice
 
 A 65-bit scalar reproducer has five complete legal tuples: one mode selects

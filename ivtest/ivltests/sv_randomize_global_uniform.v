@@ -81,6 +81,19 @@ class variable_size_array_at_256_257;
     else payload.size() == 257;
   }
 endclass
+typedef enum bit [1:0] {
+  uniform_enum_one = 1,
+  uniform_enum_two = 2,
+  uniform_enum_three = 3
+} variable_size_uniform_enum_t;
+class variable_size_enum_array_uniformity;
+  rand bit short_case;
+  rand variable_size_uniform_enum_t payload[];
+  constraint c {
+    if (short_case) payload.size() == 1;
+    else payload.size() == 2;
+  }
+endclass
 typedef struct {
   rand bit value;
 } uniform_member_t;
@@ -192,6 +205,7 @@ module main;
   variable_size_array_above_old_cap larger_array = new;
   variable_size_array_at_128_129 array_at_cap = new;
   variable_size_array_at_256_257 array_at_next_cap = new;
+  variable_size_enum_array_uniformity enum_array = new;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
@@ -210,6 +224,7 @@ module main;
   int larger_array_size_count[2];
   int array_at_cap_size_count[2];
   int array_at_next_cap_size_count[2];
+  int enum_array_size_count[2];
   int member_tuple_count[3];
   int wide_tuple_count[5];
   int wide_above_cap_mode_one;
@@ -428,6 +443,31 @@ module main;
         || array_at_next_cap_size_count[1] > 96)
       $fatal(1, "256/257 sizes are not weighted by complete tuples: %0d/%0d out of 120",
              array_at_next_cap_size_count[0], array_at_next_cap_size_count[1]);
+
+    // Three one-element tuples compete with nine two-element enum tuples.
+    enum_array.srandom(405);
+    repeat (120) begin
+      if (!enum_array.randomize())
+        $fatal(1, "variable-size enum array randomization failed");
+      if (enum_array.short_case) begin
+        if (enum_array.payload.size() != 1)
+          $fatal(1, "invalid size-one enum array tuple");
+        enum_array_size_count[0]++;
+      end else begin
+        if (enum_array.payload.size() != 2)
+          $fatal(1, "invalid size-two enum array tuple");
+        enum_array_size_count[1]++;
+      end
+      for (int i = 0; i < enum_array.payload.size(); ++i)
+        if (enum_array.payload[i] != uniform_enum_one
+            && enum_array.payload[i] != uniform_enum_two
+            && enum_array.payload[i] != uniform_enum_three)
+          $fatal(1, "invalid enum-array element");
+    end
+    if (enum_array_size_count[0] < 20 || enum_array_size_count[0] > 44
+        || enum_array_size_count[1] < 84 || enum_array_size_count[1] > 108)
+      $fatal(1, "enum-array sizes are not weighted by complete tuples: %0d/%0d out of 120",
+             enum_array_size_count[0], enum_array_size_count[1]);
 
     // One active struct member participates in the same three legal tuples.
     member_uniform.srandom(101);

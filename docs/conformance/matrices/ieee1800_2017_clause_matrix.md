@@ -2246,7 +2246,11 @@ PARTIAL.
 IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
 strict 2017/2023 regressions cover coupled direct scalar properties, fixed
 unpacked bit arrays declared with two and 129 elements, a 2×2 fixed array, and
-bounded variable-size direct arrays, including size zero and two correlated arrays.
+bounded variable-size direct integral/enum arrays, including size zero and two
+correlated arrays. A sparse three-value enum array with size one or two now
+samples the 3:9 complete-tuple ratio at 29/91 out of 120; before fix 6 its
+short/long counts were 67/53 out of 120. Enum legality is enforced for synthesized active
+elements, while inactive padding remains canonical zero.
 The 129-element oracle constrains two leaves and projects five legal tuples;
 the old fallback sampled mode one 155/500 times, while the new bins are
 91, 119, 90, 98, and 102/500. The 2×2 oracle has 17 tuples; its old mode-one

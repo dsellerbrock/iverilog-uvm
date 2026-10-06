@@ -9845,21 +9845,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       // IEEE 1800-2017/2023 18.4: randomized enum values belong to the
-      // declared literal set, whether reached directly or through a struct.
-      // Reuse these same domains in the accept-current solver below.
+      // declared literal set, whether reached directly, through a struct, or
+      // as an active dynamic-array element.
       vector<Z3_ast> enum_domains;
-      auto add_enum_domain = [&](const class_type*type, unsigned pid,
-                                 unsigned width, Z3_ast variable) {
-            if (!type || !type->property_is_enum(pid)) return;
+      auto enum_domain_for = [&](const class_type*type, unsigned pid,
+                                 unsigned width, Z3_ast variable) -> Z3_ast {
+            if (!type || !type->property_is_enum(pid)) return nullptr;
             vector<Z3_ast> literals;
             for (const auto&value : type->property_enum_values(pid)) {
                   Z3_ast literal;
                   if (!vec4_to_bv_const_(ctx, value, width, literal)) continue;
                   literals.push_back(Z3_mk_eq(ctx, variable, literal));
             }
-            Z3_ast domain = literals.empty() ? Z3_mk_false(ctx)
+            return literals.empty() ? Z3_mk_false(ctx)
                   : literals.size() == 1 ? literals.front()
                   : Z3_mk_or(ctx, (unsigned)literals.size(), literals.data());
+      };
+      auto add_enum_domain = [&](const class_type*type, unsigned pid,
+                                 unsigned width, Z3_ast variable) {
+            Z3_ast domain = enum_domain_for(type, pid, width, variable);
+            if (!domain) return;
             enum_domains.push_back(domain);
             Z3_optimize_assert(ctx, opt, domain);
             Z3_solver_assert(ctx, base, domain);
@@ -10013,7 +10018,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		      || !type->property_dimensions(pid).empty()
 		      || base_type.empty() || base_type[0] != 'D'
 		      || !desc.elem_integral || desc.elem_width == 0
-		      || desc.elem_width > 64 || type->property_is_enum(pid)
+		      || desc.elem_width > 64
 		      || type->property_is_randc(pid)) {
 			eligible = false;
 			break;
@@ -10065,22 +10070,35 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			unsigned width = widths.at(id);
 			uint64_t minimum = minima.at(id);
 			uint64_t maximum = maxima.at(id);
+			const class_type*type = builder.type(sv.idx);
+			unsigned pid = builder.local_index(sv.idx);
 			for (uint64_t elem = 0; elem < maximum; ++elem) {
 			      Z3_ast value = builder.get_elem_var(sv.idx, width,
 				    (unsigned)elem);
-			      if (elem < minimum) continue;
 			      Z3_ast index = Z3_mk_unsigned_int64(ctx, elem, size_sort);
 			      Z3_ast active = Z3_mk_bvugt(ctx, sv.var, index);
-			      Z3_ast zero = Z3_mk_unsigned_int64(ctx, 0,
-				    Z3_mk_bv_sort(ctx, width));
-			      Z3_ast canonical_terms[2] = {
-				    active, Z3_mk_eq(ctx, value, zero)
-			      };
-			      Z3_ast canonical = Z3_mk_or(ctx, 2, canonical_terms);
-			      Z3_solver_assert(ctx, base, canonical);
-			      Z3_optimize_assert(ctx, opt, canonical);
-			      uniform_dynamic_padding_vars.insert(value);
-			}
+			      if (elem >= minimum) {
+				    Z3_ast zero = Z3_mk_unsigned_int64(ctx, 0,
+					  Z3_mk_bv_sort(ctx, width));
+				    Z3_ast canonical_terms[2] = {
+					  active, Z3_mk_eq(ctx, value, zero)
+				    };
+				    Z3_ast canonical = Z3_mk_or(ctx, 2, canonical_terms);
+				    Z3_solver_assert(ctx, base, canonical);
+				    Z3_optimize_assert(ctx, opt, canonical);
+				    uniform_dynamic_padding_vars.insert(value);
+			      }
+			      Z3_ast enum_domain = enum_domain_for(type, pid, width,
+				    value);
+			      if (enum_domain) {
+				    if (elem >= minimum)
+					  enum_domain = Z3_mk_implies(ctx, active,
+						enum_domain);
+				    enum_domains.push_back(enum_domain);
+				    Z3_solver_assert(ctx, base, enum_domain);
+				    Z3_optimize_assert(ctx, opt, enum_domain);
+			      }
+				}
 		  }
 		  uniform_dynamic_size_domains = std::move(domains);
 		  uniform_dynamic_size_maximum = std::move(maxima);
