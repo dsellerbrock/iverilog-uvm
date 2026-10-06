@@ -2264,8 +2264,11 @@ larger mode 200/200 times, versus 150/200 before full-width rejection. The paire
 65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
 64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
-aggregate domains, and other container shapes remain open. See the
-[revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
+aggregate domains, fragmented or wider-than-256-bit unconnected wide scalars,
+and other container shapes remain open. An isolated 33–256-bit scalar with one
+contiguous feasible interval is sampled uniformly after min/max and no-holes
+proofs; the paired 65-bit `[1:1024]` oracle bins are 57, 54, 37, and 52/200.
+See the [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical
 [`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
 result. No broader clause-18 qualification is claimed.

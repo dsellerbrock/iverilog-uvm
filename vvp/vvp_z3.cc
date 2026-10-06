@@ -8199,6 +8199,19 @@ struct dist_wide_uint_t {
 	    r.trim();
 	    return r;
       }
+	static dist_wide_uint_t shift_right_one(const dist_wide_uint_t&a)
+	{
+	      dist_wide_uint_t r;
+	      r.limb.resize(a.limb.size(), 0);
+	      uint32_t carry = 0;
+	      for (size_t i = a.limb.size(); i > 0; --i) {
+		    uint32_t word = a.limb[i - 1];
+		    r.limb[i - 1] = (word >> 1) | (carry << 31);
+		    carry = word & 1;
+	      }
+	      r.trim();
+	      return r;
+	}
 	// Exact uniform draw in [0, bound) by rejection over bit_length bits.
       static dist_wide_uint_t uniform_below(z3_rng_stream_t&rng,
 					    const dist_wide_uint_t&bound)
@@ -8235,6 +8248,91 @@ struct dist_wide_uint_t {
 	    return Z3_mk_bv_numeral(ctx, width, bits.get());
       }
 };
+
+/* Sample a wide scalar uniformly when its feasible set is one interval.
+ * ponytail: cap interval searches at 256 bits and reject fragmented domains;
+ * measure exact union counting before expanding either bound. */
+static bool z3_sample_wide_single_var_interval_(Z3_context ctx,
+                                                Z3_solver base,
+                                                Z3_ast var,
+                                                unsigned width,
+                                                z3_rng_stream_t&rng,
+                                                Z3_ast&sample)
+{
+      typedef dist_wide_uint_t big;
+      sample = nullptr;
+      if (width == 0 || width > 256) return false;
+
+      Z3_ast formula = nullptr;
+      if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
+      if (Z3_get_bool_value(ctx, formula) == Z3_L_TRUE) {
+            big domain;
+            domain.set_bit(width);
+            sample = big::uniform_below(rng, domain).numeral(ctx, width);
+            return sample != nullptr;
+      }
+      Z3_solver outside = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, outside);
+      Z3_solver_assert(ctx, outside, Z3_mk_not(ctx, formula));
+
+      big power;
+      power.set_bit(width);
+      const big one = big::from_u64(1);
+      const big maximum = big::sub(power, one);
+      auto exists_in = [&](Z3_solver solver, const big&lo,
+                           const big&hi) -> Z3_lbool {
+            if (big::cmp(lo, hi) > 0) return Z3_L_FALSE;
+            Z3_ast bounds[2] = {
+                  Z3_mk_bvuge(ctx, var, lo.numeral(ctx, width)),
+                  Z3_mk_bvule(ctx, var, hi.numeral(ctx, width))};
+            Z3_ast range = Z3_mk_and(ctx, 2, bounds);
+            Z3_solver_push(ctx, solver);
+            Z3_solver_assert(ctx, solver, range);
+            Z3_lbool result = Z3_solver_check(ctx, solver);
+            Z3_solver_pop(ctx, solver, 1);
+            return result;
+      };
+
+      if (exists_in(base, big(), maximum) != Z3_L_TRUE) {
+            Z3_solver_dec_ref(ctx, outside);
+            return false;
+      }
+      big lo, hi = maximum;
+      while (big::cmp(lo, hi) < 0) {
+            big mid = big::shift_right_one(big::add(lo, hi));
+            Z3_lbool left = exists_in(base, big(), mid);
+            if (left == Z3_L_UNDEF) {
+                  Z3_solver_dec_ref(ctx, outside);
+                  return false;
+            }
+            if (left == Z3_L_TRUE) hi = mid;
+            else lo = big::add(mid, one);
+      }
+      big first = lo;
+
+      lo = first;
+      hi = maximum;
+      while (big::cmp(lo, hi) < 0) {
+            big mid = big::shift_right_one(big::add(lo,
+                                          big::add(hi, one)));
+            Z3_lbool right = exists_in(base, mid, maximum);
+            if (right == Z3_L_UNDEF) {
+                  Z3_solver_dec_ref(ctx, outside);
+                  return false;
+            }
+            if (right == Z3_L_TRUE) lo = mid;
+            else hi = big::sub(mid, one);
+      }
+      big last = lo;
+      Z3_lbool has_hole = exists_in(outside, first, last);
+      Z3_solver_dec_ref(ctx, outside);
+      if (has_hole != Z3_L_FALSE) return false;
+
+      big count = big::add(big::sub(last, first), one);
+      big selected = big::add(first, big::uniform_below(rng, count));
+      sample = selected.numeral(ctx, width);
+      return sample != nullptr;
+}
 
 /* Exact dist sampling for items wider than 64 bits (IEEE 1800-2017 18.5.4,
  * 1800-2023 18.5.3), with the same semantics as the <=64-bit path: choose a
@@ -10777,6 +10875,22 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (z3_enumerate_wide_values_(ctx, base, pv.var, values)) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var,
 			      values[property_rng(pv.idx).uniform_index(values.size())]);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
+	    }
+	    if (!fallback_managed && single_var_fast_ok
+		&& pv.width > 32 && pv.width <= 256
+		&& !exact_joint && builder.order_pairs.empty()
+		&& builder.dist_specs.empty() && builder.pending_soft.empty()
+		&& builder.state_checks.empty() && builder.qelem_vars.empty()
+		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
+		  Z3_ast sampled = nullptr;
+		  if (z3_sample_wide_single_var_interval_(ctx, base, pv.var,
+							   pv.width,
+							   property_rng(pv.idx), sampled)) {
+			Z3_ast eq = Z3_mk_eq(ctx, pv.var, sampled);
 			Z3_optimize_assert(ctx, opt, eq);
 			Z3_solver_assert(ctx, base, eq);
 			continue;

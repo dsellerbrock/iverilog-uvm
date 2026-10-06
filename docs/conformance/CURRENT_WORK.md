@@ -15,6 +15,9 @@ the wider-domain change it did so 101/200 times. Connected scalars wider than
 proposals with hard-solver rejection for larger connected domains. A dense
 2⁶⁵-value case chooses its larger branch 200/200 times. Sparse domains above
 the enumeration cap may take impractically many retries. The
+isolated 65-bit scalar interval `[1:1024]` now samples four equal buckets
+57, 54, 37, and 52 times per 200 draws in both editions; fragmented domains
+and widths above 256 bits still use the prior fallback. The
 combined array maximum for variable-size dynamic arrays is capped at 128
 elements. Fixed integral/enum arrays are sampled from referenced
 leaves without a declared-extent cap; the registered regression currently
@@ -142,9 +145,11 @@ The selected blocker is unordered uniformity over legal constraint
 combinations. The current branch rejection-samples coupled scalar, referenced
 fixed-array, and bounded direct-array tuples and passes the paired Table 18-2,
 two- and 129-element fixed-array, empty-array, correlated-array, 64/65-element,
-and 65-bit scalar checks under `-g2017` and `-g2023`.
+and 65-bit scalar checks under `-g2017` and `-g2023`. The new isolated
+65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200;
+fragmented unconnected wide domains remain open.
 The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
-the recorded threshold when the finite wide-domain cap is 128 values.
+the recorded threshold when the finite wide-domain cap is 256 values.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See

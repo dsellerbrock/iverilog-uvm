@@ -206,3 +206,39 @@ paired `sv_randomize_global_uniform` statistical suite and its rollback
 control also pass on the same VVP image.
 
 Source-built ARM64 VVP SHA-256: `3d24d2efddd12f07ad7bedbee2d8d3d6662e6af2ccffda6639ada3a35e000ccb`.
+
+## Isolated wide-scalar contiguous interval
+
+A direct `rand bit [64:0] value` constrained to `[1:1024]` previously fell
+through finite-domain enumeration to Optimize diversity. With seed 626, the
+registered regression failed at 23/200 in its first 256-value bucket. The new
+path applies only to isolated direct scalar properties wider than 32 bits when
+solve-before, `dist`, soft constraints, `randc`, exact-joint solving, state
+checks, and queue-element references are absent. The proof is capped at 256 bits
+because it performs O(width) SAT queries; tautological factors use a direct
+full-domain draw. It reuses the existing isolated-factor proof, binary-searches
+the minimum and maximum feasible values,
+then proves the interval contains no holes before drawing a uniform rank.
+Fragmented sets and widths above 256 decline this path and remain outside the
+uniformity claim.
+
+The registered `sv_randomize_global_uniform` suite passes under both strict
+`-g2017` and `-g2023`. A same-seed standalone run gives the four equal
+256-value bins `57, 54, 37, 52` out of 200 in each edition; the permanent
+regression requires every bin to be 30–70. The adjacent sampling-failure and
+fixed-array solve-before controls pass in both editions. The oversized-domain
+warning and fixed-array allocation error in the failure control are expected.
+
+Paired full-suite commands, from the repository root:
+
+```sh
+local-install/bin/iverilog -g2017 -s main -I ivtest -o /tmp/sv-randomize-uniform-2017.vvp ivtest/ivltests/sv_randomize_global_uniform.v
+local-install/bin/vvp /tmp/sv-randomize-uniform-2017.vvp
+local-install/bin/iverilog -g2023 -s main -I ivtest -o /tmp/sv-randomize-uniform-2023.vvp ivtest/ivltests/sv_randomize_global_uniform_2023.v
+local-install/bin/vvp /tmp/sv-randomize-uniform-2023.vvp
+```
+
+The installed source-built ARM64 VVP SHA-256 for this evidence is
+`7c2e48537d72160c74b89eb36cd28f63f36eea977a839920b083ec12b0a1e8f3`.
+This focused fix does not close the broader uniform-legal-combinations
+requirement.

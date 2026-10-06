@@ -105,6 +105,10 @@ class wide_domain_dense_uniformity;
     else value == 65'd0;
   }
 endclass
+class wide_single_range_uniformity;
+  rand bit [64:0] value;
+  constraint c { value inside {[65'd1:65'd1024]}; }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -147,6 +151,7 @@ module main;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
   wide_domain_uniformity_129 wide_uniform_129 = new;
   wide_domain_dense_uniformity wide_uniform_dense = new;
+  wide_single_range_uniformity wide_single_range = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -160,6 +165,7 @@ module main;
   int wide_above_cap_mode_one;
   int wide_129_mode_one;
   int wide_dense_mode_one;
+  int wide_single_range_count[4];
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -419,6 +425,28 @@ module main;
     if (wide_dense_mode_one < 190)
       $fatal(1, "large feasible domain is not sampled uniformly: mode one %0d/200",
              wide_dense_mode_one);
+
+    // A single wide scalar's contiguous interval must be sampled uniformly.
+    wide_single_range.srandom(626);
+    repeat (200) begin
+      if (!wide_single_range.randomize())
+        $fatal(1, "wide single-range solve failed");
+      if (wide_single_range.value < 65'd1
+          || wide_single_range.value > 65'd1024)
+        $fatal(1, "wide single-range result is outside its constraint");
+      if (wide_single_range.value <= 65'd256)
+        wide_single_range_count[0]++;
+      else if (wide_single_range.value <= 65'd512)
+        wide_single_range_count[1]++;
+      else if (wide_single_range.value <= 65'd768)
+        wide_single_range_count[2]++;
+      else
+        wide_single_range_count[3]++;
+    end
+    for (int i = 0; i < 4; ++i)
+      if (wide_single_range_count[i] < 30 || wide_single_range_count[i] > 70)
+        $fatal(1, "wide interval bucket %0d is biased: %0d/200",
+               i, wide_single_range_count[i]);
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);
