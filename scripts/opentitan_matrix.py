@@ -14,9 +14,11 @@ compiler, provider mappings, and commands produced each result.
 from __future__ import annotations
 
 import argparse
+import codecs
 import concurrent.futures
 import dataclasses
 import datetime as dt
+import errno
 import hashlib
 import json
 import os
@@ -1079,11 +1081,18 @@ def command_result(
     env: dict[str, str],
     timeout: int,
     memory_limit_bytes: int | None = None,
+    live_log_path: Path | None = None,
 ) -> CommandResult:
     if memory_limit_bytes is not None:
         return memory_guarded_command_result(
             command, cwd=cwd, env=env, timeout=timeout,
             memory_limit_bytes=memory_limit_bytes,
+            live_log_path=live_log_path,
+        )
+    if live_log_path is not None:
+        return live_logged_command_result(
+            command, cwd=cwd, env=env, timeout=timeout,
+            live_log_path=live_log_path,
         )
     started = time.monotonic()
     process = subprocess.Popen(
@@ -1128,6 +1137,139 @@ def command_result(
             ACTIVE_PROCESSES.discard(process)
 
 
+def start_live_logged_process(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    output_file,
+) -> tuple[
+    subprocess.Popen[str], int | None, threading.Thread | None,
+    list[BaseException],
+]:
+    errors: list[BaseException] = []
+    if os.name != "posix":
+        process = subprocess.Popen(
+            list(command), cwd=cwd, env=env,
+            stdout=output_file, stderr=subprocess.STDOUT, text=True,
+        )
+        return process, None, None, errors
+
+    import pty
+    import tty
+
+    master_fd, slave_fd = pty.openpty()
+    try:
+        tty.setraw(slave_fd)
+        process = subprocess.Popen(
+            list(command), cwd=cwd, env=env,
+            stdout=slave_fd, stderr=subprocess.STDOUT, text=True,
+            start_new_session=True,
+        )
+    except BaseException:
+        os.close(master_fd)
+        os.close(slave_fd)
+        raise
+    os.close(slave_fd)
+
+    def stream_output() -> None:
+        decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        try:
+            while True:
+                try:
+                    data = os.read(master_fd, 65536)
+                except OSError as exc:
+                    if exc.errno == errno.EIO:
+                        break
+                    raise
+                if not data:
+                    break
+                output_file.write(decoder.decode(data))
+                output_file.flush()
+            remainder = decoder.decode(b"", final=True)
+            if remainder:
+                output_file.write(remainder)
+                output_file.flush()
+        except BaseException as exc:
+            errors.append(exc)
+
+    reader = threading.Thread(target=stream_output, daemon=True)
+    reader.start()
+    return process, master_fd, reader, errors
+
+
+def finish_live_logged_process(
+    process: subprocess.Popen[str],
+    master_fd: int | None,
+    reader: threading.Thread | None,
+    errors: list[BaseException],
+) -> None:
+    if reader is not None:
+        reader.join(timeout=5)
+        if reader.is_alive():
+            signal_command_tree(process, signal.SIGTERM)
+            reader.join(timeout=1)
+    if master_fd is not None:
+        os.close(master_fd)
+    if errors:
+        raise errors[0]
+
+
+def live_logged_command_result(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+    live_log_path: Path,
+) -> CommandResult:
+    live_log_path.parent.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    with live_log_path.open("w+t", encoding="utf-8", errors="replace") as output_file:
+        process, master_fd, reader, reader_errors = start_live_logged_process(
+            command, cwd=cwd, env=env, output_file=output_file
+        )
+        with ACTIVE_PROCESSES_LOCK:
+            ACTIVE_PROCESSES.add(process)
+        try:
+            timed_out = False
+            try:
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                signal_command_tree(process, signal.SIGTERM)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    signal_command_tree(process, signal.SIGKILL)
+                    process.wait()
+        except KeyboardInterrupt:
+            signal_command_tree(process, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                signal_command_tree(process, signal.SIGKILL)
+                process.wait()
+            raise
+        finally:
+            try:
+                finish_live_logged_process(
+                    process, master_fd, reader, reader_errors
+                )
+            finally:
+                with ACTIVE_PROCESSES_LOCK:
+                    ACTIVE_PROCESSES.discard(process)
+        output_file.flush()
+        output_file.seek(0)
+        return CommandResult(
+            list(command),
+            124 if timed_out else process.returncode,
+            output_file.read(),
+            time.monotonic() - started,
+            timed_out,
+        )
+
+
 def memory_guarded_command_result(
     command: Sequence[str],
     *,
@@ -1135,6 +1277,7 @@ def memory_guarded_command_result(
     env: dict[str, str],
     timeout: int,
     memory_limit_bytes: int,
+    live_log_path: Path | None = None,
 ) -> CommandResult:
     """Stop one runtime process group when macOS reports excessive footprint."""
     started = time.monotonic()
@@ -1142,11 +1285,26 @@ def memory_guarded_command_result(
     timed_out = False
     memory_limit_hit = False
     monitor_error = None
-    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8", errors="replace") as output_file:
-        process = subprocess.Popen(
-            list(command), cwd=cwd, env=env, stdout=output_file,
-            stderr=subprocess.STDOUT, text=True, start_new_session=True,
+    if live_log_path is None:
+        output_context = tempfile.TemporaryFile(
+            mode="w+t", encoding="utf-8", errors="replace"
         )
+    else:
+        live_log_path.parent.mkdir(parents=True, exist_ok=True)
+        output_context = live_log_path.open(
+            "w+t", encoding="utf-8", errors="replace"
+        )
+    with output_context as output_file:
+        if live_log_path is None:
+            process = subprocess.Popen(
+                list(command), cwd=cwd, env=env, stdout=output_file,
+                stderr=subprocess.STDOUT, text=True, start_new_session=True,
+            )
+            master_fd, reader, reader_errors = None, None, []
+        else:
+            process, master_fd, reader, reader_errors = start_live_logged_process(
+                command, cwd=cwd, env=env, output_file=output_file
+            )
         with ACTIVE_PROCESSES_LOCK:
             ACTIVE_PROCESSES.add(process)
         try:
@@ -1203,24 +1361,6 @@ def memory_guarded_command_result(
                     pass
                 signal_command_tree(process, signal.SIGKILL)
                 process.wait()
-            output_file.seek(0)
-            output = output_file.read()
-            if memory_limit_hit:
-                output += (f"\nmatrix runtime memory limit: {peak} > "
-                           f"{memory_limit_bytes} physical-footprint bytes\n")
-            if monitor_error:
-                output += f"\nmatrix runtime memory monitor failed: {monitor_error}\n"
-            return CommandResult(
-                list(command),
-                124 if timed_out else 125 if memory_limit_hit else 126 if monitor_error
-                else process.returncode,
-                output,
-                time.monotonic() - started,
-                timed_out,
-                memory_limit_hit,
-                peak or None,
-                monitor_error,
-            )
         except KeyboardInterrupt:
             signal_command_tree(process, signal.SIGTERM)
             try:
@@ -1231,8 +1371,32 @@ def memory_guarded_command_result(
             process.wait()
             raise
         finally:
-            with ACTIVE_PROCESSES_LOCK:
-                ACTIVE_PROCESSES.discard(process)
+            try:
+                finish_live_logged_process(
+                    process, master_fd, reader, reader_errors
+                )
+            finally:
+                with ACTIVE_PROCESSES_LOCK:
+                    ACTIVE_PROCESSES.discard(process)
+        output_file.flush()
+        output_file.seek(0)
+        output = output_file.read()
+        if memory_limit_hit:
+            output += (f"\nmatrix runtime memory limit: {peak} > "
+                       f"{memory_limit_bytes} physical-footprint bytes\n")
+        if monitor_error:
+            output += f"\nmatrix runtime memory monitor failed: {monitor_error}\n"
+        return CommandResult(
+            list(command),
+            124 if timed_out else 125 if memory_limit_hit else 126 if monitor_error
+            else process.returncode,
+            output,
+            time.monotonic() - started,
+            timed_out,
+            memory_limit_hit,
+            peak or None,
+            monitor_error,
+        )
 
 
 def short_command(command: Sequence[str]) -> str:
@@ -5378,6 +5542,7 @@ def run_job(
     runtime_command = [
         str(vvp), "-n", *dpi_options, str(executable), *runtime_arguments
     ]
+    runtime_log = work_root / "matrix-runtime.log"
     runtime_result = command_result(
         runtime_command,
         cwd=source_list.parent,
@@ -5387,8 +5552,8 @@ def run_job(
             args.runtime_memory_mib * 1024 * 1024
             if args.runtime_memory_mib else None
         ),
+        live_log_path=runtime_log,
     )
-    runtime_log = work_root / "matrix-runtime.log"
     write_log(runtime_log, "OpenTitan UVM runtime", runtime_result)
     runtime_errors = matching_lines(
         runtime_result.output,
