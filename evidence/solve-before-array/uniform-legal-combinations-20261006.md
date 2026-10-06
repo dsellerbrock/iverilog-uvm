@@ -207,20 +207,30 @@ control also pass on the same VVP image.
 
 Source-built ARM64 VVP SHA-256: `3d24d2efddd12f07ad7bedbee2d8d3d6662e6af2ccffda6639ada3a35e000ccb`.
 
-## Isolated wide-scalar contiguous interval
+## Isolated wide-scalar interval unions
 
 A direct `rand bit [64:0] value` constrained to `[1:1024]` previously fell
 through finite-domain enumeration to Optimize diversity. With seed 626, the
 registered regression failed at 23/200 in its first 256-value bucket. The new
-path applies only to isolated direct scalar properties wider than 32 bits when
-solve-before, `dist`, soft constraints, `randc`, exact-joint solving, state
-checks, and queue-element references are absent. The proof is capped at 256 bits
-because it performs O(width) SAT queries; tautological factors use a direct
-full-domain draw. It reuses the existing isolated-factor proof, binary-searches
-the minimum and maximum feasible values,
-then proves the interval contains no holes before drawing a uniform rank.
-Fragmented sets and widths above 256 decline this path and remain outside the
-uniformity claim.
+path applies only to isolated direct scalar properties wider than 32 bits and
+at most 256 bits when solve-before, `dist`, soft constraints, `randc`, exact-joint
+solving, state checks, and queue-element references are absent. It reuses the
+existing isolated-factor proof and searches for the first feasible value and
+the first infeasible value after each run. Up to eight disjoint runs are counted
+by cardinality, then one uniform rank is drawn from their union. Tautological
+factors use a direct full-domain draw. Unknown solver results, unions with more
+than eight runs, and widths above 256 decline this path.
+
+### Fragmented wide-scalar intervals
+
+Before this extension, a two-range probe with equal 512-value intervals and
+seed 627 failed at 22/200 in its first bucket. The registered paired
+regression now uses the unequal union `[1:768] U [1025:1280]` (1,024 legal
+values total) and partitions it into four 256-value bins. All four bins stay
+within 30–70/200 under both strict `-g2017` and `-g2023`, showing equal weight
+per legal value across intervals with a 3:1 size ratio; results in the gap or
+outside the union fail immediately. The sampler caps the exact union proof at
+eight runs and 256 bits.
 
 The registered `sv_randomize_global_uniform` suite passes under both strict
 `-g2017` and `-g2023`. A same-seed standalone run gives the four equal
@@ -239,6 +249,6 @@ local-install/bin/vvp /tmp/sv-randomize-uniform-2023.vvp
 ```
 
 The installed source-built ARM64 VVP SHA-256 for this evidence is
-`7c2e48537d72160c74b89eb36cd28f63f36eea977a839920b083ec12b0a1e8f3`.
+`e03e71b261bcf0f4e98cf6a67e8cae5b4a7cebd180001e961bc1db52f663c5ae`.
 This focused fix does not close the broader uniform-legal-combinations
 requirement.

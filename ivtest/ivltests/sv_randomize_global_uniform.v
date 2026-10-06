@@ -109,6 +109,12 @@ class wide_single_range_uniformity;
   rand bit [64:0] value;
   constraint c { value inside {[65'd1:65'd1024]}; }
 endclass
+class wide_fragmented_ranges_uniformity;
+  rand bit [64:0] value;
+  constraint c {
+    value inside {[65'd1:65'd768], [65'd1025:65'd1280]};
+  }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -152,6 +158,7 @@ module main;
   wide_domain_uniformity_129 wide_uniform_129 = new;
   wide_domain_dense_uniformity wide_uniform_dense = new;
   wide_single_range_uniformity wide_single_range = new;
+  wide_fragmented_ranges_uniformity wide_fragmented_ranges = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -166,6 +173,7 @@ module main;
   int wide_129_mode_one;
   int wide_dense_mode_one;
   int wide_single_range_count[4];
+  int wide_fragmented_ranges_count[4];
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -447,6 +455,32 @@ module main;
       if (wide_single_range_count[i] < 30 || wide_single_range_count[i] > 70)
         $fatal(1, "wide interval bucket %0d is biased: %0d/200",
                i, wide_single_range_count[i]);
+
+    // Unequal disjoint intervals still give every legal value equal weight.
+    wide_fragmented_ranges.srandom(627);
+    repeat (200) begin
+      if (!wide_fragmented_ranges.randomize())
+        $fatal(1, "wide fragmented-range solve failed");
+      if (wide_fragmented_ranges.value >= 65'd1
+          && wide_fragmented_ranges.value <= 65'd256)
+        wide_fragmented_ranges_count[0]++;
+      else if (wide_fragmented_ranges.value >= 65'd257
+               && wide_fragmented_ranges.value <= 65'd512)
+        wide_fragmented_ranges_count[1]++;
+      else if (wide_fragmented_ranges.value >= 65'd513
+               && wide_fragmented_ranges.value <= 65'd768)
+        wide_fragmented_ranges_count[2]++;
+      else if (wide_fragmented_ranges.value >= 65'd1025
+               && wide_fragmented_ranges.value <= 65'd1280)
+        wide_fragmented_ranges_count[3]++;
+      else
+        $fatal(1, "wide fragmented-range result is outside its constraints");
+    end
+    for (int i = 0; i < 4; ++i)
+      if (wide_fragmented_ranges_count[i] < 30
+          || wide_fragmented_ranges_count[i] > 70)
+        $fatal(1, "fragmented-range bucket %0d is biased: %0d/200",
+               i, wide_fragmented_ranges_count[i]);
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);

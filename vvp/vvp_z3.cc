@@ -8249,10 +8249,10 @@ struct dist_wide_uint_t {
       }
 };
 
-/* Sample a wide scalar uniformly when its feasible set is one interval.
- * ponytail: cap interval searches at 256 bits and reject fragmented domains;
- * measure exact union counting before expanding either bound. */
-static bool z3_sample_wide_single_var_interval_(Z3_context ctx,
+/* Sample a wide scalar uniformly from a bounded union of feasible intervals.
+ * ponytail: cap at 8 runs and 256 bits; use exact model counting before
+ * expanding either bound. */
+static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
                                                 Z3_solver base,
                                                 Z3_ast var,
                                                 unsigned width,
@@ -8293,45 +8293,68 @@ static bool z3_sample_wide_single_var_interval_(Z3_context ctx,
             return result;
       };
 
-      if (exists_in(base, big(), maximum) != Z3_L_TRUE) {
+      struct interval_t { big first, last; };
+      static const size_t INTERVAL_CAP = 8;
+      vector<interval_t> intervals;
+      big total;
+      big cursor;
+      auto fail = [&]() -> bool {
             Z3_solver_dec_ref(ctx, outside);
             return false;
-      }
-      big lo, hi = maximum;
-      while (big::cmp(lo, hi) < 0) {
-            big mid = big::shift_right_one(big::add(lo, hi));
-            Z3_lbool left = exists_in(base, big(), mid);
-            if (left == Z3_L_UNDEF) {
-                  Z3_solver_dec_ref(ctx, outside);
-                  return false;
-            }
-            if (left == Z3_L_TRUE) hi = mid;
-            else lo = big::add(mid, one);
-      }
-      big first = lo;
+      };
+      for (;;) {
+            Z3_lbool any = exists_in(base, cursor, maximum);
+            if (any == Z3_L_FALSE) break;
+            if (any == Z3_L_UNDEF || intervals.size() == INTERVAL_CAP)
+                  return fail();
 
-      lo = first;
-      hi = maximum;
-      while (big::cmp(lo, hi) < 0) {
-            big mid = big::shift_right_one(big::add(lo,
-                                          big::add(hi, one)));
-            Z3_lbool right = exists_in(base, mid, maximum);
-            if (right == Z3_L_UNDEF) {
-                  Z3_solver_dec_ref(ctx, outside);
-                  return false;
+            big lo = cursor, hi = maximum;
+            while (big::cmp(lo, hi) < 0) {
+                  big mid = big::shift_right_one(big::add(lo, hi));
+                  Z3_lbool left = exists_in(base, cursor, mid);
+                  if (left == Z3_L_UNDEF) return fail();
+                  if (left == Z3_L_TRUE) hi = mid;
+                  else lo = big::add(mid, one);
             }
-            if (right == Z3_L_TRUE) lo = mid;
-            else hi = big::sub(mid, one);
+            big first = lo;
+
+            Z3_lbool hole = exists_in(outside, first, maximum);
+            if (hole == Z3_L_UNDEF) return fail();
+            big last = maximum;
+            if (hole == Z3_L_TRUE) {
+                  lo = first;
+                  hi = maximum;
+                  while (big::cmp(lo, hi) < 0) {
+                        big mid = big::shift_right_one(big::add(lo, hi));
+                        Z3_lbool left = exists_in(outside, first, mid);
+                        if (left == Z3_L_UNDEF) return fail();
+                        if (left == Z3_L_TRUE) hi = mid;
+                        else lo = big::add(mid, one);
+                  }
+                  if (big::cmp(lo, first) <= 0) return fail();
+                  last = big::sub(lo, one);
+            }
+
+            intervals.push_back({first, last});
+            total = big::add(total,
+                  big::add(big::sub(last, first), one));
+            if (big::cmp(last, maximum) == 0) break;
+            cursor = big::add(last, one);
       }
-      big last = lo;
-      Z3_lbool has_hole = exists_in(outside, first, last);
       Z3_solver_dec_ref(ctx, outside);
-      if (has_hole != Z3_L_FALSE) return false;
+      if (intervals.empty() || total.zero()) return false;
 
-      big count = big::add(big::sub(last, first), one);
-      big selected = big::add(first, big::uniform_below(rng, count));
-      sample = selected.numeral(ctx, width);
-      return sample != nullptr;
+      big ticket = big::uniform_below(rng, total);
+      for (const auto&interval : intervals) {
+            big count = big::add(big::sub(interval.last, interval.first), one);
+            if (big::cmp(ticket, count) < 0) {
+                  big selected = big::add(interval.first, ticket);
+                  sample = selected.numeral(ctx, width);
+                  return sample != nullptr;
+            }
+            ticket = big::sub(ticket, count);
+      }
+      return false;
 }
 
 /* Exact dist sampling for items wider than 64 bits (IEEE 1800-2017 18.5.4,
@@ -10887,7 +10910,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		&& builder.state_checks.empty() && builder.qelem_vars.empty()
 		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
 		  Z3_ast sampled = nullptr;
-		  if (z3_sample_wide_single_var_interval_(ctx, base, pv.var,
+		  if (z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
 							   pv.width,
 							   property_rng(pv.idx), sampled)) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var, sampled);
