@@ -3,9 +3,11 @@
 ## Current OpenTitan status — 2026-10-05
 
 The latest candidate selected runtime result is the
-[candidate recheck](../../evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md):
-**49/49 targets passed** in matching 33- and 16-row serial segments, with no
-failed completed rows or runtime debt. The earlier
+[engine 367e aggregate](../../evidence/opentitan-census-20261002/candidate-runtime-engine-367e-aggregate-20261005/README.md):
+**49/49 targets passed**. It combines 48 completed rows with a focused I2C
+replay after making overlay staging idempotent. The earlier
+[engine 890c candidate recheck](../../evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md)
+also passed 49/49 in matching 33- and 16-row serial segments. The earlier
 [census18 result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md)
 also passed 49/49, on the installed pre-candidate compiler.
 
@@ -15,17 +17,19 @@ Census18 used UVM 1.2 and `-gcommercial-unsafe`. This qualifies the selected
 The latest compile-only census covers 309 RTL/SVA/UVM rows on engine `367e…`:
 157 PASS, 120 dependency-only, 6 DEBT, 16 FAIL, 7 setup failures, and 3
 upstream-invalid. The [full census report](../../evidence/opentitan-census-20261002/candidate-engine-367e-compile-census-20261005/README.md)
-lists the remaining rows. The patched UVM lane passes 35/35 on this engine, but
-the selected 49/49 runtime result remains on engine `890c…`; OpenTitan is not
-fully qualified on `367e…` yet. See the [compile matrix](opentitan_matrix.md).
+lists the remaining rows. The patched UVM lane passes 35/35 on this engine.
+The selected runtime gate also passes 49/49 on `367e…`, but OpenTitan is not
+fully qualified while the remaining compile-census outcomes persist. See the
+[compile matrix](opentitan_matrix.md).
 The candidate passes the standalone OpenTitan AST reproducer 20/20 and three
 related sparse-case regressions 3/3. See the [AST synthesis evidence](../../evidence/opentitan-ast-synthesis-abort-20261004/README.md).
 
 The default `rom_ctrl`, `top_earlgrey`, and `chip_earlgrey_asic` synthesis
 rows pass with a build-local overlay that guards only simulation path-printing
 and retains `$readmemh`. These RTL results are included in the refreshed
-engine `367e…` census; its `chip_earlgrey_asic` SVA row still has debt. This is
-not a 49-target runtime run on that engine.
+engine `367e…` census; its `chip_earlgrey_asic` SVA row still has debt. The
+selected 49-target runtime gate also passes on this engine; the RTL/SVA census
+still has unresolved compile outcomes.
 See the [ROM loader evidence](../../evidence/opentitan-romctrl-memload-synth-overlay-20261005/README.md)
 and [Earl Grey result](../../evidence/opentitan-census-20261002/candidate-memload-synthesis-default-image-20261005/README.md).
 

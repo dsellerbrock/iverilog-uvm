@@ -3216,6 +3216,17 @@ def i2c_source_overlay(
     ) -> Path:
         source = opentitan_root / relative_source
         source_hash = file_sha256(source)
+        if source_hash == expected_overlay_hash:
+            files.append(
+                {
+                    "source": str(source),
+                    "source_sha256": source_hash,
+                    "overlay": str(source),
+                    "overlay_sha256": source_hash,
+                    "already_overlaid": "true",
+                }
+            )
+            return source
         if source_hash != expected_source_hash:
             raise ValueError(
                 f"I2C overlay source hash mismatch for {relative_source}: "

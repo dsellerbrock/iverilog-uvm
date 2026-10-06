@@ -1,20 +1,20 @@
 # OpenTitan synthesis, SVA, UVM and runtime matrix
 
-The original census18 49/49 result used the installed pre-candidate compiler
-and a patched OpenTitan source snapshot. Its source content is reconstructible
-from the pinned release with the [overlay patch bundle and provenance](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md#reproducible-source-overlay).
-A candidate compiler runtime recheck has since completed **49/49 PASS** across
-two matching serial segments. It used engine SHA-256
-`890c5b3c9ee0098ab4bcf4d25f06b10c3a8758a88d5e867b1a566a5ca9ecfdaa`;
-see the [candidate runtime evidence](../../evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md),
-[historical result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
-and [replication guide](opentitan_49of49_reproduction.md). The later direct
-unbased-fill range-endpoint fix is covered by focused regressions and a 35/35
-patched UVM recheck on engine `367e4467…`; the runtime snapshot has no such
-range endpoints. The broader compile census remains mixed, so the runtime gate
-alone does not close OpenTitan. The older discovery totals below come from OpenTitan revision
-`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` and describe a broader RTL/SVA/UVM
-inventory; they are not the current 49-target runtime result.
+The selected 49-target runtime gate now passes on engine `367e4467…`. Its
+[aggregate result](../../evidence/opentitan-census-20261002/candidate-runtime-engine-367e-aggregate-20261005/README.md)
+combines 48 rows from a serial full run with a focused I2C replay. The replay
+fixed a source-overlay staging rejection; the original run and focused result
+are preserved unchanged. The older candidate result also passed 49/49 on
+engine `890c5b3c…`; see the [engine 890c result](../../evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md),
+[pre-candidate result](../../evidence/opentitan-census-20261002/census18-xpack-runtime-20261005/README.md),
+and [replication guide](opentitan_49of49_reproduction.md).
+
+The 49-target runtime gate is not the full OpenTitan compile audit. The 309-row
+RTL/SVA/UVM census below still has dependency-only, debt, fail, setup-fail, and
+upstream-invalid outcomes. The direct unbased-fill range-endpoint fix is
+covered by focused regressions and a 35/35 patched UVM recheck on engine
+`367e4467…`. The older discovery totals below come from OpenTitan revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` and describe a broader inventory.
 
 `scripts/opentitan_matrix.py` is the canonical census driver for the current
 OpenTitan closure campaign.  It replaces one-off source lists with a pinned,
@@ -31,11 +31,11 @@ Xilinx board tops that need vendor primitives. Thirteen baseline UVM rows
 still fail, while the separate [patched UVM lane passes 35/35](../../evidence/opentitan-census-20261002/candidate-patched-uvm-final-20261005/README.md)
 on this engine.
 
-The census excludes runtime. The 49/49 selected runtime gate is verified on
-engine `890c…`, not `367e…`; full OpenTitan completion remains unverified until
-the outstanding compile blockers are resolved and that runtime gate is
-rechecked. The earlier engine `890c…` compile snapshot recorded 137 PASS, 120
-dependency-only, 19 DEBT, 16 FAIL, 7 setup failures, and 10 upstream-invalid;
+The census excludes runtime. The selected 49/49 runtime gate now passes on
+engine `367e…`, but full OpenTitan completion remains unverified until the
+outstanding compile blockers are resolved. The earlier engine `890c…` compile
+snapshot recorded 137 PASS, 120 dependency-only, 19 DEBT, 16 FAIL, 7 setup
+failures, and 10 upstream-invalid;
 see the [historical census](../../evidence/opentitan-census-20261002/candidate-census18-pinned-compile-20261005/README.md).
 The earlier 31 UVM failure count was a missing-DPI setup artifact and is
 superseded.
@@ -104,9 +104,9 @@ procedural-force diagnostics and coverage-constructor debt. The focused OTP row
 passes with zero debt on the reproduced source overlay; see its
 [current candidate result](../../evidence/opentitan-census-20261002/candidate-otp-fill-range-20261005/README.md).
 
-The candidate 49-target runtime lane is complete: 33 rows passed in the
-first segment and the remaining 16 passed in a guarded continuation. The first
-segment stopped at a 68% free-memory sample under its 70% floor; no completed
+The earlier engine `890c…` candidate 49-target runtime lane completed: 33 rows
+passed in the first segment and the remaining 16 in a guarded continuation.
+The first segment stopped at a 68% free-memory sample under its 70% floor; no completed
 row failed. The aggregate confirms exact coverage of the canonical 49 targets
 with no duplicate or missing rows. The full result and guard logs are preserved
 in the [candidate runtime evidence](../../evidence/opentitan-census-20261002/candidate-runtime-recheck-20261005/README.md).
