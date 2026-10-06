@@ -130,6 +130,8 @@ The selected blocker is unordered uniformity over legal constraint
 combinations. The current branch rejection-samples coupled scalar and bounded
 direct-array tuples and passes the paired Table 18-2, empty-array, correlated-
 array, 64/65-element, and 65-bit scalar checks under `-g2017` and `-g2023`.
+The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
+the recorded threshold when the finite wide-domain cap is 128 values.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See

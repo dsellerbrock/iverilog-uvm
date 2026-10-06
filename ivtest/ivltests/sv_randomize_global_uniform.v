@@ -81,6 +81,14 @@ class wide_domain_uniformity;
     else value inside {65'd1, 65'd2, 65'd3, 65'd4};
   }
 endclass
+class wide_domain_uniformity_above_cap;
+  rand bit mode;
+  rand bit [64:0] value;
+  constraint c {
+    if (mode) value inside {[65'd1:65'd64]};
+    else value == 65'd0;
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -94,6 +102,7 @@ module main;
   variable_size_array_above_old_cap larger_array = new;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
+  wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
@@ -101,6 +110,7 @@ module main;
   int larger_array_size_count[2];
   int member_tuple_count[3];
   int wide_tuple_count[5];
+  int wide_above_cap_mode_one;
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -307,6 +317,23 @@ module main;
       if (wide_tuple_count[i] < 140 || wide_tuple_count[i] > 260)
         $fatal(1, "wide legal tuple %0d is biased: %0d/1000",
                i, wide_tuple_count[i]);
+
+    // Sixty-four values on one side and one on the other make 65 legal tuples.
+    wide_uniform_above_cap.srandom(233);
+    repeat (100) begin
+      if (!wide_uniform_above_cap.randomize())
+        $fatal(1, "wide domain above enumeration cap failed");
+      if (wide_uniform_above_cap.mode) begin
+        if (wide_uniform_above_cap.value < 65'd1
+            || wide_uniform_above_cap.value > 65'd64)
+          $fatal(1, "invalid wide mode-one tuple");
+        wide_above_cap_mode_one++;
+      end else if (wide_uniform_above_cap.value != 0)
+        $fatal(1, "invalid wide mode-zero tuple");
+    end
+    if (wide_above_cap_mode_one < 90)
+      $fatal(1, "65 legal wide tuples are not sampled uniformly: mode one %0d/100",
+             wide_above_cap_mode_one);
     $display("PASSED");
   end
 endmodule

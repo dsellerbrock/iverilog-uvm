@@ -99,6 +99,17 @@ qualify all member shapes. Wide domains above the enumeration cap remain open.
 
 Source-built ARM64 VVP SHA-256: `0489a4df64e0e4af251b899f5904462351b9cdaa135e1ce2e668131af67ae271`.
 
+A second 65-bit scalar oracle has 65 legal complete tuples: 64 select mode one
+and one selects mode zero. With the previous 64-value enumeration cap, the
+paired regression sampled mode one 49/100 times. Raising the cap to 128 lets
+the solver enumerate the complete unary domain; the same deterministic-seed
+regression now passes its mode-one minimum of 90/100 (the uniform expectation
+is 64/65). Both strict editions pass. This does not claim exact wide-domain
+sampling above 128 values.
+
+Source-built ARM64 VVP SHA-256 after the cap change:
+`140e55df9d08957ee9019955216cb016c3c988bfec8e5589af0635e74de48ccf`.
+
 ## Adjacent 128-bit nested fixed-element randomization
 
 The existing `sv_constraint_wide_fixed_element_diversity` regression uses a
@@ -111,7 +122,8 @@ replay checks to pass under both `-g2017` and `-g2023`.
 Both runs print `PASSED` and emit the existing warning that an oversized
 ordinary component is sampled against the hard constraints, not uniformly over
 its solutions. This is a runtime-support result only; it does not extend the
-uniformity claim to constrained wide domains above the enumeration cap. The
+uniformity claim to constrained wide domains above the 128-value enumeration
+cap. The
 paired `sv_randomize_global_uniform` statistical suite and its rollback
 control also pass on the same VVP image.
 
