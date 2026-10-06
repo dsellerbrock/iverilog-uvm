@@ -528,6 +528,19 @@ captures are at
 and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-75m.sample.txt`,
 and `/private/tmp/pi/census12/flash-elementwise-final-20261004/vvp-after-90m.sample.txt`.
 
+The 2026-10-06 full runtime recheck (engine 367e after scalar-uniform changes)
+is still on Flash after 61 minutes, with its first eight targets passed. Two
+5-second samples at 54 and 61 minutes show the earlier solver/callback phase:
+`randomize_with_` appears in 633/3,572 and 584/3,555 samples, with sparse-wide
+enumeration in 352 and 330. `of_VPI_CALL` appears in 617 and 626 samples;
+neither `uvm_hdl_read` nor `of_AA_NEXT_SIG_V` appears yet. Peak physical
+footprint is 952.5 MB, well below the 9,536 MiB cap. These phase samples do not
+qualify the pending full run or the Flash read32 candidate. Captures:
+[54 minutes](../candidate-runtime-after-scalar-uniform-20261006/flash-live-3200s.sample.txt)
+and [61 minutes](../candidate-runtime-after-scalar-uniform-20261006/flash-live-3600s.sample.txt);
+the [live result](../candidate-runtime-after-scalar-uniform-20261006/result.md)
+currently records 8/49 passes.
+
 Profiles: [exact-default Flash at 30s](lowrisc_dv_flash_ctrl_sim_0.1-after-30s-pid28516.sample.txt.gz),
 [180s](lowrisc_dv_flash_ctrl_sim_0.1-after-180s-pid28516.sample.txt.gz),
 [900s](lowrisc_dv_flash_ctrl_sim_0.1-after-900s-pid28516.sample.txt.gz),
