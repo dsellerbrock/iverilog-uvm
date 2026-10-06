@@ -104,6 +104,16 @@ this row as upstream-invalid. See the
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 
+## Current IEEE checkpoint — 2026-10-06
+
+The selected next blocker is unordered uniformity over legal constraint
+combinations. The coupled direct-scalar class-property scope now rejection-
+samples complete legal tuples and passes the paired Table 18-2 regression under
+`-g2017` and `-g2023`. The dynamic-array reproducer and other unsupported solver
+shapes remain open; this is not full IEEE constraint-solver qualification. See
+the [focused result](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
+and the [blocker limits](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
+
 ## Earlier OpenTitan and Caliptra evidence snapshots
 
 The earlier selected 52-case Caliptra L0 run used Icarus with explicit
