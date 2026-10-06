@@ -119,6 +119,27 @@ editions.
 Full-suite source-built ARM64 VVP SHA-256: `dc6b14b305259b2e6f2c59d478703ce29abf4b35ec47a6147e98e6bccdd50908`.
 Final focused-check source-built ARM64 VVP SHA-256: `d6b2f92644daccc0377c71335d6b7fc655c335a41f9ab3f4b49535826c20e8a9`.
 
+## Unconstrained large variable-size arrays
+
+For one-bit arrays of size 512 or 513, complete-tuple sampling should choose
+the sizes in a 1:2 ratio. The old fallback gave 57/63 in 120 draws. Expanding
+all array elements into Z3 made the focused run correct but took 184.55 s and
+153 MB. The current path leaves unconstrained element leaves out of the solver
+model and weights each feasible size by its element cardinality; constrained
+array leaves retain the 512-element aggregate solver-model cap. The existing
+per-container allocation cap remains 65,536, and feasible size domains must
+enumerate within 1,024 values.
+
+The focused reducer now samples sizes 46/74 and produces a one in
+`payload[0]` 65/120 times. It completes in 0.91 s with 35,815,424-byte maximum
+RSS. The registered full regression passes under strict `-g2017` and
+`-g2023` on source-built ARM64 VVP SHA-256
+`a02c9f52b4001e8ec4b68f601426d1800b802bee10f350cf824327cdd9481872`:
+2017 completed in 110.00 s at 42,876,928-byte maximum RSS; 2023 completed in
+103.59 s at 42,188,800-byte maximum RSS. The neighboring sampling-failure and
+fixed-array solve-before controls also print `PASSED` in both editions; the
+failure test's warning and allocation error are expected.
+
 ## Connected wide-scalar finite-domain slice
 
 A 65-bit scalar reproducer has five complete legal tuples: one mode selects

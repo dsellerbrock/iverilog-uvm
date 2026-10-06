@@ -81,6 +81,14 @@ class variable_size_array_at_256_257;
     else payload.size() == 257;
   }
 endclass
+class variable_size_array_at_512_513;
+  rand bit mode;
+  rand bit payload[];
+  constraint c {
+    if (mode) payload.size() == 512;
+    else payload.size() == 513;
+  }
+endclass
 typedef enum bit [1:0] {
   uniform_enum_one = 1,
   uniform_enum_two = 2,
@@ -205,6 +213,7 @@ module main;
   variable_size_array_above_old_cap larger_array = new;
   variable_size_array_at_128_129 array_at_cap = new;
   variable_size_array_at_256_257 array_at_next_cap = new;
+  variable_size_array_at_512_513 array_above_uniform_cap = new;
   variable_size_enum_array_uniformity enum_array = new;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
@@ -224,6 +233,8 @@ module main;
   int larger_array_size_count[2];
   int array_at_cap_size_count[2];
   int array_at_next_cap_size_count[2];
+  int array_above_uniform_cap_size_count[2];
+  int array_above_uniform_cap_first_bit_count;
   int enum_array_size_count[2];
   int member_tuple_count[3];
   int wide_tuple_count[5];
@@ -422,7 +433,8 @@ module main;
       $fatal(1, "128/129 sizes are not weighted by complete tuples: %0d/%0d",
              array_at_cap_size_count[0], array_at_cap_size_count[1]);
 
-    // The exact variable-size path is bounded at 512 aggregate elements.
+    // The 512/513 case crosses the former complete-tuple cap; each larger
+    // array size has twice as many legal bit-array tuples.
     array_at_next_cap.srandom(404);
     repeat (120) begin
       if (!array_at_next_cap.randomize())
@@ -443,6 +455,34 @@ module main;
         || array_at_next_cap_size_count[1] > 96)
       $fatal(1, "256/257 sizes are not weighted by complete tuples: %0d/%0d out of 120",
              array_at_next_cap_size_count[0], array_at_next_cap_size_count[1]);
+
+    array_above_uniform_cap.srandom(406);
+    repeat (120) begin
+      if (!array_above_uniform_cap.randomize())
+        $fatal(1, "512/513-element variable-size array failed");
+      if (array_above_uniform_cap.mode) begin
+        if (array_above_uniform_cap.payload.size() != 512)
+          $fatal(1, "invalid size-512 array tuple");
+        array_above_uniform_cap_size_count[0]++;
+      end else begin
+        if (array_above_uniform_cap.payload.size() != 513)
+          $fatal(1, "invalid size-513 array tuple");
+        array_above_uniform_cap_size_count[1]++;
+      end
+      array_above_uniform_cap_first_bit_count +=
+            array_above_uniform_cap.payload[0];
+    end
+    if (array_above_uniform_cap_size_count[0] < 20
+        || array_above_uniform_cap_size_count[0] > 50
+        || array_above_uniform_cap_size_count[1] < 70
+        || array_above_uniform_cap_size_count[1] > 100)
+      $fatal(1, "512/513 sizes are not weighted by complete tuples: %0d/%0d out of 120",
+             array_above_uniform_cap_size_count[0],
+             array_above_uniform_cap_size_count[1]);
+    if (array_above_uniform_cap_first_bit_count < 35
+        || array_above_uniform_cap_first_bit_count > 85)
+      $fatal(1, "unconstrained array elements are not randomized: %0d/120 ones",
+             array_above_uniform_cap_first_bit_count);
 
     // Three one-element tuples compete with nine two-element enum tuples.
     enum_array.srandom(405);
