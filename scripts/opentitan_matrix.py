@@ -2836,6 +2836,9 @@ CHIP_EARLGREY_VERILATOR_SOURCE_SHA256 = (
 IBEX_TRACER_SOURCE_SHA256 = (
     "74326975d4fc618c97d95cf5451dd830ed5c79798c87d141858fcaf479120e29"
 )
+IBEX_TRACER_AUTOMATIC_LOCALS_SHA256 = (
+    "6c765a9999c238d7ae12d4a5e211b5cdfe74ef1a729414555b3a6ff8e54e48c5"
+)
 I2C_PROTOCOL_COV_SOURCE_SHA256 = (
     "d517b297226819233253bfe7ff9982c27bba2a97ff4759362bce5732b28d1611"
 )
@@ -3065,19 +3068,22 @@ def chip_earlgrey_verilator_source_text(text: str) -> str:
 def ibex_tracer_automatic_locals(text: str) -> str:
     """Give per-activation trace locals automatic lifetime in procedural blocks."""
     file_handle_declaration = "      int fh = file_handle;"
-    if text.count(file_handle_declaration) != 2:
-        raise ValueError("Ibex tracer file-handle anchors are not unique")
-    text = text.replace(
-        file_handle_declaration,
-        "      automatic int fh = file_handle;",
-    )
+    automatic_file_handle_declaration = "      automatic int fh = file_handle;"
     filename_declaration = '        string file_name_base = "trace_core";'
-    if text.count(filename_declaration) != 1:
-        raise ValueError("Ibex tracer filename anchor is not unique")
+    automatic_filename_declaration = '        automatic string file_name_base = "trace_core";'
+    if (
+        text.count(automatic_file_handle_declaration) == 2
+        and text.count(automatic_filename_declaration) == 1
+    ):
+        return text
+    if (
+        text.count(file_handle_declaration) != 2
+        or text.count(filename_declaration) != 1
+    ):
+        raise ValueError("Ibex tracer source is neither pristine nor overlaid")
     return text.replace(
-        filename_declaration,
-        '        automatic string file_name_base = "trace_core";',
-    )
+        file_handle_declaration, automatic_file_handle_declaration
+    ).replace(filename_declaration, automatic_filename_declaration)
 
 
 def chip_earlgrey_verilator_source_overlay(
@@ -3088,16 +3094,30 @@ def chip_earlgrey_verilator_source_overlay(
     """Stage hash-checked RTL fixes and redirect only this target's source list."""
     wrapper_source = opentitan_root / "hw/top_earlgrey/rtl/chip_earlgrey_verilator.sv"
     tracer_source = opentitan_root / "hw/vendor/lowrisc_ibex/rtl/ibex_tracer.sv"
-    for source, expected_hash in (
-        (wrapper_source, CHIP_EARLGREY_VERILATOR_SOURCE_SHA256),
-        (tracer_source, IBEX_TRACER_SOURCE_SHA256),
+    wrapper_hash = file_sha256(wrapper_source)
+    if wrapper_hash != CHIP_EARLGREY_VERILATOR_SOURCE_SHA256:
+        raise ValueError(
+            f"{wrapper_source.name} source hash mismatch: "
+            f"expected {CHIP_EARLGREY_VERILATOR_SOURCE_SHA256}, got {wrapper_hash}"
+        )
+    tracer_hash = file_sha256(tracer_source)
+    if tracer_hash not in {
+        IBEX_TRACER_SOURCE_SHA256,
+        IBEX_TRACER_AUTOMATIC_LOCALS_SHA256,
+    }:
+        raise ValueError(
+            f"{tracer_source.name} source hash mismatch: expected pristine or "
+            f"known overlay, got {tracer_hash}"
+        )
+    tracer_text = tracer_source.read_text()
+    tracer_overlay_text = ibex_tracer_automatic_locals(tracer_text)
+    if (
+        tracer_hash == IBEX_TRACER_AUTOMATIC_LOCALS_SHA256
+        and tracer_overlay_text != tracer_text
     ):
-        actual_hash = file_sha256(source)
-        if actual_hash != expected_hash:
-            raise ValueError(
-                f"{source.name} source hash mismatch: "
-                f"expected {expected_hash}, got {actual_hash}"
-            )
+        raise ValueError(
+            "Ibex tracer overlay hash matches but content is not idempotent"
+        )
 
     overlay_dir = work_root / "source-overlays" / "chip_earlgrey_verilator"
     if work_root.resolve() not in overlay_dir.resolve().parents:
@@ -3108,9 +3128,13 @@ def chip_earlgrey_verilator_source_overlay(
     wrapper_overlay.write_text(
         chip_earlgrey_verilator_source_text(wrapper_source.read_text())
     )
-    tracer_overlay.write_text(
-        ibex_tracer_automatic_locals(tracer_source.read_text())
-    )
+    tracer_overlay.write_text(tracer_overlay_text)
+    staged_tracer_hash = file_sha256(tracer_overlay)
+    if staged_tracer_hash != IBEX_TRACER_AUTOMATIC_LOCALS_SHA256:
+        raise ValueError(
+            f"{tracer_overlay.name} overlay hash mismatch: expected "
+            f"{IBEX_TRACER_AUTOMATIC_LOCALS_SHA256}, got {staged_tracer_hash}"
+        )
 
     if (
         compiler_source_list.is_symlink()
@@ -5413,6 +5437,7 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     ibex_tracer_overlay = ibex_tracer_automatic_locals(ibex_tracer_sample)
     assert ibex_tracer_overlay.count("automatic int fh = file_handle;") == 2
     assert 'automatic string file_name_base = "trace_core";' in ibex_tracer_overlay
+    assert ibex_tracer_automatic_locals(ibex_tracer_overlay) == ibex_tracer_overlay
     i2c_coverage_sample = (
         "    if (en_cov) begin\n"
         "      i2c_protocol_cov_cg   i2c_protocol_cov = new();\n"
