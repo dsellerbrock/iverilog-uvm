@@ -1,0 +1,45 @@
+command: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog -g2012 -schip_englishbreakfast_cw305 -sglbl -S -DSYNTHESIS -DSYNTHESIS_MEMORY_BLACK_BOXING -y /private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims -o /private/tmp/cw305-unisim-glbl-root.vvp -c /private/tmp/pi/iverilog-uvm-englishbreakfast-replay-r2-20261006/build/rtl/lowrisc_systems_chip_englishbreakfast_cw305_0.1/default-icarus/lowrisc_systems_chip_englishbreakfast_cw305_0.1.scr /private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/glbl.v
+working_directory: /private/tmp/pi/iverilog-uvm-englishbreakfast-replay-r2-20261006/build/rtl/lowrisc_systems_chip_englishbreakfast_cw305_0.1/default-icarus
+returncode: 1
+duration_seconds: 4.289
+
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4439: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4439: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4440: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4440: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4441: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4441: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4442: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4442: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4443: warning: Choosing typ expression.
+/private/tmp/xilinx-unisims-iverilog-20261006/verilog/src/unisims/MMCME2_ADV.v:4443: warning: Choosing typ expression.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:819: error: port ``clk_osc_byp_i'' is not a port of u_ast.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:819: warning: Port 87 (dft_scan_md_o) of module ast expects 4 bit(s), given 1.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:819:        : Padding 3 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 39 (periph_to_mio_i) of module pinmux expects 75 bit(s), given 34.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 41 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 40 (periph_to_mio_oe_i) of module pinmux expects 75 bit(s), given 34.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 41 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 41 (mio_to_periph_o) of module pinmux expects 57 bit(s), given 37.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 20 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 42 (periph_to_dio_i) of module pinmux expects 16 bit(s), given 14.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 2 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 43 (periph_to_dio_oe_i) of module pinmux expects 16 bit(s), given 14.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 2 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 44 (dio_to_periph_o) of module pinmux expects 16 bit(s), given 14.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 2 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 50 (dio_out_o) of module pinmux expects 16 bit(s), given 14.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 2 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 51 (dio_oe_o) of module pinmux expects 16 bit(s), given 14.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 2 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871: warning: Port 52 (dio_in_i) of module pinmux expects 16 bit(s), given 14.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/top_englishbreakfast.sv:871:        : Padding 2 high bits of the port.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992: warning: Port 4 (dio_in_i) of module top_englishbreakfast expects 14 bit(s), given 16.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992:        : Pruning 2 high bits of the expression.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992: warning: Port 5 (dio_out_o) of module top_englishbreakfast expects 14 bit(s), given 16.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992:        : Padding 2 high bits of the expression.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992: warning: Port 6 (dio_oe_o) of module top_englishbreakfast expects 14 bit(s), given 16.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992:        : Padding 2 high bits of the expression.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992: warning: Port 27 (flash_obs_o) of module top_englishbreakfast expects 8 bit(s), given 1.
+../src/lowrisc_systems_generated-topgen_0/rtl/autogen/chip_englishbreakfast_cw305.sv:992:        : Padding 7 high bits of the port.
+1 error(s) during elaboration.

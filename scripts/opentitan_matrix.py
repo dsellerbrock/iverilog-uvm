@@ -63,8 +63,41 @@ def _require_python313(
 
 LANES = ("rtl", "sva", "uvm", "runtime")
 TARGETS = {"rtl": "default", "sva": "formal", "uvm": "sim", "runtime": "sim"}
+ENGLISHBREAKFAST_VERILATOR_CORE = (
+    "lowrisc:systems:chip_englishbreakfast_verilator:0.1"
+)
+RTL_SIMULATION_TARGETS = {
+    "lowrisc:ibex:ibex_riscv_compliance:0.1": "sim",
+    "lowrisc:ibex:ibex_simple_system_cosim:0": "sim",
+    "lowrisc:ibex:tb_cs_registers:0": "sim",
+    ENGLISHBREAKFAST_VERILATOR_CORE: "sim",
+}
+# This wrapper's declared sim target defaults to Verilator. Mirror its
+# predeclared macro so prim_assert.sv selects the same no-assert branch.
+RTL_SIMULATION_DEFINES = {
+    ENGLISHBREAKFAST_VERILATOR_CORE: ("-DVERILATOR",),
+}
+RTL_OUT_OF_SCOPE = {
+    "lowrisc:systems:chip_earlgrey_cw310:0.1": (
+        "Xilinx board primitives are handled by Vivado; excluded from Icarus qualification."
+    ),
+    "lowrisc:systems:chip_earlgrey_cw310_hyperdebug:0.1": (
+        "Xilinx board primitives are handled by Vivado; excluded from Icarus qualification."
+    ),
+    "lowrisc:systems:chip_earlgrey_cw340:0.1": (
+        "Xilinx board primitives are handled by Vivado; excluded from Icarus qualification."
+    ),
+    "lowrisc:systems:chip_englishbreakfast_cw305:0.1": (
+        "CW305 Xilinx 7-series primitives are handled by Vivado; excluded from Icarus qualification."
+    ),
+}
 SIMULATION_CATEGORIES = ("uvm", "directed", "verilator", "elaboration")
 SVA_DEFAULT_TARGETS = {"lowrisc:fpv:prim_keccak_fpv:0.1"}
+# The chip formal source graph has no declared default timescale. Mirror the
+# top simulation config, which imports common_sim_cfg.hjson's 1ns/1ps default.
+SVA_DEFAULT_TIMESCALES = {
+    "lowrisc:systems:chip_earlgrey_asic:0.1": "1ns/1ps",
+}
 SVA_UVM_CORES = {
     "lowrisc:dv:adc_ctrl_sva:0.1",
     "lowrisc:dv:spi_host_sva:0.1",
@@ -140,6 +173,16 @@ mapping:
 """
 MATRIX_SOURCE_CORE_DEPENDENCIES = (
     (
+        "hw/ip/prim/prim_clock_gp_mux2.core",
+        "lowrisc:prim:prim_pkg",
+        ("lowrisc:prim:clock_gating",),
+    ),
+    (
+        "hw/ip/prim/prim_lc_sync.core",
+        "lowrisc:prim:buf",
+        ("lowrisc:prim:sec_anchor",),
+    ),
+    (
         "hw/ip/prim/prim_mubi.core",
         "lowrisc:prim:flop",
         ("lowrisc:prim:flop_2sync",),
@@ -173,6 +216,79 @@ MATRIX_SOURCE_CORE_DEPENDENCIES = (
         "hw/ip/tlul/tlul_lc_gate.core",
         "lowrisc:tlul:common",
         ("lowrisc:tlul:socket_1n", "lowrisc:prim:sec_anchor"),
+    ),
+)
+MATRIX_SOURCE_CORE_TOPS = (
+    (
+        "hw/ip/prim/prim_clock_gp_mux2.core",
+        "6c997fc16930e2f0a70c2dd03067ba15383ae5a2c292e638ced70aededa59139",
+        "prim_clock_gp_mux2",
+    ),
+    (
+        "hw/ip/prim/prim_lc_and_hardened.core",
+        "17bf6c0ca634216b7ed09e4ade26dfc8da3b683704105d0e5dab759d5b1003e0",
+        "prim_lc_and_hardened",
+    ),
+    (
+        "hw/ip/prim/prim_lc_combine.core",
+        "267f12517dc63ce158b82a41defddb1acd3a83c0d350404c69dd7c076ce553e0",
+        "prim_lc_combine",
+    ),
+    (
+        "hw/ip/prim/prim_ram_1r1w_adv.core",
+        "29fac543881d3ea5945cd55b3d48a6ae6031559c5789ae75e505d6fecf787bcb",
+        "prim_ram_1r1w_adv",
+    ),
+    (
+        "hw/ip/prim/prim_ram_2p_adv.core",
+        "f95ee25da93386e55cc9ed32fe17758b86e2f2b14ec11ca44205e5c8fb423cdc",
+        "prim_ram_2p_adv",
+    ),
+)
+MATRIX_SOURCE_CORE_PACKAGE_ROOT = (
+    "hw/vendor/lowrisc_ibex/dv/uvm/bus_params_pkg/bus_params_pkg.core",
+    "9ed86485581fcde5adb87035c113c904c23e4ad081bfeafea3e3fe81af4a7892",
+    "bus_params_pkg.sv",
+)
+MATRIX_GENERATOR_ONLY_CORES = {"lowrisc:prim:primgen:0.1"}
+IBEX_COMPLIANCE_CORE = (
+    "hw/vendor/lowrisc_ibex/dv/riscv_compliance/ibex_riscv_compliance.core"
+)
+IBEX_COMPLIANCE_CORE_SHA256 = (
+    "3838f3690d33b58ee47e9285de8cda8aee00ee68d4f487c54acea6ddf252b9ae"
+)
+IBEX_COMPLIANCE_SOURCE = (
+    "hw/vendor/lowrisc_ibex/dv/riscv_compliance/rtl/ibex_riscv_compliance.sv"
+)
+IBEX_COMPLIANCE_SOURCE_SHA256 = (
+    "815b67ca8917ad0772186c2a16a394ceab105511eabac661df157c30c2e00878"
+)
+IBEX_COMPLIANCE_OVERLAY_SHA256 = (
+    "89a8cbcd70899fd53c8d4b5dcf93abdbb5611d8b9a51615eeec22cce11e26dee"
+)
+IBEX_SIM_SHARED_REVISION = "38c070939183cc10940b66c8e9e04eeca6b65470"
+IBEX_SIM_SHARED_SNAPSHOT = (
+    "evidence/opentitan-census-20261002/"
+    "candidate-engine-367e-patched-source-compile-census-20261005/"
+    "ibex-sim-shared-38c07093"
+)
+IBEX_SOURCE_FILES = (
+    ("sim_shared.core", "d28af907c0d5fe469faf3ee46418ebf2507053fc480566043e589af341e59392"),
+    ("rtl/ram_1p.sv", "d2803b2a05084dba95fa430ece83df45b9afdf976ff551b1a4612ab7cd9e33cf"),
+    ("rtl/ram_2p.sv", "9cc65b76e2485e0eca6263bd1bfc9275041e869b8298b48692b36664ab003543"),
+    ("rtl/bus.sv", "292353ffc798a5deda6d8d99b6b4b9ee8a2e1c5590c24d8b156123fa44651a97"),
+    (
+        "rtl/sim/simulator_ctrl.sv",
+        "f873a5a68fbdef5647c2f5b8cbc158e5db8d1d468816c18e77d21ef3ce6b0230",
+    ),
+    ("rtl/timer.sv", "c4fda0e19686f167f242e5dbb0686c92c89c896d8630832acfc9c9f6cf6d7613"),
+    (
+        "examples/simple_system/ibex_simple_system_core.core",
+        "f4313230a1a4107ffec641d3b9d5f3259c808045a87b55d81c954fa807cda755",
+    ),
+    (
+        "examples/simple_system/rtl/ibex_simple_system.sv",
+        "3eb362e2a365e2e2eb526867239747a872d72d3b6bc684c66d7d0f5dc8e1159d",
     ),
 )
 SPI_HOST_SVA_CORE = "hw/ip/spi_host/dv/sva/spi_host_sva.core"
@@ -313,8 +429,16 @@ SETUP_ALLOWLIST = (
 NATIVE_SOURCE_SETUP_WARNING_RE = re.compile(
     r"^WARNING: (?P<path>.+) has unknown file type '(?:cSource|cppSource)'$"
 )
+EDALIZE_ICARUS_WARNING_PREFIX_RE = re.compile(r"^WARNING:edalize\.icarus:")
+ENGLISHBREAKFAST_CMDLINEARG_WARNING_RE = re.compile(
+    r"^WARNING:root:Parameter '(?:flashinit|rominit)' has unsupported type "
+    r"'cmdlinearg' for requested backend$"
+)
 PYTHON_SOURCE_SETUP_WARNING_RE = re.compile(
     r"^WARNING: (?P<path>.+\.py) has unknown file type ''$"
+)
+IBEX_COSIM_SETUP_SCRIPT_WARNING_RE = re.compile(
+    r"^WARNING: util/ibex_cosim_setup_check\.sh has unknown file type ''$"
 )
 NO_TOPLEVEL_RE = re.compile(r"Target '[^']+' has no toplevel", re.I)
 MODULE_DECL_RE = re.compile(
@@ -809,13 +933,6 @@ KNOWN_UPSTREAM_DEFECTS = (
         "revision.",
     ),
     UpstreamDefect(
-        "lowrisc:ibex:ibex_simple_system_cosim",
-        "setup",
-        re.compile(r"depends on missing packages"),
-        "The core depends on packages absent from the pinned OpenTitan "
-        "revision.",
-    ),
-    UpstreamDefect(
         "lowrisc:ip:i3c",
         "setup",
         re.compile(r"depends on missing packages"),
@@ -910,7 +1027,13 @@ class Job:
     def target(self) -> str:
         if self.lane == "sva" and self.core.vlnv in SVA_DEFAULT_TARGETS:
             return "default"
+        if self.lane == "rtl":
+            return RTL_SIMULATION_TARGETS.get(self.core.vlnv, TARGETS[self.lane])
         return TARGETS[self.lane]
+
+
+def out_of_scope_reason(job: Job) -> str | None:
+    return RTL_OUT_OF_SCOPE.get(job.core.vlnv) if job.lane == "rtl" else None
 
 
 @dataclasses.dataclass
@@ -2060,6 +2183,10 @@ def core_supports_lane(
     raise ValueError(f"unknown lane: {lane}")
 
 
+def generator_only_core(core: Core) -> bool:
+    return core.vlnv in MATRIX_GENERATOR_ONLY_CORES
+
+
 def requested_lanes(values: Sequence[str]) -> list[str]:
     if not values or "all" in values:
         return list(LANES)
@@ -2125,6 +2252,126 @@ def spi_host_sva_core_source_text(text: str) -> str:
     if text.count(before) != 1:
         raise ValueError("SPI host formal fileset reference is not unique")
     return text.replace(before, after)
+
+
+def source_core_toplevel_text(text: str, module: str) -> str:
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", module):
+        raise ValueError(f"invalid SystemVerilog top name: {module}")
+    targets = re.search(r"(?m)^targets:\s*\n", text)
+    if targets is None:
+        raise ValueError("source core has no targets section")
+    defaults = list(re.finditer(r"(?m)^  default:[^\n]*\n", text[targets.end() :]))
+    if len(defaults) != 1:
+        raise ValueError(f"expected one default target, found {len(defaults)}")
+    match = defaults[0]
+    insertion = targets.end() + match.end()
+    if re.search(r"(?m)^    toplevel:", text[insertion:]):
+        raise ValueError("default target already declares a toplevel")
+    return text[:insertion] + f"    toplevel: {module}\n" + text[insertion:]
+
+
+def source_core_package_root_text(text: str, package_file: str) -> str:
+    anchor = f"      - {package_file}\n"
+    if text.count(anchor) != 1:
+        raise ValueError(f"expected one {package_file} fileset entry")
+    text = text.replace(anchor, anchor + "      - matrix_package_root.sv\n")
+    return source_core_toplevel_text(text, "matrix_package_root")
+
+
+def ibex_compliance_source_text(text: str) -> str:
+    replacements = (
+        ("      .test_en_i              ('b0                  ),", "      .test_en_i              (1'b0                 ),"),
+        (
+            "      .ram_cfg_i              ('b0                  ),",
+            "      .ram_cfg_i              (prim_ram_1p_pkg::RAM_1P_CFG_DEFAULT),",
+        ),
+        ("      .debug_req_i            ('b0                  ),", "      .debug_req_i            (1'b0                 ),"),
+    )
+    for before, after in replacements:
+        if text.count(before) != 1:
+            raise ValueError(f"expected one Ibex compliance connection {before!r}")
+        text = text.replace(before, after)
+    return text
+
+
+def stage_ibex_sim_shared_overlays(
+    opentitan_root: Path, source_override_root: Path
+) -> None:
+    source_core = opentitan_root / IBEX_COMPLIANCE_CORE
+    source_sv = opentitan_root / IBEX_COMPLIANCE_SOURCE
+    if not source_core.is_file() or not source_sv.is_file():
+        return
+    if (
+        file_sha256(source_core) != IBEX_COMPLIANCE_CORE_SHA256
+        or file_sha256(source_sv) != IBEX_COMPLIANCE_SOURCE_SHA256
+    ):
+        return
+
+    repo_root = Path(__file__).resolve().parent.parent
+    snapshot = repo_root / IBEX_SIM_SHARED_SNAPSHOT
+    library_root = source_override_root / "ibex-sim-shared"
+    for relative, expected_hash in IBEX_SOURCE_FILES:
+        source = snapshot / relative
+        if not source.is_file() or file_sha256(source) != expected_hash:
+            raise RuntimeError(f"Ibex sim_shared snapshot hash mismatch: {source}")
+        target = library_root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_symlink():
+            raise RuntimeError(f"Ibex sim_shared overlay is a symlink: {target}")
+        if not target.is_file() or file_sha256(target) != expected_hash:
+            shutil.copyfile(source, target)
+
+    overlay_dir = source_override_root / Path(IBEX_COMPLIANCE_CORE).parent
+    overlay_rtl = overlay_dir / "rtl"
+    overlay_rtl.mkdir(parents=True, exist_ok=True)
+    overlay_core = overlay_dir / Path(IBEX_COMPLIANCE_CORE).name
+    if overlay_core.is_symlink():
+        raise RuntimeError(f"Ibex compliance core overlay is a symlink: {overlay_core}")
+    if not overlay_core.is_file() or file_sha256(overlay_core) != IBEX_COMPLIANCE_CORE_SHA256:
+        shutil.copyfile(source_core, overlay_core)
+
+    overlay_sv = overlay_rtl / Path(IBEX_COMPLIANCE_SOURCE).name
+    overlay_text = ibex_compliance_source_text(source_sv.read_text())
+    overlay_hash = hashlib.sha256(overlay_text.encode()).hexdigest()
+    if overlay_hash != IBEX_COMPLIANCE_OVERLAY_SHA256:
+        raise RuntimeError(f"Ibex compliance source overlay hash mismatch: {overlay_hash}")
+    if overlay_sv.is_symlink():
+        raise RuntimeError(f"Ibex compliance source overlay is a symlink: {overlay_sv}")
+    if not overlay_sv.is_file() or file_sha256(overlay_sv) != IBEX_COMPLIANCE_OVERLAY_SHA256:
+        overlay_sv.write_text(overlay_text)
+
+    testutil_source = source_sv.parent / "riscv_testutil.sv"
+    testutil_overlay = overlay_rtl / "riscv_testutil.sv"
+    if testutil_overlay.is_symlink():
+        if testutil_overlay.resolve() != testutil_source.resolve():
+            testutil_overlay.unlink()
+            testutil_overlay.symlink_to(testutil_source)
+    elif testutil_overlay.exists():
+        raise RuntimeError(f"Ibex test utility overlay path exists: {testutil_overlay}")
+    else:
+        testutil_overlay.symlink_to(testutil_source)
+
+
+def ibex_sim_shared_metadata(matrix_core_root: Path) -> dict[str, object] | None:
+    library_root = matrix_core_root / "source-overrides/ibex-sim-shared"
+    if not (library_root / "sim_shared.core").is_file():
+        return None
+    return {
+        "cores": [
+            "lowrisc:ibex:sim_shared",
+            "lowrisc:ibex:ibex_simple_system_core",
+        ],
+        "source_repository": "https://github.com/lowRISC/ibex",
+        "source_revision": IBEX_SIM_SHARED_REVISION,
+        "source_commit_url": (
+            "https://github.com/lowRISC/ibex/tree/"
+            f"{IBEX_SIM_SHARED_REVISION}/shared"
+        ),
+        "staged_files": [
+            {"path": relative, "sha256": file_sha256(library_root / relative)}
+            for relative, _expected_hash in IBEX_SOURCE_FILES
+        ],
+    }
 
 
 def stage_spi_host_sva_core_override(
@@ -2261,8 +2508,113 @@ def prepare_matrix_core_root(build_root: Path, opentitan_root: Path) -> Path:
                     overlay_dir.symlink_to(source_dir, target_is_directory=True)
             elif not overlay_dir.exists():
                 overlay_dir.symlink_to(source_dir, target_is_directory=True)
+
+    # These source-provider cores have no top-level target, so direct matrix
+    # compiles need a build-local target declaration. Keep the pinned source
+    # untouched and stage only the exact core revisions audited for this set.
+    for relative_core, source_hash, module in MATRIX_SOURCE_CORE_TOPS:
+        source_core = opentitan_root / relative_core
+        overlay_core = source_override_root / relative_core
+        if not source_core.is_file() or file_sha256(source_core) != source_hash:
+            if overlay_core.is_symlink():
+                raise RuntimeError(f"source core overlay is a symlink: {overlay_core}")
+            overlay_core.unlink(missing_ok=True)
+            continue
+        overlay_base_text = (
+            overlay_core.read_text() if overlay_core.is_file() else source_core.read_text()
+        )
+        overlay_text = source_core_toplevel_text(overlay_base_text, module)
+        overlay_core.parent.mkdir(parents=True, exist_ok=True)
+        if overlay_core.is_symlink():
+            raise RuntimeError(f"source core overlay is a symlink: {overlay_core}")
+        if not overlay_core.is_file() or overlay_core.read_text() != overlay_text:
+            overlay_core.write_text(overlay_text)
+        source_dir = source_core.parent / "rtl"
+        overlay_dir = overlay_core.parent / "rtl"
+        if source_dir.is_dir():
+            if overlay_dir.is_symlink():
+                if overlay_dir.resolve() != source_dir.resolve():
+                    overlay_dir.unlink()
+                    overlay_dir.symlink_to(source_dir, target_is_directory=True)
+            elif overlay_dir.exists():
+                raise RuntimeError(f"source core RTL overlay path exists: {overlay_dir}")
+            else:
+                overlay_dir.symlink_to(source_dir, target_is_directory=True)
+
+    relative_core, source_hash, package_file = MATRIX_SOURCE_CORE_PACKAGE_ROOT
+    source_core = opentitan_root / relative_core
+    overlay_core = source_override_root / relative_core
+    if source_core.is_file() and file_sha256(source_core) == source_hash:
+        overlay_text = source_core_package_root_text(
+            source_core.read_text(), package_file
+        )
+        overlay_core.parent.mkdir(parents=True, exist_ok=True)
+        if overlay_core.is_symlink():
+            raise RuntimeError(f"source core overlay is a symlink: {overlay_core}")
+        if not overlay_core.is_file() or overlay_core.read_text() != overlay_text:
+            overlay_core.write_text(overlay_text)
+        package_source = source_core.parent / package_file
+        package_link = overlay_core.parent / package_file
+        if package_link.is_symlink():
+            if package_link.resolve() != package_source.resolve():
+                package_link.unlink()
+                package_link.symlink_to(package_source)
+        elif package_link.exists():
+            raise RuntimeError(f"package source overlay path exists: {package_link}")
+        else:
+            package_link.symlink_to(package_source)
+        package_root = overlay_core.parent / "matrix_package_root.sv"
+        if package_root.is_symlink():
+            raise RuntimeError(f"package root overlay is a symlink: {package_root}")
+        if not package_root.is_file() or package_root.read_text() != (
+            "module matrix_package_root; endmodule\n"
+        ):
+            package_root.write_text("module matrix_package_root; endmodule\n")
+    elif overlay_core.is_file() and not overlay_core.is_symlink():
+        overlay_core.unlink()
+
+    stage_ibex_sim_shared_overlays(opentitan_root, source_override_root)
     stage_spi_host_sva_core_override(opentitan_root, source_override_root)
     return core_root
+
+
+def prepare_englishbreakfast_topgen(
+    matrix_core_root: Path,
+    opentitan_root: Path,
+    python: Sequence[str],
+    env: dict[str, str],
+    timeout: int,
+) -> tuple[Path, Path, CommandResult, Path]:
+    """Generate EnglishBreakfast FuseSoC cores in a build-local source copy."""
+    workspace = matrix_core_root / "topgen-source"
+    shutil.copytree(
+        opentitan_root,
+        workspace,
+        symlinks=True,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns(".git", "build", "__pycache__", "*.pyc"),
+    )
+
+    command = [
+        *python,
+        str(workspace / "util/topgen-fusesoc.py"),
+        f"--files-root={workspace}",
+        "--topname=top_englishbreakfast",
+    ]
+    result = command_result(command, cwd=workspace, env=env, timeout=timeout)
+    core_root = workspace / "build/top_englishbreakfast-autogen"
+    if result.returncode == 0 and not all(
+        (core_root / name).is_file()
+        for name in ("generated-topgen.core", "generated-pinmux.core")
+    ):
+        result = dataclasses.replace(
+            result,
+            returncode=1,
+            output=result.output + "\nExpected generated EnglishBreakfast cores were not produced.\n",
+        )
+    log_path = matrix_core_root / "topgen-englishbreakfast.log"
+    write_log(log_path, "EnglishBreakfast FuseSoC core generation", result)
+    return workspace, core_root, result, log_path
 
 
 def actionable_setup_lines(output: str) -> list[str]:
@@ -2277,7 +2629,10 @@ def actionable_setup_lines(output: str) -> list[str]:
 
 
 def classify_compile_setup_warnings(
-    lane: str, findings: Sequence[str], source_list: Path
+    lane: str,
+    findings: Sequence[str],
+    source_list: Path,
+    core_vlnv: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """Classify non-HDL setup warnings only when Icarus omits those files."""
     if lane not in {"rtl", "sva", "uvm"}:
@@ -2314,9 +2669,28 @@ def classify_compile_setup_warnings(
     actionable: list[str] = []
     benign: list[str] = []
     for line in findings:
+        if (
+            lane == "rtl"
+            and core_vlnv == ENGLISHBREAKFAST_VERILATOR_CORE
+            and ENGLISHBREAKFAST_CMDLINEARG_WARNING_RE.fullmatch(line)
+        ):
+            # These are runtime memory-image arguments; this lane only compiles RTL.
+            benign.append(line)
+            continue
+        if (
+            lane == "rtl"
+            and core_vlnv == "lowrisc:ibex:ibex_simple_system_cosim:0"
+            and IBEX_COSIM_SETUP_SCRIPT_WARNING_RE.fullmatch(line)
+            and "ibex_cosim_setup_check.sh" not in source_list.read_text()
+        ):
+            benign.append(line)
+            continue
+        normalized_line = EDALIZE_ICARUS_WARNING_PREFIX_RE.sub(
+            "WARNING: ", line, count=1
+        )
         match = (
-            NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(line)
-            or PYTHON_SOURCE_SETUP_WARNING_RE.fullmatch(line)
+            NATIVE_SOURCE_SETUP_WARNING_RE.fullmatch(normalized_line)
+            or PYTHON_SOURCE_SETUP_WARNING_RE.fullmatch(normalized_line)
         )
         if match:
             path = Path(match.group("path"))
@@ -2588,11 +2962,17 @@ def sva_testbench_wrapper(
     stub = work_root / "matrix-sva-tb.sv"
     stub.write_text(f"module tb;\n  {tops[0]} dut();\nendmodule\n")
     wrapper = work_root / "matrix-sva-tb.scr"
-    wrapper.write_text(f"-c {compiler_source_list}\n{stub}\n")
+    timescale = SVA_DEFAULT_TIMESCALES.get(job.core.vlnv)
+    timescale_prefix = f"+timescale+{timescale}\n" if timescale else ""
+    wrapper.write_text(f"{timescale_prefix}-c {compiler_source_list}\n{stub}\n")
     notes = [
         f"wrapped declared top {tops[0]!r} in a generated tb/dut pair "
         "to reproduce the dvsim testbench topology"
     ]
+    if timescale:
+        notes.append(
+            f"applied the OpenTitan chip simulation default timescale {timescale}"
+        )
     return ["-stb"], notes, wrapper
 
 
@@ -2603,6 +2983,8 @@ def setup_command(
     matrix_core_root: Path,
     work_root: Path,
     requested_top: str,
+    generated_core_roots: Sequence[Path] = (),
+    core_source_root: Path | None = None,
 ) -> list[str]:
     # Earlgrey-PROD-M6 (the pinned OpenTitan release) requires lowRISC's own
     # fusesoc fork (python-requirements.txt pins "ot-0.5.dev0"), whose `run`
@@ -2623,13 +3005,11 @@ def setup_command(
     # mapping-core root is not scanned because this FuseSoC ignores `mapping`
     # and warns "Unknown item mapping in section Root". A separate source
     # overlay root contains only corrected source cores and is safe to scan.
-    command = [
-        str(fusesoc),
-        f"--cores-root={opentitan_root}",
-    ]
+    command = [str(fusesoc), f"--cores-root={core_source_root or opentitan_root}"]
     source_override_root = matrix_core_root / "source-overrides"
     if job.lane in {"rtl", "sva"} and any(source_override_root.rglob("*.core")):
         command.append(f"--cores-root={source_override_root}")
+    command.extend(f"--cores-root={root}" for root in generated_core_roots)
     command.extend(
         [
             "run",
@@ -2663,6 +3043,8 @@ def setup_command(
             fileset_flag = "fileset_top"
     if fileset_flag:
         command.append(f"--flag={fileset_flag}")
+    if top_for_job(job, requested_top) == "englishbreakfast":
+        command.append("--flag=fileset_topgen")
     command.append(job.core.vlnv)
     return command
 
@@ -2678,9 +3060,11 @@ def compile_command(
     additional_include_dirs: Sequence[Path] = (),
 ) -> list[str]:
     command = [str(iverilog), "-g2012", *top_options]
+    if job.lane == "rtl":
+        command.extend(RTL_SIMULATION_DEFINES.get(job.core.vlnv, ()))
     if commercial_unsafe and job.lane in {"uvm", "runtime"}:
         command.append("-gcommercial-unsafe")
-    if job.lane == "rtl":
+    if job.lane == "rtl" and job.core.vlnv not in RTL_SIMULATION_TARGETS:
         # Match OpenTitan's GTECH synthesis flow for generic RAM models.
         command.extend([
             "-S",
@@ -2903,6 +3287,10 @@ MEMLOAD_DEBUG_BLOCK = '''  logic show_mem_paths;
 MEMLOAD_SYNTHESIS_PROFILES = {
     "lowrisc:ip:rom_ctrl:0.1": ("rom_ctrl", "-srom_ctrl"),
     "lowrisc:systems:top_earlgrey:0.1": ("top_earlgrey", "-stop_earlgrey"),
+    "lowrisc:systems:top_englishbreakfast:0.1": (
+        "top_englishbreakfast",
+        "-stop_englishbreakfast",
+    ),
     "lowrisc:systems:chip_earlgrey_asic:0.1": (
         "chip_earlgrey_asic",
         "-schip_earlgrey_asic",
@@ -2984,12 +3372,18 @@ def memload_synthesis_overlay(
     if profile == "rom_ctrl":
         parameter_source = opentitan_root / "hw/ip/rom_ctrl/rtl/rom_ctrl.sv"
         expected_hash = ROM_CTRL_SOURCE_SHA256
+    elif profile == "top_englishbreakfast":
+        parameter_source = (
+            opentitan_root
+            / "build/top_englishbreakfast-autogen/rtl/autogen/top_englishbreakfast.sv"
+        )
+        expected_hash = None
     else:
         parameter_source = opentitan_root / "hw/top_earlgrey/rtl/autogen/top_earlgrey.sv"
         expected_hash = TOP_EARLGREY_SOURCE_SHA256
 
     parameter_hash = file_sha256(parameter_source)
-    if parameter_hash != expected_hash:
+    if expected_hash is not None and parameter_hash != expected_hash:
         raise ValueError(
             f"{profile} memory parameter source hash mismatch: "
             f"expected {expected_hash}, got {parameter_hash}"
@@ -2999,6 +3393,14 @@ def memload_synthesis_overlay(
     if profile == "rom_ctrl":
         if not empty_string_parameter(parameter_text, "BootRomInitFile"):
             raise ValueError("ROM controller default image parameter is not empty")
+    elif profile == "top_englishbreakfast":
+        if (
+            not empty_string_parameter(
+                parameter_text, "RomCtrlBootRomInitFile"
+            )
+            or ".BootRomInitFile(RomCtrlBootRomInitFile)" not in parameter_text
+        ):
+            raise ValueError("EnglishBreakfast boot ROM image is not empty by default")
     elif not empty_string_parameter(
         parameter_text, "OtpCtrlMemInitFile"
     ) or not empty_string_parameter(parameter_text, "RomCtrlBootRomInitFile"):
@@ -3034,7 +3436,7 @@ def memload_synthesis_overlay(
         "source": str(source),
         "source_sha256": source_hash,
         "validated_sources": validated_sources,
-        "parameter_defaults": "ROM and OTP images empty for selected top",
+        "parameter_defaults": "Selected memory images are empty by default",
         "overlay": str(overlay),
         "overlay_sha256": file_sha256(overlay),
     }
@@ -4411,6 +4813,8 @@ def result_base(job: Job, work_root: Path, mappings: list[str]) -> dict[str, obj
                 "simulation_metadata_warnings": job.simulation.metadata_warnings,
             }
         )
+    elif job.core.vlnv in SVA_DEFAULT_TIMESCALES:
+        result["dvsim_timescale"] = SVA_DEFAULT_TIMESCALES[job.core.vlnv]
     return result
 
 
@@ -4434,14 +4838,66 @@ def run_job(
     iverilog: Path,
     vvp: Path,
     env: dict[str, str],
+    englishbreakfast_source_root: Path | None = None,
+    englishbreakfast_core_root: Path | None = None,
+    englishbreakfast_generation: CommandResult | None = None,
+    englishbreakfast_generation_log: Path | None = None,
     native_cflags: Sequence[str] = (),
     native_libs: Sequence[str] = (),
 ) -> dict[str, object]:
     work_root = build_root / job.lane / safe_name(job.core.vlnv)
-    work_root.mkdir(parents=True, exist_ok=True)
     mappings = provider_mappings(job, args.top)
     record = result_base(job, work_root, mappings)
+    exclusion = out_of_scope_reason(job)
+    if exclusion is not None:
+        record.update({"status": "OUT_OF_SCOPE", "scope_reason": exclusion})
+        return record
+    if job.lane == "rtl" and generator_only_core(job.core):
+        record.update(
+            {
+                "status": "DEPENDENCY_ONLY",
+                "coverage_mode": "generator_used_by_passing_parent_cores",
+                "reason": "FuseSoC generator-only core; no standalone RTL target.",
+            }
+        )
+        return record
+    work_root.mkdir(parents=True, exist_ok=True)
+    needs_englishbreakfast = (
+        job.lane == "rtl" and top_for_job(job, args.top) == "englishbreakfast"
+    )
+    if needs_englishbreakfast:
+        if (
+            englishbreakfast_generation is None
+            or englishbreakfast_generation_log is None
+            or englishbreakfast_source_root is None
+        ):
+            record.update({"status": "SETUP_FAIL", "matrix_error": "EnglishBreakfast topgen was not prepared"})
+            return record
+        record["topgen_generation_log"] = str(englishbreakfast_generation_log)
+        if englishbreakfast_generation.returncode != 0:
+            record.update(
+                {
+                    "status": "SETUP_FAIL",
+                    "setup_command": short_command(englishbreakfast_generation.command),
+                    "setup_returncode": englishbreakfast_generation.returncode,
+                    "setup_duration_seconds": round(englishbreakfast_generation.duration_seconds, 3),
+                    "setup_timed_out": englishbreakfast_generation.timed_out,
+                    "setup_log": str(englishbreakfast_generation_log),
+                }
+            )
+            return record
+        record["generated_source_root"] = str(englishbreakfast_source_root)
+        record["generated_core_root"] = str(englishbreakfast_core_root)
 
+    setup_root = englishbreakfast_source_root if needs_englishbreakfast else opentitan_root
+    uses_englishbreakfast_cores = englishbreakfast_core_root is not None and (
+        needs_englishbreakfast
+        or job.core.vlnv
+        in {
+            "lowrisc:systems:topgen:0",
+            "lowrisc:systems:topgen-reg-only:0",
+        }
+    )
     setup = command_result(
         setup_command(
             job,
@@ -4450,8 +4906,10 @@ def run_job(
             matrix_core_root,
             work_root,
             args.top,
+            (englishbreakfast_core_root,) if uses_englishbreakfast_cores else (),
+            setup_root,
         ),
-        cwd=opentitan_root,
+        cwd=setup_root,
         env=env,
         timeout=args.setup_timeout,
     )
@@ -4642,7 +5100,9 @@ def run_job(
         return record
     if job.lane in {"rtl", "sva", "uvm"}:
         setup_actionable_findings, setup_benign_diagnostics = (
-            classify_compile_setup_warnings(job.lane, setup_findings, source_list)
+            classify_compile_setup_warnings(
+                job.lane, setup_findings, source_list, job.core.vlnv
+            )
         )
         record.update(
             {
@@ -4662,7 +5122,7 @@ def run_job(
     ) is not None:
         try:
             overlay_dir, source_overlay = memload_synthesis_overlay(
-                opentitan_root, work_root, job.core.vlnv, top_options
+                setup_root, work_root, job.core.vlnv, top_options
             )
         except (OSError, ValueError) as exc:
             record.update(
@@ -4707,9 +5167,7 @@ def run_job(
             f"{compile_result.returncode} without a recognized hard diagnostic; "
             "see the complete compile log"
         ]
-    compile_allowlist = compile_debt_allowlist(
-        job.simulation.timescale if job.simulation else None
-    )
+    compile_allowlist = compile_debt_allowlist(record.get("dvsim_timescale"))
     semantic_debt = matching_lines(
         compile_result.output, DEBT_PATTERNS, compile_allowlist
     )
@@ -5035,11 +5493,19 @@ def markdown_report(report: dict[str, object]) -> str:
         "A `DEBT` result exited successfully but emitted a warning or explicit semantic "
         "degradation. It is not a conformance pass.",
         "",
-        "| Lane | Core | Status | Hard errors | Semantic debt | Log |",
+        "An `OUT_OF_SCOPE` row is excluded by explicit policy; it is not an Icarus pass.",
+        "",
+        "| Lane | Core | Status | Hard errors | Semantic debt | Log / reason |",
         "|---|---|---:|---:|---:|---|",
     ]
     for result in results:
-        log_path = result.get("runtime_log") or result.get("compile_log") or result.get("setup_log")
+        log_path = (
+            result.get("scope_reason")
+            or result.get("runtime_log")
+            or result.get("compile_log")
+            or result.get("setup_log")
+            or result.get("reason")
+        )
         lines.append(
             "| {lane} | `{core}` | **{status}** | {hard} | {debt} | `{log}` |".format(
                 lane=result["lane"],
@@ -5107,7 +5573,30 @@ def print_inventory(
 
 
 def self_test() -> None:
+    from unittest import mock
+
     _require_python313("3.13.15")
+    source_core_sample = (
+        "filesets:\n  files_rtl:\n    files:\n      - bus_params_pkg.sv\n"
+        "targets:\n  default:\n    filesets:\n      - files_rtl\n"
+    )
+    assert "    toplevel: sample_top\n" in source_core_toplevel_text(
+        source_core_sample, "sample_top"
+    )
+    package_overlay_sample = source_core_package_root_text(
+        source_core_sample, "bus_params_pkg.sv"
+    )
+    assert "      - matrix_package_root.sv\n" in package_overlay_sample
+    assert "    toplevel: matrix_package_root\n" in package_overlay_sample
+    ibex_overlay_sample = ibex_compliance_source_text(
+        "      .test_en_i              ('b0                  ),\n"
+        "      .ram_cfg_i              ('b0                  ),\n"
+        "      .debug_req_i            ('b0                  ),\n"
+    )
+    assert "(1'b0" in ibex_overlay_sample
+    assert "prim_ram_1p_pkg::RAM_1P_CFG_DEFAULT" in ibex_overlay_sample
+    assert generator_only_core(Core("lowrisc:prim:primgen:0.1", ""))
+    assert not generator_only_core(Core("lowrisc:prim:arbiter:0", ""))
     markdown_sample = markdown_report(
         {
             "metadata": {
@@ -5150,6 +5639,17 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert core_supports_lane(Core(parsed[0], ""), "uvm")
     assert core_supports_lane(Core(parsed[1], ""), "sva")
     assert core_supports_lane(Core(parsed[2], ""), "rtl")
+    for core in RTL_SIMULATION_TARGETS:
+        assert Job("rtl", Core(core, "")).target == "sim"
+    assert Job("rtl", Core("lowrisc:ip:uart:1.0", "")).target == "default"
+    cosim_compile = compile_command(
+        Job("rtl", Core("lowrisc:ibex:ibex_simple_system_cosim:0", "")),
+        Path("iverilog"),
+        Path("sources.scr"),
+        (),
+        Path("output.vvp"),
+    )
+    assert "-S" not in cosim_compile
     uvm_target = SimulationTarget(
         parsed[0],
         "uvm",
@@ -5182,9 +5682,24 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             if argument.startswith("--flag=")
         ]
 
+    englishbreakfast_setup = setup_command(
+        Job("rtl", Core("lowrisc:systems:top_englishbreakfast:0.1", "")),
+        Path("fusesoc"),
+        Path("opentitan"),
+        Path("matrix-cores"),
+        Path("build"),
+        "auto",
+        (Path("generated-topgen"),),
+    )
+    assert "--cores-root=generated-topgen" in englishbreakfast_setup
+    assert "--flag=fileset_topgen" in englishbreakfast_setup
     assert setup_flags(Job("rtl", Core("lowrisc:ip:pinmux:0.1", ""))) == [
         "--flag=fileset_ip"
     ]
+    for core in RTL_OUT_OF_SCOPE:
+        assert out_of_scope_reason(Job("rtl", Core(core, "")))
+        assert out_of_scope_reason(Job("sva", Core(core, ""))) is None
+    assert out_of_scope_reason(Job("rtl", Core("lowrisc:systems:top_earlgrey:0.1", ""))) is None
     assert setup_flags(
         Job("rtl", Core("lowrisc:systems:top_earlgrey:0.1", ""))
     ) == ["--flag=fileset_top"]
@@ -5219,7 +5734,50 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
                 f"      - {anchor}\n"
             )
             source_cores.append((source_core, relative_core, additions))
-        matrix_root = prepare_matrix_core_root(temp_root / "build", source_root)
+        top_fixtures = []
+        for index, (_relative_core, _source_hash, module) in enumerate(
+            MATRIX_SOURCE_CORE_TOPS
+        ):
+            relative_core = f"fixture/top_{index}.core"
+            source_core = source_root / relative_core
+            source_core.parent.mkdir(parents=True, exist_ok=True)
+            (source_core.parent / "rtl").mkdir(exist_ok=True)
+            source_core.write_text(
+                "targets:\n  default:\n    filesets:\n      - files_rtl\n"
+            )
+            top_fixtures.append(
+                (relative_core, file_sha256(source_core), module, source_core)
+            )
+        package_relative = "fixture/bus_params_pkg.core"
+        package_source_core = source_root / package_relative
+        package_source_core.parent.mkdir(parents=True, exist_ok=True)
+        package_source_core.write_text(source_core_sample)
+        package_source = package_source_core.parent / "bus_params_pkg.sv"
+        package_source.write_text("package bus_params_pkg; endpackage\n")
+        with (
+            mock.patch.object(
+                sys.modules[__name__],
+                "MATRIX_SOURCE_CORE_TOPS",
+                tuple(item[:3] for item in top_fixtures),
+            ),
+            mock.patch.object(
+                sys.modules[__name__],
+                "MATRIX_SOURCE_CORE_PACKAGE_ROOT",
+                (package_relative, file_sha256(package_source_core), "bus_params_pkg.sv"),
+            ),
+        ):
+            matrix_root = prepare_matrix_core_root(temp_root / "build", source_root)
+        for relative_core, _source_hash, module, source_core in top_fixtures:
+            overlay_core = matrix_root / "source-overrides" / relative_core
+            assert f"    toplevel: {module}\n" in overlay_core.read_text()
+            assert (overlay_core.parent / "rtl").resolve() == (
+                source_core.parent / "rtl"
+            ).resolve()
+        package_overlay = matrix_root / "source-overrides" / package_relative
+        assert "matrix_package_root.sv" in package_overlay.read_text()
+        assert (package_overlay.parent / "bus_params_pkg.sv").resolve() == (
+            package_source.resolve()
+        )
         for source_core, relative_core, additions in source_cores:
             overlay_core = matrix_root / "source-overrides" / relative_core
             overlay_text = overlay_core.read_text()
@@ -5346,6 +5904,25 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         )
         assert wrapper != generated
         assert wrapper.read_text() == f"+timescale+1ns/1ps\n-c {generated}\n"
+    with tempfile.TemporaryDirectory() as directory:
+        test_root = Path(directory)
+        chip_rtl = test_root / "chip.sv"
+        chip_rtl.write_text("module chip_earlgrey_asic; endmodule\n")
+        source_list = test_root / "chip.scr"
+        source_list.write_text(f"{chip_rtl}\n")
+        _, timescale_notes, wrapper = sva_testbench_wrapper(
+            Job("sva", Core("lowrisc:systems:chip_earlgrey_asic:0.1", "")),
+            source_list,
+            ["-schip_earlgrey_asic"],
+            test_root,
+            source_list,
+        )
+        assert wrapper is not None
+        assert wrapper.read_text() == (
+            f"+timescale+1ns/1ps\n-c {source_list}\n"
+            f"{test_root / 'matrix-sva-tb.sv'}\n"
+        )
+        assert any("default timescale 1ns/1ps" in note for note in timescale_notes)
     uvm_runtime_compile = compile_command(
         Job("runtime", Core(parsed[0], ""), uvm_target),
         Path("iverilog"),
@@ -5376,6 +5953,10 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "lowrisc:systems:top_earlgrey:0.1", ["-stop_earlgrey"]
     ) == "top_earlgrey"
     assert memload_synthesis_profile(
+        "lowrisc:systems:top_englishbreakfast:0.1",
+        ["-stop_englishbreakfast"],
+    ) == "top_englishbreakfast"
+    assert memload_synthesis_profile(
         "lowrisc:systems:chip_earlgrey_asic:0.1", ["-schip_earlgrey_asic"]
     ) == "chip_earlgrey_asic"
     assert memload_synthesis_profile(
@@ -5403,6 +5984,10 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     )
     assert not empty_string_parameter(
         'parameter BootRomInitFile = "boot.vmem";', "BootRomInitFile"
+    )
+    assert empty_string_parameter(
+        'parameter RomCtrlBootRomInitFile = "";',
+        "RomCtrlBootRomInitFile",
     )
     assert top_earlgrey_uses_default_mem_images(
         "top_earlgrey #(.ResetDelay(1)) top_earlgrey ("
@@ -5676,9 +6261,16 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "       : -Wtimescale to find the design element(s) with no explicit\n"
         "       : timescale.\n"
     )
+    chip_sva_timescale = result_base(
+        Job("sva", Core("lowrisc:systems:chip_earlgrey_asic:0.1", "")),
+        Path("build"),
+        [],
+    )["dvsim_timescale"]
+    assert chip_sva_timescale == "1ns/1ps"
     assert matching_lines(
-        mixed_timescale_warning, DEBT_PATTERNS,
-        compile_debt_allowlist("1ns/1ps"),
+        mixed_timescale_warning,
+        DEBT_PATTERNS,
+        compile_debt_allowlist(chip_sva_timescale),
     ) == []
     assert matching_lines(
         mixed_timescale_warning, DEBT_PATTERNS,
@@ -5787,6 +6379,16 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in spi_device_rtl_compile
     assert "-DSYNTHESIS_MEMORY_BLACK_BOXING" in spi_device_rtl_compile
     assert "-DSYNTHESIS_MEMORY_BLACK_BOXING" not in spi_device_compile
+    eb_verilator_compile = compile_command(
+        Job("rtl", Core(ENGLISHBREAKFAST_VERILATOR_CORE, "")),
+        Path("iverilog"),
+        Path("eb-verilator.scr"),
+        ["-schip_englishbreakfast_verilator"],
+        Path("eb-verilator.vvp"),
+    )
+    assert "-DVERILATOR" in eb_verilator_compile
+    assert "-DSIMULATION" in eb_verilator_compile
+    assert "-DSYNTHESIS" not in eb_verilator_compile
     directed_runtime_compile = compile_command(
         Job("runtime", directed_core, directed_target),
         Path("iverilog"),
@@ -6052,6 +6654,42 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         assert classify_compile_setup_warnings(
             "runtime", warnings, source_list
         ) == (warnings, [])
+        backend_unused = (
+            "WARNING:edalize.icarus:../src/unused.c has unknown file type 'cSource'"
+        )
+        backend_listed = (
+            "WARNING:edalize.icarus:../src/listed.cc has unknown file type 'cppSource'"
+        )
+        assert classify_compile_setup_warnings(
+            "rtl", [backend_unused, backend_listed], source_list
+        ) == ([backend_listed], [backend_unused])
+        image_argument_warnings = [
+            "WARNING:root:Parameter 'flashinit' has unsupported type "
+            "'cmdlinearg' for requested backend",
+            "WARNING:root:Parameter 'rominit' has unsupported type "
+            "'cmdlinearg' for requested backend",
+        ]
+        assert classify_compile_setup_warnings(
+            "rtl", image_argument_warnings, source_list,
+            ENGLISHBREAKFAST_VERILATOR_CORE,
+        ) == ([], image_argument_warnings)
+        assert classify_compile_setup_warnings(
+            "rtl", image_argument_warnings, source_list,
+            "lowrisc:systems:other_core:0.1",
+        ) == (image_argument_warnings, [])
+        cosim_script_warning = [
+            "WARNING: util/ibex_cosim_setup_check.sh has unknown file type ''"
+        ]
+        source_list.write_text("../src/listed.cc\n")
+        assert classify_compile_setup_warnings(
+            "rtl", cosim_script_warning, source_list,
+            "lowrisc:ibex:ibex_simple_system_cosim:0",
+        ) == ([], cosim_script_warning)
+        source_list.write_text("../src/listed.cc\nutil/ibex_cosim_setup_check.sh\n")
+        assert classify_compile_setup_warnings(
+            "rtl", cosim_script_warning, source_list,
+            "lowrisc:ibex:ibex_simple_system_cosim:0",
+        ) == (cosim_script_warning, [])
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         staged = root / "src" / "native_core" / "util.c"
@@ -6148,8 +6786,6 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         else:
             raise AssertionError("timed-out command left a descendant running")
     if sys.platform == "darwin":
-        from unittest import mock
-
         signal_probe = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(30)"],
             start_new_session=True,
@@ -6354,6 +6990,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         fusesoc_python = resolve_fusesoc_python(
             fusesoc, args.fusesoc_python, env
         )
+        env["PATH"] = os.pathsep.join(
+            [str(Path(fusesoc_python[0]).absolute().parent), env.get("PATH", "")]
+        )
         fusesoc_python_info = validate_fusesoc_python(
             fusesoc_python,
             require_hjson=bool({"uvm", "runtime"}.intersection(lanes)),
@@ -6394,6 +7033,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not jobs:
         print("No OpenTitan cores matched the requested lanes and filters", file=sys.stderr)
         return 2
+
+    englishbreakfast_source_root = None
+    englishbreakfast_core_root = None
+    englishbreakfast_generation = None
+    englishbreakfast_generation_log = None
+    if any(
+        job.lane == "rtl" and top_for_job(job, args.top) == "englishbreakfast"
+        for job in jobs
+    ):
+        try:
+            (
+                englishbreakfast_source_root,
+                englishbreakfast_core_root,
+                englishbreakfast_generation,
+                englishbreakfast_generation_log,
+            ) = prepare_englishbreakfast_topgen(
+                matrix_core_root,
+                opentitan_root,
+                fusesoc_python,
+                env,
+                args.setup_timeout,
+            )
+        except (OSError, RuntimeError) as exc:
+            print(f"EnglishBreakfast topgen preparation failed: {exc}", file=sys.stderr)
+            return 2
 
     native_cflags: list[str] = []
     native_libs: list[str] = []
@@ -6461,18 +7125,70 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if (matrix_core_root / "source-overrides" / relative_core).is_file()
     ]
+    metadata["matrix_source_core_toplevel_overrides"] = [
+        {
+            "source_core": relative_core,
+            "toplevel": module,
+            "source_sha256": file_sha256(opentitan_root / relative_core),
+            "overlay_sha256": file_sha256(
+                matrix_core_root / "source-overrides" / relative_core
+            ),
+        }
+        for relative_core, _source_hash, module in MATRIX_SOURCE_CORE_TOPS
+        if (matrix_core_root / "source-overrides" / relative_core).is_file()
+    ]
+    package_core, _package_hash, package_file = MATRIX_SOURCE_CORE_PACKAGE_ROOT
+    package_overlay = matrix_core_root / "source-overrides" / package_core
+    if package_overlay.is_file():
+        metadata["matrix_source_core_toplevel_overrides"].append(
+            {
+                "source_core": package_core,
+                "toplevel": "matrix_package_root",
+                "package_source": package_file,
+                "source_sha256": file_sha256(opentitan_root / package_core),
+                "overlay_sha256": file_sha256(package_overlay),
+            }
+        )
+    ibex_library = ibex_sim_shared_metadata(matrix_core_root)
+    if ibex_library is not None:
+        metadata["matrix_external_core_providers"] = [ibex_library]
+    text_overrides = []
     spi_host_core_overlay = matrix_core_root / "source-overrides" / SPI_HOST_SVA_CORE
     if spi_host_core_overlay.is_file():
-        metadata["matrix_source_core_text_overrides"] = [
+        text_overrides.append(
             {
                 "source_core": SPI_HOST_SVA_CORE,
                 "source_sha256": file_sha256(opentitan_root / SPI_HOST_SVA_CORE),
                 "overlay_sha256": file_sha256(spi_host_core_overlay),
                 "change": "remove nonexistent files_formal target fileset",
             }
-        ]
+        )
+    ibex_source_overlay = (
+        matrix_core_root / "source-overrides" / IBEX_COMPLIANCE_SOURCE
+    )
+    if ibex_source_overlay.is_file():
+        text_overrides.append(
+            {
+                "source_file": IBEX_COMPLIANCE_SOURCE,
+                "source_sha256": file_sha256(opentitan_root / IBEX_COMPLIANCE_SOURCE),
+                "overlay_sha256": file_sha256(ibex_source_overlay),
+                "change": "size scalar and RAM config literals to match Ibex top ports",
+            }
+        )
+    if text_overrides:
+        metadata["matrix_source_core_text_overrides"] = text_overrides
     if native_pkg_config is not None:
         metadata["native_pkg_config"] = native_pkg_config
+    if englishbreakfast_generation is not None:
+        metadata["englishbreakfast_topgen"] = {
+            "command": short_command(englishbreakfast_generation.command),
+            "returncode": englishbreakfast_generation.returncode,
+            "duration_seconds": round(englishbreakfast_generation.duration_seconds, 3),
+            "timed_out": englishbreakfast_generation.timed_out,
+            "log": str(englishbreakfast_generation_log),
+            "source_root": str(englishbreakfast_source_root),
+            "generated_core_root": str(englishbreakfast_core_root),
+        }
     if formal_targets is not None:
         formal_listing = "\n".join(sorted(formal_targets)) + "\n"
         metadata["fusesoc_formal_target_count"] = len(formal_targets)
@@ -6519,6 +7235,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             iverilog=iverilog,
             vvp=vvp,
             env=env,
+            englishbreakfast_source_root=englishbreakfast_source_root,
+            englishbreakfast_core_root=englishbreakfast_core_root,
+            englishbreakfast_generation=englishbreakfast_generation,
+            englishbreakfast_generation_log=englishbreakfast_generation_log,
             native_cflags=native_cflags,
             native_libs=native_libs,
         )
