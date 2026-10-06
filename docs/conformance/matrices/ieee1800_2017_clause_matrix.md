@@ -2246,15 +2246,21 @@ PARTIAL.
 IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
 strict 2017/2023 regressions cover coupled direct scalar properties, fixed
 unpacked bit arrays declared with two and 129 elements, a 2×2 fixed array, and
-bounded variable-size direct arrays, including size zero and two correlated arrays.
+bounded variable-size direct integral/enum arrays, including size zero and two
+correlated arrays. A sparse three-value enum array with size one or two now
+samples the 3:9 complete-tuple ratio at 29/91 out of 120; before fix 6 its
+short/long counts were 67/53 out of 120. Enum legality is enforced for synthesized active
+elements, while inactive padding remains canonical zero.
 The 129-element oracle constrains two leaves and projects five legal tuples;
 the old fallback sampled mode one 155/500 times, while the new bins are
 91, 119, 90, 98, and 102/500. The 2×2 oracle has 17 tuples; its old mode-one
 bin was 267/1,000 and all new bins are 48–69/1,000. Direct fixed integral/enum
 arrays sample referenced leaves without a declared-extent cap; unreferenced
 leaves remain independently prefilled. The variable-size sampler enumerates feasible sizes and
-canonicalizes inactive padding when its combined maximum is at most 128
-elements. Connected wide scalars are included
+canonicalizes inactive padding with a combined maximum of 512 elements. The
+size-128/size-129 dynamic-array oracle yields 91/209 out of 300; before the cap
+extension the size-128 mode appeared 139 times. The size-256/size-257 oracle
+yields 44/76 out of 120, compared with 166/134 in the pre-fix probe. Connected wide scalars are included
 for connected scalar properties wider than 64 bits. Complete feasible unary
 domains up to 256 values are enumerated; larger connected domains use uniform
 full-width proposals and hard-solver rejection. A 129-tuple 65-bit oracle's
@@ -2264,8 +2270,13 @@ larger mode 200/200 times, versus 150/200 before full-width rejection. The paire
 65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
 64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
-aggregate domains, and other container shapes remain open. See the
-[revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
+aggregate domains, unions with more than eight runs or wider-than-256-bit unconnected wide scalars,
+fixed-array ranks above three and other container shapes remain open. An isolated 33–256-bit scalar with up to eight disjoint feasible intervals
+is sampled uniformly after exact boundary searches; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
+37, and 52/200. The unequal-range union test keeps four equal-cardinality bins
+within 30–70/200 in both editions. A 2×2×2 fixed-array oracle samples nine
+complete legal tuples within 12–55/300 in both editions.
+See the [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical
 [`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
 result. No broader clause-18 qualification is claimed.

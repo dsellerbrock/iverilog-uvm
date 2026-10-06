@@ -65,6 +65,35 @@ class variable_size_array_above_old_cap;
     else payload.size() == 65;
   }
 endclass
+class variable_size_array_at_128_129;
+  rand bit mode;
+  rand bit payload[];
+  constraint c {
+    if (mode) payload.size() == 128;
+    else payload.size() == 129;
+  }
+endclass
+class variable_size_array_at_256_257;
+  rand bit mode;
+  rand bit payload[];
+  constraint c {
+    if (mode) payload.size() == 256;
+    else payload.size() == 257;
+  }
+endclass
+typedef enum bit [1:0] {
+  uniform_enum_one = 1,
+  uniform_enum_two = 2,
+  uniform_enum_three = 3
+} variable_size_uniform_enum_t;
+class variable_size_enum_array_uniformity;
+  rand bit short_case;
+  rand variable_size_uniform_enum_t payload[];
+  constraint c {
+    if (short_case) payload.size() == 1;
+    else payload.size() == 2;
+  }
+endclass
 typedef struct {
   rand bit value;
 } uniform_member_t;
@@ -105,6 +134,16 @@ class wide_domain_dense_uniformity;
     else value == 65'd0;
   }
 endclass
+class wide_single_range_uniformity;
+  rand bit [64:0] value;
+  constraint c { value inside {[65'd1:65'd1024]}; }
+endclass
+class wide_fragmented_ranges_uniformity;
+  rand bit [64:0] value;
+  constraint c {
+    value inside {[65'd1:65'd768], [65'd1025:65'd1280]};
+  }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -131,6 +170,28 @@ class fixed_array_2d_uniformity;
     }
   }
 endclass
+class fixed_array_3d_uniformity;
+  rand bit mode;
+  rand bit payload[2][2][2];
+  constraint c {
+    if (mode) {
+      payload[0][0][0] == 0;
+      payload[0][0][1] == 0;
+      payload[0][1][0] == 0;
+      payload[0][1][1] == 0;
+      payload[1][0][0] == 0;
+      payload[1][0][1] == 0;
+      payload[1][1][0] == 0;
+      payload[1][1][1] == 0;
+    } else {
+      payload[0][0][0] == 0;
+      payload[0][0][1] == 0;
+      payload[0][1][0] == 0;
+      payload[0][1][1] == 0;
+      payload[1][0][0] == 0;
+    }
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -142,27 +203,39 @@ module main;
   variable_size_array_with_empty variable_size_empty = new;
   correlated_variable_arrays correlated_arrays = new;
   variable_size_array_above_old_cap larger_array = new;
+  variable_size_array_at_128_129 array_at_cap = new;
+  variable_size_array_at_256_257 array_at_next_cap = new;
+  variable_size_enum_array_uniformity enum_array = new;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
   wide_domain_uniformity_129 wide_uniform_129 = new;
   wide_domain_dense_uniformity wide_uniform_dense = new;
+  wide_single_range_uniformity wide_single_range = new;
+  wide_fragmented_ranges_uniformity wide_fragmented_ranges = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
+  fixed_array_3d_uniformity fixed_array_3d = new;
   int count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
   int correlated_array_count[12];
   int larger_array_size_count[2];
+  int array_at_cap_size_count[2];
+  int array_at_next_cap_size_count[2];
+  int enum_array_size_count[2];
   int member_tuple_count[3];
   int wide_tuple_count[5];
   int wide_above_cap_mode_one;
   int wide_129_mode_one;
   int wide_dense_mode_one;
+  int wide_single_range_count[4];
+  int wide_fragmented_ranges_count[4];
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
+  int fixed_array_3d_tuple_count[9];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -329,6 +402,73 @@ module main;
       $fatal(1, "large-array sizes are not weighted by complete tuples: %0d/%0d",
              larger_array_size_count[0], larger_array_size_count[1]);
 
+    // The exact variable-size path also crosses its old 128-element cap.
+    array_at_cap.srandom(403);
+    repeat (300) begin
+      if (!array_at_cap.randomize())
+        $fatal(1, "128/129-element variable-size array failed");
+      if (array_at_cap.mode) begin
+        if (array_at_cap.payload.size() != 128)
+          $fatal(1, "invalid size-128 array tuple");
+        array_at_cap_size_count[0]++;
+      end else begin
+        if (array_at_cap.payload.size() != 129)
+          $fatal(1, "invalid size-129 array tuple");
+        array_at_cap_size_count[1]++;
+      end
+    end
+    if (array_at_cap_size_count[0] < 70 || array_at_cap_size_count[0] > 130
+        || array_at_cap_size_count[1] < 170 || array_at_cap_size_count[1] > 230)
+      $fatal(1, "128/129 sizes are not weighted by complete tuples: %0d/%0d",
+             array_at_cap_size_count[0], array_at_cap_size_count[1]);
+
+    // The exact variable-size path is bounded at 512 aggregate elements.
+    array_at_next_cap.srandom(404);
+    repeat (120) begin
+      if (!array_at_next_cap.randomize())
+        $fatal(1, "256/257-element variable-size array failed");
+      if (array_at_next_cap.mode) begin
+        if (array_at_next_cap.payload.size() != 256)
+          $fatal(1, "invalid size-256 array tuple");
+        array_at_next_cap_size_count[0]++;
+      end else begin
+        if (array_at_next_cap.payload.size() != 257)
+          $fatal(1, "invalid size-257 array tuple");
+        array_at_next_cap_size_count[1]++;
+      end
+    end
+    if (array_at_next_cap_size_count[0] < 24
+        || array_at_next_cap_size_count[0] > 56
+        || array_at_next_cap_size_count[1] < 64
+        || array_at_next_cap_size_count[1] > 96)
+      $fatal(1, "256/257 sizes are not weighted by complete tuples: %0d/%0d out of 120",
+             array_at_next_cap_size_count[0], array_at_next_cap_size_count[1]);
+
+    // Three one-element tuples compete with nine two-element enum tuples.
+    enum_array.srandom(405);
+    repeat (120) begin
+      if (!enum_array.randomize())
+        $fatal(1, "variable-size enum array randomization failed");
+      if (enum_array.short_case) begin
+        if (enum_array.payload.size() != 1)
+          $fatal(1, "invalid size-one enum array tuple");
+        enum_array_size_count[0]++;
+      end else begin
+        if (enum_array.payload.size() != 2)
+          $fatal(1, "invalid size-two enum array tuple");
+        enum_array_size_count[1]++;
+      end
+      for (int i = 0; i < enum_array.payload.size(); ++i)
+        if (enum_array.payload[i] != uniform_enum_one
+            && enum_array.payload[i] != uniform_enum_two
+            && enum_array.payload[i] != uniform_enum_three)
+          $fatal(1, "invalid enum-array element");
+    end
+    if (enum_array_size_count[0] < 20 || enum_array_size_count[0] > 44
+        || enum_array_size_count[1] < 84 || enum_array_size_count[1] > 108)
+      $fatal(1, "enum-array sizes are not weighted by complete tuples: %0d/%0d out of 120",
+             enum_array_size_count[0], enum_array_size_count[1]);
+
     // One active struct member participates in the same three legal tuples.
     member_uniform.srandom(101);
     repeat (300) begin
@@ -420,6 +560,54 @@ module main;
       $fatal(1, "large feasible domain is not sampled uniformly: mode one %0d/200",
              wide_dense_mode_one);
 
+    // A single wide scalar's contiguous interval must be sampled uniformly.
+    wide_single_range.srandom(626);
+    repeat (200) begin
+      if (!wide_single_range.randomize())
+        $fatal(1, "wide single-range solve failed");
+      if (wide_single_range.value < 65'd1
+          || wide_single_range.value > 65'd1024)
+        $fatal(1, "wide single-range result is outside its constraint");
+      if (wide_single_range.value <= 65'd256)
+        wide_single_range_count[0]++;
+      else if (wide_single_range.value <= 65'd512)
+        wide_single_range_count[1]++;
+      else if (wide_single_range.value <= 65'd768)
+        wide_single_range_count[2]++;
+      else
+        wide_single_range_count[3]++;
+    end
+    for (int i = 0; i < 4; ++i)
+      if (wide_single_range_count[i] < 30 || wide_single_range_count[i] > 70)
+        $fatal(1, "wide interval bucket %0d is biased: %0d/200",
+               i, wide_single_range_count[i]);
+
+    // Unequal disjoint intervals still give every legal value equal weight.
+    wide_fragmented_ranges.srandom(627);
+    repeat (200) begin
+      if (!wide_fragmented_ranges.randomize())
+        $fatal(1, "wide fragmented-range solve failed");
+      if (wide_fragmented_ranges.value >= 65'd1
+          && wide_fragmented_ranges.value <= 65'd256)
+        wide_fragmented_ranges_count[0]++;
+      else if (wide_fragmented_ranges.value >= 65'd257
+               && wide_fragmented_ranges.value <= 65'd512)
+        wide_fragmented_ranges_count[1]++;
+      else if (wide_fragmented_ranges.value >= 65'd513
+               && wide_fragmented_ranges.value <= 65'd768)
+        wide_fragmented_ranges_count[2]++;
+      else if (wide_fragmented_ranges.value >= 65'd1025
+               && wide_fragmented_ranges.value <= 65'd1280)
+        wide_fragmented_ranges_count[3]++;
+      else
+        $fatal(1, "wide fragmented-range result is outside its constraints");
+    end
+    for (int i = 0; i < 4; ++i)
+      if (wide_fragmented_ranges_count[i] < 30
+          || wide_fragmented_ranges_count[i] > 70)
+        $fatal(1, "fragmented-range bucket %0d is biased: %0d/200",
+               i, wide_fragmented_ranges_count[i]);
+
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);
     repeat (500) begin
@@ -482,6 +670,42 @@ module main;
           || fixed_array_2d_tuple_count[i] > 90)
         $fatal(1, "2D fixed-array tuple %0d is biased: %0d/1000",
                i, fixed_array_2d_tuple_count[i]);
+
+    // Three unpacked dimensions also sample complete legal tuples uniformly.
+    fixed_array_3d.srandom(402);
+    repeat (300) begin
+      int code;
+      if (!fixed_array_3d.randomize())
+        $fatal(1, "3D fixed-array uniformity solve failed");
+      if (fixed_array_3d.mode) begin
+        if (fixed_array_3d.payload[0][0][0]
+            || fixed_array_3d.payload[0][0][1]
+            || fixed_array_3d.payload[0][1][0]
+            || fixed_array_3d.payload[0][1][1]
+            || fixed_array_3d.payload[1][0][0]
+            || fixed_array_3d.payload[1][0][1]
+            || fixed_array_3d.payload[1][1][0]
+            || fixed_array_3d.payload[1][1][1])
+          $fatal(1, "invalid 3D fixed-array mode-one tuple");
+        fixed_array_3d_tuple_count[0]++;
+      end else begin
+        if (fixed_array_3d.payload[0][0][0]
+            || fixed_array_3d.payload[0][0][1]
+            || fixed_array_3d.payload[0][1][0]
+            || fixed_array_3d.payload[0][1][1]
+            || fixed_array_3d.payload[1][0][0])
+          $fatal(1, "invalid 3D fixed-array mode-zero tuple");
+        code = {fixed_array_3d.payload[1][1][1],
+                fixed_array_3d.payload[1][1][0],
+                fixed_array_3d.payload[1][0][1]};
+        fixed_array_3d_tuple_count[code + 1]++;
+      end
+    end
+    for (int i = 0; i < 9; ++i)
+      if (fixed_array_3d_tuple_count[i] < 12
+          || fixed_array_3d_tuple_count[i] > 55)
+        $fatal(1, "3D fixed-array tuple %0d is biased: %0d/300",
+               i, fixed_array_3d_tuple_count[i]);
     $display("PASSED");
   end
 endmodule

@@ -82,6 +82,43 @@ bytes in 2017 and 44,892,160 bytes in 2023; each run completed in about 31 s.
 
 Source-built ARM64 VVP SHA-256: `39c2d208c6cd8bb92fb989b91e86c84b0143310062e520ecb8962b7c27cf8553`.
 
+## Variable-size arrays through 512 combined elements
+
+A size-128/size-129 one-bit dynamic array has twice as many complete legal
+payload tuples at size 129. With the former 128-element cap, the size-128 mode
+appeared 139/300 times instead of about 100/300. The first extension raised
+the combined cap to 256; the paired regression now gives 91/209 in 300 draws.
+Canonical zero padding represents each legal array value once, and uniform
+whole-tuple rejection preserves the 2:1 size weighting.
+
+The next boundary exposed the same issue: with size 256 versus 257, the old
+fallback produced 166/134 in 300 draws instead of about 100/200. The combined
+cap is now 512. The registered paired regression requires 24–56 size-256
+results and 64–96 size-257 results in 120 draws; a focused run produced 44/76.
+This keeps the sample count moderate because 257-element solves are slower than
+129-element solves.
+
+The full `sv_randomize_global_uniform` suite passes under strict `-g2017` and
+`-g2023` with the extension. The focused 256/257 probe used about 66 MB RSS; the paired full suites were
+observed near 80 MB RSS.
+
+Source-built ARM64 VVP SHA-256: `18b536ad006a8e6b01f23a930f9df13e298d117a961763058fbe96565abd5c1d`.
+
+## Variable-size enum arrays
+
+A two-bit enum with legal values 1, 2, and 3 competes at sizes one and two,
+giving three short tuples and nine long tuples. The old fallback produced
+67/53 short/long results in 120 draws. The bounded exact sampler now retains
+the enum literal constraint on every active element it synthesizes and keeps
+inactive padding fixed at zero, even though zero is not an enum value. The
+registered paired regression produces 29/91 in 120 draws. The full paired
+uniformity suites passed in strict `-g2017` and `-g2023` on the build below;
+the final rebuild also passed focused enum-array and enum-domain checks in both
+editions.
+
+Full-suite source-built ARM64 VVP SHA-256: `dc6b14b305259b2e6f2c59d478703ce29abf4b35ec47a6147e98e6bccdd50908`.
+Final focused-check source-built ARM64 VVP SHA-256: `d6b2f92644daccc0377c71335d6b7fc655c335a41f9ab3f4b49535826c20e8a9`.
+
 ## Connected wide-scalar finite-domain slice
 
 A 65-bit scalar reproducer has five complete legal tuples: one mode selects
@@ -206,3 +243,54 @@ paired `sv_randomize_global_uniform` statistical suite and its rollback
 control also pass on the same VVP image.
 
 Source-built ARM64 VVP SHA-256: `3d24d2efddd12f07ad7bedbee2d8d3d6662e6af2ccffda6639ada3a35e000ccb`.
+
+## Isolated wide-scalar interval unions
+
+A direct `rand bit [64:0] value` constrained to `[1:1024]` previously fell
+through finite-domain enumeration to Optimize diversity. With seed 626, the
+registered regression failed at 23/200 in its first 256-value bucket. The new
+path applies only to isolated direct scalar properties wider than 32 bits and
+at most 256 bits when solve-before, `dist`, soft constraints, `randc`, exact-joint
+solving, state checks, and queue-element references are absent. It reuses the
+existing isolated-factor proof and searches for the first feasible value and
+the first infeasible value after each run. Up to eight disjoint runs are counted
+by cardinality, then one uniform rank is drawn from their union. Tautological
+factors use a direct full-domain draw. Unknown solver results, unions with more
+than eight runs, and widths above 256 decline this path.
+
+### Fragmented wide-scalar intervals
+
+Before this extension, a two-range probe with equal 512-value intervals and
+seed 627 failed at 22/200 in its first bucket. The registered paired
+regression now uses the unequal union `[1:768] U [1025:1280]` (1,024 legal
+values total) and partitions it into four 256-value bins. All four bins stay
+within 30–70/200 under both strict `-g2017` and `-g2023`, showing equal weight
+per legal value across intervals with a 3:1 size ratio; results in the gap or
+outside the union fail immediately. The sampler caps the exact union proof at
+eight runs and 256 bits.
+
+The registered `sv_randomize_global_uniform` suite passes under both strict
+`-g2017` and `-g2023`. A same-seed standalone run gives the four equal
+256-value bins `57, 54, 37, 52` out of 200 in each edition; the permanent
+regression requires every bin to be 30–70. The paired 2×2×2 fixed-array
+oracle has nine complete legal tuples and keeps each count within 12–55/300
+under strict `-g2017` and `-g2023`; it checks that
+the existing flat-storage sampler works through three unpacked dimensions.
+Fixed-array ranks above three and other untested shapes remain outside the
+recorded scope. The adjacent sampling-failure and fixed-array solve-before
+controls pass in both editions. The oversized-domain warning and fixed-array
+allocation error in the failure control are expected.
+
+Paired full-suite commands, from the repository root:
+
+```sh
+local-install/bin/iverilog -g2017 -s main -I ivtest -o /tmp/sv-randomize-uniform-2017.vvp ivtest/ivltests/sv_randomize_global_uniform.v
+vvp/vvp -n /tmp/sv-randomize-uniform-2017.vvp
+local-install/bin/iverilog -g2023 -s main -I ivtest -o /tmp/sv-randomize-uniform-2023.vvp ivtest/ivltests/sv_randomize_global_uniform_2023.v
+vvp/vvp -n /tmp/sv-randomize-uniform-2023.vvp
+```
+
+The latest source-built ARM64 VVP SHA-256 is recorded above; the earlier
+interval-only image was `e03e71b261bcf0f4e98cf6a67e8cae5b4a7cebd180001e961bc1db52f663c5ae`.
+This focused fix does not close the broader uniform-legal-combinations
+requirement.

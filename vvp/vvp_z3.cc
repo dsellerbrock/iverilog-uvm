@@ -8199,6 +8199,19 @@ struct dist_wide_uint_t {
 	    r.trim();
 	    return r;
       }
+	static dist_wide_uint_t shift_right_one(const dist_wide_uint_t&a)
+	{
+	      dist_wide_uint_t r;
+	      r.limb.resize(a.limb.size(), 0);
+	      uint32_t carry = 0;
+	      for (size_t i = a.limb.size(); i > 0; --i) {
+		    uint32_t word = a.limb[i - 1];
+		    r.limb[i - 1] = (word >> 1) | (carry << 31);
+		    carry = word & 1;
+	      }
+	      r.trim();
+	      return r;
+	}
 	// Exact uniform draw in [0, bound) by rejection over bit_length bits.
       static dist_wide_uint_t uniform_below(z3_rng_stream_t&rng,
 					    const dist_wide_uint_t&bound)
@@ -8235,6 +8248,114 @@ struct dist_wide_uint_t {
 	    return Z3_mk_bv_numeral(ctx, width, bits.get());
       }
 };
+
+/* Sample a wide scalar uniformly from a bounded union of feasible intervals.
+ * ponytail: cap at 8 runs and 256 bits; use exact model counting before
+ * expanding either bound. */
+static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
+                                                Z3_solver base,
+                                                Z3_ast var,
+                                                unsigned width,
+                                                z3_rng_stream_t&rng,
+                                                Z3_ast&sample)
+{
+      typedef dist_wide_uint_t big;
+      sample = nullptr;
+      if (width == 0 || width > 256) return false;
+
+      Z3_ast formula = nullptr;
+      if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
+      if (Z3_get_bool_value(ctx, formula) == Z3_L_TRUE) {
+            big domain;
+            domain.set_bit(width);
+            sample = big::uniform_below(rng, domain).numeral(ctx, width);
+            return sample != nullptr;
+      }
+      Z3_solver outside = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, outside);
+      Z3_solver_assert(ctx, outside, Z3_mk_not(ctx, formula));
+
+      big power;
+      power.set_bit(width);
+      const big one = big::from_u64(1);
+      const big maximum = big::sub(power, one);
+      auto exists_in = [&](Z3_solver solver, const big&lo,
+                           const big&hi) -> Z3_lbool {
+            if (big::cmp(lo, hi) > 0) return Z3_L_FALSE;
+            Z3_ast bounds[2] = {
+                  Z3_mk_bvuge(ctx, var, lo.numeral(ctx, width)),
+                  Z3_mk_bvule(ctx, var, hi.numeral(ctx, width))};
+            Z3_ast range = Z3_mk_and(ctx, 2, bounds);
+            Z3_solver_push(ctx, solver);
+            Z3_solver_assert(ctx, solver, range);
+            Z3_lbool result = Z3_solver_check(ctx, solver);
+            Z3_solver_pop(ctx, solver, 1);
+            return result;
+      };
+
+      struct interval_t { big first, last; };
+      static const size_t INTERVAL_CAP = 8;
+      vector<interval_t> intervals;
+      big total;
+      big cursor;
+      auto fail = [&]() -> bool {
+            Z3_solver_dec_ref(ctx, outside);
+            return false;
+      };
+      for (;;) {
+            Z3_lbool any = exists_in(base, cursor, maximum);
+            if (any == Z3_L_FALSE) break;
+            if (any == Z3_L_UNDEF || intervals.size() == INTERVAL_CAP)
+                  return fail();
+
+            big lo = cursor, hi = maximum;
+            while (big::cmp(lo, hi) < 0) {
+                  big mid = big::shift_right_one(big::add(lo, hi));
+                  Z3_lbool left = exists_in(base, cursor, mid);
+                  if (left == Z3_L_UNDEF) return fail();
+                  if (left == Z3_L_TRUE) hi = mid;
+                  else lo = big::add(mid, one);
+            }
+            big first = lo;
+
+            Z3_lbool hole = exists_in(outside, first, maximum);
+            if (hole == Z3_L_UNDEF) return fail();
+            big last = maximum;
+            if (hole == Z3_L_TRUE) {
+                  lo = first;
+                  hi = maximum;
+                  while (big::cmp(lo, hi) < 0) {
+                        big mid = big::shift_right_one(big::add(lo, hi));
+                        Z3_lbool left = exists_in(outside, first, mid);
+                        if (left == Z3_L_UNDEF) return fail();
+                        if (left == Z3_L_TRUE) hi = mid;
+                        else lo = big::add(mid, one);
+                  }
+                  if (big::cmp(lo, first) <= 0) return fail();
+                  last = big::sub(lo, one);
+            }
+
+            intervals.push_back({first, last});
+            total = big::add(total,
+                  big::add(big::sub(last, first), one));
+            if (big::cmp(last, maximum) == 0) break;
+            cursor = big::add(last, one);
+      }
+      Z3_solver_dec_ref(ctx, outside);
+      if (intervals.empty() || total.zero()) return false;
+
+      big ticket = big::uniform_below(rng, total);
+      for (const auto&interval : intervals) {
+            big count = big::add(big::sub(interval.last, interval.first), one);
+            if (big::cmp(ticket, count) < 0) {
+                  big selected = big::add(interval.first, ticket);
+                  sample = selected.numeral(ctx, width);
+                  return sample != nullptr;
+            }
+            ticket = big::sub(ticket, count);
+      }
+      return false;
+}
 
 /* Exact dist sampling for items wider than 64 bits (IEEE 1800-2017 18.5.4,
  * 1800-2023 18.5.3), with the same semantics as the <=64-bit path: choose a
@@ -9724,21 +9845,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       // IEEE 1800-2017/2023 18.4: randomized enum values belong to the
-      // declared literal set, whether reached directly or through a struct.
-      // Reuse these same domains in the accept-current solver below.
+      // declared literal set, whether reached directly, through a struct, or
+      // as an active dynamic-array element.
       vector<Z3_ast> enum_domains;
-      auto add_enum_domain = [&](const class_type*type, unsigned pid,
-                                 unsigned width, Z3_ast variable) {
-            if (!type || !type->property_is_enum(pid)) return;
+      auto enum_domain_for = [&](const class_type*type, unsigned pid,
+                                 unsigned width, Z3_ast variable) -> Z3_ast {
+            if (!type || !type->property_is_enum(pid)) return nullptr;
             vector<Z3_ast> literals;
             for (const auto&value : type->property_enum_values(pid)) {
                   Z3_ast literal;
                   if (!vec4_to_bv_const_(ctx, value, width, literal)) continue;
                   literals.push_back(Z3_mk_eq(ctx, variable, literal));
             }
-            Z3_ast domain = literals.empty() ? Z3_mk_false(ctx)
+            return literals.empty() ? Z3_mk_false(ctx)
                   : literals.size() == 1 ? literals.front()
                   : Z3_mk_or(ctx, (unsigned)literals.size(), literals.data());
+      };
+      auto add_enum_domain = [&](const class_type*type, unsigned pid,
+                                 unsigned width, Z3_ast variable) {
+            Z3_ast domain = enum_domain_for(type, pid, width, variable);
+            if (!domain) return;
             enum_domains.push_back(domain);
             Z3_optimize_assert(ctx, opt, domain);
             Z3_solver_assert(ctx, base, domain);
@@ -9860,9 +9986,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
       // Canonical zero padding gives every complete tuple a unique solver
       // representation across correlated direct dynamic arrays.
-      // ponytail: bound padded solver models at 128 elements total; add exact
-      // counting before raising this for larger arrays.
-      const uint64_t uniform_dynamic_array_elem_cap = 128;
+      // ponytail: bound padded solver models at 512 elements total; use
+      // exact counting or hashing before expanding this ceiling further.
+      const uint64_t uniform_dynamic_array_elem_cap = 512;
       if (!dyn_sizes && !builder.row_pass && cobj && !exact_joint
 	  && !builder.size_vars.empty()
 	  && builder.order_pairs.empty() && builder.dist_specs.empty()
@@ -9892,7 +10018,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		      || !type->property_dimensions(pid).empty()
 		      || base_type.empty() || base_type[0] != 'D'
 		      || !desc.elem_integral || desc.elem_width == 0
-		      || desc.elem_width > 64 || type->property_is_enum(pid)
+		      || desc.elem_width > 64
 		      || type->property_is_randc(pid)) {
 			eligible = false;
 			break;
@@ -9944,22 +10070,35 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			unsigned width = widths.at(id);
 			uint64_t minimum = minima.at(id);
 			uint64_t maximum = maxima.at(id);
+			const class_type*type = builder.type(sv.idx);
+			unsigned pid = builder.local_index(sv.idx);
 			for (uint64_t elem = 0; elem < maximum; ++elem) {
 			      Z3_ast value = builder.get_elem_var(sv.idx, width,
 				    (unsigned)elem);
-			      if (elem < minimum) continue;
 			      Z3_ast index = Z3_mk_unsigned_int64(ctx, elem, size_sort);
 			      Z3_ast active = Z3_mk_bvugt(ctx, sv.var, index);
-			      Z3_ast zero = Z3_mk_unsigned_int64(ctx, 0,
-				    Z3_mk_bv_sort(ctx, width));
-			      Z3_ast canonical_terms[2] = {
-				    active, Z3_mk_eq(ctx, value, zero)
-			      };
-			      Z3_ast canonical = Z3_mk_or(ctx, 2, canonical_terms);
-			      Z3_solver_assert(ctx, base, canonical);
-			      Z3_optimize_assert(ctx, opt, canonical);
-			      uniform_dynamic_padding_vars.insert(value);
-			}
+			      if (elem >= minimum) {
+				    Z3_ast zero = Z3_mk_unsigned_int64(ctx, 0,
+					  Z3_mk_bv_sort(ctx, width));
+				    Z3_ast canonical_terms[2] = {
+					  active, Z3_mk_eq(ctx, value, zero)
+				    };
+				    Z3_ast canonical = Z3_mk_or(ctx, 2, canonical_terms);
+				    Z3_solver_assert(ctx, base, canonical);
+				    Z3_optimize_assert(ctx, opt, canonical);
+				    uniform_dynamic_padding_vars.insert(value);
+			      }
+			      Z3_ast enum_domain = enum_domain_for(type, pid, width,
+				    value);
+			      if (enum_domain) {
+				    if (elem >= minimum)
+					  enum_domain = Z3_mk_implies(ctx, active,
+						enum_domain);
+				    enum_domains.push_back(enum_domain);
+				    Z3_solver_assert(ctx, base, enum_domain);
+				    Z3_optimize_assert(ctx, opt, enum_domain);
+			      }
+				}
 		  }
 		  uniform_dynamic_size_domains = std::move(domains);
 		  uniform_dynamic_size_maximum = std::move(maxima);
@@ -10777,6 +10916,22 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (z3_enumerate_wide_values_(ctx, base, pv.var, values)) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var,
 			      values[property_rng(pv.idx).uniform_index(values.size())]);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
+	    }
+	    if (!fallback_managed && single_var_fast_ok
+		&& pv.width > 32 && pv.width <= 256
+		&& !exact_joint && builder.order_pairs.empty()
+		&& builder.dist_specs.empty() && builder.pending_soft.empty()
+		&& builder.state_checks.empty() && builder.qelem_vars.empty()
+		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
+		  Z3_ast sampled = nullptr;
+		  if (z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
+							   pv.width,
+							   property_rng(pv.idx), sampled)) {
+			Z3_ast eq = Z3_mk_eq(ctx, pv.var, sampled);
 			Z3_optimize_assert(ctx, opt, eq);
 			Z3_solver_assert(ctx, base, eq);
 			continue;
