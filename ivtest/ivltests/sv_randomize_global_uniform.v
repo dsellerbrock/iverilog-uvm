@@ -73,6 +73,14 @@ class variable_size_array_at_128_129;
     else payload.size() == 129;
   }
 endclass
+class variable_size_array_at_256_257;
+  rand bit mode;
+  rand bit payload[];
+  constraint c {
+    if (mode) payload.size() == 256;
+    else payload.size() == 257;
+  }
+endclass
 typedef struct {
   rand bit value;
 } uniform_member_t;
@@ -183,6 +191,7 @@ module main;
   correlated_variable_arrays correlated_arrays = new;
   variable_size_array_above_old_cap larger_array = new;
   variable_size_array_at_128_129 array_at_cap = new;
+  variable_size_array_at_256_257 array_at_next_cap = new;
   uniform_struct_member member_uniform = new;
   wide_domain_uniformity wide_uniform = new;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
@@ -200,6 +209,7 @@ module main;
   int correlated_array_count[12];
   int larger_array_size_count[2];
   int array_at_cap_size_count[2];
+  int array_at_next_cap_size_count[2];
   int member_tuple_count[3];
   int wide_tuple_count[5];
   int wide_above_cap_mode_one;
@@ -396,6 +406,28 @@ module main;
         || array_at_cap_size_count[1] < 170 || array_at_cap_size_count[1] > 230)
       $fatal(1, "128/129 sizes are not weighted by complete tuples: %0d/%0d",
              array_at_cap_size_count[0], array_at_cap_size_count[1]);
+
+    // The exact variable-size path is bounded at 512 aggregate elements.
+    array_at_next_cap.srandom(404);
+    repeat (120) begin
+      if (!array_at_next_cap.randomize())
+        $fatal(1, "256/257-element variable-size array failed");
+      if (array_at_next_cap.mode) begin
+        if (array_at_next_cap.payload.size() != 256)
+          $fatal(1, "invalid size-256 array tuple");
+        array_at_next_cap_size_count[0]++;
+      end else begin
+        if (array_at_next_cap.payload.size() != 257)
+          $fatal(1, "invalid size-257 array tuple");
+        array_at_next_cap_size_count[1]++;
+      end
+    end
+    if (array_at_next_cap_size_count[0] < 24
+        || array_at_next_cap_size_count[0] > 56
+        || array_at_next_cap_size_count[1] < 64
+        || array_at_next_cap_size_count[1] > 96)
+      $fatal(1, "256/257 sizes are not weighted by complete tuples: %0d/%0d out of 120",
+             array_at_next_cap_size_count[0], array_at_next_cap_size_count[1]);
 
     // One active struct member participates in the same three legal tuples.
     member_uniform.srandom(101);

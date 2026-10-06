@@ -2253,9 +2253,10 @@ the old fallback sampled mode one 155/500 times, while the new bins are
 bin was 267/1,000 and all new bins are 48–69/1,000. Direct fixed integral/enum
 arrays sample referenced leaves without a declared-extent cap; unreferenced
 leaves remain independently prefilled. The variable-size sampler enumerates feasible sizes and
-canonicalizes inactive padding with a combined maximum of 256 elements. The
+canonicalizes inactive padding with a combined maximum of 512 elements. The
 size-128/size-129 dynamic-array oracle yields 91/209 out of 300; before the cap
-extension the size-128 mode appeared 139 times. Connected wide scalars are included
+extension the size-128 mode appeared 139 times. The size-256/size-257 oracle
+yields 44/76 out of 120, compared with 166/134 in the pre-fix probe. Connected wide scalars are included
 for connected scalar properties wider than 64 bits. Complete feasible unary
 domains up to 256 values are enumerated; larger connected domains use uniform
 full-width proposals and hard-solver rejection. A 129-tuple 65-bit oracle's

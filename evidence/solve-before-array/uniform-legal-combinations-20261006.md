@@ -82,22 +82,27 @@ bytes in 2017 and 44,892,160 bytes in 2023; each run completed in about 31 s.
 
 Source-built ARM64 VVP SHA-256: `39c2d208c6cd8bb92fb989b91e86c84b0143310062e520ecb8962b7c27cf8553`.
 
-## Variable-size arrays through 256 combined elements
+## Variable-size arrays through 512 combined elements
 
 A size-128/size-129 one-bit dynamic array has twice as many complete legal
-payload tuples at size 129. Before the extension, the exact variable-size
-sampler declined its 128-element limit and the fallback chose size 128 in
-139/300 draws (uniform complete tuples require about 100/300). The cap is now
-256 combined elements; canonical zero padding represents every legal array
-value once, and uniform whole-tuple rejection preserves the 2:1 size weighting.
-The paired registered oracle requires 70–130 size-128 results and 170–230
-size-129 results in 300 draws. A focused same-seed run produced 91 and 209.
+payload tuples at size 129. With the former 128-element cap, the size-128 mode
+appeared 139/300 times instead of about 100/300. The first extension raised
+the combined cap to 256; the paired regression now gives 91/209 in 300 draws.
+Canonical zero padding represents each legal array value once, and uniform
+whole-tuple rejection preserves the 2:1 size weighting.
+
+The next boundary exposed the same issue: with size 256 versus 257, the old
+fallback produced 166/134 in 300 draws instead of about 100/200. The combined
+cap is now 512. The registered paired regression requires 24–56 size-256
+results and 64–96 size-257 results in 120 draws; a focused run produced 44/76.
+This keeps the sample count moderate because 257-element solves are slower than
+129-element solves.
 
 The full `sv_randomize_global_uniform` suite passes under strict `-g2017` and
-`-g2023` with the extension. The source-built VVP stayed near 54 MB RSS during
-the focused runs.
+`-g2023` with the extension. The focused 256/257 probe used about 66 MB RSS; the paired full suites were
+observed near 80 MB RSS.
 
-Source-built ARM64 VVP SHA-256: `db3cff9e0226059a6070fef316fed6657070fddec6ab6da8b80ad2a2a3d6786c`.
+Source-built ARM64 VVP SHA-256: `18b536ad006a8e6b01f23a930f9df13e298d117a961763058fbe96565abd5c1d`.
 
 ## Connected wide-scalar finite-domain slice
 
