@@ -1,0 +1,122 @@
++ set -euo pipefail
++ worktree_root=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926
++ opentitan_root=/private/tmp/ot-corpus-current-spid-passthrough-20261003/source
++ build_root=/private/tmp/pi/iverilog-uvm-runtime-after-scalar-uniform-20261006
++ tool_env=/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313
++ uvm_home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src
++ rv32_tool_dir=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin
++ current_tools=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install
++ result_dir=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-runtime-after-scalar-uniform-20261006
+++ df -Pk /private/tmp
+++ awk 'END {print $4}'
++ avail_kb=15220028
++ '[' 15220028 -lt 8388608 ']'
++ mkdir -p /private/tmp/pi/iverilog-uvm-runtime-after-scalar-uniform-20261006
++ cd /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926
++ export 'PATH=/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/X11/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Applications/Xamarin Workbooks.app/Contents/SharedSupport/path-bin:/Users/danielellerbrock/flutter/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/danielellerbrock/.codex/tmp/arg0/codex-arg03kgnt3:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/danielellerbrock/.bun/bin:/Users/danielellerbrock/oss-cad-suite/bin:/Users/danielellerbrock/.jenv/shims:/Users/danielellerbrock/.jenv/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/danielellerbrock/.local/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/Users/danielellerbrock/.cargo/bin:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS'
++ PATH='/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/X11/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Applications/Xamarin Workbooks.app/Contents/SharedSupport/path-bin:/Users/danielellerbrock/flutter/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/danielellerbrock/.codex/tmp/arg0/codex-arg03kgnt3:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/danielellerbrock/.bun/bin:/Users/danielellerbrock/oss-cad-suite/bin:/Users/danielellerbrock/.jenv/shims:/Users/danielellerbrock/.jenv/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/danielellerbrock/.local/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/Users/danielellerbrock/.cargo/bin:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS'
++ export RV32_TOOL_AS=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/as
++ RV32_TOOL_AS=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/as
++ export RV32_TOOL_LD=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/ld
++ RV32_TOOL_LD=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/toolchain/xpack-riscv-none-elf-gcc-12.2.0-3/riscv-none-elf/bin/ld
++ /Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python scripts/opentitan_matrix.py --opentitan-root /private/tmp/ot-corpus-current-spid-passthrough-20261003/source --build-root /private/tmp/pi/iverilog-uvm-runtime-after-scalar-uniform-20261006 --iverilog /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/local-install/bin/iverilog --uvm-home /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src --fusesoc /Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --fusesoc-python /Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/python --lane runtime --jobs 1 --setup-timeout 600 --compile-timeout 600 --runtime-timeout 18000 --runtime-memory-mib 9536 --commercial-unsafe --native-pkg-config openssl --native-pkg-config libelf --result-json /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-runtime-after-scalar-uniform-20261006/result.json --result-md /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-runtime-after-scalar-uniform-20261006/result.md
+[1/49] runtime lowrisc:dv:adc_ctrl_sim:0.1
+  -> PASS
+[2/49] runtime lowrisc:dv:aes_sim:0.1
+  -> PASS
+[3/49] runtime lowrisc:dv:aon_timer_sim:0.1
+  -> PASS
+[4/49] runtime lowrisc:dv:chip_sim:0.1
+  -> PASS
+[5/49] runtime lowrisc:dv:clkmgr_sim:0.1
+  -> PASS
+[6/49] runtime lowrisc:dv:csrng_sim:0.1
+  -> PASS
+[7/49] runtime lowrisc:dv:edn_sim:0.1
+  -> PASS
+[8/49] runtime lowrisc:dv:entropy_src_sim:0.1
+  -> PASS
+[9/49] runtime lowrisc:dv:flash_ctrl_sim:0.1
+  -> PASS
+[10/49] runtime lowrisc:dv:gpio_sim:0.1
+  -> PASS
+[11/49] runtime lowrisc:dv:hmac_sim:0.1
+  -> PASS
+[12/49] runtime lowrisc:dv:i2c_sim:0.1
+  -> PASS
+[13/49] runtime lowrisc:dv:ibex_icache_sim:0.1
+  -> PASS
+[14/49] runtime lowrisc:dv:keymgr_sim:0.1
+  -> PASS
+[15/49] runtime lowrisc:dv:kmac_sim:0.1
+  -> PASS
+[16/49] runtime lowrisc:dv:lc_ctrl_sim:0.1
+  -> PASS
+[17/49] runtime lowrisc:dv:otbn_sim:0.1
+  -> PASS
+[18/49] runtime lowrisc:dv:otp_ctrl_sim:0.1
+  -> PASS
+[19/49] runtime lowrisc:dv:pattgen_sim:0.1
+  -> PASS
+[20/49] runtime lowrisc:dv:prim_alert_sim:0.1
+  -> PASS
+[21/49] runtime lowrisc:dv:prim_esc_sim:0.1
+  -> PASS
+[22/49] runtime lowrisc:dv:prim_flop_2sync_sim:0.1
+  -> PASS
+[23/49] runtime lowrisc:dv:prim_lfsr_sim:0.1
+  -> PASS
+[24/49] runtime lowrisc:dv:prim_present_sim:0.1
+  -> PASS
+[25/49] runtime lowrisc:dv:prim_prince_sim:0.1
+  -> PASS
+[26/49] runtime lowrisc:dv:pwm_sim:0.1
+  -> PASS
+[27/49] runtime lowrisc:dv:pwrmgr_sim:0.1
+  -> PASS
+[28/49] runtime lowrisc:dv:rom_ctrl_sim:0.1
+  -> PASS
+[29/49] runtime lowrisc:dv:rstmgr_cnsty_chk_sim:0.1
+  -> PASS
+[30/49] runtime lowrisc:dv:rstmgr_sim:0.1
+  -> PASS
+[31/49] runtime lowrisc:dv:rv_dm_sim:0.1
+  -> PASS
+[32/49] runtime lowrisc:dv:rv_timer_sim:0.1
+  -> PASS
+[33/49] runtime lowrisc:dv:spi_device_sim:0.1
+  -> PASS
+[34/49] runtime lowrisc:dv:spi_host_sim:1.0
+  -> PASS
+[35/49] runtime lowrisc:dv:spi_tpm_sim:0.1
+  -> PASS
+[36/49] runtime lowrisc:dv:spid_jedec_sim:0.1
+  -> PASS
+[37/49] runtime lowrisc:dv:spid_passthrough_sim:0.1
+  -> PASS
+[38/49] runtime lowrisc:dv:spid_readcmd_sim:0.1
+  -> PASS
+[39/49] runtime lowrisc:dv:spid_status_sim:0.1
+  -> PASS
+[40/49] runtime lowrisc:dv:spid_upload_sim:0.1
+  -> PASS
+[41/49] runtime lowrisc:dv:sram_ctrl_sim:0.1
+  -> PASS
+[42/49] runtime lowrisc:dv:sysrst_ctrl_sim:0.1
+  -> PASS
+[43/49] runtime lowrisc:dv:tl_agent_sim:0.1
+  -> PASS
+[44/49] runtime lowrisc:dv:top_earlgrey_xbar_main_sim:0.1
+  -> PASS
+[45/49] runtime lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1
+  -> PASS
+[46/49] runtime lowrisc:dv:uart_sim:0.1
+  -> PASS
+[47/49] runtime lowrisc:dv:usbdev_sim:0.1
+  -> PASS
+[48/49] runtime lowrisc:ip:trial1_sim:0.1
+  -> PASS
+[49/49] runtime lowrisc:opentitan:top_earlgrey_alert_handler_sim:0.1
+  -> PASS
+JSON: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-runtime-after-scalar-uniform-20261006/result.json
+Markdown: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-unsafe-syntax-20260926/evidence/opentitan-census-20261002/candidate-runtime-after-scalar-uniform-20261006/result.md
