@@ -31,6 +31,23 @@ class dynamic_array_ordered;
   constraint c { q.size() == 2; foreach (q[i]) m -> q[i] == 5; }
   constraint order { solve m before q; }
 endclass
+class variable_size_array_unordered;
+  rand bit short_case;
+  rand bit payload[];
+  constraint c {
+    if (short_case) { payload.size() == 1; payload[0] == 0; }
+    else payload.size() == 2;
+  }
+endclass
+class variable_size_array_with_empty;
+  rand bit [1:0] mode;
+  rand bit payload[];
+  constraint c {
+    if (mode == 0) payload.size() == 0;
+    else if (mode == 1) payload.size() == 1;
+    else payload.size() == 2;
+  }
+endclass
 module main;
   root r = new;
   root unrelated = new;
@@ -38,7 +55,11 @@ module main;
   table18_2_ordered ordered = new;
   dynamic_array_unordered dyn_unordered = new;
   dynamic_array_ordered dyn_ordered = new;
+  variable_size_array_unordered variable_size = new;
+  variable_size_array_with_empty variable_size_empty = new;
   int count[4];
+  int variable_size_count[5];
+  int variable_size_empty_count[11];
   bit [1:0] replay[20];
   int unordered_s1, ordered_s1;
   int dyn_unordered_m1, dyn_ordered_m1;
@@ -103,6 +124,61 @@ module main;
     if (dyn_ordered_m1 < 40 || dyn_ordered_m1 > 88)
       $fatal(1, "dynamic-array solve-before marginal is biased: m==1 %0d/128",
              dyn_ordered_m1);
+
+    // There are five complete legal tuples: one (small=1, bits=[0]) and
+    // four (small=0, bits=[0:1] in {0,1}^2). Each tuple must be uniform.
+    variable_size.srandom(97);
+    repeat (500) begin
+      if (!variable_size.randomize())
+        $fatal(1, "variable-size dynamic-array randomization failed");
+      if (variable_size.short_case) begin
+        if (variable_size.payload.size() != 1 || variable_size.payload[0] != 0)
+          $fatal(1, "invalid small-array solution");
+        variable_size_count[0]++;
+      end else begin
+        if (variable_size.payload.size() != 2)
+          $fatal(1, "invalid large-array solution");
+        variable_size_count[1 + variable_size.payload[0]
+                              + 2 * variable_size.payload[1]]++;
+      end
+    end
+    for (int i = 0; i < 5; ++i)
+      if (variable_size_count[i] < 70 || variable_size_count[i] > 130)
+        $fatal(1, "variable-size legal tuple %0d is biased: %0d/500",
+               i, variable_size_count[i]);
+
+    // Empty, one-bit, and two-bit arrays form eleven complete legal tuples.
+    variable_size_empty.srandom(98);
+    repeat (500) begin
+      if (!variable_size_empty.randomize())
+        $fatal(1, "empty variable-size dynamic-array randomization failed");
+      case (variable_size_empty.mode)
+        0: begin
+          if (variable_size_empty.payload.size() != 0)
+            $fatal(1, "invalid empty-array solution");
+          variable_size_empty_count[0]++;
+        end
+        1: begin
+          if (variable_size_empty.payload.size() != 1)
+            $fatal(1, "invalid one-bit-array solution");
+          variable_size_empty_count[1 + variable_size_empty.payload[0]]++;
+        end
+        2, 3: begin
+          if (variable_size_empty.payload.size() != 2)
+            $fatal(1, "invalid two-bit-array solution");
+          if (variable_size_empty.mode == 2)
+            variable_size_empty_count[3 + variable_size_empty.payload[0]
+                                      + 2 * variable_size_empty.payload[1]]++;
+          else
+            variable_size_empty_count[7 + variable_size_empty.payload[0]
+                                      + 2 * variable_size_empty.payload[1]]++;
+        end
+      endcase
+    end
+    for (int i = 0; i < 11; ++i)
+      if (variable_size_empty_count[i] < 20 || variable_size_empty_count[i] > 70)
+        $fatal(1, "empty-array legal tuple %0d is biased: %0d/500",
+               i, variable_size_empty_count[i]);
     $display("PASSED");
   end
 endmodule

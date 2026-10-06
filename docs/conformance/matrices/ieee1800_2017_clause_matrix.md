@@ -2244,10 +2244,11 @@ PARTIAL.
 ## 2026-10-06 uniform legal-combination sampling
 
 IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. Paired
-strict 2017/2023 regressions now cover coupled direct scalar properties and a
-fixed-size, one-dimensional dynamic array of integral elements. The array
-sampler requires a uniquely proved size tuple and complete active-element
-coverage. Ordering, `dist`, soft constraints, `randc`, variable sizes, and other
+strict 2017/2023 regressions cover coupled direct scalar properties, a
+fixed-size one-dimensional integral array, and one small variable-size direct
+array, including size zero. The variable-size sampler enumerates feasible
+sizes and canonicalizes inactive padding for arrays of at most 64 elements.
+Ordering, `dist`, soft constraints, `randc`, larger or multiple variable-size arrays, and other
 container shapes remain open. See the
 [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical
