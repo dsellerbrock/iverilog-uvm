@@ -57,7 +57,15 @@ integral/enum arrays are sampled from referenced leaves without a declared-exten
 covers one, two, and three unpacked dimensions. The array test retains the
 ordered `solve m before q` control. The overall clause remains partial for
 larger dynamic-array domains, fixed-array ranks above three and other shapes,
-`randc`, ordering, soft constraints, and weighted `dist`. See the
+direct scalar randc widths above the existing 20-bit history limit, sparse
+randc domains that exceed the 65,536-proposal budget, aggregate randc forms,
+ordering, soft constraints, and weighted `dist`. The direct scalar constrained
+randc fallback now samples uniformly from unseen values using hard-solver
+checks and proves cycle exhaustion before reset. Paired strict 2017/2023 runs
+complete two 128-value cycles with an unsatisfiable call between them; struct,
+fixed-array solve-before, and failure-rollback controls also pass on VVP image
+`94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`. The
+full registered suites were not run on this image. See the
 [blocker](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
 
 A separate 128-bit nested fixed-element diversity regression passes in both

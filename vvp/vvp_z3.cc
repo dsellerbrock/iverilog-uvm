@@ -7763,17 +7763,19 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
  * without attempting its enormous declared domain.  Returning false after
  * CAP+1 distinct models leaves sampling to the general fallback; returning
  * true means the solver proved the complete feasible set was exhausted. */
+static const size_t SPARSE_DOMAIN_CAP = 64;
+
 static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
                                              Z3_ast var, unsigned width,
-                                             vector<uint64_t>& out)
+                                             vector<uint64_t>& out,
+                                             size_t cap = SPARSE_DOMAIN_CAP)
 {
-      static const size_t SPARSE_DOMAIN_CAP = 64;
       out.clear();
       if (width == 0 || width > 64) return false;
 
       bool exhausted = false;
       Z3_solver_push(ctx, base);
-      while (out.size() <= SPARSE_DOMAIN_CAP) {
+      while (out.size() <= cap) {
 	    Z3_lbool r = Z3_solver_check(ctx, base);
 	    if (r == Z3_L_FALSE) {
 		  exhausted = true;
@@ -7801,6 +7803,67 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
 	    return false;
       }
       return true;
+}
+
+/* Sample an exact constrained randc scalar without materializing its whole
+ * feasible set. Uniform proposals are checked against the hard solver and
+ * committed cycle history; a SAT query over the unseen complement resets
+ * an exhausted constrained cycle atomically with the successful solve. */
+static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
+      Z3_ast var, unsigned width, vvp_cobject*owner, size_t pid,
+      z3_rng_stream_t&rng, uint64_t&chosen, bool&reset_cycle,
+      const char**error)
+{
+      // ponytail: stop exact randc rejection after 65,536 probes per solve;
+      // add solver-guided counting if sparse legal sets hit this ceiling.
+      static const size_t RANDC_REJECTION_PROPOSAL_CAP = 65536;
+      *error = nullptr;
+      reset_cycle = false;
+
+      uint64_t period = owner->randc_period(pid);
+      if (period == 0 || period > UINT32_MAX) return false;
+      Z3_lbool base_status = Z3_solver_check(ctx, base);
+      if (base_status == Z3_L_FALSE) return false;
+      if (base_status == Z3_L_UNDEF) {
+            *error = "randc hard-constraint satisfiability was indeterminate";
+            return false;
+      }
+
+      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+      vector<Z3_ast> unseen;
+      for (uint64_t value = 0; value < period; ++value) {
+            if (!owner->randc_seen(pid, value)) continue;
+            Z3_ast cv = Z3_mk_unsigned_int64(ctx, value, sort);
+            unseen.push_back(Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
+      }
+      Z3_lbool availability = unseen.empty() ? base_status
+            : Z3_solver_check_assumptions(ctx, base,
+                  (unsigned)unseen.size(), unseen.data());
+      if (availability == Z3_L_UNDEF) {
+            *error = "randc cycle-availability check was indeterminate";
+            return false;
+      }
+      reset_cycle = availability == Z3_L_FALSE;
+
+      for (size_t attempt = 0; attempt < RANDC_REJECTION_PROPOSAL_CAP;
+           ++attempt) {
+            uint64_t candidate = rng.uniform_index((size_t)period);
+            if (!reset_cycle && owner->randc_seen(pid, candidate)) continue;
+            Z3_ast cv = Z3_mk_unsigned_int64(ctx, candidate, sort);
+            Z3_ast eq = Z3_mk_eq(ctx, var, cv);
+            Z3_lbool feasible = Z3_solver_check_assumptions(
+                  ctx, base, 1, &eq);
+            if (feasible == Z3_L_TRUE) {
+                  chosen = candidate;
+                  return true;
+            }
+            if (feasible == Z3_L_UNDEF) {
+                  *error = "randc candidate feasibility was indeterminate";
+                  return false;
+            }
+      }
+      *error = "randc exact rejection sampling exhausted its proposal budget";
+      return false;
 }
 
 /* The same bounded probe for a variable wider than 64 bits, keeping each
@@ -11059,6 +11122,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    && builder.elem_vars.empty() && builder.size_vars.empty();
 
       bool joint_randc_failed = false;
+      bool randc_sampling_failed = false;
+      const char* randc_sampling_error = nullptr;
       bool wide_scalar_sampling_failed = false;
       map<Z3_ast, uint64_t> sampled_randc_values;
       auto sample_scalars = [&](bool cyclic_only) {
@@ -11109,12 +11174,44 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  } else {
 			chosen = feasible[property_rng(pv.idx).uniform_index(feasible.size())];
 		  }
-		  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
-		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
-		  Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
-		  Z3_optimize_assert(ctx, opt, eq);
-		  Z3_solver_assert(ctx, base, eq);
-		  continue;
+	  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+	  Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
+	  Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
+	  Z3_optimize_assert(ctx, opt, eq);
+	  Z3_solver_assert(ctx, base, eq);
+	  continue;
+	    }
+
+	    bool property_randc = builder.type(pv.idx)->property_is_randc(
+		  builder.local_index(pv.idx));
+	    if (!enumerated && property_randc && !fallback_managed
+		&& !exact_joint) {
+		  vvp_cobject*owner = builder.object(pv.idx);
+		  size_t pid = builder.local_index(pv.idx);
+		  if (owner->randc_period(pid)) {
+			uint64_t chosen = 0;
+			bool reset_cycle = false;
+			const char*sample_error = nullptr;
+			if (!z3_sample_constrained_randc_(ctx, base, pv.var,
+			      pv.width, owner, pid, property_rng(pv.idx),
+			      chosen, reset_cycle, &sample_error)) {
+			      randc_sampling_failed = true;
+			      randc_sampling_error = sample_error;
+			      return;
+			}
+			uint64_t prefill = cobj_prop_bits(owner, pid);
+			if (chosen != prefill) owner->randc_unmark(pid, prefill);
+			vector<uint64_t> no_enumerated_domain;
+			owner->randc_mark_feasible(pid, chosen,
+			      no_enumerated_domain, 0, reset_cycle);
+			sampled_randc_values[pv.var] = chosen;
+			Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen,
+			      Z3_mk_bv_sort(ctx, pv.width));
+			Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
 	    }
 
             if (exact_joint && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
@@ -11394,6 +11491,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             sample_elements(true);
 	    sample_member_elements(true);
       }
+      if (randc_sampling_failed)
+	    return fail_joint(randc_sampling_error);
       if (joint_randc_failed) {
             if (Z3_solver_check(ctx, base) == Z3_L_FALSE) return fail_joint(nullptr);
             return fail_joint("a randc stage could not be enumerated completely");
@@ -12720,6 +12819,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// the common shape (`rand bit[N:0] x; constraint { x inside {...}
 	// }`) that dominates the performance-sensitive cases.
       sample_scalars(false);
+      if (randc_sampling_failed)
+	    return fail_joint(randc_sampling_error);
       if (wide_scalar_sampling_failed)
 	    return fail_joint("isolated wide scalar exact sampling exceeded its bounded solver work");
       for (auto& mv : builder.member_vars) {

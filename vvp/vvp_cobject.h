@@ -182,11 +182,12 @@ class vvp_cobject : public vvp_object {
       // of repeating. `randc_mark_feasible` judges "all used" only over
       // the given feasible set. These calls stage domain information;
       // committed history changes only in randc_transaction_commit().
+      // `reset_cycle' stages a solver-proven exhausted constrained cycle.
       // `randc_unmark` retracts a tentative pre-fill when the solver
       // replaces it with a constrained choice.
       void randc_mark_feasible(size_t pid, uint64_t val,
                                 const std::vector<uint64_t>&feasible,
-                                size_t leaf = 0);
+                                size_t leaf = 0, bool reset_cycle = false);
       void randc_unmark(size_t pid, uint64_t val, size_t leaf = 0);
 
 	// Dynamic-array, queue, and associative-array elements keep their
@@ -314,6 +315,7 @@ class vvp_cobject : public vvp_object {
       struct randc_pending_t {
 	    uint64_t staged_value = 0;
 	    bool feasible_domain = false;
+	    bool reset_cycle = false;
 	    std::vector<uint64_t> feasible;
       };
       struct randc_transaction_t {

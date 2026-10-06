@@ -194,6 +194,11 @@ class wide_periodic_domain_uniformity;
   rand bit [32:0] value;
   constraint c { value[1:0] != 2'b11; }
 endclass
+class constrained_randc_wide_cycle;
+  randc bit [10:0] value;
+  constraint c { value inside {[0:127]}; }
+  constraint impossible { value == 128; }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -269,6 +274,7 @@ module main;
   wide_nine_ranges_uniformity wide_nine_ranges = new;
   wide_thirty_three_ranges_uniformity wide_thirty_three_ranges = new;
   wide_periodic_domain_uniformity wide_periodic_domain = new;
+  constrained_randc_wide_cycle constrained_randc = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -297,6 +303,7 @@ module main;
   int wide_thirty_three_ranges_count[33];
   int wide_thirty_three_ranges_offset;
   int wide_periodic_domain_count[3];
+  bit constrained_randc_seen[2][128];
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -801,6 +808,30 @@ module main;
           || wide_periodic_domain_count[i] > 130)
         $fatal(1, "periodic-domain bucket %0d is biased: %0d/300",
                i, wide_periodic_domain_count[i]);
+
+    // A constrained 11-bit randc property has only 128 legal cycle values.
+    constrained_randc.srandom(7712);
+    constrained_randc.impossible.constraint_mode(0);
+    for (int cycle = 0; cycle < 2; cycle++) begin
+      repeat (128) begin
+        if (!constrained_randc.randomize())
+          $fatal(1, "constrained wide randc solve failed");
+        if (constrained_randc.value > 127)
+          $fatal(1, "constrained wide randc result is outside its domain");
+        if (constrained_randc_seen[cycle][constrained_randc.value])
+          $fatal(1, "constrained wide randc repeated before completing its cycle");
+        constrained_randc_seen[cycle][constrained_randc.value] = 1;
+      end
+      for (int value = 0; value < 128; value++)
+        if (!constrained_randc_seen[cycle][value])
+          $fatal(1, "constrained wide randc cycle missed a legal value");
+      if (cycle == 0) begin
+        constrained_randc.impossible.constraint_mode(1);
+        if (constrained_randc.randomize())
+          $fatal(1, "unsatisfiable constrained randc solve succeeded");
+        constrained_randc.impossible.constraint_mode(0);
+      end
+    end
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);

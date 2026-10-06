@@ -443,3 +443,29 @@ After formatting and test-identifier cleanup, the rebuilt ARM64 VVP
 the focused periodic reducer with the same `100, 89, 111` histogram. The
 registered full-suite sources compile under both editions on the cleaned
 source. The full suites were not rerun on this rebuilt hash.
+
+## Constrained `randc` cycles by exact rejection (fix 13)
+
+The old sparse-domain enumerator stopped after 64 candidates. For an 11-bit
+`randc` variable constrained to `[0:127]`, it fell through to ordinary solver
+sampling and repeated before completing the 128-value cycle.
+
+The direct scalar fallback now samples uniform bit-vector proposals and
+accepts only candidates that satisfy the hard solver and are absent from the
+committed cycle history. A solver check with all committed values excluded
+proves when the current legal set is exhausted; that reset is staged with the
+successful value, so a failed solve leaves the completed cycle intact. The
+sampler does not extend the feasible-set enumeration cap. It is limited to the
+existing 20-bit randc history and 65,536 proposals per solve; unknown checks or
+proposal exhaustion fail explicitly rather than repeating or returning a
+biased candidate.
+
+The registered regression checks two complete 128-value cycles and inserts
+an unsatisfiable randomize call between them. Its focused paired strict
+`-g2017` and `-g2023` run passes on source-built ARM64 VVP SHA-256
+`94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`.
+Adjacent struct-randomization, fixed-array solve-before, and failure-rollback
+controls pass in both editions. The registered uniformity suite sources
+compile in both editions; the full suites were not rerun on this image. Direct
+randc widths above 20 bits, exhausted proposal budgets, and aggregate randc
+shapes remain open.

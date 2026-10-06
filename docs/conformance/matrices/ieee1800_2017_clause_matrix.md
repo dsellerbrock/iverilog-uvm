@@ -2269,9 +2269,11 @@ full-width proposals and hard-solver rejection. A 129-tuple 65-bit oracle's
 larger mode 200/200 times, versus 150/200 before full-width rejection. The paired
 65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
-64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
-aggregate domains, wide scalar cases that exceed the boundary-query budget or
-4,096-bit width, fixed-array ranks above three and other container shapes
+64-value cap. Ordering, `dist`, soft constraints, direct randc widths above 20
+bits, sparse randc domains that exceed the proposal budget, aggregate randc
+forms, larger aggregate domains, wide scalar cases that exceed the boundary
+query budget or 4,096-bit width, fixed-array ranks above three and other
+container shapes
 remain open. An isolated 33–4,096-bit scalar uses exact boundary searches
 under a 131,072-query per-randomization budget; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
 37, and 52/200. The unequal-range union test keeps four equal-cardinality bins
@@ -2295,3 +2297,17 @@ See the [revision-scoped evidence](../../../evidence/solve-before-array/uniform-
 and the historical
 [`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
 result. No broader clause-18 qualification is claimed.
+
+Fix 13 adds an exact constrained-randc fallback for direct scalar properties
+within the existing 20-bit history limit. It proposes values uniformly over
+the bit-vector domain, accepts only values allowed by the hard solver and
+cycle history, and uses a SAT check to prove cycle exhaustion before staging a
+reset. The paired strict 2017/2023 regression completes two 128-value cycles
+with an unsatisfiable randomize call between them to verify rollback. Adjacent
+struct, solve-before, and failure-rollback controls pass. This focused result
+uses source-built ARM64 VVP SHA-256
+`94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`; the full
+registered suites were not rerun on this image. The sampler fails explicitly
+if solver checks are indeterminate or 65,536 proposals do not find a value.
+Widths above 20 bits, sparse proposal exhaustion, and aggregate randc shapes
+remain open.
