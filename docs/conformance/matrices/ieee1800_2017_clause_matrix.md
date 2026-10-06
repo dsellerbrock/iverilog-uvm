@@ -2255,10 +2255,13 @@ arrays sample referenced leaves without a declared-extent cap; unreferenced
 leaves remain independently prefilled. The variable-size sampler enumerates feasible sizes and
 canonicalizes inactive padding when its combined maximum is at most 128
 elements. Connected wide scalars are included
-for connected scalar properties wider than 64 bits when each complete feasible
-unary domain has at most 256 values. A 129-tuple 65-bit oracle's 128-value
-branch was sampled 520/1,000 times before this
-extension and 196/200 times afterward in both editions. The paired 65-tuple
+for connected scalar properties wider than 64 bits. Complete feasible unary
+domains up to 256 values are enumerated; larger connected domains use uniform
+full-width proposals and hard-solver rejection. A 129-tuple 65-bit oracle's
+128-value branch was sampled 520/1,000 times before the cap increase and
+196/200 afterward in both editions. A dense 2⁶⁵-tuple oracle now selects the
+larger mode 200/200 times, versus 150/200 before full-width rejection. The paired
+65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
 64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
 aggregate domains, and other container shapes remain open. See the

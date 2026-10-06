@@ -169,6 +169,25 @@ editions.
 Source-built ARM64 VVP SHA-256 after 129-tuple wide-domain sampling:
 `b75832e27ccedb5dd5010d42e9430cb3ec2dd3c53e7d608cce9e2074d15980c9`.
 
+### Connected wide domains above the enumeration cap
+
+A connected 65-bit property has one mode with value zero and another with any
+nonzero value, for 2⁶⁵ legal tuples. Before full-width rejection, mode one
+appeared 150/200 times. The sampler now draws a uniform candidate over the
+entire 65-bit domain, combines it with a uniform mode candidate, and rejects
+the whole tuple against the hard constraints. Both strict editions selected
+mode one 200/200 times. The sampler still enumerates complete wide unary
+domains through 256 values first, which avoids full-width rejection for the
+129-tuple bounded case. Rejection is exact for larger connected domains but can
+take impractically many retries when the feasible set is sparse.
+
+The registered full `sv_randomize_global_uniform` suite and its neighboring
+sampling-failure and fixed-array solve-before regressions pass under both
+editions.
+
+Source-built ARM64 VVP SHA-256 after full-width wide-domain proposals:
+`6fd24e3bcf95389846b13b22f719922fa7b5906456f1b9e1a3a173b5f5f05aa5`.
+
 ## Adjacent 128-bit nested fixed-element randomization
 
 The existing `sv_constraint_wide_fixed_element_diversity` regression uses a
@@ -180,9 +199,9 @@ replay checks to pass under both `-g2017` and `-g2023`.
 
 Both runs print `PASSED` and emit the existing warning that an oversized
 ordinary component is sampled against the hard constraints, not uniformly over
-its solutions. This is a runtime-support result only; it does not extend the
-uniformity claim to constrained wide domains above the 128-value enumeration
-cap. The
+its solutions. This runtime-support result does not qualify nested member
+uniformity or sparse/unconnected wide domains above the 256-value cap; the
+connected dense case is separately covered above. The
 paired `sv_randomize_global_uniform` statistical suite and its rollback
 control also pass on the same VVP image.
 

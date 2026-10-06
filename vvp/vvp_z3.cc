@@ -7808,8 +7808,9 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
 static bool z3_enumerate_wide_values_(Z3_context ctx, Z3_solver base,
                                       Z3_ast var, vector<Z3_ast>& out)
 {
-      // ponytail: cap blocking-model work at 256; use exact interval/count
-      // sampling to cover larger dense domains without enumerating values.
+      // ponytail: cap blocking-model enumeration at 256; larger domains use
+      // full-width rejection (exact but slow when sparse); add count/unrank
+      // proposals if sparse domains need bounded runtime.
       static const size_t WIDE_DOMAIN_CAP = 256;
       out.clear();
       bool exhausted = false;
@@ -10145,21 +10146,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  components.push_back(active_uniform_vars);
 	    for (const auto&component : components) {
 		  if (component.size() <= 1) continue;
-		  // A wide variable joins a coupled sampler only when its complete
-		  // feasible unary domain can be enumerated; otherwise keep this
-		  // component on the existing wide-domain path.
+		  // Enumerate a small complete unary domain when cheap. Otherwise the
+		  // sampler draws from the full bit-vector domain and rejects the whole
+		  // tuple against the hard constraints; both proposals are uniform.
 		  vector<pair<Z3_ast, vector<Z3_ast> > > wide_domains;
-		  bool supported = true;
 		  for (Z3_ast var : component) {
 			if (uniform_joint_width.at(var) <= 64) continue;
 			vector<Z3_ast> values;
-			if (!z3_enumerate_wide_values_(ctx, base, var, values)) {
-			      supported = false;
-			      break;
-			}
-			wide_domains.push_back(make_pair(var, std::move(values)));
+			if (z3_enumerate_wide_values_(ctx, base, var, values))
+			      wide_domains.push_back(make_pair(var, std::move(values)));
 		  }
-		  if (!supported) continue;
 		  for (auto&domain : wide_domains)
 			uniform_joint_wide_domains[domain.first] =
 			      std::move(domain.second);
@@ -10371,16 +10367,23 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
 					  Z3_mk_bv_sort(ctx, width));
 				    pin = Z3_mk_eq(ctx, var, constant);
-			      } else {
-				    auto wide_domain = uniform_joint_wide_domains.find(var);
-				    if (wide_domain != uniform_joint_wide_domains.end()) {
-					  if (wide_domain->second.empty())
-						return fail_joint("a wide random variable has no feasible values");
-					  pin = Z3_mk_eq(ctx, var, wide_domain->second[
-						rng.uniform_index(wide_domain->second.size())]);
-				    } else {
-					  if (width > 64)
-						return fail_joint("a wide joint variable lacks a complete feasible domain");
+				      } else {
+					    auto wide_domain = uniform_joint_wide_domains.find(var);
+					    if (wide_domain != uniform_joint_wide_domains.end()) {
+						  if (wide_domain->second.empty())
+							return fail_joint("a wide random variable has no feasible values");
+						  pin = Z3_mk_eq(ctx, var, wide_domain->second[
+							rng.uniform_index(wide_domain->second.size())]);
+					    } else if (width > 64) {
+					  vvp_vector4_t value(width, BIT4_0);
+					  for (unsigned bit = 0; bit < width; ++bit)
+						value.set_bit(bit, (rng.next() & 1)
+						      ? BIT4_1 : BIT4_0);
+					  Z3_ast constant = z3_vec4_constant_(ctx, value, width);
+					  if (!constant)
+						return fail_joint("could not form a full-width random candidate");
+					  pin = Z3_mk_eq(ctx, var, constant);
+				      } else {
 					  uint64_t value = width == 64
 						? ((uint64_t)rng.next() << 32) | rng.next()
 						: rng.uniform_u64(UINT64_C(1) << width);

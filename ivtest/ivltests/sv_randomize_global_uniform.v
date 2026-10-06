@@ -97,6 +97,14 @@ class wide_domain_uniformity_129;
     else value == 65'd0;
   }
 endclass
+class wide_domain_dense_uniformity;
+  rand bit mode;
+  rand bit [64:0] value;
+  constraint c {
+    if (mode) value != 65'd0;
+    else value == 65'd0;
+  }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -138,6 +146,7 @@ module main;
   wide_domain_uniformity wide_uniform = new;
   wide_domain_uniformity_above_cap wide_uniform_above_cap = new;
   wide_domain_uniformity_129 wide_uniform_129 = new;
+  wide_domain_dense_uniformity wide_uniform_dense = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -150,6 +159,7 @@ module main;
   int wide_tuple_count[5];
   int wide_above_cap_mode_one;
   int wide_129_mode_one;
+  int wide_dense_mode_one;
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -393,6 +403,22 @@ module main;
     if (wide_129_mode_one < 185)
       $fatal(1, "129 legal wide tuples are not sampled uniformly: mode one %0d/200",
              wide_129_mode_one);
+
+    // The dense branch has more feasible values than the enumeration cap.
+    wide_uniform_dense.srandom(625);
+    repeat (200) begin
+      if (!wide_uniform_dense.randomize())
+        $fatal(1, "dense wide-domain solve failed");
+      if (wide_uniform_dense.mode) begin
+        if (wide_uniform_dense.value == 0)
+          $fatal(1, "invalid dense mode-one value");
+        wide_dense_mode_one++;
+      end else if (wide_uniform_dense.value != 0)
+        $fatal(1, "invalid dense mode-zero value");
+    end
+    if (wide_dense_mode_one < 190)
+      $fatal(1, "large feasible domain is not sampled uniformly: mode one %0d/200",
+             wide_dense_mode_one);
 
     // Fixed unpacked arrays also form five complete legal tuples.
     fixed_array.srandom(234);

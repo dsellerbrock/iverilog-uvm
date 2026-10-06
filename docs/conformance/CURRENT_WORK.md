@@ -11,7 +11,10 @@ observed). Other coverage includes empty arrays, two correlated arrays, a
 64/65-element size ratio, and 65-bit scalars with five-, 65-, and 129-tuple
 domains. The 129-tuple oracle selects the 128-value branch 196/200 times; before
 the wider-domain change it did so 101/200 times. Connected scalars wider than
-64 bits are enumerated exactly when each feasible unary domain has at most 256 values. The
+64 bits enumerate small feasible unary domains and use full-width uniform
+proposals with hard-solver rejection for larger connected domains. A dense
+2⁶⁵-value case chooses its larger branch 200/200 times. Sparse domains above
+the enumeration cap may take impractically many retries. The
 combined array maximum for variable-size dynamic arrays is capped at 128
 elements. Fixed integral/enum arrays are sampled from referenced
 leaves without a declared-extent cap; the registered regression currently
