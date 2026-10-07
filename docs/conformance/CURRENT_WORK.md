@@ -2,6 +2,16 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 35 locally qualified:** strict `-g2023` now binds the optional array
+method `index_argument` across locator, reduction, min/max, and `unique_index`
+`with` expressions. This lets code use `item.index` for a real class member
+while querying the array position through a chosen alias. Associative key
+queries are covered too; strict `-g2017` rejects the second argument. The
+paired new-case lists pass 2/2 in legacy and JSON/VVP, and adjacent 2023 map
+lists pass 4/4 in each harness. This is a focused §7.12 gap, not full clause
+closure. See [qualification evidence](../../evidence/array-index-argument-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-array-index-argument).
+
 **Fix 34 qualified locally:** strict `-g2023` now accepts scalar class
 `rand real` for the tested finite-interval constraint path, including real
 comparisons, `inside` bounds, solve-before staging ahead of an integral bit,

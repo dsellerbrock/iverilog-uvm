@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_array_index_argument.v",
+  "iverilog-args": ["-g2023", "-s", "sv_array_index_argument"]
+}

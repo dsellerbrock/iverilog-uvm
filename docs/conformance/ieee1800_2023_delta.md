@@ -139,7 +139,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 4 | Restricted type parameters (`type enum/struct/class`) | CERTAIN | UNSUPPORTED | S–M |
 | 5 | `type(this)` self-type | CERTAIN | UNSUPPORTED | M |
 | 6 | Soft packed unions (`union soft`) | CERTAIN | UNSUPPORTED (hard packed unions work) | M |
-| 7 | Named index iterator in array locator methods | CERTAIN | grammar accepts, binding missing ("Unable to bind `myidx`") | S |
+| 7 | Named `index_argument` for array methods | CERTAIN | RESOLVED 2026-10-07 for focused locator, reduction, min/max, unique, and associative-key cases; see [Fix 35](BLOCKERS.md#sv23-array-index-argument) | S |
 | 8 | Array `map()` method (7.12.5) | CERTAIN | UNSUPPORTED but scaffolded — fails at elaboration on the shared `.method(iter) with` dispatcher, not at parse | S |
 | 9 | Class `:final` specifier | CERTAIN | UNSUPPORTED | S |
 | 10 | Constructor `default` argument keyword | CERTAIN | UNSUPPORTED | M |

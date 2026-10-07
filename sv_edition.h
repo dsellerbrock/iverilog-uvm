@@ -116,6 +116,8 @@
 #define SV_FEATURE_TABLE						\
       SV_FEATURE_ROW(SVF_ARRAY_MAP, GN_VER2023,			\
 		     "the array map() method")				\
+      SV_FEATURE_ROW(SVF_ARRAY_INDEX_ARGUMENT, GN_VER2023,	\
+		     "the array method index argument")		\
       SV_FEATURE_ROW(SVF_DIST_DEFAULT, GN_VER2023,		\
 		     "the default item in a dist constraint")		\
       SV_FEATURE_ROW(SVF_STACKTRACE, GN_VER2023,			\

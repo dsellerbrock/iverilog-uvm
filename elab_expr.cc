@@ -896,6 +896,7 @@ static NetExpr* make_assoc_array_unique_expr_(
       NetExpr*array_expr, const netqueue_t*container_type,
       ivl_type_t element_type, perm_string method_name,
       const std::vector<named_pexpr_t>&parms,
+      perm_string iter_name, perm_string index_name,
       const std::vector<PExpr*>&with_exprs)
 {
       ivl_assert(*li, array_expr);
@@ -969,14 +970,6 @@ static NetExpr* make_assoc_array_unique_expr_(
             }
       }
 
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty()) {
-            const PEIdent*iter_ident =
-                  dynamic_cast<const PEIdent*>(parms[0].parm);
-            ivl_assert(*li, iter_ident);
-            iter_name = iter_ident->path().back().name;
-      }
-
       NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                    NetNet::REG, element_type);
       iter_net->set_line(*li);
@@ -991,7 +984,8 @@ static NetExpr* make_assoc_array_unique_expr_(
       if (!with_exprs.empty()) {
             NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
             push_array_method_iter_ctx_(
-                  iter_net, index_net, !container_type->assoc_wildcard());
+                  iter_net, index_net, !container_type->assoc_wildcard(),
+                  index_name);
             comparison_expr = elab_and_eval(
                   des, scope, with_exprs.front(), -1, false);
             pop_array_method_iter_ctx();
@@ -1097,33 +1091,51 @@ static NetExpr* make_assoc_array_unique_expr_(
       return fn;
 }
 
-static bool validate_array_locator_iterator_(
+static bool validate_array_locator_iterators_(
       const LineInfo*li, Design*des, perm_string method_name,
-      const std::vector<named_pexpr_t>&parms)
+      const std::vector<named_pexpr_t>&parms,
+      perm_string&iter_name, perm_string&index_name)
 {
-      if (parms.size() > 1) {
+      iter_name = perm_string::literal("item");
+      index_name = perm_string::literal("index");
+      if (parms.size() > 2) {
             cerr << li->get_fileline() << ": error: " << method_name
-                 << "() takes at most one iterator identifier." << endl;
+                 << "() takes at most an iterator and an index-method "
+                    "identifier." << endl;
             des->errors += 1;
             return false;
       }
 
-      if (!parms.empty() && !parms[0].name.nil()) {
-            cerr << li->get_fileline() << ": error: " << method_name
-                 << "() does not allow a named iterator argument." << endl;
-            des->errors += 1;
-            return false;
+      if (!parms.empty()) {
+            const PEIdent*iter_ident =
+                  dynamic_cast<const PEIdent*>(parms[0].parm);
+            if (!parms[0].name.nil() || !iter_ident
+                || iter_ident->path().size() != 1
+                || !iter_ident->path().back().index.empty()) {
+                  cerr << li->get_fileline() << ": error: " << method_name
+                       << "() iterator must be a simple identifier." << endl;
+                  des->errors += 1;
+                  return false;
+            }
+            iter_name = iter_ident->path().back().name;
       }
-
-      const PEIdent*iter_ident = parms.empty()
-          ? nullptr : dynamic_cast<const PEIdent*>(parms[0].parm);
-      if (!parms.empty()
-          && (!iter_ident || iter_ident->path().size() != 1
-              || !iter_ident->path().back().index.empty())) {
-            cerr << li->get_fileline() << ": error: " << method_name
-                 << "() iterator must be a simple identifier." << endl;
-            des->errors += 1;
-            return false;
+      if (parms.size() == 2) {
+            if (!sv_require_feature(li, SVF_ARRAY_INDEX_ARGUMENT)) {
+                  des->errors += 1;
+                  return false;
+            }
+            const PEIdent*index_ident =
+                  dynamic_cast<const PEIdent*>(parms[1].parm);
+            if (!parms[1].name.nil() || !index_ident
+                || index_ident->path().size() != 1
+                || !index_ident->path().back().index.empty()) {
+                  cerr << li->get_fileline() << ": error: " << method_name
+                       << "() index-method argument must be a simple "
+                          "identifier." << endl;
+                  des->errors += 1;
+                  return false;
+            }
+            index_name = index_ident->path().back().name;
       }
       return true;
 }
@@ -1134,7 +1146,7 @@ static NetExpr* make_assoc_index_locator_expr_(
       const PECallFunction*call, Design*des, NetScope*scope,
       NetExpr*array_expr, const netqueue_t*container_type,
       ivl_type_t element_type, const char*kind,
-      const std::vector<named_pexpr_t>&parms)
+      perm_string iter_name, perm_string index_name)
 {
       ivl_type_t key_type = container_type->assoc_index_type();
       if (container_type->assoc_wildcard()) {
@@ -1154,9 +1166,6 @@ static NetExpr* make_assoc_index_locator_expr_(
             des->errors += 1;
             return nullptr;
       }
-      if (!validate_array_locator_iterator_(call, des,
-                  perm_string::literal(kind), parms))
-            return nullptr;
       if (call->with_constraints().size() != 1
           || !call->with_constraints().front()) {
             cerr << call->get_fileline() << ": error: " << kind << "() "
@@ -1175,12 +1184,6 @@ static NetExpr* make_assoc_index_locator_expr_(
                   return nullptr;
       }
 
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty()) {
-            const PEIdent*iter_ident =
-                  dynamic_cast<const PEIdent*>(parms.front().parm);
-            iter_name = iter_ident->path().back().name;
-      }
       NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                    NetNet::REG, element_type);
       iter_net->set_line(*call);
@@ -1190,7 +1193,7 @@ static NetExpr* make_assoc_index_locator_expr_(
       key_net->set_line(*call);
       key_net->local_flag(true);
       NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx_(iter_net, key_net, true);
+      push_array_method_iter_ctx_(iter_net, key_net, true, index_name);
       NetExpr*pred = elab_and_eval(
             des, scope, call->with_constraints().front(), -1, false);
       pop_array_method_iter_ctx();
@@ -1296,8 +1299,11 @@ static NetExpr* make_array_unique_expr_(
       const std::vector<PExpr*>&with_exprs)
 {
       const bool is_index = method_name == "unique_index";
+      perm_string iter_name;
+      perm_string index_name;
 
-      if (!validate_array_locator_iterator_(li, des, method_name, parms)) {
+      if (!validate_array_locator_iterators_(li, des, method_name, parms,
+                                             iter_name, index_name)) {
             delete array_expr;
             return nullptr;
       }
@@ -1307,7 +1313,8 @@ static NetExpr* make_array_unique_expr_(
             if (queue->assoc_compat()) {
                   return make_assoc_array_unique_expr_(
                         li, des, scope, array_expr, queue, element_type,
-                        method_name, parms, with_exprs);
+                        method_name, parms, iter_name, index_name,
+                        with_exprs);
             }
       }
 
@@ -1397,14 +1404,6 @@ static NetExpr* make_array_unique_expr_(
                   return nullptr;
             }
 
-            perm_string iter_name = perm_string::literal("item");
-            if (!parms.empty()) {
-                  const PEIdent*iter_ident =
-                        dynamic_cast<const PEIdent*>(parms[0].parm);
-                  ivl_assert(*li, iter_ident);
-                  iter_name = iter_ident->path().back().name;
-            }
-
             NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                          NetNet::REG, element_type);
             iter_net->set_line(*li);
@@ -1436,7 +1435,8 @@ static NetExpr* make_array_unique_expr_(
             if (!with_exprs.empty()) {
                   NetNet*previous =
                         scope->set_signal_alias(iter_name, iter_net);
-                  push_array_method_iter_ctx(iter_net, visible_idx_net);
+                  push_array_method_iter_ctx_named(
+                        iter_net, visible_idx_net, index_name, true);
                   key_expr = elab_and_eval(
                         des, scope, with_exprs.front(), -1, false);
                   pop_array_method_iter_ctx();
@@ -1588,18 +1588,11 @@ static NetExpr* make_queue_locator_with_expr_(
 	    des->errors += 1;
 	    return nullptr;
       }
-      const PEIdent*iter_ident = parms.empty()
-	  ? nullptr : dynamic_cast<const PEIdent*>(parms[0].parm);
-      if (parms.size() > 1
-	  || (!parms.empty()
-	      && (!parms[0].name.nil()
-		  || !iter_ident || iter_ident->path().size() != 1
-		  || !iter_ident->path().back().index.empty()))) {
-	    cerr << call->get_fileline() << ": error: " << kind
-		 << "() takes at most one iterator identifier." << endl;
-	    des->errors += 1;
+      perm_string iter_name;
+      perm_string index_name;
+      if (!validate_array_locator_iterators_(call, des,
+		    perm_string::literal(kind), parms, iter_name, index_name))
 	    return nullptr;
-      }
       if (const netqueue_t*queue =
 		dynamic_cast<const netqueue_t*>(container_type)) {
 	    if (queue->assoc_compat()) {
@@ -1608,7 +1601,7 @@ static NetExpr* make_queue_locator_with_expr_(
 		      || strcmp(kind, "find_last_index") == 0)
 			return make_assoc_index_locator_expr_(
 			      call, des, scope, queue_expr, queue, element_type,
-			      kind, parms);
+			      kind, iter_name, index_name);
 		  cerr << call->get_fileline() << ": sorry: " << kind
 		       << "() on associative arrays is not yet implemented; "
 			  "associative-array locators require keyed iteration "
@@ -1650,16 +1643,6 @@ static NetExpr* make_queue_locator_with_expr_(
 	    if (!recv_net)
 		  return nullptr;
       }
-      /* Determine the iterator name: first parameter of the find call
-       * (if any), otherwise the LRM default "item". */
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty() && parms[0].parm) {
-            const PEIdent*ip = dynamic_cast<const PEIdent*>(parms[0].parm);
-            if (ip && ip->path().size() == 1) {
-                  iter_name = ip->path().back().name;
-            }
-      }
-
       /* Allocate a fresh, uniquely named hidden iter NetNet.  The
        * iterator is scoped to the with expression (7.12), so sibling
        * calls on arrays of different element types must not share a
@@ -1720,7 +1703,8 @@ static NetExpr* make_queue_locator_with_expr_(
       if (!pred_pe)
             return nullptr;
       NetNet*prev_bind = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx(iter_net, visible_idx_net);
+      push_array_method_iter_ctx_named(
+	    iter_net, visible_idx_net, index_name, true);
       NetExpr*pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
       pop_array_method_iter_ctx();
       scope->restore_signal_alias(iter_name, prev_bind);
@@ -1808,6 +1792,19 @@ static unsigned test_array_reduction_result_width_(
             return 0;
 
       if (with_exprs.empty()) {
+            if (!parms.empty()) {
+                  perm_string iter_name, index_name;
+                  if (validate_array_locator_iterators_(
+                        li, des, perm_string::literal("array reduction"),
+                        parms, iter_name, index_name)) {
+                        cerr << li->get_fileline()
+                             << ": error: array reduction iterator/index "
+                                "arguments require a with clause."
+                             << endl;
+                        des->errors += 1;
+                  }
+                  return 0;
+            }
             result_type = element_type->base_type();
             result_signed = element_type->get_signed();
             unsigned width = element_type->packed_width();
@@ -1816,15 +1813,11 @@ static unsigned test_array_reduction_result_width_(
       if (with_exprs.size() != 1 || !with_exprs.front())
             return 0;
 
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty() && parms.front().parm) {
-            const PEIdent*iter_ident =
-                  dynamic_cast<const PEIdent*>(parms.front().parm);
-            if (!iter_ident || iter_ident->path().size() != 1
-                || !iter_ident->path().back().index.empty())
-                  return 0;
-            iter_name = iter_ident->path().back().name;
-      }
+      perm_string iter_name, index_name;
+      if (!validate_array_locator_iterators_(
+                li, des, perm_string::literal("array reduction"), parms,
+                iter_name, index_name))
+            return 0;
 
       NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                    NetNet::REG, element_type);
@@ -1836,7 +1829,7 @@ static unsigned test_array_reduction_result_width_(
       idx_net->local_flag(true);
 
       NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx(iter_net, idx_net);
+      push_array_method_iter_ctx_named(iter_net, idx_net, index_name, true);
       PExpr::width_mode_t mode = PExpr::SIZED;
       unsigned width = with_exprs.front()->test_width(des, scope, mode);
       result_type = with_exprs.front()->expr_type();
@@ -2230,18 +2223,12 @@ static NetExpr* make_array_reduction_expr_(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_exprs)
 {
-      const PEIdent*iter_ident = parms.empty()
-	    ? nullptr : dynamic_cast<const PEIdent*>(parms.front().parm);
-      if (parms.size() > 1
-	  || (!parms.empty()
-	      && (!parms.front().name.nil() || !iter_ident
-		  || iter_ident->path().size() != 1
-		  || !iter_ident->path().back().index.empty()))) {
-	    cerr << li->get_fileline() << ": error: " << kind
-		 << "() takes at most one simple iterator identifier." << endl;
-	    des->errors += 1;
+      perm_string iter_name;
+      perm_string index_name;
+      if (!validate_array_locator_iterators_(li, des,
+		    perm_string::literal(kind), parms, iter_name, index_name)) {
 	    delete array_expr;
-	    return 0;
+	    return nullptr;
       }
       if (with_exprs.size() > 1) {
 	    cerr << li->get_fileline() << ": error: " << kind
@@ -2307,7 +2294,6 @@ static NetExpr* make_array_reduction_expr_(
 	    }
       }
 
-      perm_string iter_name;
       NetNet*iter_net = make_array_method_iter_net_(li, scope, element_type,
 						    parms, iter_name);
 
@@ -2339,7 +2325,8 @@ static NetExpr* make_array_reduction_expr_(
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
 						    iter_name, iter_net,
-						    visible_idx_net);
+						    visible_idx_net,
+						    index_name);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -2423,6 +2410,22 @@ static NetExpr* make_array_minmax_expr_(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_exprs)
 {
+      perm_string iter_name;
+      perm_string index_name;
+      if (!validate_array_locator_iterators_(li, des,
+		    perm_string::literal(kind), parms, iter_name, index_name)) {
+	    delete array_expr;
+	    return nullptr;
+      }
+      if (with_exprs.size() > 1
+	  || (with_exprs.empty() && !parms.empty())) {
+	    cerr << li->get_fileline() << ": error: " << kind
+		 << "() iterator/index arguments require at most one with "
+		    "expression." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return nullptr;
+      }
       ivl_variable_type_t ebase = element_type
 	    ? element_type->base_type() : IVL_VT_NO_TYPE;
       if (ebase != IVL_VT_BOOL && ebase != IVL_VT_LOGIC) {
@@ -2458,7 +2461,6 @@ static NetExpr* make_array_minmax_expr_(
 	    }
       }
 
-      perm_string iter_name;
       NetNet*iter_net = make_array_method_iter_net_(li, scope, element_type,
 						    parms, iter_name);
 
@@ -2487,7 +2489,8 @@ static NetExpr* make_array_minmax_expr_(
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
 						    iter_name, iter_net,
-						    visible_idx_net);
+						    visible_idx_net,
+						    index_name);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -15546,6 +15549,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 
       int pidx = ensure_class_property_idx_(des, class_type, comp.name);
       if (pidx < 0) {
+            if (gn_system_verilog() && comp.index.empty()) {
+                  if (array_method_iter_index_forbidden_(sr.net, comp.name)) {
+                        cerr << get_fileline() << ": error: iterator index "
+                             << "querying is not allowed for wildcard-index "
+                                "associative arrays (IEEE 1800-2017 7.12.4)."
+                             << endl;
+                        des->errors += 1;
+                        return nullptr;
+                  }
+                  if (NetNet*idx_net = find_array_method_iter_index(
+                        sr.net, comp.name)) {
+                        NetESignal*tmp = new NetESignal(idx_net);
+                        tmp->set_line(*this);
+                        return tmp;
+                  }
+            }
             /* IEEE 1800-2017 13.5.1 permits omitting the parentheses on
                a function call that has no arguments.  A dotted spelling
                such as
