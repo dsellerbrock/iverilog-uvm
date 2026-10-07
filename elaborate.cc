@@ -28934,7 +28934,8 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
  * live chain and resolves an active leaf to its canonical solver variable. */
 static string constraint_class_state_path_ir_(
       const vector<perm_string>&names, const netclass_t*cls,
-      bool indexed_outer = false, unsigned array_word = 0)
+      bool indexed_outer = false, unsigned array_word = 0,
+      ivl_type_t*result_type = nullptr)
 {
       if (!cls || names.size() < 2) return "";
 
@@ -28981,6 +28982,7 @@ static string constraint_class_state_path_ir_(
       }
 
       if (!constraint_state_prop_ok_(cur_type, false)) return "";
+      if (result_type) *result_type = cur_type;
       unsigned wid = cur_type ? cur_type->packed_width() : 0;
       if (wid == 0) wid = 32;
       return "r:" + path + ":" + to_string(wid)
@@ -34791,15 +34793,113 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    }
 				    names.push_back(part->name);
 			      }
-			      uint64_t word = 0;
-			      if (fixed_outer && plain_path
-				  && constraint_fixed_array_leaf_word_(fixed_outer,
-					comp->index, cls, value_slots, scope, loop_env,
-					word)
-				  && word <= UINT_MAX) {
-				    string state_path = constraint_class_state_path_ir_(
-					  names, target_owner, true, (unsigned)word);
-				    if (!state_path.empty()) return state_path;
+			      if (fixed_outer && plain_path) {
+				    const netranges_t&dims = fixed_outer->static_dimensions();
+				    vector<string> index_irs;
+				    uint64_t words = 1;
+				    bool valid = !dims.empty()
+					  && dims.size() == comp->index.size();
+				    for (const netrange_t&dim : dims) {
+					  if (!dim.defined() || !dim.width()
+					      || words > 65536 / dim.width()) {
+						valid = false;
+						break;
+					  }
+					  words *= dim.width();
+				    }
+				    for (const index_component_t&select : comp->index) {
+					  if (select.sel != index_component_t::SEL_BIT
+					      || !select.msb || select.lsb) {
+						valid = false;
+						break;
+					  }
+					  string index = pexpr_to_constraint_ir(select.msb, cls,
+						value_slots, scope, loop_env);
+					  if (index.empty()) {
+						valid = false;
+						break;
+					  }
+					  index_irs.push_back(index);
+				    }
+				    if (valid) {
+					  bool ground = true;
+					  for (const string&index : index_irs) {
+						constraint_const_ir_t constant;
+						if (!constraint_parse_const_ir_(index, constant)) {
+						      ground = false;
+						      break;
+						}
+					  }
+					  uint64_t word = 0;
+					  if (ground && constraint_fixed_array_leaf_word_(fixed_outer,
+						comp->index, cls, value_slots, scope, loop_env, word)
+					      && word <= UINT_MAX) {
+						string state_path = constraint_class_state_path_ir_(
+						      names, target_owner, true, (unsigned)word);
+						if (!state_path.empty()) return state_path;
+					  }
+				    }
+				    ivl_type_t leaf_type = nullptr;
+				    string first = valid ? constraint_class_state_path_ir_(names,
+					  target_owner, true, 0, &leaf_type) : "";
+				    const netenum_t*enum_type =
+					  dynamic_cast<const netenum_t*>(leaf_type);
+				    ivl_type_t scalar_type = enum_type
+					  ? enum_type->base_type_obj() : leaf_type;
+				    ivl_variable_type_t scalar_base = scalar_type
+					  ? scalar_type->base_type() : IVL_VT_NO_TYPE;
+				    unsigned leaf_width = leaf_type
+					  ? leaf_type->packed_width() : 0;
+				    bool scalar_leaf = leaf_width
+					  && (scalar_base == IVL_VT_BOOL
+					      || scalar_base == IVL_VT_LOGIC);
+				    valid = valid && !first.empty() && scalar_leaf;
+				    if (valid) {
+					  bool two_state = scalar_base == IVL_VT_BOOL;
+					  string fallback = two_state
+						? "c:0:" + to_string(leaf_width)
+						    + (leaf_type->get_signed() ? ":s" : "")
+						: "xbad:" + to_string(leaf_width)
+						    + (leaf_type->get_signed() ? ":s" : "");
+					  string selected = fallback;
+					  for (uint64_t current = words; current-- > 0;) {
+						uint64_t ordinal = current;
+						vector<uint64_t> digits(dims.size());
+						for (size_t dim = dims.size(); dim-- > 0;) {
+						      digits[dim] = ordinal % dims[dim].width();
+						      ordinal /= dims[dim].width();
+						}
+						string match;
+						for (size_t dim = 0; dim < dims.size(); ++dim) {
+						      int64_t low = min(dims[dim].get_msb(),
+							    dims[dim].get_lsb());
+						      if (digits[dim] > (uint64_t)INT64_MAX
+							  || low > INT64_MAX
+							      - (int64_t)digits[dim]) {
+							valid = false;
+							break;
+						      }
+						      string equal = "(idxeq " + index_irs[dim]
+							    + " c:"
+							    + to_string(low + (int64_t)digits[dim])
+							    + ":64:s)";
+						      match = match.empty() ? equal
+							    : "(and " + match + " " + equal + ")";
+						}
+						if (!valid) break;
+						string leaf = current == 0 ? first
+						      : constraint_class_state_path_ir_(names,
+							    target_owner, true,
+							    (unsigned)current);
+						if (leaf.empty()) {
+						      valid = false;
+						      break;
+						}
+						selected = "(ite " + match + " " + leaf + " "
+						      + selected + ")";
+					  }
+					  if (valid) return selected;
+				    }
 			      }
 			      cerr << id->get_fileline() << ": sorry: constraint "
 				   << "reference '" << comp->name << "[...]"

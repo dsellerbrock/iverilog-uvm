@@ -640,7 +640,8 @@ static bool infer_constraint_integral_type_(IRParser&par,
             out = left; return out.width != 0;
       }
       if (op == "lt" || op == "le" || op == "gt" || op == "ge"
-          || op == "eq" || op == "ne" || op == "and" || op == "or"
+          || op == "eq" || op == "ne" || op == "idxeq"
+          || op == "and" || op == "or"
           || op == "impl" || op == "iff") {
             constraint_integral_type_t left, right;
             if (!infer_constraint_integral_type_(par, left)
@@ -1688,8 +1689,10 @@ static Z3_ast scalar_property_ref_(Z3Builder&b, unsigned idx,
             b.object(idx)->get_vec4(b.local_index(idx), data);
             Z3_ast value;
             if (!vec4_to_bv_const_(b.ctx, data, width, value)) {
-                  b.state_errors.push_back("X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
-                  value = Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+                  b.state_checks.push_back({Z3_mk_true(b.ctx),
+                        "X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)"});
+                  value = Z3_mk_unsigned_int64(b.ctx, 0,
+                                               Z3_mk_bv_sort(b.ctx, width));
             }
             return sflag ? b.tag_signed_constant(value) : value;
       }
@@ -2288,11 +2291,28 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
                                         width, sflag);
       Z3_ast val;
       if (!vec4_to_bv_const_(b.ctx, state_value, width, val)) {
-            b.state_errors.push_back("X/Z value in constraint state (IEEE 1800-2017/2023 18.3)");
-            return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+            b.state_checks.push_back({Z3_mk_true(b.ctx),
+                  "X/Z value in constraint state (IEEE 1800-2017/2023 18.3)"});
+            return Z3_mk_unsigned_int64(b.ctx, 0,
+                                        Z3_mk_bv_sort(b.ctx, width));
       }
-	if (sflag) val = b.tag_signed_constant(val);
+      if (sflag) val = b.tag_signed_constant(val);
       return val;
+}
+
+/* Compare an array index to a declared integral index as mathematical
+ * integers, preserving each operand's signed extension. The extra guard bit
+ * prevents a 64-bit unsigned all-ones index from aliasing signed -1. */
+static Z3_ast constraint_index_equal_(Z3Builder&b, Z3_ast index,
+                                      int64_t declared)
+{
+      unsigned common = max(b.sv_of(index), 64u) + 1;
+      Z3_ast bits = Z3_mk_unsigned_int64(b.ctx, (uint64_t)declared,
+                                         Z3_mk_bv_sort(b.ctx, 64));
+      Z3_ast extended = declared < 0
+            ? Z3_mk_sign_ext(b.ctx, common - 64, bits)
+            : Z3_mk_zero_ext(b.ctx, common - 64, bits);
+      return Z3_mk_eq(b.ctx, b.coerce(index, common), extended);
 }
 
 /* Capture the raw text of the remainder of the current form: the
@@ -3971,16 +3991,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      return b.mk_true();
 			}
 			int64_t declared_value = lows[dim] + (int64_t)digit;
-			Z3_ast declared = b.tag_signed_constant(Z3_mk_unsigned_int64(
-			      b.ctx, (uint64_t)declared_value,
-			      Z3_mk_bv_sort(b.ctx, 64)));
-			// Compare mathematical index values, not same-width modular bit
-			// patterns. The guard bit keeps unsigned 64'hffff... distinct
-			// from signed -1, while each operand retains its own extension.
-			unsigned common = max(b.sv_of(indices[dim]), 64u) + 1;
-			Z3_ast equal = Z3_mk_eq(b.ctx,
-			      b.coerce(indices[dim], common),
-			      b.coerce(declared, common));
+			Z3_ast equal = constraint_index_equal_(b, indices[dim],
+			      declared_value);
 			Z3_ast both[2] = {match, equal};
 			match = Z3_mk_and(b.ctx, 2, both);
 		  }
@@ -5228,6 +5240,29 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0, bv1);
 	    /* If x is true (non-zero), !x = 0; if false, !x = 1. */
 	    return Z3_mk_ite(b.ctx, cond, zero, one);
+      }
+
+      if (op == "idxeq") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
+	    Z3_ast index = build_z3_atom(par, b);
+	    string token = par.read_token();
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
+	    par.skip_ws(); par.expect(')');
+	    const char*number = token.compare(0, 2, "c:") == 0
+		  ? token.c_str() + 2 : token.c_str();
+	    char*end = nullptr;
+	    errno = 0;
+	    long long declared = strtoll(number, &end, 10);
+	    if (end == number || errno == ERANGE || !end || *end != ':'
+		|| strcmp(end + 1, "64:s") != 0) {
+		  b.state_errors.push_back("malformed symbolic fixed-array index bound");
+		  return Z3_mk_false(b.ctx);
+	    }
+	    return constraint_index_equal_(b, index, (int64_t)declared);
       }
 
       // Binary comparison: lt le gt ge eq ne
@@ -7630,7 +7665,7 @@ class state_foreach_expander_t {
                   {"onehot",1}, {"onehot0",1}, {"soft",1}, {"disable-soft",1},
                   {"add",2}, {"sub",2}, {"mul",2}, {"div",2}, {"mod",2},
                   {"pow",2}, {"lt",2}, {"le",2}, {"gt",2}, {"ge",2},
-                  {"eq",2}, {"ne",2}, {"and",2}, {"or",2}, {"impl",2},
+                  {"eq",2}, {"ne",2}, {"idxeq",2}, {"and",2}, {"or",2}, {"impl",2},
                   {"iff",2}, {"band",2}, {"bor",2}, {"bxor",2},
                   {"shl",2}, {"lshr",2}, {"ashr",2}, {"bit",2}, {"bit4",2},
                   {"order",2}, {"ite",3}, {"part",3}, {"cast",3}
@@ -13930,7 +13965,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			                         &value) || !value
 			          || Z3_get_bool_value(ctx, Z3_simplify(ctx, value))
 			                         != Z3_L_TRUE) continue;
-			      fprintf(stderr, "ERROR: constraint state read: %s.\n",
+		      fprintf(stderr, "ERROR: constraint state read: %s.\n",
 			              check.message.c_str());
 			      break;
 			}

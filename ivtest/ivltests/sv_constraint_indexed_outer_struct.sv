@@ -28,9 +28,52 @@ class indexed_item_t;
   }
 endclass
 
+typedef struct {
+  rand bit [1:0] value;
+} symbolic_leaf_t;
+
+typedef struct {
+  rand symbolic_leaf_t data;
+} symbolic_record_t;
+
+class symbolic_indexed_item_t;
+  rand symbolic_record_t leaves[2:1];
+  rand bit [1:0] selected_index;
+  rand bit [1:0] selected_value;
+
+  constraint selected_leaf {
+    leaves[1].data.value == 1;
+    leaves[2].data.value == 2;
+    selected_index inside {1, 2};
+    selected_value == leaves[selected_index].data.value;
+  }
+endclass
+
+typedef struct {
+  logic [1:0] value;
+} symbolic_state_leaf_t;
+
+typedef struct {
+  symbolic_state_leaf_t data;
+} symbolic_state_record_t;
+
+class symbolic_state_item_t;
+  symbolic_state_record_t leaves[2:1];
+  bit [1:0] selected_index;
+  rand logic [1:0] selected_value;
+
+  constraint selected_state_leaf {
+    selected_index == 1;
+    selected_value == leaves[selected_index].data.value;
+    selected_value == 1;
+  }
+endclass
+
 module test;
   initial begin
     indexed_item_t item;
+    symbolic_indexed_item_t symbolic;
+    symbolic_state_item_t symbolic_state;
     int first_value;
     int second_value;
 
@@ -61,6 +104,22 @@ module test;
         || item.grid[2][1].data.kind != indexed_kind_a
         || item.grid[2][0].data.kind != indexed_kind_b)
       $fatal(1, "multidimensional indexed-struct enum constraints were lost");
+
+    symbolic = new;
+    if (!symbolic.randomize()) $fatal(1, "symbolic indexed-struct solve failed");
+    if ((symbolic.selected_index == 1 && symbolic.selected_value != 1)
+        || (symbolic.selected_index == 2 && symbolic.selected_value != 2)
+        || (symbolic.selected_index != 1 && symbolic.selected_index != 2))
+      $fatal(1, "symbolic indexed-struct member selection was lost");
+
+    symbolic_state = new;
+    symbolic_state.selected_index = 1;
+    symbolic_state.leaves[1].data.value = 1;
+    symbolic_state.leaves[2].data.value = 2'bxx;
+    if (!symbolic_state.randomize())
+      $fatal(1, "unselected X/Z struct member affected symbolic selection");
+    if (symbolic_state.selected_index != 1 || symbolic_state.selected_value != 1)
+      $fatal(1, "symbolic state selection chose the wrong struct member");
 
     first_value = item.leaves[2].data.value;
     second_value = item.leaves[1].data.value;

@@ -670,14 +670,14 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### RANDOMIZE-INDEXED-OUTER-UNPACKED-STRUCT-MEMBER — constrain indexed struct-array leaves
 
 - **Area / edition:** Randomization / IEEE 1800-2017 and 1800-2023 §§18.4, 18.5.
-- **State:** DONE locally for fixed-array selectors resolved at elaboration, including foreach-unrolled indices; broader IEEE support remains active.
-- **Requirement:** A constraint must retain the identity of a scalar integral or enum leaf selected through an indexed fixed array of unpacked structures, including nested unpacked-struct members.
-- **Evidence / reproducer:** `ivtest/ivltests/sv_constraint_indexed_outer_struct.sv` checks a descending one-dimensional array, a two-dimensional array, nested struct leaves, non-random state reads, and failed-solve rollback. Exact commands and binary hashes are in [the qualification record](../../evidence/indexed-outer-struct-constraint-20261007/README.md).
-- **Root cause and fix:** Frontend lowering rejected every indexed outer unpacked-struct path. It now converts constant or foreach-unrolled fixed-array indices to storage-order words and appends that selection to the existing object/member state path. VVP resolves the selected struct object before interning its terminal member in the existing randomization graph.
+- **State:** DONE locally for constant, foreach-unrolled, and tested symbolic selectors into fixed arrays; broader IEEE support remains active.
+- **Requirement:** A constraint must retain the identity of a scalar integral or enum leaf selected through a fixed array of unpacked structures, including nested unpacked-struct members and a randomized selector.
+- **Evidence / reproducer:** `ivtest/ivltests/sv_constraint_indexed_outer_struct.sv` checks a descending one-dimensional array, a two-dimensional array, nested struct leaves, non-random state reads, failed-solve rollback, a symbolic selector, and an unselected X state leaf. Constant-selector history is in the [Fix 36 qualification record](../../evidence/indexed-outer-struct-constraint-20261007/README.md); Fix 37 commands and hashes are in the [symbolic-selector record](../../evidence/symbolic-indexed-outer-struct-constraint-20261007/README.md).
+- **Root cause and fix:** Frontend lowering rejected indexed outer unpacked-struct paths. Constant and foreach-unrolled indices resolve to storage-order words. Symbolic selectors over fixed arrays of at most 65,536 words lower to guarded choices over each scalar leaf, with signed mathematical-index comparisons; VVP resolves each guarded state read through the existing randomization graph. X/Z checks remain conditional on the selected branch.
 - **What this unblocks:** Common constrained-random record arrays whose scalar fields depend on state or other randomized fields.
-- **Boundary:** Symbolic random index expressions, dynamic/queue/associative containers, aggregate leaves, and class-handle members remain open. This increment does not close clause 18 or the full IEEE 1800 objective.
-- **Validation:** Both strict editions pass 2/2 in legacy and JSON/VVP focus lists. The adjacent nested-struct regression passes 2/2 in both harnesses and editions. Build and install succeed; no broad suite or OpenTitan corpus was run.
-- **Last verified revision:** `e1d61f127` on `agent/ieee-cross-object-solve-before-20261007`; image hashes are in the qualification record.
+- **Boundary:** Dynamic/queue/associative containers, aggregate leaves, class-handle members, arrays beyond the 65,536-word expansion bound, and wide coupled-domain sampling remain unqualified. This increment does not close clause 18 or the full IEEE 1800 objective.
+- **Validation:** Both strict editions pass 2/2 in legacy and JSON/VVP focus lists, including an active 2-bit randomized selector and a selected state leaf beside an unselected X leaf. The adjacent nested-struct regression passes 2/2 in both harnesses and editions. Build and install succeed; no broad suite or OpenTitan corpus was run.
+- **Last verified revision:** Fix 37 on `agent/ieee-cross-object-solve-before-20261007`; image hashes are in the [Fix 37 qualification record](../../evidence/symbolic-indexed-outer-struct-constraint-20261007/README.md).
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 

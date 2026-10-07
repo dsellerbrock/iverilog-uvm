@@ -2,13 +2,22 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 37 locally qualified:** a randomized integral index can now select a
+scalar integral or enum leaf through a fixed array of unpacked structs. The
+paired test covers a 2-bit active-random selector and a state read with an
+unselected X leaf; strict 2017/2023 JSON/VVP and legacy lists pass 2/2 each.
+This remains bounded to fixed arrays of at most 65,536 words and scalar
+leaves. Dynamic containers, aggregates, and wide coupled-domain sampling are
+not qualified. See [qualification evidence](../../evidence/symbolic-indexed-outer-struct-constraint-20261007/README.md)
+and [blocker record](BLOCKERS.md#randomize-indexed-outer-unpacked-struct-member).
+
 **Fix 36 locally qualified:** constraints now resolve scalar integral and enum
 leaves through fixed indexed arrays of unpacked structs, including nested
 struct members and foreach-unrolled indices. The paired regression covers
 descending and multidimensional ranges, randomized leaves, state reads, and
 failed-solve rollback. Strict 2017 and 2023 legacy and JSON/VVP focus lists
-pass 2/2 each. This closes the tested fixed-index slice; symbolic indices,
-dynamic containers, and aggregate leaves remain open. See the
+pass 2/2 each. Symbolic fixed-array selectors are covered by Fix 37; dynamic
+containers and aggregate leaves remain open. See the
 [qualification evidence](../../evidence/indexed-outer-struct-constraint-20261007/README.md)
 and [blocker record](BLOCKERS.md#randomize-indexed-outer-unpacked-struct-member).
 
