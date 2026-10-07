@@ -12430,8 +12430,21 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			     lands in the integral chain. */
 			bool as_real = false;
 			if (wide) {
+			      PExpr*real_operand = parms[0].parm;
+			      if (const PECallFunction*sample =
+				  dynamic_cast<const PECallFunction*>(real_operand)) {
+				    if (!sample->path().package
+					&& sample->path().name.size() == 1
+					&& !strcmp(peek_tail_name(sample->path().name).str(),
+						   "$ivl_clocking_sample")) {
+					  const std::vector<named_pexpr_t>&args =
+						sample->get_parms();
+					  if (args.size() == 1)
+						real_operand = args[0].parm;
+				    }
+			      }
 			      if (const PEIdent*aid =
-				  dynamic_cast<const PEIdent*>(parms[0].parm)) {
+				  dynamic_cast<const PEIdent*>(real_operand)) {
 				    if (aid->path().size() == 1) {
 					  PWire*w = pform_get_wire_in_scope(
 						aid->path().back().name);
@@ -12895,6 +12908,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 struct sampled_pending_t {
       PECallFunction*call;
       struct vlltype loc;
+      bool automatic_operand;
+      bool clocking_input_operand;
 };
 static std::vector<sampled_pending_t> sampled_pending_;
 
@@ -12906,11 +12921,85 @@ bool pform_is_sampled_value_function(const char*name)
 	  || !strcmp(name, "$changed");
 }
 
+/* Capture automatic-operand classification while the parser still has the
+   live lexical scope. Process binding happens after nested scopes have been
+   popped, so retaining a scope pointer for later lookup is unsafe. */
+static bool pform_is_auto_sampled_value_(LexicalScope*scope,
+					 const PECallFunction*call)
+{
+      if (!call || call->path().package || call->path().name.size() != 1)
+	    return false;
+
+      const char*name = peek_tail_name(call->path().name).str();
+      if (strcmp(name, "$past") && strcmp(name, "$rose")
+	  && strcmp(name, "$fell") && strcmp(name, "$changed")
+	  && strcmp(name, "$stable"))
+	    return false;
+
+      const std::vector<named_pexpr_t>&args = call->get_parms();
+      if (args.empty() || !args[0].parm) return false;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(args[0].parm);
+      if (!id || id->path().package || id->path().name.size() != 1)
+	    return false;
+
+      PWire*wire = nullptr;
+      LexicalScope*owner = nullptr;
+      for (LexicalScope*cur = scope; cur && !wire;
+	   cur = cur->parent_scope()) {
+	    wire = cur->wires_find(id->path().name.front().name);
+	    if (wire) owner = cur;
+      }
+      if (!wire || !owner) return false;
+
+      ivl_lifetime_t lifetime = wire->lifetime_override();
+      if (lifetime == IVL_VLT_INHERITED) {
+	    LexicalScope*effective_scope = owner;
+	    while (effective_scope
+		   && effective_scope->default_lifetime == LexicalScope::INHERITED)
+		  effective_scope = effective_scope->parent_scope();
+	    if (!effective_scope
+		|| effective_scope->default_lifetime != LexicalScope::AUTOMATIC)
+		  return false;
+	  } else if (lifetime != IVL_VLT_AUTOMATIC) {
+	    return false;
+      }
+
+      return true;
+}
+
+/* Clocking inputs already have their own #1step sample. They must not be
+   treated as ordinary static signals by the procedural Preponed wrapper. */
+static bool pform_is_clocking_input_sampled_(const PECallFunction*call)
+{
+      if (!call || call->path().package || call->path().name.size() != 1
+	  || call->get_parms().empty() || !call->get_parms()[0].parm
+	  || pform_cur_module.empty())
+	    return false;
+
+      const PExpr*expr = call->get_parms()[0].parm;
+      const Module*module = pform_cur_module.front();
+      for (std::map<perm_string, Module::PClocking*>::const_iterator cb_it =
+	 module->clocking_blocks.begin();
+	 cb_it != module->clocking_blocks.end(); ++cb_it) {
+	    const Module::PClocking*cb = cb_it->second;
+	    if (!expr->refs_name(cb_it->first)) continue;
+	    for (size_t i = 0; i < cb->signals.size(); ++i) {
+		  NetNet::PortType dir = cb->signal_direction(cb->signals[i]);
+		  if ((dir == NetNet::PINPUT || dir == NetNet::PINOUT)
+		      && expr->refs_name(cb->signals[i]))
+			return true;
+	    }
+      }
+      return false;
+}
+
 void pform_note_sampled_call(const struct vlltype&loc, PECallFunction*cf)
 {
       sampled_pending_t p;
       p.call = cf;
       p.loc = loc;
+      p.automatic_operand = pform_is_auto_sampled_value_(lexical_scope, cf);
+      p.clocking_input_operand = pform_is_clocking_input_sampled_(cf);
       sampled_pending_.push_back(p);
 }
 
@@ -12925,6 +13014,83 @@ static void sampled_pending_drop_(const PECallFunction*cf)
 		  return;
 	    }
       }
+}
+
+/* IEEE 1800-2017 16.5.1 says sampled values of automatic variables are
+   their current values; `$past` of an automatic variable also takes its
+   current value. A separate history process cannot access an automatic
+   block activation, so bind the simple variable case in its original
+   expression context instead of moving it into that process. */
+static bool pform_auto_sampled_value_(const sampled_pending_t&pending,
+				      PExpr*&replacement)
+{
+      replacement = nullptr;
+      if (!pending.automatic_operand) return false;
+      const PECallFunction*call = pending.call;
+      const char*name = peek_tail_name(call->path().name).str();
+      const std::vector<named_pexpr_t>&args = call->get_parms();
+      if (args.size() != 1 || !args[0].parm) return false;
+
+      if (!strcmp(name, "$past"))
+	    replacement = sva_clone_expr_(args[0].parm);
+      else if (!strcmp(name, "$rose") || !strcmp(name, "$fell")
+	       || !strcmp(name, "$changed"))
+	    replacement = sva_bit_(pending.loc, 0);
+      else if (!strcmp(name, "$stable"))
+	    replacement = sva_bit_(pending.loc, 1);
+      else
+	    return false;
+
+      if (!replacement) return false;
+      return true;
+}
+
+static void pform_capture_procedural_sampled_(
+	    const sampled_pending_t&pending, unsigned inst, unsigned&hist_idx,
+	    std::vector<Statement*>&pre, std::vector<Statement*>&post,
+	    std::vector<Statement*>&init,
+	    std::map<std::string, pform_name_t>&sampled,
+	    unsigned&live_operands)
+{
+      PECallFunction*cf = pending.call;
+      if (cf->sampled_subst()) return;
+
+      if (pending.clocking_input_operand) {
+	    live_operands += 1;
+	    return;
+      }
+      if (pending.automatic_operand) {
+	    PExpr*current_value = nullptr;
+	    if (pform_auto_sampled_value_(pending, current_value))
+		  cf->set_sampled_subst(current_value);
+	    else
+		  live_operands += 1;
+	    return;
+      }
+
+      /* The sampler runs in Active. Capture static signal leaves through
+	 the existing Preponed read path before building their history. */
+      PExpr*source = sva_wrap_preponed_(cf, sampled, live_operands);
+      if (!source) {
+	    live_operands += 1;
+	    source = cf;
+      }
+      PExpr*sub = sva_rewrite_sampled_(pending.loc, source, inst, hist_idx,
+					       pre, post, init, true);
+      if (source != cf && sub != source)
+	    delete source;
+      if (sub && sub != cf)
+	    cf->set_sampled_subst(sub);
+}
+
+static void pform_enable_procedural_sampled_history_(
+	    const struct vlltype&loc,
+	    const std::map<std::string, pform_name_t>&sampled,
+	    std::vector<Statement*>&init)
+{
+      for (std::map<std::string, pform_name_t>::const_iterator it =
+	 sampled.begin() ; it != sampled.end() ; ++it)
+	    init.push_back(sva_hist_on_stmt_(loc, it->second));
 }
 
 /* Mark every identifier in this expression tree as coming from a
@@ -13137,21 +13303,30 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init;
+      std::map<std::string, pform_name_t> sampled;
+      unsigned live_operands = 0;
 
       for (size_t i = 0 ; i < mine.size() ; i += 1) {
-	    PECallFunction*cf = mine[i].call;
-	    if (cf->sampled_subst())
-		  continue;               // already bound (nested call)
-	    PExpr*sub = sva_rewrite_sampled_(mine[i].loc, cf, inst, hist_idx,
-					     pre, post, init, true);
-	    if (sub && sub != cf)
-		  cf->set_sampled_subst(sub);
+	    pform_capture_procedural_sampled_(mine[i], inst, hist_idx,
+					      pre, post, init, sampled,
+					      live_operands);
+      }
+
+      if (live_operands != 0) {
+	    cerr << mine[0].loc << ": sorry: procedural sampled-value "
+		 << "expression has " << live_operands
+		 << " operand(s) that cannot be lowered with the required "
+		 << "IEEE 1800-2017 16.5.1 sampling/lifetime rules." << endl;
+	    error_count += 1;
+	    return;
       }
 
       if (post.empty())
 	    return;
 
       const struct vlltype&loc = mine[0].loc;
+	/* Enable signal history before the first clock event. */
+	pform_enable_procedural_sampled_history_(loc, sampled, init);
       pform_make_sampled_history_process_(loc, ev->event_expressions(),
 					  post, init);
 }
@@ -13165,10 +13340,9 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
  * same construction then serves a reader that has no block of its own
  * to splice into (a default-clocking binding).
  *
- * The shift is NONBLOCKING, which is what makes sharing an edge with
- * the readers safe: the update lands after every Active-region read, so
- * a reader sees the previous tick's sample no matter which process the
- * scheduler picks first.
+ * The source operands in post have already been rewritten to read their
+ * Preponed values. The shift is NONBLOCKING so readers still see the prior
+ * event's history throughout Active, independent of process order.
  */
 static void pform_make_sampled_history_process_(
 	    const struct vlltype&loc,
@@ -13221,6 +13395,16 @@ void pform_bind_sampled_call_to_event(const struct vlltype&loc,
       if (cf->sampled_subst())
 	    return;
 
+	/* The call is parsed inside its original lexical scope; retain only the
+	   lifetime classification before hoisting the sampler out of a block. */
+      sampled_pending_t pending;
+      pending.call = cf;
+      pending.loc = loc;
+      pending.automatic_operand = pform_is_auto_sampled_value_(lexical_scope,
+									 cf);
+      pending.clocking_input_operand =
+	    pform_is_clocking_input_sampled_(cf);
+
 	/* Parsed mid-statement, so this can be inside a begin/end.
 	   Hoist the sampler and its registers out of the PBlock. */
       sva_hoist_out_of_block_t sva_scope_guard;
@@ -13228,13 +13412,22 @@ void pform_bind_sampled_call_to_event(const struct vlltype&loc,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init;
-
-      PExpr*sub = sva_rewrite_sampled_(loc, cf, inst, hist_idx,
-				       pre, post, init, true);
-      if (sub && sub != cf)
-	    cf->set_sampled_subst(sub);
-      if (post.empty())
-	    return;
+	std::map<std::string, pform_name_t> sampled;
+	unsigned live_operands = 0;
+	pform_capture_procedural_sampled_(pending, inst, hist_idx,
+					  pre, post, init, sampled,
+					  live_operands);
+	if (live_operands != 0) {
+	      cerr << loc << ": sorry: procedural sampled-value expression has "
+		   << live_operands
+		   << " operand(s) that cannot be lowered with the required "
+		   << "IEEE 1800-2017 16.5.1 sampling/lifetime rules." << endl;
+	      error_count += 1;
+	      return;
+	}
+	  if (post.empty())
+		return;
+	pform_enable_procedural_sampled_history_(loc, sampled, init);
 
       pform_make_sampled_history_process_(loc, ev->event_expressions(),
 					  post, init);
@@ -13287,15 +13480,21 @@ void pform_flush_pending_sampled_calls()
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init;
+      std::map<std::string, pform_name_t> sampled;
+      unsigned live_operands = 0;
 
       for (size_t i = 0 ; i < mine.size() ; i += 1) {
-	    PECallFunction*cf = mine[i].call;
-	    if (cf->sampled_subst())
-		  continue;
-	    PExpr*sub = sva_rewrite_sampled_(mine[i].loc, cf, inst, hist_idx,
-					     pre, post, init, true);
-	    if (sub && sub != cf)
-		  cf->set_sampled_subst(sub);
+	    pform_capture_procedural_sampled_(mine[i], inst, hist_idx,
+					      pre, post, init, sampled,
+					      live_operands);
+      }
+      if (live_operands != 0) {
+	    cerr << loc << ": sorry: procedural sampled-value expression has "
+		 << live_operands
+		 << " operand(s) that cannot be lowered with the required "
+		 << "IEEE 1800-2017 16.5.1 sampling/lifetime rules." << endl;
+	    error_count += 1;
+	    return;
       }
       if (post.empty())
 	    return;
@@ -13312,6 +13511,7 @@ void pform_flush_pending_sampled_calls()
       std::vector<PEEvent*> evs;
       evs.push_back(devt);
 
+	pform_enable_procedural_sampled_history_(loc, sampled, init);
       pform_make_sampled_history_process_(loc, evs, post, init);
 }
 
