@@ -35,6 +35,18 @@ class dynamic_randc_root;
     if (impossible) values[0] == 2047;
   }
 endclass
+class wide_dynamic_randc_root;
+  randc bit [20:0] values[];
+  rand dynamic_randc_child child;
+  bit impossible;
+  function new(); child = new; endfunction
+  constraint c {
+    values.size() == 1;
+    values[0] inside {[0:64]};
+    values[0] == child.value;
+    if (impossible) values[0] == 65;
+  }
+endclass
 class constrained_wide_randc;
   randc int unsigned value;
   bit impossible;
@@ -68,24 +80,45 @@ class parent_limited_wide_randc_root;
     if (impossible) child.value == 65;
   }
 endclass
+class parent_wide_dynamic_randc_child;
+  randc bit [20:0] values[];
+  constraint size_c { values.size() == 1; }
+endclass
+class parent_wide_dynamic_randc_root;
+  rand parent_wide_dynamic_randc_child child;
+  rand bit [20:0] mirror;
+  bit impossible;
+  function new(); child = new; endfunction
+  constraint parent_c {
+    child.values[0] inside {[0:64]};
+    mirror == child.values[0];
+    if (impossible) child.values[0] == 65;
+  }
+endclass
 module main;
   cyclic_root r = new;
   static_node s = new;
   static_struct_node t = new;
   dynamic_randc_root d = new;
+  wide_dynamic_randc_root wd = new;
   constrained_wide_randc w = new;
   constrained_graph_wide_randc gw = new;
   parent_limited_wide_randc_root p = new;
+  parent_wide_dynamic_randc_root pd = new;
   bit [3:0] seen, shared_seen, struct_seen;
   bit [1024:0] dynamic_seen;
+  bit [64:0] wide_dynamic_seen;
   bit [7:0] wide_seen;
   bit [100:0] graph_wide_seen;
   bit [64:0] parent_graph_wide_seen;
+  bit [64:0] parent_dynamic_seen;
   bit [1:0] before_parent, before_child;
   bit [10:0] before_dynamic, before_dynamic_child;
+  bit [20:0] before_wide_dynamic;
   bit [10:0] before_graph_child;
   int unsigned before_graph_wide;
   int unsigned before_parent_graph_value, before_parent_value;
+  bit [20:0] before_parent_dynamic_value, before_parent_dynamic_mirror;
   string child_state, struct_child_state;
   initial begin
     s.child = new; t.child = new;
@@ -93,6 +126,7 @@ module main;
     s.srandom(23); s.child.srandom(31);
     t.srandom(23); t.child.srandom(31);
     d.srandom(32'h44594331); d.child.srandom(32'h44594332);
+    wd.srandom(32'h44594333); wd.child.srandom(32'h44594334);
     child_state = s.child.get_randstate();
     struct_child_state = t.child.get_randstate();
     repeat (12) begin
@@ -120,6 +154,30 @@ module main;
       $fatal(1, "static scalar consumed a second object's RNG");
     if (t.child.get_randstate() != struct_child_state)
       $fatal(1, "static struct consumed a second object's RNG");
+    for (int i = 0; i <= 65; i++) begin
+      if (i == 32) begin
+        before_wide_dynamic = wd.values[0];
+        before_dynamic_child = wd.child.value;
+        wd.impossible = 1;
+        if (wd.randomize() || wd.values[0] != before_wide_dynamic
+            || wd.child.value != before_dynamic_child)
+          $fatal(1, "failed wide dynamic randc solve changed values");
+        wd.impossible = 0;
+      end
+      if (!wd.randomize())
+        $fatal(1, "wide dynamic randc solve failed at %0d", i);
+      if (wd.values.size() != 1 || wd.values[0] > 64
+          || wd.values[0] != wd.child.value)
+        $fatal(1, "wide dynamic randc violated its constraints");
+      if (i < 65) begin
+        if (wide_dynamic_seen[wd.values[0]])
+          $fatal(1, "wide dynamic randc repeated before completing its cycle");
+        wide_dynamic_seen[wd.values[0]] = 1'b1;
+      end else if (!wide_dynamic_seen[wd.values[0]])
+        $fatal(1, "wide dynamic randc did not reset after exhausting its feasible set");
+    end
+    if (wide_dynamic_seen !== {65{1'b1}})
+      $fatal(1, "wide dynamic randc missed a legal value");
     for (int i = 0; i < 1025; i++) begin
       if (i == 64) begin
         before_dynamic = d.values[0];
@@ -211,6 +269,26 @@ module main;
         || p.parent_value != p.child.value
         || !parent_graph_wide_seen[p.child.value])
       $fatal(1, "parent-only graph-coupled wide randc did not reset");
+    pd.srandom(32'h1020_3045); pd.child.srandom(32'h1020_3046);
+    for (int i = 0; i < 65; i++) begin
+      if (i == 32) begin
+        before_parent_dynamic_value = pd.child.values[0];
+        before_parent_dynamic_mirror = pd.mirror;
+        pd.impossible = 1;
+        if (pd.randomize() || pd.child.values[0] != before_parent_dynamic_value
+            || pd.mirror != before_parent_dynamic_mirror)
+          $fatal(1, "parent-only dynamic randc failure changed graph values");
+        pd.impossible = 0;
+      end
+      if (!pd.randomize())
+        $fatal(1, "parent-only dynamic randc failed at %0d", i);
+      if (pd.child.values.size() != 1 || pd.child.values[0] > 64
+          || pd.child.values[0] != pd.mirror || parent_dynamic_seen[pd.child.values[0]])
+        $fatal(1, "parent-only dynamic randc repeated or violated its constraint");
+      parent_dynamic_seen[pd.child.values[0]] = 1'b1;
+    end
+    if (parent_dynamic_seen !== {65{1'b1}})
+      $fatal(1, "parent-only dynamic randc missed a legal value");
     $display("PASSED");
   end
 endmodule

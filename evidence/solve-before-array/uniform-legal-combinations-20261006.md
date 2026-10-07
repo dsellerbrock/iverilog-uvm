@@ -742,3 +742,68 @@ history representation`. On the final source-built ARM64 image, VVP SHA-256 is
 focused JSON harness passes 4/4 and the focused legacy harness passes 4/4, each
 under strict paired 2017/2023 modes. Full registered uniformity suites remain
 deferred to the ten-fix checkpoint.
+
+
+## Wide dynamic-array `randc` elements (fix 25)
+
+A 21-bit dynamic-array `randc` element constrained to `[0:64]` was rejected
+before the first graph-coupled draw. The direct reproducer instead warned that
+the element domain was not enumerable and repeated at draw 1. Three limits
+caused this: graph preflight did not recognize `delem` element references,
+the joint size pass rejected every array element wider than 20 bits, and the
+container history only stored dense histories through 20 bits.
+
+Admission now covers non-static one-dimensional integral dynamic-array
+elements through 64 bits when the owner constraint IR names an element. The
+runtime proves the complete feasible domain with the existing 1,024-value
+cap. Per-position sparse history lives with the dynamic array, follows copies
+and element reorders, and commits with the enclosing randomize transaction.
+Unknown or larger domains fail before sampling; parent-only array-element
+references, nested arrays, queues, associative arrays, multidimensional
+arrays, and aggregate wide forms remain unsupported.
+
+The paired global-randc regression checks a 21-bit array constrained to
+`[0:64]` and coupled to a child `rand` property. It completes all 65 values
+without repetition, verifies an unsatisfiable attempt rolls back values and
+history, and confirms cycle reset. The existing history-negative control now
+uses a 1,025-value array domain and verifies fail-closed behavior. Strict
+2017/2023 JSON and legacy harnesses each pass 4/4. Tested image hashes are
+VVP `0177600c757cad6efb5993761448419178f5f5141bb0d9acd2c5636136c6bbf3` and
+`ivl` `898a756aba3e1bb5d760f9c0066e8dbdd1ec687860a13bf1c67f214a9fe5bef7`.
+The full registered uniformity suites were not run on this incremental image;
+they remain deferred to the ten-fix checkpoint.
+
+## Parent-referenced wide dynamic-array `randc` elements (fix 26)
+
+Fix 25 handled a wide dynamic-array `randc` element when the element appeared
+in its own class's constraint. A constant-index reference from a reachable
+parent constraint was still rejected during elaboration. The terminal-element
+path now carries a dynamic-array index marker, and VVP resolves it to the live
+owner's canonical element so parent constraints participate in feasibility,
+cycle history, and transactional writeback.
+
+The paired regression uses a 21-bit child `randc` array constrained by its
+parent to `[0:64]` and coupled to a parent `rand` property. Strict 2017 and
+2023 runs complete all 65 unique values, check failed-call rollback and cycle
+reset, and retain a 1,025-value fail-closed control. The minimal pre-fix
+reproducer failed to compile with “nested indexed constraint terminal must be
+a fixed integral or enum element.” Focused JSON/VVP and legacy harnesses pass
+2/2 each across the two editions. Source-built ARM64 image hashes: VVP
+`e852bd40e42b279bd44e9fcb2665063b6106000112025cfd25e2e7da7a8a4787`, `ivl`
+`0dcb6a02a6d3d7bf6820773e96e9c0ca96cabebab0aa70133b611031958ec41f`.
+Full registered uniformity suites remain deferred to the ten-fix checkpoint.
+
+## Full uniformity checkpoint on the fix-26 image (2026-10-06)
+
+The registered `sv_randomize_global_uniform` source passes after compiling and
+running with strict `-g2017` and `-g2023` using ARM64 VVP SHA-256
+`e852bd40e42b279bd44e9fcb2665063b6106000112025cfd25e2e7da7a8a4787`.
+The 2017 run reports `PASSED` in 229.09 s with maximum RSS 49,905,664 bytes;
+the 2023 run reports `PASSED` in 198.16 s with maximum RSS 50,987,008 bytes.
+The adjacent `sv_randomize_global_sampling_fail` and fixed-array
+`solve-before` positive/negative controls pass in both editions: the focused
+legacy and JSON/VVP gates each report 6/6, 0 failures. The constrained
+dynamic-array model remains capped at 512 aggregate elements and runtime
+allocation at 65,536. This qualifies the registered statistical scope on the
+fix-26 image; static, unconstrained, nested, queue, associative,
+multidimensional, and aggregate wide-randc forms remain open.

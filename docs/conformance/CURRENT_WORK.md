@@ -2,6 +2,26 @@
 
 ## Current IEEE 1800 focus
 
+**Current selected blocker:** `ARRAY-MAP-2023`. `map()` now passes focused
+strict `-g2023` runtime cases for fixed, dynamic, queue, and associative
+arrays; strict `-g2017` rejects it. The paired map lists pass 4/4 each, and
+adjacent array-method checks pass on the same source-built image. Unpacked-
+array-valued `with` results are also tested for fixed, dynamic, queue, and
+associative receivers, including empty results and nested maps over the
+resulting rows. This closes the selected implementation gap at the bounded
+scope recorded in the [qualification evidence](../../evidence/array-map-2023-20261007/README.md);
+it does not claim every legal `map()` interaction or full array-method-clause
+conformance.
+
+**Uniform-solution checkpoint (2026-10-06):** the full registered paired
+2017/2023 uniformity suites pass on fix-26 VVP
+`e852bd40e42b279bd44e9fcb2665063b6106000112025cfd25e2e7da7a8a4787`
+(229.09 s / 49.9 MB RSS and 198.16 s / 51.0 MB RSS). The adjacent failure-
+rollback and fixed-array `solve-before` controls pass 6/6 in each harness and
+edition. This qualifies the registered statistical cases; the residual
+`randc` shapes listed below still keep clause 18 partial. Full evidence:
+[uniform legal combinations](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#full-uniformity-checkpoint-on-the-fix-26-image-2026-10-06).
+
 The direct-scalar subset, fixed unpacked bit arrays, and bounded variable-size,
 one-dimensional integral and enum dynamic arrays now pass paired 2017/2023
 statistical regressions. Fixed-array coverage includes two- and 129-element
@@ -63,8 +83,10 @@ enumeration cap, nested, queue, associative, multidimensional, and struct/member
 aggregate randc forms, ordering, additional soft-preference shapes, and weighted
 `dist`. Non-static single-owner direct scalar randc properties 21–64 bits now
 cycle only when the complete feasible set is exactly enumerated and contains no
-more than 1,024 values. Direct one-dimensional dynamic-array randc elements up
-to 20 bits are paired-tested.
+more than 1,024 values. Non-static one-dimensional dynamic-array randc elements
+21–64 bits wide are paired-tested when their complete feasible domain has at
+most 1,024 values, including constant-index references from reachable parent
+constraints. Other array shapes remain open.
 The direct scalar constrained
 randc fallback now samples uniformly from unseen values using hard-solver
 checks and proves cycle exhaustion before reset. Paired strict 2017/2023 runs
@@ -256,6 +278,14 @@ exhaustion and verify reset. Histories cap at 65,536 values per property;
 graph-coupled and other wide randc forms remain open.
 The [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#bounded-sparse-history-for-constrained-wide-randc-fix-22)
 records the paired result and source-built image hashes.
+Fixes 25–26 extend that bounded sparse history to one-dimensional dynamic-array
+elements through 64 bits, first for owner-local constraints and then for
+constant-index references from reachable parent constraints. Each tested
+21-bit element cycles through 65 values, preserves history on failed
+randomization, and resets after exhaustion; 1,025-value domains fail closed.
+Strict 2017/2023 focused JSON and legacy pairs pass. The full registered suites
+remain deferred to the 10-fix checkpoint. See the
+[focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#parent-referenced-wide-dynamic-array-randc-elements-fix-26).
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See

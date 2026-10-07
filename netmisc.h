@@ -568,8 +568,14 @@ extern assoc_array_type_match_t assoc_array_expr_type_match(
  * the loop-counter net so `item.index` resolves to the element index.
  * Nesting-safe (a stack).  Defined in elab_expr.cc. */
 extern void push_array_method_iter_ctx(const NetNet*iter_net, NetNet*idx_net);
+extern void push_array_method_iter_ctx_named(const NetNet*iter_net,
+					     NetNet*idx_net,
+					     perm_string index_name,
+					     bool index_query_allowed = true);
 extern void pop_array_method_iter_ctx(void);
 extern NetNet* find_array_method_iter_index(const NetNet*iter_net);
+extern NetNet* find_array_method_iter_index(const NetNet*iter_net,
+					    perm_string index_name);
 
 extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
 			      PExpr*pe, int context_width,

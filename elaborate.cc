@@ -34571,6 +34571,47 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_rand()
 					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_randc())
 					  break;
+				    const netdarray_t*dynamic_array =
+					  dynamic_cast<const netdarray_t*>(nested_type);
+				    if (dynamic_array && !dynamic_array->packed()
+					&& nested->index.size() == 1) {
+					  ivl_type_t element = dynamic_array->element_type();
+					  ivl_variable_type_t base = element
+						? element->base_type() : IVL_VT_NO_TYPE;
+					  unsigned width = element ? element->packed_width() : 0;
+					  bool integral = element && element->packed() && width
+						&& width <= 64
+						&& (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+						    || dynamic_cast<const netenum_t*>(element));
+					  const index_component_t&select = nested->index.front();
+					  string index_ir = select.msb && !select.lsb
+						&& select.sel == index_component_t::SEL_BIT
+						? pexpr_to_constraint_ir(select.msb, cls,
+						      value_slots, scope, loop_env) : "";
+					  constraint_const_ir_t index;
+					  uint64_t word = 0;
+					  bool valid = integral && !index_ir.empty()
+						&& constraint_parse_const_ir_(index_ir, index)
+						&& index.width <= 64;
+					  if (valid) {
+						word = constraint_resize_const_bits_(index,
+						      64, index.is_signed);
+						valid = (!index.is_signed || (int64_t)word >= 0)
+						      && word <= UINT_MAX;
+					  }
+					  if (valid)
+						return "x:" + nested_path + ":"
+						      + to_string(width) + ":d:"
+						      + to_string(word)
+						      + (element->get_signed() ? ":s" : "");
+					  if (!nested_root_rand) break;
+					  cerr << id->get_fileline() << ": error: nested dynamic-array "
+					       << "constraint selector must be one constant, "
+					       << "nonnegative integral index on an integral or enum "
+					       << "element no wider than 64 bits." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
 				    const netuarray_t*array =
 					  dynamic_cast<const netuarray_t*>(nested_type);
 				    const netranges_t*dims = array

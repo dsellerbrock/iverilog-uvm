@@ -463,16 +463,21 @@ bool vvp_cobject::randc_history_full_(const std::vector<bool>&hist,
 
 bool vvp_cobject::randc_container_state_(size_t pid, size_t word,
 	    size_t position,
-	    vvp_vector4_t&value, std::vector<bool>*&history) const
+	    vvp_vector4_t&value, std::vector<bool>*&history,
+	    std::vector<uint64_t>*&sparse_history) const
 {
       history = 0;
+      sparse_history = 0;
       if (pid >= defn_->property_count()) return false;
       vvp_object_t object;
       const_cast<vvp_cobject*>(this)->get_object(pid, object, word);
       if (vvp_darray*array = object.peek<vvp_darray>()) {
 	    if (position >= array->get_size()) return false;
 	    array->get_word((unsigned)position, value);
-	    history = &array->randc_history(position);
+	    if (value.size() <= 20)
+		  history = &array->randc_history(position);
+	    else if (value.size() <= 64)
+		  sparse_history = &array->randc_sparse_history(position);
 	    return value.size() != 0;
       }
       if (vvp_assoc_base*assoc = object.peek<vvp_assoc_base>()) {
@@ -483,7 +488,8 @@ bool vvp_cobject::randc_container_state_(size_t pid, size_t word,
 				   string_value, value_kind)
 		|| value_kind != 0)
 		  return false;
-	    history = &assoc->randc_history_at(position);
+	    if (value.size() <= 20)
+		  history = &assoc->randc_history_at(position);
 	    return value.size() != 0;
       }
       return false;
@@ -539,6 +545,7 @@ bool vvp_cobject::randc_transaction_commit()
 	    randc_pending_t pending;
 	    std::vector<uint64_t> sparse_history;
 	    std::vector<bool>*container_history = 0;
+	    std::vector<uint64_t>*container_sparse_history = 0;
       };
       std::vector<resolved_randc_t> resolved;
 
@@ -593,13 +600,13 @@ bool vvp_cobject::randc_transaction_commit()
 		 pending.containers.begin(); it != pending.containers.end(); ++it) {
 	    vvp_vector4_t val;
 	    std::vector<bool>*history = 0;
+	    std::vector<uint64_t>*sparse_history = 0;
 	    if (!randc_container_state_(it->first.pid, it->first.word,
-					it->first.position,
-					val, history))
+				it->first.position,
+				val, history, sparse_history))
 		  continue;
 	    unsigned width = val.size();
-	    if (width == 0 || width > 20) continue;
-	    uint64_t period = (uint64_t)1 << width;
+	    if (width == 0 || width > 64) continue;
 	    uint64_t actual = 0;
 	    if (!randc_value_to_uint64_(val, actual)) {
 		  cerr << "warning: successful randomize produced X/Z for randc "
@@ -609,6 +616,29 @@ bool vvp_cobject::randc_transaction_commit()
 		       << "; history transaction rolled back" << endl;
 		  return false;
 	    }
+	    if (width > 20) {
+		  if (!sparse_history || !it->second.feasible_domain
+		      || it->second.feasible.empty()
+		      || it->second.feasible.size() > 1024
+		      || find(it->second.feasible.begin(),
+			     it->second.feasible.end(), actual)
+			 == it->second.feasible.end()) {
+			cerr << "warning: successful randomize has an unsupported wide "
+			     << "randc container history transaction for property '"
+			     << defn_->property_name(it->first.pid) << "' element "
+			     << it->first.position << endl;
+			return false;
+		  }
+		  resolved_randc_t item;
+		  item.key = randc_key_t(it->first.pid, it->first.position);
+		  item.actual = actual;
+		  item.sparse = true;
+		  item.pending = it->second;
+		  item.container_sparse_history = sparse_history;
+		  resolved.push_back(item);
+		  continue;
+	    }
+	    uint64_t period = (uint64_t)1 << width;
 	    resolved_randc_t item;
 	    item.key = randc_key_t(it->first.pid, it->first.position);
 	    item.period = period;
@@ -623,8 +653,9 @@ bool vvp_cobject::randc_transaction_commit()
       // when a changing domain would exceed the sparse-history ceiling.
       for (resolved_randc_t&item : resolved) {
 	    if (!item.sparse) continue;
-	    const std::vector<uint64_t>*current =
-		  randc_sparse_history_find_(item.key);
+	    const std::vector<uint64_t>*current = item.container_sparse_history
+		  ? item.container_sparse_history
+		  : randc_sparse_history_find_(item.key);
 	    if (current) item.sparse_history = *current;
 	    bool all_used = !item.pending.feasible.empty();
 	    for (uint64_t value : item.pending.feasible)
@@ -656,8 +687,10 @@ bool vvp_cobject::randc_transaction_commit()
 
       for (resolved_randc_t&item : resolved) {
 	    if (item.sparse) {
-		  randc_sparse_history_mutable_(item.key).swap(
-			  item.sparse_history);
+		  std::vector<uint64_t>*destination = item.container_sparse_history
+			? item.container_sparse_history
+			: &randc_sparse_history_mutable_(item.key);
+		  destination->swap(item.sparse_history);
 		  continue;
 	    }
 	    std::vector<bool>&hist = item.container_history
@@ -794,9 +827,15 @@ bool vvp_cobject::randc_container_seen(size_t pid, size_t position,
 {
       vvp_vector4_t value;
       std::vector<bool>*history = 0;
-      if (!randc_container_state_(pid, word, position, value, history))
+      std::vector<uint64_t>*sparse_history = 0;
+      if (!randc_container_state_(pid, word, position, value, history,
+				      sparse_history))
 	    return false;
       unsigned width = value.size();
+      if (width > 20 && width <= 64)
+	    return sparse_history
+		  && find(sparse_history->begin(), sparse_history->end(), val)
+		       != sparse_history->end();
       if (width == 0 || width > 20) return false;
       uint64_t period = (uint64_t)1 << width;
       if (!history || val >= history->size()) return false;
@@ -809,7 +848,9 @@ void vvp_cobject::randc_container_mark(size_t pid, size_t position,
 {
       vvp_vector4_t value;
       std::vector<bool>*history = 0;
-      if (!randc_container_state_(pid, word, position, value, history)) return;
+      std::vector<uint64_t>*sparse_history = 0;
+      if (!randc_container_state_(pid, word, position, value, history,
+				      sparse_history)) return;
       unsigned width = value.size();
       if (width == 0 || width > 20 || val >= ((uint64_t)1 << width)) return;
       if (randc_transactions_.empty()) {

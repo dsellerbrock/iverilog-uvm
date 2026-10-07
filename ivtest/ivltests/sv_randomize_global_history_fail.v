@@ -5,7 +5,7 @@ class scalar_leaf;
 endclass
 class array_leaf;
   randc bit [20:0] data[];
-  constraint c { data.size()==1; foreach(data[i]) data[i] inside {0,1}; }
+  constraint c { data.size()==1; foreach(data[i]) data[i] inside {[0:1024]}; }
 endclass
 class unconstrained_leaf;
   randc bit [20:0] value;

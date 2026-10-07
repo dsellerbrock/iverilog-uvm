@@ -23069,9 +23069,21 @@ static size_t fixed_copy_source_index_(
       const vvp_darray*source, bool destination_descending, size_t index,
       size_t count)
 {
+	/* An unpacked array stored as an associative-array element uses fixed
+	 * numeric-low-first storage just like a signal. Preserve its logical
+	 * left-to-right order by comparing source and destination directions. */
+	const vvp_container_layout_t source_layout = source
+	      ? source->declared_container_layout() : vvp_container_layout_t();
+	if (source_layout && source_layout->kind == VVP_CONTAINER_FIXED) {
+	      bool source_descending =
+		    source_layout->fixed_left > source_layout->fixed_right;
+	      return source_descending != destination_descending
+		    ? count - 1 - index : index;
+	}
+
       /* A DPI open-array formal is activated over numeric-canonical fixed
-	 * storage. Ordinary dynamic arrays and queues are left-to-right values.
-	 * A descending fixed destination therefore reverses only the ordinary
+	* storage. Ordinary dynamic arrays and queues are left-to-right values.
+	* A descending fixed destination therefore reverses only the ordinary
 	 * source at each unpacked dimension. */
       bool canonical_dpi_view = source && source->sv_uses_declared_indexing()
 	    && source->dpi_has_decl_range();

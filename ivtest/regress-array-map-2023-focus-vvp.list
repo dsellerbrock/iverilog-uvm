@@ -1,0 +1,4 @@
+sv_array_map_dynamic_2023 vvp_tests/sv_array_map_dynamic_2023.json
+sv_array_map_fixed_2023 vvp_tests/sv_array_map_fixed_2023.json
+sv_array_map_assoc_2023 vvp_tests/sv_array_map_assoc_2023.json
+sv_array_map_2017_fail vvp_tests/sv_array_map_2017_fail.json

@@ -350,7 +350,8 @@ class vvp_cobject : public vvp_object {
 				       uint64_t period);
       bool randc_container_state_(size_t pid, size_t word, size_t position,
 				  vvp_vector4_t&value,
-				  std::vector<bool>*&history) const;
+				  std::vector<bool>*&history,
+				  std::vector<uint64_t>*&sparse_history) const;
       std::map<uint64_t, uint64_t> cov_trans_;
 	std::map<uint64_t, std::vector<cov_trans_state_t>> cov_trans_states_;
 	std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;

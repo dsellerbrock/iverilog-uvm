@@ -2,6 +2,6 @@
 ./ivltests/sv_randomize_global_history_fail.v:3: warning: randc property 'value' of class scalar_leaf has a 21-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 1024 values, and other wide forms cannot guarantee a full cycle.
 ./ivltests/sv_randomize_global_history_fail.v:11: warning: randc property 'value' of class unconstrained_leaf has a 21-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 1024 values, and other wide forms cannot guarantee a full cycle.
 ERROR: global constraint sampling failed: wide randc feasible domain is not exactly enumerable.
-ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.
+ERROR: global constraint sampling failed: wide randc dynamic-array feasible domain is not exactly enumerable.
 ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.
 PASSED
