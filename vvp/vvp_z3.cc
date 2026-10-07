@@ -1005,6 +1005,9 @@ struct Z3Builder {
 	    uint64_t lo, hi;
 	      // Ordered-coordinate numerals when value_width exceeds 64.
 	    Z3_ast wide_lo, wide_hi;
+	    // A non-state weight is evaluated only after its solve-before prefix is
+	    // pinned. The integer weight above is then replaced for that draw.
+	    Z3_ast weight_expression;
       };
       struct DistSpec {
             vvp_cobject*rng_owner = nullptr;
@@ -2675,9 +2678,11 @@ static Z3_ast build_z3_atom(IRParser&par, Z3Builder&b, Z3_lbool*guard)
 static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 				     uint64_t& out, bool& overflow,
                                      bool*negative = nullptr,
-                                     bool*state_value = nullptr)
+                                     bool*state_value = nullptr,
+                                     Z3_ast*symbolic_value = nullptr)
 {
       if (state_value) *state_value = false;
+      if (symbolic_value) *symbolic_value = nullptr;
       overflow = false;
       if (negative) *negative = false;
       const char* start = par.p;
@@ -2716,6 +2721,19 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	// the value of its ordinary SystemVerilog expression, so truncate or
 	// extend to the self-determined semantic width before ground folding.
       value = value_builder.coerce(value, semantic_width);
+      if (symbolic_value && state_value && !*state_value) {
+	    *symbolic_value = value;
+	    if (!value_builder.signed_constant_aliases.empty()) {
+		  vector<Z3_ast> alias_from, alias_to;
+		  for (const auto&alias : value_builder.signed_constant_aliases) {
+			alias_from.push_back(alias.first);
+			alias_to.push_back(alias.second);
+		  }
+		  *symbolic_value = Z3_substitute(b.ctx, *symbolic_value,
+				(unsigned)alias_from.size(), alias_from.data(),
+				alias_to.data());
+	    }
+      }
 
       vector<Z3_ast> from;
       vector<Z3_ast> to;
@@ -5522,8 +5540,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  uint64_t weight64 = 1;
 		  bool weight_overflow = false;
                   bool state_weight = false;
+		  Z3_ast weight_expression = nullptr;
 		  if (!eval_runtime_integral_ir(par, b, weight64,
-						 weight_overflow, nullptr, &state_weight)) {
+						 weight_overflow, nullptr, &state_weight,
+						 &weight_expression)) {
                         state_weight = false;
 			static bool warned_weight = false;
 			if (!warned_weight) {
@@ -5541,9 +5561,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			(void) build_z3_atom(par, ignored);
 			if (par.p == before && !par.at_end()) par.consume();
 			weight64 = 0;
-		  }
+                  }
                   dspec.state_weights = dspec.state_weights && state_weight;
-		  if (weight_overflow) {
+		  bool dynamic_weight = weight_expression != nullptr;
+		  if (!dynamic_weight && weight_overflow) {
 			static bool warned_weight_overflow = false;
 			if (!warned_weight_overflow) {
 			      fprintf(stderr, "Warning: dist weight result exceeds "
@@ -5554,7 +5575,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      warned_weight_overflow = true;
 			}
 			exact_supported = false;
-		  } else if (weight64 > UINT_MAX) {
+		  } else if (!dynamic_weight && weight64 > UINT_MAX) {
 			static bool warned_weight_width = false;
 			if (!warned_weight_width) {
 			      fprintf(stderr, "Warning: dist weight exceeds the "
@@ -5565,9 +5586,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			}
 			exact_supported = false;
 		  }
-		  unsigned weight = weight_overflow || weight64 > UINT_MAX
-			? UINT_MAX : (unsigned)weight64;
-		  unsigned soft_weight = weight;
+		  unsigned weight = dynamic_weight ? 1
+			: weight_overflow || weight64 > UINT_MAX
+			      ? UINT_MAX : (unsigned)weight64;
+		  unsigned soft_weight = dynamic_weight ? 1 : weight;
 		  Z3_ast clause = b.mk_false();
 		  par.skip_ws();
 		  if (par.peek() == '[') {
@@ -5648,11 +5670,12 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 				    soft_weight = UINT_MAX;
 			      if (weight != 0 && wide_ok) {
 				    dspec.requires_large_exact = true;
-				    Z3Builder::DistBranch db = {
+			      Z3Builder::DistBranch db = {
 					  weight, true, range_weight_per_value,
 					  rw, lo_order_signed, 0, 0,
 					  ordered_wide(lo_wide, rw, lo_order_signed),
-					  ordered_wide(hi_wide, rw, hi_order_signed)
+					  ordered_wide(hi_wide, rw, hi_order_signed),
+					  weight_expression
 				    };
 				    dspec.branches.push_back(db);
 			      }
@@ -5708,7 +5731,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      Z3Builder::DistBranch db = {
 				    weight, true, range_weight_per_value,
 				    rw, coordinate_signed, lo_coord, hi_coord,
-				    nullptr, nullptr
+				    nullptr, nullptr, weight_expression
 			      };
 			      dspec.branches.push_back(db);
 			}
@@ -5746,16 +5769,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      dspec.requires_large_exact = true;
 			      Z3_ast coord = ordered_wide(value_wide, vw,
 							  value_compare_signed);
-			      Z3Builder::DistBranch db = {
+		      Z3Builder::DistBranch db = {
 				    weight, true, false, vw,
-				    value_compare_signed, 0, 0, coord, coord
+				    value_compare_signed, 0, 0, coord, coord,
+				    weight_expression
 			      };
 			      dspec.branches.push_back(db);
 			} else if (weight != 0 && value_ok) {
 			      Z3Builder::DistBranch db = {
 				    weight, false, false, vw,
 				    value_compare_signed,
-				    value_bits, value_bits, nullptr, nullptr
+				    value_bits, value_bits, nullptr, nullptr,
+				    weight_expression
 			      };
 			      dspec.branches.push_back(db);
 			}
@@ -5763,7 +5788,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  par.skip_ws();
 		  par.expect(')'); // close (b ...)
 		  par.skip_ws();
-		  if (weight == 0)
+		  if (dynamic_weight) {
+			Z3_sort weight_sort = Z3_get_sort(b.ctx, weight_expression);
+			Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0, weight_sort);
+			Z3_ast positive = Z3_mk_not(b.ctx,
+			      Z3_mk_eq(b.ctx, weight_expression, zero));
+			Z3_ast guarded[2] = {clause, positive};
+			clause = Z3_mk_and(b.ctx, 2, guarded);
+		  }
+		  if (weight == 0 && !dynamic_weight)
 			continue;
 		  hard_clauses.push_back(clause);
 		  // Retain the optimizer approximation with this distribution
@@ -6032,10 +6065,12 @@ static random_container_desc_t random_container_desc_(const string&text)
       return desc;
 }
 
+static const uint64_t RANDOM_CONTAINER_SIZE_CAP = UINT64_C(65536);
+
 static uint64_t random_container_size_cap_(const string&text)
 {
       random_container_desc_t desc = random_container_desc_(text);
-      uint64_t cap = 65536;
+      uint64_t cap = RANDOM_CONTAINER_SIZE_CAP;
       if (desc.is_queue && desc.max_size && desc.max_size < cap)
 	    cap = desc.max_size;
       return cap;
@@ -7761,17 +7796,19 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
  * without attempting its enormous declared domain.  Returning false after
  * CAP+1 distinct models leaves sampling to the general fallback; returning
  * true means the solver proved the complete feasible set was exhausted. */
+static const size_t SPARSE_DOMAIN_CAP = 64;
+
 static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
                                              Z3_ast var, unsigned width,
-                                             vector<uint64_t>& out)
+                                             vector<uint64_t>& out,
+                                             size_t cap = SPARSE_DOMAIN_CAP)
 {
-      static const size_t SPARSE_DOMAIN_CAP = 64;
       out.clear();
       if (width == 0 || width > 64) return false;
 
       bool exhausted = false;
       Z3_solver_push(ctx, base);
-      while (out.size() <= SPARSE_DOMAIN_CAP) {
+      while (out.size() <= cap) {
 	    Z3_lbool r = Z3_solver_check(ctx, base);
 	    if (r == Z3_L_FALSE) {
 		  exhausted = true;
@@ -7799,6 +7836,67 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
 	    return false;
       }
       return true;
+}
+
+/* Sample an exact constrained randc scalar without materializing its whole
+ * feasible set. Uniform proposals are checked against the hard solver and
+ * committed cycle history; a SAT query over the unseen complement resets
+ * an exhausted constrained cycle atomically with the successful solve. */
+static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
+      Z3_ast var, unsigned width, vvp_cobject*owner, size_t pid,
+      z3_rng_stream_t&rng, uint64_t&chosen, bool&reset_cycle,
+      const char**error)
+{
+      // ponytail: stop exact randc rejection after 65,536 probes per solve;
+      // add solver-guided counting if sparse legal sets hit this ceiling.
+      static const size_t RANDC_REJECTION_PROPOSAL_CAP = 65536;
+      *error = nullptr;
+      reset_cycle = false;
+
+      uint64_t period = owner->randc_period(pid);
+      if (period == 0 || period > UINT32_MAX) return false;
+      Z3_lbool base_status = Z3_solver_check(ctx, base);
+      if (base_status == Z3_L_FALSE) return false;
+      if (base_status == Z3_L_UNDEF) {
+            *error = "randc hard-constraint satisfiability was indeterminate";
+            return false;
+      }
+
+      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+      vector<Z3_ast> unseen;
+      for (uint64_t value = 0; value < period; ++value) {
+            if (!owner->randc_seen(pid, value)) continue;
+            Z3_ast cv = Z3_mk_unsigned_int64(ctx, value, sort);
+            unseen.push_back(Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
+      }
+      Z3_lbool availability = unseen.empty() ? base_status
+            : Z3_solver_check_assumptions(ctx, base,
+                  (unsigned)unseen.size(), unseen.data());
+      if (availability == Z3_L_UNDEF) {
+            *error = "randc cycle-availability check was indeterminate";
+            return false;
+      }
+      reset_cycle = availability == Z3_L_FALSE;
+
+      for (size_t attempt = 0; attempt < RANDC_REJECTION_PROPOSAL_CAP;
+           ++attempt) {
+            uint64_t candidate = rng.uniform_index((size_t)period);
+            if (!reset_cycle && owner->randc_seen(pid, candidate)) continue;
+            Z3_ast cv = Z3_mk_unsigned_int64(ctx, candidate, sort);
+            Z3_ast eq = Z3_mk_eq(ctx, var, cv);
+            Z3_lbool feasible = Z3_solver_check_assumptions(
+                  ctx, base, 1, &eq);
+            if (feasible == Z3_L_TRUE) {
+                  chosen = candidate;
+                  return true;
+            }
+            if (feasible == Z3_L_UNDEF) {
+                  *error = "randc candidate feasibility was indeterminate";
+                  return false;
+            }
+      }
+      *error = "randc exact rejection sampling exhausted its proposal budget";
+      return false;
 }
 
 /* The same bounded probe for a variable wider than 64 bits, keeping each
@@ -8249,27 +8347,39 @@ struct dist_wide_uint_t {
       }
 };
 
+static const unsigned WIDE_INTERVAL_MAX_WIDTH = 4096;
+
+enum wide_interval_sampling_t {
+  WIDE_INTERVAL_NOT_APPLICABLE,
+  WIDE_INTERVAL_SAMPLED,
+  WIDE_INTERVAL_INDETERMINATE
+};
+
 /* Sample a wide scalar uniformly from a bounded union of feasible intervals.
- * ponytail: cap at 8 runs and 256 bits; use exact model counting before
- * expanding either bound. */
-static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
-                                                Z3_solver base,
-                                                Z3_ast var,
-                                                unsigned width,
-                                                z3_rng_stream_t&rng,
-                                                Z3_ast&sample)
+ * Dense domains use exact uniform rejection; sparse domains use boundary
+ * counting. ponytail: cap boundary work and rejection; use exact counting to
+ * extend sparse domains beyond these ceilings. */
+static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context ctx,
+                                                                      Z3_solver base,
+                                                                      Z3_ast var,
+                                                                      unsigned width,
+                                                                      z3_rng_stream_t&rng,
+                                                                      Z3_ast&sample)
 {
       typedef dist_wide_uint_t big;
       sample = nullptr;
-      if (width == 0 || width > 256) return false;
+      if (width == 0 || width > WIDE_INTERVAL_MAX_WIDTH)
+            return WIDE_INTERVAL_NOT_APPLICABLE;
 
       Z3_ast formula = nullptr;
-      if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
+      if (!z3_isolated_subject_factor_(ctx, base, var, formula))
+            return WIDE_INTERVAL_NOT_APPLICABLE;
       if (Z3_get_bool_value(ctx, formula) == Z3_L_TRUE) {
             big domain;
             domain.set_bit(width);
             sample = big::uniform_below(rng, domain).numeral(ctx, width);
-            return sample != nullptr;
+            return sample ? WIDE_INTERVAL_SAMPLED
+                           : WIDE_INTERVAL_INDETERMINATE;
       }
       Z3_solver outside = Z3_mk_simple_solver(ctx);
       Z3_solver_inc_ref(ctx, outside);
@@ -8279,9 +8389,13 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
       power.set_bit(width);
       const big one = big::from_u64(1);
       const big maximum = big::sub(power, one);
+      static const size_t BOUNDARY_QUERY_CAP = 131072;
+      size_t boundary_queries = 0;
       auto exists_in = [&](Z3_solver solver, const big&lo,
                            const big&hi) -> Z3_lbool {
             if (big::cmp(lo, hi) > 0) return Z3_L_FALSE;
+            if (boundary_queries == BOUNDARY_QUERY_CAP) return Z3_L_UNDEF;
+            ++boundary_queries;
             Z3_ast bounds[2] = {
                   Z3_mk_bvuge(ctx, var, lo.numeral(ctx, width)),
                   Z3_mk_bvule(ctx, var, hi.numeral(ctx, width))};
@@ -8292,34 +8406,62 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
             Z3_solver_pop(ctx, solver, 1);
             return result;
       };
+      auto rejection_sample = [&](size_t attempts) -> Z3_lbool {
+            for (size_t i = 0; i < attempts; ++i) {
+                  big candidate = big::uniform_below(rng, power);
+                  Z3_ast value = candidate.numeral(ctx, width);
+                  Z3_solver_push(ctx, base);
+                  Z3_solver_assert(ctx, base, Z3_mk_eq(ctx, var, value));
+                  Z3_lbool result = Z3_solver_check(ctx, base);
+                  Z3_solver_pop(ctx, base, 1);
+                  if (result == Z3_L_TRUE) {
+                        sample = value;
+                        return result;
+                  }
+                  if (result == Z3_L_UNDEF) return result;
+            }
+            return Z3_L_FALSE;
+      };
+      auto finish = [&](wide_interval_sampling_t result) {
+            Z3_solver_dec_ref(ctx, outside);
+            return result;
+      };
+
+      // The first satisfying proposal from a uniform full-domain stream is
+      // uniform over legal values. This avoids walking dense periodic domains.
+      Z3_lbool proposal = rejection_sample(64);
+      if (proposal == Z3_L_TRUE)
+            return finish(WIDE_INTERVAL_SAMPLED);
+      if (proposal == Z3_L_UNDEF)
+            return finish(WIDE_INTERVAL_INDETERMINATE);
+      auto recover_after_boundary_search = [&]() {
+            Z3_lbool result = rejection_sample(65536);
+            if (result == Z3_L_TRUE)
+                  return finish(WIDE_INTERVAL_SAMPLED);
+            return finish(WIDE_INTERVAL_INDETERMINATE);
+      };
 
       struct interval_t { big first, last; };
-      static const size_t INTERVAL_CAP = 8;
       vector<interval_t> intervals;
       big total;
       big cursor;
-      auto fail = [&]() -> bool {
-            Z3_solver_dec_ref(ctx, outside);
-            return false;
-      };
       for (;;) {
             Z3_lbool any = exists_in(base, cursor, maximum);
             if (any == Z3_L_FALSE) break;
-            if (any == Z3_L_UNDEF || intervals.size() == INTERVAL_CAP)
-                  return fail();
+            if (any == Z3_L_UNDEF) return recover_after_boundary_search();
 
             big lo = cursor, hi = maximum;
             while (big::cmp(lo, hi) < 0) {
                   big mid = big::shift_right_one(big::add(lo, hi));
                   Z3_lbool left = exists_in(base, cursor, mid);
-                  if (left == Z3_L_UNDEF) return fail();
+                  if (left == Z3_L_UNDEF) return recover_after_boundary_search();
                   if (left == Z3_L_TRUE) hi = mid;
                   else lo = big::add(mid, one);
             }
             big first = lo;
 
             Z3_lbool hole = exists_in(outside, first, maximum);
-            if (hole == Z3_L_UNDEF) return fail();
+            if (hole == Z3_L_UNDEF) return recover_after_boundary_search();
             big last = maximum;
             if (hole == Z3_L_TRUE) {
                   lo = first;
@@ -8327,11 +8469,12 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
                   while (big::cmp(lo, hi) < 0) {
                         big mid = big::shift_right_one(big::add(lo, hi));
                         Z3_lbool left = exists_in(outside, first, mid);
-                        if (left == Z3_L_UNDEF) return fail();
+                        if (left == Z3_L_UNDEF) return recover_after_boundary_search();
                         if (left == Z3_L_TRUE) hi = mid;
                         else lo = big::add(mid, one);
                   }
-                  if (big::cmp(lo, first) <= 0) return fail();
+                  if (big::cmp(lo, first) <= 0)
+                        return finish(WIDE_INTERVAL_INDETERMINATE);
                   last = big::sub(lo, one);
             }
 
@@ -8342,7 +8485,8 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
             cursor = big::add(last, one);
       }
       Z3_solver_dec_ref(ctx, outside);
-      if (intervals.empty() || total.zero()) return false;
+      if (intervals.empty() || total.zero())
+            return WIDE_INTERVAL_NOT_APPLICABLE;
 
       big ticket = big::uniform_below(rng, total);
       for (const auto&interval : intervals) {
@@ -8350,11 +8494,12 @@ static bool z3_sample_wide_single_var_intervals_(Z3_context ctx,
             if (big::cmp(ticket, count) < 0) {
                   big selected = big::add(interval.first, ticket);
                   sample = selected.numeral(ctx, width);
-                  return sample != nullptr;
+                  return sample ? WIDE_INTERVAL_SAMPLED
+                                : WIDE_INTERVAL_INDETERMINATE;
             }
             ticket = big::sub(ticket, count);
       }
-      return false;
+      return WIDE_INTERVAL_INDETERMINATE;
 }
 
 /* Exact dist sampling for items wider than 64 bits (IEEE 1800-2017 18.5.4,
@@ -9911,11 +10056,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       map<pair<unsigned,unsigned>, uint64_t> uniform_dynamic_sizes;
       bool uniform_dynamic_size_domains_ready = false;
       map<pair<unsigned,unsigned>, vector<uint64_t> > uniform_dynamic_size_domains;
+      map<pair<unsigned,unsigned>, uint64_t> uniform_dynamic_size_minimum;
       map<pair<unsigned,unsigned>, uint64_t> uniform_dynamic_size_maximum;
+      map<pair<unsigned,unsigned>, pair<unsigned,uint64_t> >
+	    uniform_dynamic_size_element_weights;
       set<Z3_ast> uniform_dynamic_padding_vars;
       bool uniform_dynamic_size_unique = dyn_sizes && !builder.row_pass
 	    && cobj && !exact_joint && builder.order_pairs.empty()
-	    && builder.dist_specs.empty() && builder.pending_soft.empty()
+	    && builder.dist_specs.empty()
+	    && (builder.pending_soft.empty() || builder.any_soft_kw_assert())
 	    && builder.member_vars.empty() && builder.member_elem_vars.empty()
 	    && builder.qelem_vars.empty() && builder.dyn_foreach.empty()
 	    && builder.state_checks.empty() && builder.absent_elems.empty();
@@ -9985,14 +10134,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       // Canonical zero padding gives every complete tuple a unique solver
-      // representation across correlated direct dynamic arrays.
-      // ponytail: bound padded solver models at 512 elements total; use
-      // exact counting or hashing before expanding this ceiling further.
+      // representation across correlated direct dynamic arrays. Keep the
+      // solver model bounded; arrays with no constrained element leaves are
+      // weighted by their independent element cardinality instead.
       const uint64_t uniform_dynamic_array_elem_cap = 512;
       if (!dyn_sizes && !builder.row_pass && cobj && !exact_joint
 	  && !builder.size_vars.empty()
 	  && builder.order_pairs.empty() && builder.dist_specs.empty()
-	  && builder.pending_soft.empty() && builder.member_vars.empty()
+	  && (builder.pending_soft.empty() || builder.any_soft_kw_assert())
+	  && builder.member_vars.empty()
 	  && builder.member_elem_vars.empty() && builder.qelem_vars.empty()
 	  && builder.dyn_foreach.empty() && builder.state_checks.empty()
 	  && builder.absent_elems.empty()) {
@@ -10002,6 +10152,43 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    map<pair<unsigned,unsigned>, vector<uint64_t> > domains;
 	    map<pair<unsigned,unsigned>, uint64_t> minima, maxima;
 	    map<pair<unsigned,unsigned>, unsigned> widths;
+	    map<pair<unsigned,unsigned>, pair<unsigned,uint64_t> > element_weights;
+	    auto find_size_range = [&](Z3_ast var, uint64_t upper,
+		  uint64_t&minimum, uint64_t&maximum, bool&variable) -> bool {
+		  if (Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
+		  Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
+		  Z3_ast cap = Z3_mk_unsigned_int64(ctx, upper, sort);
+		  Z3_ast within_cap = Z3_mk_bvule(ctx, var, cap);
+		  if (Z3_solver_check_assumptions(ctx, base, 1, &within_cap)
+		      != Z3_L_TRUE) return false;
+		  uint64_t low = 0, high = upper;
+		  while (low < high) {
+			uint64_t middle = low + (high - low) / 2;
+			Z3_ast bound = Z3_mk_unsigned_int64(ctx, middle, sort);
+			Z3_ast at_most = Z3_mk_bvule(ctx, var, bound);
+			Z3_lbool result = Z3_solver_check_assumptions(ctx, base, 1,
+			      &at_most);
+			if (result == Z3_L_UNDEF) return false;
+			if (result == Z3_L_TRUE) high = middle;
+			else low = middle + 1;
+		  }
+		  minimum = low;
+		  low = minimum;
+		  high = upper;
+		  while (low < high) {
+			uint64_t middle = low + (high - low + 1) / 2;
+			Z3_ast bound = Z3_mk_unsigned_int64(ctx, middle, sort);
+			Z3_ast at_least = Z3_mk_bvuge(ctx, var, bound);
+			Z3_lbool result = Z3_solver_check_assumptions(ctx, base, 1,
+			      &at_least);
+			if (result == Z3_L_UNDEF) return false;
+			if (result == Z3_L_TRUE) low = middle;
+			else high = middle - 1;
+		  }
+		  maximum = low;
+		  variable = minimum < maximum;
+		  return true;
+	    };
 	    for (const auto&pv : builder.prop_vars)
 		  if (rand_scalar_active_(builder, prop_active, pv.idx)
 		      && (pv.width == 0 || pv.width > 64
@@ -10023,50 +10210,97 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			eligible = false;
 			break;
 		  }
-		  vector<vector<uint64_t> > values;
-		  const char*reason = nullptr;
-		  Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
-			vector<Z3_ast>(1, sv.var), ENUM_DOMAIN_CAP, values, reason);
-		  if (enumerated != Z3_L_TRUE || values.empty()) {
-			eligible = false;
-			break;
-		  }
-		  vector<uint64_t> domain;
-		  for (const auto&tuple : values) domain.push_back(tuple[0]);
-		  sort(domain.begin(), domain.end());
-		  domain.erase(unique(domain.begin(), domain.end()), domain.end());
-		  uint64_t minimum = domain.front();
-		  uint64_t maximum = domain.back();
-		  if (maximum > uniform_dynamic_array_elem_cap - total_elements) {
-			eligible = false;
-			break;
-		  }
-		  total_elements += maximum;
-		  has_variable_size |= domain.size() > 1;
 		  pair<unsigned,unsigned> id = make_pair(sv.idx, sv.leaf);
-		  domains[id] = std::move(domain);
+		  bool has_element_vars = false;
+		  for (const auto&ev : builder.elem_vars)
+			if (ev.idx == sv.idx && ev.leaf == sv.leaf
+			    && !ev.nested
+			    && rand_elem_var_active_(builder, prop_active, ev)) {
+			      has_element_vars = true;
+			      break;
+			}
+		  vector<uint64_t> domain;
+		  uint64_t minimum = 0, maximum = 0;
+		  bool size_varies = false;
+		  if (has_element_vars) {
+			vector<vector<uint64_t> > values;
+			const char*reason = nullptr;
+			Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
+			      vector<Z3_ast>(1, sv.var), ENUM_DOMAIN_CAP, values, reason);
+			if (enumerated != Z3_L_TRUE || values.empty()) {
+			      eligible = false;
+			      break;
+			}
+			for (const auto&tuple : values) domain.push_back(tuple[0]);
+			sort(domain.begin(), domain.end());
+			domain.erase(unique(domain.begin(), domain.end()), domain.end());
+			minimum = domain.front();
+			maximum = domain.back();
+			size_varies = domain.size() > 1;
+			if (maximum > uniform_dynamic_array_elem_cap - total_elements) {
+			      eligible = false;
+			      break;
+			}
+			total_elements += maximum;
+		  } else {
+			uint64_t enum_cardinality = 0;
+			if (type->property_is_enum(pid)) {
+			      vector<uint64_t> literals;
+			      for (const auto&value : type->property_enum_values(pid)) {
+				    Z3_ast literal;
+				    uint64_t bits;
+				    if (vec4_to_bv_const_(ctx, value, desc.elem_width,
+					  literal)
+					&& Z3_get_numeral_uint64(ctx, literal, &bits))
+					  literals.push_back(bits);
+			      }
+			      sort(literals.begin(), literals.end());
+			      literals.erase(unique(literals.begin(), literals.end()),
+				    literals.end());
+			      enum_cardinality = literals.size();
+			      if (enum_cardinality == 0
+				  || enum_cardinality > UINT32_MAX) {
+				    eligible = false;
+				    break;
+			      }
+			}
+			if (!find_size_range(sv.var,
+			      random_container_size_cap_(sv.container_type),
+			      minimum, maximum, size_varies)) {
+			      eligible = false;
+			      break;
+			}
+			element_weights[id] =
+			      make_pair(desc.elem_width, enum_cardinality);
+		  }
+		  has_variable_size |= size_varies;
+		  if (!domain.empty()) domains[id] = std::move(domain);
 		  minima[id] = minimum;
 		  maxima[id] = maximum;
 		  widths[id] = desc.elem_width;
 	    }
 	    for (const auto&ev : builder.elem_vars) {
+		  if (!rand_elem_var_active_(builder, prop_active, ev)) continue;
 		  pair<unsigned,unsigned> id = make_pair(ev.idx, ev.leaf);
 		  auto width = widths.find(id);
 		  auto minimum = minima.find(id);
 		  if (width == widths.end() || minimum == minima.end()
 		      || ev.nested || ev.width != width->second
-		      || ev.elem >= minimum->second
-		      || !rand_elem_var_active_(builder, prop_active, ev))
+		      || ev.elem >= minimum->second)
 			eligible = false;
 	    }
 	    for (const auto&entry : maxima)
-		  for (uint64_t elem = 0; eligible && elem < entry.second; ++elem)
-			if (!rand_elem_active_(builder, prop_active,
-			      entry.first.first, (unsigned)elem)) eligible = false;
-	    if (eligible && has_variable_size) {
+		  if (!element_weights.count(entry.first))
+			for (uint64_t elem = 0; eligible && elem < entry.second; ++elem)
+			      if (!rand_elem_active_(builder, prop_active,
+				    entry.first.first, (unsigned)elem)) eligible = false;
+	    // Fixed-size dynamic arrays can still couple element choices. Their
+	    // referenced elements use the same bounded joint model as variable sizes.
+	    if (eligible && (has_variable_size || total_elements > 0)) {
 		  Z3_sort size_sort = Z3_mk_bv_sort(ctx, 32);
 		  for (const auto&sv : builder.size_vars) {
 			pair<unsigned,unsigned> id = make_pair(sv.idx, sv.leaf);
+			if (element_weights.count(id)) continue;
 			unsigned width = widths.at(id);
 			uint64_t minimum = minima.at(id);
 			uint64_t maximum = maxima.at(id);
@@ -10100,9 +10334,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      }
 				}
 		  }
-		  uniform_dynamic_size_domains = std::move(domains);
-		  uniform_dynamic_size_maximum = std::move(maxima);
-		  uniform_dynamic_size_domains_ready = true;
+	  uniform_dynamic_size_domains = std::move(domains);
+	  uniform_dynamic_size_minimum = std::move(minima);
+	  uniform_dynamic_size_maximum = std::move(maxima);
+	  uniform_dynamic_size_element_weights = std::move(element_weights);
+	  uniform_dynamic_size_domains_ready = true;
 	    }
       }
 
@@ -10156,8 +10392,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // semantic choice. Direct integral dynamic-array elements join it after
       // proving fixed sizes or canonicalizing a bounded variable-size domain.
       // accept-current fast path mixed with per-property sampling can bias
-      // legal tuples, so draw complete component tuples until the hard solver
-      // accepts one. Rejection sampling is uniform over legal tuples.
+      // legal tuples, so draw complete component tuples until the resolved
+      // constraint solver accepts one. Rejection sampling is uniform over
+      // legal tuples, including satisfiable explicit soft preferences.
       // ponytail: exact rejection sampling costs inverse solution density;
       // use exact counting/hash sampling if sparse coupled spaces need bounded
       // runtime.
@@ -10165,10 +10402,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       map<Z3_ast, unsigned> uniform_joint_property;
       map<Z3_ast, unsigned> uniform_joint_width;
       map<Z3_ast, vector<uint64_t> > uniform_joint_domains;
+      map<Z3_ast, pair<unsigned,uint64_t> > uniform_joint_dynamic_size_weights;
+      map<Z3_ast, uint64_t> uniform_joint_dynamic_size_minimum;
+      map<Z3_ast, uint64_t> uniform_joint_dynamic_size_maximum;
       map<Z3_ast, vector<Z3_ast> > uniform_joint_wide_domains;
       bool uniform_joint_eligible = cobj && !exact_joint
 	    && builder.order_pairs.empty() && builder.dist_specs.empty()
-	    && builder.pending_soft.empty()
+	    && (builder.pending_soft.empty() || builder.any_soft_kw_assert())
 	    && ((builder.elem_vars.empty() && builder.size_vars.empty())
 		|| uniform_dynamic_size_unique
 		|| uniform_dynamic_size_domains_ready
@@ -10245,6 +10485,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (uniform_dynamic_size_domains_ready) {
 		  for (const auto&entry : uniform_dynamic_size_maximum) {
 			const auto&id = entry.first;
+			if (uniform_dynamic_size_element_weights.count(id)) continue;
 			if (entry.second > UINT_MAX) {
 			      uniform_joint_eligible = false;
 			      break;
@@ -10266,7 +10507,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  for (const auto&sv : builder.size_vars) {
 			pair<unsigned,unsigned> id = make_pair(sv.idx, sv.leaf);
 			auto domain = uniform_dynamic_size_domains.find(id);
-			if (domain == uniform_dynamic_size_domains.end()
+			auto weight = uniform_dynamic_size_element_weights.find(id);
+			if ((domain == uniform_dynamic_size_domains.end()
+			     && weight == uniform_dynamic_size_element_weights.end())
 			    || !rand_size_active_(builder, prop_active,
 				  sv.idx, sv.leaf)) {
 			      uniform_joint_eligible = false;
@@ -10275,16 +10518,41 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			active_uniform_vars.push_back(sv.var);
 			uniform_joint_property[sv.var] = sv.idx;
 			uniform_joint_width[sv.var] = 32;
-			uniform_joint_domains[sv.var] = domain->second;
+			if (domain != uniform_dynamic_size_domains.end())
+			      uniform_joint_domains[sv.var] = domain->second;
+			if (weight != uniform_dynamic_size_element_weights.end())
+			      uniform_joint_dynamic_size_weights[sv.var] = weight->second;
+			if (weight != uniform_dynamic_size_element_weights.end()) {
+			      uniform_joint_dynamic_size_minimum[sv.var] =
+				    uniform_dynamic_size_minimum.at(id);
+			      uniform_joint_dynamic_size_maximum[sv.var] =
+				    uniform_dynamic_size_maximum.at(id);
+			}
 		  }
 	    }
       }
-      if (uniform_joint_eligible && active_uniform_vars.size() > 1) {
+
+      bool has_weighted_dynamic_size =
+	    !uniform_joint_dynamic_size_weights.empty();
+      if (uniform_joint_eligible
+	  && (active_uniform_vars.size() > 1 || has_weighted_dynamic_size)) {
 	    vector<vector<Z3_ast> > components;
-	    if (!z3_joint_components_(ctx, base, active_uniform_vars, components))
+	    bool include_soft_dependencies = builder.any_soft_kw_assert();
+	    if (include_soft_dependencies) Z3_solver_push(ctx, base);
+	    if (include_soft_dependencies)
+		  for (const auto&sa : builder.pending_soft)
+			if (sa.from_soft_kw && !soft_dropped(sa))
+			      Z3_solver_assert(ctx, base, sa.a);
+	    bool components_found = z3_joint_components_(ctx, base,
+		  active_uniform_vars, components);
+	    if (include_soft_dependencies) Z3_solver_pop(ctx, base, 1);
+	    if (!components_found)
 		  components.push_back(active_uniform_vars);
 	    for (const auto&component : components) {
-		  if (component.size() <= 1) continue;
+		  if (component.size() <= 1
+		      && (component.empty()
+			  || !uniform_joint_dynamic_size_weights.count(component.front())))
+			continue;
 		  // Enumerate a small complete unary domain when cheap. Otherwise the
 		  // sampler draws from the full bit-vector domain and rejects the whole
 		  // tuple against the hard constraints; both proposals are uniform.
@@ -10483,6 +10751,45 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert(ctx, opt, sa.a);
       }
 
+      // A geometric offset from the maximum size proposes each s with
+      // probability proportional to C^s; holes and connected constraints are
+      // rejected by the shared solver.
+      auto sample_weighted_dynamic_size = [&](uint64_t minimum,
+	    uint64_t maximum,
+	    const pair<unsigned,uint64_t>&weight, z3_rng_stream_t&rng) -> uint64_t {
+	    if (minimum == maximum) return maximum;
+	    unsigned width = weight.first;
+	    uint64_t enum_cardinality = weight.second;
+	    if (enum_cardinality == 1)
+		  return minimum + rng.uniform_index((size_t)(maximum - minimum) + 1);
+	    for (;;) {
+		  uint64_t offset = 0;
+		  for (;;) {
+			bool zero;
+			if (enum_cardinality) {
+			      zero = rng.uniform_index((size_t)enum_cardinality) == 0;
+			} else if (width < 32) {
+			      zero = rng.uniform_index((size_t)1 << width) == 0;
+			} else if (width == 32) {
+			      zero = rng.next() == 0;
+			} else if (width < 64) {
+			      zero = rng.uniform_u64(UINT64_C(1) << width) == 0;
+			} else {
+			      uint64_t word = ((uint64_t)rng.next() << 32) | rng.next();
+			      zero = word == 0;
+			}
+			if (!zero) break;
+			if (offset == maximum - minimum) {
+			      offset = maximum - minimum + 1;
+			      break;
+			}
+			++offset;
+		  }
+		  if (offset > maximum - minimum) continue;
+		  return maximum - offset;
+	    }
+      };
+
       if (!uniform_joint_components.empty()) {
 	    Z3_lbool feasible = Z3_solver_check(ctx, base);
 	    if (feasible == Z3_L_FALSE) return fail_joint(nullptr);
@@ -10498,7 +10805,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      z3_rng_stream_t&rng = property_rng(idx);
 			      Z3_ast pin;
 			      auto domain = uniform_joint_domains.find(var);
-			      if (domain != uniform_joint_domains.end()) {
+			      auto weight = uniform_joint_dynamic_size_weights.find(var);
+			      if (weight != uniform_joint_dynamic_size_weights.end()) {
+				    auto maximum = uniform_joint_dynamic_size_maximum.find(var);
+				    if (maximum == uniform_joint_dynamic_size_maximum.end())
+					  return fail_joint("a variable-size array has no size bound");
+				    auto minimum = uniform_joint_dynamic_size_minimum.find(var);
+				    if (minimum == uniform_joint_dynamic_size_minimum.end())
+					  return fail_joint("a variable-size array has no lower size bound");
+				    uint64_t value = sample_weighted_dynamic_size(
+					  minimum->second, maximum->second, weight->second, rng);
+				    Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
+					  Z3_mk_bv_sort(ctx, width));
+				    pin = Z3_mk_eq(ctx, var, constant);
+			      } else if (domain != uniform_joint_domains.end()) {
 				    if (domain->second.empty())
 					  return fail_joint("a variable-size array has no feasible size");
 				    uint64_t value = domain->second[rng.uniform_index(
@@ -10732,14 +11052,32 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (var_ref_active(ref)) return true;
 	    return false;
       };
-      if (exact_joint) {
-            // A random-dependent weight was evaluated from prefill while
-            // building base; its approximate hard clause cannot prove even
-            // another distribution's guard inactive.
-            for (const auto&spec : builder.dist_specs)
-                  if (!dist_disabled(spec) && !spec.state_weights)
-                        return fail_joint("joint dist requires an unconditional hard distribution with state-only weights and ground items");
-      }
+      auto materialize_dist_weights = [&](const Z3Builder::DistSpec&source,
+					  Z3Builder::DistSpec&result) -> bool {
+	    result = source;
+	    bool dynamic = false;
+	    for (auto&branch : result.branches) {
+		  if (!branch.weight_expression) continue;
+		  dynamic = true;
+		  if (Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
+		  Z3_model model = Z3_solver_get_model(ctx, base);
+		  if (!model) return false;
+		  Z3_model_inc_ref(ctx, model);
+		  uint64_t weight = 0;
+		  bool have_weight = z3_eval_uint64(ctx, model,
+						    branch.weight_expression, weight);
+		  Z3_model_dec_ref(ctx, model);
+		  if (!have_weight || weight > UINT_MAX) return false;
+		  Z3_ast value = Z3_mk_unsigned_int64(ctx, weight,
+				Z3_get_sort(ctx, branch.weight_expression));
+		  Z3_ast differs = Z3_mk_not(ctx,
+				Z3_mk_eq(ctx, branch.weight_expression, value));
+		  if (Z3_solver_check_assumptions(ctx, base, 1, &differs)
+			!= Z3_L_FALSE) return false;
+		  branch.weight = (unsigned)weight;
+	    }
+	    return source.state_weights || dynamic;
+      };
       auto install_dist_fallback = [&](Z3_optimize target,
 					 size_t spec_index) {
 	    const Z3Builder::DistSpec&spec = builder.dist_specs[spec_index];
@@ -10773,6 +11111,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    bool indeterminate = false;
 	    bool exact_supported = spec.exact_supported;
 	    Z3Builder::DistSpec exact_spec = spec;
+	    bool dynamic_weights = any_of(spec.branches.begin(), spec.branches.end(),
+		  [](const Z3Builder::DistBranch&branch) {
+			return branch.weight_expression != nullptr;
+		  });
 	    if (!exact_supported
 		&& spec.exact_supported_without_guard && !spec.guards.empty()) {
 		  // A guarded distribution can use exact sampling only if its
@@ -10812,6 +11154,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    exact_spec.exact_supported = exact_supported;
+	    if (dynamic_weights
+		&& !materialize_dist_weights(spec, exact_spec)) {
+		  fprintf(stderr, "ERROR: exact dist sampling failed: a random-dependent "
+			  "weight is not fixed in the current solve-before prefix or "
+			  "exceeds the exact weight width.\n");
+		  return false;
+	    }
+	    if (dynamic_weights && !exact_supported) {
+		  fprintf(stderr, "ERROR: exact dist sampling failed: a dynamic weight "
+			  "cannot use the approximate weighted-soft fallback.\n");
+		  return false;
+	    }
 	    if (spec.requires_large_exact
 	        && dist_resolved_vars.count(spec.subject))
 		  indeterminate = true;
@@ -10827,6 +11181,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  fprintf(stderr, "ERROR: exact dist sampling failed: the large-range "
 			  "feasible set cannot be resolved exactly for this subject "
 			  "and constraint shape.\n");
+		  return false;
+	    }
+	    if (!resolved && dynamic_weights) {
+		  fprintf(stderr, "ERROR: exact dist sampling failed: a dynamic-weight "
+			  "distribution could not be sampled exactly.\n");
 		  return false;
 	    }
 	    if (!resolved) {
@@ -10849,6 +11208,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    && builder.elem_vars.empty() && builder.size_vars.empty();
 
       bool joint_randc_failed = false;
+      bool randc_sampling_failed = false;
+      const char* randc_sampling_error = nullptr;
+      bool wide_scalar_sampling_failed = false;
       map<Z3_ast, uint64_t> sampled_randc_values;
       auto sample_scalars = [&](bool cyclic_only) {
       if (exact_joint && defer_joint) return;
@@ -10898,12 +11260,44 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  } else {
 			chosen = feasible[property_rng(pv.idx).uniform_index(feasible.size())];
 		  }
-		  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
-		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
-		  Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
-		  Z3_optimize_assert(ctx, opt, eq);
-		  Z3_solver_assert(ctx, base, eq);
-		  continue;
+	  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+	  Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
+	  Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
+	  Z3_optimize_assert(ctx, opt, eq);
+	  Z3_solver_assert(ctx, base, eq);
+	  continue;
+	    }
+
+	    bool property_randc = builder.type(pv.idx)->property_is_randc(
+		  builder.local_index(pv.idx));
+	    if (!enumerated && property_randc && !fallback_managed
+		&& !exact_joint) {
+		  vvp_cobject*owner = builder.object(pv.idx);
+		  size_t pid = builder.local_index(pv.idx);
+		  if (owner->randc_period(pid)) {
+			uint64_t chosen = 0;
+			bool reset_cycle = false;
+			const char*sample_error = nullptr;
+			if (!z3_sample_constrained_randc_(ctx, base, pv.var,
+			      pv.width, owner, pid, property_rng(pv.idx),
+			      chosen, reset_cycle, &sample_error)) {
+			      randc_sampling_failed = true;
+			      randc_sampling_error = sample_error;
+			      return;
+			}
+			uint64_t prefill = cobj_prop_bits(owner, pid);
+			if (chosen != prefill) owner->randc_unmark(pid, prefill);
+			vector<uint64_t> no_enumerated_domain;
+			owner->randc_mark_feasible(pid, chosen,
+			      no_enumerated_domain, 0, reset_cycle);
+			sampled_randc_values[pv.var] = chosen;
+			Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen,
+			      Z3_mk_bv_sort(ctx, pv.width));
+			Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
 	    }
 
             if (exact_joint && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
@@ -10922,19 +11316,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    if (!fallback_managed && single_var_fast_ok
-		&& pv.width > 32 && pv.width <= 256
+		&& pv.width > 32 && pv.width <= WIDE_INTERVAL_MAX_WIDTH
 		&& !exact_joint && builder.order_pairs.empty()
 		&& builder.dist_specs.empty() && builder.pending_soft.empty()
 		&& builder.state_checks.empty() && builder.qelem_vars.empty()
 		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
 		  Z3_ast sampled = nullptr;
-		  if (z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
+		  wide_interval_sampling_t interval_result =
+		z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
 							   pv.width,
-							   property_rng(pv.idx), sampled)) {
+							   property_rng(pv.idx), sampled);
+		  if (interval_result == WIDE_INTERVAL_SAMPLED) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var, sampled);
 			Z3_optimize_assert(ctx, opt, eq);
 			Z3_solver_assert(ctx, base, eq);
 			continue;
+		  }
+		  if (interval_result == WIDE_INTERVAL_INDETERMINATE) {
+			wide_scalar_sampling_failed = true;
+			return;
 		  }
 	    }
 	    if (!fallback_managed && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))
@@ -11177,6 +11577,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             sample_elements(true);
 	    sample_member_elements(true);
       }
+      if (randc_sampling_failed)
+	    return fail_joint(randc_sampling_error);
       if (joint_randc_failed) {
             if (Z3_solver_check(ctx, base) == Z3_L_FALSE) return fail_joint(nullptr);
             return fail_joint("a randc stage could not be enumerated completely");
@@ -11342,6 +11744,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                           spec.subject, leaf);
                         }
                   }
+                  for (const auto&branch : spec.branches) {
+                        if (!branch.weight_expression) continue;
+                        set<Z3_ast> weight_vars;
+                        if (!z3_collect_constants_(ctx,
+                                  branch.weight_expression, weight_vars))
+                              return fail_joint("a random-dependent dist weight has an unsupported expression");
+                        for (Z3_ast weight_var : weight_vars)
+                              if (seen.count(weight_var))
+                                    preference_edges.emplace_back(spec.subject,
+                                          weight_var);
+                  }
                   for (Z3_ast guard : spec.guards) {
                         set<Z3_ast> constants;
                         if (!z3_collect_constants_(ctx, guard, constants))
@@ -11429,12 +11842,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         conditional = can_deactivate != Z3_L_FALSE;
                         spec.exact_supported = spec.exact_supported_without_guard;
                   }
-                  // A discarded soft owner, non-ground item, or active
-                  // weight still lacks an exact joint interpretation.
-                  if (spec.disableable || !spec.exact_supported || !spec.state_weights)
-                        return fail_joint("joint dist requires an unconditional hard distribution with state-only weights and ground items");
+                  // A discarded soft owner or non-ground item still lacks an
+                  // exact joint interpretation. Random-dependent weights are
+                  // accepted only when their value is fixed by an earlier
+                  // solve-before prefix.
+                  if (spec.disableable || !spec.exact_supported)
+                        return fail_joint("joint dist requires an unconditional hard distribution with ground items");
                   if (!dist_active(spec)) continue;
                   bool found = false;
+                  size_t component_index = components.size();
                   for (size_t ci = 0; ci < components.size(); ++ci) {
                         const auto&component = components[ci];
                         auto subject = find(component.begin(), component.end(), spec.subject);
@@ -11447,12 +11863,61 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               &spec, (size_t)(subject - component.begin()), stage,
                               conditional
                         });
+                        component_index = ci;
                         found = true;
                         break;
                   }
                   if (!found)
                         return fail_joint("joint dist requires a direct canonical scalar or element subject");
+                  const auto&component = components[component_index];
+                  if (!spec.state_weights) {
+                        if (distributions[component_index].size() > 1)
+                              return fail_joint("a random-dependent dist weight requires a single distribution in its component");
+                        unsigned subject_stage = final_stage;
+                        auto subject_stage_it = stages.find(spec.subject);
+                        if (subject_stage_it != stages.end())
+                              subject_stage = subject_stage_it->second;
+                        bool has_dynamic_weight = false;
+                        for (const auto&branch : spec.branches) {
+                              if (!branch.weight_expression) continue;
+                              has_dynamic_weight = true;
+                              set<Z3_ast> dependencies;
+                              if (!z3_collect_constants_(ctx,
+                                        branch.weight_expression,
+                                        dependencies))
+                                    return fail_joint("a random-dependent dist weight has an unsupported expression");
+                              for (Z3_ast dependency : dependencies) {
+                                    if (find(component.begin(), component.end(),
+                                             dependency) == component.end()
+                                        || active_randc_var(dependency))
+                                          return fail_joint("a random-dependent dist weight is outside its supported solve-before component");
+                                    unsigned dependency_stage = final_stage;
+                                    auto dependency_stage_it = stages.find(dependency);
+                                    if (dependency_stage_it != stages.end())
+                                          dependency_stage = dependency_stage_it->second;
+                                    if (dependency_stage >= subject_stage) {
+                                          Z3Builder::DistSpec fixed_weight;
+                                          if (!materialize_dist_weights(spec,
+                                                        fixed_weight))
+                                                return fail_joint("a random-dependent dist weight is not fixed before its subject is sampled");
+                                    }
+                              }
+                        }
+                        if (!has_dynamic_weight)
+                              return fail_joint("joint dist weight expression could not be retained exactly");
+                  }
             }
+            for (const auto&bindings : distributions)
+                  if (bindings.size() > 1
+                      && any_of(bindings.begin(), bindings.end(),
+                            [](const JointDistBinding&binding) {
+                                  return any_of(binding.spec->branches.begin(),
+                                        binding.spec->branches.end(),
+                                        [](const Z3Builder::DistBranch&branch) {
+                                              return branch.weight_expression != nullptr;
+                                        });
+                            }))
+                        return fail_joint("a random-dependent dist weight requires a single distribution in its component");
             auto covered_by_binary_bit_dists = [&](Z3_ast variable,
                   unsigned through_stage,
                   const vector<JointDistBinding>&bindings) {
@@ -11805,10 +12270,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               }
                               uint64_t ignored = 0;
                               int active = guard_active(distributions[ci][0]);
-                              bool valid = active >= 0 && (!active
-                                    || z3_resolve_dist_exact(ctx, base, opt,
-                                          *spec, owner_rng(spec->rng_owner), ignored,
-                                          ordered_components[ci], true));
+                              bool valid = active >= 0;
+                              if (valid && active) {
+                                    Z3Builder::DistSpec prefix_spec;
+                                    valid = materialize_dist_weights(*spec,
+                                          prefix_spec)
+                                          && z3_resolve_dist_exact(ctx, base,
+                                                opt, prefix_spec,
+                                                owner_rng(spec->rng_owner),
+                                                ignored,
+                                                ordered_components[ci], true);
+                              }
                               Z3_solver_pop(ctx, base, 1);
                               if (!valid)
                                     return fail_joint("an ordered distribution cannot be resolved for every proved prefix fiber");
@@ -12099,9 +12571,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               return fail_joint("a joint distribution guard changed after its proved prefix");
                         if (active) {
                               uint64_t subject = 0;
-                              if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
-                                    owner_rng(spec->rng_owner), subject,
-                                    ordered_components[ci]))
+                              Z3Builder::DistSpec staged_spec;
+                              if (!materialize_dist_weights(*spec,
+                                          staged_spec)
+                                  || !z3_resolve_dist_exact(ctx, base, opt,
+                                        staged_spec,
+                                        owner_rng(spec->rng_owner), subject,
+                                        ordered_components[ci]))
                                     return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
                               unsigned width = bv_width(ctx, spec->subject);
                               if (width < 64) subject &= (uint64_t(1) << width) - 1;
@@ -12503,6 +12979,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// the common shape (`rand bit[N:0] x; constraint { x inside {...}
 	// }`) that dominates the performance-sensitive cases.
       sample_scalars(false);
+      if (randc_sampling_failed)
+	    return fail_joint(randc_sampling_error);
+      if (wide_scalar_sampling_failed)
+	    return fail_joint("isolated wide scalar exact sampling exceeded its bounded solver work");
       for (auto& mv : builder.member_vars) {
 	    if (!rand_member_active_(builder, prop_active,
 				     mv.outer, mv.member))
@@ -12863,8 +13343,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
 			else if (!is_randc && !enum_domain.empty())
-			      nv = enum_domain[property_rng(sv.idx).next()
-					       % enum_domain.size()];
+			      nv = enum_domain[enum_domain.size() <= UINT32_MAX
+				    ? property_rng(sv.idx).uniform_index(enum_domain.size())
+				    : (size_t)property_rng(sv.idx).uniform_u64(
+					  enum_domain.size())];
 			else if (is_randc && desc.elem_width > 0
 				 && desc.elem_width <= 20) {
 			      const std::vector<bool>*history = old_array
@@ -12901,8 +13383,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
 			else if (!is_randc && !enum_domain.empty())
-			      nv = enum_domain[property_rng(sv.idx).next()
-					       % enum_domain.size()];
+			      nv = enum_domain[enum_domain.size() <= UINT32_MAX
+				    ? property_rng(sv.idx).uniform_index(enum_domain.size())
+				    : (size_t)property_rng(sv.idx).uniform_u64(
+					  enum_domain.size())];
 			else if (is_randc && wid <= 20) {
 			      const std::vector<bool>*history = old_array
 				    && adr < old_array->get_size()

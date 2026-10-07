@@ -5,6 +5,31 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 6, 2026 — uniform legal tuples with soft constraints
+
+IEEE 1800-2017 §18.5.10 and 1800-2023 §18.5.9 uniformity now includes
+satisfiable explicit soft preferences in
+dependency discovery for eligible direct scalar and bounded dynamic-array
+components. A soft-only
+relation between two `rand bit` variables produced the three legal tuples at
+`945,1012,1043/3000` under paired strict 2017 and 2023 runs; the prior
+fallback was biased at `948,916,1136/3000`. A fixed-size two-element dynamic
+array with a soft-only relation now produces `1004,1009,987/3000`, versus
+`718,751,1531/3000` before the array eligibility repair. Broader
+soft coverage now includes a `foreach` preference over a fixed two-element
+array: its five preferred tuples produce `594,590,592,612,612/3000`; the
+pre-fix image produced `476,513,543,508,960`. Container/member, ordered, and
+weighted-`dist` combinations beyond these tested shapes remain unqualified.
+See the
+[regression evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-over-fixed-array-elements-fix-15).
+
+Dynamic arrays have a separate implicit size-before-`foreach` ordering
+(2017 §18.5.8.1; 2023 §18.5.7.1). A soft iterative constraint paired with two
+size-correlated `mode` solutions now verifies this staged distribution:
+`380,393,390,371,1466/3000` in both editions. The size-one mode is selected
+half the time, followed by its soft-forced single payload value. See the
+[paired evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-with-variable-dynamic-array-size-preserves-implicit-ordering-fix-16).
+
 ### September 27, 2026 — implication before distribution
 
 IEEE 1800-2017 §§18.5.4 and 18.5.6 allow an unbraced implication whose
@@ -2269,14 +2294,45 @@ full-width proposals and hard-solver rejection. A 129-tuple 65-bit oracle's
 larger mode 200/200 times, versus 150/200 before full-width rejection. The paired
 65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
-64-value cap. Ordering, `dist`, soft constraints, `randc`, larger
-aggregate domains, unions with more than eight runs or wider-than-256-bit unconnected wide scalars,
-fixed-array ranks above three and other container shapes remain open. An isolated 33–256-bit scalar with up to eight disjoint feasible intervals
-is sampled uniformly after exact boundary searches; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
+64-value cap. Ordering, `dist`, soft constraints, direct randc widths above 20
+bits, sparse randc domains that exceed the proposal budget, aggregate randc
+forms, larger aggregate domains, wide scalar cases that exceed the boundary
+query budget or 4,096-bit width, fixed-array ranks above three and other
+container shapes
+remain open. An isolated 33–4,096-bit scalar uses exact boundary searches
+under a 131,072-query per-randomization budget; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
 37, and 52/200. The unequal-range union test keeps four equal-cardinality bins
-within 30–70/200 in both editions. A 2×2×2 fixed-array oracle samples nine
+within 30–70/200 in both editions. The historical nine-run 33-bit scalar
+oracle requires each equal-cardinality bin to stay within 12–48/270 in both
+editions; a seeded standalone 270-draw run produced 31, 27, 33, 38, 23, 25,
+29, 33, and 31. A focused standalone reducer matching the current 33-run
+regression passes in both editions with all bins 1–22/300. Fix 12 adds up to
+64 uniform full-domain proposals before interval counting and retries up to
+65,536 times if exact boundary search becomes indeterminate; persistent
+uncertainty fails explicitly instead of falling through to biased diversity
+optimization. The dense periodic 33-bit regression gives three equal legal
+classes counts 100, 89, and 111/300, versus 73, 74, and 153 on the old
+fallback. The full registered uniformity suite and adjacent rollback and
+solve-before controls pass in both editions on source-built ARM64 VVP
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`. See the
+revision evidence for runtimes and the histogram.
+A 2×2×2 fixed-array oracle samples nine
 complete legal tuples within 12–55/300 in both editions.
 See the [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical
 [`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
 result. No broader clause-18 qualification is claimed.
+
+Fix 13 adds an exact constrained-randc fallback for direct scalar properties
+within the existing 20-bit history limit. It proposes values uniformly over
+the bit-vector domain, accepts only values allowed by the hard solver and
+cycle history, and uses a SAT check to prove cycle exhaustion before staging a
+reset. The paired strict 2017/2023 regression completes two 128-value cycles
+with an unsatisfiable randomize call between them to verify rollback. Adjacent
+struct, solve-before, and failure-rollback controls pass. This focused result
+uses source-built ARM64 VVP SHA-256
+`94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`; the full
+registered suites were not rerun on this image. The sampler fails explicitly
+if solver checks are indeterminate or 65,536 proposals do not find a value.
+Widths above 20 bits, sparse proposal exhaustion, and aggregate randc shapes
+remain open.

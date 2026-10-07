@@ -19,17 +19,78 @@ the enumeration cap may take impractically many retries. The
 isolated 65-bit scalar interval `[1:1024]` now samples four equal buckets
 57, 54, 37, and 52 times per 200 draws in both editions. The fragmented
 oracle uses `[1:768]` and `[1025:1280]`; four equal-cardinality bins stay
-within 30–70/200 despite the 3:1 interval-size ratio. More than eight runs
-or widths above 256 bits still use the prior fallback. The combined array maximum for variable-size dynamic arrays is capped at
-512 elements; larger aggregates remain open. The 128/129-size oracle now yields counts 91/209 out of 300; the
+within 30–70/200 despite the 3:1 interval-size ratio. A 33-bit union with
+nine equal 32-value runs has paired exact-sampling evidence; its old fallback
+put 41/90 draws in the last run. Fix 11 removes the fixed run-count ceiling
+and caps searches at 131,072 SAT checks per randomization. Fix 12 adds exact
+full-domain rejection proposals for dense domains, keeping periodic 33-bit
+legal-value bins at 100, 89, and 111/300 versus the biased fallback's 73, 74,
+and 153. If interval search is indeterminate, bounded rejection is attempted
+and randomization fails rather than using the biased diversity fallback.
+Wider-than-4,096-bit values and cases that exceed both exact-work ceilings
+remain open.
+Variable-size arrays
+with constrained element leaves retain the 512-element combined solver-model
+cap. Arrays with no constrained element leaves use SAT binary searches to find
+feasible size endpoints, then propose sizes in proportion to element-tuple
+cardinality up to the existing 65,536 per-container allocation cap. Holes and
+connected constraints are checked by the hard solver; sparse accepted sizes
+can take many retries. The 512/513 bit-array oracle now chooses sizes 50/70
+out of 120 and its first payload bit is one 55/120 times. The new 1,025-size
+singleton-enum oracle produces four equal-size bins 108,99,96,97/400; the old
+complete-model enumerator ran for 197.55 s before an interrupted run stopped
+without a histogram. A 257-bit scalar interval now samples four bins 40,54,53,53
+out of 200, versus 26,14,26,134 on the old fallback; the paired 80-draw oracle
+passes under both editions. Fix 12's full registered suites pass in both
+editions on source-built VVP SHA-256
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`:
+2017 took 266.23 s (maximum RSS not captured), and 2023 took 231.86 s at
+50,970,624-byte maximum RSS. Failure-rollback and fixed-array solve-before
+controls also pass in both editions. After formatting and test-name cleanup,
+the rebuilt image `e9c40812d1d49636fcc37c26135c62710d1465b8b2d64b1c89b1e54e9f479d39`
+passes the focused periodic reducer and both registered suite sources compile;
+the full suites were not repeated on that hash. The evidence page records the
+paired full-run and latest focused results. The 128/129-size oracle now yields counts 91/209 out of 300; the
 pre-fix path gave the size-128 mode 139/300. At 256/257, the new counts are
 44/76 out of 120, versus 166/134 in the pre-fix 300-draw probe. Fixed
 integral/enum arrays are sampled from referenced leaves without a declared-extent cap; the registered regression currently
 covers one, two, and three unpacked dimensions. The array test retains the
 ordered `solve m before q` control. The overall clause remains partial for
 larger dynamic-array domains, fixed-array ranks above three and other shapes,
-`randc`, ordering, soft constraints, and weighted `dist`. See the
+direct scalar randc widths above the existing 20-bit history limit, sparse
+randc domains that exceed the 65,536-proposal budget, aggregate randc forms,
+ordering, additional soft-preference shapes, and weighted `dist`. The direct scalar constrained
+randc fallback now samples uniformly from unseen values using hard-solver
+checks and proves cycle exhaustion before reset. Paired strict 2017/2023 runs
+complete two 128-value cycles with an unsatisfiable call between them; struct,
+fixed-array solve-before, and failure-rollback controls also pass on VVP image
+`94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`. The
+full registered suites were not run on this image. See the
 [blocker](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
+
+Fix 14 extends the uniform tuple dependency graph to include satisfiable
+explicit soft constraints. A soft-only scalar relation produces
+`945,1012,1043/3000`; a fixed-size two-element dynamic-array relation produces
+`1004,1009,987/3000` for their legal tuples under both editions. Their previous
+fallbacks were biased at `948,916,1136/3000` and `718,751,1531/3000`. Existing
+inherited-soft, alias-soft, and source-priority controls pass 3/3 per edition.
+See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#satisfiable-soft-constraints-join-uniform-tuple-factors-fix-14).
+The registered suite sources compile in both editions, but the full suites
+have not been run on this image.
+
+Fix 15 adds a fixed-array `foreach` soft-preference oracle. Its five preferred
+complete tuples produce `594,590,592,612,612/3000` under both strict editions;
+the pre-fix image produced `476,513,543,508,960`, overweighting one tuple.
+The three tuples violating at least one soft clause remain absent. Both
+registered suite sources compile with the added case; full suites remain
+deferred to the 10-fix checkpoint. See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-over-fixed-array-elements-fix-15).
+
+Fix 16 adds a soft `foreach` check for a dynamic array whose hard size is tied
+to another random variable. The LRM orders dynamic-array size constraints
+before iterative constraints (2017 §18.5.8.1; 2023 §18.5.7.1), so the two
+`(mode,size)` pairs are each selected half the time; payload values are then
+uniform within each size. Paired results are `380,393,390,371,1466/3000`.
+See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-with-variable-dynamic-array-size-preserves-implicit-ordering-fix-16).
 
 A separate 128-bit nested fixed-element diversity regression passes in both
 editions. It uses a warned fallback for an oversized ordinary component and
@@ -151,8 +212,18 @@ fixed-array, and bounded direct integral/enum-array tuples. Paired `-g2017` and
 `-g2023` checks cover Table 18-2, two- and 129-element fixed arrays, 2×2 and
 2×2×2 fixed arrays, empty arrays, correlated arrays, 64/65-element arrays, and
 65-bit scalars. The new isolated
-65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200;
-unions with more than eight runs, unconnected widths above 256 bits, and
+65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200.
+The fix-10 nine-run regression remains historical paired evidence. Fix 11
+removes its fixed 16-run ceiling and caps boundary searches at 131,072 SAT
+checks per randomization. Fix 12 adds exact uniform rejection proposals for
+dense domains and explicit failure when bounded exact sampling cannot decide.
+The registered dense periodic 33-bit regression samples bins 100, 89, and
+111/300; its old fallback gave 73, 74, and 153. Full registered suites passed
+under strict `-g2017` and `-g2023` on fix-12 image
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`. The
+post-cleanup rebuild passes the focused periodic reducer and both registered
+suite sources compile; the full suites were not repeated on it. Cases that
+exhaust both exact-work budgets, unconnected widths above 4,096 bits, and
 fixed-array ranks above three remain open.
 The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
 the recorded threshold when the finite wide-domain cap is 256 values. Variable-size

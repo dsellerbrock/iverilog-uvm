@@ -20,10 +20,22 @@ class weighted_bins;
   function new(); child=new; endfunction
   constraint c { value dist {[0:19] :/ 1, [20:59] :/ 1, [60:99] :/ 1, 100 :/ 1}; }
 endclass
+class staged_weight_root;
+  rand leaf child;
+  rand bit mode, value;
+  function new(); child=new; endfunction
+  constraint c {
+    solve mode before value;
+    child.value == value;
+    value dist {0 := (mode ? 3 : 1), 1 := (mode ? 1 : 3)};
+  }
+endclass
 module main;
   root r=new;
   weighted_bins b=new;
+  staged_weight_root staged=new;
   int count[4], bins_count[4], independent_count;
+  int staged_weight_count[2][2];
   bit [2:0] replay[12];
   string rs, cs;
   initial begin
@@ -59,6 +71,17 @@ module main;
     end
     foreach (bins_count[i]) if (bins_count[i]<55 || bins_count[i]>145)
       $fatal(1,"range weight was applied per value");
+    staged.srandom(89); staged.child.srandom(91);
+    repeat (2048) begin
+      if (!staged.randomize() || staged.child.value != staged.value)
+        $fatal(1,"ordered random-variable dist weight failed");
+      staged_weight_count[staged.mode][staged.value]++;
+    end
+    if (staged_weight_count[0][0]<196 || staged_weight_count[0][0]>316
+        || staged_weight_count[0][1]<680 || staged_weight_count[0][1]>856
+        || staged_weight_count[1][0]<680 || staged_weight_count[1][0]>856
+        || staged_weight_count[1][1]<196 || staged_weight_count[1][1]>316)
+      $fatal(1,"solve-before dist weights were not evaluated per prefix");
     $display("PASSED");
   end
 endmodule

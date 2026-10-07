@@ -591,7 +591,8 @@ bool vvp_cobject::randc_transaction_commit()
 	    if (hist.size() != item.period)
 		  hist.assign((size_t)item.period, false);
 
-	    bool reset = randc_history_full_(hist, item.period);
+	    bool reset = item.pending.reset_cycle
+		  || randc_history_full_(hist, item.period);
 	    if (reset) {
 		  // A completed cycle remains visibly complete until this next
 		  // successful choice. Its reset and new mark commit together.
@@ -667,7 +668,7 @@ void vvp_cobject::randc_mark(size_t pid, uint64_t val, size_t leaf)
 // RANDOM-DIST fix #4: see the declaration in vvp_cobject.h.
 void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
                                        const std::vector<uint64_t>&feasible,
-                                       size_t leaf)
+                                       size_t leaf, bool reset_cycle)
 {
       uint64_t period = randc_period(pid, leaf);
       if (period == 0) return;
@@ -680,6 +681,7 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
       randc_pending_t staged;
       staged.staged_value = val;
       staged.feasible_domain = true;
+      staged.reset_cycle = reset_cycle;
       staged.feasible = feasible;
       randc_transactions_.back().properties[randc_key_t(pid, leaf)] = staged;
 }
