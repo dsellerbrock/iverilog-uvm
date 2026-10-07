@@ -20,6 +20,16 @@ class table18_2_ordered;
   constraint c { s -> d == 0; }
   constraint order { solve s before d; }
 endclass
+class soft_link_uniform;
+  rand bit left;
+  rand bit right;
+  constraint preference { soft (left == 0 || right == 0); }
+endclass
+class soft_array_link_uniform;
+  rand bit value[];
+  constraint fixed_size { value.size() == 2; }
+  constraint preference { soft (value[0] == 0 || value[1] == 0); }
+endclass
 class dynamic_array_unordered;
   rand bit m;
   rand bit [7:0] q[];
@@ -252,6 +262,8 @@ module main;
   root unrelated = new;
   table18_2_unordered unordered = new;
   table18_2_ordered ordered = new;
+  soft_link_uniform soft_uniform = new;
+  soft_array_link_uniform soft_array_uniform = new;
   dynamic_array_unordered dyn_unordered = new;
   dynamic_array_ordered dyn_ordered = new;
   variable_size_array_unordered variable_size = new;
@@ -280,6 +292,8 @@ module main;
   fixed_array_2d_uniformity fixed_array_2d = new;
   fixed_array_3d_uniformity fixed_array_3d = new;
   int count[4];
+  int soft_tuple_count[4];
+  int soft_array_tuple_count[4];
   int variable_size_count[5];
   int variable_size_empty_count[11];
   int correlated_array_count[12];
@@ -610,6 +624,44 @@ module main;
       if (member_tuple_count[i] < 70 || member_tuple_count[i] > 130)
         $fatal(1, "struct-member legal tuple %0d is biased: %0d/300",
                i, member_tuple_count[i]);
+
+    // A satisfiable soft preference connects otherwise independent rand
+    // variables and leaves three equally likely complete tuples.
+    soft_uniform.srandom(5541);
+    repeat (3000) begin
+      if (!soft_uniform.randomize())
+        $fatal(1, "soft-constrained uniformity solve failed");
+      soft_tuple_count[{soft_uniform.left, soft_uniform.right}]++;
+    end
+    foreach (soft_tuple_count[i]) begin
+      if (i == 0 || i == 1 || i == 2) begin
+        if (soft_tuple_count[i] < 900 || soft_tuple_count[i] > 1100)
+          $fatal(1, "soft-constrained legal tuple %0d is biased: %0d/3000",
+                 i, soft_tuple_count[i]);
+      end else if (soft_tuple_count[i] != 0)
+        $fatal(1, "soft-constrained invalid tuple %0d occurred: %0d/3000",
+               i, soft_tuple_count[i]);
+    end
+
+    soft_array_uniform.srandom(6533);
+    repeat (1200) begin
+      if (!soft_array_uniform.randomize())
+        $fatal(1, "soft-constrained dynamic-array solve failed");
+      if (soft_array_uniform.value.size() != 2)
+        $fatal(1, "soft-constrained dynamic-array size changed");
+      soft_array_tuple_count[{soft_array_uniform.value[0],
+                              soft_array_uniform.value[1]}]++;
+    end
+    foreach (soft_array_tuple_count[i]) begin
+      if (i == 0 || i == 1 || i == 2) begin
+        if (soft_array_tuple_count[i] < 300
+            || soft_array_tuple_count[i] > 500)
+          $fatal(1, "soft-constrained array tuple %0d is biased: %0d/1200",
+                 i, soft_array_tuple_count[i]);
+      end else if (soft_array_tuple_count[i] != 0)
+        $fatal(1, "invalid soft-constrained array tuple %0d occurred: %0d/1200",
+               i, soft_array_tuple_count[i]);
+    end
 
     // A 65-bit variable has only five feasible values across the mode split.
     wide_uniform.srandom(211);

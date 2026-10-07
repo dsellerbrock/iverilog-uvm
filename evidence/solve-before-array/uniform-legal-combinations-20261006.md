@@ -469,3 +469,35 @@ controls pass in both editions. The registered uniformity suite sources
 compile in both editions; the full suites were not rerun on this image. Direct
 randc widths above 20 bits, exhausted proposal budgets, and aggregate randc
 shapes remain open.
+
+## Satisfiable soft constraints join uniform tuple factors (fix 14)
+
+The reducer has two independent `rand bit` variables with
+`soft (left == 0 || right == 0)`. The preference is satisfiable, so the legal
+complete tuples are `00`, `01`, and `10`, each with probability 1/3. The prior
+fallback gave `948,916,1136` counts in 3,000 draws; it treated the variables as
+independent even though the soft expression couples them.
+The registered [class and histogram check](../../ivtest/ivltests/sv_randomize_global_uniform.v)
+contains this exact case.
+
+The exact sampler now includes active explicit soft expressions while finding
+tuple dependencies, then samples against the existing soft-priority-resolved
+solver. Strict `-g2017` and `-g2023` both produce `945,1012,1043` in 3,000 draws
+with seed 5541 on source-built ARM64 VVP SHA-256
+`3b2f946d7b3463d39ac59886cda1dada0600bd76ac42328ab2279da71efdc3ab`. The prior
+soft-scalar image was `504e7ff73c82d22564ee1c68c0b5852fd855767bf2e2d11f3ad9beb93aeea3c0`.
+
+A second reducer uses a two-element `rand bit value[]` fixed by
+`value.size() == 2` and the soft relation
+`soft (value[0] == 0 || value[1] == 0)`. The old per-element fallback gave
+`718,751,1531` across the three legal tuples in 3,000 draws. Fixed-size arrays
+were not marked ready for joint sampling, even when all referenced element
+variables fit under the existing 512-element solver cap. The path now handles
+that bounded fixed-size case; strict 2017 and 2023 both produce
+`1004,1009,987` in 3,000 draws on the image above. The registered regression
+checks 300–500 per legal tuple in 1,200 draws; its matching focused run produced
+`397,403,400`. Both reducers require zero occurrences of the excluded `11`.
+
+The registered uniformity sources compile in both editions. Existing
+inherited-soft, alias-soft, and source-priority controls pass 3/3 per edition.
+The full registered suite remains deferred until the 10-fix batch checkpoint.

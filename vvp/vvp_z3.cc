@@ -10030,7 +10030,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       set<Z3_ast> uniform_dynamic_padding_vars;
       bool uniform_dynamic_size_unique = dyn_sizes && !builder.row_pass
 	    && cobj && !exact_joint && builder.order_pairs.empty()
-	    && builder.dist_specs.empty() && builder.pending_soft.empty()
+	    && builder.dist_specs.empty()
+	    && (builder.pending_soft.empty() || builder.any_soft_kw_assert())
 	    && builder.member_vars.empty() && builder.member_elem_vars.empty()
 	    && builder.qelem_vars.empty() && builder.dyn_foreach.empty()
 	    && builder.state_checks.empty() && builder.absent_elems.empty();
@@ -10107,7 +10108,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (!dyn_sizes && !builder.row_pass && cobj && !exact_joint
 	  && !builder.size_vars.empty()
 	  && builder.order_pairs.empty() && builder.dist_specs.empty()
-	  && builder.pending_soft.empty() && builder.member_vars.empty()
+	  && (builder.pending_soft.empty() || builder.any_soft_kw_assert())
+	  && builder.member_vars.empty()
 	  && builder.member_elem_vars.empty() && builder.qelem_vars.empty()
 	  && builder.dyn_foreach.empty() && builder.state_checks.empty()
 	  && builder.absent_elems.empty()) {
@@ -10259,7 +10261,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			for (uint64_t elem = 0; eligible && elem < entry.second; ++elem)
 			      if (!rand_elem_active_(builder, prop_active,
 				    entry.first.first, (unsigned)elem)) eligible = false;
-	    if (eligible && has_variable_size) {
+	    // Fixed-size dynamic arrays can still couple element choices. Their
+	    // referenced elements use the same bounded joint model as variable sizes.
+	    if (eligible && (has_variable_size || total_elements > 0)) {
 		  Z3_sort size_sort = Z3_mk_bv_sort(ctx, 32);
 		  for (const auto&sv : builder.size_vars) {
 			pair<unsigned,unsigned> id = make_pair(sv.idx, sv.leaf);
@@ -10355,8 +10359,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // semantic choice. Direct integral dynamic-array elements join it after
       // proving fixed sizes or canonicalizing a bounded variable-size domain.
       // accept-current fast path mixed with per-property sampling can bias
-      // legal tuples, so draw complete component tuples until the hard solver
-      // accepts one. Rejection sampling is uniform over legal tuples.
+      // legal tuples, so draw complete component tuples until the resolved
+      // constraint solver accepts one. Rejection sampling is uniform over
+      // legal tuples, including satisfiable explicit soft preferences.
       // ponytail: exact rejection sampling costs inverse solution density;
       // use exact counting/hash sampling if sparse coupled spaces need bounded
       // runtime.
@@ -10370,7 +10375,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       map<Z3_ast, vector<Z3_ast> > uniform_joint_wide_domains;
       bool uniform_joint_eligible = cobj && !exact_joint
 	    && builder.order_pairs.empty() && builder.dist_specs.empty()
-	    && builder.pending_soft.empty()
+	    && (builder.pending_soft.empty() || builder.any_soft_kw_assert())
 	    && ((builder.elem_vars.empty() && builder.size_vars.empty())
 		|| uniform_dynamic_size_unique
 		|| uniform_dynamic_size_domains_ready
@@ -10499,7 +10504,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (uniform_joint_eligible
 	  && (active_uniform_vars.size() > 1 || has_weighted_dynamic_size)) {
 	    vector<vector<Z3_ast> > components;
-	    if (!z3_joint_components_(ctx, base, active_uniform_vars, components))
+	    bool include_soft_dependencies = builder.any_soft_kw_assert();
+	    if (include_soft_dependencies) Z3_solver_push(ctx, base);
+	    if (include_soft_dependencies)
+		  for (const auto&sa : builder.pending_soft)
+			if (sa.from_soft_kw && !soft_dropped(sa))
+			      Z3_solver_assert(ctx, base, sa.a);
+	    bool components_found = z3_joint_components_(ctx, base,
+		  active_uniform_vars, components);
+	    if (include_soft_dependencies) Z3_solver_pop(ctx, base, 1);
+	    if (!components_found)
 		  components.push_back(active_uniform_vars);
 	    for (const auto&component : components) {
 		  if (component.size() <= 1

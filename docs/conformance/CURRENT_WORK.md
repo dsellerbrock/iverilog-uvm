@@ -59,7 +59,7 @@ ordered `solve m before q` control. The overall clause remains partial for
 larger dynamic-array domains, fixed-array ranks above three and other shapes,
 direct scalar randc widths above the existing 20-bit history limit, sparse
 randc domains that exceed the 65,536-proposal budget, aggregate randc forms,
-ordering, soft constraints, and weighted `dist`. The direct scalar constrained
+ordering, additional soft-preference shapes, and weighted `dist`. The direct scalar constrained
 randc fallback now samples uniformly from unseen values using hard-solver
 checks and proves cycle exhaustion before reset. Paired strict 2017/2023 runs
 complete two 128-value cycles with an unsatisfiable call between them; struct,
@@ -67,6 +67,16 @@ fixed-array solve-before, and failure-rollback controls also pass on VVP image
 `94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`. The
 full registered suites were not run on this image. See the
 [blocker](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
+
+Fix 14 extends the uniform tuple dependency graph to include satisfiable
+explicit soft constraints. A soft-only scalar relation produces
+`945,1012,1043/3000`; a fixed-size two-element dynamic-array relation produces
+`1004,1009,987/3000` for their legal tuples under both editions. Their previous
+fallbacks were biased at `948,916,1136/3000` and `718,751,1531/3000`. Existing
+inherited-soft, alias-soft, and source-priority controls pass 3/3 per edition.
+See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#satisfiable-soft-constraints-join-uniform-tuple-factors-fix-14).
+The registered suite sources compile in both editions, but the full suites
+have not been run on this image.
 
 A separate 128-bit nested fixed-element diversity regression passes in both
 editions. It uses a warned fallback for an oversized ordinary component and

@@ -5,6 +5,21 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 6, 2026 — uniform legal tuples with soft constraints
+
+IEEE 1800-2017 §18.5.10 and 1800-2023 §18.5.9 uniformity now includes
+satisfiable explicit soft preferences in
+dependency discovery for eligible direct scalar and bounded dynamic-array
+components. A soft-only
+relation between two `rand bit` variables produced the three legal tuples at
+`945,1012,1043/3000` under paired strict 2017 and 2023 runs; the prior
+fallback was biased at `948,916,1136/3000`. A fixed-size two-element dynamic
+array with a soft-only relation now produces `1004,1009,987/3000`, versus
+`718,751,1531/3000` before the array eligibility repair. Broader
+container/member, ordered, and weighted-`dist` combinations remain
+unqualified. See the
+[regression evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#satisfiable-soft-constraints-join-uniform-tuple-factors-fix-14).
+
 ### September 27, 2026 — implication before distribution
 
 IEEE 1800-2017 §§18.5.4 and 18.5.6 allow an unbraced implication whose
