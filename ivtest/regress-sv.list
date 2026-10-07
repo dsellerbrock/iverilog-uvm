@@ -3583,6 +3583,10 @@ sv_class_packed_select_incdec_bounds normal,-g2017,-s,sv_class_packed_select_inc
 sv_class_packed_select_incdec_bounds_2023 normal,-g2023,-s,sv_class_packed_select_incdec_bounds ivltests gold=sv_class_packed_select_incdec_bounds.gold
 sv_class_packed_select_incdec_nested normal,-g2017,-s,sv_class_packed_select_incdec_nested ivltests gold=sv_class_packed_select_incdec_nested.gold
 sv_class_packed_select_incdec_nested_2023 normal,-g2023,-s,sv_class_packed_select_incdec_nested ivltests gold=sv_class_packed_select_incdec_nested.gold
+sv_class_final_2023 normal,-g2023,-s,test ivltests
+sv_class_final_subclass_fail_2023 CE,-g2023,-s,test ivltests gold=sv_class_final_subclass_fail_2023.gold
+sv_class_final_parameterized_subclass_fail_2023 CE,-g2023,-s,test ivltests gold=sv_class_final_parameterized_subclass_fail_2023.gold
+sv_class_final_reject_2017 CE,-g2017,-s,test ivltests gold=sv_class_final_reject_2017.gold
 sv_class_packed_select_incdec_fail CE,-g2017,-s,sv_class_packed_select_incdec_fail ivltests gold=sv_class_packed_select_incdec_fail.gold
 sv_class_packed_select_incdec_fail_2023 CE,-g2023,-s,sv_class_packed_select_incdec_fail ivltests gold=sv_class_packed_select_incdec_fail.gold
 

@@ -587,7 +587,7 @@ perm_string pform_interface_modport(Design*des, NetScope*scope,
 
 struct class_type_t : public data_type_t {
 
-      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; interface_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; }
+      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; final_class = false; interface_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; }
 
       void pform_dump(std::ostream&out, unsigned indent) const override;
       void pform_dump_init(std::ostream&out, unsigned indent) const;
@@ -608,6 +608,7 @@ struct class_type_t : public data_type_t {
       std::vector<std::unique_ptr<data_type_t> > interface_types;
 
       bool virtual_class;
+      bool final_class;
       bool interface_class;
       bool is_covergroup_stub; // true when created as a package-level CG stub
 	// M11-1/2: standalone (module/package-scope) covergroup type —

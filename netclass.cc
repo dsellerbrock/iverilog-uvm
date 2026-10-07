@@ -97,7 +97,8 @@ static void collect_unique_method_overrides_(const netclass_t*base_type,
 
 netclass_t::netclass_t(perm_string name, const netclass_t*super)
 : name_(name), super_(super), class_scope_(0), definition_scope_(0),
-  virtual_class_(false), interface_class_type_(false), interface_type_(false),
+  virtual_class_(false), final_class_(false),
+  interface_class_type_(false), interface_type_(false),
   interface_definition_(0), interface_definition_id_(0),
   unresolved_interface_type_(false), mailbox_message_type_(0),
   sig_elaborated_(false), sig_elaborating_(false),

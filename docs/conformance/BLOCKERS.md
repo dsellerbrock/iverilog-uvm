@@ -4218,3 +4218,11 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Failure and fix:** The frontend accepted only the iterator argument for locator, reduction, min/max, and unique methods. The shared validator now accepts and edition-gates the second identifier, and iterator binding resolves it for ordinary and associative arrays. Class-element lookup preserves a real property such as `item.index` while resolving a distinct custom alias such as `item.position` to the array index.
 - **Validation:** Paired JSON/VVP and legacy focused lists pass 2/2, including class-member collision, associative string-key lookup, `sum`, `min`, `max`, and `unique_index`. Adjacent 2023 `map()` lists pass 4/4 in each harness. Build and install succeed. Exact commands and executable hashes are in [qualification evidence](../../evidence/array-index-argument-20261007/README.md); no broad suite or OpenTitan corpus was run.
 - **Boundary:** This qualifies the tested optional-name binding across the listed method families. Other array-method forms and full §7.12 qualification remain separate.
+
+### SV23-CLASS-FINAL — IEEE 1800-2023 class `:final`
+
+- **State:** Patched and focused-tested locally; CI is pending. Do not mark qualified until the PR's required platform checks pass.
+- **Standard:** IEEE 1800-2023 §8.3 permits `class :final Name`; a final class may itself extend a non-final parent but cannot be extended. Strict `-g2017` rejects the 2023 specifier.
+- **Failure and fix:** The parser rejected the legal declaration as a syntax error and class metadata did not prevent a derived class. Parsing now edition-gates `:final`, carries the flag into elaborated class types, and checks every superclass assignment path.
+- **Validation:** Focused legacy and JSON/VVP lists each pass 4/4: a final child extending a regular parent runs and prints `PASSED`, direct and parameterized subclassing of final bases produce the class-specific error, and `-g2017` rejects the specifier. The source frontend built on macOS. The positive bytecode ran on the existing capped Linux runtime; no Linux source build was run for this small change. Evidence: [focused record](../../evidence/class-final-2023-20261007/README.md).
+- **Boundary:** Class-level `:final` only; method-level final semantics and broader clause-8 qualification are not included.

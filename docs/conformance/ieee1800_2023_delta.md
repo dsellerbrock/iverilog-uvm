@@ -559,3 +559,12 @@ The fixed-linear overlap and assertion-VPI correction uses the same
 §§16.12.7/16.14.1 and §39.4.2 rules in 2023 as in 2017. Separate `-g2023`
 runtime and boundary checks are included in the [shared 2017 scope and
 revision-scoped evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-fixed-linear-sva-overlap-verdicts-and-vpi-identity).
+
+## 2026-10-07 — §8.3 class `:final`
+
+The parser now accepts the IEEE 1800-2023 `class :final Name` specifier,
+rejects attempts to derive from a final class, and reports a feature-gate
+error in strict 2017 mode. A final class may still extend an ordinary parent.
+The paired focused tests pass locally; cross-platform CI remains pending, so
+this entry does not claim full clause-8 qualification. See the
+[focused evidence](../../evidence/class-final-2023-20261007/README.md).
