@@ -1,17 +1,99 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus
+## Current IEEE 1800 focus — 2026-10-07
 
-**Current selected blocker:** `ARRAY-MAP-2023`. `map()` now passes focused
-strict `-g2023` runtime cases for fixed, dynamic, queue, and associative
-arrays; strict `-g2017` rejects it. The paired map lists pass 4/4 each, and
-adjacent array-method checks pass on the same source-built image. Unpacked-
-array-valued `with` results are also tested for fixed, dynamic, queue, and
-associative receivers, including empty results and nested maps over the
-resulting rows. This closes the selected implementation gap at the bounded
-scope recorded in the [qualification evidence](../../evidence/array-map-2023-20261007/README.md);
-it does not claim every legal `map()` interaction or full array-method-clause
-conformance.
+**Fix 37 locally qualified:** a randomized integral index can now select a
+scalar integral or enum leaf through a fixed array of unpacked structs. The
+paired test covers a 2-bit active-random selector and a state read with an
+unselected X leaf; strict 2017/2023 JSON/VVP and legacy lists pass 2/2 each.
+This remains bounded to fixed arrays of at most 65,536 words and scalar
+leaves. Dynamic containers, aggregates, and wide coupled-domain sampling are
+not qualified. See [qualification evidence](../../evidence/symbolic-indexed-outer-struct-constraint-20261007/README.md)
+and [blocker record](BLOCKERS.md#randomize-indexed-outer-unpacked-struct-member).
+
+**Fix 36 locally qualified:** constraints now resolve scalar integral and enum
+leaves through fixed indexed arrays of unpacked structs, including nested
+struct members and foreach-unrolled indices. The paired regression covers
+descending and multidimensional ranges, randomized leaves, state reads, and
+failed-solve rollback. Strict 2017 and 2023 legacy and JSON/VVP focus lists
+pass 2/2 each. Symbolic fixed-array selectors are covered by Fix 37; dynamic
+containers and aggregate leaves remain open. See the
+[qualification evidence](../../evidence/indexed-outer-struct-constraint-20261007/README.md)
+and [blocker record](BLOCKERS.md#randomize-indexed-outer-unpacked-struct-member).
+
+**Fix 35 locally qualified:** strict `-g2023` now binds the optional array
+method `index_argument` across locator, reduction, min/max, and `unique_index`
+`with` expressions. This lets code use `item.index` for a real class member
+while querying the array position through a chosen alias. Associative key
+queries are covered too; strict `-g2017` rejects the second argument. The
+paired new-case lists pass 2/2 in legacy and JSON/VVP, and adjacent 2023 map
+lists pass 4/4 in each harness. This is a focused §7.12 gap, not full clause
+closure. See [qualification evidence](../../evidence/array-index-argument-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-array-index-argument).
+
+**Fix 34 qualified locally:** strict `-g2023` now accepts scalar class
+`rand real` for the tested finite-interval constraint path, including real
+comparisons, `inside` bounds, solve-before staging ahead of an integral bit,
+and failed-call rollback. The 2023 positive, strict 2017 rejection, and
+`randc real` rejection pass 3/3 in both legacy and JSON/VVP focus lists.
+Unbounded or `dist` real solving, `shortreal`, real arrays/aggregate leaves,
+and joint class-graph real solving remain unsupported. This is a bounded
+increment, not closure of §18.4/§18.5.9. See the
+[qualification evidence](../../evidence/rand-real-scalar-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-rand-real).
+
+**Fix 33 qualified locally:** constraints on scalar integral/enum leaves now
+work through finite nested unpacked-struct member paths rooted at a randomized
+class property. The paired regression covers nested `rand`/`randc`, enum
+membership, state-derived values, failed-solve rollback, and resumption. The
+strict new-case lists pass 2/2 in legacy and JSON/VVP; adjacent struct/class
+declaration lists pass 15/15 legacy and 14/14 JSON/VVP. Fixed indexed scalar
+leaves are covered by Fix 36; symbolic selectors and aggregate, array, or
+class-handle leaves remain open. See the
+[qualification evidence](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
+
+**Fix 32 qualified locally:** explicit `disable iff` now aborts supported
+multi-boundary fixed-chain properties asynchronously across every clock
+domain. The paired regression proves inter-clock cancellation, held-reset
+gating, and resumed checking after release. Strict multiclock-control focus
+lists pass 22/22 in JSON/VVP and 22/22 in legacy. The broader SVA clause stays
+partial. See the [qualification evidence](../../evidence/sva-disable-multiclock-chain-20261007/README.md).
+
+**Fix 31 qualified locally:** associative `find_last_index()` walks from the
+last actual key backward and returns the first matching key in traversal
+order, in a fresh queue with the declared key type. Strict paired JSON/VVP and
+legacy lists each pass 8/8, including signed and string keys, empty/no-match
+cases, existing associative locator neighbors, and wildcard-index rejection.
+Other associative locator methods remain open. See the
+[qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md)
+and [blocker record](BLOCKERS.md#assoc-find-last-index).
+
+**Fix 30 qualified locally:** associative `find_first_index()` now visits the
+actual ordered keys and returns the first matching key in a fresh queue with
+the declared key type. Strict paired JSON/VVP and legacy lists each pass 6/6,
+including signed and string keys, empty/no-match cases, existing `find_index`
+neighbors, and rejection of wildcard-index arrays. Other associative locator
+methods remain open; this does not close §7.12.1. See the
+[qualification evidence](../../evidence/assoc-find-first-index-20261007/README.md)
+and [blocker record](BLOCKERS.md#assoc-find-first-index).
+
+**Fix 29 qualified locally:** strict 2023 accepts `default :/ expression` as
+one aggregate-weight bucket over the complement of all explicit bins; strict
+2017 rejects it. Its focused checks pass 5/5 in JSON/VVP and legacy harnesses,
+and adjacent exact-dist checks pass 14/14 in each. Broader constrained-random
+combinations, `randc`, and sparse/large domains remain useful open work. See
+the [qualification evidence](../../evidence/dist-default-2023-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-dist-default-weight).
+
+**Completed in fix 28:** nested object-property `solve-before` operands retain
+their runtime solver identity. The paired staged-distribution and rollback
+checks pass with fixed-array and randc controls; see the
+[focused evidence](../../evidence/solve-before-array/cross-object-solve-before-20261007.md).
+
+**Completed in fix 27:** `ARRAY-MAP-2023` passes the focused strict `-g2023`
+runtime cases for fixed, dynamic, queue, and associative arrays; strict
+`-g2017` rejects it. Unpacked-array-valued `with` results include empty inputs
+and nested maps. See the [qualification evidence](../../evidence/array-map-2023-20261007/README.md).
 
 **Uniform-solution checkpoint (2026-10-06):** the full registered paired
 2017/2023 uniformity suites pass on fix-26 VVP
@@ -234,7 +316,7 @@ this row as upstream-invalid. See the
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 
-## Current IEEE checkpoint — 2026-10-06
+## Uniformity checkpoint — 2026-10-06
 
 The selected blocker is unordered uniformity over legal constraint
 combinations. The current branch rejection-samples coupled scalar, referenced

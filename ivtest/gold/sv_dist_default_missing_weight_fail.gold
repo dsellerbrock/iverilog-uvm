@@ -1,0 +1,3 @@
+./ivltests/sv_dist_default_missing_weight_fail.v:3: syntax error
+./ivltests/sv_dist_default_missing_weight_fail.v:3: error: Errors in the constraint block item list.
+I give up.

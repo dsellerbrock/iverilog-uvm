@@ -246,25 +246,30 @@ bool vvp_cobject::rand_mode_any(size_t pid) const
 		  return false;
 	    }
 	    const std::string&bt = defn_->property_base_type(pid);
-	    vvp_object_t obj;
-	    const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
-	    if (vvp_darray*array = obj.peek<vvp_darray>()) {
-		  if (array->get_size()) return array->rand_mode_any();
-		  return defn_->property_is_static(pid)
-			? defn_->static_rand_mode(pid, 0)
-			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+	    bool object_backed = bt == "o" || bt.compare(0, 3, "oc:") == 0
+		  || (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
+				      || bt[0] == 'M'));
+	    if (object_backed) {
+		  vvp_object_t obj;
+		  const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+		  if (vvp_darray*array = obj.peek<vvp_darray>()) {
+			if (array->get_size()) return array->rand_mode_any();
+			return defn_->property_is_static(pid)
+			      ? defn_->static_rand_mode(pid, 0)
+			      : (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+		  }
+		  if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>()) {
+			if (assoc->size()) return assoc->rand_mode_any();
+			return defn_->property_is_static(pid)
+			      ? defn_->static_rand_mode(pid, 0)
+			      : (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+		  }
+		  if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
+				      || bt[0] == 'M'))
+			return defn_->property_is_static(pid)
+			      ? defn_->static_rand_mode(pid, 0)
+			      : (pid < rand_mode_.size() ? rand_mode_[pid] : true);
 	    }
-	    if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>()) {
-		  if (assoc->size()) return assoc->rand_mode_any();
-		  return defn_->property_is_static(pid)
-			? defn_->static_rand_mode(pid, 0)
-			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
-	    }
-	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
-				 || bt[0] == 'M'))
-		  return defn_->property_is_static(pid)
-			? defn_->static_rand_mode(pid, 0)
-			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
       }
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
 	    return defn_->static_rand_mode_any(pid);

@@ -626,67 +626,58 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   request/response traffic and zero outstanding transactions at end of test.
 - **Last verified revision:** `53b58890c` (P04): fresh smoke plus2repeats all complete115requests/230checked scoreboard items,4SEQPRTZMBwarnings,0errors/fatals and TEST FAILED CHECKS. All360exported source files match the prior replay. P04 fixes its independent live-parent kill reducer; it does not qualify U01. Pinned workload settings select UVM1.2, campaign library2020.3.1; no library edit or warning suppression. Evidence: `campaign-20260908/u01-after-p04`.
 
-### Z01 — Joint solve-before stages unsupported
+### Z01 — Joint solve-before stages partly supported
 
 - **Area / edition:** Randomization / edition-agnostic
-- **State:** OPEN, but **cited evidence is stale (updated 2026-09-16) —
-  re-scope before doing anything else with this row.**
-- **Confidence:** SOURCE (original), evidence refresh below is REPRODUCED.
-- **Original evidence / reproducer:** `vvp/vvp_z3.cc` explicitly rejects
-  `order_pairs` in the joint route ("solve before stages across objects are
-  not supported"); PR #258.
-- **2026-09-16 evidence refresh:** the exact cited string ("solve before
-  stages across objects are not supported") no longer exists anywhere in
-  `vvp/vvp_z3.cc` on current `main` — grepped directly, zero hits. Built a
-  fresh cross-object `solve child.a before b;` reducer (a `Parent` class
-  holding a `rand Child child` handle, ordering the child's property before
-  the parent's own) against a current `main`-tip build: it does **not**
-  hard-reject. It compiles with a loud, honest warning ("Constraint item in
-  'order_c' of class Parent is not representable in the constraint solver
-  and is ignored") — the ordering *directive* itself is dropped, not the
-  constraint system — and `randomize()` still succeeds, with the
-  *underlying value constraints* (including a shape where `b`'s legal
-  range structurally depends on `child.a`, i.e. staging-dependent, not
-  just a flat equality) correctly satisfied every time (20/20 iterations,
-  both a plain-equality and a range-depends-on-child.a shape checked).
-  **This is a materially different state than the row's original
-  "explicitly rejects" framing** — satisfiability is preserved via the
-  general joint solver even without honoring the specific staging.
-- **NOT verified, and NOT claimed closed:** this row's actual closure bar
-  is distribution correctness — "small-domain staged distributions with
-  correct marginal/conditional probabilities" — not mere satisfiability.
-  A single-sample (or 20-sample) correctness check proves the joint
-  system is *solvable* consistently with the value constraints; it says
-  nothing about whether the *probability distribution* of the solutions
-  matches what §18.5.10 staged solving would produce (e.g. `child.a`
-  drawn uniformly first, then `b` uniformly from the resulting legal
-  range, vs. some other joint distribution a SAT-based simultaneous
-  solve might produce instead). That needs a statistical-sampling
-  reducer (many thousands of draws, checked against a hand-computed
-  expected distribution), which this pass did not attempt.
-- **What it blocks:** Any DV workload relying on cross-object
-  `solve ... before` for *distribution* correctness specifically (not
-  blocking plain satisfiability, which already works per the refresh
-  above) — recorded as a shared xbar/runtime frontier in the same
-  session log as U01.
-- **Closure requirements (unchanged):** Small-domain staged distributions
-  with correct marginal/conditional probabilities and graph rollback on
-  failure; explicit rejection (or correct staged solving) preserved for
-  shapes still out of scope.
-- **Last verified revision:** b9de0be7f (stale). Z01A resolves bounded
-  canonical integral stages locally (unmerged as of that note; unclear
-  whether the warn-and-drop-directive-then-jointly-solve behavior found
-  in the 2026-09-16 refresh above is Z01A's actual merged effect or a
-  separate, later change — not traced further this pass). Ordered
-  dist/randc and non-scalar/large-domain cases remain explicitly open per
-  that same note.
-- **Next step for whoever picks this up:** do not re-derive from the old
-  "explicitly rejects" framing — start from the 2026-09-16 refresh above.
-  Either (a) build the statistical-sampling reducer to settle distribution
-  correctness, or (b) if distribution correctness turns out fine too,
-  re-scope this row down to just the explicitly-still-open dist/randc/
-  large-domain cases and close the plain cross-object scalar-ordering
-  case formally with its own regression.
+- **State:** PARTIAL. The earlier stale claim of full rejection is superseded
+  by the bounded result below; the selected nested scalar-property case now
+  has statistical evidence.
+- **Confidence:** REPRODUCED.
+- **Evidence / reproducer:** `solve child.a before b;` in
+  `sv_constraint_cross_object_solve_before.v`. With `b` allowed two values
+  when `child.a==0` and four when it is 1, the standard staged distribution
+  gives about 500 observations per first group tuple and 250 per second-group
+  tuple over 2,000 draws. The paired strict 2017/2023 test enforces those
+  bounds and checks that an unsatisfiable call leaves both random values
+  unchanged. It passes through both registered harnesses.
+- **Root cause / fix:** The frontend already lowered `child.a` to an `r:`
+  object-property path, and the VVP solver can resolve an active random leaf
+  to its canonical object-graph variable. The solve-before operand allowlist
+  rejected `r:` paths, so the ordering directive was dropped and class
+  constraint capture failed. The frontend now accepts this path and applies
+  the existing random-property and randc legality checks.
+- **What it blocks:** Distribution-sensitive parent/child randomization in
+  this bounded scalar form was previously unusable. Other legal nested
+  ordering shapes, ordered `dist`, randc, aggregate stages, and domains beyond
+  existing exact-work limits remain open.
+- **Closure requirements:** Qualify more nested scalar forms and exact
+  marginals/conditional probabilities, retain rollback, and keep unsupported
+  shapes loud rather than silently dropping an ordering directive.
+- **Last verified revision:** Fix 28 candidate on
+  `agent/ieee-cross-object-solve-before-20261007`; focused evidence is in
+  [`cross-object-solve-before-20261007.md`](../../evidence/solve-before-array/cross-object-solve-before-20261007.md).
+
+### RANDOMIZE-NESTED-UNPACKED-STRUCT-MEMBER — constrain nested random struct leaves
+
+- **Area / edition:** Randomization / IEEE 1800-2017 and 1800-2023 §18.4, §18.5.
+- **State:** DONE locally; strict paired 2017/2023 and adjacent focused gates pass.
+- **Requirement:** A `rand` unpacked structure randomizes its declared random members concurrently, including members reached through a nested unpacked-structure path. A class constraint on `record.nested.scalar` must constrain that leaf, not reject the outer member or lose its solver identity.
+- **Evidence / reproducer:** `ivtest/ivltests/sv_constraint_nested_unpacked_struct.sv` checks `root.nested.leaf.value`, enum membership, nested `randc`, state reads, rollback, and successful resumption. The baseline at `04093c40e` emitted the prior unsupported-path diagnostic in both editions. Final evidence and source-built image hashes are in [the qualification record](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
+- **Root cause:** Frontend constraint IR lowering accepted a direct struct leaf and selected elements of one-dimensional member arrays, but did not lower nested unpacked-struct paths. The runtime already traversed class properties and unpacked-struct members; the fix routes this case through that existing path representation.
+- **Closure:** Finite nested paths to scalar integral/enum leaves now preserve active `rand`/`randc` qualification, canonical solver-variable identity, state reads, writeback, and transactional failure rollback. The fixed indexed outer-struct scalar-leaf slice is tracked separately below; symbolic outer indices, array/container-valued leaves, class-handle members, and unrelated ordering/distribution semantics remain separate gaps.
+- **Last verified revision:** Source-built ARM64 image recorded in the [qualification record](../../evidence/nested-unpacked-struct-constraint-20261007/README.md); strict new-case legacy and JSON/VVP lists pass 2/2 each, adjacent class/struct lists pass 15/15 and 14/14.
+
+### RANDOMIZE-INDEXED-OUTER-UNPACKED-STRUCT-MEMBER — constrain indexed struct-array leaves
+
+- **Area / edition:** Randomization / IEEE 1800-2017 and 1800-2023 §§18.4, 18.5.
+- **State:** DONE locally for constant, foreach-unrolled, and tested symbolic selectors into fixed arrays; broader IEEE support remains active.
+- **Requirement:** A constraint must retain the identity of a scalar integral or enum leaf selected through a fixed array of unpacked structures, including nested unpacked-struct members and a randomized selector.
+- **Evidence / reproducer:** `ivtest/ivltests/sv_constraint_indexed_outer_struct.sv` checks a descending one-dimensional array, a two-dimensional array, nested struct leaves, non-random state reads, failed-solve rollback, a symbolic selector, and an unselected X state leaf. Constant-selector history is in the [Fix 36 qualification record](../../evidence/indexed-outer-struct-constraint-20261007/README.md); Fix 37 commands and hashes are in the [symbolic-selector record](../../evidence/symbolic-indexed-outer-struct-constraint-20261007/README.md).
+- **Root cause and fix:** Frontend lowering rejected indexed outer unpacked-struct paths. Constant and foreach-unrolled indices resolve to storage-order words. Symbolic selectors over fixed arrays of at most 65,536 words lower to guarded choices over each scalar leaf, with signed mathematical-index comparisons; VVP resolves each guarded state read through the existing randomization graph. X/Z checks remain conditional on the selected branch.
+- **What this unblocks:** Common constrained-random record arrays whose scalar fields depend on state or other randomized fields.
+- **Boundary:** Dynamic/queue/associative containers, aggregate leaves, class-handle members, arrays beyond the 65,536-word expansion bound, and wide coupled-domain sampling remain unqualified. This increment does not close clause 18 or the full IEEE 1800 objective.
+- **Validation:** Both strict editions pass 2/2 in legacy and JSON/VVP focus lists, including an active 2-bit randomized selector and a selected state leaf beside an unselected X leaf. The adjacent nested-struct regression passes 2/2 in both harnesses and editions. Build and install succeed; no broad suite or OpenTitan corpus was run.
+- **Last verified revision:** Fix 37 on `agent/ieee-cross-object-solve-before-20261007`; image hashes are in the [Fix 37 qualification record](../../evidence/symbolic-indexed-outer-struct-constraint-20261007/README.md).
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
@@ -4187,3 +4178,43 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Original root cause:** `elab_expr.cc` omitted `map` from receiver dispatch and result type inference; the iterator context lacked the 2023 custom index-method name; `tgt-vvp/eval_object.c` lacked map lowering. The current implementation reuses the existing iterator and VVP container paths.
 - **Source:** The local IEEE 1800-2023 §7.12.4–7.12.5 and 2017 §7.12 text were reviewed directly. The original paired RED is preserved in the qualification record as baseline history.
 - **Scope:** `elab_expr.cc`, the required VVP lowering/runtime path, focused paired regression entries, `.ai/ACTIVE_WORK.yaml`, and bounded evidence. No OpenTitan or Caliptra source changes and no broad corpus run.
+
+### SV23-DIST-DEFAULT-WEIGHT — 2023 `dist default :/` item
+
+- **State:** Implemented and locally qualified as Fix 29; add to the existing draft PR #407. The larger IEEE 1800-2017/2023 objective remains active.
+- **Standard:** IEEE 1800-2023 §18.5.3 adds `default :/ expression`. The item is a single aggregate-weight bucket for the complement of all explicit bins. IEEE 1800-2017 §18.5.4 does not include this syntax.
+- **Implementation:** The parser tags the default item, elaboration edition-gates it and rejects duplicate defaults, and VVP computes the complement after collecting every explicit membership predicate. Explicit bins remain weighted items, including overlaps; zero-weight explicit bins still exclude their values from the default bucket. The default bucket uses the existing exact weighted sampler.
+- **Validation:** Strict JSON/VVP and legacy focused lists pass 5/5 each, including strict 2017 rejection, required `:/`, malformed and duplicate forms, weighted sampling, overlap, zero-weight exclusion, and hard-constraint failure. Existing large exact-dist neighbor lists pass 14/14 each. No broad corpus or OpenTitan run was needed. See [qualification evidence](../../evidence/dist-default-2023-20261007/README.md).
+- **Boundary:** This qualifies the tested 2023 addition only. Other endpoint/weight expressions and interactions remain unqualified; clause 18 remains partial.
+
+### ASSOC-FIND-FIRST-INDEX — associative `find_first_index()`
+
+- **State:** Implemented and locally qualified as Fix 30; add to the existing draft PR #407. This is a bounded §7.12.1 implementation increment, not full clause-7 closure.
+- **Standard:** IEEE 1800-2017/2023 §7.12.1 applies locator methods to unpacked arrays. Index locators return the associative array's declared key type, and first/last on an associative array follow its key type's ordering. Wildcard-index associative arrays are excluded.
+- **Failure and fix:** The valid `find_first_index() with (...)` call on a non-wildcard associative array emitted a compile-time “not yet implemented” diagnostic in both editions. The frontend now routes it through the existing keyed locator payload; VVP appends the actual matching key and exits at the first match.
+- **Validation:** Strict JSON/VVP and legacy focused lists each pass 6/6. Coverage includes signed integer and string keys, multiple matches, empty/no-match results, existing `find_index` checks, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-first-index-20261007/README.md).
+- **Boundary:** This supports integral and string key types accepted by the existing associative `find_index` path. Other associative locator methods and unsupported index-key types remain open.
+
+### ASSOC-FIND-LAST-INDEX — associative `find_last_index()`
+
+- **State:** Implemented and locally qualified as Fix 31; add to the existing draft PR #407. This is a bounded §7.12.1 increment, not full clause-7 closure.
+- **Standard:** IEEE 1800-2017/2023 §7.12.1 requires the last matching associative key in the array's key ordering, with the declared index type in the result queue. Wildcard-index associative arrays are excluded.
+- **Failure and fix:** Before the change, valid calls were rejected in both editions. The frontend now uses the existing typed keyed-locator path; VVP begins at the last key, walks predecessors, and stops at the first predicate match in reverse order.
+- **Validation:** Strict JSON/VVP and legacy focused lists each pass 8/8. Coverage includes multiple matches, signed integer and string keys, empty/no-match results, existing associative `find_index`/`find_first_index` controls, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md).
+- **Boundary:** Integral and string associative key types supported by the existing keyed path are covered. Other associative locator methods and unsupported key types remain open.
+
+### SV23-RAND-REAL — IEEE 1800-2023 scalar real randomization
+
+- **State:** Implemented and locally qualified as Fix 34. Add it to the existing draft PR #407; the broader IEEE 1800 goal remains active.
+- **Standard:** IEEE 1800-2023 §18.4 permits scalar class `rand real`; §18.5.9 permits real solve-before operands and requires uniform real selection. IEEE 1800-2017 retains the strict rejection.
+- **Implementation:** The frontend edition-gates scalar real properties. Constraint lowering preserves binary64 literals and property values; the Z3 path handles real arithmetic/comparisons and finite interval membership, samples feasible binary64 candidates against the full hard solver, stages real solve-before values, and writes back only successful solves.
+- **Validation:** Strict JSON/VVP and legacy focused lists each pass 3/3: 2023 positive, 2017 negative, and 2023 `randc real` negative. The positive test checks bounds, a relational bit, solve-before, 2,048-draw equal-half frequency (1,004 lower-half draws), and failed-call rollback. Image hashes and commands are in [qualification evidence](../../evidence/rand-real-scalar-20261007/README.md).
+- **Boundary:** Only the finite scalar path is qualified. `randc real` is correctly rejected because `randc` is restricted to integral values; it is not a missing feature. `shortreal`, real arrays/aggregates, real `dist`, unbounded intervals, and joint class-graph real solving are outside this increment. Clause 18 remains partial.
+
+### SV23-ARRAY-INDEX-ARGUMENT — IEEE 1800-2023 array-method index argument
+
+- **State:** Implemented and locally qualified as Fix 35; add it to the existing draft PR #407. The broader IEEE 1800 goal remains active.
+- **Standard:** IEEE 1800-2023 §7.12 adds the optional `index_argument` name to array-method calls. It names the iterator's index-query alias; strict `-g2017` must reject it.
+- **Failure and fix:** The frontend accepted only the iterator argument for locator, reduction, min/max, and unique methods. The shared validator now accepts and edition-gates the second identifier, and iterator binding resolves it for ordinary and associative arrays. Class-element lookup preserves a real property such as `item.index` while resolving a distinct custom alias such as `item.position` to the array index.
+- **Validation:** Paired JSON/VVP and legacy focused lists pass 2/2, including class-member collision, associative string-key lookup, `sum`, `min`, `max`, and `unique_index`. Adjacent 2023 `map()` lists pass 4/4 in each harness. Build and install succeed. Exact commands and executable hashes are in [qualification evidence](../../evidence/array-index-argument-20261007/README.md); no broad suite or OpenTitan corpus was run.
+- **Boundary:** This qualifies the tested optional-name binding across the listed method families. Other array-method forms and full §7.12 qualification remain separate.

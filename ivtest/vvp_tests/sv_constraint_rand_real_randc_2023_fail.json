@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_constraint_rand_real_randc_2023_fail.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "sv_constraint_rand_real_randc_2023_fail"
+}

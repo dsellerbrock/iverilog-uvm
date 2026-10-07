@@ -2311,41 +2311,61 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << " type=" << *use_type << endl;
 	    }
 
-	      // real/shortreal, string, and chandle are not randomizable
-	      // leaves for either qualifier. Class handles and unpacked
-	      // structures, however, are legal recursive `rand` properties;
-	      // the narrower integral-leaf rule for `randc` is checked below.
+	      // 1800-2023 adds scalar `rand real`; 1800-2017 remains integral-only.
+	      // `randc` still requires integral leaves in both editions. Class
+	      // handles and unpacked structures are legal recursive `rand` forms.
 	      // `event` never reaches this loop because the parser diagnoses
 	      // its qualifier in the class-item rule.
 	    bool bad_type = false;
 	    if (cur->second.qual.test_rand() || cur->second.qual.test_randc()) {
-		  ivl_type_t elem_type = use_type;
+	      ivl_type_t elem_type = use_type;
 		  while (elem_type) {
 			const netarray_t*arr = dynamic_cast<const netarray_t*>(elem_type);
 			if (!arr) break;
 			elem_type = arr->element_type();
 		  }
-		  const char*what = 0;
-		  if (elem_type == &netreal_t::type_real
-		      || elem_type == &netreal_t::type_shortreal
-		      || (elem_type && elem_type->base_type() == IVL_VT_REAL)) {
-			bad_type = true; what = "real/shortreal";
+	      const char*what = 0;
+	      bool unsupported_real_shape = false;
+	      if (elem_type == &netreal_t::type_real
+		  || elem_type == &netreal_t::type_shortreal
+		  || (elem_type && elem_type->base_type() == IVL_VT_REAL)) {
+		    bool scalar_real_2023 = cur->second.qual.test_rand()
+			  && generation_flag >= GN_VER2023
+			  && elem_type == &netreal_t::type_real
+			  && use_type == elem_type;
+		    if (!scalar_real_2023) {
+			  bad_type = true;
+			  what = "real/shortreal";
+			  if (cur->second.qual.test_rand()
+			      && generation_flag >= GN_VER2023
+			      && !cur->second.qual.test_randc()) {
+				cerr << cur->second.get_fileline()
+				     << ": sorry: this rand real/shortreal shape is not "
+					"currently supported in IEEE 1800-2023 mode."
+				     << endl;
+				des->errors += 1;
+				unsupported_real_shape = true;
+			  }
+		    }
 		  } else if (elem_type == &netstring_t::type_string
 			     || (elem_type && elem_type->base_type() == IVL_VT_STRING)) {
 			bad_type = true; what = "string";
 		  } else if (elem_type == &netvector_t::chandle_type) {
 			bad_type = true; what = "chandle";
 		  }
-		  if (bad_type) {
+		  if (bad_type && !unsupported_real_shape) {
 			cerr << cur->second.get_fileline() << ": error: property '"
 			     << cur->first << "' of class " << get_name()
 			     << " is declared " << (cur->second.qual.test_randc() ? "randc" : "rand")
-			     << " but has type " << what << ", which is not an "
-			     << "integral type (IEEE 1800-2017 18.4 restricts "
-			     << "rand/randc to 2-state/4-state types, enums, and "
-			     << "aggregates thereof)." << endl;
-				des->errors += 1;
-			  }
+			     << " but has type " << what << ".";
+			if (cur->second.qual.test_randc())
+			      cerr << " IEEE 1800-2017/2023 18.4 restricts randc "
+				      "variables to integral values.";
+			else
+			      cerr << " IEEE 1800-2017 18.4 does not permit rand real.";
+			cerr << endl;
+			des->errors += 1;
+		  }
 	    }
 
 	      // A randc declaration denotes one cycle over an integral, enum,

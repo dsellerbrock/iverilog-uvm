@@ -1,0 +1,2 @@
+sv_constraint_nested_unpacked_struct normal,-g2017,-s,test ivltests gold=sv_constraint_nested_unpacked_struct.gold
+sv_constraint_nested_unpacked_struct_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_nested_unpacked_struct.gold

@@ -1,2 +1,2 @@
-./ivltests/sv_assoc_find_index_unsupported.v:4: sorry: find_first_index() on associative arrays is not yet implemented; associative-array locators require keyed iteration and exact index typing.
+./ivltests/sv_assoc_find_index_unsupported.v:5: sorry: find_first_index() on wildcard-index associative arrays is not yet implemented (IEEE 1800-2017/2023 7.12.1).
 Elaboration failed

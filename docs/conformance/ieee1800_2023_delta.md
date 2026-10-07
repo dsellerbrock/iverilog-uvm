@@ -11,6 +11,12 @@ Strict `-g2017` rejects the 2023 delimiter. See the
 [focused record](session_logs/2026-10-06_triple_quoted_strings.md); this does
 not claim full string-clause qualification.
 
+Fix 29 implements the 2023-only §18.5.3 `default :/ expression` distribution
+item and its complement semantics. The paired strict 2017/2023 regressions
+cover acceptance, rejection, weights, overlaps, and malformed forms; see the
+[qualification record](../../evidence/dist-default-2023-20261007/README.md).
+This closes the focused syntax/semantics gap, not clause 18.
+
 The 2023 clause-18 unbraced implication-before-`dist` candidate shares the
 [2017 parser scope and focused evidence](matrices/ieee1800_2017_clause_matrix.md#september-27-2026--implication-before-distribution).
 The distribution clause is 18.5.3 in this edition. The same direct and nested
@@ -133,7 +139,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 4 | Restricted type parameters (`type enum/struct/class`) | CERTAIN | UNSUPPORTED | S–M |
 | 5 | `type(this)` self-type | CERTAIN | UNSUPPORTED | M |
 | 6 | Soft packed unions (`union soft`) | CERTAIN | UNSUPPORTED (hard packed unions work) | M |
-| 7 | Named index iterator in array locator methods | CERTAIN | grammar accepts, binding missing ("Unable to bind `myidx`") | S |
+| 7 | Named `index_argument` for array methods | CERTAIN | RESOLVED 2026-10-07 for focused locator, reduction, min/max, unique, and associative-key cases; see [Fix 35](BLOCKERS.md#sv23-array-index-argument) | S |
 | 8 | Array `map()` method (7.12.5) | CERTAIN | UNSUPPORTED but scaffolded — fails at elaboration on the shared `.method(iter) with` dispatcher, not at parse | S |
 | 9 | Class `:final` specifier | CERTAIN | UNSUPPORTED | S |
 | 10 | Constructor `default` argument keyword | CERTAIN | UNSUPPORTED | M |
@@ -145,7 +151,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 16 | `$stacktrace` standardized (task + string function) | CERTAIN | task form ALREADY IMPLEMENTED (R21, comment updated); string-function form open | doc + S |
 | 17 | Preprocessor boolean `` `ifdef (A && B) `` (syntax 22-5) | CERTAIN | UNSUPPORTED (parenthesized-boolean form) | M |
 | 18 | `weak_reference#(T)` | CERTAIN | UNSUPPORTED; needs GC/refcount hooks | L |
-| 19 | `rand real` | CERTAIN | rejected at the single 18.4 choke point (clean relax site); real-valued solving itself is the work | L |
+| 19 | `rand real` | CERTAIN | FOCUSED IMPLEMENTATION: scalar finite-interval constraints and real solve-before; broader real-solving shapes remain open (2026-10-07) | L |
 | 20 | Tolerance range operators `[a +/- b]`, `[a +%- b]` | CERTAIN | UNSUPPORTED by grammar inspection | S–M |
 | 21 | Relational/equality results formally sized 1-bit | CERTAIN (clarification) | already conformant ($bits probes = 1) | N/A |
 
@@ -257,7 +263,8 @@ original survey ordering, not to postpone first-class 2023 work.
 1. `$stacktrace` task-form documentation was aligned at the R21 checkpoint;
    the 2023 string-function form remains open
 2. Array `map()` (elaboration-only on the existing dispatcher)
-3. `dist default :/`
+3. `dist default :/` (implemented and locally qualified in Fix 29; see the
+   focused evidence linked above)
 4. Named locator index binding
 5. Triple-quoted strings (pure lexer)
 6. `ref static` (scheduler-adjacent; fits the M6B NBA expertise)

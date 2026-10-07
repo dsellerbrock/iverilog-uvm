@@ -4943,6 +4943,13 @@ static inline unsigned randomize_rand_(vvp_cobject*cobj)
       return (unsigned)cobj->rng_next();
 }
 
+static double randomize_rand_real_(const std::function<unsigned()>&next_random)
+{
+      uint64_t sample = ((uint64_t)next_random() << 21)
+	    | (uint64_t)(next_random() & 0x1fffff);
+      return (double)sample / 9007199254740992.0;
+}
+
 /* Pick and stage one unconstrained randc leaf. Keep the scalar draw pattern
  * byte-for-byte compatible with the existing implementation while extending
  * the history key to fixed-array leaves. */
@@ -5728,6 +5735,10 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 				    defn->static_randomize_transaction_mark_dirty(pid, 0);
 			}
 		  }
+		  continue;
+	    }
+	    if (bt == "r") {
+		  cobj->set_real(pid, randomize_rand_real_(next_random));
 		  continue;
 	    }
 
