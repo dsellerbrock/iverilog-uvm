@@ -2,6 +2,13 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 32 qualified locally:** explicit `disable iff` now aborts supported
+multi-boundary fixed-chain properties asynchronously across every clock
+domain. The paired regression proves inter-clock cancellation, held-reset
+gating, and resumed checking after release. Strict multiclock-control focus
+lists pass 22/22 in JSON/VVP and 22/22 in legacy. The broader SVA clause stays
+partial. See the [qualification evidence](../../evidence/sva-disable-multiclock-chain-20261007/README.md).
+
 **Fix 31 qualified locally:** associative `find_last_index()` walks from the
 last actual key backward and returns the first matching key in traversal
 order, in a fresh queue with the declared key type. Strict paired JSON/VVP and

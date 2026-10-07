@@ -21657,10 +21657,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
    LAST domain (M) computes a real pass verdict / cover count -- the
    existing final-domain logic, unchanged in shape.
 
-   Excluded (loud sorry, not silently narrowed): `disable iff' composed
-   with more than one clock-flow change (the single-boundary lowering
-   above keeps supporting it), and a variable-length window anywhere but
-   the LAST segment (already excluded there too). */
+   A `disable iff' condition applies asynchronously to the entire chain;
+   each clock domain guards its level and a shared abort process clears
+   every in-flight stage when the condition rises. A variable-length window
+   anywhere but the LAST segment remains excluded. */
 static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 						   sva_property_t*prop,
 						   Statement*fail_stmt,
@@ -21686,11 +21686,6 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    why = "a multiclocked sequence with an empty first-clock prefix";
       else if (!plain && (!prop->antecedent || prop->antecedent->empty()))
 	    why = "a multiclocked implication with an empty antecedent";
-      else if (prop->disable_iff_expr)
-	    why = "`disable iff' composed with more than one clock-flow "
-		  "change in the same sequence (IEEE 1800-2017 16.13.1); "
-		  "the single clock-flow-boundary form supports "
-		  "`disable iff'";
 
       for (size_t i = 0 ; !why && i < prop->mc_more->size() ; i += 1) {
 	    const sva_mc_seg_t&seg = (*prop->mc_more)[i];
@@ -21767,7 +21762,25 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    }
       }
 
+	/* `disable iff' is an asynchronous abort for the whole property. Keep
+	   one level expression per clock process and validate every copy before
+	   consuming the source property. */
+      PExpr*disable = prop->disable_iff_expr;
+      std::vector<PExpr*> disable_domain(M + 1, nullptr);
+      if (!why && disable) {
+	    for (size_t d = 0 ; d <= M ; d += 1) {
+		  disable_domain[d] = sva_clone_expr_(disable);
+		  if (!disable_domain[d]) {
+			why = "a `disable iff' condition that cannot be copied "
+			      "into every clock domain";
+			break;
+		  }
+	    }
+      }
+
       if (why) {
+	    for (size_t d = 0 ; d < disable_domain.size() ; d += 1)
+		  delete disable_domain[d];
 	    cerr << loc << ": sorry: " << why << " is not supported "
 		 << "(IEEE 1800-2017 16.13); the assertion is dropped."
 		 << endl;
@@ -21776,6 +21789,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    pform_sva_destroy_property(prop);
 	    return;
       }
+
+      prop->disable_iff_expr = nullptr;
 
       unsigned inst = sva_gensym_counter++;
       auto dreg = [&](const char*base, size_t d, unsigned idx,
@@ -21852,6 +21867,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 
       size_t Ta = a_slots.size();
       size_t Tp = p_slots.size();
+      std::vector<perm_string> domain_fail(M + 1);
 
       std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
@@ -22119,6 +22135,14 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  loc, req_epoch[1], sva_kill_generation_expr_(loc, inst)));
 	    return sva_block_(loc, clear);
       };
+	if (disable_domain[0]) {
+	    std::vector<Statement*> gated;
+	    gated.push_back(sva_if_(loc, disable_domain[0],
+				    clear_domain0_state(),
+				    sva_block_(loc, body0)));
+	    body0.swap(gated);
+	    disable_domain[0] = nullptr;
+	}
       {
 	    std::vector<Statement*> full0 = mc_pre0;
 	    full0.push_back(sva_kill_reset_stmt_(
@@ -22143,6 +22167,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    std::vector<Statement*> bodyd;
 
 	    perm_string ffail = dreg("mcbf", d, 0);
+	    domain_fail[d] = ffail;
 	    auto clear_domaind = [&]() -> Statement* {
 		  std::vector<Statement*> clear;
 		  clear.push_back(sva_assign_(loc, ack[d],
@@ -22321,8 +22346,14 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  'E', sva_id_(loc, epoch_snapshot[d]),
 		  sva_kill_generation_expr_(loc, inst));
 	    FILE_NAME(epoch_current, loc);
-	    bodyd.push_back(sva_if_(loc, epoch_current,
-		  sva_block_(loc, epoch_body), nullptr));
+	    Statement*advance = sva_if_(loc, epoch_current,
+		  sva_block_(loc, epoch_body), nullptr);
+	    if (disable_domain[d]) {
+		  advance = sva_if_(loc, disable_domain[d],
+				    clear_domaind(), advance);
+		  disable_domain[d] = nullptr;
+	    }
+	    bodyd.push_back(advance);
 
 	    std::vector<Statement*> fulld = mc_pre[d];
 	    fulld.insert(fulld.end(), bodyd.begin(), bodyd.end());
@@ -22337,6 +22368,58 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    dom_clk[d]->set_statement(bodyblk);
 	    PProcess*pd = pform_make_behavior(IVL_PR_ALWAYS, dom_clk[d], nullptr);
 	    FILE_NAME(pd, loc);
+      }
+
+	/* A disable pulse may occur between any pair of domain clocks. Clear
+	   every handoff and pending verdict at that instant so no old attempt
+	   can reappear when a downstream clock resumes. Cumulative cover hits
+	   are intentionally retained. */
+      if (disable) {
+	    std::vector<Statement*> clear;
+	    for (size_t k = 1 ; k < Ta ; k += 1)
+		  clear.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
+	    for (size_t k = 1 ; k < Tp ; k += 1)
+		  clear.push_back(sva_assign_(loc, pp[k], sva_bit_(loc, 0)));
+	    if (pstart != perm_string())
+		  clear.push_back(sva_assign_(loc, pstart, sva_bit_(loc, 0)));
+	    for (size_t d = 1 ; d <= M ; d += 1) {
+		  clear.push_back(sva_assign_(loc, req_in[d], sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, ack[d], sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, due[d], sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, req_epoch[d],
+					 sva_kill_generation_expr_(loc, inst)));
+		  clear.push_back(sva_assign_(loc, req_snapshot[d],
+					 sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, epoch_snapshot[d],
+					 sva_kill_generation_expr_(loc, inst)));
+		  clear.push_back(sva_assign_(loc, domain_fail[d],
+					 sva_num32_(loc, 0)));
+		  for (size_t k = 1 ; k < Tw[d] ; k += 1)
+			clear.push_back(sva_assign_(loc, tb[d][k],
+						     sva_num32_(loc, 0)));
+	    }
+	    if (!cover) {
+		  perm_string counters[] = {
+			pv_req, pn_req, pv_ack, pn_ack, pv_due, pn_due
+		  };
+		  for (size_t k = 0 ; k < sizeof counters / sizeof counters[0];
+		       k += 1)
+			clear.push_back(sva_assign_(loc, counters[k],
+						    sva_num32_(loc, 0)));
+		  if (Tp) {
+			clear.push_back(sva_assign_(loc, fp_req, sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, fp_ack, sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, fp_due, sva_num32_(loc, 0)));
+		  }
+		  for (size_t d = 1 ; d <= M ; d += 1) {
+			clear.push_back(sva_assign_(loc, ffreq[d], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, ffack[d], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, ffdue[d], sva_num32_(loc, 0)));
+		  }
+	    }
+	    sva_disable_abort_(loc, disable, sva_block_(loc, clear));
+	    delete disable;
+	    disable = nullptr;
       }
       prop->seq_clk_evt = nullptr;
       for (size_t i = 0 ; i < prop->mc_more->size() ; i += 1)
