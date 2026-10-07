@@ -23,6 +23,13 @@ weighted-`dist` combinations beyond these tested shapes remain unqualified.
 See the
 [regression evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-over-fixed-array-elements-fix-15).
 
+Dynamic arrays have a separate implicit size-before-`foreach` ordering
+(2017 §18.5.8.1; 2023 §18.5.7.1). A soft iterative constraint paired with two
+size-correlated `mode` solutions now verifies this staged distribution:
+`380,393,390,371,1466/3000` in both editions. The size-one mode is selected
+half the time, followed by its soft-forced single payload value. See the
+[paired evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-with-variable-dynamic-array-size-preserves-implicit-ordering-fix-16).
+
 ### September 27, 2026 — implication before distribution
 
 IEEE 1800-2017 §§18.5.4 and 18.5.6 allow an unbraced implication whose

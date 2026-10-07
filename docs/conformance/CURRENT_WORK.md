@@ -85,6 +85,13 @@ The three tuples violating at least one soft clause remain absent. Both
 registered suite sources compile with the added case; full suites remain
 deferred to the 10-fix checkpoint. See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-over-fixed-array-elements-fix-15).
 
+Fix 16 adds a soft `foreach` check for a dynamic array whose hard size is tied
+to another random variable. The LRM orders dynamic-array size constraints
+before iterative constraints (2017 §18.5.8.1; 2023 §18.5.7.1), so the two
+`(mode,size)` pairs are each selected half the time; payload values are then
+uniform within each size. Paired results are `380,393,390,371,1466/3000`.
+See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-with-variable-dynamic-array-size-preserves-implicit-ordering-fix-16).
+
 A separate 128-bit nested fixed-element diversity regression passes in both
 editions. It uses a warned fallback for an oversized ordinary component and
 does not extend the uniformity claim.

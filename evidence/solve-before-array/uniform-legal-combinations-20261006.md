@@ -520,3 +520,21 @@ absent in both runs. The permanent paired statistical check is in
 [`sv_randomize_global_uniform.v`](../../ivtest/ivltests/sv_randomize_global_uniform.v).
 Both registered suite sources compile in both editions. Full registered runs
 remain deferred to the pending 10-fix checkpoint.
+
+## Soft foreach with variable dynamic-array size preserves implicit ordering (fix 16)
+
+This paired reducer uses `rand bit mode`, `rand bit payload[]`, ties the size
+to `mode` (`mode == 1` gives one element; `mode == 0` gives two), and applies
+`foreach (payload[i]) soft (mode == 0 || payload[i] == 0)`. IEEE 1800-2017
+§18.5.8.1 and IEEE 1800-2023 §18.5.7.1 explicitly solve array-size
+constraints before the array's iterative `foreach` constraints. The first
+stage has two legal `(mode,size)` pairs, so each has probability 1/2. In the
+second stage, the size-two case has four equally likely payloads; the size-one
+case has only payload zero after its soft preference. Expected bins are
+therefore `1/8,1/8,1/8,1/8,1/2`, not five equal bins.
+
+With seed `20261008`, strict `-g2017` and `-g2023` both produce
+`380,393,390,371,1466/3000`. The paired permanent regression verifies the two
+sizes, the soft-forced size-one value, four conditional size-two bins, and the
+size-first marginal. Both registered suite sources compile in both editions;
+full suite runs remain deferred to the 10-fix checkpoint.

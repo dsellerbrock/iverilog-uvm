@@ -37,6 +37,14 @@ class soft_fixed_foreach_uniform;
     foreach (payload[i]) soft (mode == 0 || payload[i] == 0);
   }
 endclass
+class soft_dynamic_size_foreach_ordering;
+  rand bit mode;
+  rand bit payload[];
+  constraint size { if (mode) payload.size() == 1; else payload.size() == 2; }
+  constraint preference {
+    foreach (payload[i]) soft (mode == 0 || payload[i] == 0);
+  }
+endclass
 class dynamic_array_unordered;
   rand bit m;
   rand bit [7:0] q[];
@@ -272,6 +280,7 @@ module main;
   soft_link_uniform soft_uniform = new;
   soft_array_link_uniform soft_array_uniform = new;
   soft_fixed_foreach_uniform soft_fixed_foreach = new;
+  soft_dynamic_size_foreach_ordering soft_dynamic_size_foreach = new;
   dynamic_array_unordered dyn_unordered = new;
   dynamic_array_ordered dyn_ordered = new;
   variable_size_array_unordered variable_size = new;
@@ -303,6 +312,7 @@ module main;
   int soft_tuple_count[4];
   int soft_array_tuple_count[4];
   int soft_fixed_foreach_tuple_count[8];
+  int soft_dynamic_size_foreach_count[5];
   int variable_size_count[5];
   int variable_size_empty_count[11];
   int correlated_array_count[12];
@@ -691,6 +701,34 @@ module main;
       if (soft_fixed_foreach_tuple_count[i] != 0)
         $fatal(1, "soft foreach invalid tuple %0d occurred: %0d", i,
                soft_fixed_foreach_tuple_count[i]);
+
+    // Dynamic-array size constraints are solved before foreach constraints.
+    soft_dynamic_size_foreach.srandom(20261008);
+    repeat (3000) begin
+      if (!soft_dynamic_size_foreach.randomize())
+        $fatal(1, "soft foreach dynamic-size solve failed");
+      if (soft_dynamic_size_foreach.mode) begin
+        if (soft_dynamic_size_foreach.payload.size() != 1
+            || soft_dynamic_size_foreach.payload[0] != 0)
+          $fatal(1, "invalid size-one soft foreach result");
+        soft_dynamic_size_foreach_count[4]++;
+      end else begin
+        if (soft_dynamic_size_foreach.payload.size() != 2)
+          $fatal(1, "invalid size-two soft foreach result");
+        soft_dynamic_size_foreach_count[
+          {1'b0, soft_dynamic_size_foreach.payload[0],
+           soft_dynamic_size_foreach.payload[1]}]++;
+      end
+    end
+    for (int i = 0; i < 4; ++i)
+      if (soft_dynamic_size_foreach_count[i] < 280
+          || soft_dynamic_size_foreach_count[i] > 470)
+        $fatal(1, "size-first foreach tuple %0d is biased: %0d/3000", i,
+               soft_dynamic_size_foreach_count[i]);
+    if (soft_dynamic_size_foreach_count[4] < 1350
+        || soft_dynamic_size_foreach_count[4] > 1650)
+      $fatal(1, "size-first mode marginal is biased: %0d/3000",
+             soft_dynamic_size_foreach_count[4]);
 
     // A 65-bit variable has only five feasible values across the mode split.
     wide_uniform.srandom(211);
