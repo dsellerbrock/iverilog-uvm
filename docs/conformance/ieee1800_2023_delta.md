@@ -5,6 +5,13 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The procedural sampled-value semantics in §§16.5.1 and 16.9.3 share the
+[October 7, 2026 paired qualification](matrices/ieee1800_2017_clause_matrix.md#october-7-2026--procedural-past-preponed-sampling).
+The writer-first behavior passes in strict `-g2023` for inferred-edge,
+explicit-event, and default-clocking routes. The paired focus also verifies
+the automatic-local current-value rule and diagnoses unsupported
+clocking-input operands; broader clause-16 coverage remains open.
+
 IEEE 1800-2023 §5.9 triple-quoted strings now preserve embedded double quotes,
 raw newlines, and escaped-newline joining in multiline macro definitions.
 Strict `-g2017` rejects the 2023 delimiter. See the

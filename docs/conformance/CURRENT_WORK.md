@@ -2,6 +2,17 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**DD-104 locally qualified:** procedural `$past` history now captures static
+signals from Preponed across inferred-edge, explicit-event, and default-clock
+routes, including a writer-first same-edge blocking update. The simple
+automatic-local `$past` case retains its current-value rule. Focused legacy
+checks pass 5/5 rows and strict 2017/2023 JSON/VVP checks pass 10/10; these
+totals include the expected compile-error checks for unsupported clocking-input
+operands. Unsupported automatic forms fail closed. This is a bounded sampling
+fix, not clause-16 closure. See the
+[qualification evidence](../../evidence/procedural-past-preponed-20261007/README.md)
+and [debt record](DISCOVERED_DEBT.md#dd-104--procedural-past-history-captures-the-active-region-value-not-the-preponed-value).
+
 **Fix 37 locally qualified:** a randomized integral index can now select a
 scalar integral or enum leaf through a fixed array of unpacked structs. The
 paired test covers a 2-bit active-random selector and a state read with an

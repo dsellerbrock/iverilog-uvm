@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_sampled_value_default_clocking.v",
+  "iverilog-args": ["-g2017", "-s", "main"]
+}

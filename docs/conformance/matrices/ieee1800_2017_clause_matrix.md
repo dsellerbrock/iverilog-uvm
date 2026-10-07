@@ -5,6 +5,21 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 7, 2026 — procedural `$past` Preponed sampling
+
+IEEE 1800-2017 §§16.5.1 and 16.9.3 require static signal samples to use the
+Preponed value. The procedural sampler now captures supported static operands
+through the existing Preponed-read helper, so a same-edge Active blocking
+writer cannot change `$past` history based on process order. The paired
+writer-first reducer covers inferred-edge, explicit-event, and default-clocking
+routes. Together with an automatic-local current-value control and existing
+procedural sampled-value cases, the focus passes 5/5 legacy rows and 10/10
+strict JSON/VVP checks across 2017 and 2023; the totals include expected
+compile-error checks for unsupported clocking-input operands. Only simple
+direct automatic-local forms are qualified; unsupported shapes diagnose or
+fail elaboration. See the [DD-104 qualification record](../../../evidence/procedural-past-preponed-20261007/README.md).
+Clause 16 remains partial.
+
 ### October 7, 2026 — nested unpacked-struct constraint leaves
 
 IEEE 1800-2017/2023 §18.4 requires random members of a `rand` unpacked
