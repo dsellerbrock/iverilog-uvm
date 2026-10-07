@@ -2,6 +2,17 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 34 qualified locally:** strict `-g2023` now accepts scalar class
+`rand real` for the tested finite-interval constraint path, including real
+comparisons, `inside` bounds, solve-before staging ahead of an integral bit,
+and failed-call rollback. The 2023 positive, strict 2017 rejection, and
+`randc real` rejection pass 3/3 in both legacy and JSON/VVP focus lists.
+Unbounded or `dist` real solving, `shortreal`, real arrays/aggregate leaves,
+and joint class-graph real solving remain unsupported. This is a bounded
+increment, not closure of §18.4/§18.5.9. See the
+[qualification evidence](../../evidence/rand-real-scalar-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-rand-real).
+
 **Fix 33 qualified locally:** constraints on scalar integral/enum leaves now
 work through finite nested unpacked-struct member paths rooted at a randomized
 class property. The paired regression covers nested `rand`/`randc`, enum

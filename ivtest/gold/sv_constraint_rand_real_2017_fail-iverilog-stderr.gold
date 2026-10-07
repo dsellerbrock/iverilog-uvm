@@ -1,0 +1,2 @@
+ivltests/sv_constraint_rand_real_2017_fail.v:2: error: property 'value' of class real_random_2017 is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+1 error(s) during elaboration.

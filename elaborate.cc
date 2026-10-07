@@ -28883,6 +28883,8 @@ static string constraint_constant_ir_(const PEIdent*id,
 static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 {
       if (!ptype) return false;
+      if (!indexed && ptype == &netreal_t::type_real)
+	    return true;
       bool indexed_assoc = false;
       if (indexed) {
 	    const netuarray_t*ua = dynamic_cast<const netuarray_t*>(ptype);
@@ -34112,6 +34114,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  : string();
       }
 
+      if (const PEFNumber*num = dynamic_cast<const PEFNumber*>(expr)) {
+	    double value = num->value().as_double();
+	    uint64_t bits = 0;
+	    static_assert(sizeof(bits) == sizeof(value),
+		  "real constraint literals require binary64 storage");
+	    memcpy(&bits, &value, sizeof(bits));
+	    return "f:" + to_string(bits);
+      }
+
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    const verinum&v = num->value();
 	    unsigned bits = v.len();
@@ -35658,11 +35669,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      etype && etype->base_type() == IVL_VT_BOOL, dims, index_irs);
 		  }
 
-		  unsigned wid = packed_scalar ? ptype->packed_width() : 0;
+		  bool real_scalar = ptype == &netreal_t::type_real;
+		  unsigned wid = real_scalar ? 64
+			: packed_scalar ? ptype->packed_width() : 0;
 		  if (wid == 0) wid = 32;
 		    // Signed properties are marked so the solver uses
 		    // signed comparison semantics (IEEE 1800-2017 11.8.1).
-		  string sfx = (ptype && ptype->get_signed()) ? ":s" : "";
+		  string sfx = real_scalar ? ":r"
+			: (ptype && ptype->get_signed()) ? ":s" : "";
 		  return "p:" + to_string(idx) + ":" + to_string(wid) + sfx;
 	    }
 

@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_rand_real_randc_2023_fail.v:2: error: property 'value' of class real_randc_unsupported is declared randc but has type real/shortreal. IEEE 1800-2017/2023 18.4 restricts randc variables to integral values.
+1 error(s) during elaboration.

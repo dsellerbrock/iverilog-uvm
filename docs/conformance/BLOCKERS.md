@@ -4190,3 +4190,11 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Failure and fix:** Before the change, valid calls were rejected in both editions. The frontend now uses the existing typed keyed-locator path; VVP begins at the last key, walks predecessors, and stops at the first predicate match in reverse order.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 8/8. Coverage includes multiple matches, signed integer and string keys, empty/no-match results, existing associative `find_index`/`find_first_index` controls, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md).
 - **Boundary:** Integral and string associative key types supported by the existing keyed path are covered. Other associative locator methods and unsupported key types remain open.
+
+### SV23-RAND-REAL — IEEE 1800-2023 scalar real randomization
+
+- **State:** Implemented and locally qualified as Fix 34. Add it to the existing draft PR #407; the broader IEEE 1800 goal remains active.
+- **Standard:** IEEE 1800-2023 §18.4 permits scalar class `rand real`; §18.5.9 permits real solve-before operands and requires uniform real selection. IEEE 1800-2017 retains the strict rejection.
+- **Implementation:** The frontend edition-gates scalar real properties. Constraint lowering preserves binary64 literals and property values; the Z3 path handles real arithmetic/comparisons and finite interval membership, samples feasible binary64 candidates against the full hard solver, stages real solve-before values, and writes back only successful solves.
+- **Validation:** Strict JSON/VVP and legacy focused lists each pass 3/3: 2023 positive, 2017 negative, and 2023 `randc real` negative. The positive test checks bounds, a relational bit, solve-before, 2,048-draw equal-half frequency (1,004 lower-half draws), and failed-call rollback. Image hashes and commands are in [qualification evidence](../../evidence/rand-real-scalar-20261007/README.md).
+- **Boundary:** Only the finite scalar path is qualified. `shortreal`, `randc real`, real arrays/aggregates, real `dist`, unbounded intervals, and joint class-graph real solving remain unsupported. Clause 18 remains partial.
