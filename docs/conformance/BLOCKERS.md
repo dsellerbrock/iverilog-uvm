@@ -626,67 +626,36 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   request/response traffic and zero outstanding transactions at end of test.
 - **Last verified revision:** `53b58890c` (P04): fresh smoke plus2repeats all complete115requests/230checked scoreboard items,4SEQPRTZMBwarnings,0errors/fatals and TEST FAILED CHECKS. All360exported source files match the prior replay. P04 fixes its independent live-parent kill reducer; it does not qualify U01. Pinned workload settings select UVM1.2, campaign library2020.3.1; no library edit or warning suppression. Evidence: `campaign-20260908/u01-after-p04`.
 
-### Z01 — Joint solve-before stages unsupported
+### Z01 — Joint solve-before stages partly supported
 
 - **Area / edition:** Randomization / edition-agnostic
-- **State:** OPEN, but **cited evidence is stale (updated 2026-09-16) —
-  re-scope before doing anything else with this row.**
-- **Confidence:** SOURCE (original), evidence refresh below is REPRODUCED.
-- **Original evidence / reproducer:** `vvp/vvp_z3.cc` explicitly rejects
-  `order_pairs` in the joint route ("solve before stages across objects are
-  not supported"); PR #258.
-- **2026-09-16 evidence refresh:** the exact cited string ("solve before
-  stages across objects are not supported") no longer exists anywhere in
-  `vvp/vvp_z3.cc` on current `main` — grepped directly, zero hits. Built a
-  fresh cross-object `solve child.a before b;` reducer (a `Parent` class
-  holding a `rand Child child` handle, ordering the child's property before
-  the parent's own) against a current `main`-tip build: it does **not**
-  hard-reject. It compiles with a loud, honest warning ("Constraint item in
-  'order_c' of class Parent is not representable in the constraint solver
-  and is ignored") — the ordering *directive* itself is dropped, not the
-  constraint system — and `randomize()` still succeeds, with the
-  *underlying value constraints* (including a shape where `b`'s legal
-  range structurally depends on `child.a`, i.e. staging-dependent, not
-  just a flat equality) correctly satisfied every time (20/20 iterations,
-  both a plain-equality and a range-depends-on-child.a shape checked).
-  **This is a materially different state than the row's original
-  "explicitly rejects" framing** — satisfiability is preserved via the
-  general joint solver even without honoring the specific staging.
-- **NOT verified, and NOT claimed closed:** this row's actual closure bar
-  is distribution correctness — "small-domain staged distributions with
-  correct marginal/conditional probabilities" — not mere satisfiability.
-  A single-sample (or 20-sample) correctness check proves the joint
-  system is *solvable* consistently with the value constraints; it says
-  nothing about whether the *probability distribution* of the solutions
-  matches what §18.5.10 staged solving would produce (e.g. `child.a`
-  drawn uniformly first, then `b` uniformly from the resulting legal
-  range, vs. some other joint distribution a SAT-based simultaneous
-  solve might produce instead). That needs a statistical-sampling
-  reducer (many thousands of draws, checked against a hand-computed
-  expected distribution), which this pass did not attempt.
-- **What it blocks:** Any DV workload relying on cross-object
-  `solve ... before` for *distribution* correctness specifically (not
-  blocking plain satisfiability, which already works per the refresh
-  above) — recorded as a shared xbar/runtime frontier in the same
-  session log as U01.
-- **Closure requirements (unchanged):** Small-domain staged distributions
-  with correct marginal/conditional probabilities and graph rollback on
-  failure; explicit rejection (or correct staged solving) preserved for
-  shapes still out of scope.
-- **Last verified revision:** b9de0be7f (stale). Z01A resolves bounded
-  canonical integral stages locally (unmerged as of that note; unclear
-  whether the warn-and-drop-directive-then-jointly-solve behavior found
-  in the 2026-09-16 refresh above is Z01A's actual merged effect or a
-  separate, later change — not traced further this pass). Ordered
-  dist/randc and non-scalar/large-domain cases remain explicitly open per
-  that same note.
-- **Next step for whoever picks this up:** do not re-derive from the old
-  "explicitly rejects" framing — start from the 2026-09-16 refresh above.
-  Either (a) build the statistical-sampling reducer to settle distribution
-  correctness, or (b) if distribution correctness turns out fine too,
-  re-scope this row down to just the explicitly-still-open dist/randc/
-  large-domain cases and close the plain cross-object scalar-ordering
-  case formally with its own regression.
+- **State:** PARTIAL. The earlier stale claim of full rejection is superseded
+  by the bounded result below; the selected nested scalar-property case now
+  has statistical evidence.
+- **Confidence:** REPRODUCED.
+- **Evidence / reproducer:** `solve child.a before b;` in
+  `sv_constraint_cross_object_solve_before.v`. With `b` allowed two values
+  when `child.a==0` and four when it is 1, the standard staged distribution
+  gives about 500 observations per first group tuple and 250 per second-group
+  tuple over 2,000 draws. The paired strict 2017/2023 test enforces those
+  bounds and checks that an unsatisfiable call leaves both random values
+  unchanged. It passes through both registered harnesses.
+- **Root cause / fix:** The frontend already lowered `child.a` to an `r:`
+  object-property path, and the VVP solver can resolve an active random leaf
+  to its canonical object-graph variable. The solve-before operand allowlist
+  rejected `r:` paths, so the ordering directive was dropped and class
+  constraint capture failed. The frontend now accepts this path and applies
+  the existing random-property and randc legality checks.
+- **What it blocks:** Distribution-sensitive parent/child randomization in
+  this bounded scalar form was previously unusable. Other legal nested
+  ordering shapes, ordered `dist`, randc, aggregate stages, and domains beyond
+  existing exact-work limits remain open.
+- **Closure requirements:** Qualify more nested scalar forms and exact
+  marginals/conditional probabilities, retain rollback, and keep unsupported
+  shapes loud rather than silently dropping an ordering directive.
+- **Last verified revision:** Fix 28 candidate on
+  `agent/ieee-cross-object-solve-before-20261007`; focused evidence is in
+  [`cross-object-solve-before-20261007.md`](../../evidence/solve-before-array/cross-object-solve-before-20261007.md).
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 

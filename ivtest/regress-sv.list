@@ -4750,6 +4750,8 @@ sv_constraint_caller_method_collision_2023 CE,-g2023,-s,top ivltests gold=sv_con
 # Whole fixed rand arrays in solve...before.
 sv_constraint_solve_before_fixed_array normal,-g2017,-s,top ivltests
 sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests
+sv_constraint_cross_object_solve_before normal,-g2017,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
+sv_constraint_cross_object_solve_before_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
 sv_constraint_solve_before_fixed_array_neg CE,-g2017,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
 sv_constraint_solve_before_fixed_array_neg_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
 sv_constraint_fixed_queue_leaf_order normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_order.gold

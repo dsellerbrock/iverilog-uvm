@@ -1,17 +1,22 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus
+## Current IEEE 1800 focus — 2026-10-07
 
-**Current selected blocker:** `ARRAY-MAP-2023`. `map()` now passes focused
-strict `-g2023` runtime cases for fixed, dynamic, queue, and associative
-arrays; strict `-g2017` rejects it. The paired map lists pass 4/4 each, and
-adjacent array-method checks pass on the same source-built image. Unpacked-
-array-valued `with` results are also tested for fixed, dynamic, queue, and
-associative receivers, including empty results and nested maps over the
-resulting rows. This closes the selected implementation gap at the bounded
-scope recorded in the [qualification evidence](../../evidence/array-map-2023-20261007/README.md);
-it does not claim every legal `map()` interaction or full array-method-clause
-conformance.
+**Current selected blocker:** `Z01 — cross-object solve-before distribution`.
+The `r:` class-property path is now admitted as an ordering operand when its
+terminal property is random, preserving the runtime object's canonical solver
+identity. A paired 2,000-draw test checks the staged 2+4 legal-tuple
+distribution and failed-solve rollback under strict 2017 and 2023. The
+registered JSON and legacy focus also runs the fixed-array and randc negative
+neighbors. This closes only the nested scalar-property case; broader
+`solve-before`, `dist`, randc, and large-domain solver shapes remain open.
+See the [focused evidence](../../evidence/solve-before-array/cross-object-solve-before-20261007.md)
+and [Z01 blocker](BLOCKERS.md#z01--joint-solve-before-stages-partly-supported).
+
+**Completed in fix 27:** `ARRAY-MAP-2023` passes the focused strict `-g2023`
+runtime cases for fixed, dynamic, queue, and associative arrays; strict
+`-g2017` rejects it. Unpacked-array-valued `with` results include empty inputs
+and nested maps. See the [qualification evidence](../../evidence/array-map-2023-20261007/README.md).
 
 **Uniform-solution checkpoint (2026-10-06):** the full registered paired
 2017/2023 uniformity suites pass on fix-26 VVP
@@ -234,7 +239,7 @@ this row as upstream-invalid. See the
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 
-## Current IEEE checkpoint — 2026-10-06
+## Uniformity checkpoint — 2026-10-06
 
 The selected blocker is unordered uniformity over legal constraint
 combinations. The current branch rejection-samples coupled scalar, referenced

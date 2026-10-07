@@ -8,7 +8,7 @@
  *   (ge  p:N:W  c:V)     -- prop[N] >= V
  *   (eq  p:N:W  c:V)     -- prop[N] == V
  *   (ne  p:N:W  c:V)     -- prop[N] != V
- *   r:I.J.K:W[:s]        -- integral state reached through object props I.J.K
+ *   r:I.J.K:W[:s]        -- integral object property; state or active rand graph ref
  *   x:I.J.P:W:E[:s]      -- fixed element E below object path I.J, property P
  *   (and expr expr)      -- logical AND
  *   (or  expr expr)      -- logical OR
@@ -2091,9 +2091,9 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       return var;
 }
 
-/* Parse r:I.J.K:W[:s]. Unlike p:N:W this is not a solver variable: it is
- * ordinary object state read through the live class-property chain at the
- * moment randomize() is called (IEEE 1800-2017 18.3). */
+/* Parse r:I.J.K:W[:s] through the live class-property chain at randomize().
+ * Without a captured random graph leaf this is state (IEEE 1800-2017 18.3);
+ * an active rand leaf resolves to its canonical graph variable. */
 static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 {
       const char*p = tok.c_str() + 2;

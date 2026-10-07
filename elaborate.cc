@@ -37279,6 +37279,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && s.compare(0, 2, "a:") != 0
 			    && s.compare(0, 2, "e:") != 0
 			    && s.compare(0, 2, "x:") != 0
+			    && s.compare(0, 2, "r:") != 0
 			    && s.compare(0, 2, "s:") != 0
 			    && s.compare(0, 7, "(delem ") != 0) {
 			      if (!gn_commercial_unsafe_flag) return "";
@@ -37358,6 +37359,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      }
 			}
 			if (s.compare(0, 2, "x:") == 0 && cls
+			    && !constraint_nested_element_is_random_(
+				  s.c_str() + 2, cls))
+			      constraint_order_nonrandom_error_(item);
+			if (s.compare(0, 2, "r:") == 0 && cls
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
 			      constraint_order_nonrandom_error_(item);
