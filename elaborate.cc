@@ -28933,7 +28933,8 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
  * the property/member indices in a runtime token; the Z3 backend walks the
  * live chain and resolves an active leaf to its canonical solver variable. */
 static string constraint_class_state_path_ir_(
-      const vector<perm_string>&names, const netclass_t*cls)
+      const vector<perm_string>&names, const netclass_t*cls,
+      bool indexed_outer = false, unsigned array_word = 0)
 {
       if (!cls || names.size() < 2) return "";
 
@@ -28948,6 +28949,16 @@ static string constraint_class_state_path_ir_(
 		  if (property < 0) return "";
 		  idx = (unsigned)property;
 		  cur_type = cur_cls->get_prop_type(idx);
+		  if (pos == 0 && indexed_outer) {
+			const netuarray_t*array =
+			      dynamic_cast<const netuarray_t*>(cur_type);
+			const netstruct_t*record = array && !array->packed()
+			      ? dynamic_cast<const netstruct_t*>(array->element_type())
+			      : nullptr;
+			if (!array || array->static_dimensions().empty() || !record
+			    || record->packed() || record->union_flag()) return "";
+			cur_type = record;
+		  }
 	    } else if (cur_struct && !cur_struct->packed()
 		       && !cur_struct->union_flag()) {
 		  idx = cur_struct->member_index(names[pos]);
@@ -28957,6 +28968,8 @@ static string constraint_class_state_path_ir_(
 		  return "";
 	    }
 	    path += (path.empty() ? "" : ".") + to_string(idx);
+	    if (pos == 0 && indexed_outer)
+		  path += "." + to_string(array_word);
 	    if (pos + 1 < names.size()) {
 		  cur_cls = dynamic_cast<const netclass_t*>(cur_type);
 		  cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
@@ -34765,6 +34778,29 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!comp->index.empty() && outer_element
 			    && !outer_element->packed()
 			    && outer_tail != id->path().name.end()) {
+			      const netuarray_t*fixed_outer =
+				    dynamic_cast<const netuarray_t*>(ptype);
+			      vector<perm_string> names;
+			      bool plain_path = true;
+			      for (pform_name_t::const_iterator part = comp;
+				   part != id->path().name.end(); ++part) {
+				    if (part != comp
+					&& (part->local_scope || !part->index.empty())) {
+					  plain_path = false;
+					  break;
+				    }
+				    names.push_back(part->name);
+			      }
+			      uint64_t word = 0;
+			      if (fixed_outer && plain_path
+				  && constraint_fixed_array_leaf_word_(fixed_outer,
+					comp->index, cls, value_slots, scope, loop_env,
+					word)
+				  && word <= UINT_MAX) {
+				    string state_path = constraint_class_state_path_ir_(
+					  names, target_owner, true, (unsigned)word);
+				    if (!state_path.empty()) return state_path;
+			      }
 			      cerr << id->get_fileline() << ": sorry: constraint "
 				   << "reference '" << comp->name << "[...]"
 				   << "." << outer_tail->name

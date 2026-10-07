@@ -2239,7 +2239,33 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       vvp_cobject*cur = b.cobj;
       string path_error;
       if (!path.empty()) {
-	    for (size_t i = 0 ; cur && i + 1 < path.size() ; i += 1) {
+	    size_t next = 0;
+	    const class_type*defn = cur ? cur->get_defn() : nullptr;
+	    if (defn && path[0] < defn->property_count()
+		&& !defn->property_dimensions(path[0]).empty()
+		&& defn->property_base_type(path[0]).compare(0, 3, "oc:") == 0) {
+		  /* Indexed fixed arrays of class-backed unpacked structs encode the
+		   * flattened element word between the owner property and its member
+		   * path. */
+		  if (path.size() < 3) {
+			path_error = "incomplete indexed constraint object path";
+		  } else {
+			vvp_object_t element;
+			if (constraint_object_property_(cur, path[0], element,
+			      path_error, path[1], false)) {
+			      cur = element.peek<vvp_cobject>();
+			      next = 2;
+			}
+		  }
+	    } else if (path.size() > 1) {
+		  vvp_object_t nested;
+		  if (constraint_object_property_(cur, path[0], nested,
+			      path_error, 0, false)) {
+			cur = nested.peek<vvp_cobject>();
+			next = 1;
+		  }
+	    }
+	    for (size_t i = next ; cur && i + 1 < path.size() ; i += 1) {
 		  vvp_object_t nested;
 		  if (!constraint_object_property_(cur, path[i], nested,
                                                     path_error, 0, false)) break;

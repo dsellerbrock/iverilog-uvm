@@ -2,6 +2,16 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 36 locally qualified:** constraints now resolve scalar integral and enum
+leaves through fixed indexed arrays of unpacked structs, including nested
+struct members and foreach-unrolled indices. The paired regression covers
+descending and multidimensional ranges, randomized leaves, state reads, and
+failed-solve rollback. Strict 2017 and 2023 legacy and JSON/VVP focus lists
+pass 2/2 each. This closes the tested fixed-index slice; symbolic indices,
+dynamic containers, and aggregate leaves remain open. See the
+[qualification evidence](../../evidence/indexed-outer-struct-constraint-20261007/README.md)
+and [blocker record](BLOCKERS.md#randomize-indexed-outer-unpacked-struct-member).
+
 **Fix 35 locally qualified:** strict `-g2023` now binds the optional array
 method `index_argument` across locator, reduction, min/max, and `unique_index`
 `with` expressions. This lets code use `item.index` for a real class member
@@ -28,8 +38,9 @@ work through finite nested unpacked-struct member paths rooted at a randomized
 class property. The paired regression covers nested `rand`/`randc`, enum
 membership, state-derived values, failed-solve rollback, and resumption. The
 strict new-case lists pass 2/2 in legacy and JSON/VVP; adjacent struct/class
-declaration lists pass 15/15 legacy and 14/14 JSON/VVP. Indexed outer structs
-and aggregate, array, or class-handle leaves remain open. See the
+declaration lists pass 15/15 legacy and 14/14 JSON/VVP. Fixed indexed scalar
+leaves are covered by Fix 36; symbolic selectors and aggregate, array, or
+class-handle leaves remain open. See the
 [qualification evidence](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
 
 **Fix 32 qualified locally:** explicit `disable iff` now aborts supported

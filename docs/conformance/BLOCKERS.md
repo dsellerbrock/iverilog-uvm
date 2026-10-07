@@ -664,8 +664,20 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **Requirement:** A `rand` unpacked structure randomizes its declared random members concurrently, including members reached through a nested unpacked-structure path. A class constraint on `record.nested.scalar` must constrain that leaf, not reject the outer member or lose its solver identity.
 - **Evidence / reproducer:** `ivtest/ivltests/sv_constraint_nested_unpacked_struct.sv` checks `root.nested.leaf.value`, enum membership, nested `randc`, state reads, rollback, and successful resumption. The baseline at `04093c40e` emitted the prior unsupported-path diagnostic in both editions. Final evidence and source-built image hashes are in [the qualification record](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
 - **Root cause:** Frontend constraint IR lowering accepted a direct struct leaf and selected elements of one-dimensional member arrays, but did not lower nested unpacked-struct paths. The runtime already traversed class properties and unpacked-struct members; the fix routes this case through that existing path representation.
-- **Closure:** Finite nested paths to scalar integral/enum leaves now preserve active `rand`/`randc` qualification, canonical solver-variable identity, state reads, writeback, and transactional failure rollback. Indexed outer structs, array/container-valued leaves, class-handle members, and unrelated ordering/distribution semantics remain separate gaps.
+- **Closure:** Finite nested paths to scalar integral/enum leaves now preserve active `rand`/`randc` qualification, canonical solver-variable identity, state reads, writeback, and transactional failure rollback. The fixed indexed outer-struct scalar-leaf slice is tracked separately below; symbolic outer indices, array/container-valued leaves, class-handle members, and unrelated ordering/distribution semantics remain separate gaps.
 - **Last verified revision:** Source-built ARM64 image recorded in the [qualification record](../../evidence/nested-unpacked-struct-constraint-20261007/README.md); strict new-case legacy and JSON/VVP lists pass 2/2 each, adjacent class/struct lists pass 15/15 and 14/14.
+
+### RANDOMIZE-INDEXED-OUTER-UNPACKED-STRUCT-MEMBER — constrain indexed struct-array leaves
+
+- **Area / edition:** Randomization / IEEE 1800-2017 and 1800-2023 §§18.4, 18.5.
+- **State:** DONE locally for fixed-array selectors resolved at elaboration, including foreach-unrolled indices; broader IEEE support remains active.
+- **Requirement:** A constraint must retain the identity of a scalar integral or enum leaf selected through an indexed fixed array of unpacked structures, including nested unpacked-struct members.
+- **Evidence / reproducer:** `ivtest/ivltests/sv_constraint_indexed_outer_struct.sv` checks a descending one-dimensional array, a two-dimensional array, nested struct leaves, non-random state reads, and failed-solve rollback. Exact commands and binary hashes are in [the qualification record](../../evidence/indexed-outer-struct-constraint-20261007/README.md).
+- **Root cause and fix:** Frontend lowering rejected every indexed outer unpacked-struct path. It now converts constant or foreach-unrolled fixed-array indices to storage-order words and appends that selection to the existing object/member state path. VVP resolves the selected struct object before interning its terminal member in the existing randomization graph.
+- **What this unblocks:** Common constrained-random record arrays whose scalar fields depend on state or other randomized fields.
+- **Boundary:** Symbolic random index expressions, dynamic/queue/associative containers, aggregate leaves, and class-handle members remain open. This increment does not close clause 18 or the full IEEE 1800 objective.
+- **Validation:** Both strict editions pass 2/2 in legacy and JSON/VVP focus lists. The adjacent nested-struct regression passes 2/2 in both harnesses and editions. Build and install succeed; no broad suite or OpenTitan corpus was run.
+- **Last verified revision:** Candidate under test on `agent/ieee-cross-object-solve-before-20261007`; image hashes are in the qualification record.
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
