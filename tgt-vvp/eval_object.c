@@ -1575,9 +1575,10 @@ static int draw_assoc_unique_expr_(ivl_expr_t expr, ivl_signal_t q_sig,
 
 /* Lower associative index locators by visiting actual keys. Positional queue
  * ordinals are not associative-array indices. */
-static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int first_only)
+static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int traversal)
 {
-      const char*kind = first_only ? "find_first_index" : "find_index";
+      const char*kind = traversal > 0 ? "find_first_index"
+	    : traversal < 0 ? "find_last_index" : "find_index";
       unsigned parm_count = ivl_expr_parms(expr);
       if (parm_count != 6 && parm_count != 7) {
 	    fprintf(stderr, "%s:%u: internal error: malformed associative "
@@ -1654,8 +1655,8 @@ static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int first_only)
       fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
       fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
       fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
-      fprintf(vvp_out, "    %%aa/first/sig/%s v%p_0, v%p_0;\n",
-	      key_kind, q_sig, key_sig);
+      fprintf(vvp_out, "    %%aa/%s/sig/%s v%p_0, v%p_0;\n",
+	      traversal < 0 ? "last" : "first", key_kind, q_sig, key_sig);
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 	      thread_count, lab_end, traversal_flag);
@@ -1668,12 +1669,12 @@ static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int first_only)
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 	      thread_count, lab_skip, pred_flag);
       errors += draw_unique_append_queue_(key_arg, result_sig, key_type);
-      if (first_only)
-	    fprintf(vvp_out, "    %%jmp T_%u.%u; first matching associative key\n",
+      if (traversal != 0)
+	    fprintf(vvp_out, "    %%jmp T_%u.%u; first matching key in traversal order\n",
 		    thread_count, lab_end);
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
-      fprintf(vvp_out, "    %%aa/next/sig/%s v%p_0, v%p_0;\n",
-	      key_kind, q_sig, key_sig);
+	  fprintf(vvp_out, "    %%aa/%s/sig/%s v%p_0, v%p_0;\n",
+	      traversal < 0 ? "prev" : "next", key_kind, q_sig, key_sig);
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
 	      thread_count, lab_top, traversal_flag);
@@ -3095,6 +3096,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 
       if (strcmp(name, "$ivl_queue_method$assoc_find_first_index") == 0)
 	    return draw_assoc_index_locator_expr_(expr, 1);
+
+      if (strcmp(name, "$ivl_queue_method$assoc_find_last_index") == 0)
+	    return draw_assoc_index_locator_expr_(expr, -1);
 
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;

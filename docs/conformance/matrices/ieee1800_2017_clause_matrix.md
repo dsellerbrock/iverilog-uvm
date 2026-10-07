@@ -5,6 +5,17 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 7, 2026 — associative `find_last_index()`
+
+IEEE 1800-2017/2023 §7.12.1 requires the last matching associative key in key
+ordering, returned with the declared key type. The implementation traverses
+from `last()` through predecessor keys and returns the first predicate match;
+empty and no-match inputs produce typed empty queues. Paired strict JSON/VVP
+and legacy checks pass 8/8 each, covering signed integral and string keys,
+existing locator neighbors, and wildcard-index rejection. Other associative
+locator methods remain open. See the
+[qualification record](../../../evidence/assoc-find-last-index-20261007/README.md).
+
 ### October 7, 2026 — associative `find_first_index()`
 
 IEEE 1800-2017/2023 §7.12.1 requires associative index locators to return

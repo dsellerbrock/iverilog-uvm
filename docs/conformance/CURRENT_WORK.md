@@ -2,6 +2,15 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 31 qualified locally:** associative `find_last_index()` walks from the
+last actual key backward and returns the first matching key in traversal
+order, in a fresh queue with the declared key type. Strict paired JSON/VVP and
+legacy lists each pass 8/8, including signed and string keys, empty/no-match
+cases, existing associative locator neighbors, and wildcard-index rejection.
+Other associative locator methods remain open. See the
+[qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md)
+and [blocker record](BLOCKERS.md#assoc-find-last-index).
+
 **Fix 30 qualified locally:** associative `find_first_index()` now visits the
 actual ordered keys and returns the first matching key in a fresh queue with
 the declared key type. Strict paired JSON/VVP and legacy lists each pass 6/6,

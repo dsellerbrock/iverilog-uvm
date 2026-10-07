@@ -4172,3 +4172,11 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Failure and fix:** The valid `find_first_index() with (...)` call on a non-wildcard associative array emitted a compile-time “not yet implemented” diagnostic in both editions. The frontend now routes it through the existing keyed locator payload; VVP appends the actual matching key and exits at the first match.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 6/6. Coverage includes signed integer and string keys, multiple matches, empty/no-match results, existing `find_index` checks, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-first-index-20261007/README.md).
 - **Boundary:** This supports integral and string key types accepted by the existing associative `find_index` path. Other associative locator methods and unsupported index-key types remain open.
+
+### ASSOC-FIND-LAST-INDEX — associative `find_last_index()`
+
+- **State:** Implemented and locally qualified as Fix 31; add to the existing draft PR #407. This is a bounded §7.12.1 increment, not full clause-7 closure.
+- **Standard:** IEEE 1800-2017/2023 §7.12.1 requires the last matching associative key in the array's key ordering, with the declared index type in the result queue. Wildcard-index associative arrays are excluded.
+- **Failure and fix:** Before the change, valid calls were rejected in both editions. The frontend now uses the existing typed keyed-locator path; VVP begins at the last key, walks predecessors, and stops at the first predicate match in reverse order.
+- **Validation:** Strict JSON/VVP and legacy focused lists each pass 8/8. Coverage includes multiple matches, signed integer and string keys, empty/no-match results, existing associative `find_index`/`find_first_index` controls, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md).
+- **Boundary:** Integral and string associative key types supported by the existing keyed path are covered. Other associative locator methods and unsupported key types remain open.

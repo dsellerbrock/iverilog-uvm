@@ -1604,7 +1604,8 @@ static NetExpr* make_queue_locator_with_expr_(
 		dynamic_cast<const netqueue_t*>(container_type)) {
 	    if (queue->assoc_compat()) {
 		  if (strcmp(kind, "find_index") == 0
-		      || strcmp(kind, "find_first_index") == 0)
+		      || strcmp(kind, "find_first_index") == 0
+		      || strcmp(kind, "find_last_index") == 0)
 			return make_assoc_index_locator_expr_(
 			      call, des, scope, queue_expr, queue, element_type,
 			      kind, parms);
