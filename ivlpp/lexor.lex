@@ -232,6 +232,7 @@ static int macro_expansion_limit_reported = 0;
 %x IFCCOMMENT
 %x PCOMENT
 %x CSTRING
+%x TRIPLESTRING
 %x ERROR_LINE
 
 %x IFDEF_NAME
@@ -310,6 +311,7 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 
  /* Strings do not contain preprocessor directives or macro expansions.
   */
+\"\"\"        { string_enter = YY_START; BEGIN(TRIPLESTRING); ECHO; }
 \"            { string_enter = YY_START; BEGIN(CSTRING); ECHO; }
 <CSTRING>\\\\ |
 <CSTRING>\\\" |
@@ -320,6 +322,15 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 <CSTRING>\r   { fputc('\n', yyout); }
 <CSTRING>\"   { BEGIN(string_enter);  ECHO; }
 <CSTRING>.    { ECHO; }
+<TRIPLESTRING>\\\\ |
+<TRIPLESTRING>\\\" |
+<TRIPLESTRING>\\\`  { ECHO; }
+<TRIPLESTRING>\r\n |
+<TRIPLESTRING>\n\r |
+<TRIPLESTRING>\n   |
+<TRIPLESTRING>\r   { istack->lineno += 1; fputc('\n', yyout); }
+<TRIPLESTRING>\"\"\" { BEGIN(string_enter); ECHO; }
+<TRIPLESTRING>.    { ECHO; }
 
  /* This set of patterns matches the include directive and the name
   * that follows it. when the directive ends, the do_include function
@@ -1069,6 +1080,7 @@ static size_t define_cnt = 0;
 static int define_continue_flag = 0;
 static int define_comment_flag = 0;
 static int define_string_flag = 0;
+static int define_triple_string_flag = 0;
 static int define_invalid_flag = 0;
 
 /*
@@ -1114,6 +1126,7 @@ static void def_start(void)
     define_continue_flag = 0;
     define_comment_flag = 0;
     define_string_flag = 0;
+    define_triple_string_flag = 0;
     define_invalid_flag = 0;
 
     def_buf_free = def_buf_size;
@@ -1310,24 +1323,29 @@ static int is_id_char(char c)
     return isalnum((int)c) || c == '_' || c == '$';
 }
 
-/* Find an argument token in macro text. Ordinary string literals and
- * escaped identifiers are indivisible tokens, so a formal name within one
- * is not substituted. Macro quote operators deliberately leave the
- * surrounding text visible: that is how `"formal`" requests substitution
- * while constructing a string literal. */
+/* Find an argument token in macro text. String literals, including
+ * triple-quoted strings, and escaped identifiers are indivisible tokens,
+ * so a formal name within one is not substituted. Macro quote operators
+ * deliberately leave the surrounding text visible: that is how
+ * `"formal`" requests substitution while constructing a string literal. */
 static char *find_arg(char*ptr, const char*head, const char*arg)
 {
     char *cp = (char*)head;
     size_t len = strlen(arg);
     int in_string = 0;
+    int in_triple_string = 0;
     int escaped_identifier = 0;
 
     while (*cp) {
 	if (in_string) {
 	    if ((cp[0] == '\\') && cp[1]) {
 		cp += 2;
+	    } else if (in_triple_string && strncmp(cp, "\"\"\"", 3) == 0) {
+		in_string = 0;
+		in_triple_string = 0;
+		cp += 3;
 	    } else {
-		if (*cp == '"') in_string = 0;
+		if (!in_triple_string && *cp == '"') in_string = 0;
 		cp += 1;
 	    }
 	    continue;
@@ -1355,6 +1373,12 @@ static char *find_arg(char*ptr, const char*head, const char*arg)
 	}
 	if ((cp[0] == '`') && (cp[1] == '"')) {
 	    cp += 2;
+	    continue;
+	}
+	if (strncmp(cp, "\"\"\"", 3) == 0) {
+	    in_string = 1;
+	    in_triple_string = 1;
+	    cp += 3;
 	    continue;
 	}
 	if (*cp == '"') {
@@ -1424,8 +1448,16 @@ static void do_define(void)
 	    if ((cp[0] == '\\') && cp[1]) {
 		*put++ = *cp++;
 		*put++ = *cp++;
+	    } else if (define_triple_string_flag
+		       && strncmp(cp, "\"\"\"", 3) == 0) {
+		*put++ = *cp++;
+		*put++ = *cp++;
+		*put++ = *cp++;
+		define_string_flag = 0;
+		define_triple_string_flag = 0;
 	    } else {
-		if (*cp == '"') define_string_flag = 0;
+		if (!define_triple_string_flag && *cp == '"')
+		      define_string_flag = 0;
 		*put++ = *cp++;
 	    }
 	    continue;
@@ -1466,6 +1498,13 @@ static void do_define(void)
 
 	if (cp[0] == '"') {
 	    define_string_flag = 1;
+	    if (strncmp(cp, "\"\"\"", 3) == 0) {
+		define_triple_string_flag = 1;
+		*put++ = *cp++;
+		*put++ = *cp++;
+		*put++ = *cp++;
+		continue;
+	    }
 	    *put++ = *cp++;
 	    continue;
 	}
@@ -1500,6 +1539,7 @@ static void do_define(void)
     /* Trim trailing white space. */
     cp = yytext + strlen(yytext);
     while (cp > yytext) {
+	if (define_triple_string_flag) break;
 	if (!isspace((int)cp[-1])) break;
 
 	cp -= 1;
@@ -1510,7 +1550,8 @@ static void do_define(void)
      * and the white space that precedes it, then replace all that
      * with a single newline.
      */
-    if ((cp > yytext) && (cp[-1] == '\\')) {
+    if ((cp > yytext) && (cp[-1] == '\\')
+	&& !define_triple_string_flag) {
 	cp -= 1;
 	cp[0] = 0;
 
@@ -1593,13 +1634,11 @@ static void do_define(void)
     define_cnt += added_cnt;
 }
 
-/*
- * Return true if the definition text is done. This is the opposite of
- * the define_continue_flag.
- */
+/* A definition continues across a physical newline while a triple-quoted
+ * string is still open, even without the ordinary backslash continuation. */
 static int def_is_done(void)
 {
-    return !define_continue_flag;
+    return !define_continue_flag && !define_triple_string_flag;
 }
 
 /*
@@ -1607,6 +1646,11 @@ static int def_is_done(void)
  */
 static void def_continue(void)
 {
+    if (define_triple_string_flag) {
+	define_text = realloc(define_text, define_cnt + 2);
+	define_text[define_cnt++] = '\n';
+	define_text[define_cnt] = 0;
+    }
     define_continue_flag = 0;
 }
 
@@ -1644,6 +1688,7 @@ static void def_finish(void)
     define_cnt = 0;
     define_comment_flag = 0;
     define_string_flag = 0;
+    define_triple_string_flag = 0;
     define_invalid_flag = 0;
     def_argc = 0;
 }

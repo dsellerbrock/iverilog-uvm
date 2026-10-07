@@ -1,5 +1,248 @@
 # Current evidence and work
 
+## Current IEEE 1800 focus — 2026-10-07
+
+**Fix 40 locally qualified:** nested implication consequents now concatenate
+the outer antecedent with the nested antecedent at the correct overlap
+boundary, including multi-cycle matches. The paired regression covers outer
+`|->` with inner `|=>`, and outer `|=>` with inner `|->`; strict 2017/2023
+NFA/VVP runtime checks pass 1/1 each. Temporal property consequents and
+multiclock combinations remain partial. See
+[evidence](../../evidence/sva-nested-multicycle-implication-20261007/README.md)
+and [G12](opentitan_gap_ledger.md#g12--property-expression-implication-consequents).
+The adjacent SVA suite passes 63/63 after the standalone sequence-combinator
+regression was changed to check assertion counts instead of callback order.
+
+**Fix 39 locally qualified:** implication consequents and antecedents can now
+both carry parenthesized sequence-combinator trees through the existing SVA
+NFA lowering. The focused regression exercises `(a or b) |-> (c or d)` and
+`(e or f) |=> (g or h)` with one expected failure per operator. Strict legacy
+passes 1/1; strict 2017/2023 JSON/VVP passes 2/2. This qualifies the tested
+`or` tree subset only; `and`/`intersect` combinations and general nested
+property consequents remain partial under G12. See [evidence](../../evidence/sva-tree-implication-both-sides-20261007/README.md)
+and [G11](opentitan_gap_ledger.md#g11--sequence-combinators-as-an-implication-operand).
+
+**Fix 38 / DD-104 locally qualified:** procedural `$past` history now captures static
+signals from Preponed across inferred-edge, explicit-event, and default-clock
+routes, including a writer-first same-edge blocking update. The simple
+automatic-local `$past` case retains its current-value rule. Focused legacy
+checks pass 5/5 rows and strict 2017/2023 JSON/VVP checks pass 10/10; these
+totals include the expected compile-error checks for unsupported clocking-input
+operands. Unsupported automatic forms fail closed. This is a bounded sampling
+fix, not clause-16 closure. See the
+[qualification evidence](../../evidence/procedural-past-preponed-20261007/README.md)
+and [debt record](DISCOVERED_DEBT.md#dd-104--procedural-past-history-captures-the-active-region-value-not-the-preponed-value).
+
+**Fix 37 locally qualified:** a randomized integral index can now select a
+scalar integral or enum leaf through a fixed array of unpacked structs. The
+paired test covers a 2-bit active-random selector and a state read with an
+unselected X leaf; strict 2017/2023 JSON/VVP and legacy lists pass 2/2 each.
+This remains bounded to fixed arrays of at most 65,536 words and scalar
+leaves. Dynamic containers, aggregates, and wide coupled-domain sampling are
+not qualified. See [qualification evidence](../../evidence/symbolic-indexed-outer-struct-constraint-20261007/README.md)
+and [blocker record](BLOCKERS.md#randomize-indexed-outer-unpacked-struct-member).
+
+**Fix 36 locally qualified:** constraints now resolve scalar integral and enum
+leaves through fixed indexed arrays of unpacked structs, including nested
+struct members and foreach-unrolled indices. The paired regression covers
+descending and multidimensional ranges, randomized leaves, state reads, and
+failed-solve rollback. Strict 2017 and 2023 legacy and JSON/VVP focus lists
+pass 2/2 each. Symbolic fixed-array selectors are covered by Fix 37; dynamic
+containers and aggregate leaves remain open. See the
+[qualification evidence](../../evidence/indexed-outer-struct-constraint-20261007/README.md)
+and [blocker record](BLOCKERS.md#randomize-indexed-outer-unpacked-struct-member).
+
+**Fix 35 locally qualified:** strict `-g2023` now binds the optional array
+method `index_argument` across locator, reduction, min/max, and `unique_index`
+`with` expressions. This lets code use `item.index` for a real class member
+while querying the array position through a chosen alias. Associative key
+queries are covered too; strict `-g2017` rejects the second argument. The
+paired new-case lists pass 2/2 in legacy and JSON/VVP, and adjacent 2023 map
+lists pass 4/4 in each harness. This is a focused §7.12 gap, not full clause
+closure. See [qualification evidence](../../evidence/array-index-argument-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-array-index-argument).
+
+**Fix 34 qualified locally:** strict `-g2023` now accepts scalar class
+`rand real` for the tested finite-interval constraint path, including real
+comparisons, `inside` bounds, solve-before staging ahead of an integral bit,
+and failed-call rollback. The 2023 positive, strict 2017 rejection, and
+`randc real` rejection pass 3/3 in both legacy and JSON/VVP focus lists.
+Unbounded or `dist` real solving, `shortreal`, real arrays/aggregate leaves,
+and joint class-graph real solving remain unsupported. This is a bounded
+increment, not closure of §18.4/§18.5.9. See the
+[qualification evidence](../../evidence/rand-real-scalar-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-rand-real).
+
+**Fix 33 qualified locally:** constraints on scalar integral/enum leaves now
+work through finite nested unpacked-struct member paths rooted at a randomized
+class property. The paired regression covers nested `rand`/`randc`, enum
+membership, state-derived values, failed-solve rollback, and resumption. The
+strict new-case lists pass 2/2 in legacy and JSON/VVP; adjacent struct/class
+declaration lists pass 15/15 legacy and 14/14 JSON/VVP. Fixed indexed scalar
+leaves are covered by Fix 36; symbolic selectors and aggregate, array, or
+class-handle leaves remain open. See the
+[qualification evidence](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
+
+**Fix 32 qualified locally:** explicit `disable iff` now aborts supported
+multi-boundary fixed-chain properties asynchronously across every clock
+domain. The paired regression proves inter-clock cancellation, held-reset
+gating, and resumed checking after release. Strict multiclock-control focus
+lists pass 22/22 in JSON/VVP and 22/22 in legacy. The broader SVA clause stays
+partial. See the [qualification evidence](../../evidence/sva-disable-multiclock-chain-20261007/README.md).
+
+**Fix 31 qualified locally:** associative `find_last_index()` walks from the
+last actual key backward and returns the first matching key in traversal
+order, in a fresh queue with the declared key type. Strict paired JSON/VVP and
+legacy lists each pass 8/8, including signed and string keys, empty/no-match
+cases, existing associative locator neighbors, and wildcard-index rejection.
+Other associative locator methods remain open. See the
+[qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md)
+and [blocker record](BLOCKERS.md#assoc-find-last-index).
+
+**Fix 30 qualified locally:** associative `find_first_index()` now visits the
+actual ordered keys and returns the first matching key in a fresh queue with
+the declared key type. Strict paired JSON/VVP and legacy lists each pass 6/6,
+including signed and string keys, empty/no-match cases, existing `find_index`
+neighbors, and rejection of wildcard-index arrays. Other associative locator
+methods remain open; this does not close §7.12.1. See the
+[qualification evidence](../../evidence/assoc-find-first-index-20261007/README.md)
+and [blocker record](BLOCKERS.md#assoc-find-first-index).
+
+**Fix 29 qualified locally:** strict 2023 accepts `default :/ expression` as
+one aggregate-weight bucket over the complement of all explicit bins; strict
+2017 rejects it. Its focused checks pass 5/5 in JSON/VVP and legacy harnesses,
+and adjacent exact-dist checks pass 14/14 in each. Broader constrained-random
+combinations, `randc`, and sparse/large domains remain useful open work. See
+the [qualification evidence](../../evidence/dist-default-2023-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-dist-default-weight).
+
+**Completed in fix 28:** nested object-property `solve-before` operands retain
+their runtime solver identity. The paired staged-distribution and rollback
+checks pass with fixed-array and randc controls; see the
+[focused evidence](../../evidence/solve-before-array/cross-object-solve-before-20261007.md).
+
+**Completed in fix 27:** `ARRAY-MAP-2023` passes the focused strict `-g2023`
+runtime cases for fixed, dynamic, queue, and associative arrays; strict
+`-g2017` rejects it. Unpacked-array-valued `with` results include empty inputs
+and nested maps. See the [qualification evidence](../../evidence/array-map-2023-20261007/README.md).
+
+**Uniform-solution checkpoint (2026-10-06):** the full registered paired
+2017/2023 uniformity suites pass on fix-26 VVP
+`e852bd40e42b279bd44e9fcb2665063b6106000112025cfd25e2e7da7a8a4787`
+(229.09 s / 49.9 MB RSS and 198.16 s / 51.0 MB RSS). The adjacent failure-
+rollback and fixed-array `solve-before` controls pass 6/6 in each harness and
+edition. This qualifies the registered statistical cases; the residual
+`randc` shapes listed below still keep clause 18 partial. Full evidence:
+[uniform legal combinations](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#full-uniformity-checkpoint-on-the-fix-26-image-2026-10-06).
+
+The direct-scalar subset, fixed unpacked bit arrays, and bounded variable-size,
+one-dimensional integral and enum dynamic arrays now pass paired 2017/2023
+statistical regressions. Fixed-array coverage includes two- and 129-element
+one-dimensional arrays, a 2×2 array, and a 2×2×2 array with nine complete tuples at
+12–55/300. The 129-element oracle's five bins are 91, 119, 90, 98, and
+102/500; the 2×2 oracle's 17 bins each land between 30 and 90/1,000
+(48–69 observed). Other coverage includes empty arrays, two correlated arrays, a
+64/65-element size ratio, and 65-bit scalars with five-, 65-, and 129-tuple
+domains. The 129-tuple oracle selects the 128-value branch 196/200 times; before
+the wider-domain change it did so 101/200 times. Connected scalars wider than
+64 bits enumerate small feasible unary domains and use full-width uniform
+proposals with hard-solver rejection for larger connected domains. A dense
+2⁶⁵-value case chooses its larger branch 200/200 times. Sparse domains above
+the enumeration cap may take impractically many retries. The
+isolated 65-bit scalar interval `[1:1024]` now samples four equal buckets
+57, 54, 37, and 52 times per 200 draws in both editions. The fragmented
+oracle uses `[1:768]` and `[1025:1280]`; four equal-cardinality bins stay
+within 30–70/200 despite the 3:1 interval-size ratio. A 33-bit union with
+nine equal 32-value runs has paired exact-sampling evidence; its old fallback
+put 41/90 draws in the last run. Fix 11 removes the fixed run-count ceiling
+and caps searches at 131,072 SAT checks per randomization. Fix 12 adds exact
+full-domain rejection proposals for dense domains, keeping periodic 33-bit
+legal-value bins at 100, 89, and 111/300 versus the biased fallback's 73, 74,
+and 153. If interval search is indeterminate, bounded rejection is attempted
+and randomization fails rather than using the biased diversity fallback.
+Wider-than-4,096-bit values and cases that exceed both exact-work ceilings
+remain open.
+Variable-size arrays
+with constrained element leaves retain the 512-element combined solver-model
+cap. Arrays with no constrained element leaves use SAT binary searches to find
+feasible size endpoints, then propose sizes in proportion to element-tuple
+cardinality up to the existing 65,536 per-container allocation cap. Holes and
+connected constraints are checked by the hard solver; sparse accepted sizes
+can take many retries. The 512/513 bit-array oracle now chooses sizes 50/70
+out of 120 and its first payload bit is one 55/120 times. The new 1,025-size
+singleton-enum oracle produces four equal-size bins 108,99,96,97/400; the old
+complete-model enumerator ran for 197.55 s before an interrupted run stopped
+without a histogram. A 257-bit scalar interval now samples four bins 40,54,53,53
+out of 200, versus 26,14,26,134 on the old fallback; the paired 80-draw oracle
+passes under both editions. Fix 12's full registered suites pass in both
+editions on source-built VVP SHA-256
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`:
+2017 took 266.23 s (maximum RSS not captured), and 2023 took 231.86 s at
+50,970,624-byte maximum RSS. Failure-rollback and fixed-array solve-before
+controls also pass in both editions. After formatting and test-name cleanup,
+the rebuilt image `e9c40812d1d49636fcc37c26135c62710d1465b8b2d64b1c89b1e54e9f479d39`
+passes the focused periodic reducer and both registered suite sources compile;
+the full suites were not repeated on that hash. The evidence page records the
+paired full-run and latest focused results. The 128/129-size oracle now yields counts 91/209 out of 300; the
+pre-fix path gave the size-128 mode 139/300. At 256/257, the new counts are
+44/76 out of 120, versus 166/134 in the pre-fix 300-draw probe. Fixed
+integral/enum arrays are sampled from referenced leaves without a declared-extent cap; the registered regression currently
+covers one, two, and three unpacked dimensions. The array test retains the
+ordered `solve m before q` control. The overall clause remains partial for
+larger dynamic-array domains, fixed-array ranks above three and other shapes,
+sparse randc domains that exceed the 65,536-proposal budget, graph-coupled,
+static, and unconstrained wide randc values, wide domains above the exact
+enumeration cap, nested, queue, associative, multidimensional, and struct/member
+aggregate randc forms, ordering, additional soft-preference shapes, and weighted
+`dist`. Non-static single-owner direct scalar randc properties 21–64 bits now
+cycle only when the complete feasible set is exactly enumerated and contains no
+more than 1,024 values. Non-static one-dimensional dynamic-array randc elements
+21–64 bits wide are paired-tested when their complete feasible domain has at
+most 1,024 values, including constant-index references from reachable parent
+constraints. Other array shapes remain open.
+The direct scalar constrained
+randc fallback now samples uniformly from unseen values using hard-solver
+checks and proves cycle exhaustion before reset. Paired strict 2017/2023 runs
+complete two 128-value cycles with an unsatisfiable call between them. The
+graph-coupled dynamic-array regression completes its 1,025-value cycle,
+checks unsatisfiable rollback, and verifies reset under both editions. Struct,
+fixed-array solve-before, and failure-rollback controls also pass on VVP image
+`94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`. The
+full registered suites were not run on this image. See the
+[blocker](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
+
+Fix 14 extends the uniform tuple dependency graph to include satisfiable
+explicit soft constraints. A soft-only scalar relation produces
+`945,1012,1043/3000`; a fixed-size two-element dynamic-array relation produces
+`1004,1009,987/3000` for their legal tuples under both editions. Their previous
+fallbacks were biased at `948,916,1136/3000` and `718,751,1531/3000`. Existing
+inherited-soft, alias-soft, and source-priority controls pass 3/3 per edition.
+See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#satisfiable-soft-constraints-join-uniform-tuple-factors-fix-14).
+The registered suite sources compile in both editions, but the full suites
+have not been run on this image.
+
+Fix 15 adds a fixed-array `foreach` soft-preference oracle. Its five preferred
+complete tuples produce `594,590,592,612,612/3000` under both strict editions;
+the pre-fix image produced `476,513,543,508,960`, overweighting one tuple.
+The three tuples violating at least one soft clause remain absent. Both
+registered suite sources compile with the added case; full suites remain
+deferred to the 10-fix checkpoint. See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-over-fixed-array-elements-fix-15).
+
+Fix 16 adds a soft `foreach` check for a dynamic array whose hard size is tied
+to another random variable. The LRM orders dynamic-array size constraints
+before iterative constraints (2017 §18.5.8.1; 2023 §18.5.7.1), so the two
+`(mode,size)` pairs are each selected half the time; payload values are then
+uniform within each size. Paired results are `380,393,390,371,1466/3000`.
+See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-with-variable-dynamic-array-size-preserves-implicit-ordering-fix-16).
+
+A separate 128-bit nested fixed-element diversity regression passes in both
+editions. It uses a warned fallback for an oversized ordinary component and
+does not extend the uniformity claim.
+
+The 2023 §5.9 triple-quoted string lexer and multiline macro paths also pass a
+focused 2023 runtime check; strict 2017 rejects the delimiter. See the
+[session record](session_logs/2026-10-06_triple_quoted_strings.md).
+
 ## Current OpenTitan status — 2026-10-06
 
 The latest candidate selected runtime result is the
@@ -104,13 +347,61 @@ this row as upstream-invalid. See the
 The measured hot paths and coverage limits are summarized in the
 [native hot-path analysis](../../evidence/opentitan-census-20261002/census12-full-corpus-20261003/HOTPATHS.md).
 
-## Current IEEE checkpoint — 2026-10-06
+## Uniformity checkpoint — 2026-10-06
 
-The selected next blocker is unordered uniformity over legal constraint
-combinations. The coupled direct-scalar class-property scope now rejection-
-samples complete legal tuples and passes the paired Table 18-2 regression under
-`-g2017` and `-g2023`. The dynamic-array reproducer and other unsupported solver
-shapes remain open; this is not full IEEE constraint-solver qualification. See
+The selected blocker is unordered uniformity over legal constraint
+combinations. The current branch rejection-samples coupled scalar, referenced
+fixed-array, and bounded direct integral/enum-array tuples. Paired `-g2017` and
+`-g2023` checks cover Table 18-2, two- and 129-element fixed arrays, 2×2 and
+2×2×2 fixed arrays, empty arrays, correlated arrays, 64/65-element arrays, and
+65-bit scalars. The new isolated
+65-bit `[1:1024]` interval oracle passes with bins 57, 54, 37, and 52/200.
+The fix-10 nine-run regression remains historical paired evidence. Fix 11
+removes its fixed 16-run ceiling and caps boundary searches at 131,072 SAT
+checks per randomization. Fix 12 adds exact uniform rejection proposals for
+dense domains and explicit failure when bounded exact sampling cannot decide.
+The registered dense periodic 33-bit regression samples bins 100, 89, and
+111/300; its old fallback gave 73, 74, and 153. Full registered suites passed
+under strict `-g2017` and `-g2023` on fix-12 image
+`2c1dfe0ad2e2a82d6033192712131bc965cb82d8c7e3d6ff0790730c464a6970`. The
+post-cleanup rebuild passes the focused periodic reducer and both registered
+suite sources compile; the full suites were not repeated on it. Cases that
+exhaust both exact-work budgets, unconnected widths above 4,096 bits, and
+fixed-array ranks above three remain open.
+The 65-bit scalar boundary oracle covers 65 legal tuples and is uniform within
+the recorded threshold when the finite wide-domain cap is 256 values. Variable-size
+dynamic arrays now use the exact sampler through 512 combined elements. The
+128/129 size multiplicities sample 91/209 times in 300 draws; 256/257 samples
+44/76 times in 120 draws. A variable-size enum array with three declared
+values and sizes one or two now samples the 3:9 tuple ratio at 29/91 out of
+120, after the prior fallback produced 67/53.
+Fixes 18–19 extend exact constrained `randc` handling to a graph-coupled
+scalar and a non-nested fixed-array leaf. The paired 1,025-value fixed-array
+cycle completes without repeats and starts a new cycle.
+Fix 20 removes the blanket refusal of soft constraints on cyclic object graphs;
+a paired two-object cycle checks soft preference, failure rollback, and retry.
+Fix 21 adds direct one-dimensional dynamic-array randc elements to the graph
+sampler and commits the first selected value after initial array growth. Other
+cyclic soft combinations and nested, queue, associative, multidimensional, and
+struct/member randc forms remain open.
+Fix 22 adds a bounded sparse-history path for non-static direct scalar randc
+properties through 64 bits when the exact feasible set contains at most 1,024
+values. Paired strict 2017/2023 cycles include an unsatisfiable retry before
+exhaustion and verify reset. Histories cap at 65,536 values per property;
+graph-coupled and other wide randc forms remain open.
+The [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#bounded-sparse-history-for-constrained-wide-randc-fix-22)
+records the paired result and source-built image hashes.
+Fixes 25–26 extend that bounded sparse history to one-dimensional dynamic-array
+elements through 64 bits, first for owner-local constraints and then for
+constant-index references from reachable parent constraints. Each tested
+21-bit element cycles through 65 values, preserves history on failed
+randomization, and resets after exhaustion; 1,025-value domains fail closed.
+Strict 2017/2023 focused JSON and legacy pairs pass. The full registered suites
+remain deferred to the 10-fix checkpoint. See the
+[focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#parent-referenced-wide-dynamic-array-randc-elements-fix-26).
+The 128-bit nested fixed-element check also passes through its warned,
+non-uniform fallback. Larger domains and other unsupported solver shapes
+remain open; this is not full IEEE constraint-solver qualification. See
 the [focused result](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the [blocker limits](BLOCKERS.md#constraint-uniform-legal-combinations--unordered-solutions-are-not-uniform).
 

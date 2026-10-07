@@ -1686,6 +1686,8 @@ struct inside_range_t {
     // Weight is null for plain `inside { ... }` ranges and for an unweighted
     // dist item (whose runtime default is `:= 1`).
     PExpr* weight = nullptr;
+    // True only for the IEEE 1800-2023 `default :/ weight` dist item.
+    bool is_default = false;
     // C7: true if the weight was specified with `:/` (one aggregate range
     // weight) rather than `:=` (that weight for every range member). Only
     // meaningful when weight!=null; an unweighted integral item defaults to

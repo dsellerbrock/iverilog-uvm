@@ -652,7 +652,13 @@ NetESFunc::NetESFunc(const char*n, ivl_variable_type_t t,
 }
 
 NetESFunc::NetESFunc(const char*n, ivl_type_t rtype, unsigned np)
-: NetExpr(rtype), name_(0), type_(rtype->base_type()), parms_(np),
+: NetESFunc(n, rtype, np, rtype->base_type())
+{
+}
+
+NetESFunc::NetESFunc(const char*n, ivl_type_t rtype, unsigned np,
+		     ivl_variable_type_t expr_type)
+: NetExpr(rtype), name_(0), type_(expr_type), parms_(np),
   ref_output_(0), vif_default_parms_(np, false), is_overridden_(false)
 {
       name_ = lex_strings.add(n);

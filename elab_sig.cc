@@ -2311,41 +2311,61 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << " type=" << *use_type << endl;
 	    }
 
-	      // real/shortreal, string, and chandle are not randomizable
-	      // leaves for either qualifier. Class handles and unpacked
-	      // structures, however, are legal recursive `rand` properties;
-	      // the narrower integral-leaf rule for `randc` is checked below.
+	      // 1800-2023 adds scalar `rand real`; 1800-2017 remains integral-only.
+	      // `randc` still requires integral leaves in both editions. Class
+	      // handles and unpacked structures are legal recursive `rand` forms.
 	      // `event` never reaches this loop because the parser diagnoses
 	      // its qualifier in the class-item rule.
 	    bool bad_type = false;
 	    if (cur->second.qual.test_rand() || cur->second.qual.test_randc()) {
-		  ivl_type_t elem_type = use_type;
+	      ivl_type_t elem_type = use_type;
 		  while (elem_type) {
 			const netarray_t*arr = dynamic_cast<const netarray_t*>(elem_type);
 			if (!arr) break;
 			elem_type = arr->element_type();
 		  }
-		  const char*what = 0;
-		  if (elem_type == &netreal_t::type_real
-		      || elem_type == &netreal_t::type_shortreal
-		      || (elem_type && elem_type->base_type() == IVL_VT_REAL)) {
-			bad_type = true; what = "real/shortreal";
+	      const char*what = 0;
+	      bool unsupported_real_shape = false;
+	      if (elem_type == &netreal_t::type_real
+		  || elem_type == &netreal_t::type_shortreal
+		  || (elem_type && elem_type->base_type() == IVL_VT_REAL)) {
+		    bool scalar_real_2023 = cur->second.qual.test_rand()
+			  && generation_flag >= GN_VER2023
+			  && elem_type == &netreal_t::type_real
+			  && use_type == elem_type;
+		    if (!scalar_real_2023) {
+			  bad_type = true;
+			  what = "real/shortreal";
+			  if (cur->second.qual.test_rand()
+			      && generation_flag >= GN_VER2023
+			      && !cur->second.qual.test_randc()) {
+				cerr << cur->second.get_fileline()
+				     << ": sorry: this rand real/shortreal shape is not "
+					"currently supported in IEEE 1800-2023 mode."
+				     << endl;
+				des->errors += 1;
+				unsupported_real_shape = true;
+			  }
+		    }
 		  } else if (elem_type == &netstring_t::type_string
 			     || (elem_type && elem_type->base_type() == IVL_VT_STRING)) {
 			bad_type = true; what = "string";
 		  } else if (elem_type == &netvector_t::chandle_type) {
 			bad_type = true; what = "chandle";
 		  }
-		  if (bad_type) {
+		  if (bad_type && !unsupported_real_shape) {
 			cerr << cur->second.get_fileline() << ": error: property '"
 			     << cur->first << "' of class " << get_name()
 			     << " is declared " << (cur->second.qual.test_randc() ? "randc" : "rand")
-			     << " but has type " << what << ", which is not an "
-			     << "integral type (IEEE 1800-2017 18.4 restricts "
-			     << "rand/randc to 2-state/4-state types, enums, and "
-			     << "aggregates thereof)." << endl;
-				des->errors += 1;
-			  }
+			     << " but has type " << what << ".";
+			if (cur->second.qual.test_randc())
+			      cerr << " IEEE 1800-2017/2023 18.4 restricts randc "
+				      "variables to integral values.";
+			else
+			      cerr << " IEEE 1800-2017 18.4 does not permit rand real.";
+			cerr << endl;
+			des->errors += 1;
+		  }
 	    }
 
 	      // A randc declaration denotes one cycle over an integral, enum,
@@ -2366,13 +2386,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		  des->errors += 1;
 	    }
 
-	      // C1 (Phase 62a) capped randc's cycle bitmap at a 16-bit
-	      // width (2^16 entries) and silently degraded anything wider
-	      // to plain (non-cyclic) rand -- no diagnostic at all. The cap
-	      // is now 20 bits (2^20-entry bitmap, 128KB: vvp/vvp_cobject.cc
-	      // randc_period() -- keep this bound in sync with that one),
-	      // but the same silent-degrade risk exists beyond THAT bound,
-	      // so name it here instead of letting it pass quietly.
+	    // Dense randc history is capped at 20 bits. The runtime also
+	    // supports some wider constrained scalar leaves when their exact
+	    // feasible set is small enough to enumerate; other wide forms
+	    // cannot guarantee a complete cycle and must not pass quietly.
 	    if (!bad_type && cur->second.qual.test_randc() && use_type) {
 	      long pw = class_randc_property_leaf_width_(use_type);
 	      const long randc_cap_bits = 20;
@@ -2382,9 +2399,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		cerr << cur->second.get_fileline() << ": warning: randc property '"
 			     << cur->first << "' of class " << get_name()
 			     << " has a " << pw << "-bit cyclic leaf, beyond the "
-			     << randc_cap_bits << "-bit randc cycle-tracking cap; "
-			     << "it will randomize as plain (non-cyclic) rand instead "
-			     << "of guaranteeing a full permutation before any repeat."
+			     << randc_cap_bits << "-bit dense history limit; non-static "
+			     << "constrained scalar leaves up to 64 bits cycle only when "
+			     << "their complete feasible set has at most 1024 values, "
+			     << "and other wide forms cannot guarantee a full cycle."
 			     << endl;
 		  }
 	    }

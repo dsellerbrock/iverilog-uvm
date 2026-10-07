@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_cross_object_solve_before.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "sv_constraint_cross_object_solve_before"
+}

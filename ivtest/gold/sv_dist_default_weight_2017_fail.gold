@@ -1,0 +1,4 @@
+./ivltests/sv_dist_default_weight.v:3: error: the default item in a dist constraint requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_dist_default_weight.v:9: error: the default item in a dist constraint requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_dist_default_weight.v:15: error: the default item in a dist constraint requires IEEE1800-2023; compile with -g2023 (or -glatest).
+3 error(s) during elaboration.

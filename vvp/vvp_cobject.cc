@@ -23,6 +23,7 @@
 # include  "event.h"
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
+# include  <algorithm>
 # include  <iostream>
 # include  <cassert>
 # include  <cstdio>
@@ -246,25 +247,30 @@ bool vvp_cobject::rand_mode_any(size_t pid) const
 		  return false;
 	    }
 	    const std::string&bt = defn_->property_base_type(pid);
-	    vvp_object_t obj;
-	    const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
-	    if (vvp_darray*array = obj.peek<vvp_darray>()) {
-		  if (array->get_size()) return array->rand_mode_any();
-		  return defn_->property_is_static(pid)
-			? defn_->static_rand_mode(pid, 0)
-			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+	    bool object_backed = bt == "o" || bt.compare(0, 3, "oc:") == 0
+		  || (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
+				      || bt[0] == 'M'));
+	    if (object_backed) {
+		  vvp_object_t obj;
+		  const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+		  if (vvp_darray*array = obj.peek<vvp_darray>()) {
+			if (array->get_size()) return array->rand_mode_any();
+			return defn_->property_is_static(pid)
+			      ? defn_->static_rand_mode(pid, 0)
+			      : (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+		  }
+		  if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>()) {
+			if (assoc->size()) return assoc->rand_mode_any();
+			return defn_->property_is_static(pid)
+			      ? defn_->static_rand_mode(pid, 0)
+			      : (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+		  }
+		  if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
+				      || bt[0] == 'M'))
+			return defn_->property_is_static(pid)
+			      ? defn_->static_rand_mode(pid, 0)
+			      : (pid < rand_mode_.size() ? rand_mode_[pid] : true);
 	    }
-	    if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>()) {
-		  if (assoc->size()) return assoc->rand_mode_any();
-		  return defn_->property_is_static(pid)
-			? defn_->static_rand_mode(pid, 0)
-			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
-	    }
-	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
-				 || bt[0] == 'M'))
-		  return defn_->property_is_static(pid)
-			? defn_->static_rand_mode(pid, 0)
-			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
       }
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
 	    return defn_->static_rand_mode_any(pid);
@@ -402,14 +408,9 @@ void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
       if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
 }
 
-// R1: committed randc state and per-randomize transaction staging. Cycle
-// period = 2^width, capped at
-// 20 bits (a 2^20-entry, 128KB std::vector<bool> bitmap per instance --
-// the old 16-bit/65536-entry cap was stale conservatism; 128KB is a
-// trivial per-object cost for the guarantee of no repeat before a full
-// cycle). Wider properties fall back to plain rand (period reported as
-// 0); elab_sig.cc warns at compile time, by name, when that degrade
-// happens -- keep this bound in sync with the literal there.
+// Dense randc cycle history is capped at 20 bits (128KB per property).
+// Wider scalar properties can use a bounded sparse history when their full
+// feasible set is exactly enumerated by the solver.
 uint64_t vvp_cobject::randc_period(size_t pid, size_t leaf) const
 {
       if (pid >= defn_->property_count()) return 0;
@@ -428,8 +429,8 @@ const std::vector<bool>*vvp_cobject::randc_history_find_(
 	    return &defn_->static_randc_history(pid, key.leaf);
 
       std::map<randc_key_t, std::vector<bool> >::const_iterator it
-	    = randc_history_.find(key);
-      return it == randc_history_.end() ? 0 : &it->second;
+	    = randc_history_.dense.find(key);
+	return it == randc_history_.dense.end() ? 0 : &it->second;
 }
 
 std::vector<bool>&vvp_cobject::randc_history_mutable_(const randc_key_t&key)
@@ -437,7 +438,23 @@ std::vector<bool>&vvp_cobject::randc_history_mutable_(const randc_key_t&key)
       size_t pid = key.pid;
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
 	    return defn_->static_randc_history(pid, key.leaf);
-      return randc_history_[key];
+      return randc_history_.dense[key];
+}
+
+const std::vector<uint64_t>*vvp_cobject::randc_sparse_history_find_(
+	    const randc_key_t&key) const
+{
+      if (key.pid < defn_->property_count()
+	  && defn_->property_is_static(key.pid)) return 0;
+      std::map<randc_key_t, std::vector<uint64_t> >::const_iterator it
+	    = randc_history_.sparse.find(key);
+      return it == randc_history_.sparse.end() ? 0 : &it->second;
+}
+
+std::vector<uint64_t>&vvp_cobject::randc_sparse_history_mutable_(
+	    const randc_key_t&key)
+{
+      return randc_history_.sparse[key];
 }
 
 bool vvp_cobject::randc_history_full_(const std::vector<bool>&hist,
@@ -452,16 +469,21 @@ bool vvp_cobject::randc_history_full_(const std::vector<bool>&hist,
 
 bool vvp_cobject::randc_container_state_(size_t pid, size_t word,
 	    size_t position,
-	    vvp_vector4_t&value, std::vector<bool>*&history) const
+	    vvp_vector4_t&value, std::vector<bool>*&history,
+	    std::vector<uint64_t>*&sparse_history) const
 {
       history = 0;
+      sparse_history = 0;
       if (pid >= defn_->property_count()) return false;
       vvp_object_t object;
       const_cast<vvp_cobject*>(this)->get_object(pid, object, word);
       if (vvp_darray*array = object.peek<vvp_darray>()) {
 	    if (position >= array->get_size()) return false;
 	    array->get_word((unsigned)position, value);
-	    history = &array->randc_history(position);
+	    if (value.size() <= 20)
+		  history = &array->randc_history(position);
+	    else if (value.size() <= 64)
+		  sparse_history = &array->randc_sparse_history(position);
 	    return value.size() != 0;
       }
       if (vvp_assoc_base*assoc = object.peek<vvp_assoc_base>()) {
@@ -472,7 +494,8 @@ bool vvp_cobject::randc_container_state_(size_t pid, size_t word,
 				   string_value, value_kind)
 		|| value_kind != 0)
 		  return false;
-	    history = &assoc->randc_history_at(position);
+	    if (value.size() <= 20)
+		  history = &assoc->randc_history_at(position);
 	    return value.size() != 0;
       }
       return false;
@@ -482,6 +505,7 @@ static bool randc_value_to_uint64_(const vvp_vector4_t&value,
 	    uint64_t&actual)
 {
       actual = 0;
+      if (value.size() > 64) return false;
       for (unsigned bit = 0 ; bit < value.size() ; bit += 1) {
 	    vvp_bit4_t digit = value.value(bit);
 	    if (digit == BIT4_1)
@@ -523,8 +547,11 @@ bool vvp_cobject::randc_transaction_commit()
 	    randc_key_t key;
 	    uint64_t period;
 	    uint64_t actual;
+	    bool sparse = false;
 	    randc_pending_t pending;
+	    std::vector<uint64_t> sparse_history;
 	    std::vector<bool>*container_history = 0;
+	    std::vector<uint64_t>*container_sparse_history = 0;
       };
       std::vector<resolved_randc_t> resolved;
 
@@ -534,8 +561,6 @@ bool vvp_cobject::randc_transaction_commit()
       for (std::map<randc_key_t, randc_pending_t>::const_iterator it =
 		 pending.properties.begin(); it != pending.properties.end(); ++it) {
 	    uint64_t period = randc_period(it->first.pid, it->first.leaf);
-	    if (period == 0) continue;
-
 	    vvp_vector4_t val;
 	    get_vec4(it->first.pid, val, it->first.leaf);
 	    uint64_t actual = 0;
@@ -544,13 +569,34 @@ bool vvp_cobject::randc_transaction_commit()
 			     << "property '" << defn_->property_name(it->first.pid)
 			     << "' leaf " << it->first.leaf
 			     << "; history transaction rolled back" << endl;
-			return false;
+			 return false;
+	    }
+	    bool sparse = period == 0;
+	    if (sparse && (it->first.pid >= defn_->property_count()
+		  || defn_->property_is_static(it->first.pid)
+		  || !defn_->property_dimensions(it->first.pid).empty()
+		  || val.size() <= 20 || val.size() > 64
+		  || !it->second.feasible_domain
+		  || it->second.feasible.empty()
+		  || it->second.feasible.size() > 1024)) {
+		  cerr << "warning: successful randomize has an unsupported wide "
+		       << "randc history transaction for property '"
+		       << defn_->property_name(it->first.pid) << "'" << endl;
+		  return false;
+	    }
+	    if (sparse && find(it->second.feasible.begin(),
+		  it->second.feasible.end(), actual) == it->second.feasible.end()) {
+		  cerr << "warning: successful randomize produced a randc value "
+		       << "outside its enumerated feasible set for property '"
+		       << defn_->property_name(it->first.pid) << "'" << endl;
+		  return false;
 	    }
 
 	    resolved_randc_t item;
 	    item.key = it->first;
 	    item.period = period;
 	    item.actual = actual;
+	    item.sparse = sparse;
 	    item.pending = it->second;
 	    resolved.push_back(item);
       }
@@ -560,13 +606,13 @@ bool vvp_cobject::randc_transaction_commit()
 		 pending.containers.begin(); it != pending.containers.end(); ++it) {
 	    vvp_vector4_t val;
 	    std::vector<bool>*history = 0;
+	    std::vector<uint64_t>*sparse_history = 0;
 	    if (!randc_container_state_(it->first.pid, it->first.word,
-					it->first.position,
-					val, history))
+				it->first.position,
+				val, history, sparse_history))
 		  continue;
 	    unsigned width = val.size();
-	    if (width == 0 || width > 20) continue;
-	    uint64_t period = (uint64_t)1 << width;
+	    if (width == 0 || width > 64) continue;
 	    uint64_t actual = 0;
 	    if (!randc_value_to_uint64_(val, actual)) {
 		  cerr << "warning: successful randomize produced X/Z for randc "
@@ -576,6 +622,29 @@ bool vvp_cobject::randc_transaction_commit()
 		       << "; history transaction rolled back" << endl;
 		  return false;
 	    }
+	    if (width > 20) {
+		  if (!sparse_history || !it->second.feasible_domain
+		      || it->second.feasible.empty()
+		      || it->second.feasible.size() > 1024
+		      || find(it->second.feasible.begin(),
+			     it->second.feasible.end(), actual)
+			 == it->second.feasible.end()) {
+			cerr << "warning: successful randomize has an unsupported wide "
+			     << "randc container history transaction for property '"
+			     << defn_->property_name(it->first.pid) << "' element "
+			     << it->first.position << endl;
+			return false;
+		  }
+		  resolved_randc_t item;
+		  item.key = randc_key_t(it->first.pid, it->first.position);
+		  item.actual = actual;
+		  item.sparse = true;
+		  item.pending = it->second;
+		  item.container_sparse_history = sparse_history;
+		  resolved.push_back(item);
+		  continue;
+	    }
+	    uint64_t period = (uint64_t)1 << width;
 	    resolved_randc_t item;
 	    item.key = randc_key_t(it->first.pid, it->first.position);
 	    item.period = period;
@@ -585,13 +654,58 @@ bool vvp_cobject::randc_transaction_commit()
 	    resolved.push_back(item);
       }
 
-      for (const resolved_randc_t&item : resolved) {
+      // Prepare bounded sparse histories before mutating any history bank.
+      // This preserves the transaction's all-or-nothing commit guarantee
+      // when a changing domain would exceed the sparse-history ceiling.
+      for (resolved_randc_t&item : resolved) {
+	    if (!item.sparse) continue;
+	    const std::vector<uint64_t>*current = item.container_sparse_history
+		  ? item.container_sparse_history
+		  : randc_sparse_history_find_(item.key);
+	    if (current) item.sparse_history = *current;
+	    bool all_used = !item.pending.feasible.empty();
+	    for (uint64_t value : item.pending.feasible)
+		  if (find(item.sparse_history.begin(), item.sparse_history.end(),
+			   value) == item.sparse_history.end()) {
+			all_used = false;
+			break;
+		  }
+	    if (item.pending.reset_cycle || all_used) {
+		  for (uint64_t value : item.pending.feasible)
+			while (true) {
+			      std::vector<uint64_t>::iterator used =
+				    find(item.sparse_history.begin(),
+					 item.sparse_history.end(), value);
+			      if (used == item.sparse_history.end()) break;
+			      item.sparse_history.erase(used);
+			}
+	    }
+	    if (find(item.sparse_history.begin(), item.sparse_history.end(),
+		     item.actual) == item.sparse_history.end())
+		  item.sparse_history.push_back(item.actual);
+	    if (item.sparse_history.size() > 65536) {
+		  cerr << "ERROR: sparse randc history exceeded 65536 values for "
+		       << "property '" << defn_->property_name(item.key.pid)
+		       << "'." << endl;
+		  return false;
+	    }
+      }
+
+      for (resolved_randc_t&item : resolved) {
+	    if (item.sparse) {
+		  std::vector<uint64_t>*destination = item.container_sparse_history
+			? item.container_sparse_history
+			: &randc_sparse_history_mutable_(item.key);
+		  destination->swap(item.sparse_history);
+		  continue;
+	    }
 	    std::vector<bool>&hist = item.container_history
 		  ? *item.container_history : randc_history_mutable_(item.key);
 	    if (hist.size() != item.period)
 		  hist.assign((size_t)item.period, false);
 
-	    bool reset = randc_history_full_(hist, item.period);
+	    bool reset = item.pending.reset_cycle
+		  || randc_history_full_(hist, item.period);
 	    if (reset) {
 		  // A completed cycle remains visibly complete until this next
 		  // successful choice. Its reset and new mark commit together.
@@ -640,6 +754,12 @@ void vvp_cobject::randc_history_restore(const randc_history_state_t&state)
 bool vvp_cobject::randc_seen(size_t pid, uint64_t val, size_t leaf) const
 {
       uint64_t period = randc_period(pid, leaf);
+	  if (period == 0) {
+	    const std::vector<uint64_t>*sparse =
+		  randc_sparse_history_find_(randc_key_t(pid, leaf));
+	    return sparse && find(sparse->begin(), sparse->end(), val)
+		  != sparse->end();
+	  }
       const std::vector<bool>*hist =
 	    randc_history_find_(randc_key_t(pid, leaf));
       if (!hist || val >= hist->size()) return false;
@@ -667,11 +787,20 @@ void vvp_cobject::randc_mark(size_t pid, uint64_t val, size_t leaf)
 // RANDOM-DIST fix #4: see the declaration in vvp_cobject.h.
 void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
                                        const std::vector<uint64_t>&feasible,
-                                       size_t leaf)
+                                       size_t leaf, bool reset_cycle)
 {
       uint64_t period = randc_period(pid, leaf);
-      if (period == 0) return;
-      if (val >= period) return;
+      bool sparse = period == 0;
+      if (sparse) {
+	    if (pid >= defn_->property_count() || defn_->property_is_static(pid)
+		|| !defn_->property_dimensions(pid).empty()
+		|| feasible.empty() || feasible.size() > 1024) return;
+	    vvp_vector4_t current;
+	    get_vec4(pid, current, leaf);
+	    if (current.size() <= 20 || current.size() > 64
+		|| find(feasible.begin(), feasible.end(), val) == feasible.end())
+		  return;
+      } else if (val >= period) return;
       if (randc_transactions_.empty()) {
 	    cerr << "internal error: constrained randc mark outside randomize "
 		 << "transaction" << endl;
@@ -680,6 +809,7 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
       randc_pending_t staged;
       staged.staged_value = val;
       staged.feasible_domain = true;
+      staged.reset_cycle = reset_cycle;
       staged.feasible = feasible;
       randc_transactions_.back().properties[randc_key_t(pid, leaf)] = staged;
 }
@@ -703,9 +833,15 @@ bool vvp_cobject::randc_container_seen(size_t pid, size_t position,
 {
       vvp_vector4_t value;
       std::vector<bool>*history = 0;
-      if (!randc_container_state_(pid, word, position, value, history))
+      std::vector<uint64_t>*sparse_history = 0;
+      if (!randc_container_state_(pid, word, position, value, history,
+				      sparse_history))
 	    return false;
       unsigned width = value.size();
+      if (width > 20 && width <= 64)
+	    return sparse_history
+		  && find(sparse_history->begin(), sparse_history->end(), val)
+		       != sparse_history->end();
       if (width == 0 || width > 20) return false;
       uint64_t period = (uint64_t)1 << width;
       if (!history || val >= history->size()) return false;
@@ -718,7 +854,9 @@ void vvp_cobject::randc_container_mark(size_t pid, size_t position,
 {
       vvp_vector4_t value;
       std::vector<bool>*history = 0;
-      if (!randc_container_state_(pid, word, position, value, history)) return;
+      std::vector<uint64_t>*sparse_history = 0;
+      if (!randc_container_state_(pid, word, position, value, history,
+				      sparse_history)) return;
       unsigned width = value.size();
       if (width == 0 || width > 20 || val >= ((uint64_t)1 << width)) return;
       if (randc_transactions_.empty()) {
@@ -733,13 +871,10 @@ void vvp_cobject::randc_container_mark(size_t pid, size_t position,
 }
 
 void vvp_cobject::randc_container_mark_feasible(size_t pid, size_t position,
-	    uint64_t val, const std::vector<uint64_t>&feasible, size_t word)
+	    uint64_t val, const std::vector<uint64_t>&feasible, size_t word,
+	    bool reset_cycle)
 {
-      vvp_vector4_t value;
-      std::vector<bool>*history = 0;
-      if (!randc_container_state_(pid, word, position, value, history)) return;
-      unsigned width = value.size();
-      if (width == 0 || width > 20 || val >= ((uint64_t)1 << width)) return;
+      if (pid >= defn_->property_count()) return;
       if (randc_transactions_.empty()) {
 	    cerr << "internal error: constrained container randc mark outside "
 		 << "randomize transaction" << endl;
@@ -748,7 +883,10 @@ void vvp_cobject::randc_container_mark_feasible(size_t pid, size_t position,
       randc_pending_t staged;
       staged.staged_value = val;
       staged.feasible_domain = true;
+      staged.reset_cycle = reset_cycle;
       staged.feasible = feasible;
+      // Dynamic-array solver leaves are staged before the resized array is
+      // written back. Resolve the element and validate its width at commit.
       randc_transactions_.back().containers[
 	    randc_transaction_t::container_key_t(pid, word, position)] = staged;
 }

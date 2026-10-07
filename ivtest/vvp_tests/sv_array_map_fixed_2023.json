@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_array_map_fixed_2023.v",
+  "iverilog-args": ["-g2023"]
+}

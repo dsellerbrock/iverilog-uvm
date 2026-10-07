@@ -1,0 +1,4 @@
+sv_array_map_dynamic_2023 normal,-g2023 ivltests
+sv_array_map_fixed_2023 normal,-g2023 ivltests
+sv_array_map_assoc_2023 normal,-g2023 ivltests
+sv_array_map_2017_fail CE,-g2017 ivltests

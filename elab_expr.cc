@@ -809,7 +809,9 @@ static NetNet* make_array_method_recv_net_(
       NetExpr*array_expr, ivl_type_t container_type, const char*kind);
 static void push_array_method_iter_ctx_(const NetNet*iter_net,
                                         NetNet*idx_net,
-                                        bool index_query_allowed);
+                                        bool index_query_allowed,
+					perm_string index_name =
+					perm_string::literal("index"));
 
 static bool is_assoc_unique_scalar_or_class_type_(ivl_type_t type)
 {
@@ -894,6 +896,7 @@ static NetExpr* make_assoc_array_unique_expr_(
       NetExpr*array_expr, const netqueue_t*container_type,
       ivl_type_t element_type, perm_string method_name,
       const std::vector<named_pexpr_t>&parms,
+      perm_string iter_name, perm_string index_name,
       const std::vector<PExpr*>&with_exprs)
 {
       ivl_assert(*li, array_expr);
@@ -967,14 +970,6 @@ static NetExpr* make_assoc_array_unique_expr_(
             }
       }
 
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty()) {
-            const PEIdent*iter_ident =
-                  dynamic_cast<const PEIdent*>(parms[0].parm);
-            ivl_assert(*li, iter_ident);
-            iter_name = iter_ident->path().back().name;
-      }
-
       NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                    NetNet::REG, element_type);
       iter_net->set_line(*li);
@@ -989,7 +984,8 @@ static NetExpr* make_assoc_array_unique_expr_(
       if (!with_exprs.empty()) {
             NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
             push_array_method_iter_ctx_(
-                  iter_net, index_net, !container_type->assoc_wildcard());
+                  iter_net, index_net, !container_type->assoc_wildcard(),
+                  index_name);
             comparison_expr = elab_and_eval(
                   des, scope, with_exprs.front(), -1, false);
             pop_array_method_iter_ctx();
@@ -1095,48 +1091,66 @@ static NetExpr* make_assoc_array_unique_expr_(
       return fn;
 }
 
-static bool validate_array_locator_iterator_(
+static bool validate_array_locator_iterators_(
       const LineInfo*li, Design*des, perm_string method_name,
-      const std::vector<named_pexpr_t>&parms)
+      const std::vector<named_pexpr_t>&parms,
+      perm_string&iter_name, perm_string&index_name)
 {
-      if (parms.size() > 1) {
+      iter_name = perm_string::literal("item");
+      index_name = perm_string::literal("index");
+      if (parms.size() > 2) {
             cerr << li->get_fileline() << ": error: " << method_name
-                 << "() takes at most one iterator identifier." << endl;
+                 << "() takes at most an iterator and an index-method "
+                    "identifier." << endl;
             des->errors += 1;
             return false;
       }
 
-      if (!parms.empty() && !parms[0].name.nil()) {
-            cerr << li->get_fileline() << ": error: " << method_name
-                 << "() does not allow a named iterator argument." << endl;
-            des->errors += 1;
-            return false;
+      if (!parms.empty()) {
+            const PEIdent*iter_ident =
+                  dynamic_cast<const PEIdent*>(parms[0].parm);
+            if (!parms[0].name.nil() || !iter_ident
+                || iter_ident->path().size() != 1
+                || !iter_ident->path().back().index.empty()) {
+                  cerr << li->get_fileline() << ": error: " << method_name
+                       << "() iterator must be a simple identifier." << endl;
+                  des->errors += 1;
+                  return false;
+            }
+            iter_name = iter_ident->path().back().name;
       }
-
-      const PEIdent*iter_ident = parms.empty()
-          ? nullptr : dynamic_cast<const PEIdent*>(parms[0].parm);
-      if (!parms.empty()
-          && (!iter_ident || iter_ident->path().size() != 1
-              || !iter_ident->path().back().index.empty())) {
-            cerr << li->get_fileline() << ": error: " << method_name
-                 << "() iterator must be a simple identifier." << endl;
-            des->errors += 1;
-            return false;
+      if (parms.size() == 2) {
+            if (!sv_require_feature(li, SVF_ARRAY_INDEX_ARGUMENT)) {
+                  des->errors += 1;
+                  return false;
+            }
+            const PEIdent*index_ident =
+                  dynamic_cast<const PEIdent*>(parms[1].parm);
+            if (!parms[1].name.nil() || !index_ident
+                || index_ident->path().size() != 1
+                || !index_ident->path().back().index.empty()) {
+                  cerr << li->get_fileline() << ": error: " << method_name
+                       << "() index-method argument must be a simple "
+                          "identifier." << endl;
+                  des->errors += 1;
+                  return false;
+            }
+            index_name = index_ident->path().back().name;
       }
       return true;
 }
 
-/* Associative find_index() returns each matching declared key. Keep this
- * separate from the positional queue locator loop so it can only be used
- * for this method and cannot leak ordinal semantics to sibling locators. */
-static NetExpr* make_assoc_find_index_expr_(
+/* Associative index locators return declared keys, never positional queue
+ * ordinals. Keep their keyed traversal separate from the common locator loop. */
+static NetExpr* make_assoc_index_locator_expr_(
       const PECallFunction*call, Design*des, NetScope*scope,
       NetExpr*array_expr, const netqueue_t*container_type,
-      ivl_type_t element_type, const std::vector<named_pexpr_t>&parms)
+      ivl_type_t element_type, const char*kind,
+      perm_string iter_name, perm_string index_name)
 {
       ivl_type_t key_type = container_type->assoc_index_type();
       if (container_type->assoc_wildcard()) {
-            cerr << call->get_fileline() << ": sorry: find_index() on "
+            cerr << call->get_fileline() << ": sorry: " << kind << "() on "
                  << "wildcard-index associative arrays is not yet "
                     "implemented (IEEE 1800-2017/2023 7.12.1)."
                  << endl;
@@ -1146,18 +1160,15 @@ static NetExpr* make_assoc_find_index_expr_(
       if (!key_type || (key_type->base_type() != IVL_VT_BOOL
                         && key_type->base_type() != IVL_VT_LOGIC
                         && key_type->base_type() != IVL_VT_STRING)) {
-            cerr << call->get_fileline() << ": sorry: find_index() on "
+            cerr << call->get_fileline() << ": sorry: " << kind << "() on "
                  << "this associative index type is not yet implemented."
                  << endl;
             des->errors += 1;
             return nullptr;
       }
-      if (!validate_array_locator_iterator_(call, des,
-                  perm_string::literal("find_index"), parms))
-            return nullptr;
       if (call->with_constraints().size() != 1
           || !call->with_constraints().front()) {
-            cerr << call->get_fileline() << ": error: find_index() "
+            cerr << call->get_fileline() << ": error: " << kind << "() "
                  << "requires exactly one with expression." << endl;
             des->errors += 1;
             return nullptr;
@@ -1168,17 +1179,11 @@ static NetExpr* make_assoc_find_index_expr_(
             dynamic_cast<const NetESignal*>(array_expr);
       if (!array_signal || array_signal->word_index()) {
             recv_net = make_array_method_recv_net_(
-                  call, des, scope, array_expr, container_type, "find_index");
+                  call, des, scope, array_expr, container_type, kind);
             if (!recv_net)
                   return nullptr;
       }
 
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty()) {
-            const PEIdent*iter_ident =
-                  dynamic_cast<const PEIdent*>(parms.front().parm);
-            iter_name = iter_ident->path().back().name;
-      }
       NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                    NetNet::REG, element_type);
       iter_net->set_line(*call);
@@ -1188,7 +1193,7 @@ static NetExpr* make_assoc_find_index_expr_(
       key_net->set_line(*call);
       key_net->local_flag(true);
       NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx_(iter_net, key_net, true);
+      push_array_method_iter_ctx_(iter_net, key_net, true, index_name);
       NetExpr*pred = elab_and_eval(
             des, scope, call->with_constraints().front(), -1, false);
       pop_array_method_iter_ctx();
@@ -1210,16 +1215,16 @@ static NetExpr* make_assoc_find_index_expr_(
             call, receiver, key_net, element_type);
       if (!element) {
             cerr << call->get_fileline() << ": internal error: cannot build "
-                 << "the associative-array find_index element selection."
+                 << "the associative-array " << kind << " element selection."
                  << endl;
             des->errors += 1;
             delete pred;
             return nullptr;
       }
 
-      NetESFunc*fn = new NetESFunc(
-            "$ivl_queue_method$assoc_find_index", result_type,
-            recv_net ? 7 : 6);
+      string function_name = string("$ivl_queue_method$assoc_") + kind;
+      NetESFunc*fn = new NetESFunc(function_name.c_str(), result_type,
+                                   recv_net ? 7 : 6);
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*call);
@@ -1294,8 +1299,11 @@ static NetExpr* make_array_unique_expr_(
       const std::vector<PExpr*>&with_exprs)
 {
       const bool is_index = method_name == "unique_index";
+      perm_string iter_name;
+      perm_string index_name;
 
-      if (!validate_array_locator_iterator_(li, des, method_name, parms)) {
+      if (!validate_array_locator_iterators_(li, des, method_name, parms,
+                                             iter_name, index_name)) {
             delete array_expr;
             return nullptr;
       }
@@ -1305,7 +1313,8 @@ static NetExpr* make_array_unique_expr_(
             if (queue->assoc_compat()) {
                   return make_assoc_array_unique_expr_(
                         li, des, scope, array_expr, queue, element_type,
-                        method_name, parms, with_exprs);
+                        method_name, parms, iter_name, index_name,
+                        with_exprs);
             }
       }
 
@@ -1395,14 +1404,6 @@ static NetExpr* make_array_unique_expr_(
                   return nullptr;
             }
 
-            perm_string iter_name = perm_string::literal("item");
-            if (!parms.empty()) {
-                  const PEIdent*iter_ident =
-                        dynamic_cast<const PEIdent*>(parms[0].parm);
-                  ivl_assert(*li, iter_ident);
-                  iter_name = iter_ident->path().back().name;
-            }
-
             NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                          NetNet::REG, element_type);
             iter_net->set_line(*li);
@@ -1434,7 +1435,8 @@ static NetExpr* make_array_unique_expr_(
             if (!with_exprs.empty()) {
                   NetNet*previous =
                         scope->set_signal_alias(iter_name, iter_net);
-                  push_array_method_iter_ctx(iter_net, visible_idx_net);
+                  push_array_method_iter_ctx_named(
+                        iter_net, visible_idx_net, index_name, true);
                   key_expr = elab_and_eval(
                         des, scope, with_exprs.front(), -1, false);
                   pop_array_method_iter_ctx();
@@ -1586,25 +1588,20 @@ static NetExpr* make_queue_locator_with_expr_(
 	    des->errors += 1;
 	    return nullptr;
       }
-      const PEIdent*iter_ident = parms.empty()
-	  ? nullptr : dynamic_cast<const PEIdent*>(parms[0].parm);
-      if (parms.size() > 1
-	  || (!parms.empty()
-	      && (!parms[0].name.nil()
-		  || !iter_ident || iter_ident->path().size() != 1
-		  || !iter_ident->path().back().index.empty()))) {
-	    cerr << call->get_fileline() << ": error: " << kind
-		 << "() takes at most one iterator identifier." << endl;
-	    des->errors += 1;
+      perm_string iter_name;
+      perm_string index_name;
+      if (!validate_array_locator_iterators_(call, des,
+		    perm_string::literal(kind), parms, iter_name, index_name))
 	    return nullptr;
-      }
       if (const netqueue_t*queue =
 		dynamic_cast<const netqueue_t*>(container_type)) {
 	    if (queue->assoc_compat()) {
-		  if (strcmp(kind, "find_index") == 0)
-			return make_assoc_find_index_expr_(
+		  if (strcmp(kind, "find_index") == 0
+		      || strcmp(kind, "find_first_index") == 0
+		      || strcmp(kind, "find_last_index") == 0)
+			return make_assoc_index_locator_expr_(
 			      call, des, scope, queue_expr, queue, element_type,
-			      parms);
+			      kind, iter_name, index_name);
 		  cerr << call->get_fileline() << ": sorry: " << kind
 		       << "() on associative arrays is not yet implemented; "
 			  "associative-array locators require keyed iteration "
@@ -1646,16 +1643,6 @@ static NetExpr* make_queue_locator_with_expr_(
 	    if (!recv_net)
 		  return nullptr;
       }
-      /* Determine the iterator name: first parameter of the find call
-       * (if any), otherwise the LRM default "item". */
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty() && parms[0].parm) {
-            const PEIdent*ip = dynamic_cast<const PEIdent*>(parms[0].parm);
-            if (ip && ip->path().size() == 1) {
-                  iter_name = ip->path().back().name;
-            }
-      }
-
       /* Allocate a fresh, uniquely named hidden iter NetNet.  The
        * iterator is scoped to the with expression (7.12), so sibling
        * calls on arrays of different element types must not share a
@@ -1716,7 +1703,8 @@ static NetExpr* make_queue_locator_with_expr_(
       if (!pred_pe)
             return nullptr;
       NetNet*prev_bind = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx(iter_net, visible_idx_net);
+      push_array_method_iter_ctx_named(
+	    iter_net, visible_idx_net, index_name, true);
       NetExpr*pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
       pop_array_method_iter_ctx();
       scope->restore_signal_alias(iter_name, prev_bind);
@@ -1804,6 +1792,19 @@ static unsigned test_array_reduction_result_width_(
             return 0;
 
       if (with_exprs.empty()) {
+            if (!parms.empty()) {
+                  perm_string iter_name, index_name;
+                  if (validate_array_locator_iterators_(
+                        li, des, perm_string::literal("array reduction"),
+                        parms, iter_name, index_name)) {
+                        cerr << li->get_fileline()
+                             << ": error: array reduction iterator/index "
+                                "arguments require a with clause."
+                             << endl;
+                        des->errors += 1;
+                  }
+                  return 0;
+            }
             result_type = element_type->base_type();
             result_signed = element_type->get_signed();
             unsigned width = element_type->packed_width();
@@ -1812,15 +1813,11 @@ static unsigned test_array_reduction_result_width_(
       if (with_exprs.size() != 1 || !with_exprs.front())
             return 0;
 
-      perm_string iter_name = perm_string::literal("item");
-      if (!parms.empty() && parms.front().parm) {
-            const PEIdent*iter_ident =
-                  dynamic_cast<const PEIdent*>(parms.front().parm);
-            if (!iter_ident || iter_ident->path().size() != 1
-                || !iter_ident->path().back().index.empty())
-                  return 0;
-            iter_name = iter_ident->path().back().name;
-      }
+      perm_string iter_name, index_name;
+      if (!validate_array_locator_iterators_(
+                li, des, perm_string::literal("array reduction"), parms,
+                iter_name, index_name))
+            return 0;
 
       NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
                                    NetNet::REG, element_type);
@@ -1832,7 +1829,7 @@ static unsigned test_array_reduction_result_width_(
       idx_net->local_flag(true);
 
       NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx(iter_net, idx_net);
+      push_array_method_iter_ctx_named(iter_net, idx_net, index_name, true);
       PExpr::width_mode_t mode = PExpr::SIZED;
       unsigned width = with_exprs.front()->test_width(des, scope, mode);
       result_type = with_exprs.front()->expr_type();
@@ -1886,20 +1883,39 @@ struct array_method_iter_ctx_t {
       const NetNet*iter_net;
       NetNet*idx_net;
       bool index_query_allowed;
+      perm_string index_name;
 };
 static std::vector<array_method_iter_ctx_t> array_method_iter_stack_;
 
+static bool is_array_method_iter_net_(const NetNet*net)
+{
+      for (auto it = array_method_iter_stack_.rbegin()
+		 ; it != array_method_iter_stack_.rend() ; ++it)
+	    if (it->iter_net == net)
+		  return true;
+      return false;
+}
+
 static void push_array_method_iter_ctx_(const NetNet*iter_net,
                                         NetNet*idx_net,
-                                        bool index_query_allowed)
+                                        bool index_query_allowed,
+					perm_string index_name)
 {
       array_method_iter_stack_.push_back(
-            {iter_net, idx_net, index_query_allowed});
+            {iter_net, idx_net, index_query_allowed, index_name});
 }
 
 void push_array_method_iter_ctx(const NetNet*iter_net, NetNet*idx_net)
 {
       push_array_method_iter_ctx_(iter_net, idx_net, true);
+}
+
+void push_array_method_iter_ctx_named(const NetNet*iter_net, NetNet*idx_net,
+				      perm_string index_name,
+				      bool index_query_allowed)
+{
+      push_array_method_iter_ctx_(iter_net, idx_net, index_query_allowed,
+				  index_name);
 }
 
 void pop_array_method_iter_ctx(void)
@@ -1909,19 +1925,28 @@ void pop_array_method_iter_ctx(void)
 
 NetNet* find_array_method_iter_index(const NetNet*iter_net)
 {
+      return find_array_method_iter_index(
+	    iter_net, perm_string::literal("index"));
+}
+
+NetNet* find_array_method_iter_index(const NetNet*iter_net,
+				     perm_string index_name)
+{
       for (auto it = array_method_iter_stack_.rbegin()
 		 ; it != array_method_iter_stack_.rend() ; ++it) {
-	    if (it->iter_net == iter_net)
+	    if (it->iter_net == iter_net && it->index_name == index_name)
 		  return it->idx_net;
       }
       return 0;
 }
 
-static bool array_method_iter_index_forbidden_(const NetNet*iter_net)
+static bool array_method_iter_index_forbidden_(const NetNet*iter_net,
+					       perm_string index_name =
+					       perm_string::literal("index"))
 {
       for (auto it = array_method_iter_stack_.rbegin()
                  ; it != array_method_iter_stack_.rend() ; ++it) {
-            if (it->iter_net == iter_net)
+            if (it->iter_net == iter_net && it->index_name == index_name)
                   return !it->index_query_allowed;
       }
       return false;
@@ -1933,14 +1958,246 @@ static bool array_method_iter_index_forbidden_(const NetNet*iter_net)
  * queries. */
 static NetExpr* elab_array_method_with_expr_(
       Design*des, NetScope*scope, PExpr*wpe,
-      perm_string iter_name, NetNet*iter_net, NetNet*idx_net)
+      perm_string iter_name, NetNet*iter_net, NetNet*idx_net,
+      perm_string index_name = perm_string::literal("index"),
+      bool index_query_allowed = true)
 {
       NetNet*prev = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx(iter_net, idx_net);
+      push_array_method_iter_ctx_named(iter_net, idx_net, index_name,
+				       index_query_allowed);
       NetExpr*val_expr = elab_and_eval(des, scope, wpe, -1, false);
       pop_array_method_iter_ctx();
       scope->restore_signal_alias(iter_name, prev);
       return val_expr;
+}
+
+static bool array_map_arg_name_(const named_pexpr_t&arg, perm_string&name)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(arg.parm);
+      if (!arg.name.nil() || !ident || ident->path().size() != 1
+	  || !ident->path().back().index.empty())
+	    return false;
+      name = ident->path().back().name;
+      return true;
+}
+
+static ivl_type_t array_map_result_type_(ivl_type_t source_type,
+					 ivl_type_t element_type)
+{
+      if (const netuarray_t*fixed =
+		    dynamic_cast<const netuarray_t*>(source_type))
+	    {
+		  netranges_t dimensions(1, fixed->static_dimensions().front());
+		  while (const netuarray_t*inner =
+			       dynamic_cast<const netuarray_t*>(element_type)) {
+			dimensions.insert(dimensions.end(),
+				  inner->static_dimensions().begin(),
+				  inner->static_dimensions().end());
+			element_type = inner->element_type();
+		  }
+		  return new netuarray_t(dimensions, element_type);
+	    }
+
+      if (const netqueue_t*queue =
+		    dynamic_cast<const netqueue_t*>(source_type)) {
+	    if (queue->assoc_compat())
+		  return new netqueue_t(element_type, queue->max_idx(), true,
+					queue->assoc_index_type(),
+					queue->assoc_wildcard());
+	    return new netqueue_t(element_type, queue->max_idx());
+      }
+
+      if (dynamic_cast<const netdarray_t*>(source_type))
+	    return new netdarray_t(element_type);
+
+      return nullptr;
+}
+
+/* IEEE 1800-2023 7.12.5: map replaces each element with the
+ * self-determined with-expression value while preserving the source
+ * array's range or associative index type. The target evaluates the
+ * expression once per element in the iterator scope. */
+static NetExpr* make_array_map_expr_(
+      const LineInfo*li, Design*des, NetScope*scope,
+      NetExpr*array_expr, ivl_type_t container_type,
+      ivl_type_t element_type,
+      const std::vector<named_pexpr_t>&parms,
+      const std::vector<PExpr*>&with_exprs)
+{
+      if (!sv_require_feature(li, SVF_ARRAY_MAP)) {
+	    des->errors += 1;
+	    delete array_expr;
+	    return nullptr;
+      }
+
+      if (with_exprs.size() != 1 || !with_exprs.front()) {
+	    cerr << li->get_fileline()
+		 << ": error: map() requires a with expression"
+		    " (IEEE 1800-2023 7.12.5)." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return nullptr;
+      }
+
+      if (parms.size() > 2) {
+	    cerr << li->get_fileline()
+		 << ": error: map() accepts at most an iterator name and an "
+		    "index-method name (IEEE 1800-2023 7.12)." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return nullptr;
+      }
+
+      perm_string iter_name = perm_string::literal("item");
+      perm_string index_name = perm_string::literal("index");
+      if (!parms.empty() && !array_map_arg_name_(parms[0], iter_name)) {
+	    cerr << li->get_fileline()
+		 << ": error: map() iterator argument must be a simple name."
+		 << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return nullptr;
+      }
+      if (parms.size() == 2
+	  && !array_map_arg_name_(parms[1], index_name)) {
+	    cerr << li->get_fileline()
+		 << ": error: map() index-method argument must be a simple name."
+		 << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return nullptr;
+      }
+
+      const netuarray_t*fixed_type =
+	    dynamic_cast<const netuarray_t*>(container_type);
+      const netqueue_t*queue_type =
+	    dynamic_cast<const netqueue_t*>(container_type);
+
+	/* A multidimensional unpacked array is an array whose elements are
+	 * sub-arrays. map() transforms that immediate element, preserving this
+	 * dimension's range; the with expression decides the result element type. */
+      if (fixed_type && fixed_type->static_dimensions().size() > 1) {
+	    const netranges_t&dimensions = fixed_type->static_dimensions();
+	    netranges_t element_dimensions(dimensions.begin() + 1,
+					   dimensions.end());
+	    element_type = new netuarray_t(element_dimensions,
+					    fixed_type->element_type());
+      }
+
+      const bool is_assoc = queue_type && queue_type->assoc_compat();
+      ivl_type_t index_type = is_assoc ? queue_type->assoc_index_type()
+	    : static_cast<ivl_type_t>(&netvector_t::atom2s32);
+      if (!index_type)
+	    index_type = &netvector_t::atom2u64;
+
+      const netuarray_t*iter_array_type =
+	    dynamic_cast<const netuarray_t*>(element_type);
+      NetNet*iter_net = iter_array_type
+	    ? new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			 iter_array_type->static_dimensions(),
+			 iter_array_type->element_type())
+	    : new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			 element_type);
+      iter_net->set_line(*li);
+      iter_net->local_flag(true);
+      NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
+				  NetNet::REG, index_type);
+      idx_net->set_line(*li);
+      idx_net->local_flag(true);
+
+      NetNet*visible_idx_net = idx_net;
+      NetExpr*declared_idx_expr = new NetESignal(idx_net);
+      declared_idx_expr->set_line(*li);
+      if (fixed_type && !fixed_type->static_dimensions().empty()) {
+	    visible_idx_net = new NetNet(scope, scope->local_symbol(),
+					  NetNet::REG,
+					  &netvector_t::atom2s32);
+	    visible_idx_net->set_line(*li);
+	    visible_idx_net->local_flag(true);
+	    delete declared_idx_expr;
+	    declared_idx_expr = make_fixed_array_method_declared_index_(
+		  *li, idx_net, fixed_type->static_dimensions().front());
+      }
+
+	/* Every receiver is snapshotted once into object storage. Fixed arrays
+	 * become dynamic-array values carrying the same element order; object
+	 * receivers already use this hidden-net path in neighboring methods. */
+      ivl_type_t recv_type = fixed_type
+	    ? static_cast<ivl_type_t>(new netdarray_t(element_type))
+	    : container_type;
+      NetNet*recv_net = new NetNet(scope, scope->local_symbol(),
+				   NetNet::REG, recv_type);
+      recv_net->set_line(*li);
+      recv_net->local_flag(true);
+
+      NetNet*prev = scope->set_signal_alias(iter_name, iter_net);
+      push_array_method_iter_ctx_named(iter_net, visible_idx_net,
+				       index_name,
+				       !is_assoc || !queue_type->assoc_wildcard());
+      NetExpr*value_expr = elab_and_eval(
+	    des, scope, with_exprs.front(), -1, false);
+      pop_array_method_iter_ctx();
+      scope->restore_signal_alias(iter_name, prev);
+      if (!value_expr) {
+	    delete array_expr;
+	    delete declared_idx_expr;
+	    return nullptr;
+      }
+
+      ivl_type_t value_type = value_expr->net_type();
+      if (!value_type)
+	    value_type = netexpr_type_for_equivalence(value_expr);
+      ivl_type_t result_type = array_map_result_type_(container_type,
+							      value_type);
+      if (!result_type) {
+	    cerr << li->get_fileline()
+		 << ": internal error: map() receiver has no unpacked-array type."
+		 << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    delete value_expr;
+	    delete declared_idx_expr;
+	    return nullptr;
+      }
+
+      NetExpr*element_expr = nullptr;
+      if (is_assoc) {
+	    NetESignal*receiver = new NetESignal(recv_net);
+	    receiver->set_line(*li);
+	    unsigned width = element_type->packed_width();
+	    if (width == 0) width = 1;
+	    NetESignal*key = new NetESignal(idx_net);
+	    key->set_line(*li);
+	    element_expr = new NetESelect(receiver, key, width, element_type);
+	    element_expr->set_line(*li);
+      } else {
+	    element_expr = new NetESignal(iter_net);
+	    element_expr->set_line(*li);
+      }
+
+      NetESFunc*fn = new NetESFunc("$ivl_array_method$map", result_type, 9,
+				    IVL_VT_DARRAY);
+      fn->parm(0, array_expr);
+      NetESignal*iter_ref = new NetESignal(iter_net);
+      iter_ref->set_line(*li);
+      fn->parm(1, iter_ref);
+      NetESignal*idx_ref = new NetESignal(idx_net);
+      idx_ref->set_line(*li);
+      fn->parm(2, idx_ref);
+      fn->parm(3, value_expr);
+      NetESignal*key_ref = new NetESignal(idx_net);
+      key_ref->set_line(*li);
+      fn->parm(4, key_ref);
+      fn->parm(5, element_expr);
+      NetESignal*recv_ref = new NetESignal(recv_net);
+      recv_ref->set_line(*li);
+      fn->parm(6, recv_ref);
+      NetESignal*visible_idx_ref = new NetESignal(visible_idx_net);
+      visible_idx_ref->set_line(*li);
+      fn->parm(7, visible_idx_ref);
+      fn->parm(8, declared_idx_expr);
+      fn->set_line(*li);
+      return fn;
 }
 
 /* IEEE 1800-2017 7.12.3 array reduction methods (sum, product, and,
@@ -1966,18 +2223,12 @@ static NetExpr* make_array_reduction_expr_(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_exprs)
 {
-      const PEIdent*iter_ident = parms.empty()
-	    ? nullptr : dynamic_cast<const PEIdent*>(parms.front().parm);
-      if (parms.size() > 1
-	  || (!parms.empty()
-	      && (!parms.front().name.nil() || !iter_ident
-		  || iter_ident->path().size() != 1
-		  || !iter_ident->path().back().index.empty()))) {
-	    cerr << li->get_fileline() << ": error: " << kind
-		 << "() takes at most one simple iterator identifier." << endl;
-	    des->errors += 1;
+      perm_string iter_name;
+      perm_string index_name;
+      if (!validate_array_locator_iterators_(li, des,
+		    perm_string::literal(kind), parms, iter_name, index_name)) {
 	    delete array_expr;
-	    return 0;
+	    return nullptr;
       }
       if (with_exprs.size() > 1) {
 	    cerr << li->get_fileline() << ": error: " << kind
@@ -2043,7 +2294,6 @@ static NetExpr* make_array_reduction_expr_(
 	    }
       }
 
-      perm_string iter_name;
       NetNet*iter_net = make_array_method_iter_net_(li, scope, element_type,
 						    parms, iter_name);
 
@@ -2075,7 +2325,8 @@ static NetExpr* make_array_reduction_expr_(
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
 						    iter_name, iter_net,
-						    visible_idx_net);
+						    visible_idx_net,
+						    index_name);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -2159,6 +2410,22 @@ static NetExpr* make_array_minmax_expr_(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_exprs)
 {
+      perm_string iter_name;
+      perm_string index_name;
+      if (!validate_array_locator_iterators_(li, des,
+		    perm_string::literal(kind), parms, iter_name, index_name)) {
+	    delete array_expr;
+	    return nullptr;
+      }
+      if (with_exprs.size() > 1
+	  || (with_exprs.empty() && !parms.empty())) {
+	    cerr << li->get_fileline() << ": error: " << kind
+		 << "() iterator/index arguments require at most one with "
+		    "expression." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return nullptr;
+      }
       ivl_variable_type_t ebase = element_type
 	    ? element_type->base_type() : IVL_VT_NO_TYPE;
       if (ebase != IVL_VT_BOOL && ebase != IVL_VT_LOGIC) {
@@ -2194,7 +2461,6 @@ static NetExpr* make_array_minmax_expr_(
 	    }
       }
 
-      perm_string iter_name;
       NetNet*iter_net = make_array_method_iter_net_(li, scope, element_type,
 						    parms, iter_name);
 
@@ -2223,7 +2489,8 @@ static NetExpr* make_array_minmax_expr_(
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
 						    iter_name, iter_net,
-						    visible_idx_net);
+						    visible_idx_net,
+						    index_name);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -9653,10 +9920,9 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	// IEEE 1800-2017 7.12.4: for an associative array the iterator
 	// index() call has the array's declared key type, not int.
       if (search_results.net && method_path.size() == 1
-	  && method_path.back().name == perm_string::literal("index")
 	  && !target_indexed) {
-	    if (NetNet*idx_net =
-		  find_array_method_iter_index(search_results.net)) {
+	    if (NetNet*idx_net = find_array_method_iter_index(
+		  search_results.net, method_path.back().name)) {
 		expr_type_   = idx_net->data_type();
 		expr_width_  = idx_net->vector_width();
 		min_width_   = expr_width_;
@@ -9868,6 +10134,12 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_= true;
 		  return expr_width_;
 	    }
+	    if (method_name == "map") {
+		  expr_type_ = IVL_VT_DARRAY;
+		  expr_width_ = min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
 	    if (method_name == "exists"
 		|| method_name == "first"
 		|| method_name == "last"
@@ -9924,6 +10196,12 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  expr_width_ = 32;
 		  min_width_  = expr_width_;
 		  signed_flag_= true;
+		  return expr_width_;
+	    }
+	    if (method_name == "map") {
+		  expr_type_ = IVL_VT_DARRAY;
+		  expr_width_ = min_width_ = 1;
+		  signed_flag_ = false;
 		  return expr_width_;
 	    }
 	    if (method_name == "exists"
@@ -10036,6 +10314,12 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  expr_width_ = 32;
 		  min_width_  = expr_width_;
 		  signed_flag_= true;
+		  return expr_width_;
+	    }
+	    if (method_name == "map") {
+		  expr_type_ = IVL_VT_QUEUE;
+		  expr_width_ = min_width_ = 1;
+		  signed_flag_ = false;
 		  return expr_width_;
 	    }
 	    if (method_name == "exists"
@@ -15265,6 +15549,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 
       int pidx = ensure_class_property_idx_(des, class_type, comp.name);
       if (pidx < 0) {
+            if (gn_system_verilog() && comp.index.empty()) {
+                  if (array_method_iter_index_forbidden_(sr.net, comp.name)) {
+                        cerr << get_fileline() << ": error: iterator index "
+                             << "querying is not allowed for wildcard-index "
+                                "associative arrays (IEEE 1800-2017 7.12.4)."
+                             << endl;
+                        des->errors += 1;
+                        return nullptr;
+                  }
+                  if (NetNet*idx_net = find_array_method_iter_index(
+                        sr.net, comp.name)) {
+                        NetESignal*tmp = new NetESignal(idx_net);
+                        tmp->set_line(*this);
+                        return tmp;
+                  }
+            }
             /* IEEE 1800-2017 13.5.1 permits omitting the parentheses on
                a function call that has no arguments.  A dotted spelling
                such as
@@ -17566,19 +17866,20 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    && target_indexed;
       bool selected_vif_packed_struct = false;
 
-	// IEEE 1800-2017 7.12.4: the call form of the iterator index
-	// query (`item.index()`, optional dimension defaulting to 1).
+	// The call form of the iterator index query also uses a custom
+	// method name when supplied by a 2023 array-map call.
       if (search_results.net && method_path.size() == 1
-	  && method_path.back().name == perm_string::literal("index")
 	  && !target_indexed) {
-	    if (array_method_iter_index_forbidden_(search_results.net)) {
+	    if (array_method_iter_index_forbidden_(
+		  search_results.net, method_path.back().name)) {
 		  cerr << get_fileline() << ": error: iterator index querying "
 		       << "is not allowed for wildcard-index associative arrays "
 		          "(IEEE 1800-2017 7.12.4)." << endl;
 		  des->errors += 1;
 		  return 0;
 	    }
-	    if (NetNet*idxn = find_array_method_iter_index(search_results.net)) {
+	    if (NetNet*idxn = find_array_method_iter_index(
+		  search_results.net, method_path.back().name)) {
 		  bool dim_ok = parms_.empty();
 		  if (parms_.size() == 1 && parms_[0].parm) {
 			const PENumber*np =
@@ -18166,6 +18467,12 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
 	    }
+	    if (method_name == "map")
+		  return make_array_map_expr_(this, des, scope, sub_expr,
+					      target_type,
+					      static_cast<const netdarray_t*>(
+						    target_type)->element_type(),
+					      parms_, with_constraints());
 	    unsigned errors_before = des->errors;
 	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this,
 		  sub_expr, target_type, method_name, parms_))
@@ -18236,6 +18543,10 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 	    const netuarray_t*uarray =
 		  dynamic_cast<const netuarray_t*>(target_type);
 	    ivl_type_t element_type = uarray->element_type();
+	    if (method_name == "map")
+		  return make_array_map_expr_(this, des, scope, sub_expr,
+					      target_type, element_type,
+					      parms_, with_constraints());
 
 	    if (uarray->static_dimensions().size() > 1
 		&& (is_array_locator_name_(method_name)
@@ -18343,6 +18654,10 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 
 	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(target_type);
 	    ivl_type_t element_type = queue->element_type();
+	    if (method_name == "map")
+		  return make_array_map_expr_(this, des, scope, sub_expr,
+					      target_type, element_type,
+					      parms_, with_constraints());
 	    if (method_name == "pop_back") {
 		  if (parms_.size() != 0) {
 			cerr << get_fileline() << ": error: pop_back() method "
@@ -21798,9 +22113,9 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	// enclosing receiver is associative.
       if (found_symbol && sr.net
 	  && sr.path_tail.size() == 1
-	  && sr.path_tail.front().index.empty()
-	  && sr.path_tail.front().name == perm_string::literal("index")) {
-	    if (NetNet*idx_net = find_array_method_iter_index(sr.net)) {
+	  && sr.path_tail.front().index.empty()) {
+	    if (NetNet*idx_net = find_array_method_iter_index(
+		  sr.net, sr.path_tail.front().name)) {
 		expr_type_   = idx_net->data_type();
 		expr_width_  = idx_net->vector_width();
 		min_width_   = expr_width_;
@@ -24106,11 +24421,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    // `item.index` inside an array-method with
 		    // expression reads the loop counter of the
 		    // enclosing method's iteration.
-		  if (gn_system_verilog()
-		      && sr.path_tail.size() == 1
-		      && sr.path_tail.front().index.empty()
-		      && sr.path_tail.front().name == perm_string::literal("index")) {
-			if (array_method_iter_index_forbidden_(sr.net)) {
+	  if (gn_system_verilog()
+	      && sr.path_tail.size() == 1
+	      && sr.path_tail.front().index.empty()) {
+		if (array_method_iter_index_forbidden_(
+		      sr.net, sr.path_tail.front().name)) {
 			      cerr << get_fileline() << ": error: iterator index "
 			           << "querying is not allowed for wildcard-index "
 			              "associative arrays (IEEE 1800-2017 7.12.4)."
@@ -24118,7 +24433,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			      des->errors += 1;
 			      return 0;
 			}
-			if (NetNet*idxn = find_array_method_iter_index(sr.net)) {
+		if (NetNet*idxn = find_array_method_iter_index(
+		      sr.net, sr.path_tail.front().name)) {
 			      NetESignal*tmp = new NetESignal(idxn);
 			      tmp->set_line(*this);
 			      return tmp;
@@ -26607,6 +26923,11 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
       }
 
       if (name_tail.index.empty()) {
+	    if (is_array_method_iter_net_(net)) {
+		  NetESignal*res = new NetESignal(net, 0);
+		  res->set_line(*this);
+		  return res;
+	    }
 	    cerr << get_fileline() << ": error: Array " << path()
 		 << " needs an array index here." << endl;
 	    des->errors += 1;

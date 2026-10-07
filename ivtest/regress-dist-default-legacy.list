@@ -1,0 +1,5 @@
+sv_dist_default_weight_2023 normal,-g2023,-I./ivltests ivltests gold=sv_dist_default_weight_2023.gold
+sv_dist_default_weight_2017_fail CE,-g2017,-I./ivltests ivltests gold=sv_dist_default_weight_2017_fail.gold
+sv_dist_default_missing_weight_fail CE,-g2023 ivltests gold=sv_dist_default_missing_weight_fail.gold
+sv_dist_default_assign_weight_fail CE,-g2023 ivltests gold=sv_dist_default_assign_weight_fail.gold
+sv_dist_default_duplicate_fail CE,-g2023 ivltests gold=sv_dist_default_duplicate_fail.gold

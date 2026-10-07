@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_sampled_value_explicit_clock.v",
+  "iverilog-args": ["-g2023", "-s", "main"]
+}

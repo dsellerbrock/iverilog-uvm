@@ -542,6 +542,10 @@ static void container_element_enc_(ivl_type_t etype, char*enc, size_t enc_len)
 	    snprintf(enc, enc_len, "v32");
 	    return;
       }
+      if (type_is_fixed_uarray_property_(etype)) {
+	    snprintf(enc, enc_len, "o");
+	    return;
+      }
       switch (ivl_type_base(etype)) {
 	  case IVL_VT_REAL:
 	    snprintf(enc, enc_len, "r");
@@ -1569,17 +1573,18 @@ static int draw_assoc_unique_expr_(ivl_expr_t expr, ivl_signal_t q_sig,
       return errors;
 }
 
-/* Lower associative find_index() by visiting actual keys and appending the
- * key signal for every matching value. Positional queue ordinals are not
- * associative-array indices. */
-static int draw_assoc_find_index_expr_(ivl_expr_t expr)
+/* Lower associative index locators by visiting actual keys. Positional queue
+ * ordinals are not associative-array indices. */
+static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int traversal)
 {
+      const char*kind = traversal > 0 ? "find_first_index"
+	    : traversal < 0 ? "find_last_index" : "find_index";
       unsigned parm_count = ivl_expr_parms(expr);
       if (parm_count != 6 && parm_count != 7) {
 	    fprintf(stderr, "%s:%u: internal error: malformed associative "
-		    "find_index payload\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index payload failure\n");
+		    "%s payload\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator payload failure\n");
 	    return 1;
       }
 
@@ -1596,19 +1601,19 @@ static int draw_assoc_find_index_expr_(ivl_expr_t expr)
 	  || !key_arg || ivl_expr_type(key_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(key_arg) || !pred || !element) {
 	    fprintf(stderr, "%s:%u: internal error: malformed associative "
-		    "find_index fields\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index field failure\n");
+		    "%s fields\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator field failure\n");
 	    return 1;
       }
 
       ivl_expr_t q_arg = ivl_expr_parm(expr, 0);
       ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_arg);
       if (!q_sig) {
-	    fprintf(stderr, "%s:%u: internal error: associative find_index "
+	    fprintf(stderr, "%s:%u: internal error: associative %s "
 		    "receiver cannot be materialized\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index receiver failure\n");
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator receiver failure\n");
 	    return 1;
       }
 
@@ -1624,9 +1629,9 @@ static int draw_assoc_find_index_expr_(ivl_expr_t expr)
 	  || !unique_runtime_type_supported_(key_type)
 	  || !unique_runtime_type_supported_(result_type)) {
 	    fprintf(stderr, "%s:%u: internal error: unsupported associative "
-		    "find_index runtime type\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index type failure\n");
+		    "%s runtime type\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator type failure\n");
 	    return 1;
       }
 
@@ -1650,8 +1655,8 @@ static int draw_assoc_find_index_expr_(ivl_expr_t expr)
       fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
       fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
       fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
-      fprintf(vvp_out, "    %%aa/first/sig/%s v%p_0, v%p_0;\n",
-	      key_kind, q_sig, key_sig);
+      fprintf(vvp_out, "    %%aa/%s/sig/%s v%p_0, v%p_0;\n",
+	      traversal < 0 ? "last" : "first", key_kind, q_sig, key_sig);
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 	      thread_count, lab_end, traversal_flag);
@@ -1664,15 +1669,387 @@ static int draw_assoc_find_index_expr_(ivl_expr_t expr)
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 	      thread_count, lab_skip, pred_flag);
       errors += draw_unique_append_queue_(key_arg, result_sig, key_type);
+      if (traversal != 0)
+	    fprintf(vvp_out, "    %%jmp T_%u.%u; first matching key in traversal order\n",
+		    thread_count, lab_end);
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
-      fprintf(vvp_out, "    %%aa/next/sig/%s v%p_0, v%p_0;\n",
-	      key_kind, q_sig, key_sig);
+	  fprintf(vvp_out, "    %%aa/%s/sig/%s v%p_0, v%p_0;\n",
+	      traversal < 0 ? "prev" : "next", key_kind, q_sig, key_sig);
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
 	      thread_count, lab_top, traversal_flag);
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
       fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
       clr_flag(pred_flag);
+      clr_flag(traversal_flag);
+      return errors;
+}
+
+static int draw_array_map_load_iter_(ivl_signal_t source_sig,
+				     ivl_signal_t iter_sig,
+				     ivl_type_t iter_type)
+{
+      unsigned width = ivl_type_packed_width(iter_type);
+      if (width == 0) width = 1;
+
+      if (ivl_signal_dimensions(iter_sig) > 0) {
+	    unsigned kind;
+	    if (!uarray_container_kind_(iter_sig, &kind,
+					ivl_signal_file(iter_sig),
+					ivl_signal_lineno(iter_sig)))
+		  return 1;
+	    fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", source_sig);
+	    emit_store_arr_dar_(iter_sig, kind);
+	    return 0;
+      }
+
+      switch (ivl_type_base(iter_type)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", source_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    iter_sig, width);
+	    return 0;
+	  case IVL_VT_REAL:
+	    fprintf(vvp_out, "    %%load/dar/r v%p_0;\n", source_sig);
+	    fprintf(vvp_out, "    %%store/real v%p_0;\n", iter_sig);
+	    return 0;
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, "    %%load/dar/str v%p_0;\n", source_sig);
+	    fprintf(vvp_out, "    %%store/str v%p_0;\n", iter_sig);
+	    return 0;
+	  default:
+	    fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", source_sig);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", iter_sig);
+	    return 0;
+      }
+}
+
+static int draw_array_map_store_iter_(ivl_expr_t value,
+				      ivl_signal_t iter_sig,
+				      ivl_type_t iter_type)
+{
+      unsigned width;
+
+      if (ivl_signal_dimensions(iter_sig) > 0) {
+	    int errors = draw_eval_object_value_copy(value, iter_type);
+	    unsigned kind;
+	    if (!uarray_container_kind_(iter_sig, &kind,
+					ivl_signal_file(iter_sig),
+					ivl_signal_lineno(iter_sig)))
+		  return errors + 1;
+	    emit_store_arr_dar_(iter_sig, kind);
+	    return errors;
+      }
+
+      switch (ivl_type_base(iter_type)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    width = ivl_type_packed_width(iter_type);
+	    if (width == 0) width = 1;
+	    draw_eval_vec4(value);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, width);
+	    return 0;
+	  case IVL_VT_REAL:
+	    draw_eval_real(value);
+	    fprintf(vvp_out, "    %%store/real v%p_0;\n", iter_sig);
+	    return 0;
+	  case IVL_VT_STRING:
+	    draw_eval_string(value);
+	    fprintf(vvp_out, "    %%store/str v%p_0;\n", iter_sig);
+	    return 0;
+	  default: {
+	    int errors = draw_eval_object_value_copy(value, iter_type);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", iter_sig);
+	    return errors;
+	  }
+      }
+}
+
+static int draw_array_map_store_value_(ivl_expr_t value,
+				       ivl_type_t element_type,
+				       char mode, uint64_t max_size,
+				       ivl_signal_t idx_sig)
+{
+      unsigned width = ivl_type_packed_width(element_type);
+      if (width == 0) width = 32;
+
+      fprintf(vvp_out, "    %%dup/obj/ref;\n");
+
+      if (vvp_expr_is_fixed_uarray_value(value)) {
+	    int errors = draw_eval_object_value_copy(value, element_type);
+	    if (mode == 'i') {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    emit_object_queue_store_(mode, "obj", max_size, 0);
+	    return errors;
+      }
+
+      if (type_is_fixed_uarray_property_(element_type)) {
+	    int errors = draw_eval_object_value_copy(value, element_type);
+	    if (mode == 'i') {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    emit_object_queue_store_(mode, "obj", max_size, 0);
+	    return errors;
+      }
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    draw_eval_real(value);
+	    if (mode == 'i') {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    emit_object_queue_store_(mode, "r", max_size, 0);
+	    return 0;
+	  case IVL_VT_STRING:
+	    draw_eval_string(value);
+	    if (mode == 'i') {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    emit_object_queue_store_(mode, "str", max_size, 0);
+	    return 0;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    draw_eval_vec4(value);
+	    resize_vec4_wid(value, width);
+	    if (ivl_type_base(element_type) == IVL_VT_BOOL
+		&& ivl_expr_value(value) != IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    if (mode == 'i') {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    emit_object_queue_store_(mode, "v", max_size, width);
+	    return 0;
+	  default: {
+	    int errors = draw_eval_object_value_copy(value, element_type);
+	    if (mode == 'i') {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    emit_object_queue_store_(mode, "obj", max_size, 0);
+	    return errors;
+	  }
+      }
+}
+
+static int draw_assoc_map_store_value_(ivl_expr_t key,
+				       ivl_expr_t value,
+				       ivl_type_t element_type)
+{
+      int errors = 0;
+      const char*key_kind = draw_eval_assoc_key_(key, &errors);
+      unsigned width = ivl_type_packed_width(element_type);
+      if (width == 0) width = 32;
+
+      if (type_is_fixed_uarray_property_(element_type)) {
+	    errors += draw_eval_object_value_copy(value, element_type);
+	    fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
+	    return errors;
+      }
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    draw_eval_real(value);
+	    fprintf(vvp_out, "    %%aa/store/r/%s;\n", key_kind);
+	    break;
+	  case IVL_VT_STRING:
+	    draw_eval_string(value);
+	    fprintf(vvp_out, "    %%aa/store/str/%s;\n", key_kind);
+	    break;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    draw_eval_vec4(value);
+	    resize_vec4_wid(value, width);
+	    if (ivl_type_base(element_type) == IVL_VT_BOOL
+		&& ivl_expr_value(value) != IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind, width);
+	    break;
+	  default:
+	    errors += draw_eval_object_value_copy(value, element_type);
+	    fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
+	    break;
+      }
+      return errors;
+}
+
+/* IEEE 1800-2023 7.12.5. The expression's static result type is the
+ * source container kind with a self-determined mapped element type. Fixed
+ * receivers arrive as a materialized dynamic-array snapshot; their static
+ * result type retains the declared range. */
+static int draw_array_map_expr_(ivl_expr_t expr)
+{
+      if (ivl_expr_parms(expr) != 9) {
+	    fprintf(stderr, "%s:%u: internal error: malformed array map payload\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; malformed array map payload\n");
+	    return 1;
+      }
+
+      ivl_expr_t source_arg = ivl_expr_parm(expr, 0);
+      ivl_expr_t iter_arg = ivl_expr_parm(expr, 1);
+      ivl_expr_t idx_arg = ivl_expr_parm(expr, 2);
+      ivl_expr_t value = ivl_expr_parm(expr, 3);
+      ivl_expr_t key_arg = ivl_expr_parm(expr, 4);
+      ivl_expr_t element_arg = ivl_expr_parm(expr, 5);
+      ivl_expr_t recv_arg = ivl_expr_parm(expr, 6);
+      ivl_expr_t visible_idx_arg = ivl_expr_parm(expr, 7);
+      ivl_expr_t declared_idx_expr = ivl_expr_parm(expr, 8);
+
+
+      if (!iter_arg || (ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+			&& ivl_expr_type(iter_arg) != IVL_EX_ARRAY)
+	  || !ivl_expr_signal(iter_arg)
+	  || !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(idx_arg)
+	  || !value || !key_arg || !element_arg
+	  || !visible_idx_arg || ivl_expr_type(visible_idx_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(visible_idx_arg) || !declared_idx_expr) {
+	    fprintf(stderr, "%s:%u: internal error: malformed array map fields\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; malformed array map fields\n");
+	    return 1;
+      }
+
+      ivl_signal_t source_sig = draw_array_method_recv_(source_arg, recv_arg);
+      if (!source_sig) {
+	    fprintf(stderr, "%s:%u: internal error: array map receiver cannot be materialized\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; array map receiver failure\n");
+	    return 1;
+      }
+
+      ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+      ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+      ivl_signal_t visible_idx_sig = ivl_expr_signal(visible_idx_arg);
+      ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+      ivl_type_t result_type = ivl_expr_net_type(expr);
+      ivl_type_t result_element = ivl_expr_net_type(value);
+	/* A fixed multidimensional map result is represented as one netuarray
+	 * with flattened dimensions, while the runtime map loop still appends one
+	 * value per outer source element. Keep that immediate mapped type from the
+	 * with-expression instead of treating the flattened leaf as the row type. */
+      if (!result_element && result_type)
+	    result_element = ivl_type_element(result_type);
+      int is_fixed = result_type
+	    && type_is_fixed_uarray_property_(result_type);
+      int is_assoc = result_type
+	    && ivl_type_base(result_type) == IVL_VT_QUEUE
+	    && ivl_type_queue_assoc_compat(result_type);
+      int is_queue = result_type
+	    && ivl_type_base(result_type) == IVL_VT_QUEUE && !is_assoc;
+
+
+      if (!iter_type || !result_element) {
+	    fprintf(stderr, "%s:%u: internal error: array map type is incomplete\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(stderr, "  iterator=%s result=%s element=%s\n",
+		    iter_type ? "present" : "missing",
+		    result_type ? "present" : "missing",
+		    result_element ? "present" : "missing");
+	    fprintf(vvp_out, "    %%null; ; incomplete array map type\n");
+	    return 1;
+      }
+
+      int errors = 0;
+      unsigned lab_top = local_count++;
+      unsigned lab_end = local_count++;
+      unsigned traversal_flag = allocate_flag();
+      char result_enc[64];
+      if (vvp_expr_is_fixed_uarray_value(value))
+	    snprintf(result_enc, sizeof result_enc, "o");
+      else
+	    container_element_enc_(result_element, result_enc,
+				   sizeof result_enc);
+
+      if (is_assoc) {
+	    ivl_signal_t key_sig = ivl_expr_signal(key_arg);
+	    ivl_type_t key_type = ivl_signal_net_type(key_sig);
+	    const char*key_kind =
+		  expr_is_string_assoc_key_(key_arg) ? "str"
+		  : expr_is_object_assoc_key_(key_arg) ? "obj"
+		  : (key_type && ivl_type_signed(key_type)) ? "sv" : "v";
+	    unsigned assoc_kind = 3;
+	    if (!vvp_expr_is_fixed_uarray_value(value))
+	      switch (ivl_type_base(result_element)) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC: assoc_kind = 0; break;
+		case IVL_VT_REAL: assoc_kind = 1; break;
+		case IVL_VT_STRING: assoc_kind = 2; break;
+		default: break;
+	      }
+	    fprintf(vvp_out, "    %%new/queue \"@%u\"; array map result\n",
+		    assoc_kind + 4);
+	    fprintf(vvp_out, "    %%aa/first/sig/%s v%p_0, v%p_0;\n",
+		    key_kind, source_sig, key_sig);
+	    fprintf(vvp_out, "    %%flag_set/vec4 %u;\n", traversal_flag);
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %u;\n",
+		    thread_count, lab_end, traversal_flag);
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+	    errors += draw_array_map_store_iter_(element_arg, iter_sig, iter_type);
+	    errors += draw_assoc_map_store_value_(key_arg, value, result_element);
+	    fprintf(vvp_out, "    %%aa/next/sig/%s v%p_0, v%p_0;\n",
+		    key_kind, source_sig, key_sig);
+	    fprintf(vvp_out, "    %%flag_set/vec4 %u;\n", traversal_flag);
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %u;\n",
+		    thread_count, lab_top, traversal_flag);
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+	    clr_flag(traversal_flag);
+	    return errors;
+      }
+
+      if (is_queue) {
+	    uint64_t max_size = ivl_type_queue_max_size(result_type);
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+	    fprintf(vvp_out, "    %%new/queue \"%s\"; array map result\n",
+		    result_enc);
+	    if (max_size)
+		  fprintf(vvp_out, "    %%container/layout/q %" PRIu64 ";\n",
+			  max_size);
+      } else {
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+	    draw_array_size_push_(source_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%new/darray 3, \"%s\"; array map result\n",
+		    result_enc);
+      }
+
+      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+      draw_array_size_push_(source_sig);
+      fprintf(vvp_out, "    %%cmp/s;\n");
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+	      thread_count, lab_end);
+
+      fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+      errors += draw_array_map_load_iter_(source_sig, iter_sig, iter_type);
+      if (is_fixed) {
+	    draw_eval_vec4(declared_idx_expr);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
+		    visible_idx_sig);
+      }
+      errors += draw_array_map_store_value_(value, result_element,
+					    is_queue ? 'b' : 'i',
+					    is_queue
+						  ? ivl_type_queue_max_size(result_type)
+						  : 0,
+					    idx_sig);
+
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+      fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+      fprintf(vvp_out, "    %%add;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
       clr_flag(traversal_flag);
       return errors;
 }
@@ -1896,6 +2273,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 {
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
+
+      if (strcmp(name, "$ivl_array_method$map") == 0)
+	    return draw_array_map_expr_(expr);
 
       if (strcmp(name, "$ivl_vif_nested_value") == 0)
 	    return eval_object_nested_vif_value(expr);
@@ -2712,7 +3092,13 @@ static int eval_object_sfunc(ivl_expr_t expr)
       }
 
       if (strcmp(name, "$ivl_queue_method$assoc_find_index") == 0)
-	    return draw_assoc_find_index_expr_(expr);
+	    return draw_assoc_index_locator_expr_(expr, 0);
+
+      if (strcmp(name, "$ivl_queue_method$assoc_find_first_index") == 0)
+	    return draw_assoc_index_locator_expr_(expr, 1);
+
+      if (strcmp(name, "$ivl_queue_method$assoc_find_last_index") == 0)
+	    return draw_assoc_index_locator_expr_(expr, -1);
 
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;

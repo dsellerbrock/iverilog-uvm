@@ -9351,6 +9351,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 			? sva_clone_subst_(src[k].weight, subst) : nullptr;
 		  dst.is_range = src[k].is_range;
 		  dst.weight_is_divided = src[k].weight_is_divided;
+		  dst.is_default = src[k].is_default;
 		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
 		      || (src[k].weight && !dst.weight)) {
 			delete dst.lo;
@@ -10286,6 +10287,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 			: nullptr;
 		  dst.is_range = src[k].is_range;
 		  dst.weight_is_divided = src[k].weight_is_divided;
+		  dst.is_default = src[k].is_default;
 		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
 		      || (src[k].weight && !dst.weight)) {
 			delete dst.lo;
@@ -12428,8 +12430,21 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			     lands in the integral chain. */
 			bool as_real = false;
 			if (wide) {
+			      PExpr*real_operand = parms[0].parm;
+			      if (const PECallFunction*sample =
+				  dynamic_cast<const PECallFunction*>(real_operand)) {
+				    if (!sample->path().package
+					&& sample->path().name.size() == 1
+					&& !strcmp(peek_tail_name(sample->path().name).str(),
+						   "$ivl_clocking_sample")) {
+					  const std::vector<named_pexpr_t>&args =
+						sample->get_parms();
+					  if (args.size() == 1)
+						real_operand = args[0].parm;
+				    }
+			      }
 			      if (const PEIdent*aid =
-				  dynamic_cast<const PEIdent*>(parms[0].parm)) {
+				  dynamic_cast<const PEIdent*>(real_operand)) {
 				    if (aid->path().size() == 1) {
 					  PWire*w = pform_get_wire_in_scope(
 						aid->path().back().name);
@@ -12833,6 +12848,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			? sva_clone_expr_(src[k].weight) : rewritten[k].weight;
 		  dst.is_range = src[k].is_range;
 		  dst.weight_is_divided = src[k].weight_is_divided;
+		  dst.is_default = src[k].is_default;
 		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
 		      || (src[k].weight && !dst.weight)) {
 			delete dst.lo;
@@ -12892,6 +12908,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 struct sampled_pending_t {
       PECallFunction*call;
       struct vlltype loc;
+      bool automatic_operand;
+      bool clocking_input_operand;
 };
 static std::vector<sampled_pending_t> sampled_pending_;
 
@@ -12903,11 +12921,85 @@ bool pform_is_sampled_value_function(const char*name)
 	  || !strcmp(name, "$changed");
 }
 
+/* Capture automatic-operand classification while the parser still has the
+   live lexical scope. Process binding happens after nested scopes have been
+   popped, so retaining a scope pointer for later lookup is unsafe. */
+static bool pform_is_auto_sampled_value_(LexicalScope*scope,
+					 const PECallFunction*call)
+{
+      if (!call || call->path().package || call->path().name.size() != 1)
+	    return false;
+
+      const char*name = peek_tail_name(call->path().name).str();
+      if (strcmp(name, "$past") && strcmp(name, "$rose")
+	  && strcmp(name, "$fell") && strcmp(name, "$changed")
+	  && strcmp(name, "$stable"))
+	    return false;
+
+      const std::vector<named_pexpr_t>&args = call->get_parms();
+      if (args.empty() || !args[0].parm) return false;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(args[0].parm);
+      if (!id || id->path().package || id->path().name.size() != 1)
+	    return false;
+
+      PWire*wire = nullptr;
+      LexicalScope*owner = nullptr;
+      for (LexicalScope*cur = scope; cur && !wire;
+	   cur = cur->parent_scope()) {
+	    wire = cur->wires_find(id->path().name.front().name);
+	    if (wire) owner = cur;
+      }
+      if (!wire || !owner) return false;
+
+      ivl_lifetime_t lifetime = wire->lifetime_override();
+      if (lifetime == IVL_VLT_INHERITED) {
+	    LexicalScope*effective_scope = owner;
+	    while (effective_scope
+		   && effective_scope->default_lifetime == LexicalScope::INHERITED)
+		  effective_scope = effective_scope->parent_scope();
+	    if (!effective_scope
+		|| effective_scope->default_lifetime != LexicalScope::AUTOMATIC)
+		  return false;
+	  } else if (lifetime != IVL_VLT_AUTOMATIC) {
+	    return false;
+      }
+
+      return true;
+}
+
+/* Clocking inputs already have their own #1step sample. They must not be
+   treated as ordinary static signals by the procedural Preponed wrapper. */
+static bool pform_is_clocking_input_sampled_(const PECallFunction*call)
+{
+      if (!call || call->path().package || call->path().name.size() != 1
+	  || call->get_parms().empty() || !call->get_parms()[0].parm
+	  || pform_cur_module.empty())
+	    return false;
+
+      const PExpr*expr = call->get_parms()[0].parm;
+      const Module*module = pform_cur_module.front();
+      for (std::map<perm_string, Module::PClocking*>::const_iterator cb_it =
+	 module->clocking_blocks.begin();
+	 cb_it != module->clocking_blocks.end(); ++cb_it) {
+	    const Module::PClocking*cb = cb_it->second;
+	    if (!expr->refs_name(cb_it->first)) continue;
+	    for (size_t i = 0; i < cb->signals.size(); ++i) {
+		  NetNet::PortType dir = cb->signal_direction(cb->signals[i]);
+		  if ((dir == NetNet::PINPUT || dir == NetNet::PINOUT)
+		      && expr->refs_name(cb->signals[i]))
+			return true;
+	    }
+      }
+      return false;
+}
+
 void pform_note_sampled_call(const struct vlltype&loc, PECallFunction*cf)
 {
       sampled_pending_t p;
       p.call = cf;
       p.loc = loc;
+      p.automatic_operand = pform_is_auto_sampled_value_(lexical_scope, cf);
+      p.clocking_input_operand = pform_is_clocking_input_sampled_(cf);
       sampled_pending_.push_back(p);
 }
 
@@ -12922,6 +13014,83 @@ static void sampled_pending_drop_(const PECallFunction*cf)
 		  return;
 	    }
       }
+}
+
+/* IEEE 1800-2017 16.5.1 says sampled values of automatic variables are
+   their current values; `$past` of an automatic variable also takes its
+   current value. A separate history process cannot access an automatic
+   block activation, so bind the simple variable case in its original
+   expression context instead of moving it into that process. */
+static bool pform_auto_sampled_value_(const sampled_pending_t&pending,
+				      PExpr*&replacement)
+{
+      replacement = nullptr;
+      if (!pending.automatic_operand) return false;
+      const PECallFunction*call = pending.call;
+      const char*name = peek_tail_name(call->path().name).str();
+      const std::vector<named_pexpr_t>&args = call->get_parms();
+      if (args.size() != 1 || !args[0].parm) return false;
+
+      if (!strcmp(name, "$past"))
+	    replacement = sva_clone_expr_(args[0].parm);
+      else if (!strcmp(name, "$rose") || !strcmp(name, "$fell")
+	       || !strcmp(name, "$changed"))
+	    replacement = sva_bit_(pending.loc, 0);
+      else if (!strcmp(name, "$stable"))
+	    replacement = sva_bit_(pending.loc, 1);
+      else
+	    return false;
+
+      if (!replacement) return false;
+      return true;
+}
+
+static void pform_capture_procedural_sampled_(
+	    const sampled_pending_t&pending, unsigned inst, unsigned&hist_idx,
+	    std::vector<Statement*>&pre, std::vector<Statement*>&post,
+	    std::vector<Statement*>&init,
+	    std::map<std::string, pform_name_t>&sampled,
+	    unsigned&live_operands)
+{
+      PECallFunction*cf = pending.call;
+      if (cf->sampled_subst()) return;
+
+      if (pending.clocking_input_operand) {
+	    live_operands += 1;
+	    return;
+      }
+      if (pending.automatic_operand) {
+	    PExpr*current_value = nullptr;
+	    if (pform_auto_sampled_value_(pending, current_value))
+		  cf->set_sampled_subst(current_value);
+	    else
+		  live_operands += 1;
+	    return;
+      }
+
+      /* The sampler runs in Active. Capture static signal leaves through
+	 the existing Preponed read path before building their history. */
+      PExpr*source = sva_wrap_preponed_(cf, sampled, live_operands);
+      if (!source) {
+	    live_operands += 1;
+	    source = cf;
+      }
+      PExpr*sub = sva_rewrite_sampled_(pending.loc, source, inst, hist_idx,
+					       pre, post, init, true);
+      if (source != cf && sub != source)
+	    delete source;
+      if (sub && sub != cf)
+	    cf->set_sampled_subst(sub);
+}
+
+static void pform_enable_procedural_sampled_history_(
+	    const struct vlltype&loc,
+	    const std::map<std::string, pform_name_t>&sampled,
+	    std::vector<Statement*>&init)
+{
+      for (std::map<std::string, pform_name_t>::const_iterator it =
+	 sampled.begin() ; it != sampled.end() ; ++it)
+	    init.push_back(sva_hist_on_stmt_(loc, it->second));
 }
 
 /* Mark every identifier in this expression tree as coming from a
@@ -13134,21 +13303,30 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init;
+      std::map<std::string, pform_name_t> sampled;
+      unsigned live_operands = 0;
 
       for (size_t i = 0 ; i < mine.size() ; i += 1) {
-	    PECallFunction*cf = mine[i].call;
-	    if (cf->sampled_subst())
-		  continue;               // already bound (nested call)
-	    PExpr*sub = sva_rewrite_sampled_(mine[i].loc, cf, inst, hist_idx,
-					     pre, post, init, true);
-	    if (sub && sub != cf)
-		  cf->set_sampled_subst(sub);
+	    pform_capture_procedural_sampled_(mine[i], inst, hist_idx,
+					      pre, post, init, sampled,
+					      live_operands);
+      }
+
+      if (live_operands != 0) {
+	    cerr << mine[0].loc << ": sorry: procedural sampled-value "
+		 << "expression has " << live_operands
+		 << " operand(s) that cannot be lowered with the required "
+		 << "IEEE 1800-2017 16.5.1 sampling/lifetime rules." << endl;
+	    error_count += 1;
+	    return;
       }
 
       if (post.empty())
 	    return;
 
       const struct vlltype&loc = mine[0].loc;
+	/* Enable signal history before the first clock event. */
+	pform_enable_procedural_sampled_history_(loc, sampled, init);
       pform_make_sampled_history_process_(loc, ev->event_expressions(),
 					  post, init);
 }
@@ -13162,10 +13340,9 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
  * same construction then serves a reader that has no block of its own
  * to splice into (a default-clocking binding).
  *
- * The shift is NONBLOCKING, which is what makes sharing an edge with
- * the readers safe: the update lands after every Active-region read, so
- * a reader sees the previous tick's sample no matter which process the
- * scheduler picks first.
+ * The source operands in post have already been rewritten to read their
+ * Preponed values. The shift is NONBLOCKING so readers still see the prior
+ * event's history throughout Active, independent of process order.
  */
 static void pform_make_sampled_history_process_(
 	    const struct vlltype&loc,
@@ -13218,6 +13395,16 @@ void pform_bind_sampled_call_to_event(const struct vlltype&loc,
       if (cf->sampled_subst())
 	    return;
 
+	/* The call is parsed inside its original lexical scope; retain only the
+	   lifetime classification before hoisting the sampler out of a block. */
+      sampled_pending_t pending;
+      pending.call = cf;
+      pending.loc = loc;
+      pending.automatic_operand = pform_is_auto_sampled_value_(lexical_scope,
+									 cf);
+      pending.clocking_input_operand =
+	    pform_is_clocking_input_sampled_(cf);
+
 	/* Parsed mid-statement, so this can be inside a begin/end.
 	   Hoist the sampler and its registers out of the PBlock. */
       sva_hoist_out_of_block_t sva_scope_guard;
@@ -13225,13 +13412,22 @@ void pform_bind_sampled_call_to_event(const struct vlltype&loc,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init;
-
-      PExpr*sub = sva_rewrite_sampled_(loc, cf, inst, hist_idx,
-				       pre, post, init, true);
-      if (sub && sub != cf)
-	    cf->set_sampled_subst(sub);
-      if (post.empty())
-	    return;
+	std::map<std::string, pform_name_t> sampled;
+	unsigned live_operands = 0;
+	pform_capture_procedural_sampled_(pending, inst, hist_idx,
+					  pre, post, init, sampled,
+					  live_operands);
+	if (live_operands != 0) {
+	      cerr << loc << ": sorry: procedural sampled-value expression has "
+		   << live_operands
+		   << " operand(s) that cannot be lowered with the required "
+		   << "IEEE 1800-2017 16.5.1 sampling/lifetime rules." << endl;
+	      error_count += 1;
+	      return;
+	}
+	  if (post.empty())
+		return;
+	pform_enable_procedural_sampled_history_(loc, sampled, init);
 
       pform_make_sampled_history_process_(loc, ev->event_expressions(),
 					  post, init);
@@ -13284,15 +13480,21 @@ void pform_flush_pending_sampled_calls()
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init;
+      std::map<std::string, pform_name_t> sampled;
+      unsigned live_operands = 0;
 
       for (size_t i = 0 ; i < mine.size() ; i += 1) {
-	    PECallFunction*cf = mine[i].call;
-	    if (cf->sampled_subst())
-		  continue;
-	    PExpr*sub = sva_rewrite_sampled_(mine[i].loc, cf, inst, hist_idx,
-					     pre, post, init, true);
-	    if (sub && sub != cf)
-		  cf->set_sampled_subst(sub);
+	    pform_capture_procedural_sampled_(mine[i], inst, hist_idx,
+					      pre, post, init, sampled,
+					      live_operands);
+      }
+      if (live_operands != 0) {
+	    cerr << loc << ": sorry: procedural sampled-value expression has "
+		 << live_operands
+		 << " operand(s) that cannot be lowered with the required "
+		 << "IEEE 1800-2017 16.5.1 sampling/lifetime rules." << endl;
+	    error_count += 1;
+	    return;
       }
       if (post.empty())
 	    return;
@@ -13309,6 +13511,7 @@ void pform_flush_pending_sampled_calls()
       std::vector<PEEvent*> evs;
       evs.push_back(devt);
 
+	pform_enable_procedural_sampled_history_(loc, sampled, init);
       pform_make_sampled_history_process_(loc, evs, post, init);
 }
 
@@ -15616,6 +15819,34 @@ sva_property_t* pform_sva_comb_antecedent_sorry(
       return p;
 }
 
+/* Compose sequence-combinator trees on both sides of an implication.
+   The NFA implication builder already preserves every antecedent endpoint
+   and combines it with the consequent language. */
+extern sva_property_t* pform_sva_tree_implication(
+					const struct vlltype&loc, int op_type,
+					sva_property_t*ante,
+					sva_property_t*conseq);
+sva_property_t* pform_sva_tree_implication(
+					const struct vlltype&loc, int op_type,
+					sva_property_t*ante,
+					sva_property_t*conseq)
+{
+      (void)loc;
+      sva_stree_t*at = sva_prop_take_tree_(ante);
+      sva_stree_t*ct = sva_prop_take_tree_(conseq);
+      if (!at || !ct) {
+	    sva_tree_delete_(at, true);
+	    sva_tree_delete_(ct, true);
+	    return nullptr;
+      }
+
+      sva_property_t*p = new sva_property_t;
+      p->ante_tree = at;
+      p->tree = ct;
+      p->op_type = op_type;
+      return p;
+}
+
 /* The mirror of pform_sva_comb_antecedent_sorry: move a combinator
    CONSEQUENT into the tree carrier used by the automaton engine. */
 extern sva_property_t* pform_sva_comb_consequent_sorry(
@@ -15906,25 +16137,18 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    return pform_sva_comb_consequent_sorry(loc, op_type, ante,
 						     conseq);
 
-	/* A boolean outer implication wrapped around another implication can
-	   be composed directly into the nested antecedent:
+	/* An implication wrapped around another implication can be composed by
+	   concatenating the outer match with the nested antecedent:
 
-	       enable |-> (a |=> b)  ==  (enable and a) |=> b
-	       enable |=> (a |=> b)  ==  (enable ##1 a) |=> b
+	       outer |-> (a |=> b)  ==  (outer ##0 a) |=> b
+	       outer |=> (a |=> b)  ==  (outer ##1 a) |=> b
 
-	   For |-> both operands start on the same tick, so sequence `and'
-	   correctly lets a longer nested antecedent finish later. For |=> the
-	   inner property starts on the next tick, represented by a nonoverlapped
-	   SEQ_CONCAT. This is the canonical expansion of OpenTitan's ASSERT_IF
-	   macro and Caliptra's delayed digest/key-vault checks. */
+	   The nested property starts at the outer match endpoint (or the following
+	   tick for |=>), including when the outer antecedent spans multiple
+	   cycles. Sequence `and' would incorrectly start both operands together. */
       bool nested_impl = conseq->op_type == 1 || conseq->op_type == 2
 			 || conseq->op_type == 18 || conseq->op_type == 19;
-      bool outer_bool = ante->size() == 1
-			&& (*ante)[0].delay_lo == 0
-			&& (*ante)[0].delay_hi == 0
-			&& (*ante)[0].rep_tail == 0
-			&& (*ante)[0].rep_kind == 0;
-      if ((op_type == 1 || op_type == 2) && nested_impl && outer_bool
+      if ((op_type == 1 || op_type == 2) && nested_impl
 	  && !conseq->clk_evt && !conseq->seq_clk_evt
 	  && !conseq->mc_prefix && !conseq->disable_iff_expr) {
 	    sva_stree_t*outer = sva_chain_take_tree_(ante);
@@ -15969,11 +16193,10 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    }
 
 	    sva_stree_t*both = new sva_stree_t;
-	    both->kind = (op_type == 1) ? sva_stree_t::SEQ_AND
-					 : sva_stree_t::SEQ_CONCAT;
+	    both->kind = sva_stree_t::SEQ_CONCAT;
 	    both->a = outer;
 	    both->b = inner_ante;
-	    both->concat_overlap = false;
+	    both->concat_overlap = (op_type == 1);
 	    sva_property_t*p = new sva_property_t;
 	    p->ante_tree = both;
 	    p->tree = inner_seq;
@@ -21654,10 +21877,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
    LAST domain (M) computes a real pass verdict / cover count -- the
    existing final-domain logic, unchanged in shape.
 
-   Excluded (loud sorry, not silently narrowed): `disable iff' composed
-   with more than one clock-flow change (the single-boundary lowering
-   above keeps supporting it), and a variable-length window anywhere but
-   the LAST segment (already excluded there too). */
+   A `disable iff' condition applies asynchronously to the entire chain;
+   each clock domain guards its level and a shared abort process clears
+   every in-flight stage when the condition rises. A variable-length window
+   anywhere but the LAST segment remains excluded. */
 static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 						   sva_property_t*prop,
 						   Statement*fail_stmt,
@@ -21683,11 +21906,6 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    why = "a multiclocked sequence with an empty first-clock prefix";
       else if (!plain && (!prop->antecedent || prop->antecedent->empty()))
 	    why = "a multiclocked implication with an empty antecedent";
-      else if (prop->disable_iff_expr)
-	    why = "`disable iff' composed with more than one clock-flow "
-		  "change in the same sequence (IEEE 1800-2017 16.13.1); "
-		  "the single clock-flow-boundary form supports "
-		  "`disable iff'";
 
       for (size_t i = 0 ; !why && i < prop->mc_more->size() ; i += 1) {
 	    const sva_mc_seg_t&seg = (*prop->mc_more)[i];
@@ -21764,7 +21982,25 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    }
       }
 
+	/* `disable iff' is an asynchronous abort for the whole property. Keep
+	   one level expression per clock process and validate every copy before
+	   consuming the source property. */
+      PExpr*disable = prop->disable_iff_expr;
+      std::vector<PExpr*> disable_domain(M + 1, nullptr);
+      if (!why && disable) {
+	    for (size_t d = 0 ; d <= M ; d += 1) {
+		  disable_domain[d] = sva_clone_expr_(disable);
+		  if (!disable_domain[d]) {
+			why = "a `disable iff' condition that cannot be copied "
+			      "into every clock domain";
+			break;
+		  }
+	    }
+      }
+
       if (why) {
+	    for (size_t d = 0 ; d < disable_domain.size() ; d += 1)
+		  delete disable_domain[d];
 	    cerr << loc << ": sorry: " << why << " is not supported "
 		 << "(IEEE 1800-2017 16.13); the assertion is dropped."
 		 << endl;
@@ -21773,6 +22009,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    pform_sva_destroy_property(prop);
 	    return;
       }
+
+      prop->disable_iff_expr = nullptr;
 
       unsigned inst = sva_gensym_counter++;
       auto dreg = [&](const char*base, size_t d, unsigned idx,
@@ -21849,6 +22087,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 
       size_t Ta = a_slots.size();
       size_t Tp = p_slots.size();
+      std::vector<perm_string> domain_fail(M + 1);
 
       std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
@@ -22116,6 +22355,14 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  loc, req_epoch[1], sva_kill_generation_expr_(loc, inst)));
 	    return sva_block_(loc, clear);
       };
+	if (disable_domain[0]) {
+	    std::vector<Statement*> gated;
+	    gated.push_back(sva_if_(loc, disable_domain[0],
+				    clear_domain0_state(),
+				    sva_block_(loc, body0)));
+	    body0.swap(gated);
+	    disable_domain[0] = nullptr;
+	}
       {
 	    std::vector<Statement*> full0 = mc_pre0;
 	    full0.push_back(sva_kill_reset_stmt_(
@@ -22140,6 +22387,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    std::vector<Statement*> bodyd;
 
 	    perm_string ffail = dreg("mcbf", d, 0);
+	    domain_fail[d] = ffail;
 	    auto clear_domaind = [&]() -> Statement* {
 		  std::vector<Statement*> clear;
 		  clear.push_back(sva_assign_(loc, ack[d],
@@ -22318,8 +22566,14 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  'E', sva_id_(loc, epoch_snapshot[d]),
 		  sva_kill_generation_expr_(loc, inst));
 	    FILE_NAME(epoch_current, loc);
-	    bodyd.push_back(sva_if_(loc, epoch_current,
-		  sva_block_(loc, epoch_body), nullptr));
+	    Statement*advance = sva_if_(loc, epoch_current,
+		  sva_block_(loc, epoch_body), nullptr);
+	    if (disable_domain[d]) {
+		  advance = sva_if_(loc, disable_domain[d],
+				    clear_domaind(), advance);
+		  disable_domain[d] = nullptr;
+	    }
+	    bodyd.push_back(advance);
 
 	    std::vector<Statement*> fulld = mc_pre[d];
 	    fulld.insert(fulld.end(), bodyd.begin(), bodyd.end());
@@ -22334,6 +22588,58 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    dom_clk[d]->set_statement(bodyblk);
 	    PProcess*pd = pform_make_behavior(IVL_PR_ALWAYS, dom_clk[d], nullptr);
 	    FILE_NAME(pd, loc);
+      }
+
+	/* A disable pulse may occur between any pair of domain clocks. Clear
+	   every handoff and pending verdict at that instant so no old attempt
+	   can reappear when a downstream clock resumes. Cumulative cover hits
+	   are intentionally retained. */
+      if (disable) {
+	    std::vector<Statement*> clear;
+	    for (size_t k = 1 ; k < Ta ; k += 1)
+		  clear.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
+	    for (size_t k = 1 ; k < Tp ; k += 1)
+		  clear.push_back(sva_assign_(loc, pp[k], sva_bit_(loc, 0)));
+	    if (pstart != perm_string())
+		  clear.push_back(sva_assign_(loc, pstart, sva_bit_(loc, 0)));
+	    for (size_t d = 1 ; d <= M ; d += 1) {
+		  clear.push_back(sva_assign_(loc, req_in[d], sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, ack[d], sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, due[d], sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, req_epoch[d],
+					 sva_kill_generation_expr_(loc, inst)));
+		  clear.push_back(sva_assign_(loc, req_snapshot[d],
+					 sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, epoch_snapshot[d],
+					 sva_kill_generation_expr_(loc, inst)));
+		  clear.push_back(sva_assign_(loc, domain_fail[d],
+					 sva_num32_(loc, 0)));
+		  for (size_t k = 1 ; k < Tw[d] ; k += 1)
+			clear.push_back(sva_assign_(loc, tb[d][k],
+						     sva_num32_(loc, 0)));
+	    }
+	    if (!cover) {
+		  perm_string counters[] = {
+			pv_req, pn_req, pv_ack, pn_ack, pv_due, pn_due
+		  };
+		  for (size_t k = 0 ; k < sizeof counters / sizeof counters[0];
+		       k += 1)
+			clear.push_back(sva_assign_(loc, counters[k],
+						    sva_num32_(loc, 0)));
+		  if (Tp) {
+			clear.push_back(sva_assign_(loc, fp_req, sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, fp_ack, sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, fp_due, sva_num32_(loc, 0)));
+		  }
+		  for (size_t d = 1 ; d <= M ; d += 1) {
+			clear.push_back(sva_assign_(loc, ffreq[d], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, ffack[d], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, ffdue[d], sva_num32_(loc, 0)));
+		  }
+	    }
+	    sva_disable_abort_(loc, disable, sva_block_(loc, clear));
+	    delete disable;
+	    disable = nullptr;
       }
       prop->seq_clk_evt = nullptr;
       for (size_t i = 0 ; i < prop->mc_more->size() ; i += 1)

@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_sampled_value_clocking_input_unsupported.v",
+  "iverilog-args": ["-g2017", "-s", "main"]
+}

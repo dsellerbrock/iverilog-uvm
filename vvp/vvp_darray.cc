@@ -382,18 +382,37 @@ std::vector<bool>&vvp_darray::randc_history(size_t idx)
       return randc_histories_[idx];
 }
 
+std::vector<uint64_t>&vvp_darray::randc_sparse_history(size_t idx)
+{
+      if (randc_sparse_histories_.empty())
+	    randc_sparse_histories_.resize(get_size());
+      else assert(randc_sparse_histories_.size() == get_size());
+      assert(idx < randc_sparse_histories_.size());
+      return randc_sparse_histories_[idx];
+}
+
 void vvp_darray::inherit_randc_histories(const vvp_darray&that)
 {
       if (that.randc_histories_.empty()) {
 	    randc_histories_.clear();
-	    return;
+      } else {
+	    assert(that.randc_histories_.size() == that.get_size());
+	    randc_histories_.assign(get_size(), std::vector<bool>());
+	    size_t count = std::min(randc_histories_.size(),
+			    that.randc_histories_.size());
+	    for (size_t idx = 0 ; idx < count ; idx += 1)
+		  randc_histories_[idx] = that.randc_histories_[idx];
       }
-      assert(that.randc_histories_.size() == that.get_size());
-      randc_histories_.assign(get_size(), std::vector<bool>());
-      size_t count = std::min(randc_histories_.size(),
-			      that.randc_histories_.size());
-      for (size_t idx = 0 ; idx < count ; idx += 1)
-	    randc_histories_[idx] = that.randc_histories_[idx];
+      if (that.randc_sparse_histories_.empty()) {
+	    randc_sparse_histories_.clear();
+      } else {
+	    assert(that.randc_sparse_histories_.size() == that.get_size());
+	    randc_sparse_histories_.assign(get_size(), std::vector<uint64_t>());
+	    size_t count = std::min(randc_sparse_histories_.size(),
+			    that.randc_sparse_histories_.size());
+	    for (size_t idx = 0 ; idx < count ; idx += 1)
+		  randc_sparse_histories_[idx] = that.randc_sparse_histories_[idx];
+      }
 }
 
 void vvp_darray::reorder_rand_modes(
@@ -402,19 +421,29 @@ void vvp_darray::reorder_rand_modes(
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       std::vector<unsigned char> original = rand_modes_;
       std::vector<std::vector<bool> > original_histories;
+      std::vector<std::vector<uint64_t> > original_sparse_histories;
       if (!randc_histories_.empty()) {
 	    assert(randc_histories_.size() == get_size());
 	    original_histories = randc_histories_;
+      }
+      if (!randc_sparse_histories_.empty()) {
+	    assert(randc_sparse_histories_.size() == get_size());
+	    original_sparse_histories = randc_sparse_histories_;
       }
       rand_modes_.assign(source_indices.size(),
 			 rand_mode_default_ ? 1 : 0);
       if (!original_histories.empty())
 	    randc_histories_.assign(source_indices.size(), std::vector<bool>());
+      if (!original_sparse_histories.empty())
+	    randc_sparse_histories_.assign(source_indices.size(),
+					    std::vector<uint64_t>());
       for (size_t dst = 0 ; dst < source_indices.size() ; dst += 1) {
 	    size_t src = source_indices[dst];
 	    if (src < original.size()) rand_modes_[dst] = original[src];
 	    if (src < original_histories.size())
 		  randc_histories_[dst] = original_histories[src];
+	    if (src < original_sparse_histories.size())
+		  randc_sparse_histories_[dst] = original_sparse_histories[src];
       }
 }
 
@@ -422,26 +451,38 @@ void vvp_darray::rand_mode_insert(size_t idx, bool discard_back)
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       bool have_histories = !randc_histories_.empty();
+      bool have_sparse_histories = !randc_sparse_histories_.empty();
       if (have_histories) assert(randc_histories_.size() == get_size());
+      if (have_sparse_histories)
+	    assert(randc_sparse_histories_.size() == get_size());
       if (discard_back && !rand_modes_.empty()) {
 	    rand_modes_.pop_back();
 	    if (have_histories) randc_histories_.pop_back();
+	    if (have_sparse_histories) randc_sparse_histories_.pop_back();
       }
       if (idx <= rand_modes_.size())
 	    rand_modes_.insert(rand_modes_.begin() + idx,
 			       rand_mode_default_ ? 1 : 0);
       if (have_histories && idx <= randc_histories_.size())
 	    randc_histories_.insert(randc_histories_.begin() + idx,
-				    std::vector<bool>());
+			    std::vector<bool>());
+      if (have_sparse_histories && idx <= randc_sparse_histories_.size())
+	    randc_sparse_histories_.insert(randc_sparse_histories_.begin() + idx,
+					   std::vector<uint64_t>());
 }
 
 void vvp_darray::rand_mode_push_back()
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       bool have_histories = !randc_histories_.empty();
+      bool have_sparse_histories = !randc_sparse_histories_.empty();
       if (have_histories) assert(randc_histories_.size() == get_size());
+      if (have_sparse_histories)
+	    assert(randc_sparse_histories_.size() == get_size());
       rand_modes_.push_back(rand_mode_default_ ? 1 : 0);
       if (have_histories) randc_histories_.push_back(std::vector<bool>());
+      if (have_sparse_histories)
+	    randc_sparse_histories_.push_back(std::vector<uint64_t>());
 }
 
 void vvp_darray::rand_mode_push_front(bool discard_back)
@@ -453,10 +494,14 @@ void vvp_darray::rand_mode_pop_back()
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       bool have_histories = !randc_histories_.empty();
+      bool have_sparse_histories = !randc_sparse_histories_.empty();
       if (have_histories) assert(randc_histories_.size() == get_size());
+      if (have_sparse_histories)
+	    assert(randc_sparse_histories_.size() == get_size());
       if (!rand_modes_.empty()) {
 	    rand_modes_.pop_back();
 	    if (have_histories) randc_histories_.pop_back();
+	    if (have_sparse_histories) randc_sparse_histories_.pop_back();
       }
 }
 
@@ -464,10 +509,15 @@ void vvp_darray::rand_mode_pop_front()
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       bool have_histories = !randc_histories_.empty();
+      bool have_sparse_histories = !randc_sparse_histories_.empty();
       if (have_histories) assert(randc_histories_.size() == get_size());
+      if (have_sparse_histories)
+	    assert(randc_sparse_histories_.size() == get_size());
       if (!rand_modes_.empty()) {
 	    rand_modes_.erase(rand_modes_.begin());
 	    if (have_histories) randc_histories_.erase(randc_histories_.begin());
+	    if (have_sparse_histories)
+		  randc_sparse_histories_.erase(randc_sparse_histories_.begin());
       }
 }
 
@@ -475,11 +525,16 @@ void vvp_darray::rand_mode_erase(size_t idx)
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       bool have_histories = !randc_histories_.empty();
+      bool have_sparse_histories = !randc_sparse_histories_.empty();
       if (have_histories) assert(randc_histories_.size() == get_size());
+      if (have_sparse_histories)
+	    assert(randc_sparse_histories_.size() == get_size());
       if (idx < rand_modes_.size()) {
 	    rand_modes_.erase(rand_modes_.begin()+idx);
 	    if (have_histories)
 		  randc_histories_.erase(randc_histories_.begin()+idx);
+	    if (have_sparse_histories)
+		  randc_sparse_histories_.erase(randc_sparse_histories_.begin()+idx);
       }
 }
 
@@ -487,10 +542,14 @@ void vvp_darray::rand_mode_erase_tail(size_t idx)
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       bool have_histories = !randc_histories_.empty();
+      bool have_sparse_histories = !randc_sparse_histories_.empty();
       if (have_histories) assert(randc_histories_.size() == get_size());
+      if (have_sparse_histories)
+	    assert(randc_sparse_histories_.size() == get_size());
       if (idx < rand_modes_.size()) {
 	    rand_modes_.resize(idx);
 	    if (have_histories) randc_histories_.resize(idx);
+	    if (have_sparse_histories) randc_sparse_histories_.resize(idx);
       }
 }
 
@@ -988,8 +1047,13 @@ void vvp_darray_object::rebind_declared_element_container_layout(
       const vvp_container_layout_t&element_layout)
 {
       for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
-	    if (vvp_object*value = array_[idx].peek<vvp_object>())
-		  value->set_declared_container_layout(element_layout);
+	    if (vvp_object*value = array_[idx].peek<vvp_object>()) {
+		  if (element_layout
+		      && element_layout->kind == VVP_CONTAINER_FIXED)
+			vvp_rebind_fixed_array_value(value, element_layout);
+		  else
+			value->set_declared_container_layout(element_layout);
+	    }
 }
 
 vvp_darray_real::~vvp_darray_real()
@@ -1875,8 +1939,13 @@ void vvp_queue_object::rebind_declared_element_container_layout(
       const vvp_container_layout_t&element_layout)
 {
       for (size_t idx = 0 ; idx < queue.size() ; idx += 1)
-	    if (vvp_object*value = queue[idx].peek<vvp_object>())
-		  value->set_declared_container_layout(element_layout);
+	    if (vvp_object*value = queue[idx].peek<vvp_object>()) {
+		  if (element_layout
+		      && element_layout->kind == VVP_CONTAINER_FIXED)
+			vvp_rebind_fixed_array_value(value, element_layout);
+		  else
+			value->set_declared_container_layout(element_layout);
+	    }
 }
 
 void vvp_queue_object::set_word_max(unsigned adr, const vvp_object_t&value, uint64_t max_size)

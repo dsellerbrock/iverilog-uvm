@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_assert_multiclock_disable_chain.v:33: $finish called at 110 (1s)

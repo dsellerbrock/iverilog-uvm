@@ -600,6 +600,9 @@ pform_sva_comb_consequent_sorry(const struct vlltype&loc, int op_type,
 				std::vector<sva_seq_step_t>*ante,
 				sva_property_t*conseq);
 extern sva_property_t*
+pform_sva_tree_implication(const struct vlltype&loc, int op_type,
+			   sva_property_t*ante, sva_property_t*conseq);
+extern sva_property_t*
 pform_sva_paren_conseq(const struct vlltype&loc, int op_type,
 		       std::vector<sva_seq_step_t>*ante,
 		       sva_property_t*conseq);

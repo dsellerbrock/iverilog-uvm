@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_constraint_rand_real_2017_fail.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "sv_constraint_rand_real_2017_fail"
+}

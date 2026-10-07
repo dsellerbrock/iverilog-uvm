@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real solve-before interval.
+PASSED real lower-half=1004/2048

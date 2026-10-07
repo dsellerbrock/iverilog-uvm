@@ -1627,6 +1627,9 @@ sv_randomize_with_identifier_unknown_fail CE,-g2012 ivltests gold=sv_randomize_w
 sv_randomize_with_identifier_no_block_fail CE,-g2012 ivltests gold=sv_randomize_with_identifier_no_block_fail.gold
 sv_scope_randomize_with_identifier_list_fail CE,-g2012 ivltests gold=sv_scope_randomize_with_identifier_list_fail.gold
 sv_sampled_value_procedural normal,-g2012 ivltests
+sv_sampled_value_clocking_input_unsupported CE,-g2017 ivltests
+sv_sampled_value_preponed_writer_first normal,-g2017 ivltests
+sv_assert_tree_implication_both_sides normal,-g2012 ivltests gold=sv_assert_tree_implication_both_sides.gold
 sv_constraint_expr_width normal,-g2012 ivltests
 sv_constraint_dist_boolean_subject normal,-g2012 ivltests gold=sv_constraint_dist_boolean_subject.gold
 sv_constraint_dist_wide_literal_fail CE,-g2012 ivltests gold=sv_constraint_dist_wide_literal_fail.gold
@@ -2161,6 +2164,10 @@ sv_declaration_class_frontier normal,-g2012 ivltests gold=sv_declaration_class_f
 sv_static_const_qualifier_fail CE,-g2012 ivltests gold=sv_static_const_qualifier_fail.gold
 sv_struct_member_constraint normal,-g2012 ivltests gold=sv_struct_member_constraint.gold
 sv_struct_member_constraint_paths normal,-g2012 ivltests gold=sv_struct_member_constraint_paths.gold
+sv_constraint_nested_unpacked_struct normal,-g2017,-s,test ivltests gold=sv_constraint_nested_unpacked_struct.gold
+sv_constraint_nested_unpacked_struct_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_nested_unpacked_struct.gold
+sv_constraint_indexed_outer_struct normal,-g2017,-s,test ivltests gold=sv_constraint_indexed_outer_struct.gold
+sv_constraint_indexed_outer_struct_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_indexed_outer_struct.gold
 sv_struct_member_disable_soft normal,-g2012 ivltests gold=sv_struct_member_disable_soft.gold
 sv_struct_member_constraint_fail CE,-g2012 ivltests gold=sv_struct_member_constraint_fail.gold
 sv_struct_member_randc_cap normal,-g2012 ivltests gold=sv_struct_member_randc_cap.gold
@@ -2777,8 +2784,8 @@ sv_randomize_global_source_priority normal,-g2017,-s,main ivltests gold=sv_rando
 sv_randomize_global_source_priority_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_source_priority.gold
 sv_randomize_global_handle_size_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_handle_size_fail.gold
 sv_randomize_global_handle_size_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_handle_size_fail.gold
-sv_randomize_global_cycle_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_cycle_fail.gold
-sv_randomize_global_cycle_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_cycle_fail.gold
+sv_randomize_global_cycle_soft_priority normal,-g2017,-s,main ivltests gold=sv_randomize_global_cycle_soft_priority.gold
+sv_randomize_global_cycle_soft_priority_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_cycle_soft_priority.gold
 
 # Bounded joint sampling and constraint prototype identity.
 sv_randomize_global_uniform normal,-g2017,-s,main ivltests gold=sv_randomize_global_uniform.gold
@@ -4543,6 +4550,11 @@ sv_dist_large_exact_singleton_unsat normal,-g2017 ivltests gold=sv_dist_large_ex
 sv_dist_large_exact_singleton_expression_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_singleton_expression_2023.gold
 sv_dist_large_exact_nonsingleton_expression_fail_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_nonsingleton_expression_fail_2023.gold
 sv_dist_large_exact_singleton_unsat_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_singleton_unsat_2023.gold
+sv_dist_default_weight_2023 normal,-g2023 ivltests gold=sv_dist_default_weight_2023.gold
+sv_dist_default_weight_2017_fail CE,-g2017 ivltests gold=sv_dist_default_weight_2017_fail.gold
+sv_dist_default_missing_weight_fail CE,-g2023 ivltests gold=sv_dist_default_missing_weight_fail.gold
+sv_dist_default_assign_weight_fail CE,-g2023 ivltests gold=sv_dist_default_assign_weight_fail.gold
+sv_dist_default_duplicate_fail CE,-g2023 ivltests gold=sv_dist_default_duplicate_fail.gold
 
 # Synchronous mixed ordinary/class-mutation event controls (IEEE 9.4.2)
 sv_mixed_event_disable_reuse_2017 normal,-g2017,-ssv_mixed_event_disable_reuse ivltests gold=sv_mixed_event_disable_reuse_2017.gold
@@ -4750,6 +4762,11 @@ sv_constraint_caller_method_collision_2023 CE,-g2023,-s,top ivltests gold=sv_con
 # Whole fixed rand arrays in solve...before.
 sv_constraint_solve_before_fixed_array normal,-g2017,-s,top ivltests
 sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests
+sv_constraint_cross_object_solve_before normal,-g2017,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
+sv_constraint_cross_object_solve_before_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
+sv_constraint_rand_real_2023 normal,-g2023,-s,test ivltests
+sv_constraint_rand_real_2017_fail CE,-g2017,-s,test ivltests gold=sv_constraint_rand_real_2017_fail.gold
+sv_constraint_rand_real_randc_2023_fail CE,-g2023,-s,test ivltests gold=sv_constraint_rand_real_randc_2023_fail.gold
 sv_constraint_solve_before_fixed_array_neg CE,-g2017,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
 sv_constraint_solve_before_fixed_array_neg_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
 sv_constraint_fixed_queue_leaf_order normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_order.gold
@@ -4774,6 +4791,10 @@ sv_assoc_queue_pop_invalid CE,-g2017,-s,test ivltests gold=sv_assoc_queue_pop_in
 sv_assoc_queue_pop_invalid_2023 CE,-g2023,-s,test ivltests gold=sv_assoc_queue_pop_invalid.gold
 sv_assoc_find_index_2017 normal,-g2017,-I./ivltests,-ssv_assoc_find_index ivltests gold=sv_assoc_find_index.gold
 sv_assoc_find_index_2023 normal,-g2023,-I./ivltests,-ssv_assoc_find_index ivltests gold=sv_assoc_find_index_2023.gold
+sv_assoc_find_first_index_2017 normal,-g2017,-I./ivltests,-ssv_assoc_find_first_index ivltests gold=sv_assoc_find_first_index.gold
+sv_assoc_find_first_index_2023 normal,-g2023,-I./ivltests,-ssv_assoc_find_first_index ivltests gold=sv_assoc_find_first_index.gold
+sv_assoc_find_last_index_2017 normal,-g2017,-I./ivltests,-ssv_assoc_find_last_index ivltests gold=sv_assoc_find_last_index.gold
+sv_assoc_find_last_index_2023 normal,-g2023,-I./ivltests,-ssv_assoc_find_last_index ivltests gold=sv_assoc_find_last_index.gold
 sv_assoc_find_index_unsupported_2017 CE,-g2017,-I./ivltests,-ssv_assoc_find_index_unsupported ivltests gold=sv_assoc_find_index_unsupported.gold
 sv_assoc_find_index_unsupported_2023 CE,-g2023,-I./ivltests,-ssv_assoc_find_index_unsupported ivltests gold=sv_assoc_find_index_unsupported_2023.gold
 sv_class_event_multi_object_list_2017 normal,-g2017,-I./ivltests,-ssv_class_event_multi_object_list ivltests gold=sv_class_event_multi_object_list.gold
@@ -5390,3 +5411,11 @@ sv_constraint_wide_param_table normal,-g2017 ivltests gold=sv_constraint_wide_pa
 sv_constraint_wide_param_table_2023 normal,-g2023 ivltests gold=sv_constraint_wide_param_table.gold
 sv_constraint_dyn2d_array normal,-g2017 ivltests gold=sv_constraint_dyn2d_array.gold
 sv_constraint_dyn2d_array_2023 normal,-g2023 ivltests gold=sv_constraint_dyn2d_array_2023.gold
+sv_triple_quoted_string_2023 normal,-g2023 ivltests gold=sv_triple_quoted_string.gold
+sv_triple_quoted_string_2017_fail CE,-g2017 ivltests
+sv_array_map_dynamic_2023 normal,-g2023 ivltests
+sv_array_map_fixed_2023 normal,-g2023 ivltests
+sv_array_map_assoc_2023 normal,-g2023 ivltests
+sv_array_map_2017_fail CE,-g2017 ivltests
+sv_array_index_argument_2023 normal,-g2023,-ssv_array_index_argument,-I./ivltests ivltests
+sv_array_index_argument_2017_fail CE,-g2017,-ssv_array_index_argument,-I./ivltests ivltests

@@ -4050,6 +4050,9 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%dup/obj;\n");
 		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    } else if (type_is_fixed_uarray_property_(element_type)) {
+		  fprintf(vvp_out, "    %%store/qobj/obj v%p_0, %d;\n",
+			  var, idx);
 	    } else if (ivl_type_base(element_type) == IVL_VT_REAL)
 		  fprintf(vvp_out, "    %%store/qobj/r v%p_0, %d;\n", var, idx);
 	    else if (ivl_type_base(element_type) == IVL_VT_STRING)
@@ -6270,7 +6273,11 @@ static int rval_is_whole_container_(ivl_expr_t rv)
       }
 
       nt = ivl_expr_net_type(rv);
-      if (nt && (ivl_type_base(nt) == IVL_VT_DARRAY
+	/* An expression such as map() can return a fixed unpacked-array type
+	 * without being an IVL_EX_ARRAY signal. Route it through the same
+	 * container-to-fixed-array store as other whole-array r-values. */
+      if (nt && (type_is_fixed_uarray_property_(nt)
+		 || ivl_type_base(nt) == IVL_VT_DARRAY
 		 || ivl_type_base(nt) == IVL_VT_QUEUE))
 	    return 1;
 
@@ -6846,7 +6853,7 @@ int show_stmt_assign(ivl_statement_t net)
 	    }
       }
 
-	/* A whole fixed unpacked array receiving a container value. */
+      /* A whole fixed unpacked array receiving a container value. */
       {
 	    ivl_expr_t rv = ivl_stmt_rval(net);
 	    if (rv && ivl_stmt_opcode(net) == 0

@@ -4943,6 +4943,13 @@ static inline unsigned randomize_rand_(vvp_cobject*cobj)
       return (unsigned)cobj->rng_next();
 }
 
+static double randomize_rand_real_(const std::function<unsigned()>&next_random)
+{
+      uint64_t sample = ((uint64_t)next_random() << 21)
+	    | (uint64_t)(next_random() & 0x1fffff);
+      return (double)sample / 9007199254740992.0;
+}
+
 /* Pick and stage one unconstrained randc leaf. Keep the scalar draw pattern
  * byte-for-byte compatible with the existing implementation while extending
  * the history key to fixed-array leaves. */
@@ -5728,6 +5735,10 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 				    defn->static_randomize_transaction_mark_dirty(pid, 0);
 			}
 		  }
+		  continue;
+	    }
+	    if (bt == "r") {
+		  cobj->set_real(pid, randomize_rand_real_(next_random));
 		  continue;
 	    }
 
@@ -23069,9 +23080,21 @@ static size_t fixed_copy_source_index_(
       const vvp_darray*source, bool destination_descending, size_t index,
       size_t count)
 {
+	/* An unpacked array stored as an associative-array element uses fixed
+	 * numeric-low-first storage just like a signal. Preserve its logical
+	 * left-to-right order by comparing source and destination directions. */
+	const vvp_container_layout_t source_layout = source
+	      ? source->declared_container_layout() : vvp_container_layout_t();
+	if (source_layout && source_layout->kind == VVP_CONTAINER_FIXED) {
+	      bool source_descending =
+		    source_layout->fixed_left > source_layout->fixed_right;
+	      return source_descending != destination_descending
+		    ? count - 1 - index : index;
+	}
+
       /* A DPI open-array formal is activated over numeric-canonical fixed
-	 * storage. Ordinary dynamic arrays and queues are left-to-right values.
-	 * A descending fixed destination therefore reverses only the ordinary
+	* storage. Ordinary dynamic arrays and queues are left-to-right values.
+	* A descending fixed destination therefore reverses only the ordinary
 	 * source at each unpacked dimension. */
       bool canonical_dpi_view = source && source->sv_uses_declared_indexing()
 	    && source->dpi_has_decl_range();

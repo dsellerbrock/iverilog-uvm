@@ -1,11 +1,11 @@
 // IEEE 1800-2017/2023 18.4.2: exact domains still need cyclic history.
 class scalar_leaf;
   randc bit [20:0] value;
-  constraint c { value inside {0,1}; }
+  constraint c { value inside {[0:1024]}; }
 endclass
 class array_leaf;
   randc bit [20:0] data[];
-  constraint c { data.size()==1; foreach(data[i]) data[i] inside {0,1}; }
+  constraint c { data.size()==1; foreach(data[i]) data[i] inside {[0:1024]}; }
 endclass
 class unconstrained_leaf;
   randc bit [20:0] value;

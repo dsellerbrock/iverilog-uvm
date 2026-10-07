@@ -6,5 +6,5 @@
         "-s",
         "main"
     ],
-    "gold": "sv_randomize_global_randc"
+    "gold": "sv_randomize_global_randc_2023"
 }

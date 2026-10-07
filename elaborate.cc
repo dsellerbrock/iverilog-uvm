@@ -28883,6 +28883,8 @@ static string constraint_constant_ir_(const PEIdent*id,
 static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 {
       if (!ptype) return false;
+      if (!indexed && ptype == &netreal_t::type_real)
+	    return true;
       bool indexed_assoc = false;
       if (indexed) {
 	    const netuarray_t*ua = dynamic_cast<const netuarray_t*>(ptype);
@@ -28926,31 +28928,61 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
       return false;
 }
 
-/* A class constraint may read integral state through an object-property
- * chain rooted in the object being randomized (IEEE 1800-2017 18.3), for
- * example p_sequencer.cfg.clk_freq_mhz. Encode the property indices in a
- * runtime-state token; the Z3 backend walks the live object chain and turns
- * the final value into a constant for this solve. */
+/* A class constraint may read an integral leaf through a class-property or
+ * unpacked-struct member chain rooted in the object being randomized. Encode
+ * the property/member indices in a runtime token; the Z3 backend walks the
+ * live chain and resolves an active leaf to its canonical solver variable. */
 static string constraint_class_state_path_ir_(
-      const vector<perm_string>&names, const netclass_t*cls)
+      const vector<perm_string>&names, const netclass_t*cls,
+      bool indexed_outer = false, unsigned array_word = 0,
+      ivl_type_t*result_type = nullptr)
 {
       if (!cls || names.size() < 2) return "";
 
       const netclass_t*cur_cls = cls;
+      const netstruct_t*cur_struct = nullptr;
       ivl_type_t cur_type = nullptr;
       string path;
       for (size_t pos = 0 ; pos < names.size() ; pos += 1) {
-	    int idx = cur_cls->property_idx_from_name(names[pos]);
-	    if (idx < 0) return "";
+	    unsigned idx;
+	    if (cur_cls) {
+		  int property = cur_cls->property_idx_from_name(names[pos]);
+		  if (property < 0) return "";
+		  idx = (unsigned)property;
+		  cur_type = cur_cls->get_prop_type(idx);
+		  if (pos == 0 && indexed_outer) {
+			const netuarray_t*array =
+			      dynamic_cast<const netuarray_t*>(cur_type);
+			const netstruct_t*record = array && !array->packed()
+			      ? dynamic_cast<const netstruct_t*>(array->element_type())
+			      : nullptr;
+			if (!array || array->static_dimensions().empty() || !record
+			    || record->packed() || record->union_flag()) return "";
+			cur_type = record;
+		  }
+	    } else if (cur_struct && !cur_struct->packed()
+		       && !cur_struct->union_flag()) {
+		  idx = cur_struct->member_index(names[pos]);
+		  if (idx >= cur_struct->members().size()) return "";
+		  cur_type = cur_struct->members()[idx].net_type;
+	    } else {
+		  return "";
+	    }
 	    path += (path.empty() ? "" : ".") + to_string(idx);
-	    cur_type = cur_cls->get_prop_type((size_t)idx);
+	    if (pos == 0 && indexed_outer)
+		  path += "." + to_string(array_word);
 	    if (pos + 1 < names.size()) {
 		  cur_cls = dynamic_cast<const netclass_t*>(cur_type);
-		  if (!cur_cls) return "";
+		  cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
+		  if (cur_struct && (cur_struct->packed()
+				     || cur_struct->union_flag()))
+			cur_struct = nullptr;
+		  if (!cur_cls && !cur_struct) return "";
 	    }
       }
 
       if (!constraint_state_prop_ok_(cur_type, false)) return "";
+      if (result_type) *result_type = cur_type;
       unsigned wid = cur_type ? cur_type->packed_width() : 0;
       if (wid == 0) wid = 32;
       return "r:" + path + ":" + to_string(wid)
@@ -28981,24 +29013,48 @@ static bool constraint_member_is_randc_(const netclass_t*cls,
 	    && record->members()[(size_t)member].qualifier.test_randc();
 }
 
+static bool constraint_path_component_(const netclass_t*owner,
+				       const netstruct_t*record,
+				       unsigned long idx,
+				       property_qualifier_t&qual,
+				       ivl_type_t&type)
+{
+      if (owner && idx < owner->get_properties()) {
+	    qual = owner->get_prop_qual((size_t)idx);
+	    type = owner->get_prop_type((size_t)idx);
+	    return true;
+      }
+      if (record && !record->packed() && !record->union_flag()
+	  && idx < record->members().size()) {
+	    qual = record->members()[(size_t)idx].qualifier;
+	    type = record->members()[(size_t)idx].net_type;
+	    return true;
+      }
+      return false;
+}
+
 static bool constraint_state_path_is_randc_(const char*path,
 					     const netclass_t*cls)
 {
       const netclass_t*owner = cls;
+      const netstruct_t*record = nullptr;
       const char*cur = path;
-      while (owner && cur && *cur) {
+      bool random_path = true;
+      while ((owner || record) && cur && *cur) {
 	    char*end = nullptr;
 	    unsigned long idx = strtoul(cur, &end, 10);
-	    if (end == cur || idx >= owner->get_properties())
-		  return false;
-
+	    property_qualifier_t qual;
+	    ivl_type_t type = nullptr;
+	    if (end == cur || !constraint_path_component_(
+		  owner, record, idx, qual, type)) return false;
 	    if (*end == ':')
-		  return constraint_property_is_randc_(owner, idx);
+		  return random_path && qual.test_randc();
 	    if (*end != '.')
 		  return false;
-
-	    owner = dynamic_cast<const netclass_t*>(
-		  owner->get_prop_type((size_t)idx));
+	    random_path = random_path && (qual.test_rand() || qual.test_randc());
+	    owner = dynamic_cast<const netclass_t*>(type);
+	    record = dynamic_cast<const netstruct_t*>(type);
+	    if (record && (record->packed() || record->union_flag())) record = nullptr;
 	    cur = end + 1;
       }
       return false;
@@ -29008,18 +29064,24 @@ static bool constraint_nested_element_is_random_(const char*path,
 						   const netclass_t*cls)
 {
       const netclass_t*owner = cls;
+      const netstruct_t*record = nullptr;
       const char*cur = path;
-      while (owner && cur && *cur) {
+      bool random_path = true;
+      while ((owner || record) && cur && *cur) {
 	    char*end = nullptr;
 	    unsigned long idx = strtoul(cur, &end, 10);
-	    if (end == cur || idx >= owner->get_properties()) return false;
+	    property_qualifier_t qual;
+	    ivl_type_t type = nullptr;
+	    if (end == cur || !constraint_path_component_(
+		  owner, record, idx, qual, type)) return false;
 	    if (*end == ':') {
-		  property_qualifier_t qual = owner->get_prop_qual((size_t)idx);
-		  return qual.test_rand() || qual.test_randc();
+		  return random_path && (qual.test_rand() || qual.test_randc());
 	    }
 	    if (*end != '.') return false;
-	    owner = dynamic_cast<const netclass_t*>(
-		  owner->get_prop_type((size_t)idx));
+	    random_path = random_path && (qual.test_rand() || qual.test_randc());
+	    owner = dynamic_cast<const netclass_t*>(type);
+	    record = dynamic_cast<const netstruct_t*>(type);
+	    if (record && (record->packed() || record->union_flag())) record = nullptr;
 	    cur = end + 1;
       }
       return false;
@@ -34067,6 +34129,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  : string();
       }
 
+      if (const PEFNumber*num = dynamic_cast<const PEFNumber*>(expr)) {
+	    double value = num->value().as_double();
+	    uint64_t bits = 0;
+	    static_assert(sizeof(bits) == sizeof(value),
+		  "real constraint literals require binary64 storage");
+	    memcpy(&bits, &value, sizeof(bits));
+	    return "f:" + to_string(bits);
+      }
+
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    const verinum&v = num->value();
 	    unsigned bits = v.len();
@@ -34571,6 +34642,47 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_rand()
 					&& !nested_owner->get_prop_qual((size_t)nested_pid).test_randc())
 					  break;
+				    const netdarray_t*dynamic_array =
+					  dynamic_cast<const netdarray_t*>(nested_type);
+				    if (dynamic_array && !dynamic_array->packed()
+					&& nested->index.size() == 1) {
+					  ivl_type_t element = dynamic_array->element_type();
+					  ivl_variable_type_t base = element
+						? element->base_type() : IVL_VT_NO_TYPE;
+					  unsigned width = element ? element->packed_width() : 0;
+					  bool integral = element && element->packed() && width
+						&& width <= 64
+						&& (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+						    || dynamic_cast<const netenum_t*>(element));
+					  const index_component_t&select = nested->index.front();
+					  string index_ir = select.msb && !select.lsb
+						&& select.sel == index_component_t::SEL_BIT
+						? pexpr_to_constraint_ir(select.msb, cls,
+						      value_slots, scope, loop_env) : "";
+					  constraint_const_ir_t index;
+					  uint64_t word = 0;
+					  bool valid = integral && !index_ir.empty()
+						&& constraint_parse_const_ir_(index_ir, index)
+						&& index.width <= 64;
+					  if (valid) {
+						word = constraint_resize_const_bits_(index,
+						      64, index.is_signed);
+						valid = (!index.is_signed || (int64_t)word >= 0)
+						      && word <= UINT_MAX;
+					  }
+					  if (valid)
+						return "x:" + nested_path + ":"
+						      + to_string(width) + ":d:"
+						      + to_string(word)
+						      + (element->get_signed() ? ":s" : "");
+					  if (!nested_root_rand) break;
+					  cerr << id->get_fileline() << ": error: nested dynamic-array "
+					       << "constraint selector must be one constant, "
+					       << "nonnegative integral index on an integral or enum "
+					       << "element no wider than 64 bits." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
 				    const netuarray_t*array =
 					  dynamic_cast<const netuarray_t*>(nested_type);
 				    const netranges_t*dims = array
@@ -34668,6 +34780,127 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!comp->index.empty() && outer_element
 			    && !outer_element->packed()
 			    && outer_tail != id->path().name.end()) {
+			      const netuarray_t*fixed_outer =
+				    dynamic_cast<const netuarray_t*>(ptype);
+			      vector<perm_string> names;
+			      bool plain_path = true;
+			      for (pform_name_t::const_iterator part = comp;
+				   part != id->path().name.end(); ++part) {
+				    if (part != comp
+					&& (part->local_scope || !part->index.empty())) {
+					  plain_path = false;
+					  break;
+				    }
+				    names.push_back(part->name);
+			      }
+			      if (fixed_outer && plain_path) {
+				    const netranges_t&dims = fixed_outer->static_dimensions();
+				    vector<string> index_irs;
+				    uint64_t words = 1;
+				    bool valid = !dims.empty()
+					  && dims.size() == comp->index.size();
+				    for (const netrange_t&dim : dims) {
+					  if (!dim.defined() || !dim.width()
+					      || words > 65536 / dim.width()) {
+						valid = false;
+						break;
+					  }
+					  words *= dim.width();
+				    }
+				    for (const index_component_t&select : comp->index) {
+					  if (select.sel != index_component_t::SEL_BIT
+					      || !select.msb || select.lsb) {
+						valid = false;
+						break;
+					  }
+					  string index = pexpr_to_constraint_ir(select.msb, cls,
+						value_slots, scope, loop_env);
+					  if (index.empty()) {
+						valid = false;
+						break;
+					  }
+					  index_irs.push_back(index);
+				    }
+				    if (valid) {
+					  bool ground = true;
+					  for (const string&index : index_irs) {
+						constraint_const_ir_t constant;
+						if (!constraint_parse_const_ir_(index, constant)) {
+						      ground = false;
+						      break;
+						}
+					  }
+					  uint64_t word = 0;
+					  if (ground && constraint_fixed_array_leaf_word_(fixed_outer,
+						comp->index, cls, value_slots, scope, loop_env, word)
+					      && word <= UINT_MAX) {
+						string state_path = constraint_class_state_path_ir_(
+						      names, target_owner, true, (unsigned)word);
+						if (!state_path.empty()) return state_path;
+					  }
+				    }
+				    ivl_type_t leaf_type = nullptr;
+				    string first = valid ? constraint_class_state_path_ir_(names,
+					  target_owner, true, 0, &leaf_type) : "";
+				    const netenum_t*enum_type =
+					  dynamic_cast<const netenum_t*>(leaf_type);
+				    ivl_type_t scalar_type = enum_type
+					  ? enum_type->base_type_obj() : leaf_type;
+				    ivl_variable_type_t scalar_base = scalar_type
+					  ? scalar_type->base_type() : IVL_VT_NO_TYPE;
+				    unsigned leaf_width = leaf_type
+					  ? leaf_type->packed_width() : 0;
+				    bool scalar_leaf = leaf_width
+					  && (scalar_base == IVL_VT_BOOL
+					      || scalar_base == IVL_VT_LOGIC);
+				    valid = valid && !first.empty() && scalar_leaf;
+				    if (valid) {
+					  bool two_state = scalar_base == IVL_VT_BOOL;
+					  string fallback = two_state
+						? "c:0:" + to_string(leaf_width)
+						    + (leaf_type->get_signed() ? ":s" : "")
+						: "xbad:" + to_string(leaf_width)
+						    + (leaf_type->get_signed() ? ":s" : "");
+					  string selected = fallback;
+					  for (uint64_t current = words; current-- > 0;) {
+						uint64_t ordinal = current;
+						vector<uint64_t> digits(dims.size());
+						for (size_t dim = dims.size(); dim-- > 0;) {
+						      digits[dim] = ordinal % dims[dim].width();
+						      ordinal /= dims[dim].width();
+						}
+						string match;
+						for (size_t dim = 0; dim < dims.size(); ++dim) {
+						      int64_t low = min(dims[dim].get_msb(),
+							    dims[dim].get_lsb());
+						      if (digits[dim] > (uint64_t)INT64_MAX
+							  || low > INT64_MAX
+							      - (int64_t)digits[dim]) {
+							valid = false;
+							break;
+						      }
+						      string equal = "(idxeq " + index_irs[dim]
+							    + " c:"
+							    + to_string(low + (int64_t)digits[dim])
+							    + ":64:s)";
+						      match = match.empty() ? equal
+							    : "(and " + match + " " + equal + ")";
+						}
+						if (!valid) break;
+						string leaf = current == 0 ? first
+						      : constraint_class_state_path_ir_(names,
+							    target_owner, true,
+							    (unsigned)current);
+						if (leaf.empty()) {
+						      valid = false;
+						      break;
+						}
+						selected = "(ite " + match + " " + leaf + " "
+						      + selected + ")";
+					  }
+					  if (valid) return selected;
+				    }
+			      }
 			      cerr << id->get_fileline() << ": sorry: constraint "
 				   << "reference '" << comp->name << "[...]"
 				   << "." << outer_tail->name
@@ -34924,16 +35157,33 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      bool integral = mtype
 				    && (mbase == IVL_VT_BOOL || mbase == IVL_VT_LOGIC
 					|| dynamic_cast<const netenum_t*>(mtype));
-			      if (one_level && mem && member->index.empty() && integral
-				  && mwidth > 0) {
-				    string token = "m:" + to_string(pidx) + ":"
-					  + to_string(midx) + ":"
-					  + to_string(mwidth);
-				    if (mtype->get_signed()) token += ":s";
-				    return token;
-			      }
+		      if (one_level && mem && member->index.empty() && integral
+			  && mwidth > 0) {
+			    string token = "m:" + to_string(pidx) + ":"
+				  + to_string(midx) + ":"
+				  + to_string(mwidth);
+			    if (mtype->get_signed()) token += ":s";
+			    return token;
+		      }
+		      if (!one_level && comp->index.empty()) {
+			    vector<perm_string> names;
+			    bool plain_path = true;
+			    for (pform_name_t::const_iterator part = comp;
+				 part != id->path().name.end(); ++part) {
+				  if (part->local_scope || !part->index.empty()) {
+					plain_path = false;
+					break;
+				  }
+				  names.push_back(part->name);
+			    }
+			    if (plain_path && names.size() >= 3) {
+			  string nested_path_ir =
+				constraint_class_state_path_ir_(names, cls);
+			  if (!nested_path_ir.empty()) return nested_path_ir;
+			    }
+		      }
 
-			      cerr << id->get_fileline() << ": sorry: constraint "
+		      cerr << id->get_fileline() << ": sorry: constraint "
 				   << "reference '" << comp->name;
 			      if (member != id->path().name.end())
 				    cerr << "." << member->name;
@@ -35555,11 +35805,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      etype && etype->base_type() == IVL_VT_BOOL, dims, index_irs);
 		  }
 
-		  unsigned wid = packed_scalar ? ptype->packed_width() : 0;
+		  bool real_scalar = ptype == &netreal_t::type_real;
+		  unsigned wid = real_scalar ? 64
+			: packed_scalar ? ptype->packed_width() : 0;
 		  if (wid == 0) wid = 32;
 		    // Signed properties are marked so the solver uses
 		    // signed comparison semantics (IEEE 1800-2017 11.8.1).
-		  string sfx = (ptype && ptype->get_signed()) ? ":s" : "";
+		  string sfx = real_scalar ? ":r"
+			: (ptype && ptype->get_signed()) ? ":s" : "";
 		  return "p:" + to_string(idx) + ":" + to_string(wid) + sfx;
 	    }
 
@@ -37238,6 +37491,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && s.compare(0, 2, "a:") != 0
 			    && s.compare(0, 2, "e:") != 0
 			    && s.compare(0, 2, "x:") != 0
+			    && s.compare(0, 2, "r:") != 0
 			    && s.compare(0, 2, "s:") != 0
 			    && s.compare(0, 7, "(delem ") != 0) {
 			      if (!gn_commercial_unsafe_flag) return "";
@@ -37317,6 +37571,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      }
 			}
 			if (s.compare(0, 2, "x:") == 0 && cls
+			    && !constraint_nested_element_is_random_(
+				  s.c_str() + 2, cls))
+			      constraint_order_nonrandom_error_(item);
+			if (s.compare(0, 2, "r:") == 0 && cls
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
 			      constraint_order_nonrandom_error_(item);
@@ -38421,7 +38679,34 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  return ir;
 	    };
+	    bool saw_default_dist_item = false;
 	    for (auto& r : ins->get_ranges()) {
+		  if (r.is_default) {
+			if (!is_dist) {
+			      cerr << ins->get_fileline() << ": error: default is only "
+				   << "valid as a dist item." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			if (!sv_require_feature(ins, SVF_DIST_DEFAULT)) {
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			if (saw_default_dist_item) {
+			      cerr << ins->get_fileline() << ": error: a dist list may "
+				   << "contain at most one default item." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			saw_default_dist_item = true;
+			string w = payload_ir(r.weight, false);
+			if (w.empty()) return "";
+			result += " (d :/ " + w + " default)";
+			continue;
+		  }
 		  string range_ir;
 		  if (r.is_range) {
 			string lo = r.lo

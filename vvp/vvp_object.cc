@@ -190,7 +190,8 @@ static bool parse_strict_container_layout_(
                   kinds.push_back(VVP_CONTAINER_ASSOC);
                   queue_bounds.push_back(0);
             } else if (*cur == 'F') {
-                  if (kinds.empty() || kinds.back() != VVP_CONTAINER_ASSOC)
+                  if (kinds.empty()
+                      || kinds.back() == VVP_CONTAINER_FIXED)
                         return false;
                   ++cur;
                   if (!parse_layout_int_(cur, fixed_left) || *cur != ':')

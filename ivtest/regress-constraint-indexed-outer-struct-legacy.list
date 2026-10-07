@@ -1,0 +1,2 @@
+sv_constraint_indexed_outer_struct normal,-g2017,-s,test ivltests gold=sv_constraint_indexed_outer_struct.gold
+sv_constraint_indexed_outer_struct_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_indexed_outer_struct.gold

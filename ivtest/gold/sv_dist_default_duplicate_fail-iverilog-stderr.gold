@@ -1,0 +1,2 @@
+ivltests/sv_dist_default_duplicate_fail.v:3: error: a dist list may contain at most one default item.
+1 error(s) during elaboration.

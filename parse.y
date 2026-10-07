@@ -2267,7 +2267,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
-%type <sva_prop> sva_seq_comb sva_seq_comb_concat
+%type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
@@ -2277,7 +2277,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <sva_case_items> property_case_items
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
-  sva_seq_comb sva_seq_comb_concat
+  sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %destructor { pform_sva_destroy_sequence($$); }
   sva_seq_expr sva_seq_atom
@@ -4440,6 +4440,11 @@ dist_item
       { $1->weight = $4; $1->weight_is_divided = false; $$ = $1; }
   | inside_value_range ':' '/' expression
       { $1->weight = $4; $1->weight_is_divided = true; $$ = $1; }
+  | K_default ':' '/' expression
+      { $$ = new inside_range_t;
+        $$->lo = nullptr; $$->hi = nullptr; $$->is_range = false;
+        $$->weight = $4; $$->weight_is_divided = true;
+        $$->is_default = true; }
   ;
 
 constraint_trigger
@@ -8426,15 +8431,11 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      ambiguity with the op-0 rule. */
   /* IEEE 1800-2017 A.2.10 makes the antecedent of an implication a
      `sequence_expr', and 16.9.5 makes `sequence_expr or/and
-     sequence_expr' one -- so `S1 or S2 |-> c' is LEGAL. It cannot be
-     represented here: sva_property_t::antecedent is a flat step chain
-     and a combinator is a tree. Without this production the form has no
-     parse at all and dies as a bare `syntax error', which inside a
-     macro inside a generate block DESYNCS the parser and buries the
-     real diagnostics under cascading "Invalid module item" noise (this
-     is what turns a handful of defects in OpenTitan's alert primitives
-     into 47 errors). Accept it and refuse it BY NAME so the parser
-     stays in sync. */
+     sequence_expr' one -- so `S1 or S2 |-> c' is LEGAL. A combinator
+     tree cannot live in the flat antecedent chain, so the helper moves
+     it into `ante_tree' for the NFA lowering. The two-tree form is
+     handled below. Without these productions the form has no parse at
+     all and a syntax error can desynchronize macro/generate parsing. */
   | sva_seq_comb K_PIPE_IMPL_OV sva_seq_expr
       { $$ = pform_sva_comb_antecedent_sorry(@2, 1, $1, $3); }
   | sva_seq_comb K_PIPE_IMPL_NOV sva_seq_expr
@@ -8446,6 +8447,32 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_comb_antecedent_sorry(@2, 1, $1, $5, true); }
   | sva_seq_comb K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
       { $$ = pform_sva_comb_antecedent_sorry(@2, 2, $1, $5, true); }
+  /* Both operands are sequence combinator trees; retain both languages for
+     the existing NFA implication composition instead of rejecting syntax. */
+  | sva_seq_comb K_PIPE_IMPL_OV sva_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
+  | sva_seq_comb K_PIPE_IMPL_NOV sva_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_OV sva_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_NOV sva_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@2, 1, $1, $3); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@2, 2, $1, $3); }
+  | sva_seq_comb K_PIPE_IMPL_OV sva_grouped_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
+  | sva_seq_comb K_PIPE_IMPL_NOV sva_grouped_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
+  | sva_seq_expr K_PIPE_IMPL_OV sva_grouped_seq_comb
+      { $$ = pform_sva_comb_consequent_sorry(@2, 1, $1, $3); }
+  | sva_seq_expr K_PIPE_IMPL_NOV sva_grouped_seq_comb
+      { $$ = pform_sva_comb_consequent_sorry(@2, 2, $1, $3); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_OV sva_grouped_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_NOV sva_grouped_seq_comb
+      { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
   | sva_seq_comb %prec sva_seq_comb_done
       { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
@@ -8501,6 +8528,14 @@ sva_comb_atom
   : sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_leaf_prop($1); }
   | '(' sva_seq_comb ')'
+      { $$ = $2; }
+  ;
+
+/* At a property boundary, a complete parenthesized combinator may be the
+   whole implication operand. Keep it distinct from parenthesized leaves
+   nested inside sva_seq_comb's precedence grammar. */
+sva_grouped_seq_comb
+  : '(' sva_seq_comb ')'
       { $$ = $2; }
   ;
 
