@@ -11270,8 +11270,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 	    bool property_randc = builder.type(pv.idx)->property_is_randc(
 		  builder.local_index(pv.idx));
-	    if (!enumerated && property_randc && !fallback_managed
-		&& !exact_joint) {
+	    // The exact global solve keeps all hard tuple constraints in `base`;
+	    // use the same feasible-value randc sampler when full enumeration caps out.
+	    if (!enumerated && property_randc && !fallback_managed) {
 		  vvp_cobject*owner = builder.object(pv.idx);
 		  size_t pid = builder.local_index(pv.idx);
 		  if (owner->randc_period(pid)) {

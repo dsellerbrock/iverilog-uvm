@@ -572,3 +572,23 @@ and rollback controls were rerun on that binary and passed. The full suites
 were not rerun after that formatting-only change.
 This closes one ordered-weight case in the active batch; it does not establish
 complete IEEE constraint-randomization or uniformity support.
+
+## Graph-coupled scalar `randc` beyond full-domain enumeration (fix 18)
+
+The paired regression couples an 11-bit `randc` property over `[0:1024]` to a
+child object's random bit. The declared domain has 1,025 values, just beyond
+the complete-enumeration cap of 1,024. Before the fix, the global graph path
+failed with `a randc stage could not be enumerated completely`.
+
+When enumeration is incomplete, the global path now uses the existing exact
+hard-solver rejection sampler for this scalar `randc` property. Its feasibility
+checks use the global hard-constraint solver, so the selected value retains a
+valid child completion; cycle history remains transactionally staged. The
+existing 20-bit history and 65,536-proposal limits are unchanged.
+
+The focused reducer draws 32 unique values while preserving both constraints
+under strict `-g2017` and `-g2023`; both runs print
+`PASS aggregate randc 32/1025` on source-built VVP SHA-256
+`9e3583a9621e33c28f75904775370d6d6648ee2d17dc4e19ee1b8589198efa40`. The
+registered paired suite sources compile in both editions. Full registered
+uniformity suites remain deferred to the next ten-fix checkpoint.
