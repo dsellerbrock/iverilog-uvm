@@ -1005,6 +1005,9 @@ struct Z3Builder {
 	    uint64_t lo, hi;
 	      // Ordered-coordinate numerals when value_width exceeds 64.
 	    Z3_ast wide_lo, wide_hi;
+	    // A non-state weight is evaluated only after its solve-before prefix is
+	    // pinned. The integer weight above is then replaced for that draw.
+	    Z3_ast weight_expression;
       };
       struct DistSpec {
             vvp_cobject*rng_owner = nullptr;
@@ -2675,9 +2678,11 @@ static Z3_ast build_z3_atom(IRParser&par, Z3Builder&b, Z3_lbool*guard)
 static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 				     uint64_t& out, bool& overflow,
                                      bool*negative = nullptr,
-                                     bool*state_value = nullptr)
+                                     bool*state_value = nullptr,
+                                     Z3_ast*symbolic_value = nullptr)
 {
       if (state_value) *state_value = false;
+      if (symbolic_value) *symbolic_value = nullptr;
       overflow = false;
       if (negative) *negative = false;
       const char* start = par.p;
@@ -2716,6 +2721,19 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	// the value of its ordinary SystemVerilog expression, so truncate or
 	// extend to the self-determined semantic width before ground folding.
       value = value_builder.coerce(value, semantic_width);
+      if (symbolic_value && state_value && !*state_value) {
+	    *symbolic_value = value;
+	    if (!value_builder.signed_constant_aliases.empty()) {
+		  vector<Z3_ast> alias_from, alias_to;
+		  for (const auto&alias : value_builder.signed_constant_aliases) {
+			alias_from.push_back(alias.first);
+			alias_to.push_back(alias.second);
+		  }
+		  *symbolic_value = Z3_substitute(b.ctx, *symbolic_value,
+				(unsigned)alias_from.size(), alias_from.data(),
+				alias_to.data());
+	    }
+      }
 
       vector<Z3_ast> from;
       vector<Z3_ast> to;
@@ -5522,8 +5540,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  uint64_t weight64 = 1;
 		  bool weight_overflow = false;
                   bool state_weight = false;
+		  Z3_ast weight_expression = nullptr;
 		  if (!eval_runtime_integral_ir(par, b, weight64,
-						 weight_overflow, nullptr, &state_weight)) {
+						 weight_overflow, nullptr, &state_weight,
+						 &weight_expression)) {
                         state_weight = false;
 			static bool warned_weight = false;
 			if (!warned_weight) {
@@ -5541,9 +5561,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			(void) build_z3_atom(par, ignored);
 			if (par.p == before && !par.at_end()) par.consume();
 			weight64 = 0;
-		  }
+                  }
                   dspec.state_weights = dspec.state_weights && state_weight;
-		  if (weight_overflow) {
+		  bool dynamic_weight = weight_expression != nullptr;
+		  if (!dynamic_weight && weight_overflow) {
 			static bool warned_weight_overflow = false;
 			if (!warned_weight_overflow) {
 			      fprintf(stderr, "Warning: dist weight result exceeds "
@@ -5554,7 +5575,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      warned_weight_overflow = true;
 			}
 			exact_supported = false;
-		  } else if (weight64 > UINT_MAX) {
+		  } else if (!dynamic_weight && weight64 > UINT_MAX) {
 			static bool warned_weight_width = false;
 			if (!warned_weight_width) {
 			      fprintf(stderr, "Warning: dist weight exceeds the "
@@ -5565,9 +5586,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			}
 			exact_supported = false;
 		  }
-		  unsigned weight = weight_overflow || weight64 > UINT_MAX
-			? UINT_MAX : (unsigned)weight64;
-		  unsigned soft_weight = weight;
+		  unsigned weight = dynamic_weight ? 1
+			: weight_overflow || weight64 > UINT_MAX
+			      ? UINT_MAX : (unsigned)weight64;
+		  unsigned soft_weight = dynamic_weight ? 1 : weight;
 		  Z3_ast clause = b.mk_false();
 		  par.skip_ws();
 		  if (par.peek() == '[') {
@@ -5648,11 +5670,12 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 				    soft_weight = UINT_MAX;
 			      if (weight != 0 && wide_ok) {
 				    dspec.requires_large_exact = true;
-				    Z3Builder::DistBranch db = {
+			      Z3Builder::DistBranch db = {
 					  weight, true, range_weight_per_value,
 					  rw, lo_order_signed, 0, 0,
 					  ordered_wide(lo_wide, rw, lo_order_signed),
-					  ordered_wide(hi_wide, rw, hi_order_signed)
+					  ordered_wide(hi_wide, rw, hi_order_signed),
+					  weight_expression
 				    };
 				    dspec.branches.push_back(db);
 			      }
@@ -5708,7 +5731,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      Z3Builder::DistBranch db = {
 				    weight, true, range_weight_per_value,
 				    rw, coordinate_signed, lo_coord, hi_coord,
-				    nullptr, nullptr
+				    nullptr, nullptr, weight_expression
 			      };
 			      dspec.branches.push_back(db);
 			}
@@ -5746,16 +5769,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      dspec.requires_large_exact = true;
 			      Z3_ast coord = ordered_wide(value_wide, vw,
 							  value_compare_signed);
-			      Z3Builder::DistBranch db = {
+		      Z3Builder::DistBranch db = {
 				    weight, true, false, vw,
-				    value_compare_signed, 0, 0, coord, coord
+				    value_compare_signed, 0, 0, coord, coord,
+				    weight_expression
 			      };
 			      dspec.branches.push_back(db);
 			} else if (weight != 0 && value_ok) {
 			      Z3Builder::DistBranch db = {
 				    weight, false, false, vw,
 				    value_compare_signed,
-				    value_bits, value_bits, nullptr, nullptr
+				    value_bits, value_bits, nullptr, nullptr,
+				    weight_expression
 			      };
 			      dspec.branches.push_back(db);
 			}
@@ -5763,7 +5788,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  par.skip_ws();
 		  par.expect(')'); // close (b ...)
 		  par.skip_ws();
-		  if (weight == 0)
+		  if (dynamic_weight) {
+			Z3_sort weight_sort = Z3_get_sort(b.ctx, weight_expression);
+			Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0, weight_sort);
+			Z3_ast positive = Z3_mk_not(b.ctx,
+			      Z3_mk_eq(b.ctx, weight_expression, zero));
+			Z3_ast guarded[2] = {clause, positive};
+			clause = Z3_mk_and(b.ctx, 2, guarded);
+		  }
+		  if (weight == 0 && !dynamic_weight)
 			continue;
 		  hard_clauses.push_back(clause);
 		  // Retain the optimizer approximation with this distribution
@@ -11019,14 +11052,32 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (var_ref_active(ref)) return true;
 	    return false;
       };
-      if (exact_joint) {
-            // A random-dependent weight was evaluated from prefill while
-            // building base; its approximate hard clause cannot prove even
-            // another distribution's guard inactive.
-            for (const auto&spec : builder.dist_specs)
-                  if (!dist_disabled(spec) && !spec.state_weights)
-                        return fail_joint("joint dist requires an unconditional hard distribution with state-only weights and ground items");
-      }
+      auto materialize_dist_weights = [&](const Z3Builder::DistSpec&source,
+					  Z3Builder::DistSpec&result) -> bool {
+	    result = source;
+	    bool dynamic = false;
+	    for (auto&branch : result.branches) {
+		  if (!branch.weight_expression) continue;
+		  dynamic = true;
+		  if (Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
+		  Z3_model model = Z3_solver_get_model(ctx, base);
+		  if (!model) return false;
+		  Z3_model_inc_ref(ctx, model);
+		  uint64_t weight = 0;
+		  bool have_weight = z3_eval_uint64(ctx, model,
+						    branch.weight_expression, weight);
+		  Z3_model_dec_ref(ctx, model);
+		  if (!have_weight || weight > UINT_MAX) return false;
+		  Z3_ast value = Z3_mk_unsigned_int64(ctx, weight,
+				Z3_get_sort(ctx, branch.weight_expression));
+		  Z3_ast differs = Z3_mk_not(ctx,
+				Z3_mk_eq(ctx, branch.weight_expression, value));
+		  if (Z3_solver_check_assumptions(ctx, base, 1, &differs)
+			!= Z3_L_FALSE) return false;
+		  branch.weight = (unsigned)weight;
+	    }
+	    return source.state_weights || dynamic;
+      };
       auto install_dist_fallback = [&](Z3_optimize target,
 					 size_t spec_index) {
 	    const Z3Builder::DistSpec&spec = builder.dist_specs[spec_index];
@@ -11060,6 +11111,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    bool indeterminate = false;
 	    bool exact_supported = spec.exact_supported;
 	    Z3Builder::DistSpec exact_spec = spec;
+	    bool dynamic_weights = any_of(spec.branches.begin(), spec.branches.end(),
+		  [](const Z3Builder::DistBranch&branch) {
+			return branch.weight_expression != nullptr;
+		  });
 	    if (!exact_supported
 		&& spec.exact_supported_without_guard && !spec.guards.empty()) {
 		  // A guarded distribution can use exact sampling only if its
@@ -11099,6 +11154,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    exact_spec.exact_supported = exact_supported;
+	    if (dynamic_weights
+		&& !materialize_dist_weights(spec, exact_spec)) {
+		  fprintf(stderr, "ERROR: exact dist sampling failed: a random-dependent "
+			  "weight is not fixed in the current solve-before prefix or "
+			  "exceeds the exact weight width.\n");
+		  return false;
+	    }
+	    if (dynamic_weights && !exact_supported) {
+		  fprintf(stderr, "ERROR: exact dist sampling failed: a dynamic weight "
+			  "cannot use the approximate weighted-soft fallback.\n");
+		  return false;
+	    }
 	    if (spec.requires_large_exact
 	        && dist_resolved_vars.count(spec.subject))
 		  indeterminate = true;
@@ -11114,6 +11181,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  fprintf(stderr, "ERROR: exact dist sampling failed: the large-range "
 			  "feasible set cannot be resolved exactly for this subject "
 			  "and constraint shape.\n");
+		  return false;
+	    }
+	    if (!resolved && dynamic_weights) {
+		  fprintf(stderr, "ERROR: exact dist sampling failed: a dynamic-weight "
+			  "distribution could not be sampled exactly.\n");
 		  return false;
 	    }
 	    if (!resolved) {
@@ -11672,6 +11744,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                           spec.subject, leaf);
                         }
                   }
+                  for (const auto&branch : spec.branches) {
+                        if (!branch.weight_expression) continue;
+                        set<Z3_ast> weight_vars;
+                        if (!z3_collect_constants_(ctx,
+                                  branch.weight_expression, weight_vars))
+                              return fail_joint("a random-dependent dist weight has an unsupported expression");
+                        for (Z3_ast weight_var : weight_vars)
+                              if (seen.count(weight_var))
+                                    preference_edges.emplace_back(spec.subject,
+                                          weight_var);
+                  }
                   for (Z3_ast guard : spec.guards) {
                         set<Z3_ast> constants;
                         if (!z3_collect_constants_(ctx, guard, constants))
@@ -11759,12 +11842,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         conditional = can_deactivate != Z3_L_FALSE;
                         spec.exact_supported = spec.exact_supported_without_guard;
                   }
-                  // A discarded soft owner, non-ground item, or active
-                  // weight still lacks an exact joint interpretation.
-                  if (spec.disableable || !spec.exact_supported || !spec.state_weights)
-                        return fail_joint("joint dist requires an unconditional hard distribution with state-only weights and ground items");
+                  // A discarded soft owner or non-ground item still lacks an
+                  // exact joint interpretation. Random-dependent weights are
+                  // accepted only when their value is fixed by an earlier
+                  // solve-before prefix.
+                  if (spec.disableable || !spec.exact_supported)
+                        return fail_joint("joint dist requires an unconditional hard distribution with ground items");
                   if (!dist_active(spec)) continue;
                   bool found = false;
+                  size_t component_index = components.size();
                   for (size_t ci = 0; ci < components.size(); ++ci) {
                         const auto&component = components[ci];
                         auto subject = find(component.begin(), component.end(), spec.subject);
@@ -11777,12 +11863,61 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               &spec, (size_t)(subject - component.begin()), stage,
                               conditional
                         });
+                        component_index = ci;
                         found = true;
                         break;
                   }
                   if (!found)
                         return fail_joint("joint dist requires a direct canonical scalar or element subject");
+                  const auto&component = components[component_index];
+                  if (!spec.state_weights) {
+                        if (distributions[component_index].size() > 1)
+                              return fail_joint("a random-dependent dist weight requires a single distribution in its component");
+                        unsigned subject_stage = final_stage;
+                        auto subject_stage_it = stages.find(spec.subject);
+                        if (subject_stage_it != stages.end())
+                              subject_stage = subject_stage_it->second;
+                        bool has_dynamic_weight = false;
+                        for (const auto&branch : spec.branches) {
+                              if (!branch.weight_expression) continue;
+                              has_dynamic_weight = true;
+                              set<Z3_ast> dependencies;
+                              if (!z3_collect_constants_(ctx,
+                                        branch.weight_expression,
+                                        dependencies))
+                                    return fail_joint("a random-dependent dist weight has an unsupported expression");
+                              for (Z3_ast dependency : dependencies) {
+                                    if (find(component.begin(), component.end(),
+                                             dependency) == component.end()
+                                        || active_randc_var(dependency))
+                                          return fail_joint("a random-dependent dist weight is outside its supported solve-before component");
+                                    unsigned dependency_stage = final_stage;
+                                    auto dependency_stage_it = stages.find(dependency);
+                                    if (dependency_stage_it != stages.end())
+                                          dependency_stage = dependency_stage_it->second;
+                                    if (dependency_stage >= subject_stage) {
+                                          Z3Builder::DistSpec fixed_weight;
+                                          if (!materialize_dist_weights(spec,
+                                                        fixed_weight))
+                                                return fail_joint("a random-dependent dist weight is not fixed before its subject is sampled");
+                                    }
+                              }
+                        }
+                        if (!has_dynamic_weight)
+                              return fail_joint("joint dist weight expression could not be retained exactly");
+                  }
             }
+            for (const auto&bindings : distributions)
+                  if (bindings.size() > 1
+                      && any_of(bindings.begin(), bindings.end(),
+                            [](const JointDistBinding&binding) {
+                                  return any_of(binding.spec->branches.begin(),
+                                        binding.spec->branches.end(),
+                                        [](const Z3Builder::DistBranch&branch) {
+                                              return branch.weight_expression != nullptr;
+                                        });
+                            }))
+                        return fail_joint("a random-dependent dist weight requires a single distribution in its component");
             auto covered_by_binary_bit_dists = [&](Z3_ast variable,
                   unsigned through_stage,
                   const vector<JointDistBinding>&bindings) {
@@ -12135,10 +12270,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               }
                               uint64_t ignored = 0;
                               int active = guard_active(distributions[ci][0]);
-                              bool valid = active >= 0 && (!active
-                                    || z3_resolve_dist_exact(ctx, base, opt,
-                                          *spec, owner_rng(spec->rng_owner), ignored,
-                                          ordered_components[ci], true));
+                              bool valid = active >= 0;
+                              if (valid && active) {
+                                    Z3Builder::DistSpec prefix_spec;
+                                    valid = materialize_dist_weights(*spec,
+                                          prefix_spec)
+                                          && z3_resolve_dist_exact(ctx, base,
+                                                opt, prefix_spec,
+                                                owner_rng(spec->rng_owner),
+                                                ignored,
+                                                ordered_components[ci], true);
+                              }
                               Z3_solver_pop(ctx, base, 1);
                               if (!valid)
                                     return fail_joint("an ordered distribution cannot be resolved for every proved prefix fiber");
@@ -12429,9 +12571,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               return fail_joint("a joint distribution guard changed after its proved prefix");
                         if (active) {
                               uint64_t subject = 0;
-                              if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
-                                    owner_rng(spec->rng_owner), subject,
-                                    ordered_components[ci]))
+                              Z3Builder::DistSpec staged_spec;
+                              if (!materialize_dist_weights(*spec,
+                                          staged_spec)
+                                  || !z3_resolve_dist_exact(ctx, base, opt,
+                                        staged_spec,
+                                        owner_rng(spec->rng_owner), subject,
+                                        ordered_components[ci]))
                                     return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
                               unsigned width = bv_width(ctx, spec->subject);
                               if (width < 64) subject &= (uint64_t(1) << width) - 1;

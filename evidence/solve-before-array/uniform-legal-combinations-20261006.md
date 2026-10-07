@@ -538,3 +538,37 @@ With seed `20261008`, strict `-g2017` and `-g2023` both produce
 sizes, the soft-forced size-one value, four conditional size-two bins, and the
 size-first marginal. Both registered suite sources compile in both editions;
 full suite runs remain deferred to the 10-fix checkpoint.
+
+## Solve-before weighted `dist` expressions across object graphs (fix 17)
+
+IEEE 1800-2017 §18.5.4 and 1800-2023 §18.5.3 allow integral expressions as
+distribution weights. The paired regression solves `mode` before `value`,
+uses `mode` to choose 1:3 or 3:1 weights, and ties the distributed value to a
+child object's random property. Before this fix, the direct-object path passed
+but the cross-object path rejected the weight as non-state data.
+
+The joint sampler now retains the weight expression, connects its random
+operands to the distribution subject, and evaluates each weight only after the
+solve-before prefix is pinned. A zero weight still excludes its item. This
+exact path currently accepts one dynamic-weight distribution per connected
+component and fails closed when a weight is not proved fixed at its sampling
+stage or exceeds the exact weight limit; broader dynamic-weight combinations
+remain open.
+
+The paired `sv_randomize_global_dist_components` regressions and a
+direct-object probe pass under strict `-g2017` and `-g2023`. On source-built
+ARM64 VVP SHA-256
+`ed2d5fc0dad10b8e67ac0a30a3aa040a8fc3566a342a0f4bc2f44c48708c69a0`, the
+full registered `sv_randomize_global_uniform` suite passed in 243.16 s under
+2017 (49,758,208-byte maximum RSS) and 258.14 s under 2023 (49,872,896-byte
+maximum RSS). The adjacent fixed-array solve-before and sampling-failure
+rollback controls also passed in both editions; the latter emits its expected
+oversized-domain warning and allocation-limit error before printing `PASSED`.
+
+After a whitespace-only source alignment, the rebuilt VVP hash is
+`446a7df001a1dbb7d73b46d64159d172c54f47cd746653e9b45a7d7472b0ba72`. The
+paired dynamic-weight regression, direct-object probe, fixed-array controls,
+and rollback controls were rerun on that binary and passed. The full suites
+were not rerun after that formatting-only change.
+This closes one ordered-weight case in the active batch; it does not establish
+complete IEEE constraint-randomization or uniformity support.
