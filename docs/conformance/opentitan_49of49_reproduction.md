@@ -45,16 +45,15 @@ excluding `.git` metadata and Python bytecode caches.
 Build and install this fork first. Provide the pinned UVM 1.2 sources, a
 FuseSoC environment with OpenTitan dependencies, native OpenSSL/libelf
 development packages, and the xPack RISC-V assembler/linker used by OTBN.
-Use one job as the safe default. The runtime cap applies per process, so two
-jobs can consume twice that amount and four jobs can consume four times as much.
-Increase concurrency only after checking the machine's free memory and the
-measured peak footprint of a single worker.
+On macOS, the runtime guard assigns a fixed 3814 MiB budget per agent and
+divides it across `--jobs`. It samples VVP physical footprint once per second
+and terminates over-budget runtimes; brief overshoot is possible. Setup and
+compiler subprocesses are outside this macOS-only guard.
 
 ```bash
-# Set JOBS=2 or 4 only if the machine has enough memory for concurrent caps.
+# JOBS divides the fixed per-agent runtime memory budget.
 OT_ROOT="${OT_ROOT:-/tmp/opentitan-census18}"
 JOBS="${JOBS:-1}"
-RUNTIME_MEMORY_MIB="${RUNTIME_MEMORY_MIB:-9536}"
 FUSESOC=/path/to/fusesoc-env/bin/fusesoc
 FUSESOC_PYTHON=/path/to/fusesoc-env/bin/python
 UVM_HOME=/path/to/uvm-1.2/src
@@ -73,7 +72,6 @@ python3 scripts/opentitan_matrix.py \
   --fusesoc-python "$FUSESOC_PYTHON" \
   --lane runtime \
   --jobs "$JOBS" \
-  --runtime-memory-mib "$RUNTIME_MEMORY_MIB" \
   --setup-timeout 600 \
   --compile-timeout 600 \
   --runtime-timeout 18000 \
@@ -84,8 +82,9 @@ python3 scripts/opentitan_matrix.py \
   --result-md "$RESULT_DIR/result.md"
 ```
 
-For the recorded macOS memory guard, append `--runtime-memory-mib 9536` to cap
-each VVP process at 9,536 MiB. That option is macOS-only. The exact archived
-launcher uses machine-local paths; the command above is the portable template.
+`--runtime-memory-mib` overrides the per-agent budget, not a per-process cap;
+the matrix divides it by `--jobs`. It defaults to 3814 MiB on macOS and cannot
+be disabled there. That option is unsupported on other platforms. The exact
+archived launcher uses machine-local paths; this is the portable command template.
 `-gcommercial-unsafe` enables nonstandard compatibility behavior and is not an
 IEEE conformance mode.

@@ -285,7 +285,9 @@ List the full discovered inventory without building it:
   --lane rtl --lane sva --lane uvm --list
 ```
 
-Run all four lanes with four independent cores in flight:
+Run all four lanes with four independent cores in flight. On macOS, the
+default 3814 MiB per-agent VVP runtime budget is divided across these workers;
+setup and compiler subprocesses are outside this footprint guard.
 
 ```sh
 "$OT_PY" scripts/opentitan_matrix.py \

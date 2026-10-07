@@ -583,6 +583,23 @@ Follow `.github/pull_request_template.md`. Include:
 
 Do not merge until required checks are green.
 
+### Required delivery rules (2026-10-07)
+
+- Every pull request targets `main`; never base a pull request on another
+  unmerged pull request.
+- A change is done only when CI is green for the exact pull-request head on
+  every required platform. A local macOS run is not sufficient evidence.
+- Runtime loops and retries must be bounded. A comment acknowledging an
+  unbounded-loop risk does not authorize shipping it.
+- Before committing any new `ivtest` registration, run it through both the
+  legacy and JSON runners.
+- Do not squash into parentless commits; preserve bisectable history.
+- For OpenTitan VVP runs on the shared 18 GB host, reserve 6 GB for the system
+  and budget each of three concurrent agents at 3814 MiB (under 4,000,000,000
+  bytes). Do not use percentage-based RAM caps. The macOS footprint guard
+  divides that per-agent budget across `--jobs`; it does not cap
+  compiler/setup subprocesses or other agents' processes.
+
 If CI reveals an unrelated latent defect, record/triage it rather than
 automatically expanding the current PR. If it is a regression caused by
 the active change, it remains in scope and must be fixed before
