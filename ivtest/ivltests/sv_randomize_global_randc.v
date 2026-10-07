@@ -43,17 +43,49 @@ class constrained_wide_randc;
     if (impossible) value == 0;
   }
 endclass
+class constrained_graph_wide_randc;
+  randc int unsigned value;
+  rand dynamic_randc_child child;
+  bit impossible;
+  function new(); child = new; endfunction
+  constraint legal_c {
+    value inside {[0:100]};
+    value == child.value;
+    if (impossible) value == 101;
+  }
+endclass
+class parent_limited_wide_randc_child;
+  randc int unsigned value;
+endclass
+class parent_limited_wide_randc_root;
+  rand int unsigned parent_value;
+  rand parent_limited_wide_randc_child child;
+  bit impossible;
+  function new(); child = new; endfunction
+  constraint parent_c {
+    child.value inside {[0:64]};
+    parent_value == child.value;
+    if (impossible) child.value == 65;
+  }
+endclass
 module main;
   cyclic_root r = new;
   static_node s = new;
   static_struct_node t = new;
   dynamic_randc_root d = new;
   constrained_wide_randc w = new;
+  constrained_graph_wide_randc gw = new;
+  parent_limited_wide_randc_root p = new;
   bit [3:0] seen, shared_seen, struct_seen;
   bit [1024:0] dynamic_seen;
   bit [7:0] wide_seen;
+  bit [100:0] graph_wide_seen;
+  bit [64:0] parent_graph_wide_seen;
   bit [1:0] before_parent, before_child;
   bit [10:0] before_dynamic, before_dynamic_child;
+  bit [10:0] before_graph_child;
+  int unsigned before_graph_wide;
+  int unsigned before_parent_graph_value, before_parent_value;
   string child_state, struct_child_state;
   initial begin
     s.child = new; t.child = new;
@@ -131,6 +163,54 @@ module main;
       if (wide_seen !== 8'b0010_1010)
         $fatal(1, "constrained wide randc missed a legal value");
     end
+    gw.srandom(32'h1020_3041); gw.child.srandom(32'h1020_3042);
+    graph_wide_seen = 0;
+    for (int i = 0; i <= 100; i++) begin
+      if (i == 50) begin
+        before_graph_wide = gw.value;
+        before_graph_child = gw.child.value;
+        gw.impossible = 1;
+        if (gw.randomize() || gw.value != before_graph_wide
+            || gw.child.value != before_graph_child)
+          $fatal(1, "unsatisfiable graph-coupled wide randc changed values");
+        gw.impossible = 0;
+      end
+      if (!gw.randomize()) $fatal(1, "graph-coupled wide randc failed");
+      if (gw.value != gw.child.value || !(gw.value inside {[0:100]}))
+        $fatal(1, "graph-coupled wide randc violated its constraints");
+      if (graph_wide_seen[gw.value])
+        $fatal(1, "graph-coupled wide randc repeated before completing its cycle");
+      graph_wide_seen[gw.value] = 1'b1;
+    end
+    if (graph_wide_seen !== {101{1'b1}})
+      $fatal(1, "graph-coupled wide randc missed a legal value");
+    if (!gw.randomize() || gw.value != gw.child.value
+        || !(gw.value inside {[0:100]}) || !graph_wide_seen[gw.value])
+      $fatal(1, "graph-coupled wide randc did not reset after exhaustion");
+    p.srandom(32'h1020_3043); p.child.srandom(32'h1020_3044);
+    for (int i = 0; i <= 64; i++) begin
+      if (i == 32) begin
+        before_parent_graph_value = p.child.value;
+        before_parent_value = p.parent_value;
+        p.impossible = 1;
+        if (p.randomize() || p.child.value != before_parent_graph_value
+            || p.parent_value != before_parent_value)
+          $fatal(1, "parent-only randc constraint failure changed graph values");
+        p.impossible = 0;
+      end
+      if (!p.randomize())
+        $fatal(1, "parent-only graph-coupled wide randc failed at %0d", i);
+      if (p.child.value > 64 || p.parent_value != p.child.value
+          || parent_graph_wide_seen[p.child.value])
+        $fatal(1, "parent-only wide randc repeated or violated its constraint");
+      parent_graph_wide_seen[p.child.value] = 1'b1;
+    end
+    if (parent_graph_wide_seen !== {65{1'b1}})
+      $fatal(1, "parent-only graph-coupled wide randc missed a legal value");
+    if (!p.randomize() || p.child.value > 64
+        || p.parent_value != p.child.value
+        || !parent_graph_wide_seen[p.child.value])
+      $fatal(1, "parent-only graph-coupled wide randc did not reset");
     $display("PASSED");
   end
 endmodule

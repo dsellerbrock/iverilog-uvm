@@ -11236,7 +11236,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						pv.width, feasible);
 	    if (!fallback_managed && !enumerated)
 		  enumerated = z3_enumerate_sparse_wide_domain_(
-			ctx, base, pv.var, pv.width, feasible);
+			ctx, base, pv.var, pv.width, feasible,
+			property_randc ? (size_t)ENUM_DOMAIN_CAP
+			               : SPARSE_DOMAIN_CAP);
 	    if (enumerated && property_randc && pv.width > 20
 		&& (pv.width > 64
 		    || builder.type(pv.idx)->property_is_static(
@@ -13745,6 +13747,43 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 bool vvp_z3_graph_history_supported(const vector<vvp_z3_object_s>&objects)
 {
       if (objects.empty()) return true;
+      auto graph_ir_references_property = [&](const string&ir,
+            vvp_cobject*source, vvp_cobject*target, size_t target_pid,
+            unsigned target_width) {
+            size_t pos = 0;
+            while ((pos = ir.find("r:", pos)) != string::npos) {
+                  const char*begin = ir.c_str() + pos + 2;
+                  const char*p = begin;
+                  vector<unsigned> path;
+                  while (*p) {
+                        char*end = nullptr;
+                        unsigned long idx = strtoul(p, &end, 10);
+                        if (end == p || idx > UINT_MAX) break;
+                        path.push_back((unsigned)idx);
+                        p = end;
+                        if (*p != '.') break;
+                        ++p;
+                  }
+                  char*end = nullptr;
+                  unsigned long width = *p == ':'
+                        ? strtoul(p + 1, &end, 10) : 0;
+                  if (path.size() > 1 && path.back() == target_pid
+                      && width == target_width && end != p + 1) {
+                        vvp_cobject*current = source;
+                        string error;
+                        for (size_t i = 0; current && i + 1 < path.size(); ++i) {
+                              vvp_object_t nested;
+                              if (!constraint_object_property_(current,
+                                    path[i], nested, error, 0, true)) break;
+                              current = nested.peek<vvp_cobject>();
+                        }
+                        if (current == target) return true;
+                  }
+                  pos = (size_t)(p - ir.c_str());
+                  if (pos <= (size_t)(begin - ir.c_str())) pos += 2;
+            }
+            return false;
+      };
       unsigned class_owners = 0;
       for (const auto&owner : objects)
             if (!owner.object->get_defn()->is_struct_type()) ++class_owners;
@@ -13784,8 +13823,69 @@ bool vvp_z3_graph_history_supported(const vector<vvp_z3_object_s>&objects)
                         if (!base_type.empty() && (base_type[0] == 'D' || base_type[0] == 'M'))
                               width = random_container_desc_(base_type.substr(1)).elem_width;
                         if (width == 0 || width > 20) {
-                              fprintf(stderr, "ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.\n");
-                              return false;
+                              bool constrained_in_graph = false;
+                              const string property_ref = "p:"
+                                    + std::to_string(pid) + ":";
+                              for (size_t cid = 0;
+                                   cid < type->constraint_count(); ++cid)
+                                    if (owner.object->constraint_mode(cid)
+                                        && type->constraint_ir(cid).find(
+                                              property_ref) != string::npos) {
+                                          constrained_in_graph = true;
+                                          break;
+                                    }
+                              for (const auto&source : objects) {
+                                    if (constrained_in_graph) break;
+                                    const class_type*source_type =
+                                          source.object->get_defn();
+                                    if (source.include_class_constraints)
+                                          for (size_t cid = 0;
+                                               cid < source_type->constraint_count();
+                                               ++cid)
+                                                if (source.object->constraint_mode(cid)
+                                                    && graph_ir_references_property(
+                                                          source_type->constraint_ir(cid),
+                                                          source.object, owner.object,
+                                                          pid, width)) {
+                                                      constrained_in_graph = true;
+                                                      break;
+                                                }
+                                    auto has_reference = [&](const vector<string>&items) {
+                                          return any_of(items.begin(), items.end(),
+                                                [&](const string&ir) {
+                                                      return graph_ir_references_property(
+                                                            ir, source.object,
+                                                            owner.object, pid, width);
+                                                });
+                                    };
+                                    if (!constrained_in_graph)
+                                          constrained_in_graph =
+                                                has_reference(source.inherited_ir)
+                                                || has_reference(source.extra_ir)
+                                                || has_reference(source.planned_class_ir);
+                                    if (constrained_in_graph) break;
+                              }
+                              bool sparse_scalar = width > 20 && width <= 64
+                                    && !type->property_is_static(pid)
+                                    && type->property_array_size(pid) == 1
+                                    && type->property_dimensions(pid).empty()
+                                    && constrained_in_graph
+                                    && !base_type.empty()
+                                    && base_type[0] != 'D'
+                                    && base_type[0] != 'Q'
+                                    && base_type[0] != 'M'
+                                    && base_type != "o"
+                                    && base_type != "S"
+                                    && base_type != "r";
+                              if (!sparse_scalar) {
+                                    fprintf(stderr, "ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.\n");
+                                    return false;
+                              }
+                              // Require an enabled graph constraint to name
+                              // this property so an unconstrained wide randc
+                              // cannot bypass the solver and commit untracked.
+                              // The sampler still proves the complete feasible
+                              // set within ENUM_DOMAIN_CAP before it commits.
                         }
                   }
             }

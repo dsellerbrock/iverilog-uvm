@@ -683,3 +683,62 @@ existing [wide-history negative control](../../ivtest/ivltests/sv_randomize_glob
 also prints `PASSED` in both editions; it confirms graph-coupled and
 container-wide forms still reject. The full registered uniformity suites were
 not run on this incremental image.
+
+
+## Owner-referenced graph-coupled wide `randc` (fix 23)
+
+The graph-history gate previously rejected every wide scalar `randc` leaf before
+the solver could prove its small feasible set. Admission now covers only a
+non-static direct integral scalar property 21–64 bits wide, with no aggregate
+dimensions, when an enabled constraint on that property’s owner references the
+property. The runtime exactly enumerates and proves the complete feasible set,
+with a 1,024-value cap, then uses transactional sparse history capped at
+65,536 values. Enumeration failure or a larger set remains a runtime error.
+
+The paired `sv_randomize_global_randc` reducer adds a graph-coupled `randc int
+unsigned` parent field constrained to `[0:100]` and equal to a child’s 11-bit
+`rand` field. In strict 2017 and 2023, it visits all 101 values without a repeat,
+checks an unsatisfiable attempt preserves both objects, and confirms reset after
+exhaustion. The paired negative control verifies fail-closed handling for a
+graph-coupled `[0:1024]` domain, an aggregate wide property, and an
+unconstrained wide property.
+
+A baseline run on the pre-fix runtime failed before the cycle began with
+`a randc leaf exceeds the supported history representation`. The rebuilt runtime
+uses ARM64 VVP SHA-256
+`46403784726fa79e6d4e200eff624d87e53396183b70b2a209d85a3f65709f53` and `ivl`
+SHA-256 `82b75d9d28cc122faa8c7839330e346993eb9b8a84e1147d0b0dff93bdba9d51`.
+The paired positive and negative JSON tests pass 4/4 in the focused official
+harness; the legacy paired regressions also pass 4/4. Full registered uniformity
+suites were not rerun on this incremental image and remain deferred to the
+ten-fix checkpoint.
+
+
+## Parent-referenced graph `randc` property paths (fix 24)
+
+The graph-history preflight recognized a wide `randc` leaf only when the
+leaf's own class constraint IR contained its direct `p:<pid>` reference. A
+parent constraint such as `child.value inside {[0:64]}` compiles to an `r:`
+object path and was rejected before the joint graph solver could use it. The
+preflight now resolves each candidate `r:` path through live class-handle
+properties and matches the reached object identity, terminal property index,
+and width. Local `p:` constraints remain accepted. Unreferenced wide leaves
+are still rejected before sampling, and all admitted candidates still need a
+complete exactly enumerable feasible set within the existing 1,024-value cap.
+
+The paired `sv_randomize_global_randc` reducer adds a wide `randc` child with
+no local constraints. Its parent constrains the child's value to `[0:64]` and
+equates it to a parent's `rand` property. Strict 2017 and 2023 runs complete all
+65 cycle values, verify an unsatisfiable attempt rolls back both parent and
+child values, and confirm reset after exhaustion. The existing same-owner and
+child-owner graph-wide cases continue to pass. Oversized, aggregate, and
+unconstrained negative controls continue to fail closed.
+
+The minimal pre-fix reproducer failed with `a randc leaf exceeds the supported
+history representation`. On the final source-built ARM64 image, VVP SHA-256 is
+`4daaa134a8cffa858e09e423468e4ebc385efca0735b2a4aa2ed25a277303435`; paired
+`ivl` SHA-256 is
+`82b75d9d28cc122faa8c7839330e346993eb9b8a84e1147d0b0dff93bdba9d51`. The
+focused JSON harness passes 4/4 and the focused legacy harness passes 4/4, each
+under strict paired 2017/2023 modes. Full registered uniformity suites remain
+deferred to the ten-fix checkpoint.
