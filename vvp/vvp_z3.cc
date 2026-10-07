@@ -10115,9 +10115,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_lbool feasible = Z3_solver_check(ctx, base);
 	    if (feasible == Z3_L_FALSE) return fail_joint(nullptr);
 	    if (feasible == Z3_L_UNDEF)
-		  return fail_joint("the solver returned UNKNOWN before uniform scalar sampling");
+		  return fail_joint("the solver returned UNKNOWN before uniform tuple sampling");
 	    for (const auto&component : uniform_joint_components) {
-		  for (;;) {
+		  // Sparse legal tuples can make rejection sampling take impractically
+		  // long. After the cap, let the existing solver path finish the
+		  // component; only sampled components receive the uniformity claim.
+		  static const unsigned uniform_joint_attempt_cap = 4096;
+		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
 			vector<Z3_ast> pins;
 			pins.reserve(component.size());
 			for (Z3_ast var : component) {
@@ -10141,8 +10145,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      Z3_optimize_assert(ctx, opt, pins[i]);
 			      uniform_sampled_vars.insert(component[i]);
 			}
-			break;
-		  }
+		      break;
+		}
 	    }
       }
 

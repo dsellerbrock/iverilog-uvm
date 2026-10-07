@@ -1,2 +1,2 @@
 PASSED
-ivltests/sv_assert_control_lookup_stress.v:28: $finish called at 4 (1s)
+ivltests/sv_assert_control_lookup_stress.v:27: $finish called at 4 (1s)
