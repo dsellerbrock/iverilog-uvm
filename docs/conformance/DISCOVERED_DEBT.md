@@ -29,11 +29,15 @@ done outside any single targeted-fix run.
 
 ---
 
-No entries yet. This governance-bootstrap pass did not investigate
-implementation code for defects (that would itself be an audit, which is
-out of scope here) — nothing was discovered during this ticket that
-requires parking. Use the format above for the next agent's discoveries.
+Previously recorded debt follows. The delivery-audit items below are
+record-only; they were not implemented in this ticket.
 
+
+## 2026-10-07 delivery-audit debt
+
+- **Per-test timeout:** Add a timeout to ivtest/vvp_reg.pl so one hung test fails without stalling a full sweep for hours. Not implemented here.
+- **Bulky evidence storage:** Move checked-in evidence logs (about 125 MB in the current checkout) to CI artifacts or Git LFS; the packed Git history is about 87 MB. Not implemented here.
+- **Exact sparse uniform sampling:** Replace the 4,096-attempt rejection cap and non-uniform fallback for sparse coupled components with an exact counting/hash-based sampler. Not implemented here.
 
 ### DD-001 — joint active-randc prepass and enumeration-cap interaction
 

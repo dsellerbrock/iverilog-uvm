@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_darray.h"
+# include  <algorithm>
 # include  <iostream>
 # include  <typeinfo>
 

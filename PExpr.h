@@ -24,6 +24,7 @@
 # include  <vector>
 # include  <valarray>
 # include  <memory>
+# include  <utility>
 # include  "netlist.h"
 # include  "verinum.h"
 # include  "LineInfo.h"
