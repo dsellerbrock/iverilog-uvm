@@ -677,7 +677,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **What this unblocks:** Common constrained-random record arrays whose scalar fields depend on state or other randomized fields.
 - **Boundary:** Symbolic random index expressions, dynamic/queue/associative containers, aggregate leaves, and class-handle members remain open. This increment does not close clause 18 or the full IEEE 1800 objective.
 - **Validation:** Both strict editions pass 2/2 in legacy and JSON/VVP focus lists. The adjacent nested-struct regression passes 2/2 in both harnesses and editions. Build and install succeed; no broad suite or OpenTitan corpus was run.
-- **Last verified revision:** Candidate under test on `agent/ieee-cross-object-solve-before-20261007`; image hashes are in the qualification record.
+- **Last verified revision:** `e1d61f127` on `agent/ieee-cross-object-solve-before-20261007`; image hashes are in the qualification record.
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 

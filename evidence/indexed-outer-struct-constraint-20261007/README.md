@@ -4,6 +4,8 @@ Date: 2026-10-07
 
 Branch: `agent/ieee-cross-object-solve-before-20261007`
 
+Source commit: `e1d61f127`
+
 ## Reproducer and behavior
 
 `ivtest/ivltests/sv_constraint_indexed_outer_struct.sv` constrains scalar
