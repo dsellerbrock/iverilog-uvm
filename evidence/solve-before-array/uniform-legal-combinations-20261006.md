@@ -611,3 +611,21 @@ VVP SHA-256 `f78d193df36a7ea842678392f25bc5a6637d10ee5db299d620595ae9f664a083`.
 The 2023 run takes 25.41 seconds and peaks at 38,928,384 bytes maximum RSS.
 The registered uniformity suite sources compile in both editions; full suite
 runs remain deferred to the next ten-fix checkpoint.
+
+## Soft priority on cyclic object graphs (fix 20)
+
+The previous runtime guard rejected every active soft constraint on a cyclic
+object graph. Removing that blanket refusal lets the existing graph solver
+apply soft priorities to this bounded case: two linked objects whose hard
+constraints require equal values in `[2:3]`, with `soft value == 2` on each
+object. The paired regression randomizes the two-node cycle ten times and
+checks that both values are 2 each time. It then makes the hard constraints
+unsatisfiable, checks that failed randomization preserves both old values,
+and verifies a successful retry after restoring feasibility.
+
+The paired registered test passes under strict `-g2017` and `-g2023` using
+source-built ARM64 VVP SHA-256
+`4215cfc855aa81026fd0280d0554b59d5a60ea55ad0b617b0bbcdcd28e75707e`.
+The registered full uniformity suites remain deferred to the ten-fix
+checkpoint. This verifies one two-object cycle and does not qualify all
+cyclic graphs or soft-preference combinations.

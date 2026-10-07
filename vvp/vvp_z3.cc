@@ -9881,16 +9881,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			uniform_fixed_array_elements_ready = true;
 	    }
       }
-      if (graph && !builder.pending_soft.empty()) {
-            for (const auto&owner : graph->objects)
-                  if (owner.cyclic) {
-                        fprintf(stderr, "ERROR: soft constraint priority on a cyclic object graph is not yet supported.\n");
-                        Z3_solver_dec_ref(ctx, base);
-                        Z3_optimize_dec_ref(ctx, opt);
-                        Z3_del_context(ctx);
-                        return Z3PASS_FAILED;
-                  }
-      }
       if (graph && !graph->valid) {
             fprintf(stderr, "ERROR: global constraint references invalid object storage.\n");
             Z3_solver_dec_ref(ctx, base);

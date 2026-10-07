@@ -236,6 +236,9 @@ Fixes 18–19 extend exact constrained `randc` handling to a graph-coupled
 scalar and a non-nested fixed-array leaf. The paired 1,025-value fixed-array
 cycle completes without repeats and starts a new cycle; container-backed,
 nested, and struct-member randc forms remain open.
+Fix 20 removes the blanket refusal of soft constraints on cyclic object graphs;
+a paired two-object cycle checks soft preference, failure rollback, and retry.
+Other cyclic soft combinations and aggregate randc forms remain open.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See
