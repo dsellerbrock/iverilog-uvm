@@ -4,7 +4,7 @@ compile_followup: "The patched 309-row RTL/SVA/UVM census on engine 367e has 188
 branch: "agent/ieee-procedural-past-preponed-20261007"
 baseline: "PR #407 is open/draft with fixes 28–37 (10 fixes), at a153354481d1620a7e66029b8af3f0bb0217f06a. New DD-104 work branches from that exact head."
 blocker: "DD-104 — procedural $past history captures the Active-region value, not the Preponed value."
-pr_batch: "PR #407 now contains fixes 28–37 (10 fixes). After DD-104 is qualified, add it to a new draft PR #408 stacked on #407, following the user's standing PR cadence."
+pr_batch: "PR #407 contains fixes 28–37 (10 fixes). DD-104 is locally qualified and submitted as draft PR #408, stacked on #407, following the user's standing PR cadence."
 goal: "Continue implementing and qualifying full IEEE 1800-2017 and IEEE 1800-2023 support."
 standards: "IEEE 1800-2017/2023 §16.5.1 defines a static variable's sampled value at time greater than zero as its Preponed-region value; §16.9.3 makes $past return the prior sampled expression and permits procedural use; §16.14.6 governs clock inference. §16.5.1 also has automatic/local/current-value exceptions, so do not blindly apply signal sampling to those forms. Consulted the local normative PDFs (2017 pp. 374–376, 395–397; 2023 pp. 393–395, 414–416)."
 failing_reproducer: "Permanent RED: `ivtest/ivltests/sv_sampled_value_preponed_writer_first.v`; before the fix, a writer declared before the reader made $past(d) return the Active-region write instead of the Preponed sample. Reproduced through legacy and strict JSON/VVP harnesses for -g2017 and -g2023."
