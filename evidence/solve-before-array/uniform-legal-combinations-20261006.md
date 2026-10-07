@@ -592,3 +592,22 @@ under strict `-g2017` and `-g2023`; both runs print
 `9e3583a9621e33c28f75904775370d6d6648ee2d17dc4e19ee1b8589198efa40`. The
 registered paired suite sources compile in both editions. Full registered
 uniformity suites remain deferred to the next ten-fix checkpoint.
+
+## Graph-coupled fixed-array `randc` leaves beyond full-domain enumeration (fix 19)
+
+The paired permanent regression places a constrained `randc bit [10:0]`
+element in a fixed unpacked array and couples its low bit to a child object's
+random property. Its legal values are `[0:1024]`, so the 1,025-value feasible
+set exceeds the complete-enumeration cap. Before this fix, the global graph
+path failed with `a randc stage could not be enumerated completely`.
+
+The existing exact hard-solver rejection sampler now accepts a per-leaf
+history key and is used for non-nested fixed-array randc leaves. Container and
+nested histories still fail closed. A focused paired reducer completes all
+1,025 legal values once each, then starts the next cycle, while preserving the
+child constraint under strict `-g2017` and `-g2023`. Both runs print
+`PASS fixed-array graph randc full 1025-value cycle and reset` on source-built
+VVP SHA-256 `f78d193df36a7ea842678392f25bc5a6637d10ee5db299d620595ae9f664a083`.
+The 2023 run takes 25.41 seconds and peaks at 38,928,384 bytes maximum RSS.
+The registered uniformity suite sources compile in both editions; full suite
+runs remain deferred to the next ten-fix checkpoint.

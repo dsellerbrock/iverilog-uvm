@@ -230,6 +230,12 @@ class coupled_constrained_randc;
   function new(); child=new; endfunction
   constraint c { value inside {[0:1024]}; child.value == value[0]; }
 endclass
+class coupled_fixed_array_randc;
+  randc bit [10:0] value[2];
+  rand leaf child;
+  function new(); child=new; endfunction
+  constraint c { value[0] inside {[0:1024]}; child.value == value[0][0]; }
+endclass
 class fixed_array_uniformity;
   rand bit mode;
   rand bit payload[2];
@@ -311,6 +317,7 @@ module main;
   wide_periodic_domain_uniformity wide_periodic_domain = new;
   constrained_randc_wide_cycle constrained_randc = new;
   coupled_constrained_randc coupled_randc = new;
+  coupled_fixed_array_randc coupled_array_randc = new;
   fixed_array_uniformity fixed_array = new;
   fixed_array_uniformity_above_128 fixed_array_above_128 = new;
   fixed_array_2d_uniformity fixed_array_2d = new;
@@ -345,6 +352,7 @@ module main;
   int wide_periodic_domain_count[3];
   bit constrained_randc_seen[2][128];
   bit coupled_randc_seen[1025];
+  bit coupled_array_randc_seen[1025];
   int fixed_array_tuple_count[5];
   int fixed_array_above_128_tuple_count[5];
   int fixed_array_2d_tuple_count[17];
@@ -365,6 +373,21 @@ module main;
       if (coupled_randc_seen[coupled_randc.value])
         $fatal(1, "coupled constrained randc repeated within its cycle");
       coupled_randc_seen[coupled_randc.value] = 1;
+    end
+
+    coupled_array_randc.value[1].rand_mode(0);
+    coupled_array_randc.srandom(7725);
+    coupled_array_randc.child.srandom(7727);
+    repeat (32) begin
+      if (!coupled_array_randc.randomize())
+        $fatal(1, "coupled fixed-array randc solve failed");
+      if (coupled_array_randc.value[0] > 1024
+          || coupled_array_randc.child.value
+                != coupled_array_randc.value[0][0])
+        $fatal(1, "coupled fixed-array randc violated its constraint");
+      if (coupled_array_randc_seen[coupled_array_randc.value[0]])
+        $fatal(1, "coupled fixed-array randc repeated within its cycle");
+      coupled_array_randc_seen[coupled_array_randc.value[0]] = 1;
     end
 
     r.srandom(73); r.child.srandom(73);

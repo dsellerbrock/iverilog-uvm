@@ -232,6 +232,10 @@ dynamic arrays now use the exact sampler through 512 combined elements. The
 44/76 times in 120 draws. A variable-size enum array with three declared
 values and sizes one or two now samples the 3:9 tuple ratio at 29/91 out of
 120, after the prior fallback produced 67/53.
+Fixes 18–19 extend exact constrained `randc` handling to a graph-coupled
+scalar and a non-nested fixed-array leaf. The paired 1,025-value fixed-array
+cycle completes without repeats and starts a new cycle; container-backed,
+nested, and struct-member randc forms remain open.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See
