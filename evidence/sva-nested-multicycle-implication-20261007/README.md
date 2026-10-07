@@ -26,8 +26,7 @@ Expected output: `nested multi-cycle failures=2 (expect 2)` in each mode.
 This does not qualify nested multiclock properties, `disable iff`, or the full
 set of temporal property operators; those remain under G12.
 
-The adjacent `tests/sva_nfa/run.sh` run reported 62 passes and one mismatch in
-`seq_or_and_nfa_only`: the assertions emitted the same event lines as its gold
-file, but in a different order. The case contains no implication and does not
-call the changed nested-implication lowering. Sorting both streams produces
-an exact match; the order-sensitive suite remains not fully green.
+The first adjacent `tests/sva_nfa/run.sh` run reported 62 passes and one
+order-only mismatch in `seq_or_and_nfa_only`. Concurrent assertion callback
+order is not the semantic oracle for that case, so its regression now checks
+per-property pass/fail counts. The complete SVA suite then passed 63/63.

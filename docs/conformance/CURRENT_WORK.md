@@ -10,8 +10,8 @@ NFA/VVP runtime checks pass 1/1 each. Temporal property consequents and
 multiclock combinations remain partial. See
 [evidence](../../evidence/sva-nested-multicycle-implication-20261007/README.md)
 and [G12](opentitan_gap_ledger.md#g12--property-expression-implication-consequents).
-The adjacent SVA suite is 62/63; its lone mismatch is output ordering in a
-standalone sequence-combinator case, with the sorted event set matching gold.
+The adjacent SVA suite passes 63/63 after the standalone sequence-combinator
+regression was changed to check assertion counts instead of callback order.
 
 **Fix 39 locally qualified:** implication consequents and antecedents can now
 both carry parenthesized sequence-combinator trees through the existing SVA
