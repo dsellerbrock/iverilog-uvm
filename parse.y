@@ -2457,6 +2457,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <class_declaration_extends> class_declaration_extends_opt
 %type <class_declaration_start> class_declaration_start
 %destructor { delete[] $$.text; } class_declaration_start
+%type <flag> class_final_specifier_opt
 %type <parmvalue> class_extends_type_params_opt
 %type <data_type> interface_class_type
 %type <data_types> class_declaration_implements_opt interface_class_extends_opt
@@ -2729,29 +2730,37 @@ class_declaration /* IEEE1800-2017: A.1.2, A.1.2.1 */
       }
   ;
 
+class_final_specifier_opt
+  : ':' K_final { $$ = true; }
+  | { $$ = false; }
+  ;
+
 /* Complete both declaration headers before entering one shared body state.
    Apart from avoiding duplicated class-item conflicts, this is important for
    `interface name' versus `interface class name': the lexer supplies the
    distinct K_interface_class first token only when `class' follows. */
 class_declaration_start
-  : K_virtual_opt K_class lifetime_opt identifier_name class_type_parameter_port_list_opt class_declaration_extends_opt class_declaration_implements_opt ';'
+  : K_virtual_opt K_class class_final_specifier_opt lifetime_opt identifier_name class_type_parameter_port_list_opt class_declaration_extends_opt class_declaration_implements_opt ';'
       { /* Up to 1800-2017 the grammar in the LRM allowed an optional lifetime
 	 * qualifier for class declarations. But the LRM never specified what
 	 * this qualifier should do. Starting with 1800-2023 the qualifier has
 	 * been removed from the grammar. Allow it for backwards compatibility,
 	 * but print a warning.
 	 */
-	if ($3 != LexicalScope::INHERITED) {
+	if ($4 != LexicalScope::INHERITED) {
 	      cerr << @1 << ": warning: Class lifetime qualifier is deprecated "
 			    "and has no effect." << endl;
 	      warn_count += 1;
 	}
-	perm_string name = lex_strings.make($4);
+	perm_string name = lex_strings.make($5);
 	class_type_t *class_type= new class_type_t(name);
-	FILE_NAME(class_type, @4);
-	pform_set_typedef(@4, name, class_type, nullptr);
-	pform_start_class_declaration(@2, class_type, $6.type, $6.args, $1,
-				      false, $7);
+	class_type->final_class = $3;
+	FILE_NAME(class_type, @5);
+	if ($3 && !sv_require_feature(class_type, SVF_CLASS_FINAL))
+	      error_count += 1;
+	pform_set_typedef(@5, name, class_type, nullptr);
+	pform_start_class_declaration(@2, class_type, $7.type, $7.args, $1,
+				      false, $8);
 
 	/* Register class parameters in class scope so they can be
 	 * referenced inside the class body. */
@@ -2767,8 +2776,8 @@ class_declaration_start
 	      pform_end_parameter_port_list();
 	}
 	clear_pending_class_params();
-	if ($5) delete $5;
-	$$.text = $4;
+	if ($6) delete $6;
+	$$.text = $5;
 	$$.interface_class = false;
       }
   | K_interface_class K_class identifier_name class_type_parameter_port_list_opt interface_class_extends_opt ';'

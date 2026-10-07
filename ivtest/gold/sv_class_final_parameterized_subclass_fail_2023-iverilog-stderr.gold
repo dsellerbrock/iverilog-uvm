@@ -1,0 +1,2 @@
+ivltests/sv_class_final_parameterized_subclass_fail_2023.v:4: error: Class `Base' is final and cannot be extended.
+1 error(s) during elaboration.

@@ -190,6 +190,8 @@ class netclass_t : public ivl_type_s {
 
       void set_virtual(bool virtual_class) { virtual_class_ = virtual_class; }
       bool is_virtual() const { return virtual_class_; }
+      void set_final_class(bool final_class) { final_class_ = final_class; }
+      bool is_final_class() const { return final_class_; }
       void set_interface_class(bool flag) { interface_class_type_ = flag; }
       bool is_interface_class() const { return interface_class_type_; }
       void set_interface(bool interface_type) { interface_type_ = interface_type; }
@@ -353,6 +355,7 @@ class netclass_t : public ivl_type_s {
       NetScope*definition_scope_;
 
       bool virtual_class_;
+      bool final_class_;
       bool interface_class_type_;
       bool interface_type_;
       const Module*interface_definition_;

@@ -4135,6 +4135,19 @@ static void resolve_class_interface_relations_(Design*des,
       }
 }
 
+static void set_class_super_(Design*des, const PClass*pclass,
+			     netclass_t*use_class,
+			     const netclass_t*use_base_class)
+{
+      if (use_base_class && use_base_class->is_final_class()) {
+	    cerr << pclass->get_fileline() << ": error: Class `"
+		 << use_base_class->get_name()
+		 << "' is final and cannot be extended." << endl;
+	    des->errors += 1;
+      }
+      use_class->set_super(use_base_class);
+}
+
 const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
 						   const netclass_t*base_class,
 						   const parmvalue_t*overrides,
@@ -4283,6 +4296,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       }
       netclass_t*use_class = new netclass_t(use_type->name, 0);
       use_class->set_interface(base_class->is_interface());
+      use_class->set_final_class(use_type->final_class);
 
       NetScope*class_scope = new NetScope(definition_scope, hname_t(definition_scope->local_symbol()),
 					  NetScope::CLASS, definition_scope->unit());
@@ -4414,7 +4428,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		  }
 	    }
       }
-      use_class->set_super(use_base_class);
+      set_class_super_(des, pclass, use_class, use_base_class);
       use_class->configure_pure_constraints(des, pclass);
       resolve_class_interface_relations_(des, class_scope,
 					 const_cast<PClass*>(pclass), use_class);
@@ -4607,6 +4621,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(scope);
       use_class->set_virtual(use_type->virtual_class);
+      use_class->set_final_class(use_type->final_class);
       use_class->set_interface_class(use_type->interface_class);
       if (use_type->is_covergroup_stub)
 	    use_class->set_is_covergroup(true);
@@ -4648,7 +4663,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 			  des->errors += 1;
 		    }
 	      }
-      use_class->set_super(use_base_class);
+      set_class_super_(des, pclass, use_class, use_base_class);
       use_class->configure_pure_constraints(des, pclass);
       resolve_class_interface_relations_(des, class_scope, pclass, use_class);
 
@@ -4883,6 +4898,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
       classes_being_scope_elaborated_.insert(pclass);
 
       class_type_t*use_type = pclass->type;
+      use_class->set_final_class(use_type->final_class);
       use_class->set_interface_class(use_type->interface_class);
 
       const netclass_t*use_base_class = 0;
@@ -4915,7 +4931,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 		  des->errors += 1;
 	    }
       }
-      use_class->set_super(use_base_class);
+      set_class_super_(des, pclass, use_class, use_base_class);
       use_class->configure_pure_constraints(des, pclass);
       resolve_class_interface_relations_(des, class_scope, pclass, use_class);
 

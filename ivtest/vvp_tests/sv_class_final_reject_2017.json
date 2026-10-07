@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "sv_class_final_reject_2017.v",
+    "iverilog-args": [
+        "-g2017",
+        "-stest"
+    ],
+    "gold": "sv_class_final_reject_2017"
+}

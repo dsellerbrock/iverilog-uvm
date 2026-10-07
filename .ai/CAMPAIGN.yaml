@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: "agent/ieee-uniform-dynamic-array-20261006"
-checkpoint_head: "994faa8a95ee22f43c17706a19d22e1594a09c76"
+branch: "agent/sv23-class-final-20261007"
+checkpoint_head: "13600306d7ff9d460901bab32a4aa0e768836d01"
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
   phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_RUNTIME_49_OF_49_CANDIDATE_COMPILE_PENDING"
@@ -635,11 +635,11 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "PR376 is published with local qualification; preserve Caliptra work and respond only if CI later reports an issue, without polling."
+next_command: "PR #411 is open against main; its six platform CI jobs are queued. Treat green CI as a merge gate, not a campaign gate: select and continue the next bounded IEEE blocker on the existing PR branch toward the ten-fix checkpoint. If any check reports failure, pause new work and triage whether the current patch caused it; repair attributable failures before continuing. Do not merge until required checks are green or without the user's separate merge request."
 current_execution_checkpoint:
-  active_work_item: "CONSTRAINT-UNIFORM-DYNAMIC-ARRAY-LEGAL-COMBINATIONS"
-  source_head: "994faa8a95ee22f43c17706a19d22e1594a09c76"
-  phase: "FIXED_SIZE_DIRECT_DYNAMIC_ARRAY_SUBSET_IMPLEMENTED_AND_PAIRED_GREEN"
-  completed: "The direct-scalar subset and a fixed-size one-dimensional integral dynamic-array subset pass the registered combined statistical regression under strict -g2017 and -g2023. The new array path proves a unique size tuple, requires exact active-element coverage, and preserves the ordered solve-before control."
-  next_action: "Select the next unsupported IEEE 1800-2017/2023 blocker; keep clause-18 uniformity partial for variable sizes, other container shapes, randc, ordering, soft constraints, and weighted dist."
-  next_command: "Review the remaining conformance blockers and choose the next bounded clause-level reproducer."
+  active_work_item: "SV23-CLASS-FINAL"
+  source_head: "13600306d7ff9d460901bab32a4aa0e768836d01"
+  phase: "FOCUSED_TESTS_AND_MACOS_BUILD_GREEN_PR_CI_QUEUED"
+  completed: "PR #411 implements IEEE 1800-2023 class :final parsing and derivation rejection while preserving strict 2017 rejection. Focused legacy and JSON/VVP tests pass 4/4 each; the macOS frontend build passed. Exact-main replay identified the preceding broad-suite failures as baseline failures by test name."
+  next_action: "SV23-CLASS-FINAL implementation and focused validation are complete; PR #411's six platform jobs are queued. Treat green CI as a merge gate, not a campaign gate. Return to coordinator selection and continue the next bounded IEEE blocker on the existing PR branch. If a check fails, pause new work and triage exact-head results; fix attributable regressions and record unrelated baseline failures as debt."
+  next_command: "Select the next bounded IEEE blocker from the current registry and local standards PDFs; check PR #411 only when the watcher reports a state change or after meaningful progress."
