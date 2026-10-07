@@ -23,6 +23,7 @@
 # include  "event.h"
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
+# include  <algorithm>
 # include  <iostream>
 # include  <cassert>
 # include  <cstdio>
