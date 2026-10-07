@@ -13,13 +13,14 @@ The permanent reducer is
 It checks open interval bounds, a real comparison tied to an integral random
 bit, `solve value before lower_half`, 2,048 draws with an equal-half frequency
 oracle, and failed-call rollback. The observed lower-half count is 1,004/2,048.
-Paired negative fixtures preserve strict 2017 rejection and reject 2023
-`randc real`.
+Paired negative fixtures preserve strict 2017 rejection and verify that 2023
+also rejects `randc real`, as required by the standard's integral-only
+`randc` restriction.
 
-This does not close the real-valued randomization clause. `randc real`,
-`shortreal`, real arrays/aggregate leaves, real `dist`, and joint class-graph
-real solving remain unsupported and fail closed. Only the finite scalar path
-is qualified here.
+This does not close the real-valued randomization clause. `randc real` is
+correctly rejected; it is not a missing feature. `shortreal`, real
+arrays/aggregate leaves, real `dist`, and joint class-graph real solving are
+outside this increment. Only the finite scalar path is qualified here.
 
 ## Build and focused checks
 
