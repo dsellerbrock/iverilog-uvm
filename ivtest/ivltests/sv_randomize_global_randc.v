@@ -20,18 +20,37 @@ class static_struct_node;
   static rand value_s item;
   constraint c { item.value inside {[0:3]}; }
 endclass
+class dynamic_randc_child;
+  rand bit [10:0] value;
+endclass
+class dynamic_randc_root;
+  randc bit [10:0] values[];
+  rand dynamic_randc_child child;
+  bit impossible;
+  function new(); child = new; endfunction
+  constraint c {
+    values.size() == 1;
+    values[0] inside {[0:1024]};
+    values[0] == child.value;
+    if (impossible) values[0] == 2047;
+  }
+endclass
 module main;
   cyclic_root r = new;
   static_node s = new;
   static_struct_node t = new;
+  dynamic_randc_root d = new;
   bit [3:0] seen, shared_seen, struct_seen;
+  bit [1024:0] dynamic_seen;
   bit [1:0] before_parent, before_child;
+  bit [10:0] before_dynamic, before_dynamic_child;
   string child_state, struct_child_state;
   initial begin
     s.child = new; t.child = new;
     r.srandom(23); r.child.srandom(31);
     s.srandom(23); s.child.srandom(31);
     t.srandom(23); t.child.srandom(31);
+    d.srandom(32'h44594331); d.child.srandom(32'h44594332);
     child_state = s.child.get_randstate();
     struct_child_state = t.child.get_randstate();
     repeat (12) begin
@@ -59,6 +78,30 @@ module main;
       $fatal(1, "static scalar consumed a second object's RNG");
     if (t.child.get_randstate() != struct_child_state)
       $fatal(1, "static struct consumed a second object's RNG");
+    for (int i = 0; i < 1025; i++) begin
+      if (i == 64) begin
+        before_dynamic = d.values[0];
+        before_dynamic_child = d.child.value;
+        d.impossible = 1;
+        if (d.randomize() || d.values[0] != before_dynamic
+            || d.child.value != before_dynamic_child)
+          $fatal(1, "failed dynamic randc solve changed values");
+        d.impossible = 0;
+      end
+      if (!d.randomize())
+        $fatal(1, "graph-coupled dynamic randc solve failed at %0d", i);
+      if (d.values.size() != 1 || d.values[0] > 1024
+          || d.values[0] != d.child.value)
+        $fatal(1, "graph-coupled dynamic randc violated its constraints");
+      if (dynamic_seen[d.values[0]])
+        $fatal(1, "dynamic randc repeated before its feasible cycle ended");
+      dynamic_seen[d.values[0]] = 1;
+    end
+    if (dynamic_seen !== {1025{1'b1}})
+      $fatal(1, "dynamic randc did not cover all 1,025 feasible values");
+    if (!d.randomize() || d.values.size() != 1 || d.values[0] > 1024
+        || d.values[0] != d.child.value || !dynamic_seen[d.values[0]])
+      $fatal(1, "dynamic randc did not reset after exhausting its feasible set");
     $display("PASSED");
   end
 endmodule

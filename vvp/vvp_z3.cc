@@ -7845,7 +7845,8 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
 static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       Z3_ast var, unsigned width, vvp_cobject*owner, size_t pid,
       z3_rng_stream_t&rng, uint64_t&chosen, bool&reset_cycle,
-      const char**error, size_t leaf = 0)
+      const char**error, size_t leaf = 0, bool container = false,
+      size_t position = 0, size_t word = 0)
 {
       // ponytail: stop exact randc rejection after 65,536 probes per solve;
       // add solver-guided counting if sparse legal sets hit this ceiling.
@@ -7853,8 +7854,15 @@ static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       *error = nullptr;
       reset_cycle = false;
 
-      uint64_t period = owner->randc_period(pid, leaf);
+      uint64_t period = container
+	    ? (width && width <= 20 ? (uint64_t)1 << width : 0)
+	    : owner->randc_period(pid, leaf);
       if (period == 0 || period > UINT32_MAX) return false;
+      auto seen = [&](uint64_t value) {
+	    return container
+		  ? owner->randc_container_seen(pid, position, value, word)
+		  : owner->randc_seen(pid, value, leaf);
+      };
       Z3_lbool base_status = Z3_solver_check(ctx, base);
       if (base_status == Z3_L_FALSE) return false;
       if (base_status == Z3_L_UNDEF) {
@@ -7865,7 +7873,7 @@ static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       Z3_sort sort = Z3_mk_bv_sort(ctx, width);
       vector<Z3_ast> unseen;
       for (uint64_t value = 0; value < period; ++value) {
-            if (!owner->randc_seen(pid, value, leaf)) continue;
+	    if (!seen(value)) continue;
             Z3_ast cv = Z3_mk_unsigned_int64(ctx, value, sort);
             unseen.push_back(Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
       }
@@ -7881,7 +7889,8 @@ static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       for (size_t attempt = 0; attempt < RANDC_REJECTION_PROPOSAL_CAP;
            ++attempt) {
             uint64_t candidate = rng.uniform_index((size_t)period);
-            if (!reset_cycle && owner->randc_seen(pid, candidate, leaf)) continue;
+            bool candidate_seen = seen(candidate);
+            if (!reset_cycle && candidate_seen) continue;
             Z3_ast cv = Z3_mk_unsigned_int64(ctx, candidate, sort);
             Z3_ast eq = Z3_mk_eq(ctx, var, cv);
             Z3_lbool feasible = Z3_solver_check_assumptions(
@@ -11466,11 +11475,53 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 
                   if (exact_joint) {
+                        const string&base_type = builder.type(ev.idx)->property_base_type(
+	                      builder.local_index(ev.idx));
+                        bool direct_dynamic_randc = container_randc
+	                      && !ev.nested
+	                      && !builder.type(ev.idx)->property_is_dyn2(
+	                            builder.local_index(ev.idx))
+	                      && !base_type.empty() && base_type[0] == 'D';
                         // Fixed-array leaves use the same per-leaf randc
-                        // history API as scalar properties. Container histories
-                        // have separate keys and remain unsupported here.
+                        // history API as scalar properties. A direct
+                        // one-dimensional randc dynamic-array element uses
+                        // its existing position-keyed history bank.
                         vvp_cobject*owner = builder.object(ev.idx);
                         size_t pid = builder.local_index(ev.idx);
+                        if (direct_dynamic_randc && ev.width <= 20) {
+                              uint64_t chosen = 0;
+                              bool reset_cycle = false;
+                              const char*sample_error = nullptr;
+                              if (!z3_sample_constrained_randc_(ctx, base,
+                                    ev.var, ev.width, owner, pid,
+                                    property_rng(ev.idx), chosen,
+                                    reset_cycle, &sample_error, 0, true,
+                                    ev.elem, 0)) {
+                                    if (sample_error) {
+                                          randc_sampling_failed = true;
+                                          randc_sampling_error = sample_error;
+                                    } else {
+                                          joint_randc_failed = true;
+                                    }
+                                    return;
+                              }
+                              uint64_t prefill = cobj_elem_bits(owner, pid,
+                                    ev.elem);
+                              if (chosen != prefill)
+                                    owner->randc_container_unmark(pid,
+                                          ev.elem, prefill);
+                              vector<uint64_t> no_enumerated_domain;
+                              owner->randc_container_mark_feasible(pid,
+                                    ev.elem, chosen, no_enumerated_domain,
+                                    0, reset_cycle);
+                              sampled_randc_values[ev.var] = chosen;
+                              Z3_ast cv = Z3_mk_unsigned_int64(ctx,
+                                    chosen, Z3_mk_bv_sort(ctx, ev.width));
+                              Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
+                              Z3_optimize_assert(ctx, opt, eq);
+                              Z3_solver_assert(ctx, base, eq);
+                              continue;
+                        }
                         if (!container_randc && !ev.nested
                             && owner->randc_period(pid, ev.elem)) {
                               uint64_t chosen = 0;

@@ -735,13 +735,10 @@ void vvp_cobject::randc_container_mark(size_t pid, size_t position,
 }
 
 void vvp_cobject::randc_container_mark_feasible(size_t pid, size_t position,
-	    uint64_t val, const std::vector<uint64_t>&feasible, size_t word)
+	    uint64_t val, const std::vector<uint64_t>&feasible, size_t word,
+	    bool reset_cycle)
 {
-      vvp_vector4_t value;
-      std::vector<bool>*history = 0;
-      if (!randc_container_state_(pid, word, position, value, history)) return;
-      unsigned width = value.size();
-      if (width == 0 || width > 20 || val >= ((uint64_t)1 << width)) return;
+      if (pid >= defn_->property_count()) return;
       if (randc_transactions_.empty()) {
 	    cerr << "internal error: constrained container randc mark outside "
 		 << "randomize transaction" << endl;
@@ -750,7 +747,10 @@ void vvp_cobject::randc_container_mark_feasible(size_t pid, size_t position,
       randc_pending_t staged;
       staged.staged_value = val;
       staged.feasible_domain = true;
+      staged.reset_cycle = reset_cycle;
       staged.feasible = feasible;
+      // Dynamic-array solver leaves are staged before the resized array is
+      // written back. Resolve the element and validate its width at commit.
       randc_transactions_.back().containers[
 	    randc_transaction_t::container_key_t(pid, word, position)] = staged;
 }

@@ -201,7 +201,8 @@ class vvp_cobject : public vvp_object {
 				 size_t word = 0);
       void randc_container_mark_feasible(
 	    size_t pid, size_t position, uint64_t val,
-	    const std::vector<uint64_t>&feasible, size_t word = 0);
+	    const std::vector<uint64_t>&feasible, size_t word = 0,
+	    bool reset_cycle = false);
       void randc_container_unmark(size_t pid, size_t position, uint64_t val,
 				   size_t word = 0);
 

@@ -629,3 +629,27 @@ source-built ARM64 VVP SHA-256
 The registered full uniformity suites remain deferred to the ten-fix
 checkpoint. This verifies one two-object cycle and does not qualify all
 cyclic graphs or soft-preference combinations.
+
+## Graph-coupled dynamic-array `randc` first draw and cycle (fix 21)
+
+The paired global-randc regression now includes a one-dimensional dynamic
+`randc` array with one element, coupled by equality to a child object's `rand`
+property. Its feasible values are `[0:1024]`. The test completes all 1,025
+values without repeats, checks that an unsatisfiable randomize call preserves
+both objects' previous values, and verifies that the next successful draw
+starts a new cycle.
+
+The first selected value was previously lost because the array is empty while
+the solver stages randc state; the old helper returned before recording the
+event. The mark is now staged before writeback and resolved against the resized
+array when the transaction commits. This keeps history updates transactional
+and validates the final element width at commit.
+
+The registered test passes under strict `-g2017` and `-g2023` on source-built
+ARM64 VVP SHA-256
+`28c5fb2bf41d075b99cb31a908ce3bed53003a70dc12da5ee0c8db09c2deb505`; both
+runs print `PASSED`. This covers direct one-dimensional integral dynamic-array
+elements through the existing 20-bit history and 65,536-proposal limits.
+Nested, queue, associative, multidimensional, and struct/member aggregate
+forms remain open. The full registered uniformity suites remain deferred to
+the ten-fix checkpoint.

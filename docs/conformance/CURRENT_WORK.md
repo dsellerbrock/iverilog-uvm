@@ -58,11 +58,16 @@ covers one, two, and three unpacked dimensions. The array test retains the
 ordered `solve m before q` control. The overall clause remains partial for
 larger dynamic-array domains, fixed-array ranks above three and other shapes,
 direct scalar randc widths above the existing 20-bit history limit, sparse
-randc domains that exceed the 65,536-proposal budget, aggregate randc forms,
-ordering, additional soft-preference shapes, and weighted `dist`. The direct scalar constrained
+randc domains that exceed the 65,536-proposal budget, nested, queue,
+associative, multidimensional, and struct/member aggregate randc forms,
+ordering, additional soft-preference shapes, and weighted `dist`. Direct
+one-dimensional dynamic-array randc elements up to 20 bits are now paired-tested.
+The direct scalar constrained
 randc fallback now samples uniformly from unseen values using hard-solver
 checks and proves cycle exhaustion before reset. Paired strict 2017/2023 runs
-complete two 128-value cycles with an unsatisfiable call between them; struct,
+complete two 128-value cycles with an unsatisfiable call between them. The
+graph-coupled dynamic-array regression completes its 1,025-value cycle,
+checks unsatisfiable rollback, and verifies reset under both editions. Struct,
 fixed-array solve-before, and failure-rollback controls also pass on VVP image
 `94916a850cacd433ec7e2fc52306947eab0f2360ce4de7cb91f09ff9ef8cd8b6`. The
 full registered suites were not run on this image. See the
@@ -234,11 +239,13 @@ values and sizes one or two now samples the 3:9 tuple ratio at 29/91 out of
 120, after the prior fallback produced 67/53.
 Fixes 18–19 extend exact constrained `randc` handling to a graph-coupled
 scalar and a non-nested fixed-array leaf. The paired 1,025-value fixed-array
-cycle completes without repeats and starts a new cycle; container-backed,
-nested, and struct-member randc forms remain open.
+cycle completes without repeats and starts a new cycle.
 Fix 20 removes the blanket refusal of soft constraints on cyclic object graphs;
 a paired two-object cycle checks soft preference, failure rollback, and retry.
-Other cyclic soft combinations and aggregate randc forms remain open.
+Fix 21 adds direct one-dimensional dynamic-array randc elements to the graph
+sampler and commits the first selected value after initial array growth. Other
+cyclic soft combinations and nested, queue, associative, multidimensional, and
+struct/member randc forms remain open.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See
