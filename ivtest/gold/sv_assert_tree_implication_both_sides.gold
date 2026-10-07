@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_assert_tree_implication_both_sides.v:32: $finish called at 51 (1s)

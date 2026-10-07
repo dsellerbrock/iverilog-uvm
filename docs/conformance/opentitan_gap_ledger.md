@@ -318,16 +318,21 @@ This is no longer an endpoint-merging blocker for `prim_alert_receiver` or
 assert property (@(posedge clk) (a or b)  |-> c);          // supported
 assert property (@(posedge clk) (a and b) |-> c);          // supported
 assert property (@(posedge clk) a |-> (b or c));           // supported
-assert property (@(posedge clk) (a or b) |-> (c or d));    // syntax error
+assert property (@(posedge clk) (a or b) |-> (c or d));    // supported
 ```
 
-Current implication productions accept an `sva_property_t` combinator tree on
-either the antecedent or consequence side when the opposite operand uses the
-sequence-expression carrier. `tree_implication_nfa_only` pins both directions;
-`endpoint_obligation_fanout_nfa_only` additionally proves that a combinator
-antecedent can launch independent multi-step obligations from all of its match
-endpoints. A combinator tree on **both** sides still has no grammar production
-and remains a loud syntax residual.
+Implication productions now transfer sequence-combinator trees from both
+operands into the NFA representation. A grouped tree at the property boundary
+uses its own grammar carrier so parentheses around an entire operand are
+preserved. The paired regression covers grouped `or` trees on both sides for
+`|->` and `|=>`, including matching and failing consequent branches; the
+strict legacy list passes 1/1 and the 2017/2023 JSON/VVP list passes 2/2.
+
+**Scope:** the both-sided runtime oracle currently covers `or` trees only;
+`and`/`intersect` combinations and broader sequence shapes need paired runtime
+evidence before this row closes. This does not add general `property_expr`
+consequents such as `always`, `nexttime`, or nested implication; those remain
+under **G12**. See the [focused qualification record](../../evidence/sva-tree-implication-both-sides-20261007/README.md).
 
 ## G12 — the other property-expression consequents — **open**
 

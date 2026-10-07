@@ -1629,6 +1629,7 @@ sv_scope_randomize_with_identifier_list_fail CE,-g2012 ivltests gold=sv_scope_ra
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_sampled_value_clocking_input_unsupported CE,-g2017 ivltests
 sv_sampled_value_preponed_writer_first normal,-g2017 ivltests
+sv_assert_tree_implication_both_sides normal,-g2012 ivltests gold=sv_assert_tree_implication_both_sides.gold
 sv_constraint_expr_width normal,-g2012 ivltests
 sv_constraint_dist_boolean_subject normal,-g2012 ivltests gold=sv_constraint_dist_boolean_subject.gold
 sv_constraint_dist_wide_literal_fail CE,-g2012 ivltests gold=sv_constraint_dist_wide_literal_fail.gold

@@ -2,7 +2,16 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
-**DD-104 locally qualified:** procedural `$past` history now captures static
+**Fix 39 locally qualified:** implication consequents and antecedents can now
+both carry parenthesized sequence-combinator trees through the existing SVA
+NFA lowering. The focused regression exercises `(a or b) |-> (c or d)` and
+`(e or f) |=> (g or h)` with one expected failure per operator. Strict legacy
+passes 1/1; strict 2017/2023 JSON/VVP passes 2/2. This qualifies the tested
+`or` tree subset only; `and`/`intersect` combinations and general nested
+property consequents remain open. See [evidence](../../evidence/sva-tree-implication-both-sides-20261007/README.md)
+and [G11](opentitan_gap_ledger.md#g11--sequence-combinators-as-an-implication-operand).
+
+**Fix 38 / DD-104 locally qualified:** procedural `$past` history now captures static
 signals from Preponed across inferred-edge, explicit-event, and default-clock
 routes, including a writer-first same-edge blocking update. The simple
 automatic-local `$past` case retains its current-value rule. Focused legacy

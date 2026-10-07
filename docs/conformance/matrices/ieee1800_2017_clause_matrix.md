@@ -5,6 +5,18 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 7, 2026 — sequence combinator trees on both implication operands
+
+IEEE 1800-2017 §§16.9.5–16.9.7 define sequence `or`, `and`, and `intersect`
+combinators; A.2.10 permits a sequence expression on each side of an
+implication. The parser and NFA handoff now retain grouped combinator trees on
+both sides. The focused oracle checks parenthesized `or` trees for both `|->`
+and `|=>`, with passing and failing branches. Strict legacy passes 1/1 and
+strict 2017/2023 JSON/VVP passes 2/2. `and`/`intersect` runtime combinations
+and broader sequence shapes remain unqualified; general property-expression
+consequents remain open under G12. See the
+[focused record](../../../evidence/sva-tree-implication-both-sides-20261007/README.md).
+
 ### October 7, 2026 — procedural `$past` Preponed sampling
 
 IEEE 1800-2017 §§16.5.1 and 16.9.3 require static signal samples to use the

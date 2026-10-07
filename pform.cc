@@ -15819,6 +15819,34 @@ sva_property_t* pform_sva_comb_antecedent_sorry(
       return p;
 }
 
+/* Compose sequence-combinator trees on both sides of an implication.
+   The NFA implication builder already preserves every antecedent endpoint
+   and combines it with the consequent language. */
+extern sva_property_t* pform_sva_tree_implication(
+					const struct vlltype&loc, int op_type,
+					sva_property_t*ante,
+					sva_property_t*conseq);
+sva_property_t* pform_sva_tree_implication(
+					const struct vlltype&loc, int op_type,
+					sva_property_t*ante,
+					sva_property_t*conseq)
+{
+      (void)loc;
+      sva_stree_t*at = sva_prop_take_tree_(ante);
+      sva_stree_t*ct = sva_prop_take_tree_(conseq);
+      if (!at || !ct) {
+	    sva_tree_delete_(at, true);
+	    sva_tree_delete_(ct, true);
+	    return nullptr;
+      }
+
+      sva_property_t*p = new sva_property_t;
+      p->ante_tree = at;
+      p->tree = ct;
+      p->op_type = op_type;
+      return p;
+}
+
 /* The mirror of pform_sva_comb_antecedent_sorry: move a combinator
    CONSEQUENT into the tree carrier used by the automaton engine. */
 extern sva_property_t* pform_sva_comb_consequent_sorry(

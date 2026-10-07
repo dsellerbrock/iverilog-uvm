@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_tree_implication_both_sides.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_assert_tree_implication_both_sides"
+}
