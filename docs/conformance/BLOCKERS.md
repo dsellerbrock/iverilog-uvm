@@ -1,5 +1,18 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### SVA-INTERSECT-UNEQUAL-LENGTHS — locally regression-tested, CI pending
+
+- **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length
+  operands; they produce no `intersect` match. Implication follows §16.12.7.
+- **Change and evidence:** The default NFA engine preserves the empty language.
+  `tests/sva_nfa/run.sh` passes 64/64; strict legacy passes 1/1; paired strict
+  2017/2023 JSON/VVP passes 2/2. The explicit legacy-engine diagnostic remains.
+  See [focused evidence](../../evidence/sva-intersect-unequal-lengths-20261007/README.md).
+- **State:** Included in draft [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412).
+  Required platform checks are queued/in progress; this is not CI-qualified or
+  closed. Variable/ranged mismatches and broader nested combinator trees remain
+  open.
+
 ### OpenTitan 49-target post-fix census — 2026-09-29
 
 - **Frozen-image result:** **23 PASS / 49** on the pinned OpenTitan source with selected exact-hash overlays and native DPI, up from 18 PASS in the previous raw census. The other 26 are 3 DEBT, 4 compile FAIL, 9 RUNTIME_FAIL, 7 RUNTIME_MEMORY_LIMIT, 2 RUNTIME_TIMEOUT, and 1 MATRIX_ERROR. The [complete 49-row evidence](../../evidence/opentitan-49-post-fixes-20260929/README.md) includes source/compiler hashes and logs.
@@ -4227,3 +4240,11 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Failure and fix:** The parser rejected the legal declaration as a syntax error and class metadata did not prevent a derived class. Parsing now edition-gates `:final`, carries the flag into elaborated class types, and checks every superclass assignment path.
 - **Validation:** Focused legacy and JSON/VVP lists each pass 4/4: a final child extending a regular parent runs and prints `PASSED`, direct and parameterized subclassing of final bases produce the class-specific error, and `-g2017` rejects the specifier. The source frontend built on macOS. The positive bytecode ran on the existing capped Linux runtime; no Linux source build was run for this small change. Evidence: [focused record](../../evidence/class-final-2023-20261007/README.md).
 - **Boundary:** Class-level `:final` only; method-level final semantics and broader clause-8 qualification are not included.
+
+### CI-REGRESSION-GATE-410 — repair for merged PR #410 failures
+
+- **State:** The repair is locally verified on a branch based on `origin/main` (`e487a59f`). A follow-up PR's platform checks remain pending; local results do not qualify the gate.
+- **Observed failure:** Merged PR #410 run `37634997943` reported failures on Ubuntu 22.04 and 24.04: 33 legacy name-diff entries and one negative test, `sva_multiclock_chain_disable`, which now compiles as a supported three-clock `disable iff` property.
+- **Repair:** Current registrations and golds now reflect implemented behavior; array-pattern lowering and object-value copies cover the reported unpacked/packed pattern failures, the solver no longer treats an X/Z distribution weight as a positive dynamic weight, and solve-before expects the standards-required compile error for a non-random target. The obsolete associative `find_last_index` rejection fixture was removed; existing positive paired tests cover that feature. The stale three-clock negative case was removed; paired positive fixed-control tests cover the supported path.
+- **Validation:** Source build and focused tests pass on macOS and Ubuntu 24.04 ARM64 (Docker memory cap 4 GB, two build jobs). The current CI-failure subset passes legacy 32/32 and JSON 29/29; the full negative suite passes 153/153. The three-clock SVA fixed-control focus passes 22/22 in each runner.
+- **Boundary:** The historical PR #410 run remains failed for its merged head. Do not describe this follow-up as CI-green until the required jobs pass for the follow-up PR head; no full ivtest corpus or OpenTitan qualification was run here.

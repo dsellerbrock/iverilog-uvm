@@ -1,5 +1,5 @@
 {
-    "type": "normal",
+    "type": "CE",
     "source": "sv_constraint_external_handle_order_fail.v",
     "iverilog-args": ["-g2017", "-s", "top"],
     "gold": "sv_constraint_external_handle_order_fail"

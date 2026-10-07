@@ -1,0 +1,2 @@
+./ivltests/sv_triple_quoted_string.v:12: error: Triple-quoted string literals require IEEE 1800-2023 (-g2023).
+./ivltests/sv_triple_quoted_string.v:13: error: Triple-quoted string literals require IEEE 1800-2023 (-g2023).

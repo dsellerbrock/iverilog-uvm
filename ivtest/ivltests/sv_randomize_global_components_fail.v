@@ -3,7 +3,8 @@
 // Unsupported distributions fail without partial writeback; a coupled factor
 // too large to enumerate is sampled against the hard constraints (valid, but
 // not uniform); an independent distribution samples only values allowed by hard
-// constraints.
+// constraints. Inactive subjects do not need a weighted draw, so their other
+// active random variables can still be randomized.
 class leaf;
   rand bit [9:0] value;
 endclass
@@ -75,7 +76,8 @@ module main;
       $fatal(1,"coupled OR over the enumeration limit was not solved validly");
     if (b.randomize() || b.value!=1 || b.posts) $fatal(1,"active weight admitted");
     b.value.rand_mode(0);
-    if (b.randomize() || b.value!=1 || b.posts) $fatal(1,"inactive subject hid active weight");
+    if (!b.randomize() || b.value!=1 || b.posts!=1)
+      $fatal(1,"inactive subject blocked other active random variables");
     x.value.rand_mode(0);
     if (x.randomize() || x.value!=1 || x.posts) $fatal(1,"inactive subject hid X weight");
     if (s.randomize()) $fatal(1,"discarded soft dist silently sampled");

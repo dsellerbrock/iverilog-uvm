@@ -2,6 +2,17 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 41 locally qualified:** unequal fixed-length `intersect` operands now
+lower as a legal empty sequence in the default SVA NFA engine. The paired
+regression verifies no standalone or implication-consequent cover hit,
+vacuity for an empty antecedent, failure for an empty consequent, and equal
+`intersect`/unequal `and` controls. Strict legacy passes 1/1, strict
+2017/2023 JSON/VVP passes 2/2, and the SVA NFA dual-run passes 64/64. The
+legacy-engine opt-out retains a diagnostic; variable/ranged mismatches remain
+unqualified. These are local results; PR CI is not claimed green. See
+[evidence](../../evidence/sva-intersect-unequal-lengths-20261007/README.md)
+and [G11](opentitan_gap_ledger.md#g11--sequence-combinators-as-an-implication-operand).
+
 **Fix 40 locally qualified:** nested implication consequents now concatenate
 the outer antecedent with the nested antecedent at the correct overlap
 boundary, including multi-cycle matches. The paired regression covers outer
@@ -10,8 +21,7 @@ NFA/VVP runtime checks pass 1/1 each. Temporal property consequents and
 multiclock combinations remain partial. See
 [evidence](../../evidence/sva-nested-multicycle-implication-20261007/README.md)
 and [G12](opentitan_gap_ledger.md#g12--property-expression-implication-consequents).
-The adjacent SVA suite passes 63/63 after the standalone sequence-combinator
-regression was changed to check assertion counts instead of callback order.
+The adjacent SVA NFA suite now passes 64/64.
 
 **Fix 39 locally qualified:** implication consequents and antecedents can now
 both carry parenthesized sequence-combinator trees through the existing SVA

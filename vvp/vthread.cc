@@ -23149,7 +23149,7 @@ static bool load_arr_dar_window_(vthread_t thr, vvp_code_t cp,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  array->get_word_obj((unsigned)source_idx, w);
-		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
+		  if (ARRDAR_COPY(kind)) w = w.value_copy_element();
 		  if (queue)
 			queue->push_back(w, queue_max_size);
 		  else
@@ -23277,7 +23277,7 @@ static bool store_arr_dar_window_(vthread_t thr, vvp_code_t cp,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  dar->get_word((unsigned)source_idx, w);
-		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
+		  if (ARRDAR_COPY(kind)) w = w.value_copy_element();
 		  array->set_word((unsigned)(base + idx), w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;
@@ -23456,7 +23456,7 @@ static vvp_object_t md_materialize_(vvp_array_t array, uint32_t kind,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  array->get_word_obj((unsigned)flat, w);
-		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
+		  if (ARRDAR_COPY(kind)) w = w.value_copy_element();
 		  level->set_word((unsigned)idx, w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  level->set_word((unsigned)idx,
@@ -23506,7 +23506,7 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  level->get_word((unsigned)source_idx, w);
-		  if (ARRDAR_COPY(kind) && !w.test_nil()) w = w.duplicate();
+		  if (ARRDAR_COPY(kind)) w = w.value_copy_element();
 		  array->set_word((unsigned)flat, w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;

@@ -14175,8 +14175,9 @@ pform_sva_intersect(const struct vlltype&loc,
       bool ok = sva_expand_fixed_(loc, "intersect", *s1, A);
       if (ok) ok = sva_expand_fixed_(loc, "intersect", *s2, B);
       if (ok && A.size() != B.size()) {
+	    const char* edition = generation_flag >= GN_VER2023 ? "2023" : "2017";
 	    cerr << loc << ": sorry: `intersect' requires both operands to "
-		 << "have the same length (IEEE 1800-2017 16.9.6); the "
+		 << "have the same length (IEEE 1800-" << edition << " 16.9.6); the "
 		 << "assertion is dropped." << endl;
 	    error_count += 1;
 	    ok = false;
@@ -15622,6 +15623,31 @@ static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
       delete t;
 }
 
+/* Propagate only explicitly proven empty languages through sequence
+   combinators. An unreachable accept state without this proof remains a
+   lowering failure, rather than hiding an NFA construction defect. */
+static bool sva_tree_proves_empty_(const sva_stree_t*t)
+{
+      if (!t) return false;
+      if (t->known_empty) return true;
+      switch (t->kind) {
+	case sva_stree_t::SEQ_OR:
+	      return sva_tree_proves_empty_(t->a)
+		    && sva_tree_proves_empty_(t->b);
+	case sva_stree_t::SEQ_AND:
+	case sva_stree_t::SEQ_INTERSECT:
+	case sva_stree_t::SEQ_WITHIN:
+	case sva_stree_t::SEQ_CONCAT:
+	      return sva_tree_proves_empty_(t->a)
+		    || sva_tree_proves_empty_(t->b);
+	case sva_stree_t::SEQ_THROUGHOUT:
+	      return sva_tree_proves_empty_(t->a);
+	case sva_stree_t::LEAF:
+	      return false;
+      }
+      return false;
+}
+
 void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq)
 {
       if (!seq) return;
@@ -15698,6 +15724,7 @@ static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
       if (!src) return nullptr;
       sva_stree_t*out = new sva_stree_t;
       out->kind = src->kind;
+      out->known_empty = src->known_empty;
       out->concat_overlap = src->concat_overlap;
       std::map<perm_string,PExpr*> no_subst;
       if (src->chain) {
@@ -16376,12 +16403,10 @@ static bool sva_chain_fixed_len_(const std::vector<sva_seq_step_t>&seq,
 
 /* M9-NFA stage B.2: `intersect` entry. Equal-length fixed operands
    keep the proven legacy AND-chain lowering (identical under both
-   engines); unequal FIXED lengths keep the legacy parse-time sorry
-   (they can never match — both engines diagnose rather than
-   synthesize an always-false checker). Only non-fixed shapes build a
-   SEQ_INTERSECT product tree for the automaton engine, with the
-   legacy fixed-length sorry text deferred to lowering when
-   IVL_SVA_NFA is off. */
+   engines). Unequal fixed lengths are a legal empty sequence language:
+   preserve the product tree for the automaton engine, while the legacy
+   engine keeps its explicit diagnostic. Non-fixed shapes also build a
+   SEQ_INTERSECT product tree. */
 sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
 					std::vector<sva_seq_step_t>*s1,
 					std::vector<sva_seq_step_t>*s2)
@@ -16397,8 +16422,11 @@ sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
       long l1 = 0, l2 = 0;
       bool f1 = sva_chain_fixed_len_(*s1, l1);
       bool f2 = sva_chain_fixed_len_(*s2, l2);
-      if (f1 && f2 && !sva_chain_has_match_calls_(s1)
-	  && !sva_chain_has_match_calls_(s2)) {
+	bool fixed_intersect = f1 && f2
+	      && !sva_chain_has_match_calls_(s1)
+	      && !sva_chain_has_match_calls_(s2);
+	bool unequal_fixed = fixed_intersect && l1 != l2;
+	if (fixed_intersect && (!unequal_fixed || !pform_sva_nfa_enabled())) {
 	    std::vector<sva_seq_step_t>*tr = pform_sva_intersect(loc, s1, s2);
 	    if (!tr) return nullptr;
 	    sva_property_t*p = new sva_property_t;
@@ -16414,6 +16442,7 @@ sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
       t->kind = sva_stree_t::SEQ_INTERSECT;
       t->a = la;
       t->b = lb;
+	  t->known_empty = unequal_fixed;
       sva_property_t*p = new sva_property_t;
       p->tree = t;
       p->tree_sorry = 1;
@@ -17363,9 +17392,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       if (endpoint_fanout && pform_sva_nfa_dump_enabled())
 	    pform_sva_nfa_dump(loc, "consequence-obligation", consequence_nfa);
 
-	/* An accept state unreachable from the start (an intersect of
-	   incompatible lengths) would synthesize an always-false
-	   checker; diagnose via the fallback path instead. */
+	/* An unreachable accept is a lowering failure unless the source tree
+	   proves that its language is empty. Unequal fixed-length intersect
+	   operands are a legal empty sequence; preserving that empty language is
+	   distinct from silently accepting a broken automaton construction. */
       auto accept_reachable = [](const sva_nfa_t&machine) -> bool {
 	    std::vector<bool> seen (machine.nstates, false);
 	    std::vector<unsigned> q;
@@ -17380,8 +17410,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  }
 	    return seen[machine.accept];
       };
-      if (!accept_reachable(nfa)
-	  || (endpoint_fanout && !accept_reachable(consequence_nfa)))
+	bool nfa_empty_proven = endpoint_fanout
+	      ? (!linear_wait_implication && sva_tree_proves_empty_(ante_tree))
+	      : (have_tree && sva_tree_proves_empty_(prop->tree));
+	bool consequence_empty_proven = endpoint_fanout
+	      && !linear_wait_implication
+	      && sva_tree_proves_empty_(consequence_tree);
+      if ((!accept_reachable(nfa) && !nfa_empty_proven)
+	  || (endpoint_fanout && !accept_reachable(consequence_nfa)
+	      && !consequence_empty_proven))
 	    return false;
 
 	/* LV-2: verify that each assigning-step gate survived construction.

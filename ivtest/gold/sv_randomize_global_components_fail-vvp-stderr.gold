@@ -1,6 +1,4 @@
 Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
-ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
-ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
-Warning: dist weight expression could not be evaluated at randomize time; its branch has zero weight (further similar warnings suppressed).
-ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
-ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
+ERROR: global constraint sampling failed: a random-dependent dist weight is outside its supported solve-before component.
+ERROR: constraint state read: X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).
+ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with ground items.

@@ -1,1 +1,2 @@
-./ivltests/sv_constraint_external_handle_order_fail.svh:12: warning: Constraint item in 'frequency_mode_c' of class host_seq is not representable in the constraint solver; randomize() of this class will fail.
+./ivltests/sv_constraint_external_handle_order_fail.svh:12: error: target of 'solve before' constraint must be a random variable.
+1 error(s) during elaboration.

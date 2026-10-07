@@ -6046,6 +6046,7 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 			   const char*file, unsigned lineno)
 {
       ivl_variable_type_t dt = ivl_signal_data_type(sig);
+      ivl_type_t net_type = ivl_signal_net_type(sig);
       unsigned wid = ivl_signal_width(sig);
       unsigned kind;
 
@@ -6082,10 +6083,18 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 		 move one container object per word, copied by value. */
 	    kind = VVP_ARRDAR_OBJ | VVP_ARRDAR_COPY;
 	    break;
+	  case IVL_VT_NO_TYPE:
+	      /* Unpacked structs are object-backed value elements too. */
+	    if (net_type && ivl_type_properties(net_type) > 0) {
+		  kind = VVP_ARRDAR_OBJ | VVP_ARRDAR_COPY;
+		  break;
+	    }
+	    /* Fall through: an untyped, property-less element has no runtime
+	       representation in an array descriptor. */
 	  default:
 	    fprintf(stderr, "%s:%u: sorry: the whole unpacked array `%s' "
 		    "cannot receive a dynamic array or queue: only arrays "
-		    "of integral, real, string or class-handle elements have a "
+		    "of integral, real, string, unpacked-struct or class-handle elements have a "
 		    "matching element representation.\n",
 		    file ? file : "<unknown>", lineno,
 		    ivl_signal_basename(sig));

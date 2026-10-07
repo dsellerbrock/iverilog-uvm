@@ -3603,6 +3603,23 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
 	    draw_concat_vec4(expr);
 	    return;
 
+	  case IVL_EX_ARRAY_PATTERN: {
+	    ivl_type_t type = ivl_expr_net_type(expr);
+	    if (type && ivl_type_is_packed_vector(type)) {
+		  unsigned idx;
+		  unsigned count = ivl_expr_parms(expr);
+		  if (count == 0)
+			goto unsupported_vec4_expr;
+		  draw_eval_vec4(ivl_expr_parm(expr, 0));
+		  for (idx = 1; idx < count; idx += 1) {
+			  draw_eval_vec4(ivl_expr_parm(expr, idx));
+			  fprintf(vvp_out, "    %%concat/vec4; draw_array_pattern_vec4\n");
+		  }
+		  return;
+	    }
+	    goto unsupported_vec4_expr;
+	  }
+
 	  case IVL_EX_NUMBER:
 	  case IVL_EX_SELECT:
 	    if (ivl_expr_oper2(expr)==0)
@@ -3647,6 +3664,7 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
 	    return;
 
 	  default:
+	unsupported_vec4_expr:
 	      /* No case for this expression kind. Substituting a zero
 		 and letting the compile succeed is a silent wrong
 		 result: the simulation runs and reads zero where the
