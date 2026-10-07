@@ -65,6 +65,8 @@ def _require_python313(
 
 LANES = ("rtl", "sva", "uvm", "runtime")
 TARGETS = {"rtl": "default", "sva": "formal", "uvm": "sim", "runtime": "sim"}
+# (18 GB - 6 GB) / 3 agents = 4 GB each, rounded down to whole MiB.
+DEFAULT_RUNTIME_AGENT_BUDGET_MIB = 4_000_000_000 // (1024 * 1024)
 ENGLISHBREAKFAST_VERILATOR_CORE = (
     "lowrisc:systems:chip_englishbreakfast_verilator:0.1"
 )
@@ -1048,6 +1050,12 @@ class CommandResult:
     memory_limit_hit: bool = False
     peak_physical_footprint_bytes: int | None = None
     memory_monitor_error: str | None = None
+
+
+def runtime_memory_cap_bytes(agent_budget_mib: int, jobs: int) -> int | None:
+    if not agent_budget_mib:
+        return None
+    return agent_budget_mib * 1024 * 1024 // jobs
 
 
 ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
@@ -5542,16 +5550,16 @@ def run_job(
     runtime_command = [
         str(vvp), "-n", *dpi_options, str(executable), *runtime_arguments
     ]
+    runtime_memory_limit = runtime_memory_cap_bytes(
+        args.runtime_memory_mib, args.jobs
+    )
     runtime_log = work_root / "matrix-runtime.log"
     runtime_result = command_result(
         runtime_command,
         cwd=source_list.parent,
         env=runtime_env,
         timeout=args.runtime_timeout,
-        memory_limit_bytes=(
-            args.runtime_memory_mib * 1024 * 1024
-            if args.runtime_memory_mib else None
-        ),
+        memory_limit_bytes=runtime_memory_limit,
         live_log_path=runtime_log,
     )
     write_log(runtime_log, "OpenTitan UVM runtime", runtime_result)
@@ -5592,10 +5600,11 @@ def run_job(
             "runtime_returncode": runtime_result.returncode,
             "runtime_duration_seconds": round(runtime_result.duration_seconds, 3),
             "runtime_timed_out": runtime_result.timed_out,
-            "runtime_memory_limit_bytes": (
+            "runtime_agent_memory_budget_bytes": (
                 args.runtime_memory_mib * 1024 * 1024
                 if args.runtime_memory_mib else None
             ),
+            "runtime_memory_limit_bytes": runtime_memory_limit,
             "runtime_memory_limit_hit": runtime_result.memory_limit_hit,
             "runtime_peak_physical_footprint_bytes": (
                 runtime_result.peak_physical_footprint_bytes
@@ -5777,6 +5786,21 @@ def self_test() -> None:
         }
     )
     assert "- Matrix workers: `1`" in markdown_sample
+    assert DEFAULT_RUNTIME_AGENT_BUDGET_MIB == 3814
+    assert parser().parse_args([]).runtime_memory_mib == (
+        DEFAULT_RUNTIME_AGENT_BUDGET_MIB if sys.platform == "darwin" else 0
+    )
+    budget_bytes = DEFAULT_RUNTIME_AGENT_BUDGET_MIB * 1024 * 1024
+    assert budget_bytes <= 4_000_000_000
+    assert budget_bytes * 3 <= 12_000_000_000
+    for jobs in (1, 2, 3, 4):
+        cap = runtime_memory_cap_bytes(DEFAULT_RUNTIME_AGENT_BUDGET_MIB, jobs)
+        assert cap is not None and cap * jobs <= budget_bytes
+    assert (
+        runtime_memory_cap_bytes(DEFAULT_RUNTIME_AGENT_BUDGET_MIB, 2)
+        == budget_bytes // 2
+    )
+    assert runtime_memory_cap_bytes(0, 2) is None
     for version in ("3.12.11", "3.14.7"):
         try:
             _require_python313(version)
@@ -7060,8 +7084,15 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--compile-timeout", type=int, default=600)
     result.add_argument("--runtime-timeout", type=int, default=300)
     result.add_argument(
-        "--runtime-memory-mib", type=int, default=0,
-        help="per-vvp macOS physical-footprint cap in MiB (0 disables)",
+        "--runtime-memory-mib",
+        type=int,
+        default=(
+            DEFAULT_RUNTIME_AGENT_BUDGET_MIB if sys.platform == "darwin" else 0
+        ),
+        help=(
+            "per-agent macOS VVP physical-footprint budget in MiB, divided by "
+            f"--jobs (default: {DEFAULT_RUNTIME_AGENT_BUDGET_MIB} on macOS)"
+        ),
     )
     result.add_argument("--runtime-arg", action="append", default=[])
     result.add_argument(
@@ -7110,6 +7141,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser().error("--jobs must be at least 1")
     if args.runtime_memory_mib < 0:
         parser().error("--runtime-memory-mib must be nonnegative")
+    if sys.platform == "darwin" and not args.runtime_memory_mib:
+        parser().error("--runtime-memory-mib cannot be disabled on macOS")
+    if args.runtime_memory_mib > DEFAULT_RUNTIME_AGENT_BUDGET_MIB:
+        parser().error(
+            "--runtime-memory-mib cannot exceed the fixed "
+            f"{DEFAULT_RUNTIME_AGENT_BUDGET_MIB} MiB per-agent budget"
+        )
     if args.runtime_memory_mib and sys.platform != "darwin":
         parser().error("--runtime-memory-mib requires macOS footprint")
     dpi_libraries = [path.expanduser().resolve() for path in args.dpi_library]
@@ -7257,6 +7295,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "matrix_jobs": args.jobs,
         "runtime_timeout_seconds": args.runtime_timeout,
         "runtime_memory_mib": args.runtime_memory_mib,
+        "runtime_memory_limit_bytes": runtime_memory_cap_bytes(
+            args.runtime_memory_mib, args.jobs
+        ),
         "matrix_provider_core_root": str(matrix_core_root),
         "englishbreakfast_mapping_sha256": hashlib.sha256(
             ENGLISHBREAKFAST_MAPPING_CORE.encode()

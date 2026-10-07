@@ -20,6 +20,7 @@
 
 # include "config.h"
 
+# include  <algorithm>
 # include  <cstdarg>
 # include  "compiler.h"
 # include  "pform.h"
@@ -51,6 +52,7 @@
 # include  <cctype>
 # include  <climits>
 # include  <cmath>
+# include  <utility>
 
 # include  "ivl_assert.h"
 # include  "ivl_alloc.h"
