@@ -4440,6 +4440,11 @@ dist_item
       { $1->weight = $4; $1->weight_is_divided = false; $$ = $1; }
   | inside_value_range ':' '/' expression
       { $1->weight = $4; $1->weight_is_divided = true; $$ = $1; }
+  | K_default ':' '/' expression
+      { $$ = new inside_range_t;
+        $$->lo = nullptr; $$->hi = nullptr; $$->is_range = false;
+        $$->weight = $4; $$->weight_is_divided = true;
+        $$->is_default = true; }
   ;
 
 constraint_trigger

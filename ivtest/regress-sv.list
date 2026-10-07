@@ -4543,6 +4543,11 @@ sv_dist_large_exact_singleton_unsat normal,-g2017 ivltests gold=sv_dist_large_ex
 sv_dist_large_exact_singleton_expression_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_singleton_expression_2023.gold
 sv_dist_large_exact_nonsingleton_expression_fail_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_nonsingleton_expression_fail_2023.gold
 sv_dist_large_exact_singleton_unsat_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_singleton_unsat_2023.gold
+sv_dist_default_weight_2023 normal,-g2023 ivltests gold=sv_dist_default_weight_2023.gold
+sv_dist_default_weight_2017_fail CE,-g2017 ivltests gold=sv_dist_default_weight_2017_fail.gold
+sv_dist_default_missing_weight_fail CE,-g2023 ivltests gold=sv_dist_default_missing_weight_fail.gold
+sv_dist_default_assign_weight_fail CE,-g2023 ivltests gold=sv_dist_default_assign_weight_fail.gold
+sv_dist_default_duplicate_fail CE,-g2023 ivltests gold=sv_dist_default_duplicate_fail.gold
 
 # Synchronous mixed ordinary/class-mutation event controls (IEEE 9.4.2)
 sv_mixed_event_disable_reuse_2017 normal,-g2017,-ssv_mixed_event_disable_reuse ivltests gold=sv_mixed_event_disable_reuse_2017.gold

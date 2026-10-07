@@ -1008,6 +1008,8 @@ struct Z3Builder {
 	    // A non-state weight is evaluated only after its solve-before prefix is
 	    // pinned. The integer weight above is then replaced for that draw.
 	    Z3_ast weight_expression;
+	    bool is_default;
+	    Z3_ast default_condition;
       };
       struct DistSpec {
             vvp_cobject*rng_owner = nullptr;
@@ -5553,14 +5555,20 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  return true;
 	    };
 	    bool saw_branch = false;
+	    vector<Z3_ast> explicit_memberships;
+	    bool have_default_item = false;
+	    unsigned default_weight = 0, default_soft_weight = 0;
+	    bool default_dynamic_weight = false;
+	    Z3_ast default_weight_expression = nullptr;
 	    par.skip_ws();
 	    while (par.peek() != ')' && !par.at_end()) {
-		  // Each branch is `(b MODE W <range>)`; MODE is absent in
-		  // historical IR.
+		  // A branch is `(b MODE W <range>)`; 2023 default uses
+		  // `(d :/ W default)`.
 		  if (par.peek() != '(') break;
 		  par.consume(); // '('
 		  string br_op = par.read_token();
-		  if (br_op != "b") {
+		  bool is_default = br_op == "d";
+		  if (br_op != "b" && !is_default) {
 			// Unknown branch shape; skip to matching ')'.
 			int depth = 1;
 			while (!par.at_end() && depth > 0) {
@@ -5643,6 +5651,23 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      ? UINT_MAX : (unsigned)weight64;
 		  unsigned soft_weight = dynamic_weight ? 1 : weight;
 		  Z3_ast clause = b.mk_false();
+		  if (is_default) {
+			string marker = par.read_token();
+			par.expect(')');
+			if (marker != "default" || have_default_item) {
+			      exact_supported = false;
+			      warn_exact_item_boundary();
+			      par.skip_ws();
+			      continue;
+			}
+			have_default_item = true;
+			default_weight = weight;
+			default_soft_weight = soft_weight;
+			default_dynamic_weight = dynamic_weight;
+			default_weight_expression = weight_expression;
+			par.skip_ws();
+			continue;
+		  }
 		  par.skip_ws();
 		  if (par.peek() == '[') {
 			par.consume();
@@ -5727,7 +5752,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 					  rw, lo_order_signed, 0, 0,
 					  ordered_wide(lo_wide, rw, lo_order_signed),
 					  ordered_wide(hi_wide, rw, hi_order_signed),
-					  weight_expression
+					  weight_expression, false, nullptr
 				    };
 				    dspec.branches.push_back(db);
 			      }
@@ -5783,7 +5808,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      Z3Builder::DistBranch db = {
 				    weight, true, range_weight_per_value,
 				    rw, coordinate_signed, lo_coord, hi_coord,
-				    nullptr, nullptr, weight_expression
+				    nullptr, nullptr, weight_expression, false, nullptr
 			      };
 			      dspec.branches.push_back(db);
 			}
@@ -5824,15 +5849,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		      Z3Builder::DistBranch db = {
 				    weight, true, false, vw,
 				    value_compare_signed, 0, 0, coord, coord,
-				    weight_expression
+				    weight_expression, false, nullptr
 			      };
 			      dspec.branches.push_back(db);
 			} else if (weight != 0 && value_ok) {
-			      Z3Builder::DistBranch db = {
+		      Z3Builder::DistBranch db = {
 				    weight, false, false, vw,
 				    value_compare_signed,
 				    value_bits, value_bits, nullptr, nullptr,
-				    weight_expression
+				    weight_expression, false, nullptr
 			      };
 			      dspec.branches.push_back(db);
 			}
@@ -5840,6 +5865,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  par.skip_ws();
 		  par.expect(')'); // close (b ...)
 		  par.skip_ws();
+		  explicit_memberships.push_back(clause);
 		  if (dynamic_weight) {
 			Z3_sort weight_sort = Z3_get_sort(b.ctx, weight_expression);
 			Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0, weight_sort);
@@ -5870,6 +5896,56 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			b.pending_soft.push_back(sa);
 	    }
 	    par.expect(')');
+	    if (have_default_item) {
+		  Z3_ast excluded = b.mk_false();
+		  if (explicit_memberships.size() == 1) {
+			excluded = explicit_memberships.front();
+		  } else if (!explicit_memberships.empty()) {
+			excluded = Z3_mk_or(b.ctx,
+			      (unsigned)explicit_memberships.size(),
+			      explicit_memberships.data());
+		  }
+		  Z3_ast default_membership = Z3_mk_not(b.ctx, excluded);
+		  Z3_ast clause = default_membership;
+		  if (default_dynamic_weight) {
+			Z3_sort weight_sort = Z3_get_sort(
+			      b.ctx, default_weight_expression);
+			Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0, weight_sort);
+			Z3_ast positive = Z3_mk_not(b.ctx,
+			      Z3_mk_eq(b.ctx, default_weight_expression, zero));
+			Z3_ast guarded[2] = {clause, positive};
+			clause = Z3_mk_and(b.ctx, 2, guarded);
+		  }
+		  if (default_weight || default_dynamic_weight) {
+			hard_clauses.push_back(clause);
+			Z3Builder::SoftAssert sa = {
+			      b.guard_soft_assert(clause), default_soft_weight,
+			      false /* dist */,
+			      dspec.disableable ? subject_refs
+					: std::set<Z3Builder::VarRef>(), dspec.priority
+			};
+			dspec.fallback.push_back(sa);
+			if (b.collect_preferences && b.defn == nullptr)
+			      b.pending_soft.push_back(sa);
+			Z3_ast wide_lo = nullptr, wide_hi = nullptr;
+			uint64_t hi = sw >= 64 ? UINT64_MAX
+			      : sw ? (((uint64_t)1 << sw) - 1) : 0;
+			if (sw > 64) {
+			      std::unique_ptr<bool[]> bits(new bool[sw]);
+			      for (unsigned i = 0; i < sw; ++i) bits[i] = false;
+			      wide_lo = Z3_mk_bv_numeral(b.ctx, sw, bits.get());
+			      for (unsigned i = 0; i < sw; ++i) bits[i] = true;
+			      wide_hi = Z3_mk_bv_numeral(b.ctx, sw, bits.get());
+			}
+			Z3Builder::DistBranch db = {
+			      default_weight, true, false, sw, false, 0, hi,
+			      wide_lo, wide_hi, default_weight_expression,
+			      true, default_membership
+			};
+			dspec.branches.push_back(db);
+			dspec.requires_large_exact = true;
+		  }
+	    }
 	    // Keep the structural eligibility independent of an enclosing
 	    // constraint guard. The resolver may use exact sampling for a large
 	    // guarded dist only after proving every guard active in the current
@@ -8745,7 +8821,7 @@ static bool z3_resolve_dist_exact_wide(Z3_context ctx, Z3_solver base,
       return false;
 }
 
-static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
+static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                                    Z3_optimize opt,
                                    const Z3Builder::DistSpec& spec,
 				   z3_rng_stream_t& rng,
@@ -9467,6 +9543,111 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
       Z3_optimize_assert(ctx, opt, eq);
       chosen = v;
       return true;
+}
+
+static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
+                                   Z3_optimize opt,
+                                   const Z3Builder::DistSpec& spec,
+			   z3_rng_stream_t& rng,
+                                   uint64_t& chosen,
+                                   bool require_complete_ranges = false,
+                                   bool validate_only = false,
+                                   bool*indeterminate = nullptr)
+{
+      const Z3Builder::DistBranch*default_branch = nullptr;
+      for (const auto&branch : spec.branches)
+	    if (branch.is_default) default_branch = &branch;
+      if (!default_branch)
+	    return z3_resolve_dist_exact_core(ctx, base, opt, spec, rng,
+					      chosen, require_complete_ranges,
+					      validate_only, indeterminate);
+      if (indeterminate) *indeterminate = false;
+      if (!spec.exact_supported || !default_branch->default_condition) {
+	    if (indeterminate) *indeterminate = true;
+	    return false;
+      }
+
+      typedef dist_wide_uint_t big;
+      struct Candidate {
+	    const Z3Builder::DistBranch* branch;
+	    big weight;
+      };
+      auto needs_large_exact = [](const Z3Builder::DistBranch&branch) {
+	    if (branch.value_width > 64) return true;
+	    if (!branch.is_range) return false;
+	    uint64_t span = branch.hi - branch.lo + 1;
+	    return span == 0 || span > 256;
+      };
+      vector<Candidate> candidates;
+      big total;
+      bool uncertain = false;
+      for (const auto&branch : spec.branches) {
+	    if (!branch.weight) continue;
+	    if (branch.value_width == 0) {
+		  uncertain = true;
+		  break;
+	    }
+	    big first, last;
+	    if (branch.value_width > 64) {
+		  if (!big::from_numeral(ctx, branch.wide_lo, first)
+		      || !big::from_numeral(ctx, branch.wide_hi, last)) {
+			uncertain = true;
+			break;
+		  }
+	    } else {
+		  first = big::from_u64(branch.lo);
+		  last = big::from_u64(branch.is_range ? branch.hi : branch.lo);
+	    }
+	    if (big::cmp(last, first) < 0) continue;
+	    big weight = big::from_u64(branch.weight);
+	    if (branch.is_range && branch.range_weight_per_value)
+		  weight = big::mul_small(
+			big::add(big::sub(last, first), big::from_u64(1)),
+			branch.weight);
+
+	    Z3_solver_push(ctx, base);
+	    if (branch.is_default)
+		  Z3_solver_assert(ctx, base, branch.default_condition);
+	    Z3Builder::DistSpec one = spec;
+	    one.branches.clear();
+	    one.branches.push_back(branch);
+	    one.requires_large_exact = needs_large_exact(branch);
+	    uint64_t ignored = 0;
+	    bool branch_indeterminate = false;
+	    bool feasible = z3_resolve_dist_exact_core(
+		  ctx, base, opt, one, rng, ignored, require_complete_ranges,
+		  true, &branch_indeterminate);
+	    Z3_solver_pop(ctx, base, 1);
+	    if (branch_indeterminate) break;
+	    if (!feasible || weight.zero()) continue;
+	    candidates.push_back({&branch, weight});
+	    total = big::add(total, weight);
+      }
+      if (uncertain) {
+	    if (indeterminate) *indeterminate = true;
+	    return false;
+      }
+      if (candidates.empty() || total.zero()) return false;
+      if (validate_only) return true;
+
+      big ticket = big::uniform_below(rng, total);
+      const Z3Builder::DistBranch*selected = candidates.back().branch;
+      for (const auto&candidate : candidates) {
+	    if (big::cmp(ticket, candidate.weight) < 0) {
+		  selected = candidate.branch;
+		  break;
+	    }
+	    ticket = big::sub(ticket, candidate.weight);
+      }
+      if (selected->is_default)
+	    Z3_solver_assert(ctx, base, selected->default_condition);
+      Z3Builder::DistSpec one = spec;
+      one.branches.clear();
+      one.branches.push_back(*selected);
+	      one.requires_large_exact = needs_large_exact(*selected);
+      return z3_resolve_dist_exact_core(ctx, base, opt, one, rng,
+					chosen, require_complete_ranges,
+					false, indeterminate);
 }
 
 /* IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: sample complete legal

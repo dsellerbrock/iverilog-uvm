@@ -5,6 +5,16 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 7, 2026 — 2023 `dist default :/` item
+
+IEEE 1800-2023 §18.5.3 adds `default :/ expression` as one weighted bucket
+covering values outside every explicitly listed item. The implementation keeps
+overlapping explicit bins separate and excludes all listed values from the
+default complement, including zero-weight bins. Strict 2017 rejects the new
+syntax. Paired focused JSON/VVP and legacy runs pass 5/5 each; adjacent exact
+distribution lists pass 14/14 each. This closes the tested 2023 item, not all
+of §18.5 or clause 18. See the [qualification record](../../../evidence/dist-default-2023-20261007/README.md).
+
 ### October 6, 2026 — uniform legal tuples with soft constraints
 
 IEEE 1800-2017 §18.5.10 and 1800-2023 §18.5.9 uniformity now includes

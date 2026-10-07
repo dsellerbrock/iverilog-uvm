@@ -38467,7 +38467,34 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  return ir;
 	    };
+	    bool saw_default_dist_item = false;
 	    for (auto& r : ins->get_ranges()) {
+		  if (r.is_default) {
+			if (!is_dist) {
+			      cerr << ins->get_fileline() << ": error: default is only "
+				   << "valid as a dist item." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			if (!sv_require_feature(ins, SVF_DIST_DEFAULT)) {
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			if (saw_default_dist_item) {
+			      cerr << ins->get_fileline() << ": error: a dist list may "
+				   << "contain at most one default item." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			saw_default_dist_item = true;
+			string w = payload_ir(r.weight, false);
+			if (w.empty()) return "";
+			result += " (d :/ " + w + " default)";
+			continue;
+		  }
 		  string range_ir;
 		  if (r.is_range) {
 			string lo = r.lo

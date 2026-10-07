@@ -4156,3 +4156,11 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Original root cause:** `elab_expr.cc` omitted `map` from receiver dispatch and result type inference; the iterator context lacked the 2023 custom index-method name; `tgt-vvp/eval_object.c` lacked map lowering. The current implementation reuses the existing iterator and VVP container paths.
 - **Source:** The local IEEE 1800-2023 §7.12.4–7.12.5 and 2017 §7.12 text were reviewed directly. The original paired RED is preserved in the qualification record as baseline history.
 - **Scope:** `elab_expr.cc`, the required VVP lowering/runtime path, focused paired regression entries, `.ai/ACTIVE_WORK.yaml`, and bounded evidence. No OpenTitan or Caliptra source changes and no broad corpus run.
+
+### SV23-DIST-DEFAULT-WEIGHT — 2023 `dist default :/` item
+
+- **State:** Implemented and locally qualified as Fix 29; add to the existing draft PR #407. The larger IEEE 1800-2017/2023 objective remains active.
+- **Standard:** IEEE 1800-2023 §18.5.3 adds `default :/ expression`. The item is a single aggregate-weight bucket for the complement of all explicit bins. IEEE 1800-2017 §18.5.4 does not include this syntax.
+- **Implementation:** The parser tags the default item, elaboration edition-gates it and rejects duplicate defaults, and VVP computes the complement after collecting every explicit membership predicate. Explicit bins remain weighted items, including overlaps; zero-weight explicit bins still exclude their values from the default bucket. The default bucket uses the existing exact weighted sampler.
+- **Validation:** Strict JSON/VVP and legacy focused lists pass 5/5 each, including strict 2017 rejection, required `:/`, malformed and duplicate forms, weighted sampling, overlap, zero-weight exclusion, and hard-constraint failure. Existing large exact-dist neighbor lists pass 14/14 each. No broad corpus or OpenTitan run was needed. See [qualification evidence](../../evidence/dist-default-2023-20261007/README.md).
+- **Boundary:** This qualifies the tested 2023 addition only. Other endpoint/weight expressions and interactions remain unqualified; clause 18 remains partial.

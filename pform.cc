@@ -9351,6 +9351,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 			? sva_clone_subst_(src[k].weight, subst) : nullptr;
 		  dst.is_range = src[k].is_range;
 		  dst.weight_is_divided = src[k].weight_is_divided;
+		  dst.is_default = src[k].is_default;
 		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
 		      || (src[k].weight && !dst.weight)) {
 			delete dst.lo;
@@ -10286,6 +10287,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 			: nullptr;
 		  dst.is_range = src[k].is_range;
 		  dst.weight_is_divided = src[k].weight_is_divided;
+		  dst.is_default = src[k].is_default;
 		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
 		      || (src[k].weight && !dst.weight)) {
 			delete dst.lo;
@@ -12833,6 +12835,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			? sva_clone_expr_(src[k].weight) : rewritten[k].weight;
 		  dst.is_range = src[k].is_range;
 		  dst.weight_is_divided = src[k].weight_is_divided;
+		  dst.is_default = src[k].is_default;
 		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
 		      || (src[k].weight && !dst.weight)) {
 			delete dst.lo;

@@ -2,16 +2,20 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
-**Current selected blocker:** `Z01 — cross-object solve-before distribution`.
-The `r:` class-property path is now admitted as an ordering operand when its
-terminal property is random, preserving the runtime object's canonical solver
-identity. A paired 2,000-draw test checks the staged 2+4 legal-tuple
-distribution and failed-solve rollback under strict 2017 and 2023. The
-registered JSON and legacy focus also runs the fixed-array and randc negative
-neighbors. This closes only the nested scalar-property case; broader
-`solve-before`, `dist`, randc, and large-domain solver shapes remain open.
-See the [focused evidence](../../evidence/solve-before-array/cross-object-solve-before-20261007.md)
-and [Z01 blocker](BLOCKERS.md#z01--joint-solve-before-stages-partly-supported).
+**Current selected blocker:** `SV23-DIST-DEFAULT-WEIGHT` (Fix 29), now locally
+qualified. Strict 2023 accepts `default :/ expression` as one aggregate-weight
+bucket over the complement of all explicit bins; strict 2017 rejects it.
+Paired focused checks pass 5/5 in JSON/VVP and legacy harnesses, and adjacent
+exact-dist checks pass 14/14 in each. This is a narrow 2023 language addition,
+not full clause-18 closure: broader constrained-random combinations, `randc`,
+and sparse/large domains remain useful open work. See the
+[qualification evidence](../../evidence/dist-default-2023-20261007/README.md)
+and [blocker record](BLOCKERS.md#sv23-dist-default-weight).
+
+**Completed in fix 28:** nested object-property `solve-before` operands retain
+their runtime solver identity. The paired staged-distribution and rollback
+checks pass with fixed-array and randc controls; see the
+[focused evidence](../../evidence/solve-before-array/cross-object-solve-before-20261007.md).
 
 **Completed in fix 27:** `ARRAY-MAP-2023` passes the focused strict `-g2023`
 runtime cases for fixed, dynamic, queue, and associative arrays; strict
