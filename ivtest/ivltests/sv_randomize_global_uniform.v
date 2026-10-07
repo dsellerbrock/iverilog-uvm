@@ -30,6 +30,13 @@ class soft_array_link_uniform;
   constraint fixed_size { value.size() == 2; }
   constraint preference { soft (value[0] == 0 || value[1] == 0); }
 endclass
+class soft_fixed_foreach_uniform;
+  rand bit mode;
+  rand bit payload[2];
+  constraint preference {
+    foreach (payload[i]) soft (mode == 0 || payload[i] == 0);
+  }
+endclass
 class dynamic_array_unordered;
   rand bit m;
   rand bit [7:0] q[];
@@ -264,6 +271,7 @@ module main;
   table18_2_ordered ordered = new;
   soft_link_uniform soft_uniform = new;
   soft_array_link_uniform soft_array_uniform = new;
+  soft_fixed_foreach_uniform soft_fixed_foreach = new;
   dynamic_array_unordered dyn_unordered = new;
   dynamic_array_ordered dyn_ordered = new;
   variable_size_array_unordered variable_size = new;
@@ -294,6 +302,7 @@ module main;
   int count[4];
   int soft_tuple_count[4];
   int soft_array_tuple_count[4];
+  int soft_fixed_foreach_tuple_count[8];
   int variable_size_count[5];
   int variable_size_empty_count[11];
   int correlated_array_count[12];
@@ -662,6 +671,26 @@ module main;
         $fatal(1, "invalid soft-constrained array tuple %0d occurred: %0d/1200",
                i, soft_array_tuple_count[i]);
     end
+
+    // Per-element soft constraints leave five equally likely tuples:
+    // four with mode zero, plus mode one with payload == 2'b00.
+    soft_fixed_foreach.srandom(20261006);
+    repeat (3000) begin
+      if (!soft_fixed_foreach.randomize())
+        $fatal(1, "soft foreach fixed-array solve failed");
+      soft_fixed_foreach_tuple_count[
+        {soft_fixed_foreach.mode, soft_fixed_foreach.payload[0],
+         soft_fixed_foreach.payload[1]}]++;
+    end
+    for (int i = 0; i < 5; ++i)
+      if (soft_fixed_foreach_tuple_count[i] < 450
+          || soft_fixed_foreach_tuple_count[i] > 750)
+        $fatal(1, "soft foreach tuple %0d is biased: %0d/3000", i,
+               soft_fixed_foreach_tuple_count[i]);
+    for (int i = 5; i < 8; ++i)
+      if (soft_fixed_foreach_tuple_count[i] != 0)
+        $fatal(1, "soft foreach invalid tuple %0d occurred: %0d", i,
+               soft_fixed_foreach_tuple_count[i]);
 
     // A 65-bit variable has only five feasible values across the mode split.
     wide_uniform.srandom(211);

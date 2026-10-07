@@ -16,9 +16,12 @@ relation between two `rand bit` variables produced the three legal tuples at
 fallback was biased at `948,916,1136/3000`. A fixed-size two-element dynamic
 array with a soft-only relation now produces `1004,1009,987/3000`, versus
 `718,751,1531/3000` before the array eligibility repair. Broader
-container/member, ordered, and weighted-`dist` combinations remain
-unqualified. See the
-[regression evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#satisfiable-soft-constraints-join-uniform-tuple-factors-fix-14).
+soft coverage now includes a `foreach` preference over a fixed two-element
+array: its five preferred tuples produce `594,590,592,612,612/3000`; the
+pre-fix image produced `476,513,543,508,960`. Container/member, ordered, and
+weighted-`dist` combinations beyond these tested shapes remain unqualified.
+See the
+[regression evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-over-fixed-array-elements-fix-15).
 
 ### September 27, 2026 — implication before distribution
 

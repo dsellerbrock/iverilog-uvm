@@ -501,3 +501,22 @@ checks 300–500 per legal tuple in 1,200 draws; its matching focused run produc
 The registered uniformity sources compile in both editions. Existing
 inherited-soft, alias-soft, and source-priority controls pass 3/3 per edition.
 The full registered suite remains deferred until the 10-fix batch checkpoint.
+
+## Soft foreach over fixed array elements (fix 15)
+
+The paired reducer uses `rand bit mode`, a two-element fixed unpacked `rand
+bit` array, and `foreach (payload[i]) soft (mode == 0 || payload[i] == 0)`.
+The five maximum-satisfaction tuples are `(0,00)`, `(0,01)`, `(0,10)`,
+`(0,11)`, and `(1,00)`. IEEE 1800-2017 §18.5.10 and 1800-2023 §18.5.9
+therefore require equal probability for those five complete tuples.
+
+With seed `20261006`, the pre-fix runtime image
+`e03e71b261bcf0f4e98cf6a67e8cae5b4a7cebd180001e961bc1db52f663c5ae` gives
+`476,513,543,508,960/3000` in strict `-g2017` and `-g2023`. The current
+source-built VVP image
+`3b2f946d7b3463d39ac59886cda1dada0600bd76ac42328ab2279da71efdc3ab` gives
+`594,590,592,612,612/3000`; the three tuples violating either soft clause are
+absent in both runs. The permanent paired statistical check is in
+[`sv_randomize_global_uniform.v`](../../ivtest/ivltests/sv_randomize_global_uniform.v).
+Both registered suite sources compile in both editions. Full registered runs
+remain deferred to the pending 10-fix checkpoint.

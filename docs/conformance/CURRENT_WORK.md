@@ -78,6 +78,13 @@ See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combi
 The registered suite sources compile in both editions, but the full suites
 have not been run on this image.
 
+Fix 15 adds a fixed-array `foreach` soft-preference oracle. Its five preferred
+complete tuples produce `594,590,592,612,612/3000` under both strict editions;
+the pre-fix image produced `476,513,543,508,960`, overweighting one tuple.
+The three tuples violating at least one soft clause remain absent. Both
+registered suite sources compile with the added case; full suites remain
+deferred to the 10-fix checkpoint. See the [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#soft-foreach-over-fixed-array-elements-fix-15).
+
 A separate 128-bit nested fixed-element diversity regression passes in both
 editions. It uses a warned fallback for an oversized ordinary component and
 does not extend the uniformity claim.
