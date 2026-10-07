@@ -334,11 +334,18 @@ evidence before this row closes. This does not add general `property_expr`
 consequents such as `always`, `nexttime`, or nested implication; those remain
 under **G12**. See the [focused qualification record](../../evidence/sva-tree-implication-both-sides-20261007/README.md).
 
-## G12 — the other property-expression consequents — **open**
+## G12 — property-expression implication consequents — **partial**
 
-*A.2.10.* `a |-> always b`, `a |-> nexttime b`, nested `a |-> (b |-> c)`.
-G8 deliberately sidesteps the general case with dedicated op types; these need
-the real nested-consequent field in `sva_property_t`.
+*A.2.10, 16.12.7.* Direct `always` and `nexttime` consequents have dedicated
+lowering paths. Nested implication consequents now compose the outer and inner
+antecedents at the correct `|->`/`|=>` boundary, including multi-cycle
+antecedents. The paired regression covers both outer overlap modes and both
+inner implication operators; strict 2017/2023 NFA/VVP runtime checks pass 1/1 each.
+See the [focused record](../../evidence/sva-nested-multicycle-implication-20261007/README.md).
+
+**Remaining:** other property operators are only handled in bounded operand
+shapes; nested clock changes, `disable iff`, and complex temporal-property
+combinations still need explicit semantic lowering and runtime qualification.
 
 ## G13 — non-literal cycle-delay bounds — **partial (focused subset)**
 

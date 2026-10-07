@@ -2,13 +2,24 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 40 locally qualified:** nested implication consequents now concatenate
+the outer antecedent with the nested antecedent at the correct overlap
+boundary, including multi-cycle matches. The paired regression covers outer
+`|->` with inner `|=>`, and outer `|=>` with inner `|->`; strict 2017/2023
+NFA/VVP runtime checks pass 1/1 each. Temporal property consequents and
+multiclock combinations remain partial. See
+[evidence](../../evidence/sva-nested-multicycle-implication-20261007/README.md)
+and [G12](opentitan_gap_ledger.md#g12--property-expression-implication-consequents).
+The adjacent SVA suite is 62/63; its lone mismatch is output ordering in a
+standalone sequence-combinator case, with the sorted event set matching gold.
+
 **Fix 39 locally qualified:** implication consequents and antecedents can now
 both carry parenthesized sequence-combinator trees through the existing SVA
 NFA lowering. The focused regression exercises `(a or b) |-> (c or d)` and
 `(e or f) |=> (g or h)` with one expected failure per operator. Strict legacy
 passes 1/1; strict 2017/2023 JSON/VVP passes 2/2. This qualifies the tested
 `or` tree subset only; `and`/`intersect` combinations and general nested
-property consequents remain open. See [evidence](../../evidence/sva-tree-implication-both-sides-20261007/README.md)
+property consequents remain partial under G12. See [evidence](../../evidence/sva-tree-implication-both-sides-20261007/README.md)
 and [G11](opentitan_gap_ledger.md#g11--sequence-combinators-as-an-implication-operand).
 
 **Fix 38 / DD-104 locally qualified:** procedural `$past` history now captures static

@@ -16137,25 +16137,18 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    return pform_sva_comb_consequent_sorry(loc, op_type, ante,
 						     conseq);
 
-	/* A boolean outer implication wrapped around another implication can
-	   be composed directly into the nested antecedent:
+	/* An implication wrapped around another implication can be composed by
+	   concatenating the outer match with the nested antecedent:
 
-	       enable |-> (a |=> b)  ==  (enable and a) |=> b
-	       enable |=> (a |=> b)  ==  (enable ##1 a) |=> b
+	       outer |-> (a |=> b)  ==  (outer ##0 a) |=> b
+	       outer |=> (a |=> b)  ==  (outer ##1 a) |=> b
 
-	   For |-> both operands start on the same tick, so sequence `and'
-	   correctly lets a longer nested antecedent finish later. For |=> the
-	   inner property starts on the next tick, represented by a nonoverlapped
-	   SEQ_CONCAT. This is the canonical expansion of OpenTitan's ASSERT_IF
-	   macro and Caliptra's delayed digest/key-vault checks. */
+	   The nested property starts at the outer match endpoint (or the following
+	   tick for |=>), including when the outer antecedent spans multiple
+	   cycles. Sequence `and' would incorrectly start both operands together. */
       bool nested_impl = conseq->op_type == 1 || conseq->op_type == 2
 			 || conseq->op_type == 18 || conseq->op_type == 19;
-      bool outer_bool = ante->size() == 1
-			&& (*ante)[0].delay_lo == 0
-			&& (*ante)[0].delay_hi == 0
-			&& (*ante)[0].rep_tail == 0
-			&& (*ante)[0].rep_kind == 0;
-      if ((op_type == 1 || op_type == 2) && nested_impl && outer_bool
+      if ((op_type == 1 || op_type == 2) && nested_impl
 	  && !conseq->clk_evt && !conseq->seq_clk_evt
 	  && !conseq->mc_prefix && !conseq->disable_iff_expr) {
 	    sva_stree_t*outer = sva_chain_take_tree_(ante);
@@ -16200,11 +16193,10 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    }
 
 	    sva_stree_t*both = new sva_stree_t;
-	    both->kind = (op_type == 1) ? sva_stree_t::SEQ_AND
-					 : sva_stree_t::SEQ_CONCAT;
+	    both->kind = sva_stree_t::SEQ_CONCAT;
 	    both->a = outer;
 	    both->b = inner_ante;
-	    both->concat_overlap = false;
+	    both->concat_overlap = (op_type == 1);
 	    sva_property_t*p = new sva_property_t;
 	    p->ante_tree = both;
 	    p->tree = inner_seq;

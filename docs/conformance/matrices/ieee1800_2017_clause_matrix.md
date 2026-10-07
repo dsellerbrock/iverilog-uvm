@@ -5,6 +5,16 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 7, 2026 — nested implication with multi-cycle antecedents
+
+IEEE 1800-2017 §16.12.7 starts the consequent at the endpoint of each
+antecedent match, or at the following tick for nonoverlapped implication.
+Nested implication lowering now concatenates the outer and nested antecedents
+at that boundary, preserving multi-cycle matches. The paired runtime case
+covers both outer overlap modes and both inner implication operators. Strict
+2017/2023 NFA/VVP runtime checks pass 1/1 each. Other property-expression
+consequents remain partial; see the [focused record](../../../evidence/sva-nested-multicycle-implication-20261007/README.md).
+
 ### October 7, 2026 — sequence combinator trees on both implication operands
 
 IEEE 1800-2017 §§16.9.5–16.9.7 define sequence `or`, `and`, and `intersect`
