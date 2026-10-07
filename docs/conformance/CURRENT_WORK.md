@@ -2,14 +2,21 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
-**Current selected blocker:** `SV23-DIST-DEFAULT-WEIGHT` (Fix 29), now locally
-qualified. Strict 2023 accepts `default :/ expression` as one aggregate-weight
-bucket over the complement of all explicit bins; strict 2017 rejects it.
-Paired focused checks pass 5/5 in JSON/VVP and legacy harnesses, and adjacent
-exact-dist checks pass 14/14 in each. This is a narrow 2023 language addition,
-not full clause-18 closure: broader constrained-random combinations, `randc`,
-and sparse/large domains remain useful open work. See the
-[qualification evidence](../../evidence/dist-default-2023-20261007/README.md)
+**Fix 30 qualified locally:** associative `find_first_index()` now visits the
+actual ordered keys and returns the first matching key in a fresh queue with
+the declared key type. Strict paired JSON/VVP and legacy lists each pass 6/6,
+including signed and string keys, empty/no-match cases, existing `find_index`
+neighbors, and rejection of wildcard-index arrays. Other associative locator
+methods remain open; this does not close §7.12.1. See the
+[qualification evidence](../../evidence/assoc-find-first-index-20261007/README.md)
+and [blocker record](BLOCKERS.md#assoc-find-first-index).
+
+**Fix 29 qualified locally:** strict 2023 accepts `default :/ expression` as
+one aggregate-weight bucket over the complement of all explicit bins; strict
+2017 rejects it. Its focused checks pass 5/5 in JSON/VVP and legacy harnesses,
+and adjacent exact-dist checks pass 14/14 in each. Broader constrained-random
+combinations, `randc`, and sparse/large domains remain useful open work. See
+the [qualification evidence](../../evidence/dist-default-2023-20261007/README.md)
 and [blocker record](BLOCKERS.md#sv23-dist-default-weight).
 
 **Completed in fix 28:** nested object-property `solve-before` operands retain

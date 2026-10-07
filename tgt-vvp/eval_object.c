@@ -1573,17 +1573,17 @@ static int draw_assoc_unique_expr_(ivl_expr_t expr, ivl_signal_t q_sig,
       return errors;
 }
 
-/* Lower associative find_index() by visiting actual keys and appending the
- * key signal for every matching value. Positional queue ordinals are not
- * associative-array indices. */
-static int draw_assoc_find_index_expr_(ivl_expr_t expr)
+/* Lower associative index locators by visiting actual keys. Positional queue
+ * ordinals are not associative-array indices. */
+static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int first_only)
 {
+      const char*kind = first_only ? "find_first_index" : "find_index";
       unsigned parm_count = ivl_expr_parms(expr);
       if (parm_count != 6 && parm_count != 7) {
 	    fprintf(stderr, "%s:%u: internal error: malformed associative "
-		    "find_index payload\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index payload failure\n");
+		    "%s payload\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator payload failure\n");
 	    return 1;
       }
 
@@ -1600,19 +1600,19 @@ static int draw_assoc_find_index_expr_(ivl_expr_t expr)
 	  || !key_arg || ivl_expr_type(key_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(key_arg) || !pred || !element) {
 	    fprintf(stderr, "%s:%u: internal error: malformed associative "
-		    "find_index fields\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index field failure\n");
+		    "%s fields\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator field failure\n");
 	    return 1;
       }
 
       ivl_expr_t q_arg = ivl_expr_parm(expr, 0);
       ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_arg);
       if (!q_sig) {
-	    fprintf(stderr, "%s:%u: internal error: associative find_index "
+	    fprintf(stderr, "%s:%u: internal error: associative %s "
 		    "receiver cannot be materialized\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index receiver failure\n");
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator receiver failure\n");
 	    return 1;
       }
 
@@ -1628,9 +1628,9 @@ static int draw_assoc_find_index_expr_(ivl_expr_t expr)
 	  || !unique_runtime_type_supported_(key_type)
 	  || !unique_runtime_type_supported_(result_type)) {
 	    fprintf(stderr, "%s:%u: internal error: unsupported associative "
-		    "find_index runtime type\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "    %%null; ; assoc find_index type failure\n");
+		    "%s runtime type\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), kind);
+	    fprintf(vvp_out, "    %%null; ; assoc index locator type failure\n");
 	    return 1;
       }
 
@@ -1668,6 +1668,9 @@ static int draw_assoc_find_index_expr_(ivl_expr_t expr)
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 	      thread_count, lab_skip, pred_flag);
       errors += draw_unique_append_queue_(key_arg, result_sig, key_type);
+      if (first_only)
+	    fprintf(vvp_out, "    %%jmp T_%u.%u; first matching associative key\n",
+		    thread_count, lab_end);
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
       fprintf(vvp_out, "    %%aa/next/sig/%s v%p_0, v%p_0;\n",
 	      key_kind, q_sig, key_sig);
@@ -3088,7 +3091,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
       }
 
       if (strcmp(name, "$ivl_queue_method$assoc_find_index") == 0)
-	    return draw_assoc_find_index_expr_(expr);
+	    return draw_assoc_index_locator_expr_(expr, 0);
+
+      if (strcmp(name, "$ivl_queue_method$assoc_find_first_index") == 0)
+	    return draw_assoc_index_locator_expr_(expr, 1);
 
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;
