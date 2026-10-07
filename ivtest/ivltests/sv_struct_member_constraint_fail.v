@@ -1,12 +1,7 @@
-// Keep deeper aggregate traversal and indexed outer structs compile-time-loud.
-// Wide members are legal (sv_randomize_wide_dist_assoc.v). The selected one-dimensional member-array constraint
-// is now legal and has separate positive runtime coverage.
+// Keep indexed outer unpacked-struct constraints compile-time-loud. Nested
+// member chains and selected one-dimensional member-array constraints have
+// separate positive runtime coverage.
 typedef struct {
-  rand bit [7:0] scalar;
-} constrained_inner_t;
-
-typedef struct {
-  rand constrained_inner_t nested;
   rand bit [7:0] lanes[2];
 } constrained_outer_t;
 
@@ -18,7 +13,6 @@ class constrained_member_item;
   rand constrained_outer_t record;
   rand indexed_outer_record_t records[2];
   rand bit [7:0] value;
-  constraint nested_path { record.nested.scalar == 8'd90; }
   constraint indexed_path { record.lanes[0] == 8'd12; }
   constraint indexed_outer_path { records[0].value == 8'd23; }
 endclass

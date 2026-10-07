@@ -2,6 +2,15 @@
 
 ## Current IEEE 1800 focus — 2026-10-07
 
+**Fix 33 qualified locally:** constraints on scalar integral/enum leaves now
+work through finite nested unpacked-struct member paths rooted at a randomized
+class property. The paired regression covers nested `rand`/`randc`, enum
+membership, state-derived values, failed-solve rollback, and resumption. The
+strict new-case lists pass 2/2 in legacy and JSON/VVP; adjacent struct/class
+declaration lists pass 15/15 legacy and 14/14 JSON/VVP. Indexed outer structs
+and aggregate, array, or class-handle leaves remain open. See the
+[qualification evidence](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
+
 **Fix 32 qualified locally:** explicit `disable iff` now aborts supported
 multi-boundary fixed-chain properties asynchronously across every clock
 domain. The paired regression proves inter-clock cancellation, held-reset

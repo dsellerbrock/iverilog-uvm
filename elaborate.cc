@@ -28926,27 +28926,42 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
       return false;
 }
 
-/* A class constraint may read integral state through an object-property
- * chain rooted in the object being randomized (IEEE 1800-2017 18.3), for
- * example p_sequencer.cfg.clk_freq_mhz. Encode the property indices in a
- * runtime-state token; the Z3 backend walks the live object chain and turns
- * the final value into a constant for this solve. */
+/* A class constraint may read an integral leaf through a class-property or
+ * unpacked-struct member chain rooted in the object being randomized. Encode
+ * the property/member indices in a runtime token; the Z3 backend walks the
+ * live chain and resolves an active leaf to its canonical solver variable. */
 static string constraint_class_state_path_ir_(
       const vector<perm_string>&names, const netclass_t*cls)
 {
       if (!cls || names.size() < 2) return "";
 
       const netclass_t*cur_cls = cls;
+      const netstruct_t*cur_struct = nullptr;
       ivl_type_t cur_type = nullptr;
       string path;
       for (size_t pos = 0 ; pos < names.size() ; pos += 1) {
-	    int idx = cur_cls->property_idx_from_name(names[pos]);
-	    if (idx < 0) return "";
+	    unsigned idx;
+	    if (cur_cls) {
+		  int property = cur_cls->property_idx_from_name(names[pos]);
+		  if (property < 0) return "";
+		  idx = (unsigned)property;
+		  cur_type = cur_cls->get_prop_type(idx);
+	    } else if (cur_struct && !cur_struct->packed()
+		       && !cur_struct->union_flag()) {
+		  idx = cur_struct->member_index(names[pos]);
+		  if (idx >= cur_struct->members().size()) return "";
+		  cur_type = cur_struct->members()[idx].net_type;
+	    } else {
+		  return "";
+	    }
 	    path += (path.empty() ? "" : ".") + to_string(idx);
-	    cur_type = cur_cls->get_prop_type((size_t)idx);
 	    if (pos + 1 < names.size()) {
 		  cur_cls = dynamic_cast<const netclass_t*>(cur_type);
-		  if (!cur_cls) return "";
+		  cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
+		  if (cur_struct && (cur_struct->packed()
+				     || cur_struct->union_flag()))
+			cur_struct = nullptr;
+		  if (!cur_cls && !cur_struct) return "";
 	    }
       }
 
@@ -28981,24 +28996,48 @@ static bool constraint_member_is_randc_(const netclass_t*cls,
 	    && record->members()[(size_t)member].qualifier.test_randc();
 }
 
+static bool constraint_path_component_(const netclass_t*owner,
+				       const netstruct_t*record,
+				       unsigned long idx,
+				       property_qualifier_t&qual,
+				       ivl_type_t&type)
+{
+      if (owner && idx < owner->get_properties()) {
+	    qual = owner->get_prop_qual((size_t)idx);
+	    type = owner->get_prop_type((size_t)idx);
+	    return true;
+      }
+      if (record && !record->packed() && !record->union_flag()
+	  && idx < record->members().size()) {
+	    qual = record->members()[(size_t)idx].qualifier;
+	    type = record->members()[(size_t)idx].net_type;
+	    return true;
+      }
+      return false;
+}
+
 static bool constraint_state_path_is_randc_(const char*path,
 					     const netclass_t*cls)
 {
       const netclass_t*owner = cls;
+      const netstruct_t*record = nullptr;
       const char*cur = path;
-      while (owner && cur && *cur) {
+      bool random_path = true;
+      while ((owner || record) && cur && *cur) {
 	    char*end = nullptr;
 	    unsigned long idx = strtoul(cur, &end, 10);
-	    if (end == cur || idx >= owner->get_properties())
-		  return false;
-
+	    property_qualifier_t qual;
+	    ivl_type_t type = nullptr;
+	    if (end == cur || !constraint_path_component_(
+		  owner, record, idx, qual, type)) return false;
 	    if (*end == ':')
-		  return constraint_property_is_randc_(owner, idx);
+		  return random_path && qual.test_randc();
 	    if (*end != '.')
 		  return false;
-
-	    owner = dynamic_cast<const netclass_t*>(
-		  owner->get_prop_type((size_t)idx));
+	    random_path = random_path && (qual.test_rand() || qual.test_randc());
+	    owner = dynamic_cast<const netclass_t*>(type);
+	    record = dynamic_cast<const netstruct_t*>(type);
+	    if (record && (record->packed() || record->union_flag())) record = nullptr;
 	    cur = end + 1;
       }
       return false;
@@ -29008,18 +29047,24 @@ static bool constraint_nested_element_is_random_(const char*path,
 						   const netclass_t*cls)
 {
       const netclass_t*owner = cls;
+      const netstruct_t*record = nullptr;
       const char*cur = path;
-      while (owner && cur && *cur) {
+      bool random_path = true;
+      while ((owner || record) && cur && *cur) {
 	    char*end = nullptr;
 	    unsigned long idx = strtoul(cur, &end, 10);
-	    if (end == cur || idx >= owner->get_properties()) return false;
+	    property_qualifier_t qual;
+	    ivl_type_t type = nullptr;
+	    if (end == cur || !constraint_path_component_(
+		  owner, record, idx, qual, type)) return false;
 	    if (*end == ':') {
-		  property_qualifier_t qual = owner->get_prop_qual((size_t)idx);
-		  return qual.test_rand() || qual.test_randc();
+		  return random_path && (qual.test_rand() || qual.test_randc());
 	    }
 	    if (*end != '.') return false;
-	    owner = dynamic_cast<const netclass_t*>(
-		  owner->get_prop_type((size_t)idx));
+	    random_path = random_path && (qual.test_rand() || qual.test_randc());
+	    owner = dynamic_cast<const netclass_t*>(type);
+	    record = dynamic_cast<const netstruct_t*>(type);
+	    if (record && (record->packed() || record->union_flag())) record = nullptr;
 	    cur = end + 1;
       }
       return false;
@@ -34965,16 +35010,33 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      bool integral = mtype
 				    && (mbase == IVL_VT_BOOL || mbase == IVL_VT_LOGIC
 					|| dynamic_cast<const netenum_t*>(mtype));
-			      if (one_level && mem && member->index.empty() && integral
-				  && mwidth > 0) {
-				    string token = "m:" + to_string(pidx) + ":"
-					  + to_string(midx) + ":"
-					  + to_string(mwidth);
-				    if (mtype->get_signed()) token += ":s";
-				    return token;
-			      }
+		      if (one_level && mem && member->index.empty() && integral
+			  && mwidth > 0) {
+			    string token = "m:" + to_string(pidx) + ":"
+				  + to_string(midx) + ":"
+				  + to_string(mwidth);
+			    if (mtype->get_signed()) token += ":s";
+			    return token;
+		      }
+		      if (!one_level && comp->index.empty()) {
+			    vector<perm_string> names;
+			    bool plain_path = true;
+			    for (pform_name_t::const_iterator part = comp;
+				 part != id->path().name.end(); ++part) {
+				  if (part->local_scope || !part->index.empty()) {
+					plain_path = false;
+					break;
+				  }
+				  names.push_back(part->name);
+			    }
+			    if (plain_path && names.size() >= 3) {
+			  string nested_path_ir =
+				constraint_class_state_path_ir_(names, cls);
+			  if (!nested_path_ir.empty()) return nested_path_ir;
+			    }
+		      }
 
-			      cerr << id->get_fileline() << ": sorry: constraint "
+		      cerr << id->get_fileline() << ": sorry: constraint "
 				   << "reference '" << comp->name;
 			      if (member != id->path().name.end())
 				    cerr << "." << member->name;

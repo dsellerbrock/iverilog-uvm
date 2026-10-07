@@ -2093,9 +2093,10 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       return var;
 }
 
-/* Parse r:I.J.K:W[:s] through the live class-property chain at randomize().
- * Without a captured random graph leaf this is state (IEEE 1800-2017 18.3);
- * an active rand leaf resolves to its canonical graph variable. */
+/* Parse r:I.J.K:W[:s] through live class properties and unpacked-struct
+ * members at randomize(). Without an active graph leaf this is state (IEEE
+ * 1800-2017/2023 18.3); an active rand leaf resolves to its canonical graph
+ * variable. */
 static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 {
       const char*p = tok.c_str() + 2;

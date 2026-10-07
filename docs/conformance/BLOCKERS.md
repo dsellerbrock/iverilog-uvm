@@ -657,6 +657,16 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   `agent/ieee-cross-object-solve-before-20261007`; focused evidence is in
   [`cross-object-solve-before-20261007.md`](../../evidence/solve-before-array/cross-object-solve-before-20261007.md).
 
+### RANDOMIZE-NESTED-UNPACKED-STRUCT-MEMBER — constrain nested random struct leaves
+
+- **Area / edition:** Randomization / IEEE 1800-2017 and 1800-2023 §18.4, §18.5.
+- **State:** DONE locally; strict paired 2017/2023 and adjacent focused gates pass.
+- **Requirement:** A `rand` unpacked structure randomizes its declared random members concurrently, including members reached through a nested unpacked-structure path. A class constraint on `record.nested.scalar` must constrain that leaf, not reject the outer member or lose its solver identity.
+- **Evidence / reproducer:** `ivtest/ivltests/sv_constraint_nested_unpacked_struct.sv` checks `root.nested.leaf.value`, enum membership, nested `randc`, state reads, rollback, and successful resumption. The baseline at `04093c40e` emitted the prior unsupported-path diagnostic in both editions. Final evidence and source-built image hashes are in [the qualification record](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
+- **Root cause:** Frontend constraint IR lowering accepted a direct struct leaf and selected elements of one-dimensional member arrays, but did not lower nested unpacked-struct paths. The runtime already traversed class properties and unpacked-struct members; the fix routes this case through that existing path representation.
+- **Closure:** Finite nested paths to scalar integral/enum leaves now preserve active `rand`/`randc` qualification, canonical solver-variable identity, state reads, writeback, and transactional failure rollback. Indexed outer structs, array/container-valued leaves, class-handle members, and unrelated ordering/distribution semantics remain separate gaps.
+- **Last verified revision:** Source-built ARM64 image recorded in the [qualification record](../../evidence/nested-unpacked-struct-constraint-20261007/README.md); strict new-case legacy and JSON/VVP lists pass 2/2 each, adjacent class/struct lists pass 15/15 and 14/14.
+
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
 - **Area / edition:** Frontend/randomization / edition-agnostic
