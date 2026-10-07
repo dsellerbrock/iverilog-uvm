@@ -1,5 +1,5 @@
 {
-    "type": "CE",
+    "type": "normal",
     "source": "sv_ustruct_queue_defaults_array_boundary_fail.v",
     "iverilog-args": [
         "-g2017"

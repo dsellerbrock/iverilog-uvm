@@ -3622,26 +3622,56 @@ static int queue_pattern_operand_is_fixed_array_(ivl_expr_t expr,
             && !type_is_object_like_(element_type);
 }
 
-static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
+static int eval_object_container_pattern_(ivl_expr_t expr,
+					  ivl_type_t agg_type,
+					  unsigned dimension)
 {
       unsigned nparm = ivl_expr_parms(expr);
       ivl_type_t etype = ivl_type_element(agg_type);
       int is_fixed = type_is_fixed_uarray_property_(agg_type);
       int reverse_fixed = is_fixed
-	    && ivl_type_packed_msb(agg_type, 0)
-	       > ivl_type_packed_lsb(agg_type, 0);
+	    && dimension < ivl_type_packed_dimensions(agg_type)
+	    && ivl_type_packed_msb(agg_type, dimension)
+	       > ivl_type_packed_lsb(agg_type, dimension);
       int is_darray = ivl_type_base(agg_type) == IVL_VT_DARRAY || is_fixed;
       int darray_via_queue = 0;
       char enc[32];
       int errors = 0;
       unsigned idx;
 
+	/* Fixed multi-dimensional arrays are stored as one flat sequence of
+	 * leaf values, while open-array copyback uses a nested container per
+	 * declared dimension. Build that shape recursively so %store/arr/dar/md
+	 * can validate and copy each dimension atomically. */
+      if (is_fixed
+	  && dimension + 1 < ivl_type_packed_dimensions(agg_type)) {
+	    fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", nparm);
+	    fprintf(vvp_out, "    %%new/darray 3, \"o\"; fixed-array subdimension\n");
+	    for (idx = 0; idx < nparm; idx += 1) {
+		  unsigned parm_idx = reverse_fixed ? nparm - 1 - idx : idx;
+		  ivl_expr_t parm = ivl_expr_parm(expr, parm_idx);
+		  fprintf(vvp_out, "    %%dup/obj/ref;\n");
+		  if (parm && ivl_expr_type(parm) == IVL_EX_ARRAY_PATTERN
+		      && type_is_fixed_uarray_property_(ivl_expr_net_type(parm)))
+			errors += eval_object_container_pattern_(
+			      parm, agg_type, dimension + 1);
+		  else
+			errors += draw_eval_object_value_copy(
+			      parm, parm ? ivl_expr_net_type(parm) : etype);
+		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  emit_object_queue_store_('i', "obj",
+					   queue_live_max_operand_(0), 0);
+	    }
+	    return errors;
+      }
+
 	/* A darray literal is pre-sized, so a runtime-sized collection operand
 	 * ({x, arr} inside a conditional arm, for instance) cannot splice into
 	 * it. Build such a literal as a queue and convert it, exactly as the
 	 * direct-assignment darray concat builder does (IEEE 1800-2017/2023
 	 * 10.10). OpenTitan kmac_scoreboard builds its message this way. */
-      if (is_darray)
+      if (is_darray && !is_fixed)
 	    for (idx = 0; idx < nparm; idx += 1)
 		  if (container_pattern_operand_is_collection_(
 			ivl_expr_parm(expr, idx), etype)) {
@@ -3719,6 +3749,18 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		  continue;
 	    }
 	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
+	    if (!is_fixed && ivl_expr_type(parm) == IVL_EX_ARRAY_PATTERN
+		&& type_is_fixed_uarray_property_(ivl_expr_net_type(parm))) {
+		  errors += draw_eval_object_value_copy(
+			parm, ivl_expr_net_type(parm));
+		  if (is_darray) {
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  }
+		  emit_object_queue_store_(is_darray ? 'i' : 'b', "obj",
+					   queue_live_max_operand_(0), 0);
+		  continue;
+	    }
 	    switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {
 		case IVL_VT_REAL:
 		  draw_eval_real(parm);
@@ -3815,7 +3857,7 @@ static int eval_object_array_pattern(ivl_expr_t expr)
       if (agg_type && (ivl_type_base(agg_type) == IVL_VT_QUEUE
 		       || ivl_type_base(agg_type) == IVL_VT_DARRAY
 		       || type_is_fixed_uarray_property_(agg_type)))
-	    return eval_object_container_pattern_(expr, agg_type);
+	    return eval_object_container_pattern_(expr, agg_type, 0);
 
       if (nparm == 0) {
 	    fprintf(vvp_out, "    %%null; ; empty object array-pattern fallback\n");
@@ -4014,7 +4056,7 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
 	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
 	      || ivl_type_base(element_type) == IVL_VT_QUEUE
 	      || type_is_fixed_uarray_property_(element_type)))
-	    return eval_object_container_pattern_(ex, element_type);
+	    return eval_object_container_pattern_(ex, element_type, 0);
 
       if (is_value_container && rval_aliases) {
 	    int errors = draw_eval_object(ex);

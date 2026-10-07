@@ -1,6 +1,4 @@
-// Keep indexed outer unpacked-struct constraints compile-time-loud. Nested
-// member chains and selected one-dimensional member-array constraints have
-// separate positive runtime coverage.
+// Indexed outer unpacked-struct constraint paths remain live at runtime.
 typedef struct {
   rand bit [7:0] lanes[2];
 } constrained_outer_t;
@@ -19,4 +17,13 @@ endclass
 
 module test;
   constrained_member_item item;
+
+  initial begin
+    item = new;
+    if (item.randomize() !== 1)
+      $fatal(1, "indexed struct-member constraint solve failed");
+    if (item.record.lanes[0] !== 8'd12 || item.records[0].value !== 8'd23)
+      $fatal(1, "indexed struct-member constraint values were not written back");
+    $display("PASSED");
+  end
 endmodule

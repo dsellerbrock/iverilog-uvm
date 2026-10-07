@@ -3035,7 +3035,11 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	// the value of its ordinary SystemVerilog expression, so truncate or
 	// extend to the self-determined semantic width before ground folding.
       value = value_builder.coerce(value, semantic_width);
-      if (symbolic_value && state_value && !*state_value) {
+	/* An X/Z state check makes the weight invalid and the item weight zero.
+	 * Do not preserve the lowered AST as a dynamic weight: its encoding uses
+	 * zero for the unknown state and could accidentally make the item positive. */
+      if (symbolic_value && state_value && !*state_value
+	  && value_builder.state_checks.empty()) {
 	    *symbolic_value = value;
 	    if (!value_builder.signed_constant_aliases.empty()) {
 		  vector<Z3_ast> alias_from, alias_to;

@@ -1,2 +1,0 @@
-ivltests/sv_struct_member_constraint_fail.v:17: sorry: constraint reference 'records[...].value' selects an indexed outer unpacked-struct property; indexed outer struct constraint paths are not supported.
-1 error(s) during elaboration.
