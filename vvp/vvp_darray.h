@@ -141,6 +141,7 @@ class vvp_darray : public vvp_object {
 	// copies carry variable state with the same identity as rand_mode.
       const std::vector<bool>*randc_history(size_t idx) const;
       std::vector<bool>&randc_history(size_t idx);
+      std::vector<uint64_t>&randc_sparse_history(size_t idx);
       void inherit_randc_histories(const vvp_darray&that);
 
 	// Copy the passive state that belongs to a container value. This carries
@@ -158,6 +159,7 @@ class vvp_darray : public vvp_object {
 	    rand_mode_default_ = true;
 	    rand_modes_.clear();
 	    randc_histories_.clear();
+	    randc_sparse_histories_.clear();
       }
 
 	// M10-1: a dynamic array is 0-based, but one MARSHALED from a
@@ -264,6 +266,7 @@ class vvp_darray : public vvp_object {
       bool rand_mode_default_ = true;
       mutable std::vector<unsigned char> rand_modes_;
       mutable std::vector<std::vector<bool> > randc_histories_;
+      mutable std::vector<std::vector<uint64_t> > randc_sparse_histories_;
       std::set<vvp_darray_element_ref*> element_refs_;
 };
 

@@ -572,3 +572,238 @@ and rollback controls were rerun on that binary and passed. The full suites
 were not rerun after that formatting-only change.
 This closes one ordered-weight case in the active batch; it does not establish
 complete IEEE constraint-randomization or uniformity support.
+
+## Graph-coupled scalar `randc` beyond full-domain enumeration (fix 18)
+
+The paired regression couples an 11-bit `randc` property over `[0:1024]` to a
+child object's random bit. The declared domain has 1,025 values, just beyond
+the complete-enumeration cap of 1,024. Before the fix, the global graph path
+failed with `a randc stage could not be enumerated completely`.
+
+When enumeration is incomplete, the global path now uses the existing exact
+hard-solver rejection sampler for this scalar `randc` property. Its feasibility
+checks use the global hard-constraint solver, so the selected value retains a
+valid child completion; cycle history remains transactionally staged. The
+existing 20-bit history and 65,536-proposal limits are unchanged.
+
+The focused reducer draws 32 unique values while preserving both constraints
+under strict `-g2017` and `-g2023`; both runs print
+`PASS aggregate randc 32/1025` on source-built VVP SHA-256
+`9e3583a9621e33c28f75904775370d6d6648ee2d17dc4e19ee1b8589198efa40`. The
+registered paired suite sources compile in both editions. Full registered
+uniformity suites remain deferred to the next ten-fix checkpoint.
+
+## Graph-coupled fixed-array `randc` leaves beyond full-domain enumeration (fix 19)
+
+The paired permanent regression places a constrained `randc bit [10:0]`
+element in a fixed unpacked array and couples its low bit to a child object's
+random property. Its legal values are `[0:1024]`, so the 1,025-value feasible
+set exceeds the complete-enumeration cap. Before this fix, the global graph
+path failed with `a randc stage could not be enumerated completely`.
+
+The existing exact hard-solver rejection sampler now accepts a per-leaf
+history key and is used for non-nested fixed-array randc leaves. Container and
+nested histories still fail closed. A focused paired reducer completes all
+1,025 legal values once each, then starts the next cycle, while preserving the
+child constraint under strict `-g2017` and `-g2023`. Both runs print
+`PASS fixed-array graph randc full 1025-value cycle and reset` on source-built
+VVP SHA-256 `f78d193df36a7ea842678392f25bc5a6637d10ee5db299d620595ae9f664a083`.
+The 2023 run takes 25.41 seconds and peaks at 38,928,384 bytes maximum RSS.
+The registered uniformity suite sources compile in both editions; full suite
+runs remain deferred to the next ten-fix checkpoint.
+
+## Soft priority on cyclic object graphs (fix 20)
+
+The previous runtime guard rejected every active soft constraint on a cyclic
+object graph. Removing that blanket refusal lets the existing graph solver
+apply soft priorities to this bounded case: two linked objects whose hard
+constraints require equal values in `[2:3]`, with `soft value == 2` on each
+object. The paired regression randomizes the two-node cycle ten times and
+checks that both values are 2 each time. It then makes the hard constraints
+unsatisfiable, checks that failed randomization preserves both old values,
+and verifies a successful retry after restoring feasibility.
+
+The paired registered test passes under strict `-g2017` and `-g2023` using
+source-built ARM64 VVP SHA-256
+`4215cfc855aa81026fd0280d0554b59d5a60ea55ad0b617b0bbcdcd28e75707e`.
+The registered full uniformity suites remain deferred to the ten-fix
+checkpoint. This verifies one two-object cycle and does not qualify all
+cyclic graphs or soft-preference combinations.
+
+## Graph-coupled dynamic-array `randc` first draw and cycle (fix 21)
+
+The paired global-randc regression now includes a one-dimensional dynamic
+`randc` array with one element, coupled by equality to a child object's `rand`
+property. Its feasible values are `[0:1024]`. The test completes all 1,025
+values without repeats, checks that an unsatisfiable randomize call preserves
+both objects' previous values, and verifies that the next successful draw
+starts a new cycle.
+
+The first selected value was previously lost because the array is empty while
+the solver stages randc state; the old helper returned before recording the
+event. The mark is now staged before writeback and resolved against the resized
+array when the transaction commits. This keeps history updates transactional
+and validates the final element width at commit.
+
+The registered test passes under strict `-g2017` and `-g2023` on source-built
+ARM64 VVP SHA-256
+`28c5fb2bf41d075b99cb31a908ce3bed53003a70dc12da5ee0c8db09c2deb505`; both
+runs print `PASSED`. This covers direct one-dimensional integral dynamic-array
+elements through the existing 20-bit history and 65,536-proposal limits.
+Nested, queue, associative, multidimensional, and struct/member aggregate
+forms remain open. The full registered uniformity suites remain deferred to
+the ten-fix checkpoint.
+
+## Bounded sparse history for constrained wide `randc` (fix 22)
+
+`randc int unsigned value` constrained to `{1, 3, 5}` previously exceeded the
+20-bit dense-history limit and repeated a legal value before completing the
+three-value cycle. The paired [global randc regression](../../ivtest/ivltests/sv_randomize_global_randc.v)
+now checks 12 full cycles and injects an unsatisfiable randomize call after the
+first draw of each cycle. It verifies no repeats, no history consumption on
+failure, and reset after exhaustion in strict 2017 and 2023.
+
+The runtime stores a sparse set of used values only for non-static direct
+scalar leaves through 64 bits when the hard solver exactly enumerates the
+complete feasible domain and finds at most 1,024 values. At commit, it builds
+the next history before changing any bank, removes the current feasible set
+only when that set is exhausted, then commits the selected value. The existing
+object transaction snapshot restores this map if a parent graph randomize
+later fails. Each property is capped at 65,536 stored values; overflow fails
+the randomize transaction before history changes. Static, unconstrained,
+graph-coupled, larger, and aggregate wide forms remain unsupported and retain
+their explicit failure behavior.
+
+The paired `sv_randomize_global_randc` test prints `PASSED` under both strict
+editions on source-built ARM64 VVP SHA-256
+`e8628f5e9c3396deeb047d44dce53e1a50724481099659008c83e7d7298ef262`, using
+source-built `ivl` SHA-256
+`82b75d9d28cc122faa8c7839330e346993eb9b8a84e1147d0b0dff93bdba9d51`. The
+existing [wide-history negative control](../../ivtest/ivltests/sv_randomize_global_history_fail.v)
+also prints `PASSED` in both editions; it confirms graph-coupled and
+container-wide forms still reject. The full registered uniformity suites were
+not run on this incremental image.
+
+
+## Owner-referenced graph-coupled wide `randc` (fix 23)
+
+The graph-history gate previously rejected every wide scalar `randc` leaf before
+the solver could prove its small feasible set. Admission now covers only a
+non-static direct integral scalar property 21–64 bits wide, with no aggregate
+dimensions, when an enabled constraint on that property’s owner references the
+property. The runtime exactly enumerates and proves the complete feasible set,
+with a 1,024-value cap, then uses transactional sparse history capped at
+65,536 values. Enumeration failure or a larger set remains a runtime error.
+
+The paired `sv_randomize_global_randc` reducer adds a graph-coupled `randc int
+unsigned` parent field constrained to `[0:100]` and equal to a child’s 11-bit
+`rand` field. In strict 2017 and 2023, it visits all 101 values without a repeat,
+checks an unsatisfiable attempt preserves both objects, and confirms reset after
+exhaustion. The paired negative control verifies fail-closed handling for a
+graph-coupled `[0:1024]` domain, an aggregate wide property, and an
+unconstrained wide property.
+
+A baseline run on the pre-fix runtime failed before the cycle began with
+`a randc leaf exceeds the supported history representation`. The rebuilt runtime
+uses ARM64 VVP SHA-256
+`46403784726fa79e6d4e200eff624d87e53396183b70b2a209d85a3f65709f53` and `ivl`
+SHA-256 `82b75d9d28cc122faa8c7839330e346993eb9b8a84e1147d0b0dff93bdba9d51`.
+The paired positive and negative JSON tests pass 4/4 in the focused official
+harness; the legacy paired regressions also pass 4/4. Full registered uniformity
+suites were not rerun on this incremental image and remain deferred to the
+ten-fix checkpoint.
+
+
+## Parent-referenced graph `randc` property paths (fix 24)
+
+The graph-history preflight recognized a wide `randc` leaf only when the
+leaf's own class constraint IR contained its direct `p:<pid>` reference. A
+parent constraint such as `child.value inside {[0:64]}` compiles to an `r:`
+object path and was rejected before the joint graph solver could use it. The
+preflight now resolves each candidate `r:` path through live class-handle
+properties and matches the reached object identity, terminal property index,
+and width. Local `p:` constraints remain accepted. Unreferenced wide leaves
+are still rejected before sampling, and all admitted candidates still need a
+complete exactly enumerable feasible set within the existing 1,024-value cap.
+
+The paired `sv_randomize_global_randc` reducer adds a wide `randc` child with
+no local constraints. Its parent constrains the child's value to `[0:64]` and
+equates it to a parent's `rand` property. Strict 2017 and 2023 runs complete all
+65 cycle values, verify an unsatisfiable attempt rolls back both parent and
+child values, and confirm reset after exhaustion. The existing same-owner and
+child-owner graph-wide cases continue to pass. Oversized, aggregate, and
+unconstrained negative controls continue to fail closed.
+
+The minimal pre-fix reproducer failed with `a randc leaf exceeds the supported
+history representation`. On the final source-built ARM64 image, VVP SHA-256 is
+`4daaa134a8cffa858e09e423468e4ebc385efca0735b2a4aa2ed25a277303435`; paired
+`ivl` SHA-256 is
+`82b75d9d28cc122faa8c7839330e346993eb9b8a84e1147d0b0dff93bdba9d51`. The
+focused JSON harness passes 4/4 and the focused legacy harness passes 4/4, each
+under strict paired 2017/2023 modes. Full registered uniformity suites remain
+deferred to the ten-fix checkpoint.
+
+
+## Wide dynamic-array `randc` elements (fix 25)
+
+A 21-bit dynamic-array `randc` element constrained to `[0:64]` was rejected
+before the first graph-coupled draw. The direct reproducer instead warned that
+the element domain was not enumerable and repeated at draw 1. Three limits
+caused this: graph preflight did not recognize `delem` element references,
+the joint size pass rejected every array element wider than 20 bits, and the
+container history only stored dense histories through 20 bits.
+
+Admission now covers non-static one-dimensional integral dynamic-array
+elements through 64 bits when the owner constraint IR names an element. The
+runtime proves the complete feasible domain with the existing 1,024-value
+cap. Per-position sparse history lives with the dynamic array, follows copies
+and element reorders, and commits with the enclosing randomize transaction.
+Unknown or larger domains fail before sampling; parent-only array-element
+references, nested arrays, queues, associative arrays, multidimensional
+arrays, and aggregate wide forms remain unsupported.
+
+The paired global-randc regression checks a 21-bit array constrained to
+`[0:64]` and coupled to a child `rand` property. It completes all 65 values
+without repetition, verifies an unsatisfiable attempt rolls back values and
+history, and confirms cycle reset. The existing history-negative control now
+uses a 1,025-value array domain and verifies fail-closed behavior. Strict
+2017/2023 JSON and legacy harnesses each pass 4/4. Tested image hashes are
+VVP `0177600c757cad6efb5993761448419178f5f5141bb0d9acd2c5636136c6bbf3` and
+`ivl` `898a756aba3e1bb5d760f9c0066e8dbdd1ec687860a13bf1c67f214a9fe5bef7`.
+The full registered uniformity suites were not run on this incremental image;
+they remain deferred to the ten-fix checkpoint.
+
+## Parent-referenced wide dynamic-array `randc` elements (fix 26)
+
+Fix 25 handled a wide dynamic-array `randc` element when the element appeared
+in its own class's constraint. A constant-index reference from a reachable
+parent constraint was still rejected during elaboration. The terminal-element
+path now carries a dynamic-array index marker, and VVP resolves it to the live
+owner's canonical element so parent constraints participate in feasibility,
+cycle history, and transactional writeback.
+
+The paired regression uses a 21-bit child `randc` array constrained by its
+parent to `[0:64]` and coupled to a parent `rand` property. Strict 2017 and
+2023 runs complete all 65 unique values, check failed-call rollback and cycle
+reset, and retain a 1,025-value fail-closed control. The minimal pre-fix
+reproducer failed to compile with “nested indexed constraint terminal must be
+a fixed integral or enum element.” Focused JSON/VVP and legacy harnesses pass
+2/2 each across the two editions. Source-built ARM64 image hashes: VVP
+`e852bd40e42b279bd44e9fcb2665063b6106000112025cfd25e2e7da7a8a4787`, `ivl`
+`0dcb6a02a6d3d7bf6820773e96e9c0ca96cabebab0aa70133b611031958ec41f`.
+Full registered uniformity suites remain deferred to the ten-fix checkpoint.
+
+## Full uniformity checkpoint on the fix-26 image (2026-10-06)
+
+The registered `sv_randomize_global_uniform` source passes after compiling and
+running with strict `-g2017` and `-g2023` using ARM64 VVP SHA-256
+`e852bd40e42b279bd44e9fcb2665063b6106000112025cfd25e2e7da7a8a4787`.
+The 2017 run reports `PASSED` in 229.09 s with maximum RSS 49,905,664 bytes;
+the 2023 run reports `PASSED` in 198.16 s with maximum RSS 50,987,008 bytes.
+The adjacent `sv_randomize_global_sampling_fail` and fixed-array
+`solve-before` positive/negative controls pass in both editions: the focused
+legacy and JSON/VVP gates each report 6/6, 0 failures. The constrained
+dynamic-array model remains capped at 512 aggregate elements and runtime
+allocation at 65,536. This qualifies the registered statistical scope on the
+fix-26 image; static, unconstrained, nested, queue, associative,
+multidimensional, and aggregate wide-randc forms remain open.

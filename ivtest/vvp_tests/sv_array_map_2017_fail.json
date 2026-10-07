@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_array_map_2017_fail.v",
+  "iverilog-args": ["-g2017"]
+}

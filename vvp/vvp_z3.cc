@@ -1934,10 +1934,10 @@ static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
       return var;
 }
 
-/* Parse x:I.J.P:W:E[:s]. I.J is a live class-object property path and P is
- * the terminal fixed-array property.  Resolve that path before interning P,
- * then use the ordinary element-variable machinery so aliases, activity,
- * randc history, rollback and write-back share one canonical graph leaf. */
+/* Parse x:I.J.P:W:E[:s] or x:I.J.P:W:d:E[:s]. I.J is a live class-object
+ * property path; P is the terminal array property. Resolve it before
+ * interning P so aliases, activity, randc history and write-back share the
+ * owning object's canonical element variable. */
 static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
 {
       const char*p = tok.c_str() + 2;
@@ -1954,6 +1954,7 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       char*end = nullptr;
       unsigned long width_ul = 0;
       unsigned long elem_ul = ULONG_MAX;
+      bool dynamic_element = false;
       bool fields_ok = *p == ':';
       if (fields_ok) {
 	    const char*field = p + 1;
@@ -1963,8 +1964,12 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       }
       if (fields_ok) {
 	    const char*field = p + 1;
+	    if (*field == 'd' && field[1] == ':') {
+		  dynamic_element = true;
+		  field += 2;
+	    }
 	    elem_ul = strtoul(field, &end, 10);
-	    fields_ok = end != field;
+	    fields_ok = end != field && (*end == 0 || *end == ':');
 	    p = end;
       }
       bool sflag = fields_ok && *p == ':' && p[1] == 's';
@@ -1992,10 +1997,19 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       unsigned idx = UINT_MAX;
       if (error.empty()) {
 	    unsigned pid = path.back();
-	    if (pid >= owner->get_defn()->property_count()
-		|| elem_ul >= owner->get_defn()->property_array_size(pid))
+	    if (pid >= owner->get_defn()->property_count()) {
+		  error = "invalid nested array constraint property";
+	    } else if (dynamic_element) {
+		  const string&base_type =
+			owner->get_defn()->property_base_type(pid);
+		  if (base_type.empty() || base_type[0] != 'D') {
+			error = "invalid nested dynamic-array constraint property";
+		  } else {
+			  idx = b.graph->intern(owner, pid);
+		  }
+	    } else if (elem_ul >= owner->get_defn()->property_array_size(pid)) {
 		  error = "invalid nested fixed-array constraint element";
-	    else {
+	    } else {
 		  vvp_vector4_t current;
 		  owner->get_vec4(pid, current, (unsigned)elem_ul);
 		  if (current.size() != width)
@@ -2019,6 +2033,44 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       if (b.collect_refs_only)
 	    return Z3_mk_unsigned_int64(
 		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	  if (dynamic_element) {
+		bool active = b.graph->element_active(idx, (unsigned)elem_ul);
+		if (b.dyn_sizes || !active) {
+		      uint64_t count = cobj_darray_size(owner, b.local_index(idx));
+		      if (b.dyn_sizes) {
+			    auto found = b.dyn_sizes->find(make_pair(idx, 0u));
+			    if (found != b.dyn_sizes->end()) count = found->second;
+		      }
+		      if (elem_ul >= count) {
+			    ostringstream msg;
+			    msg << "nested selected element " << elem_ul
+				  << " is outside property " << path.back()
+				  << " size " << count;
+			    Z3_ast absent = Z3_mk_fresh_const(b.ctx, "absent",
+					  Z3_mk_bv_sort(b.ctx, width));
+			    b.absent_elems.push_back({absent, msg.str()});
+			    return absent;
+		      }
+		}
+		if (!active) {
+		      vvp_vector4_t current;
+		      Z3_ast ground;
+		      if (!cobj_elem_vec4_(owner, path.back(),
+				    (unsigned)elem_ul, current)
+			  || current.size() != width
+			  || !vec4_to_bv_const_(b.ctx, current, width, ground)) {
+			    b.state_errors.push_back(state_read
+				  ? "X/Z value in constraint state (IEEE 1800-2017/2023 18.3)"
+				  : "X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
+			    ground = Z3_mk_unsigned_int64(b.ctx, 0,
+				  Z3_mk_bv_sort(b.ctx, width));
+		      }
+		      return sflag ? b.tag_signed_constant(ground) : ground;
+		}
+		Z3_ast var = b.get_elem_var(idx, width, (unsigned)elem_ul);
+		if (sflag) b.signed_vars.insert(var);
+		return var;
+	  }
       // An element outside the randomization (a non-random alias or state
 	    // handle) is a ground read of its current value.
 	      if (!b.graph->element_active(idx, (unsigned)elem_ul)) {
@@ -7845,7 +7897,8 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
 static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       Z3_ast var, unsigned width, vvp_cobject*owner, size_t pid,
       z3_rng_stream_t&rng, uint64_t&chosen, bool&reset_cycle,
-      const char**error)
+      const char**error, size_t leaf = 0, bool container = false,
+      size_t position = 0, size_t word = 0)
 {
       // ponytail: stop exact randc rejection after 65,536 probes per solve;
       // add solver-guided counting if sparse legal sets hit this ceiling.
@@ -7853,8 +7906,15 @@ static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       *error = nullptr;
       reset_cycle = false;
 
-      uint64_t period = owner->randc_period(pid);
+      uint64_t period = container
+	    ? (width && width <= 20 ? (uint64_t)1 << width : 0)
+	    : owner->randc_period(pid, leaf);
       if (period == 0 || period > UINT32_MAX) return false;
+      auto seen = [&](uint64_t value) {
+	    return container
+		  ? owner->randc_container_seen(pid, position, value, word)
+		  : owner->randc_seen(pid, value, leaf);
+      };
       Z3_lbool base_status = Z3_solver_check(ctx, base);
       if (base_status == Z3_L_FALSE) return false;
       if (base_status == Z3_L_UNDEF) {
@@ -7865,7 +7925,7 @@ static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       Z3_sort sort = Z3_mk_bv_sort(ctx, width);
       vector<Z3_ast> unseen;
       for (uint64_t value = 0; value < period; ++value) {
-            if (!owner->randc_seen(pid, value)) continue;
+	    if (!seen(value)) continue;
             Z3_ast cv = Z3_mk_unsigned_int64(ctx, value, sort);
             unseen.push_back(Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
       }
@@ -7881,7 +7941,8 @@ static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
       for (size_t attempt = 0; attempt < RANDC_REJECTION_PROPOSAL_CAP;
            ++attempt) {
             uint64_t candidate = rng.uniform_index((size_t)period);
-            if (!reset_cycle && owner->randc_seen(pid, candidate)) continue;
+            bool candidate_seen = seen(candidate);
+            if (!reset_cycle && candidate_seen) continue;
             Z3_ast cv = Z3_mk_unsigned_int64(ctx, candidate, sort);
             Z3_ast eq = Z3_mk_eq(ctx, var, cv);
             Z3_lbool feasible = Z3_solver_check_assumptions(
@@ -9881,16 +9942,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			uniform_fixed_array_elements_ready = true;
 	    }
       }
-      if (graph && !builder.pending_soft.empty()) {
-            for (const auto&owner : graph->objects)
-                  if (owner.cyclic) {
-                        fprintf(stderr, "ERROR: soft constraint priority on a cyclic object graph is not yet supported.\n");
-                        Z3_solver_dec_ref(ctx, base);
-                        Z3_optimize_dec_ref(ctx, opt);
-                        Z3_del_context(ctx);
-                        return Z3PASS_FAILED;
-                  }
-      }
       if (graph && !graph->valid) {
             fprintf(stderr, "ERROR: global constraint references invalid object storage.\n");
             Z3_solver_dec_ref(ctx, base);
@@ -10972,6 +11023,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					    sv.idx, sv.leaf)
                             || !builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx))
                             || random_container_desc_(sv.container_type).elem_width <= 20) continue;
+                        const class_type*type = builder.type(sv.idx);
+                        unsigned pid = builder.local_index(sv.idx);
+                        const string&base_type = type->property_base_type(pid);
+                        bool direct_dynamic_array =
+                              random_container_desc_(sv.container_type).elem_width <= 64
+                              && type->property_dimensions(pid).empty()
+                              && !type->property_is_dyn2(pid)
+                              && !base_type.empty() && base_type[0] == 'D';
+                        if (direct_dynamic_array) continue;
                         for (uint64_t elem = 0; elem < values[0][i]; ++elem)
                               if (rand_elem_active_(builder, prop_active, sv.idx, (unsigned)elem))
                                     return fail_joint("a randc leaf exceeds the supported history representation");
@@ -11224,6 +11284,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (dist_resolved_vars.count(pv.var)) continue;
 	    bool fallback_managed = dist_fallback_vars.count(pv.var)
 		  || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0);
+	    bool property_randc = builder.type(pv.idx)->property_is_randc(
+		  builder.local_index(pv.idx));
 
 	    vector<uint64_t> feasible;
 	    bool enumerated = false;
@@ -11235,7 +11297,21 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						pv.width, feasible);
 	    if (!fallback_managed && !enumerated)
 		  enumerated = z3_enumerate_sparse_wide_domain_(
-			ctx, base, pv.var, pv.width, feasible);
+			ctx, base, pv.var, pv.width, feasible,
+			property_randc ? (size_t)ENUM_DOMAIN_CAP
+			               : SPARSE_DOMAIN_CAP);
+	    if (enumerated && property_randc && pv.width > 20
+		&& (pv.width > 64
+		    || builder.type(pv.idx)->property_is_static(
+			  builder.local_index(pv.idx))
+		    || !builder.type(pv.idx)->property_dimensions(
+			  builder.local_index(pv.idx)).empty()
+		    || feasible.size() > 1024)) {
+		  randc_sampling_failed = true;
+		  randc_sampling_error = "wide randc requires a non-static scalar "
+			"domain of at most 1024 exactly enumerated values";
+		  return;
+	    }
 	    if (enumerated) {
 		  uint64_t chosen;
 		  if (builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
@@ -11268,10 +11344,21 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	  continue;
 	    }
 
-	    bool property_randc = builder.type(pv.idx)->property_is_randc(
-		  builder.local_index(pv.idx));
 	    if (!enumerated && property_randc && !fallback_managed
-		&& !exact_joint) {
+		&& pv.width > 20) {
+		  Z3_lbool status = Z3_solver_check(ctx, base);
+		  if (status != Z3_L_FALSE) {
+			randc_sampling_failed = true;
+			randc_sampling_error = status == Z3_L_UNDEF
+			      ? "wide randc feasibility could not be decided exactly"
+			      : "wide randc feasible domain is not exactly enumerable";
+			return;
+		  }
+	    }
+
+	    // The exact global solve keeps all hard tuple constraints in `base`;
+	    // use the same feasible-value randc sampler when full enumeration caps out.
+	    if (!enumerated && property_randc && !fallback_managed) {
 		  vvp_cobject*owner = builder.object(pv.idx);
 		  size_t pid = builder.local_index(pv.idx);
 		  if (owner->randc_period(pid)) {
@@ -11409,6 +11496,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  && !elem_base_type.empty()
 		  && (elem_base_type[0] == 'D' || elem_base_type[0] == 'Q'
 		      || elem_base_type[0] == 'M');
+	    bool direct_dynamic_randc = container_randc && !ev.nested
+		  && !builder.type(ev.idx)->property_is_dyn2(
+			builder.local_index(ev.idx))
+		  && !elem_base_type.empty() && elem_base_type[0] == 'D';
 	    // ElemVar already identifies an array element, including singleton arrays.
 	    bool element_randc = builder.type(ev.idx)->property_is_randc(
 		  builder.local_index(ev.idx));
@@ -11428,7 +11519,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					 ev.width, feasible);
 		  if (!enumerated)
 			enumerated = z3_enumerate_sparse_wide_domain_(
-			      ctx, base, ev.var, ev.width, feasible);
+			      ctx, base, ev.var, ev.width, feasible,
+			      direct_dynamic_randc && ev.width > 20
+				    ? (size_t)ENUM_DOMAIN_CAP
+						  : SPARSE_DOMAIN_CAP);
 
 		  if (enumerated) {
 			uint64_t chosen;
@@ -11474,7 +11568,92 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			continue;
 		  }
 
+                  if (direct_dynamic_randc && ev.width > 20) {
+                        Z3_lbool status = Z3_solver_check(ctx, base);
+                        if (status != Z3_L_FALSE) {
+                              randc_sampling_failed = true;
+                              randc_sampling_error = status == Z3_L_UNDEF
+                                    ? "wide randc dynamic-array feasibility could not be decided exactly"
+                                    : "wide randc dynamic-array feasible domain is not exactly enumerable";
+                              return;
+                        }
+                  }
+
                   if (exact_joint) {
+                        // Fixed-array leaves use the same per-leaf randc
+                        // history API as scalar properties. A direct
+                        // one-dimensional randc dynamic-array element uses
+                        // its existing position-keyed history bank.
+                        vvp_cobject*owner = builder.object(ev.idx);
+                        size_t pid = builder.local_index(ev.idx);
+                        if (direct_dynamic_randc && ev.width <= 20) {
+                              uint64_t chosen = 0;
+                              bool reset_cycle = false;
+                              const char*sample_error = nullptr;
+                              if (!z3_sample_constrained_randc_(ctx, base,
+                                    ev.var, ev.width, owner, pid,
+                                    property_rng(ev.idx), chosen,
+                                    reset_cycle, &sample_error, 0, true,
+                                    ev.elem, 0)) {
+                                    if (sample_error) {
+                                          randc_sampling_failed = true;
+                                          randc_sampling_error = sample_error;
+                                    } else {
+                                          joint_randc_failed = true;
+                                    }
+                                    return;
+                              }
+                              uint64_t prefill = cobj_elem_bits(owner, pid,
+                                    ev.elem);
+                              if (chosen != prefill)
+                                    owner->randc_container_unmark(pid,
+                                          ev.elem, prefill);
+                              vector<uint64_t> no_enumerated_domain;
+                              owner->randc_container_mark_feasible(pid,
+                                    ev.elem, chosen, no_enumerated_domain,
+                                    0, reset_cycle);
+                              sampled_randc_values[ev.var] = chosen;
+                              Z3_ast cv = Z3_mk_unsigned_int64(ctx,
+                                    chosen, Z3_mk_bv_sort(ctx, ev.width));
+                              Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
+                              Z3_optimize_assert(ctx, opt, eq);
+                              Z3_solver_assert(ctx, base, eq);
+                              continue;
+                        }
+                        if (!container_randc && !ev.nested
+                            && owner->randc_period(pid, ev.elem)) {
+                              uint64_t chosen = 0;
+                              bool reset_cycle = false;
+                              const char*sample_error = nullptr;
+                              if (!z3_sample_constrained_randc_(ctx, base,
+                                    ev.var, ev.width, owner, pid,
+                                    property_rng(ev.idx), chosen,
+                                    reset_cycle, &sample_error, ev.elem)) {
+                                    if (sample_error) {
+                                          randc_sampling_failed = true;
+                                          randc_sampling_error = sample_error;
+                                    } else {
+                                          joint_randc_failed = true;
+                                    }
+                                    return;
+                              }
+                              uint64_t prefill = cobj_elem_bits(owner, pid,
+                                    ev.elem);
+                              if (chosen != prefill)
+                                    owner->randc_unmark(pid, prefill,
+                                          ev.elem);
+                              vector<uint64_t> no_enumerated_domain;
+                              owner->randc_mark_feasible(pid, chosen,
+                                    no_enumerated_domain, ev.elem,
+                                    reset_cycle);
+                              sampled_randc_values[ev.var] = chosen;
+                              Z3_ast cv = Z3_mk_unsigned_int64(ctx,
+                                    chosen, Z3_mk_bv_sort(ctx, ev.width));
+                              Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
+                              Z3_optimize_assert(ctx, opt, eq);
+                              Z3_solver_assert(ctx, base, eq);
+                              continue;
+                        }
                         joint_randc_failed = true;
                         return;
                   }
@@ -13640,6 +13819,77 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 bool vvp_z3_graph_history_supported(const vector<vvp_z3_object_s>&objects)
 {
       if (objects.empty()) return true;
+      auto graph_ir_references_property = [&](const string&ir,
+            vvp_cobject*source, vvp_cobject*target, size_t target_pid,
+            unsigned target_width) {
+            size_t pos = 0;
+            for (;;) {
+                  size_t state_pos = ir.find("r:", pos);
+                  size_t elem_pos = ir.find("x:", pos);
+                  if (state_pos == string::npos && elem_pos == string::npos)
+                        break;
+                  bool dynamic_element = elem_pos != string::npos
+                        && (state_pos == string::npos || elem_pos < state_pos);
+                  pos = dynamic_element ? elem_pos : state_pos;
+                  if (pos && (isalnum((unsigned char)ir[pos - 1])
+                              || ir[pos - 1] == '_')) {
+                        pos += 2;
+                        continue;
+                  }
+                  const char*begin = ir.c_str() + pos + 2;
+                  const char*p = begin;
+                  vector<unsigned> path;
+                  while (*p) {
+                        char*end = nullptr;
+                        unsigned long idx = strtoul(p, &end, 10);
+                        if (end == p || idx > UINT_MAX) break;
+                        path.push_back((unsigned)idx);
+                        p = end;
+                        if (*p != '.') break;
+                        ++p;
+                  }
+                  char*end = nullptr;
+                  const char*width_text = *p == ':' ? p + 1 : nullptr;
+                  unsigned long width = width_text
+                        ? strtoul(width_text, &end, 10) : 0;
+                  bool width_valid = width_text && end != width_text;
+                  if (width_valid) p = end;
+                  bool dynamic_index = true;
+                  if (dynamic_element) {
+                        dynamic_index = *p == ':' && p[1] == 'd'
+                              && p[2] == ':';
+                        if (dynamic_index) {
+                              const char*index = p + 3;
+                              char*index_end = nullptr;
+                              unsigned long value = strtoul(index,
+                                    &index_end, 10);
+                              dynamic_index = index_end != index
+                                    && value <= UINT_MAX
+                                    && (*index_end == 0 || *index_end == ':'
+                                        || isspace((unsigned char)*index_end)
+                                        || *index_end == ')');
+                              p = index_end;
+                        }
+                  }
+                  if (path.size() > 1 && path.back() == target_pid
+                      && width == target_width && width_valid
+                      && dynamic_index) {
+                        vvp_cobject*current = source;
+                        string error;
+                        for (size_t i = 0; current && i + 1 < path.size(); ++i) {
+                              vvp_object_t nested;
+                              if (!constraint_object_property_(current,
+                                    path[i], nested, error, 0, true)) break;
+                              current = nested.peek<vvp_cobject>();
+                        }
+                        if (current == target) return true;
+                  }
+                  pos = (size_t)(p - ir.c_str());
+                  if (pos <= (size_t)(begin - ir.c_str()))
+                        pos = (size_t)(begin - ir.c_str()) + 1;
+            }
+            return false;
+      };
       unsigned class_owners = 0;
       for (const auto&owner : objects)
             if (!owner.object->get_defn()->is_struct_type()) ++class_owners;
@@ -13679,8 +13929,83 @@ bool vvp_z3_graph_history_supported(const vector<vvp_z3_object_s>&objects)
                         if (!base_type.empty() && (base_type[0] == 'D' || base_type[0] == 'M'))
                               width = random_container_desc_(base_type.substr(1)).elem_width;
                         if (width == 0 || width > 20) {
-                              fprintf(stderr, "ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.\n");
-                              return false;
+                              bool constrained_in_graph = false;
+                              const string property_ref = "p:"
+                                    + std::to_string(pid) + ":";
+                              const string array_element_ref = "(delem "
+                                    + std::to_string(pid) + ":"
+                                    + std::to_string(width);
+                              for (size_t cid = 0;
+                                   cid < type->constraint_count(); ++cid)
+                                    if (owner.object->constraint_mode(cid)
+                                        && (type->constraint_ir(cid).find(
+                                                  property_ref) != string::npos
+                                            || (!base_type.empty()
+                                                && base_type[0] == 'D'
+                                                && type->constraint_ir(cid).find(
+                                                      array_element_ref)
+                                                      != string::npos))) {
+                                          constrained_in_graph = true;
+                                          break;
+                                    }
+                              for (const auto&source : objects) {
+                                    if (constrained_in_graph) break;
+                                    const class_type*source_type =
+                                          source.object->get_defn();
+                                    if (source.include_class_constraints)
+                                          for (size_t cid = 0;
+                                               cid < source_type->constraint_count();
+                                               ++cid)
+                                                if (source.object->constraint_mode(cid)
+                                                    && graph_ir_references_property(
+                                                          source_type->constraint_ir(cid),
+                                                          source.object, owner.object,
+                                                          pid, width)) {
+                                                      constrained_in_graph = true;
+                                                      break;
+                                                }
+                                    auto has_reference = [&](const vector<string>&items) {
+                                          return any_of(items.begin(), items.end(),
+                                                [&](const string&ir) {
+                                                      return graph_ir_references_property(
+                                                            ir, source.object,
+                                                            owner.object, pid, width);
+                                                });
+                                    };
+                                    if (!constrained_in_graph)
+                                          constrained_in_graph =
+                                                has_reference(source.inherited_ir)
+                                                || has_reference(source.extra_ir)
+                                                || has_reference(source.planned_class_ir);
+                                    if (constrained_in_graph) break;
+                              }
+                              bool sparse_dynamic_array = width > 20 && width <= 64
+                                    && !type->property_is_static(pid)
+                                    && type->property_dimensions(pid).empty()
+                                    && !type->property_is_dyn2(pid)
+                                    && constrained_in_graph
+                                    && !base_type.empty() && base_type[0] == 'D';
+                              bool sparse_scalar = width > 20 && width <= 64
+                                    && !type->property_is_static(pid)
+                                    && type->property_array_size(pid) == 1
+                                    && type->property_dimensions(pid).empty()
+                                    && constrained_in_graph
+                                    && !base_type.empty()
+                                    && base_type[0] != 'D'
+                                    && base_type[0] != 'Q'
+                                    && base_type[0] != 'M'
+                                    && base_type != "o"
+                                    && base_type != "S"
+                                    && base_type != "r";
+                              if (!sparse_scalar && !sparse_dynamic_array) {
+                                    fprintf(stderr, "ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.\n");
+                                    return false;
+                              }
+                              // Require an enabled graph constraint to name
+                              // this property so an unconstrained wide randc
+                              // cannot bypass the solver and commit untracked.
+                              // The sampler still proves the complete feasible
+                              // set within ENUM_DOMAIN_CAP before it commits.
                         }
                   }
             }

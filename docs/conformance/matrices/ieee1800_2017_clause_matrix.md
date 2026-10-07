@@ -2294,12 +2294,12 @@ full-width proposals and hard-solver rejection. A 129-tuple 65-bit oracle's
 larger mode 200/200 times, versus 150/200 before full-width rejection. The paired
 65-tuple
 64:1 oracle passes with a 90/100 minimum after failing at 49/100 with the former
-64-value cap. Ordering, `dist`, soft constraints, direct randc widths above 20
-bits, sparse randc domains that exceed the proposal budget, aggregate randc
-forms, larger aggregate domains, wide scalar cases that exceed the boundary
-query budget or 4,096-bit width, fixed-array ranks above three and other
-container shapes
-remain open. An isolated 33–4,096-bit scalar uses exact boundary searches
+64-value cap. Ordering, `dist`, soft constraints, static or unconstrained randc widths above
+20 bits, graph-coupled wide randc forms without a reachable constraint reference
+to the direct scalar property, sparse randc domains that exceed the proposal budget, aggregate
+randc forms, larger aggregate domains, wide scalar cases that exceed the
+boundary query budget or 4,096-bit width, fixed-array ranks above three and
+other container shapes remain open. An isolated 33–4,096-bit scalar uses exact boundary searches
 under a 131,072-query per-randomization budget; the paired contiguous 65-bit `[1:1024]` bins are 57, 54,
 37, and 52/200. The unequal-range union test keeps four equal-cardinality bins
 within 30–70/200 in both editions. The historical nine-run 33-bit scalar
@@ -2336,3 +2336,7 @@ registered suites were not rerun on this image. The sampler fails explicitly
 if solver checks are indeterminate or 65,536 proposals do not find a value.
 Widths above 20 bits, sparse proposal exhaustion, and aggregate randc shapes
 remain open.
+
+Fix 23 extends sparse wide-randc history to eligible graph-coupled direct scalar properties from 21 through 64 bits when an enabled owner constraint references the property and its complete feasible domain is exactly enumerable at no more than 1,024 values. The strict paired regression completes all 101 values, checks graph rollback on an unsatisfiable call, and verifies cycle reset. Graph domains above the cap, aggregate properties, and unconstrained properties retain explicit failure controls. Focused JSON and legacy harnesses pass 4/4 each; the full registered uniformity suites remain deferred to the ten-fix checkpoint. See the [revision evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#owner-referenced-graph-coupled-wide-randc-fix-23).
+
+Fix 24 covers a different graph constraint shape: a wide `randc` child with no local constraint is now recognized when its parent constrains the child through an `r:` object path. The paired strict 2017/2023 regression completes a 65-value cycle, verifies parent-and-child rollback, and checks cycle reset. Unreferenced, over-cap, and aggregate controls still fail closed. Focused JSON and legacy harnesses pass 4/4 each; the full registered uniformity suites remain deferred to the ten-fix checkpoint. See the [revision evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#parent-referenced-graph-randc-property-paths-fix-24).
