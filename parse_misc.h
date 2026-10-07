@@ -165,6 +165,10 @@ struct sva_stree_t {
 		    SEQ_WITHIN = 4, SEQ_THROUGHOUT = 5,
 		    SEQ_CONCAT = 6 };
       int kind = LEAF;
+      // True when the sequence language is provably empty. Set for fixed
+      // intersect operands of different lengths; enclosing combinators
+      // derive emptiness structurally before the NFA reachability check.
+      bool known_empty = false;
       std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
       sva_stree_t* a = nullptr;
       sva_stree_t* b = nullptr;

@@ -5,6 +5,19 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 7, 2026 — unequal fixed-length sequence `intersect`
+
+IEEE 1800-2017 §16.9.6 defines an `intersect` match only when both operands
+match over the same interval. Unequal fixed-length operands therefore form a
+legal sequence with no matches. The default NFA engine now preserves that
+empty language through direct covers and implication antecedents/consequents;
+the regression also checks equal-length `intersect` and unequal-length `and`.
+Strict legacy passes 1/1, strict 2017/2023 JSON/VVP passes 2/2, and the SVA NFA
+dual-run passes 64/64. The explicit legacy-engine opt-out still reports its
+unsupported-shape diagnostic. Variable/ranged mismatches and broader nested
+combinator trees remain unqualified. These are local results, not CI
+qualification. See the [focused record](../../../evidence/sva-intersect-unequal-lengths-20261007/README.md).
+
 ### October 7, 2026 — nested implication with multi-cycle antecedents
 
 IEEE 1800-2017 §16.12.7 starts the consequent at the endpoint of each

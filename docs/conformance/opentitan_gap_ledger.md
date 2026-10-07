@@ -220,8 +220,8 @@ differ only in set/clear order within a cycle: `|->` clear-else-set (same-cycle
 
 **Scope:** `s_eventually` only, with a boolean antecedent and boolean operand.
 Sequence operands and `cover property` of this shape get a loud `sorry`.
-`a |-> always b`, `a |-> nexttime b` and nested `a |-> (b |-> c)` remain
-syntax errors — see **G12**.
+Other property operators and nested property-expression compositions remain
+under **G12**; see its current boundary below.
 Test: `sv_assert_impl_s_eventually.v` (six cases, including the two that must
 *fail*).
 
@@ -325,14 +325,20 @@ Implication productions now transfer sequence-combinator trees from both
 operands into the NFA representation. A grouped tree at the property boundary
 uses its own grammar carrier so parentheses around an entire operand are
 preserved. The paired regression covers grouped `or` trees on both sides for
-`|->` and `|=>`, including matching and failing consequent branches; the
-strict legacy list passes 1/1 and the 2017/2023 JSON/VVP list passes 2/2.
+`|->` and `|=>`, including matching and failing consequent branches. It also
+checks an unequal-length `and`, an equal-length `intersect`, and unequal
+fixed-length `intersect` as an empty sequence: a direct cover and implication
+cover do not match, an empty antecedent is vacuous, and an empty consequent
+fails after a matching antecedent. Strict legacy passes 1/1; strict 2017/2023
+JSON/VVP passes 2/2; the SVA NFA dual-run passes 64/64.
 
-**Scope:** the both-sided runtime oracle currently covers `or` trees only;
-`and`/`intersect` combinations and broader sequence shapes need paired runtime
-evidence before this row closes. This does not add general `property_expr`
-consequents such as `always`, `nexttime`, or nested implication; those remain
-under **G12**. See the [focused qualification record](../../evidence/sva-tree-implication-both-sides-20261007/README.md).
+**Scope:** these are focused fixed-length cases, not broad qualification of
+nested `and`/`intersect` trees or variable/ranged-length mismatches. The legacy
+engine opt-out still diagnoses unequal fixed lengths; the default NFA engine
+preserves their empty match language. General `property_expr` consequents such
+as `always`, `nexttime`, and broader nested implications remain under **G12**.
+See the [intersect qualification record](../../evidence/sva-intersect-unequal-lengths-20261007/README.md)
+and the [two-sided tree record](../../evidence/sva-tree-implication-both-sides-20261007/README.md).
 
 ## G12 — property-expression implication consequents — **partial**
 

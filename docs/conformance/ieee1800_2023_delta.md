@@ -12,6 +12,13 @@ explicit-event, and default-clocking routes. The paired focus also verifies
 the automatic-local current-value rule and diagnoses unsupported
 clocking-input operands; broader clause-16 coverage remains open.
 
+The 2023 §16.9.6 unequal fixed-length `intersect` behavior shares the
+[paired 2017 implementation and focused evidence](matrices/ieee1800_2017_clause_matrix.md#october-7-2026--unequal-fixed-length-sequence-intersect).
+Strict `-g2023` covers the empty-match result through direct cover and
+implication, with equal-length `intersect` and unequal-length `and` controls.
+Variable/ranged mismatches and broader sequence-combinator qualification
+remain open.
+
 IEEE 1800-2023 §5.9 triple-quoted strings now preserve embedded double quotes,
 raw newlines, and escaped-newline joining in multiline macro definitions.
 Strict `-g2017` rejects the 2023 delimiter. See the

@@ -1,7 +1,17 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: "agent/sv23-class-final-20261007"
-checkpoint_head: "13600306d7ff9d460901bab32a4aa0e768836d01"
+branch: "agent/repair-ivtest-gate-410-20261007"
+checkpoint_head: "27fedd536c1b071f69cca1c1f4a9cca08226e596"
+active_ieee_lane:
+  blocker: "SVA-INTERSECT-UNEQUAL-LENGTHS"
+  phase: "DOCUMENTED_CI_PENDING"
+  baseline_head: "e487a59fde4f46f1740ab24dd68b84c874384b99"
+  reproducer: "tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv; current strict -g2017/-g2023 compile rejects `(a ##1 b) intersect (c ##2 d)` although IEEE defines it as a legal sequence with no match."
+  standards: "IEEE 1800-2017/2023 §16.9.6, §16.12.7, and A.2.10."
+  root_cause: "pform_sva_seq_intersect() rejects unequal fixed lengths; pform_sva_nfa_try_assertion() also declines NFAs whose accept state is unreachable."
+  scope: "Route unequal fixed intersect through the existing NFA product, lower the resulting empty language correctly, preserve the explicit legacy-engine diagnostic, and qualify implication vacuity/consequent failure in both strict editions."
+  next: "Commit and push the locally regression-tested G11 increment to existing PR #412. Snapshot exact-head CI once; do not wait on queued checks, but investigate and fix any reported failure. Keep status unqualified until required CI jobs pass."
+  boundary: "Do not broaden to variable-length intersect, other temporal operators, or full clause-16 closure. PR #412 platform jobs were queued at selection; proceed locally and triage only if a check reports failure."
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
   phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_RUNTIME_49_OF_49_CANDIDATE_COMPILE_PENDING"

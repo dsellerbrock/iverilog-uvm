@@ -1,5 +1,18 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### SVA-INTERSECT-UNEQUAL-LENGTHS — locally regression-tested, CI pending
+
+- **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length
+  operands; they produce no `intersect` match. Implication follows §16.12.7.
+- **Change and evidence:** The default NFA engine preserves the empty language.
+  `tests/sva_nfa/run.sh` passes 64/64; strict legacy passes 1/1; paired strict
+  2017/2023 JSON/VVP passes 2/2. The explicit legacy-engine diagnostic remains.
+  See [focused evidence](../../evidence/sva-intersect-unequal-lengths-20261007/README.md).
+- **State:** Included in draft [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412).
+  Required platform checks are queued/in progress; this is not CI-qualified or
+  closed. Variable/ranged mismatches and broader nested combinator trees remain
+  open.
+
 ### OpenTitan 49-target post-fix census — 2026-09-29
 
 - **Frozen-image result:** **23 PASS / 49** on the pinned OpenTitan source with selected exact-hash overlays and native DPI, up from 18 PASS in the previous raw census. The other 26 are 3 DEBT, 4 compile FAIL, 9 RUNTIME_FAIL, 7 RUNTIME_MEMORY_LIMIT, 2 RUNTIME_TIMEOUT, and 1 MATRIX_ERROR. The [complete 49-row evidence](../../evidence/opentitan-49-post-fixes-20260929/README.md) includes source/compiler hashes and logs.

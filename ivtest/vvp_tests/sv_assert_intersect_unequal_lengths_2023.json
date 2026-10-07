@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_intersect_unequal_lengths.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_assert_intersect_unequal_lengths"
+}
