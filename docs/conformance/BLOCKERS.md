@@ -1,6 +1,6 @@
 # Blockers registry (Level 3 — operational backlog)
 
-### SVA-INTERSECT-UNEQUAL-LENGTHS — locally regression-tested, CI pending
+### SVA-INTERSECT-UNEQUAL-LENGTHS — merged
 
 - **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length
   operands; they produce no `intersect` match. Implication follows §16.12.7.
@@ -8,10 +8,28 @@
   `tests/sva_nfa/run.sh` passes 64/64; strict legacy passes 1/1; paired strict
   2017/2023 JSON/VVP passes 2/2. The explicit legacy-engine diagnostic remains.
   See [focused evidence](../../evidence/sva-intersect-unequal-lengths-20261007/README.md).
-- **State:** Included in draft [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412).
-  Required platform checks are queued/in progress; this is not CI-qualified or
-  closed. Variable/ranged mismatches and broader nested combinator trees remain
-  open.
+- **State:** Merged in [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412)
+  at `7c4aa26e084b0352a0549f4b373a6d2a18b3bb88`. Variable/ranged mismatches and
+  broader nested combinator trees remain open.
+
+### SV-TIMEUNIT-TIMEPRECISION-SYSTEM-FUNCTIONS — locally focused-tested
+
+- **Requirement:** IEEE 1800-2023 §20.4.1 and Syntax 20-3 add integer
+  exponent results for the current design element or an optional hierarchical
+  module/package scope; `$unit` selects the compilation unit and `$root` returns
+  the simulation time unit for both functions. Strict IEEE 1800-2017 rejects
+  these functions.
+- **Failure and fix:** Bare and empty-parentheses calls previously compiled but
+  failed at VVP as undefined functions. Package scope arguments also need their
+  `PPackage` identity retained by the parser. The frontend now resolves immutable
+  design-scope time metadata during elaboration.
+- **Validation:** A macOS ARM64 build and install succeeded. The paired focus
+  passes 3/3 in both legacy and JSON/VVP runners: strict 2017 rejection, 2023
+  exact values for bare, `()`, selected module and nested module, package,
+  `$unit`, `$root`, and rejection of a non-scope argument. This is local
+  evidence; no CI result is claimed.
+- **Boundary:** No timescale declaration parsing, `$time` scaling, `$printtimescale`,
+  or `$timeformat` behavior changed. See [focused evidence](../../evidence/timeunit-functions-20261007/README.md).
 
 ### OpenTitan 49-target post-fix census — 2026-09-29
 

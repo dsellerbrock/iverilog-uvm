@@ -1,17 +1,22 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: "agent/repair-ivtest-gate-410-20261007"
-checkpoint_head: "27fedd536c1b071f69cca1c1f4a9cca08226e596"
+branch: "agent/timeunit-timeprecision-20261007"
+checkpoint_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
 active_ieee_lane:
+  blocker: "SV-TIMEUNIT-TIMEPRECISION-SYSTEM-FUNCTIONS"
+  phase: "FOCUSED_TESTS_GREEN_LOCAL"
+  baseline_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
+  reproducer: "/tmp/sv_timeunit_probe.sv reproduced undefined `$timeunit`/`$timeprecision` at VVP under -g2023. Strict -g2017 now rejects the 2023-only functions; paired values and invalid-argument regressions pass."
+  standards: "IEEE 1800-2023 §20.4.1 and Syntax 20-3 add these functions; IEEE 1800-2017 §20.4 does not define them."
+  root_cause: "The generic expression grammar did not preserve package identity for a 2023 hierarchical scope argument, and the frontend lacked a 2023 edition gate. A narrow PACKAGE_IDENTIFIER production retains PPackage identity; elaboration resolves immutable scope metadata."
+  scope: "Implement 2023 current, module hierarchy, package, $unit, and $root lookup for bare and empty-paren forms; reject non-scope arguments and gate them out of 2017. No VPI registration is needed."
+  next: "Review the full diff and the focused result, then select the next IEEE blocker. Keep this local change with the next 10-fix PR batch."
+  boundary: "Do not alter timescale declarations, existing $time scaling, $printtimescale, or $timeformat. macOS ARM64 focused tests pass locally; do not claim CI qualification."
+completed_ieee_increment:
   blocker: "SVA-INTERSECT-UNEQUAL-LENGTHS"
-  phase: "DOCUMENTED_CI_PENDING"
-  baseline_head: "e487a59fde4f46f1740ab24dd68b84c874384b99"
-  reproducer: "tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv; current strict -g2017/-g2023 compile rejects `(a ##1 b) intersect (c ##2 d)` although IEEE defines it as a legal sequence with no match."
-  standards: "IEEE 1800-2017/2023 §16.9.6, §16.12.7, and A.2.10."
-  root_cause: "pform_sva_seq_intersect() rejects unequal fixed lengths; pform_sva_nfa_try_assertion() also declines NFAs whose accept state is unreachable."
-  scope: "Route unequal fixed intersect through the existing NFA product, lower the resulting empty language correctly, preserve the explicit legacy-engine diagnostic, and qualify implication vacuity/consequent failure in both strict editions."
-  next: "Commit and push the locally regression-tested G11 increment to existing PR #412. Snapshot exact-head CI once; do not wait on queued checks, but investigate and fix any reported failure. Keep status unqualified until required CI jobs pass."
-  boundary: "Do not broaden to variable-length intersect, other temporal operators, or full clause-16 closure. PR #412 platform jobs were queued at selection; proceed locally and triage only if a check reports failure."
+  commit: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
+  pr: "https://github.com/dsellerbrock/iverilog-uvm/pull/412"
+  status: "Merged on 2026-10-07; the next feature branch starts from the merge commit."
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
   phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_RUNTIME_49_OF_49_CANDIDATE_COMPILE_PENDING"
