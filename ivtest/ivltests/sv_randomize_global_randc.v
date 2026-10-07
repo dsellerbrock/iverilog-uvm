@@ -35,13 +35,23 @@ class dynamic_randc_root;
     if (impossible) values[0] == 2047;
   }
 endclass
+class constrained_wide_randc;
+  randc int unsigned value;
+  bit impossible;
+  constraint legal_c {
+    value inside {1, 3, 5};
+    if (impossible) value == 0;
+  }
+endclass
 module main;
   cyclic_root r = new;
   static_node s = new;
   static_struct_node t = new;
   dynamic_randc_root d = new;
+  constrained_wide_randc w = new;
   bit [3:0] seen, shared_seen, struct_seen;
   bit [1024:0] dynamic_seen;
+  bit [7:0] wide_seen;
   bit [1:0] before_parent, before_child;
   bit [10:0] before_dynamic, before_dynamic_child;
   string child_state, struct_child_state;
@@ -102,6 +112,25 @@ module main;
     if (!d.randomize() || d.values.size() != 1 || d.values[0] > 1024
         || d.values[0] != d.child.value || !dynamic_seen[d.values[0]])
       $fatal(1, "dynamic randc did not reset after exhausting its feasible set");
+    w.srandom(32'h1020_3040);
+    repeat (12) begin
+      wide_seen = 0;
+      for (int i = 0; i < 3; i++) begin
+        if (!w.randomize()) $fatal(1, "constrained wide randc failed");
+        if (!(w.value inside {1, 3, 5}))
+          $fatal(1, "constrained wide randc emitted an infeasible value");
+        if (wide_seen[w.value])
+          $fatal(1, "constrained wide randc repeated inside a cycle");
+        wide_seen[w.value] = 1'b1;
+        if (i == 0) begin
+          w.impossible = 1;
+          if (w.randomize()) $fatal(1, "unsatisfiable wide randc succeeded");
+          w.impossible = 0;
+        end
+      end
+      if (wide_seen !== 8'b0010_1010)
+        $fatal(1, "constrained wide randc missed a legal value");
+    end
     $display("PASSED");
   end
 endmodule

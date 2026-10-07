@@ -57,11 +57,14 @@ integral/enum arrays are sampled from referenced leaves without a declared-exten
 covers one, two, and three unpacked dimensions. The array test retains the
 ordered `solve m before q` control. The overall clause remains partial for
 larger dynamic-array domains, fixed-array ranks above three and other shapes,
-direct scalar randc widths above the existing 20-bit history limit, sparse
-randc domains that exceed the 65,536-proposal budget, nested, queue,
-associative, multidimensional, and struct/member aggregate randc forms,
-ordering, additional soft-preference shapes, and weighted `dist`. Direct
-one-dimensional dynamic-array randc elements up to 20 bits are now paired-tested.
+sparse randc domains that exceed the 65,536-proposal budget, graph-coupled,
+static, and unconstrained wide randc values, wide domains above the exact
+enumeration cap, nested, queue, associative, multidimensional, and struct/member
+aggregate randc forms, ordering, additional soft-preference shapes, and weighted
+`dist`. Non-static single-owner direct scalar randc properties 21–64 bits now
+cycle only when the complete feasible set is exactly enumerated and contains no
+more than 1,024 values. Direct one-dimensional dynamic-array randc elements up
+to 20 bits are paired-tested.
 The direct scalar constrained
 randc fallback now samples uniformly from unseen values using hard-solver
 checks and proves cycle exhaustion before reset. Paired strict 2017/2023 runs
@@ -246,6 +249,13 @@ Fix 21 adds direct one-dimensional dynamic-array randc elements to the graph
 sampler and commits the first selected value after initial array growth. Other
 cyclic soft combinations and nested, queue, associative, multidimensional, and
 struct/member randc forms remain open.
+Fix 22 adds a bounded sparse-history path for non-static direct scalar randc
+properties through 64 bits when the exact feasible set contains at most 1,024
+values. Paired strict 2017/2023 cycles include an unsatisfiable retry before
+exhaustion and verify reset. Histories cap at 65,536 values per property;
+graph-coupled and other wide randc forms remain open.
+The [focused evidence](../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#bounded-sparse-history-for-constrained-wide-randc-fix-22)
+records the paired result and source-built image hashes.
 The 128-bit nested fixed-element check also passes through its warned,
 non-uniform fallback. Larger domains and other unsupported solver shapes
 remain open; this is not full IEEE constraint-solver qualification. See

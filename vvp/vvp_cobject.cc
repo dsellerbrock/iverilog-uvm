@@ -402,14 +402,9 @@ void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
       if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
 }
 
-// R1: committed randc state and per-randomize transaction staging. Cycle
-// period = 2^width, capped at
-// 20 bits (a 2^20-entry, 128KB std::vector<bool> bitmap per instance --
-// the old 16-bit/65536-entry cap was stale conservatism; 128KB is a
-// trivial per-object cost for the guarantee of no repeat before a full
-// cycle). Wider properties fall back to plain rand (period reported as
-// 0); elab_sig.cc warns at compile time, by name, when that degrade
-// happens -- keep this bound in sync with the literal there.
+// Dense randc cycle history is capped at 20 bits (128KB per property).
+// Wider scalar properties can use a bounded sparse history when their full
+// feasible set is exactly enumerated by the solver.
 uint64_t vvp_cobject::randc_period(size_t pid, size_t leaf) const
 {
       if (pid >= defn_->property_count()) return 0;
@@ -428,8 +423,8 @@ const std::vector<bool>*vvp_cobject::randc_history_find_(
 	    return &defn_->static_randc_history(pid, key.leaf);
 
       std::map<randc_key_t, std::vector<bool> >::const_iterator it
-	    = randc_history_.find(key);
-      return it == randc_history_.end() ? 0 : &it->second;
+	    = randc_history_.dense.find(key);
+	return it == randc_history_.dense.end() ? 0 : &it->second;
 }
 
 std::vector<bool>&vvp_cobject::randc_history_mutable_(const randc_key_t&key)
@@ -437,7 +432,23 @@ std::vector<bool>&vvp_cobject::randc_history_mutable_(const randc_key_t&key)
       size_t pid = key.pid;
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
 	    return defn_->static_randc_history(pid, key.leaf);
-      return randc_history_[key];
+      return randc_history_.dense[key];
+}
+
+const std::vector<uint64_t>*vvp_cobject::randc_sparse_history_find_(
+	    const randc_key_t&key) const
+{
+      if (key.pid < defn_->property_count()
+	  && defn_->property_is_static(key.pid)) return 0;
+      std::map<randc_key_t, std::vector<uint64_t> >::const_iterator it
+	    = randc_history_.sparse.find(key);
+      return it == randc_history_.sparse.end() ? 0 : &it->second;
+}
+
+std::vector<uint64_t>&vvp_cobject::randc_sparse_history_mutable_(
+	    const randc_key_t&key)
+{
+      return randc_history_.sparse[key];
 }
 
 bool vvp_cobject::randc_history_full_(const std::vector<bool>&hist,
@@ -482,6 +493,7 @@ static bool randc_value_to_uint64_(const vvp_vector4_t&value,
 	    uint64_t&actual)
 {
       actual = 0;
+      if (value.size() > 64) return false;
       for (unsigned bit = 0 ; bit < value.size() ; bit += 1) {
 	    vvp_bit4_t digit = value.value(bit);
 	    if (digit == BIT4_1)
@@ -523,7 +535,9 @@ bool vvp_cobject::randc_transaction_commit()
 	    randc_key_t key;
 	    uint64_t period;
 	    uint64_t actual;
+	    bool sparse = false;
 	    randc_pending_t pending;
+	    std::vector<uint64_t> sparse_history;
 	    std::vector<bool>*container_history = 0;
       };
       std::vector<resolved_randc_t> resolved;
@@ -534,8 +548,6 @@ bool vvp_cobject::randc_transaction_commit()
       for (std::map<randc_key_t, randc_pending_t>::const_iterator it =
 		 pending.properties.begin(); it != pending.properties.end(); ++it) {
 	    uint64_t period = randc_period(it->first.pid, it->first.leaf);
-	    if (period == 0) continue;
-
 	    vvp_vector4_t val;
 	    get_vec4(it->first.pid, val, it->first.leaf);
 	    uint64_t actual = 0;
@@ -544,13 +556,34 @@ bool vvp_cobject::randc_transaction_commit()
 			     << "property '" << defn_->property_name(it->first.pid)
 			     << "' leaf " << it->first.leaf
 			     << "; history transaction rolled back" << endl;
-			return false;
+			 return false;
+	    }
+	    bool sparse = period == 0;
+	    if (sparse && (it->first.pid >= defn_->property_count()
+		  || defn_->property_is_static(it->first.pid)
+		  || !defn_->property_dimensions(it->first.pid).empty()
+		  || val.size() <= 20 || val.size() > 64
+		  || !it->second.feasible_domain
+		  || it->second.feasible.empty()
+		  || it->second.feasible.size() > 1024)) {
+		  cerr << "warning: successful randomize has an unsupported wide "
+		       << "randc history transaction for property '"
+		       << defn_->property_name(it->first.pid) << "'" << endl;
+		  return false;
+	    }
+	    if (sparse && find(it->second.feasible.begin(),
+		  it->second.feasible.end(), actual) == it->second.feasible.end()) {
+		  cerr << "warning: successful randomize produced a randc value "
+		       << "outside its enumerated feasible set for property '"
+		       << defn_->property_name(it->first.pid) << "'" << endl;
+		  return false;
 	    }
 
 	    resolved_randc_t item;
 	    item.key = it->first;
 	    item.period = period;
 	    item.actual = actual;
+	    item.sparse = sparse;
 	    item.pending = it->second;
 	    resolved.push_back(item);
       }
@@ -585,7 +618,48 @@ bool vvp_cobject::randc_transaction_commit()
 	    resolved.push_back(item);
       }
 
-      for (const resolved_randc_t&item : resolved) {
+      // Prepare bounded sparse histories before mutating any history bank.
+      // This preserves the transaction's all-or-nothing commit guarantee
+      // when a changing domain would exceed the sparse-history ceiling.
+      for (resolved_randc_t&item : resolved) {
+	    if (!item.sparse) continue;
+	    const std::vector<uint64_t>*current =
+		  randc_sparse_history_find_(item.key);
+	    if (current) item.sparse_history = *current;
+	    bool all_used = !item.pending.feasible.empty();
+	    for (uint64_t value : item.pending.feasible)
+		  if (find(item.sparse_history.begin(), item.sparse_history.end(),
+			   value) == item.sparse_history.end()) {
+			all_used = false;
+			break;
+		  }
+	    if (item.pending.reset_cycle || all_used) {
+		  for (uint64_t value : item.pending.feasible)
+			while (true) {
+			      std::vector<uint64_t>::iterator used =
+				    find(item.sparse_history.begin(),
+					 item.sparse_history.end(), value);
+			      if (used == item.sparse_history.end()) break;
+			      item.sparse_history.erase(used);
+			}
+	    }
+	    if (find(item.sparse_history.begin(), item.sparse_history.end(),
+		     item.actual) == item.sparse_history.end())
+		  item.sparse_history.push_back(item.actual);
+	    if (item.sparse_history.size() > 65536) {
+		  cerr << "ERROR: sparse randc history exceeded 65536 values for "
+		       << "property '" << defn_->property_name(item.key.pid)
+		       << "'." << endl;
+		  return false;
+	    }
+      }
+
+      for (resolved_randc_t&item : resolved) {
+	    if (item.sparse) {
+		  randc_sparse_history_mutable_(item.key).swap(
+			  item.sparse_history);
+		  continue;
+	    }
 	    std::vector<bool>&hist = item.container_history
 		  ? *item.container_history : randc_history_mutable_(item.key);
 	    if (hist.size() != item.period)
@@ -641,6 +715,12 @@ void vvp_cobject::randc_history_restore(const randc_history_state_t&state)
 bool vvp_cobject::randc_seen(size_t pid, uint64_t val, size_t leaf) const
 {
       uint64_t period = randc_period(pid, leaf);
+	  if (period == 0) {
+	    const std::vector<uint64_t>*sparse =
+		  randc_sparse_history_find_(randc_key_t(pid, leaf));
+	    return sparse && find(sparse->begin(), sparse->end(), val)
+		  != sparse->end();
+	  }
       const std::vector<bool>*hist =
 	    randc_history_find_(randc_key_t(pid, leaf));
       if (!hist || val >= hist->size()) return false;
@@ -671,8 +751,17 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
                                        size_t leaf, bool reset_cycle)
 {
       uint64_t period = randc_period(pid, leaf);
-      if (period == 0) return;
-      if (val >= period) return;
+      bool sparse = period == 0;
+      if (sparse) {
+	    if (pid >= defn_->property_count() || defn_->property_is_static(pid)
+		|| !defn_->property_dimensions(pid).empty()
+		|| feasible.empty() || feasible.size() > 1024) return;
+	    vvp_vector4_t current;
+	    get_vec4(pid, current, leaf);
+	    if (current.size() <= 20 || current.size() > 64
+		|| find(feasible.begin(), feasible.end(), val) == feasible.end())
+		  return;
+      } else if (val >= period) return;
       if (randc_transactions_.empty()) {
 	    cerr << "internal error: constrained randc mark outside randomize "
 		 << "transaction" << endl;

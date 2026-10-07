@@ -11223,6 +11223,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (dist_resolved_vars.count(pv.var)) continue;
 	    bool fallback_managed = dist_fallback_vars.count(pv.var)
 		  || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0);
+	    bool property_randc = builder.type(pv.idx)->property_is_randc(
+		  builder.local_index(pv.idx));
 
 	    vector<uint64_t> feasible;
 	    bool enumerated = false;
@@ -11235,6 +11237,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!fallback_managed && !enumerated)
 		  enumerated = z3_enumerate_sparse_wide_domain_(
 			ctx, base, pv.var, pv.width, feasible);
+	    if (enumerated && property_randc && pv.width > 20
+		&& (pv.width > 64
+		    || builder.type(pv.idx)->property_is_static(
+			  builder.local_index(pv.idx))
+		    || !builder.type(pv.idx)->property_dimensions(
+			  builder.local_index(pv.idx)).empty()
+		    || feasible.size() > 1024)) {
+		  randc_sampling_failed = true;
+		  randc_sampling_error = "wide randc requires a non-static scalar "
+			"domain of at most 1024 exactly enumerated values";
+		  return;
+	    }
 	    if (enumerated) {
 		  uint64_t chosen;
 		  if (builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
@@ -11267,8 +11281,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	  continue;
 	    }
 
-	    bool property_randc = builder.type(pv.idx)->property_is_randc(
-		  builder.local_index(pv.idx));
+	    if (!enumerated && property_randc && !fallback_managed
+		&& pv.width > 20) {
+		  Z3_lbool status = Z3_solver_check(ctx, base);
+		  if (status != Z3_L_FALSE) {
+			randc_sampling_failed = true;
+			randc_sampling_error = status == Z3_L_UNDEF
+			      ? "wide randc feasibility could not be decided exactly"
+			      : "wide randc feasible domain is not exactly enumerable";
+			return;
+		  }
+	    }
+
 	    // The exact global solve keeps all hard tuple constraints in `base`;
 	    // use the same feasible-value randc sampler when full enumeration caps out.
 	    if (!enumerated && property_randc && !fallback_managed) {

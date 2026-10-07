@@ -653,3 +653,33 @@ elements through the existing 20-bit history and 65,536-proposal limits.
 Nested, queue, associative, multidimensional, and struct/member aggregate
 forms remain open. The full registered uniformity suites remain deferred to
 the ten-fix checkpoint.
+
+## Bounded sparse history for constrained wide `randc` (fix 22)
+
+`randc int unsigned value` constrained to `{1, 3, 5}` previously exceeded the
+20-bit dense-history limit and repeated a legal value before completing the
+three-value cycle. The paired [global randc regression](../../ivtest/ivltests/sv_randomize_global_randc.v)
+now checks 12 full cycles and injects an unsatisfiable randomize call after the
+first draw of each cycle. It verifies no repeats, no history consumption on
+failure, and reset after exhaustion in strict 2017 and 2023.
+
+The runtime stores a sparse set of used values only for non-static direct
+scalar leaves through 64 bits when the hard solver exactly enumerates the
+complete feasible domain and finds at most 1,024 values. At commit, it builds
+the next history before changing any bank, removes the current feasible set
+only when that set is exhausted, then commits the selected value. The existing
+object transaction snapshot restores this map if a parent graph randomize
+later fails. Each property is capped at 65,536 stored values; overflow fails
+the randomize transaction before history changes. Static, unconstrained,
+graph-coupled, larger, and aggregate wide forms remain unsupported and retain
+their explicit failure behavior.
+
+The paired `sv_randomize_global_randc` test prints `PASSED` under both strict
+editions on source-built ARM64 VVP SHA-256
+`e8628f5e9c3396deeb047d44dce53e1a50724481099659008c83e7d7298ef262`, using
+source-built `ivl` SHA-256
+`82b75d9d28cc122faa8c7839330e346993eb9b8a84e1147d0b0dff93bdba9d51`. The
+existing [wide-history negative control](../../ivtest/ivltests/sv_randomize_global_history_fail.v)
+also prints `PASSED` in both editions; it confirms graph-coupled and
+container-wide forms still reject. The full registered uniformity suites were
+not run on this incremental image.

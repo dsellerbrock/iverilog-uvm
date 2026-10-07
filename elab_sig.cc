@@ -2366,13 +2366,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		  des->errors += 1;
 	    }
 
-	      // C1 (Phase 62a) capped randc's cycle bitmap at a 16-bit
-	      // width (2^16 entries) and silently degraded anything wider
-	      // to plain (non-cyclic) rand -- no diagnostic at all. The cap
-	      // is now 20 bits (2^20-entry bitmap, 128KB: vvp/vvp_cobject.cc
-	      // randc_period() -- keep this bound in sync with that one),
-	      // but the same silent-degrade risk exists beyond THAT bound,
-	      // so name it here instead of letting it pass quietly.
+	    // Dense randc history is capped at 20 bits. The runtime also
+	    // supports some wider constrained scalar leaves when their exact
+	    // feasible set is small enough to enumerate; other wide forms
+	    // cannot guarantee a complete cycle and must not pass quietly.
 	    if (!bad_type && cur->second.qual.test_randc() && use_type) {
 	      long pw = class_randc_property_leaf_width_(use_type);
 	      const long randc_cap_bits = 20;
@@ -2382,9 +2379,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		cerr << cur->second.get_fileline() << ": warning: randc property '"
 			     << cur->first << "' of class " << get_name()
 			     << " has a " << pw << "-bit cyclic leaf, beyond the "
-			     << randc_cap_bits << "-bit randc cycle-tracking cap; "
-			     << "it will randomize as plain (non-cyclic) rand instead "
-			     << "of guaranteeing a full permutation before any repeat."
+			     << randc_cap_bits << "-bit dense history limit; non-static "
+			     << "constrained scalar leaves up to 64 bits cycle only when "
+			     << "their complete feasible set has at most 1024 values, "
+			     << "and other wide forms cannot guarantee a full cycle."
 			     << endl;
 		  }
 	    }

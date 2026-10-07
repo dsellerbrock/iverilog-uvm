@@ -96,8 +96,10 @@ class vvp_cobject : public vvp_object {
 		  return pid < that.pid || (pid == that.pid && leaf < that.leaf);
 	    }
       };
-      typedef std::map<randc_key_t, std::vector<bool> >
-	    randc_history_state_t;
+      struct randc_history_state_t {
+	    std::map<randc_key_t, std::vector<bool> > dense;
+	    std::map<randc_key_t, std::vector<uint64_t> > sparse;
+      };
 
       explicit vvp_cobject(const class_type*defn);
       ~vvp_cobject() override;
@@ -340,6 +342,10 @@ class vvp_cobject : public vvp_object {
 
       const std::vector<bool>*randc_history_find_(const randc_key_t&key) const;
       std::vector<bool>&randc_history_mutable_(const randc_key_t&key);
+      const std::vector<uint64_t>*randc_sparse_history_find_(
+	    const randc_key_t&key) const;
+      std::vector<uint64_t>&randc_sparse_history_mutable_(
+	    const randc_key_t&key);
       static bool randc_history_full_(const std::vector<bool>&hist,
 				       uint64_t period);
       bool randc_container_state_(size_t pid, size_t word, size_t position,
