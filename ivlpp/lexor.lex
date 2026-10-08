@@ -79,6 +79,8 @@ static int ifdef_expr_invalid = 0;
 static void ifdef_expr_append(const char* text, size_t length);
 static void ifdef_expr_begin(enum ifdef_expr_kind kind);
 static int ifdef_expr_finish(void);
+static int ifdef_is_defined_escaped_name(const char* name, size_t length);
+static void ifdef_output_whitespace(const char* text, size_t length);
 
 struct ifdef_expr_parser {
     const char* text;
@@ -107,6 +109,18 @@ static void ifdef_expr_skip_space(struct ifdef_expr_parser* parser)
            parser->text[parser->pos] == '\n' ||
            parser->text[parser->pos] == '\r')
 	  parser->pos += 1;
+}
+
+static int ifdef_is_defined_escaped_name(const char* name, size_t length)
+{
+    char* copy = malloc(length + 1);
+    int result;
+    assert(copy != 0);
+    memcpy(copy, name, length);
+    copy[length] = 0;
+    result = is_defined(copy);
+    free(copy);
+    return result;
 }
 
 static int ifdef_expr_identifier_start(char ch)
@@ -154,11 +168,10 @@ static int ifdef_expr_parse_unary(struct ifdef_expr_parser* parser)
 	  name[length] = 0;
 	  result = is_defined(name);
 	  free(name);
-    } else if (parser->text[parser->pos] == '\\') {
+	} else if (parser->text[parser->pos] == '\\') {
 	  /* The LRM excludes the escape and terminating whitespace from the name. */
 	  size_t start = ++parser->pos;
 	  size_t length;
-	  char* name;
 	  while ((unsigned char)parser->text[parser->pos] >= 33 &&
 		 (unsigned char)parser->text[parser->pos] <= 126)
 		parser->pos += 1;
@@ -167,12 +180,7 @@ static int ifdef_expr_parse_unary(struct ifdef_expr_parser* parser)
 		parser->invalid = 1;
 		result = 0;
 	  } else {
-		name = malloc(length + 1);
-		assert(name != 0);
-		memcpy(name, parser->text + start, length);
-		name[length] = 0;
-		result = is_defined(name);
-		free(name);
+		result = ifdef_is_defined_escaped_name(parser->text + start, length);
 	  }
     } else {
 	  parser->invalid = 1;
@@ -349,6 +357,21 @@ struct include_stack_t
     char* comment;
 };
 
+static void ifdef_output_whitespace(const char* text, size_t length)
+{
+    size_t idx;
+    for (idx = 0; idx < length; idx += 1) {
+	  if (text[idx] == '\n' || text[idx] == '\r') {
+		if (idx + 1 < length &&
+		    ((text[idx] == '\n' && text[idx + 1] == '\r') ||
+		     (text[idx] == '\r' && text[idx + 1] == '\n')))
+		      idx += 1;
+		istack->lineno += 1;
+		fputc('\n', yyout);
+	  }
+    }
+}
+
 static unsigned get_line(struct include_stack_t* isp);
 static const char *get_path(struct include_stack_t* isp);
 static void emit_pathline(struct include_stack_t* isp);
@@ -514,6 +537,8 @@ static int macro_expansion_limit_reported = 0;
 %x ELSE_SUPR
 
 W        [ \t\b\f]+
+NL       (\r\n|\n\r|\n|\r)
+WNL      [ \t\b\f\r\n]+
 
 /* The grouping parentheses are necessary for compatibility with
  * older versions of flex (at least 2.5.31); they are supposed to
@@ -770,9 +795,47 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
     yy_push_state(IFDEF_NAME);
 }
 
+`ifdef{NL} {
+    ifdef_enter();
+    yy_push_state(IFDEF_NAME);
+    ifdef_output_whitespace(yytext + 6, yyleng - 6);
+}
+
+`ifdef"/*" {
+    ifdef_enter();
+    yy_push_state(IFDEF_NAME);
+    comment_enter = YY_START;
+    BEGIN(IFCCOMMENT);
+}
+
+`ifdef"//" {
+    ifdef_enter();
+    yy_push_state(IFDEF_NAME);
+    yyless(yyleng - 2);
+}
+
 `ifndef{W} {
     ifdef_enter();
     yy_push_state(IFNDEF_NAME);
+}
+
+`ifndef{NL} {
+    ifdef_enter();
+    yy_push_state(IFNDEF_NAME);
+    ifdef_output_whitespace(yytext + 7, yyleng - 7);
+}
+
+`ifndef"/*" {
+    ifdef_enter();
+    yy_push_state(IFNDEF_NAME);
+    comment_enter = YY_START;
+    BEGIN(IFCCOMMENT);
+}
+
+`ifndef"//" {
+    ifdef_enter();
+    yy_push_state(IFNDEF_NAME);
+    yyless(yyleng - 2);
 }
 
 <IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifdef{W}  |
@@ -781,9 +844,48 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 <IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifdef"("  |
 <IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifndef"(" { ifdef_enter(); yy_push_state(IFDEF_SUPR); yyless(yyleng - 1); }
 
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifdef{NL} {
+    ifdef_enter();
+    yy_push_state(IFDEF_SUPR);
+    ifdef_output_whitespace(yytext + 6, yyleng - 6);
+}
+
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifndef{NL} {
+    ifdef_enter();
+    yy_push_state(IFDEF_SUPR);
+    ifdef_output_whitespace(yytext + 7, yyleng - 7);
+}
+
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifdef"/*"  |
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifndef"/*" {
+    ifdef_enter();
+    yy_push_state(IFDEF_SUPR);
+    comment_enter = YY_START;
+    BEGIN(IFCCOMMENT);
+}
+
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifdef"//"  |
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifndef"//" {
+    ifdef_enter();
+    yy_push_state(IFDEF_SUPR);
+    yyless(yyleng - 2);
+}
+
 <IFDEF_TRUE>`elsif{W}  |
 <IFDEF_SUPR>`elsif{W}  { prev_state = YYSTATE; BEGIN(ELSIF_SUPR); }
 <IFDEF_FALSE>`elsif{W} { prev_state = YYSTATE; BEGIN(ELSIF_NAME); }
+
+<IFDEF_TRUE>`elsif{NL}  |
+<IFDEF_SUPR>`elsif{NL}  { prev_state = YYSTATE; BEGIN(ELSIF_SUPR); ifdef_output_whitespace(yytext + 6, yyleng - 6); }
+<IFDEF_FALSE>`elsif{NL} { prev_state = YYSTATE; BEGIN(ELSIF_NAME); ifdef_output_whitespace(yytext + 6, yyleng - 6); }
+
+<IFDEF_TRUE>`elsif"/*"  |
+<IFDEF_SUPR>`elsif"/*"  { prev_state = YYSTATE; BEGIN(ELSIF_SUPR); comment_enter = YY_START; BEGIN(IFCCOMMENT); }
+<IFDEF_FALSE>`elsif"/*" { prev_state = YYSTATE; BEGIN(ELSIF_NAME); comment_enter = YY_START; BEGIN(IFCCOMMENT); }
+
+<IFDEF_TRUE>`elsif"//"  |
+<IFDEF_SUPR>`elsif"//"  { prev_state = YYSTATE; BEGIN(ELSIF_SUPR); yyless(yyleng - 2); }
+<IFDEF_FALSE>`elsif"//" { prev_state = YYSTATE; BEGIN(ELSIF_NAME); yyless(yyleng - 2); }
 
 <IFDEF_TRUE>`elsif"("  |
 <IFDEF_SUPR>`elsif"("  { prev_state = YYSTATE; BEGIN(ELSIF_SUPR); yyless(yyleng - 1); }
@@ -812,6 +914,10 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
     ifdef_expr_begin(IFDEF_EXPR_ELSIF_SUPPRESSED);
     BEGIN(IFDEF_EXPR);
 }
+
+<IFDEF_NAME,IFNDEF_NAME,ELSIF_NAME,ELSIF_SUPR>{WNL} { ifdef_output_whitespace(yytext, yyleng); }
+<IFDEF_NAME,IFNDEF_NAME,ELSIF_NAME,ELSIF_SUPR>"//"[^\r\n]* { }
+<IFDEF_NAME,IFNDEF_NAME,ELSIF_NAME,ELSIF_SUPR>"/*" { comment_enter = YY_START; BEGIN(IFCCOMMENT); }
 
 <IFDEF_EXPR>\\[!-~]+ { ifdef_expr_append(yytext, yyleng); }
 <IFDEF_EXPR>[a-zA-Z_][a-zA-Z0-9_$]* { ifdef_expr_append(yytext, yyleng); }

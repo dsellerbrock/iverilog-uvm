@@ -3968,7 +3968,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   passed, 0 failed, 2 not implemented, 3 expected failures, and a clean name
   diff; the bundled VPI suite passes 131/131. The workflow was still running
   on macOS, MINGW64, and CLANG64 when captured, so no all-platform result is
-  claimed.
+  claimed. PR #467 on issue #460 repeated the failure on Ubuntu 22.04 job
+  `113303751524` and Ubuntu 24.04 job `113303751404` (workflow
+  `37775071993`): both report 152/153 negative tests, while the legacy
+  name-diff gate is clean and bundled VPI passes 131/131. A local replay on
+  the #460 worktree identifies the sole case as `m9b_intersect_unequal_len`;
+  the CI logs report the count but do not name that case. At the last snapshot,
+  macOS was queued and the three Windows jobs were still in progress.
 - **Local identification:** The available source-built compiler's negative
   runner reports its sole failure as `m9b_intersect_unequal_len`. That fixture
   asserts unequal-length SVA `intersect` operands must be rejected. The PR #412

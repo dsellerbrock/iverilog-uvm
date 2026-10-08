@@ -10,6 +10,30 @@ module test;
   initial begin
     errors = 0;
 
+`ifdef/* directive comment */(A)
+`else
+    errors = errors + 1;
+`endif
+
+`ifdef
+(A)
+`else
+    errors = errors + 1;
+`endif
+
+`ifndef
+(A)
+    errors = errors + 1;
+`endif
+
+`ifdef (C)
+    errors = errors + 1;
+`elsif
+(A)
+`else
+    errors = errors + 1;
+`endif
+
 `ifdef (\foo )
 `else
     errors = errors + 1;
@@ -48,7 +72,7 @@ module test;
     errors = errors + 1;
 `endif
 
-`ifndef(A && !B)
+`ifndef/* directive comment */(A && !B)
     errors = errors + 1;
 `endif
 
@@ -69,10 +93,10 @@ module test;
 
 `ifdef (C)
     errors = errors + 1;
-`ifdef(A)
+`ifdef/* nested directive comment */(A)
     errors = errors + 1;
 `endif
-`elsif(A && !B)
+`elsif/* directive comment */(A && !B)
 `elsif(A)
     errors = errors + 1;
 `else

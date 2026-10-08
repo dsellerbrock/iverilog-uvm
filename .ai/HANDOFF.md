@@ -1,43 +1,52 @@
 # Compiler campaign handoff — 2026-10-08
 
-The issue checkout sheet is [ISSUE_CHECKOUT.csv](ISSUE_CHECKOUT.csv). Before
-starting a new issue, update its owner, state, branch/PR, file boundary, and
-next action there and commit the checkout. Keep implementation authorization
-in [ACTIVE_WORK.yaml](ACTIVE_WORK.yaml), not in the sheet.
-
 ## Active task
 
-Issue #460, IEEE 1800-2023 §22.5 parenthesized conditional-compilation
-expressions, on `agent/ieee-ifdef-parenthesized-20261008`. The branch starts at
-fresh `origin/main` `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. The driver now
-passes `-g2023` to `ivlpp`; parenthesized `ifdef`/`ifndef`/`elsif` expressions
-are edition-gated. IEEE 1800-2023 §22.5 token separation also permits the
-opening parenthesis to directly follow `ifdef`, `ifndef`, or `elsif`; the
-lexer now handles those adjacent forms, including nested suppressed branches.
-The 2017 adjacent-expression form still rejects. The 2023 expression parser
-accepts simple and escaped identifiers, including an escaped name containing
-operator punctuation. Focused 2017/2023 cases pass 3/3 in the legacy and JSON
-runners; neighboring macro checks pass 28/28 legacy and 14/14 JSON. See the clause record in
-`docs/conformance/matrices/ieee1800_2017_clause_matrix.md` and the exact results
-in `ACTIVE_WORK.yaml`.
+Issue #460: IEEE 1800-2023 §22.5 parenthesized conditional-compilation
+expressions. Work in `agent/ieee-ifdef-parenthesized-20261008`, based on fresh
+`origin/main` `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft PR #467 targets
+`main`.
 
-The full root `make -j2` passed before the escaped-identifier follow-up; the
-current `make -C ivlpp -j2` and `make install` pass. System Bison 2.3 alone rejects
-the unchanged `parse.y:2236` `%destructor`. The conflict counts match clean
-`origin/main`: 574 shift/reduce and 1,122 reduce/reduce. Draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467)
-targets `main`; the current local escaped-identifier follow-up is not yet
-committed. The latest CI run is on an earlier head and is not the qualification
-target. Verify the pushed PR head across all six platforms; CI qualification is
-not yet established.
+The driver passes the selected generation to `ivlpp`; expression conditions
+for `ifdef`, `ifndef`, and `elsif` are enabled only for 2023. The local change
+also accepts comments and line breaks between a directive and `(`, per §22.5
+token separation, including nested suppressed branches. The fixture covers
+simple and escaped identifiers, an escaped name containing operator
+punctuation, all operators, precedence, nesting, comments, line breaks, and
+plain-identifier controls. No `parse.y` changes.
 
-## Next
+## Current verification
 
-Commit and push escaped-identifier support and its evidence updates, then inspect
-the new exact-head CI after it has had time to run. Investigate any reported
-failures deeply. Merge and advance to the next IEEE ticket only after all six
-required checks are green; do not repeatedly poll unchanged CI.
+- `make -C ivlpp -j2 && make install`: passes after the current lexer change.
+- Focused legacy and JSON lists: 3/3 each, including the directive comment and
+  line-break cases.
+- Neighboring macro definition legacy list: 28/28; JSON/VVP list: 8/8.
+- Negative suite: 152/153 locally. Its only failure is
+  `m9b_intersect_unequal_len`, an unrelated SVA case already recorded as
+  DD-107. Do not fix it under #460.
+- Bison conflicts are unchanged from clean `origin/main`: 574 shift/reduce and
+  1,122 reduce/reduce.
 
-Keep the checkout limit at three. Preserve dirty
-`agent/timeunit-timeprecision-20261007` and the canonical `main` checkout with
-the shared graph. Do not select DD-107 from the previous package-call ticket;
-it remains triage-pending and out of scope for issue #460.
+## CI and next action
+
+Pushed PR head `812c2c364cdf655f1125406a3f656cab8ee12549` run
+`37775071993` failed the Ubuntu 22.04 and 24.04 hard gates at the negative
+suite (152/153). Both logs show a clean ivtest name-diff gate and bundled VPI
+131/131. The local replay identifies DD-107's `m9b_intersect_unequal_len`;
+the CI log only reports the suite count. At the last snapshot macOS was queued
+and MINGW64, UCRT64, and CLANG64 were still running.
+
+The uncommitted follow-up includes token-separator handling in
+`ivlpp/lexor.lex`, its regression in
+`ivtest/ivltests/sv_ifdef_expression_2023.v`, and refreshed active-handoff and
+DD-107 evidence. Focused tests pass. The PR body still needs the CI update.
+Commit and push this in-scope follow-up, then inspect the new exact-head CI
+once. Keep PR #467 draft; do not merge or call it CI-qualified while a
+required check fails.
+
+## Worktree boundary
+
+Three checkouts remain. Reuse the existing feature worktree; do not create a
+new one. Preserve dirty `agent/timeunit-timeprecision-20261007` and canonical
+`main` with the shared graph. Do not select DD-107 as the next blocker; it is
+record-only and outside #460.
