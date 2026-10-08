@@ -3996,8 +3996,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   accepts the legal form; `IVL_SVA_LEGACY=1` preserves the explicit unsupported-
   lowering diagnostic. The full negative suite passes locally, 153/153.
 - **Triage status:** The correction is on main-based PR #467. The integrated
-  exact head `dc7bea1c76b51e9f6acd91fc31c2687eb7170633` has run
-  `37821537530` queued on all six platforms; do not claim the hard gate
+  exact head `cf9b27366ed65259ffa8c0ac50d626deb05127c0` has run
+  `37824513181` queued on all six platforms; do not claim the hard gate
   qualified until that exact-head run passes. PR #466 remains on its earlier
   failed head and should be reassessed after the shared correction is validated.
 

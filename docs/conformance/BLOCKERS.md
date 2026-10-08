@@ -2,12 +2,12 @@
 
 ### IEEE-1800-ESCAPED-IFDEF-IDENTIFIERS — issue #468 (reproduced)
 
-- **State:** Focused implementation and permanent regressions are in the working tree for existing draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which already targets `main` for issue #460. The two issues stay separately tracked; no additional PR is opened.
+- **State:** Focused implementation and permanent regressions are pushed in commit `cf9b27366ed65259ffa8c0ac50d626deb05127c0` to existing draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which targets `main` and also carries #460. The two issues stay separately tracked; no additional PR is opened.
 - **Requirement:** IEEE 1800-2017/2023 §22.5 Syntax 22-5 uses `text_macro_identifier`; §5.6.1 defines escaped identifiers as a leading backslash followed by printable ASCII and terminated by whitespace. The backslash and terminator are not part of the macro name.
 - **Failure:** A self-authored `\foo` macro definition and `` `ifdef \foo`` condition reports `` `ifdef without a macro name`` and selects no branch under strict `-g2017` and `-g2023`. Punctuation-bearing escaped names must remain one identifier through the terminator.
 - **Root cause:** The plain-name `IFDEF_NAME`, `IFNDEF_NAME`, `ELSIF_NAME`, and `ELSIF_SUPR` lexer states accept simple identifiers only. Their fallback treats `\` as a missing name, even though definitions and 2023 parenthesized expressions already process escaped names.
 - **Scope:** Add plain escaped-name handling for `ifdef`, `ifndef`, and `elsif`; paired edition tests for defined, undefined, punctuation, terminator, and malformed cases. Parenthesized-expression semantics remain #460.
-- **Validation:** Baseline reducer fails in both editions. After a forced ivlpp rebuild/install, the new legacy focus passes 3/3 and JSON focus 3/3; neighboring macro-definition tests pass 28/28 legacy and 8/8 JSON; #460 expression tests pass 3/3 in each runner. These are local results; exact-head CI has not run for this increment.
+- **Validation:** Baseline reducer fails in both editions. After a forced ivlpp rebuild/install, the new legacy focus passes 3/3 and JSON focus 3/3; neighboring macro-definition tests pass 28/28 legacy and 8/8 JSON; #460 expression tests pass 3/3 in each runner. These are local results. Exact-head run [37824513181](https://github.com/dsellerbrock/iverilog-uvm/actions/runs/37824513181) is queued on all six platforms; no CI pass is claimed.
 
 ### IEEE-1800-PARENTHESIZED-IFDEF-EXPRESSIONS — issue #460 (locally validated)
 
@@ -46,7 +46,7 @@
   reduce/reduce conflicts on both `origin/main` and this branch. See the
   [clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-2023-225-parenthesized-conditional-expressions).
 - **Next:** Issue #460 and the DD-107 repair are pushed to PR #467 at
-  `dc7bea1c76b51e9f6acd91fc31c2687eb7170633`. Run 37821537530 has all six
+  `cf9b27366ed65259ffa8c0ac50d626deb05127c0`. Run 37824513181 has all six
   platform jobs queued. Do not call CI qualified or merge while pending.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call

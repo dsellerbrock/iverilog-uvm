@@ -7,10 +7,11 @@ Issue #468: accept escaped `text_macro_identifier` names in ordinary
 The work is on `agent/ieee-ifdef-parenthesized-20261008`, which updates draft
 PR #467 to `main`; #460 remains a separately tracked change in that PR.
 
-`ivlpp/lexor.lex` recognizes escaped names in the four plain conditional
-states, requires the whitespace terminator without consuming it, and removes
-the leading backslash for macro lookup. Punctuation inside the name is
-preserved. The no-terminator case remains an error. No parser grammar change.
+Commit `cf9b27366ed65259ffa8c0ac50d626deb05127c0` recognizes escaped names
+in the four plain conditional states, requires the whitespace terminator
+without consuming it, and removes the leading backslash for macro lookup.
+Punctuation inside the name is preserved. The no-terminator case remains an
+error. No parser grammar change.
 
 ## Verification
 
@@ -25,13 +26,12 @@ preserved. The no-terminator case remains an error. No parser grammar change.
 The baseline failure is recorded in issue #468. The applicable standards
 clauses are 1800-2017/2023 §22.5 Syntax 22-5 and §5.6.1.
 
-## Next action
+## CI and next action
 
-Review the complete diff and YAML/CSV validity, commit and push the #468
-increment to existing PR #467, update its body with the exact local commands,
-then inspect exact-head CI once. Investigate any reported failure. Keep the PR
-draft and do not merge or claim qualification before every required platform
-check is green.
+Exact PR head `cf9b27366ed65259ffa8c0ac50d626deb05127c0` is run
+`37824513181`; all six required platform jobs were queued at the last check.
+Avoid repeat polling. Investigate any reported failure, and keep PR #467 draft
+until all required checks for the exact head are green.
 
 ## Worktrees
 
