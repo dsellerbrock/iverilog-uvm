@@ -3089,6 +3089,10 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 
       elaborate_sig_ports_(des, scope, ports, pdef, port_names);
 
+	  // IEEE 1800-2017/2023 9.3.2 applies to function ref formals too.
+	  for (NetNet*port : ports)
+	    check_ref_formal_detached_fork_use(des, port, statement_);
+
       if (gn_system_verilog()
 	  && ret_sig
 	  && (fname == perm_string::literal("new")
@@ -3181,6 +3185,8 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
       for (unsigned int idx = 0 ; idx < ports.size() ; idx += 1) {
 	    NetNet*port = ports[idx];
 	    if (port == 0 || port->port_type() != NetNet::PREF)
+		  continue;
+	    if (check_ref_formal_detached_fork_use(des, port, statement_))
 		  continue;
 	    if (ref_formal_is_bound(port))
 		  continue;
@@ -3620,6 +3626,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 		  sig->port_type(port_type_);
 		  sig->lexical_pos(lexical_pos_);
 		  sig->set_const(is_const_);
+		  sig->set_ref_static(is_ref_static_);
 		  sig_predeclared = true;
 	    }
       }
@@ -3771,6 +3778,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 		  sig->port_type(port_type_);
 		  sig->lexical_pos(lexical_pos_);
 		  sig->set_const(is_const_);
+		  sig->set_ref_static(is_ref_static_);
 		  sig_predeclared = true;
 	    }
       }
@@ -3998,6 +4006,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->attribute(attrib_list[idx].key, attrib_list[idx].val);
 
       sig->set_const(is_const_);
+      sig->set_ref_static(is_ref_static_);
 
       /* Phase 63b/B7 (gap close): for `union tagged` typed variables,
          allocate a companion int NetNet that tracks the currently-active

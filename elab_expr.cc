@@ -17593,7 +17593,14 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 				parm_errors += 1;
 				delete lval;
 				continue;
-			      }
+				  }
+			}
+			if (formal->get_ref_static()
+			    && !ref_static_actual_is_static_lifetime(lval)) {
+			      des->errors += 1;
+			      parm_errors += 1;
+			      delete lval;
+			      continue;
 			}
 
 			const netuarray_t*fixed_actual =

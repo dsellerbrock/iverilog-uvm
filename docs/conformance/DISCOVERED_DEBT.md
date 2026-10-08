@@ -4055,3 +4055,42 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** Triage-pending, separate from #414's four-state alias
   failure; do not expand the multidimensional fix to change one-dimensional
   result typing.
+
+### DD-113 — selected VIF real-index golds expect an older diagnostic
+
+- **Discovered while working:** SV23-REF-STATIC-TF-ARGUMENTS (#449), during the
+  full legacy ivtest run.
+- **Observation:** `sv_selected_vif_edge_invalid_real_index_2017` and its 2023
+  counterpart fail only because their gold expects `real expression cannot
+  index a property`, while the compiler now reports `index expression must be
+  integral`. Both still emit the expected skipped-event warning and one
+  elaboration error.
+- **File/function:** `ivtest/ivltests/sv_selected_vif_edge_invalid_real_index_2017.v`,
+  `..._2023.v`, and their stderr golds.
+- **Possible clause:** N/A; diagnostic wording/gold maintenance.
+- **Evidence:** Full legacy report at `ivtest/regression_report.txt` lines
+  6295–6296 and output diffs in `ivtest/log/`.
+- **Reproducer status:** Confirmed in both editions; the full runner reports
+  only a gold mismatch.
+- **Triage status:** Triage-pending, unrelated to `ref static`; leave the
+  diagnostic golds unchanged in this ticket.
+
+### DD-114 — `sv_always_comb_fixed_point` spins in zero time
+
+- **Discovered while working:** SV23-REF-STATIC-TF-ARGUMENTS (#449), during the
+  full JSON/VVP ivtest run.
+- **Observation:** The test's initial block waits one time unit, prints
+  `PASSED`, and calls `$finish`, but VVP remained CPU-active in the test for
+  more than five minutes with no output. The run was stopped; the full JSON
+  runner did not produce an aggregate result.
+- **File/function:** `ivtest/ivltests/sv_always_comb_fixed_point.v`; two
+  `always_comb` blocks assign and then restore each other's values.
+- **Possible clause:** Verify during triage; this is a zero-time convergence
+  failure.
+- **Evidence:** Full JSON run on 2026-10-08 reached this registered test at
+  `ivtest/regress-vvp.list` line 1607. `vvp work/a.out` stayed CPU-active with
+  under 3 MB RSS and an empty VVP output log until explicitly stopped; the
+  Python runner exited 143 after termination.
+- **Reproducer status:** Confirmed on the local macOS ARM64 image.
+- **Triage status:** Triage-pending, unrelated to `ref static`; do not expand
+  this ticket to change event scheduling or add runner timeouts.

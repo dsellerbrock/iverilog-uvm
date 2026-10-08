@@ -1,0 +1,4 @@
+./ivltests/sv_ref_static_auto_actual_fail_2023.v:15: error: A ref static actual must have static lifetime (IEEE 1800-2023 13.5.2).
+./ivltests/sv_ref_static_auto_actual_fail_2023.v:8: error: A ref static actual cannot be a non-static class property (IEEE 1800-2023 13.5.2).
+./ivltests/sv_ref_static_auto_actual_fail_2023.v:7: error: A ref static actual cannot be an element of a dynamic array or queue (IEEE 1800-2023 13.5.2).
+3 error(s) during elaboration.

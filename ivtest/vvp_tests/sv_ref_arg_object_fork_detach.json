@@ -1,6 +1,6 @@
 {
     "type"          : "normal",
     "source"        : "sv_ref_arg_object_fork_detach.v",
-    "iverilog-args" : [ "-g2012" ],
+    "iverilog-args" : [ "-g2023" ],
     "gold"          : "sv_ref_arg_object_fork_detach"
 }

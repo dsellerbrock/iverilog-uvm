@@ -889,6 +889,14 @@ extern NetPartSelect* detect_partselect_lval(Link&pin);
  */
 extern bool ref_formal_is_bound(const NetNet*port);
 
+/* A `ref static` actual must refer to static-lifetime storage, except when
+ * the actual is another `ref static` formal. */
+extern bool ref_static_actual_is_static_lifetime(const NetAssign_*actual);
+
+/* Enforce IEEE 1800-2017/2023 9.3.2 for a subroutine's ref formals. */
+extern bool check_ref_formal_detached_fork_use(
+		Design*des, const NetNet*port, const Statement*body);
+
 /*
  * R25 (IEEE 1800-2017 13.5.2, Option B diagnostic): a `ref' formal that
  * ref_formal_is_bound() answers false for still takes the legacy

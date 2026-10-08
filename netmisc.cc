@@ -4436,6 +4436,11 @@ bool ref_formal_is_bound(const NetNet*port)
       if (owner->type() != NetScope::TASK && owner->type() != NetScope::FUNC)
 	    return false;
 
+	/* ref static is always a true alias, including in a static-lifetime
+	   subroutine, where there is no automatic frame to bind lazily. */
+      if (port->get_ref_static())
+	    return true;
+
 	/* The binding lives in the frame, so there has to be one. A
 	   static-lifetime subroutine has no frame; its ref formals keep
 	   the copy pair, which is what they had. (A static subroutine
@@ -4481,6 +4486,67 @@ bool ref_formal_is_bound(const NetNet*port)
 	  default:
 	    return false;
       }
+}
+
+bool ref_static_actual_is_static_lifetime(const NetAssign_*actual)
+{
+      if (!actual)
+	    return false;
+
+      const NetNet*sig = actual->sig();
+      const char*reason = nullptr;
+      if (actual->more || actual->is_array_slice() || actual->get_base())
+	    reason = "must be a whole variable or one of its elements";
+      else if (actual->get_property_idx() >= 0 && sig
+	       && dynamic_cast<const netclass_t*>(sig->net_type()))
+	    reason = "cannot be a non-static class property";
+      else if (!sig)
+	    reason = "must denote a static-lifetime variable";
+      else if (sig->darray_type() && actual->word())
+	    reason = "cannot be an element of a dynamic array or queue";
+
+      if (reason) {
+	    cerr << actual->get_fileline() << ": error: A ref static actual "
+		 << reason << " (IEEE 1800-2023 13.5.2)." << endl;
+	    return false;
+      }
+
+	/* A ref static formal already carries the caller's storage identity, even
+	   though its own lexical scope is automatic. */
+      if (sig->get_ref_static())
+	    return true;
+
+      switch (sig->lifetime_override()) {
+	  case IVL_VLT_STATIC:
+	    return true;
+	  case IVL_VLT_AUTOMATIC:
+	    break;
+	  case IVL_VLT_INHERITED:
+	    if (sig->scope() && !sig->scope()->is_auto())
+		  return true;
+	    break;
+      }
+
+      cerr << actual->get_fileline() << ": error: A ref static actual "
+	      << "must have static lifetime (IEEE 1800-2023 13.5.2)." << endl;
+      return false;
+}
+
+bool check_ref_formal_detached_fork_use(Design*des, const NetNet*port,
+				       const Statement*body)
+{
+      if (!des || !port || port->port_type() != NetNet::PREF || !body
+	  || port->get_ref_static()
+	  || !body->detached_fork_refs_name(port->name()))
+	    return false;
+
+      cerr << port->get_fileline() << ": error: ref formal `"
+	   << port->name()
+	   << "' shall not be referenced within fork...join_any or "
+	      "fork...join_none except in a fork block-item initializer "
+	      "value expression (IEEE 1800-2017/2023 9.3.2)." << endl;
+      des->errors += 1;
+      return true;
 }
 
 bool pform_name_refs_name(const pform_name_t&path, perm_string name)

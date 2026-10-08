@@ -148,7 +148,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | # | Item | Scoping confidence | Fork status (historically probed) | Size |
 |---|------|------------|----------------------|------|
 | 1 | Triple-quoted strings `"""…"""` (5.9) | CERTAIN | FOCUSED IMPLEMENTATION (lexer, multiline macros, 2017 gate; see 2026-10-06 record) | S |
-| 2 | `ref static` tf arguments | CERTAIN | UNSUPPORTED (grammar) | M |
+| 2 | `ref static` tf arguments | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-08: A.2.7 grammar/2017 gate, §13.5.2 lifetime checks, §9.3.2 detached-fork exception; paired focus 7/7 in both runners and UVM 363/363. Full legacy has two unrelated VIF gold mismatches; JSON stops at the unrelated `sv_always_comb_fixed_point` zero-time loop; see DD-113/114 | M |
 | 3 | Associative-array-typed parameters | CERTAIN | UNSUPPORTED | M |
 | 4 | Restricted type parameters (`type enum/struct/class`) | CERTAIN | UNSUPPORTED | S–M |
 | 5 | `type(this)` self-type | CERTAIN | UNSUPPORTED | M |

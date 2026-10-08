@@ -60,6 +60,37 @@
 - **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
   merge this ticket's PR.
 
+### SV23-REF-STATIC-TF-ARGUMENTS — IEEE 1800-2023 `ref static` arguments
+
+- **State:** Implemented in PR batch #464, based on refreshed `origin/main`
+  `af89cfc50`. The paired seven-case legacy and JSON/VVP focus passes 7/7 in
+  each runner; the adjusted storage tests plus UVM package compile pass 3/3.
+  UVM passes 363/363 with real DPI. The full legacy snapshot had 5 failures:
+  the two storage fixtures were updated to use ordinary `ref` with blocking
+  joins and `ref static` only with static actuals, and the UVM-dependent
+  package test passes after initializing UVM. These three pass in focused
+  reruns; two unrelated VIF diagnostic gold mismatches remain (DD-113). The
+  full JSON runner stopped at the unrelated zero-time
+  `sv_always_comb_fixed_point` loop (DD-114) and has no aggregate result. CI is
+  not yet qualified. The GitHub backlog already contains 50 open IEEE issues
+  (#414–#463); this is issue #449, not a new ticket.
+- **Requirement:** IEEE 1800-2023 A.2.7 permits `[const] ref [static]`;
+  §13.5.2 restricts actuals to static-lifetime storage or another `ref static`
+  formal; §9.3.2 exempts `ref static` from the detached-fork reference ban.
+  2017 A.2.7, §13.5.2, and §9.3.2 have no corresponding qualifier/exception.
+  Checked against the local 2017 and 2023 IEEE PDFs.
+- **Pre-fix failure:** The image at PR-batch head `e22741743` rejected
+  `ref static` in both editions and accepted an ordinary `ref` formal
+  referenced from `fork...join_none`. The controls cover automatic actuals,
+  2017 rejection, a fork-local initializer, and blocking `join`.
+- **Scope:** Carry the 2023 qualifier through formal metadata, validate actual
+  lifetime, enforce the detached-fork rule, and bind fixed-array-word function
+  actuals directly so nested reads observe writes immediately. Preserve
+  ordinary ref behavior and fork scheduling.
+- **Next:** Keep the remaining full-gate findings in `DISCOVERED_DEBT.md` and
+  update the existing draft PR #464. Do not merge until the exact PR head has
+  green required CI.
+
 ### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
 
 - **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length

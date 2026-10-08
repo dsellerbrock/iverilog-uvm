@@ -59,8 +59,9 @@ static struct {
       nettype_t* user_nettype;
       bool interconnect;
       bool is_const;
+      bool is_ref_static;
 } port_declaration_context = {
-      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false
+      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false
 };
 
 /* Modport port declaration lists use this structure for context. */
@@ -1017,6 +1018,7 @@ void reset_parser_file_state(void)
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
+      port_declaration_context.is_ref_static = false;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -1746,6 +1748,7 @@ static void port_declaration_context_init(void)
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
+      port_declaration_context.is_ref_static = false;
 }
 
 Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
@@ -1805,6 +1808,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       port_declaration_context.data_type = data_type;
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
+      port_declaration_context.is_ref_static = false;
 
       return port;
 }
@@ -1831,6 +1835,7 @@ static Module::port_t *module_declare_nettype_port(
       port_declaration_context.data_type = nullptr;
       port_declaration_context.user_nettype = nettype;
       port_declaration_context.interconnect = false;
+      port_declaration_context.is_ref_static = false;
       return port;
 }
 
@@ -1856,6 +1861,7 @@ static Module::port_t *module_declare_interconnect_port(
       port_declaration_context.data_type = implicit_type;
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = true;
+      port_declaration_context.is_ref_static = false;
       return port;
 }
 
@@ -2476,6 +2482,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <gatetype> gatetype switchtype
 %type <porttype> port_direction port_direction_opt
 %type <tf_port_direction> tf_port_direction_opt
+%type <tf_port_direction> tf_port_direction
+%type <tf_port_direction> tf_port_ref_direction
 %type <vartype> integer_vector_type
 %type <parmvalue> parameter_value_opt
 %type <parmvalue> type_parameter_value
@@ -8020,22 +8028,37 @@ port_direction_opt
   |                { $$ = NetNet::PIMPLICIT; }
   ;
 
-/* SystemVerilog task/function formal arguments may use qualifiers like
-   "const ref". Preserve const separately from the ref direction. */
-tf_port_direction_opt
-  : port_direction_opt { $$.direction = $1; $$.is_const = false; }
-  | K_const K_ref
-      { $$.direction = NetNet::PREF; $$.is_const = true;
+/* Preserve ref qualifiers separately from direction for edition gating and
+   elaboration. */
+tf_port_direction
+  : port_direction
+      { $$.direction = $1; $$.is_const = false; $$.is_ref_static = false; }
+  | tf_port_ref_direction { $$ = $1; }
+  ;
+
+tf_port_ref_direction
+  : K_const K_ref
+      { $$.direction = NetNet::PREF; $$.is_const = true; $$.is_ref_static = false;
 	if (!pform_requires_sv(@2, "Reference port (ref)")) {
 	      $$.direction = NetNet::PINPUT;
 	}
       }
   | K_ref K_const
-	{ $$.direction = NetNet::PREF; $$.is_const = true;
+	{ $$.direction = NetNet::PREF; $$.is_const = true; $$.is_ref_static = false;
 	if (!pform_requires_sv(@1, "Reference port (ref)")) {
 	      $$.direction = NetNet::PINPUT;
 	}
       }
+	| K_ref K_static
+	  { $$.direction = NetNet::PREF; $$.is_const = false; $$.is_ref_static = true; }
+	| K_const K_ref K_static
+	  { $$.direction = NetNet::PREF; $$.is_const = true; $$.is_ref_static = true; }
+	;
+
+tf_port_direction_opt
+	: port_direction_opt
+	  { $$.direction = $1; $$.is_const = false; $$.is_ref_static = false; }
+	| tf_port_ref_direction { $$ = $1; }
   ;
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
@@ -9419,8 +9442,9 @@ task_declaration /* IEEE1800-2005: A.2.7 */
 
 
 tf_port_declaration /* IEEE1800-2005: A.2.7 */
-  : port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
-      { $$ = pform_make_task_ports(@1, $1, $3, $4, true);
+  : tf_port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
+      { $$ = pform_make_task_ports(@1, $1.direction, $3, $4, true,
+				   $1.is_const, $1.is_ref_static);
       }
   ;
 
@@ -9440,6 +9464,8 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	NetNet::PortType use_port_type = $1.direction;
 	bool use_const = $1.direction == NetNet::PIMPLICIT
 	      ? port_declaration_context.is_const : $1.is_const;
+	bool use_ref_static = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_ref_static : $1.is_ref_static;
         if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
               use_port_type = port_declaration_context.port_type;
 	list<pform_port_t>* port_list = make_port_list($4, @4.lexical_pos, $5, 0);
@@ -9457,7 +9483,7 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      }
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list, false, use_const);
+					  port_list, false, use_const, use_ref_static);
 
 	} else {
 		// Otherwise, the decorations for this identifier
@@ -9465,13 +9491,14 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 		// context that may come later.
 	      port_declaration_context.port_type = use_port_type;
 	      port_declaration_context.is_const = use_const;
+	      port_declaration_context.is_ref_static = use_ref_static;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
 	      }
 	      port_declaration_context.data_type = $3;
 	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list,
-					 false, use_const);
+					 false, use_const, use_ref_static);
 	}
 
 	$$ = tmp;
@@ -9488,6 +9515,8 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	NetNet::PortType use_port_type = $1.direction;
 	bool use_const = $1.direction == NetNet::PIMPLICIT
 	      ? port_declaration_context.is_const : $1.is_const;
+	bool use_ref_static = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_ref_static : $1.is_ref_static;
         if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
               use_port_type = port_declaration_context.port_type;
 	/* make_port_list takes ownership of $4.text and deletes it */
@@ -9500,17 +9529,18 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	if (($3 == 0) && ($1.direction==NetNet::PIMPLICIT)) {
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list, false, use_const);
+					  port_list, false, use_const, use_ref_static);
 	} else {
 	      port_declaration_context.port_type = use_port_type;
 	      port_declaration_context.is_const = use_const;
+	      port_declaration_context.is_ref_static = use_ref_static;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
 	      }
 	      port_declaration_context.data_type = $3;
 	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list,
-					 false, use_const);
+					 false, use_const, use_ref_static);
 	}
 
 	$$ = tmp;
@@ -18021,13 +18051,14 @@ statement_item /* This is roughly statement_item in the LRM */
      ports are appended now and set_ports() prepends the tf_item ports
      at end so declaration order is preserved. Only legal at the top
      level of a task/function body. */
-  | port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
+  | tf_port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
       { PTaskFunc*routine = current_task
 	      ? static_cast<PTaskFunc*>(current_task)
 	      : static_cast<PTaskFunc*>(current_function);
 	if (routine && pform_peek_scope() == routine) {
 	      std::vector<pform_tf_port_t>*ports =
-		    pform_make_task_ports(@1, $1, $3, $4, true);
+		    pform_make_task_ports(@1, $1.direction, $3, $4, true,
+				  $1.is_const, $1.is_ref_static);
 	      routine->append_stmt_port_decls(ports);
 	} else {
 	      yyerror(@1, "error: Task/function port direction declarations "
