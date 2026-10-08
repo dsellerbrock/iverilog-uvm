@@ -1,32 +1,43 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### IEEE-1800-PARENTHESIZED-IFDEF-EXPRESSIONS — issue #460 (baseline reproduced)
+
+- **State:** Active on `agent/ieee-ifdef-parenthesized-20261008`, based on clean
+  `origin/main` `af89cfc50be1084cc86c48865f3f6ba78d4512fa`.
+- **Requirement:** IEEE 1800-2017 §22.5 Syntax 22-5 allows only a
+  `text_macro_identifier` condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a
+  parenthesized `ifdef_macro_expression` with identifiers, logical operators,
+  and parentheses; defined identifiers evaluate to 1 and undefined identifiers
+  to 0. `ifndef` negates the expression.
+- **Failure:** A self-authored `ifdef (A && (!B || C))` and `ifndef (A && B)`
+  probe reports `` `ifdef without a macro name`` under both `-g2017` and
+  `-g2023`. The plain identifier control passes in both editions.
+- **Root cause:** `ivlpp/lexor.lex` has identifier-only `IFDEF_NAME`,
+  `IFNDEF_NAME`, and `ELSIF_NAME` states. Trace edition propagation into ivlpp
+  before choosing the gate implementation.
+- **Scope:** Boolean conditional-expression parsing/evaluation for `ifdef`,
+  `ifndef`, and `elsif`; strict 2017 behavior; paired regression coverage.
+- **Next:** Add permanent failing/compatibility cases, implement the syntax and
+  evaluation, then run focused and neighboring tests.
+
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
-- **State:** Implemented on `agent/pkg-class-static-call-20261007`; exact reducer
-  fails on clean `origin/main` `7c4aa26e` and passes on this branch under strict
-  2017 and 2023. Draft PR and exact-head CI remain pending.
+- **State:** Implemented and merged in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413)
+  at `af89cfc50`. The package-call ticket reached its record-and-stop condition
+  after Ubuntu 22.04 and 24.04 failed the unrelated negative suite; see DD-107.
+  Do not claim the exact PR workflow green.
 - **Requirement:** IEEE 1800-2017 §8.23 allows access to static class methods
   and properties and says scoped expressions can be used in subroutine calls;
   §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords
-  this as access to static public methods and properties from outside the
-  class hierarchy; §26.3 retains the same package-reference wording.
-- **Failure:** A self-authored `p::c::set(5);` statement reports `syntax error`
-  and `Malformed statement`. The imported `c::set(5)` control compiles and
-  prints the expected value.
-- **Root-cause hypothesis and scope:** Direct package/class/member call
-  continuations are missing from the parser even though deeper nested static
-  calls and scoped identifiers have grammar paths. Keep the correction local
-  to the requested static function/task call path and its focused negative.
-- **Validation:** Focused legacy 7/7 and JSON 8/8 pass. Full legacy reports
-  7,243 total, 7,238 passed, 0 failed, 2 not implemented, and 3 expected
-  failures. Full JSON reports 4,499 tests with 4 unrelated failures (DD-109 and
-  DD-110); the package-call cases pass. UVM regression passes 363/363 with no
-  skips. The read-only axi-vip probe passes the fixed call site and next reports
-  the impure `get_width` constraint call (DD-111); later diagnostics were not
-  triaged. Bison counts are unchanged at 574 shift/reduce and 1,122
-  reduce/reduce conflicts.
-- **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
-  merge this ticket's PR.
+  this as access to static public methods and properties from outside the class
+  hierarchy; §26.3 retains the package-reference wording.
+- **Validation:** The self-authored statement reducer and non-static negative
+  are registered in both runners. Focused legacy and JSON tests pass; full
+  legacy reports zero failures; UVM reports 363/363. Full JSON has unrelated
+  failures recorded as DD-109/DD-110. The read-only axi-vip probe's next
+  diagnostic is DD-111.
+- **Boundary:** No package-call code repair is authorized under the unrelated
+  SVA negative-suite failure; DD-107 remains triage-pending.
 
 ### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
 
