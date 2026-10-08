@@ -36,8 +36,10 @@
 
 ### IEEE-TWO-STATE-PACKED-SELECT — issue #469; added to PR #464
 
-- **State:** Implemented locally and integrated into PR #464; integrated
-  exact-head CI has not started yet.
+- **State:** Implemented locally and integrated into PR #464. Run 37820062119
+  for code commit `85350903084628febd4d1d0bf1c0d390bad4f41d` had all six
+  platform checks pending at its latest snapshot; it predates the status-only
+  documentation update. No green result is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid
   bit-select from a two-state value and X for a four-state value. A partially
   out-of-range part-select returns X in missing positions; §6.11.2 converts
@@ -56,11 +58,11 @@
   passes; focused legacy is 3/3 and JSON/VVP is 6/6. Bison counts remain 574
   shift/reduce and 1,122 reduce/reduce. These are local results, not CI
   qualification.
-- **Delivery:** PR #464 already targets `main`. Its latest pre-integration CI
-  run failed Ubuntu 22.04 and 24.04 in the negative suite (152/153) on the
-  unrelated obsolete `m9b_intersect_unequal_len` case, tracked as DD-115. No
-  #469-specific CI result exists yet; do not merge until all required checks
-  pass on the integrated exact head.
+- **Delivery:** PR #464 targets `main`. Pre-integration run 37806441317 failed
+  Ubuntu 22.04 and 24.04 in the negative suite (152/153) on the unrelated
+  obsolete `m9b_intersect_unequal_len` case, tracked as DD-115. The integrated
+  head's checks are pending; leave the draft open and do not merge until every
+  required job passes on the exact head.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
