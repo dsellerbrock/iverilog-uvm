@@ -166,27 +166,31 @@ record-only; they were not implemented in this ticket.
 
 ### DD-010 — Uninstantiated merged covergroup type enters overall denominator
 
+- **Current disposition (2026-10-08):** Fixed by the V07 population guard. The clean `origin/main` build at `af89cfc50be1084cc86c48865f3f6ba78d4512fa` passes the registered V07 reducer in both strict editions. This is local evidence, not CI; the earlier failure below is historical.
+
 - **Discovered while working:** V06 final scope-control review.
 - **Observation:** One fully covered instantiated type plus a declared but
   uninstantiated merged type produces overall50 rather than100 percent.
 - **File/function:** vvp/class_type.cc type_coverage/registry eligibility and
-  vvp/vthread.cc of_COVGRP_GET_ALL; exact correction not yet selected.
+  vvp/vthread.cc of_COVGRP_GET_ALL; at discovery the exact correction had not
+  yet been selected.
 - **Possible clause:** IEEE1800-2017/2023 19.9,19.11,19.11.3; complete eligibility
   semantics require review at selection.
 - **Evidence:** campaign-20260908/v06/uninstantiated-type.sv and candidate/v05
   logs. Both candidate and saved validated V05 runtime reproduce50 vs100.
   For V05 compatibility only the new item-type-weight tags were removed from
   emitted bytecode; every item/type weight in this reducer is1.
-- **Reproducer status:** Pre-existing runtime failure established on V05;
-  no source repair or broad application qualification inferred.
-- **Triage status:** record-only during V06. V06 function-scope test instantiates
-  all intended groups before checking their weighted aggregate; its bin/type
-  weight assertions remain explicit and independently checked.
+- **Historical reproducer status:** Pre-existing runtime failure established on
+  V05; the V07 correction and paired lifecycle controls supersede this status.
+- **Historical triage status:** record-only during V06. V06 function-scope test
+  instantiated all intended groups; V07 subsequently corrected the population
+  guard. Broad application qualification remains separate.
 
-- **DD-010 resolution:** V07 locally validates the shared population guard with
-  paired lifecycle controls and full required local gates. Never-instantiated
-  types are excluded; zero-weight retired merged instances remain represented.
-  Remote CI and broader coverage qualification remain separate.
+- **DD-010 resolution:** V07 validates the shared population guard with paired
+  lifecycle controls and required local gates. Never-instantiated types are
+  excluded; zero-weight retired merged instances remain represented. The clean
+  current-main recheck passes the registered reducer in both strict editions;
+  broader coverage qualification remains separate.
 
 
 ### DD-011 — UVM release-matrix compile frontiers
@@ -1328,6 +1332,8 @@ of the separate constant-expression evaluation defect below.
 
 ### DD-025 — Postincrement expressions fail constant-function evaluation
 
+- **Current disposition (2026-10-08):** Fixed on `main` by [commit 5c0f5588](https://github.com/dsellerbrock/iverilog-uvm/commit/5c0f5588ee). `NetEAssignExpr::evaluate_function` and `NetEUnary::evaluate_function` now preserve local mutation and old/new results; paired constant-function regressions cover the behavior. The original failure records below are historical.
+
 - **Discovered during:** L56 compile-time index side-effect testing.
 - **Reducer:** `evidence/dynamic-mixed-driver-assessment/l56/const-postinc_expression.sv`
   uses only local scalar integers: `i=0; j=i++; return 10*i+j;` in a constant
@@ -1572,6 +1578,8 @@ These are failing baselines, not completed runtime coverage.
 
 ### DD-028 — Property increment expressions return without updating storage
 
+- **Current disposition (2026-10-08):** Fixed on `main` by [commit 5c0f5588](https://github.com/dsellerbrock/iverilog-uvm/commit/5c0f5588ee). Runtime pre/post increment/decrement stores scalar and fixed-array class-property results, with paired focused regressions. The original failure records below are historical; packed-select increment is tracked separately by #498.
+
 - **Discovered during:** L60 adjacent property-path review.
 - **Reducers:** `evidence/runtime-property-increment-assessment/scalar.sv`
   and `array.sv`. A scalar `c.a++` returns 5 but fails to update 5 to 6.
@@ -1649,7 +1657,9 @@ operands preserve typed defaults and suppress stores. Final independent
 neighbors and permanent legacy 4/4, JSON 8/8 pass. The original index converter
 is retained: the defect was in its consumers' treatment of overflow flags.
 See `session_logs/2026-09-14_l60_runtime_array_increment.md` for exact scope,
-known compile warnings, and hashes. DD-028/029/030 remain separate and open.
+known compile warnings, and hashes. DD-028 is fixed, DD-029 was later fixed and
+closed as [#503](https://github.com/dsellerbrock/iverilog-uvm/issues/503), and
+DD-030 remains open as [#498](https://github.com/dsellerbrock/iverilog-uvm/issues/498).
 
 
 DD-028 L61 receiver-form assessment: `handles[select_receiver()].property`
@@ -1675,7 +1685,7 @@ and six const restrictions/const-handle controls. Evidence:
 Permanent legacy 2/2, JSON 4/4, and 21 neighboring checks pass. This is focused
 validation pending batch qualification, not closure of packed-select DD-030.
 
-DD-029 next: the expanded signed/unsigned 128-bit string-array read matrix
+Historical next step at the time: the expanded signed/unsigned 128-bit string-array read matrix
 has eight failing paired runs (40 semantic cases per edition), including
 nonzero/negative declared ranges and indices above 32, 63, and 100 bits.
 Evidence: `evidence/runtime-string-array-index-assessment/matrix/baseline-results.json`.
@@ -2824,7 +2834,11 @@ Status: fixed.
 
 ### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17, REOPENED by 2026-09-20 review)
 
-Current status: the [restored baseline](session_logs/2026-09-20_restored_baseline_qualification.json) passed local qualification. The subsequent [recursive predicate fix](session_logs/2026-09-20_recursive_cross_with.md) has focused paired-edition evidence, with broad batch qualification pending. Explicit matches and the listed value-source/resource boundaries remain open. Earlier results below retain their original revision scope.
+**Census disposition (2026-10-08):** The positive recursive cross-`with` cases pass in both strict editions on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`). Two distinct remaining failures are open: [#508](https://github.com/dsellerbrock/iverilog-uvm/issues/508) for `matches` thresholds and [#509](https://github.com/dsellerbrock/iverilog-uvm/issues/509) for wildcard-bin value tuples. Both use self-authored paired reducers with ordinary-bin controls. Other resource/set shapes remain record-only until an independent legal reducer establishes a specific boundary. The local checks are not CI evidence. Earlier results below retain their original revision scope.
+
+The census also links [#507](https://github.com/dsellerbrock/iverilog-uvm/issues/507) for prohibited covergroup `output`/`inout` formals and [#510](https://github.com/dsellerbrock/iverilog-uvm/issues/510) for 2023 real-valued coverpoint bins. These are separate from DD-042's `select_expression with` behavior.
+
+Historical status: the [restored baseline](session_logs/2026-09-20_restored_baseline_qualification.json) passed local qualification; the recursive predicate fix originally had its broader batch gate pending.
 
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6): two independent
@@ -3104,6 +3118,16 @@ not selected work or proof of root cause. Current log:
 
 ### 2026-09-21 signed cover-bin ranges crossing zero are misinterpreted
 
+**Census disposition (2026-10-08):** No issue filed. A temporary self-authored
+reducer on clean `origin/main` at `af89cfc50be1084cc86c48865f3f6ba78d4512fa`
+reported 33.333% after three of nine values and 100% after all nine in both
+strict editions. The reducer was not retained as a permanent fixture, so this
+result only closes the reported zero-crossing range; broader signed range,
+intersection and carving combinations remain outside this disposition. It is
+local evidence, not CI.
+
+Historical baseline finding:
+
 A fresh standalone reducer of OpenTitan's `bins close[] = {[-4:4]}`
 compiles with a diagnostic claiming more than65536 counters, drops the bin,
 and returns3.125% after all nine intended values are sampled. This reproduces
@@ -3119,7 +3143,8 @@ must be verified before implementation). Evidence:
 `evidence/review-20260920/next-signed-cover-assessment/`.
 This also demonstrates unsafe fallback to automatic bins after dropping an
 explicit family; implementation must not manufacture coverage when a bin
-cannot be represented. No fix is integrated yet.
+cannot be represented. At the time of that record no fix was integrated; the
+current-main disposition above supersedes that status for the tested range.
 
 ### 2026-09-21 power-manager remaining blockers reduced
 
@@ -3574,6 +3599,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-064 — string conditions test only the low bit
 
+- **Current disposition (2026-10-08):** Fixed on `main` by [commit 11d4b588](https://github.com/dsellerbrock/iverilog-uvm/commit/11d4b588c). The paired 2017/2023 regression in `ivtest/ivltests/sv_string_condition_truth.v` verifies string truth conversion; the original failure records below are historical.
+
 - **Discovered while working:** OT-STD-RANDOMIZE-RANGED-SIZE-EXACT.
 - **Observation:** In strict 2017 and 2023, `s = "AB"; if (s)` takes the false branch although the string's packed value is nonzero (`16'h4142`) and `!s` is false. `while`, `for`, `do while`, and ternary conditions also choose the false path.
 - **File/function:** `tgt-vvp/eval_condit.c` `draw_condition_fallback`; `tgt-vvp/eval_string.c` and `eval_real.c` duplicate the nominal-width test for ternary conditions.
@@ -3842,6 +3869,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### DD-087 — out-of-range part select of a two-state vector leaves X in a two-state variable
 
 - **Issue status:** [OPEN #469](https://github.com/dsellerbrock/iverilog-uvm/issues/469).
+- **Crosswalk:** #469 also covers PR #464's DD-112 two-state packed bit-select OOB limitation. A paired clean-main reducer still prints X for the bit select; this is not a CI result.
 
 - **Discovered while working:** VVP-HOTPATH-PERF.
 - **Observation:** `bit [7:0] br = bv[b +: 8]`, with `bit [99:0] bv` and `b = 96`, stores `xxxx1111` into the two-state `br`. A two-state variable cannot hold X or Z bits.
@@ -4030,16 +4058,16 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-105 — fixed-array assignment patterns reach the VVP vector evaluator
 
-**Census disposition (2026-10-08):** excluded pending a clean current-main replay; the cited failures are tied to PR #411’s head.
+**Census disposition (2026-10-08):** No issue filed. The five named registered cases compile with exit 0 and without the reported `kind 26` diagnostic on the clean `origin/main` install at `af89cfc50be1084cc86c48865f3f6ba78d4512fa`; the paired `sv_array_packed_select_incdec_scopes` case was compiled under both editions. The PR #411-head failure is not reproducible; runtime/output behavior was not rechecked, so this disposition covers only the reported compile-time failure.
 
 
 - **Discovered while working:** SV23-CLASS-FINAL, while reviewing PR #411's replayed conformance gate.
 - **Observation:** Registered assignment-pattern cases emit `this expression (kind 26) cannot be evaluated in a vector context` during VVP code generation. The affected cases are `sv_default_assign_pattern` (source lines 44 and 102), `sv_uarray_slice_pattern_assign` (67), `sv_byte_array_string` (17), `sv_array_packed_select_incdec_scopes` (17 under both editions), and `sv_assignment_pattern_keys_replication` (26). The fixtures are unchanged by PR #411; this is not a demonstrated class-final regression.
 - **File/function:** `tgt-vvp/stmt_assign.c::draw_array_pattern` and `tgt-vvp/eval_vec4.c::draw_eval_vec4_core_`; the exact dispatch that sends these patterns to vector evaluation remains untriaged.
 - **Possible clause:** IEEE 1800-2017/2023 §§7.6 and 10.9; verify exact applicable requirements during triage.
-- **Evidence:** Replay logs at `/tmp/pr409-repro-logs2/` for the five named cases, generated at PR #411 head `32cfc8dcc5c670e5fcd7f7ed7f53838310a26b33`.
-- **Reproducer status:** Confirmed by registered-case replay; repeat against a current `main` image for independent baseline attribution.
-- **Triage status:** Untriaged, record-only during SV23-CLASS-FINAL. Keep separate from the adjacent whole-unpacked-struct-array representation diagnostic; do not widen PR #411.
+- **Historical evidence:** Replay logs at `/tmp/pr409-repro-logs2/` for the five named cases, generated at PR #411 head `32cfc8dcc5c670e5fcd7f7ed7f53838310a26b33`.
+- **Current-main recheck:** The reported compile diagnostic is not reproducible; all five case names compile successfully, including the paired `sv_array_packed_select_incdec_scopes` runs. No runtime/output replay was performed.
+- **Triage status:** Excluded as a current compile-time gap. Keep separate from the adjacent whole-unpacked-struct-array representation diagnostic; do not widen PR #411.
 
 ### DD-106 — package-qualified class call probe cases (a)-(e)
 

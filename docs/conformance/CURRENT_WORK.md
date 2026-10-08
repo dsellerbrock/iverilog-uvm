@@ -1,5 +1,10 @@
 # Current evidence and work
 
+The complete uncapped IEEE 1800-2017/2023 issue inventory and selection rules
+are in the [conformance index](INDEX.md). The remaining clause-35 DPI array
+gaps are tracked by [#505](https://github.com/dsellerbrock/iverilog-uvm/issues/505)
+and [#506](https://github.com/dsellerbrock/iverilog-uvm/issues/506).
+
 ## Current IEEE 1800 focus — 2026-10-07
 
 **Fix 41 locally qualified:** unequal fixed-length `intersect` operands now

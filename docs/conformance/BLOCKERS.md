@@ -1207,14 +1207,13 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### V04 — Merged type coverage saturates wide bin totals before division
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.11.3.
-- **State:** LOCALLY VALIDATED — reviewed merged aggregate arithmetic; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** class_type::type_coverage narrows exact dynamic cardinality
   to UINT64_MAX and saturates per-item sums; instance coverage already uses
   unsaturated real aggregation. Multiple named wide families can exceed64 bits.
 - **Scope:** Preserve supported merged totals through percentage calculation,
   retaining bin identity, thresholds, weights and mode dispatch.
-- **Closure:** Paired relative-error reducer/controls, all required local gates
-  and independent review; remote CI before separately authorized merge.
+- **Closure:** Paired relative-error reducer/controls and independent review; the clean-main recheck confirms the V04 registered reducer in `-g2017` and `-g2023`. Parent V01, transition-family cardinality and cross-bin universe obligations remain separate.
 - **Residuals:** ParentV01, transition-family cardinality and cross-bin universe
   obligations remain separate. No per-blocker PR under updated cadence.
 
@@ -1226,14 +1225,13 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### V05 — Constructed cross bins are omitted or misidentified in merged type coverage
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.6,19.11.3.
-- **State:** LOCALLY VALIDATED — exact supported constructed-cross union/count scope; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** campaign-20260908/v05/cross.sv: two dynamic cross instances,
   six-bin union and two hits; type coverage0 instead33.333333, instance25 correct.
 - **Scope:** Register supported automatic cross-bin names/counts for merged
   type coverage and union already-resolved active named properties, preserving
   per-instance topology and full product identity.
-- **Closure:** Paired canonical identity/union controls, required full gates
-  and independent review; remote CI before merge. ParentV01 remains open.
+- **Closure:** Paired canonical identity/union controls and independent review; the clean-main recheck confirms the V05 registered reducer in `-g2017` and `-g2023`. Parent V01 and unsupported topologies remain separate.
 
 - **V05 candidate evidence:** Ordered component-name tuples registered only
   after successful topology validation; local counts map to canonical type
@@ -1249,14 +1247,15 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### V06 — Merged item coverage uses instance weights instead of type weights
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.7.1,19.11.3.
-- **State:** LOCALLY VALIDATED — exact declaration-time item type-weight scope; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** v06/type-weight.sv has coverpoint scores50/0,type weights3/1,
   instance weights1/3. Type returns12.5 rather than37.5; instance12.5 is correct.
 - **Scope:** Declared coverpoint/cross type-weight validation, metadata and merged
   aggregation. Preserve independent defaults, instance modes and old bytecode.
 - **Closure:** Paired semantic/invalid-value controls, scoped regression oracle
-  corrections for item isolation, all required local gates and independent review.
-  Procedural static assignment and other type-option obligations remain separate.
+  corrections for item isolation and independent review; the clean-main recheck
+  confirms the V06 registered reducer in `-g2017` and `-g2023`. Procedural
+  static assignment and other type-option obligations remain separate.
 
 - **V06 evidence:** Typed constant validator handles independent defaults,
   zero weights, group noninheritance, static/dynamic/implicit crosses and
@@ -1265,13 +1264,14 @@ qualification remain open. Evidence: campaign-20260908/s03.
   Old bytecode fallback and new tagged metadata bounds are controlled.
   Focus22/22+22/22,coverage75/65,V04 2/2,V05 13/13,integrated4807total4802pass
   zero unexpected2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,
-  NFA58/58,makecheck and independent final review all pass. DD010 remains open.
+  NFA58/58,makecheck and independent final review all pass. DD-010 is resolved
+  by V07's population guard; current-main recheck passes both strict editions.
 
 
 ### V07 — Never-instantiated covergroup types lower cumulative coverage
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.9,19.11,19.11.3.
-- **State:** LOCALLY VALIDATED — never-instantiated type eligibility only; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** v07/uninstantiated-type.sv reports0 before any instance and50
   after constructing one fully covered type; expected100 in both situations.
 - **Root:** Compilation registers types whose static metadata merge1 scores
@@ -1279,8 +1279,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
   and retired-options marker already preserve the required population state.
 - **Scope:** Shared type-coverage eligibility, preserving constructed/retired
   populations and independent type/instance weights; no new metadata or registry.
-- **Closure:** Paired lifecycle controls, full required local gates and review.
-  Broader parentV01 and other coverage obligations remain open.
+- **Closure:** Paired lifecycle controls and review; the clean-main recheck
+  confirms the V07 registered reducer in `-g2017` and `-g2023`. Broader parent
+  V01 and other coverage obligations remain open.
 
 - **V07 validation:** Six permanent lifecycle entries pass both harnesses,
   with paired baseline failures and zero-weight/retirement controls. V04/V05/V06
@@ -3952,9 +3953,14 @@ the [revision-scoped review record](session_logs/2026-09-20_pr_review_repairs.md
 The operational phases, pending gates and publication state remain in
 [ACTIVE_WORK](../../.ai/ACTIVE_WORK.yaml) and [CAMPAIGN](../../.ai/CAMPAIGN.yaml).
 The [restored baseline qualification](session_logs/2026-09-20_restored_baseline_qualification.json) records completed local gates.
-The [recursive cross-with implementation](session_logs/2026-09-20_recursive_cross_with.md) has focused validation pending its batch gate; explicit matches remains unsupported;
-DD-044 separately records constraint-body translation that drops a requested
-constraint and is not closed by selector validation.
+The positive recursive cross-`with` reducer in the [implementation record](session_logs/2026-09-20_recursive_cross_with.md) passes in both strict editions on clean current `main`. Remaining verified cases are tracked separately: cross-bin `matches` thresholds [#508](https://github.com/dsellerbrock/iverilog-uvm/issues/508) and wildcard-bin `with` value selection [#509](https://github.com/dsellerbrock/iverilog-uvm/issues/509). The 2026-10-08 checks are local, not CI. DD-044 separately records constraint-body translation that drops a requested constraint and is not closed by selector validation.
+
+### IEEE 1800 clause-19 census crosswalk — 2026-10-08
+
+- [#469](https://github.com/dsellerbrock/iverilog-uvm/issues/469) remains the existing issue for DD-087 and PR #464's DD-112 two-state packed bit-select behavior; the clean-main reproducer returns X in both strict editions.
+- [#507](https://github.com/dsellerbrock/iverilog-uvm/issues/507) tracks the §19.3 rule that covergroup constructor `output`/`inout` formals are illegal; paired clean-main probes accept both forms.
+- [#508](https://github.com/dsellerbrock/iverilog-uvm/issues/508) tracks unsupported cross-bin `matches` thresholds; [#509](https://github.com/dsellerbrock/iverilog-uvm/issues/509) tracks wildcard-bin values in cross `with` predicates. Each has an ordinary-bin passing control and a paired strict-edition failure.
+- [#510](https://github.com/dsellerbrock/iverilog-uvm/issues/510) tracks 2023 real-valued coverpoint bins and `type_option.real_interval`; the clean-main paired reducer drops the bin and reports the wrong denominator. Clause-11 tolerance range operators remain [#462](https://github.com/dsellerbrock/iverilog-uvm/issues/462).
 
 IBEX-ROW-ASYNC-RESET-SYNTHESIS has [focused and neighboring runtime evidence](session_logs/2026-09-21_row_async_reset.json); required batch gates remain pending. Ordinary blocking-index dataflow is separate recorded debt.
 
@@ -4226,7 +4232,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### ARRAY-MAP-2023 — standard array map method
 
-- **State:** The bounded implementation is qualified for the registered fixed, dynamic, queue, and associative cases, including tested unpacked-array-valued results. Strict `-g2017` rejects the method. Broader clause qualification remains partial.
+- **State:** Implemented and locally qualified in current main; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The registered fixed, dynamic, queue, and associative cases, including tested unpacked-array-valued results, pass; strict `-g2017` rejects the method. Broader clause qualification remains partial.
 - **Standard:** IEEE 1800-2023 §§7.12.4–7.12.5. The `with` expression is required, mapped elements use its self-determined type, and the returned array preserves the source range or associative index set. The optional custom index-method name is supported. Strict 2017 behavior must remain rejecting.
 - **Verified scope:** Paired map lists pass 4/4 in JSON and legacy harnesses. Cases cover default/custom iterator names, custom index alias, empty and populated inputs, descending fixed ranges, 2D row reduction, preserved associative keys, integral, bit, string, real, and unpacked-struct results, plus fixed-array-valued results for fixed, dynamic, queue, and associative receivers. The result tests check contents, ranges/keys, empty outputs, and nested maps over containers of rows. Adjacent min/max/reduction, unique/find-last, and OpenTitan array-of-containers checks pass; exact commands and image hashes are in the [qualification record](../../evidence/array-map-2023-20261007/README.md).
 - **Remaining boundary:** Further legal result types and interactions need broader qualification. The focused ticket closes the tested implementation gap; it does not claim full §7.12.5 or complete array-method-clause conformance.
@@ -4234,9 +4240,16 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Source:** The local IEEE 1800-2023 §7.12.4–7.12.5 and 2017 §7.12 text were reviewed directly. The original paired RED is preserved in the qualification record as baseline history.
 - **Scope:** `elab_expr.cc`, the required VVP lowering/runtime path, focused paired regression entries, `.ai/ACTIVE_WORK.yaml`, and bounded evidence. No OpenTitan or Caliptra source changes and no broad corpus run.
 
+### IEEE-DPI-ARRAY-RESIDUALS — open issue crosswalk
+
+- **State:** Two distinct actionable legal-argument gaps remain open: [#505](https://github.com/dsellerbrock/iverilog-uvm/issues/505) tracks imported fixed/open `shortreal` arrays; [#506](https://github.com/dsellerbrock/iverilog-uvm/issues/506) tracks fixed-size unpacked export formals.
+- **Standard:** IEEE 1800-2017/2023 §35.5.6 and Annex H §§H.7.4/H.7.8 define imported aggregate formals and `shortreal`→C `float`; H.7.8/H.8.2 permit fixed-size unpacked export formals while prohibiting exported open arrays.
+- **Evidence:** The retained reducers `tests/negative/m10_dpi_fixed_shortreal_array_argument.sv`, `tests/negative/m10_dpi_open_shortreal_array_argument.sv`, and `tests/negative/m10_dpi_export_fixed_array_argument.sv` each reproduce the current-main unsupported diagnostic. Issue bodies include self-contained examples and acceptance criteria.
+- **Boundary:** Scalar shortreal, scalar and packed-vector exports, and the recorded other DPI subsets are supported. The broader signature/runtime cross-product remains M14B-9 qualification work and is not a separate runtime-gap ticket.
+
 ### SV23-DIST-DEFAULT-WEIGHT — 2023 `dist default :/` item
 
-- **State:** Implemented and locally qualified as Fix 29; add to the existing draft PR #407. The larger IEEE 1800-2017/2023 objective remains active.
+- **State:** Implemented and locally qualified as Fix 29; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The larger IEEE 1800-2017/2023 objective remains active.
 - **Standard:** IEEE 1800-2023 §18.5.3 adds `default :/ expression`. The item is a single aggregate-weight bucket for the complement of all explicit bins. IEEE 1800-2017 §18.5.4 does not include this syntax.
 - **Implementation:** The parser tags the default item, elaboration edition-gates it and rejects duplicate defaults, and VVP computes the complement after collecting every explicit membership predicate. Explicit bins remain weighted items, including overlaps; zero-weight explicit bins still exclude their values from the default bucket. The default bucket uses the existing exact weighted sampler.
 - **Validation:** Strict JSON/VVP and legacy focused lists pass 5/5 each, including strict 2017 rejection, required `:/`, malformed and duplicate forms, weighted sampling, overlap, zero-weight exclusion, and hard-constraint failure. Existing large exact-dist neighbor lists pass 14/14 each. No broad corpus or OpenTitan run was needed. See [qualification evidence](../../evidence/dist-default-2023-20261007/README.md).
@@ -4244,7 +4257,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### ASSOC-FIND-FIRST-INDEX — associative `find_first_index()`
 
-- **State:** Implemented and locally qualified as Fix 30; add to the existing draft PR #407. This is a bounded §7.12.1 implementation increment, not full clause-7 closure.
+- **State:** Implemented and locally qualified as Fix 30; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). This is a bounded §7.12.1 implementation increment, not full clause-7 closure.
 - **Standard:** IEEE 1800-2017/2023 §7.12.1 applies locator methods to unpacked arrays. Index locators return the associative array's declared key type, and first/last on an associative array follow its key type's ordering. Wildcard-index associative arrays are excluded.
 - **Failure and fix:** The valid `find_first_index() with (...)` call on a non-wildcard associative array emitted a compile-time “not yet implemented” diagnostic in both editions. The frontend now routes it through the existing keyed locator payload; VVP appends the actual matching key and exits at the first match.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 6/6. Coverage includes signed integer and string keys, multiple matches, empty/no-match results, existing `find_index` checks, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-first-index-20261007/README.md).
@@ -4252,7 +4265,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### ASSOC-FIND-LAST-INDEX — associative `find_last_index()`
 
-- **State:** Implemented and locally qualified as Fix 31; add to the existing draft PR #407. This is a bounded §7.12.1 increment, not full clause-7 closure.
+- **State:** Implemented and locally qualified as Fix 31; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). This is a bounded §7.12.1 increment, not full clause-7 closure.
 - **Standard:** IEEE 1800-2017/2023 §7.12.1 requires the last matching associative key in the array's key ordering, with the declared index type in the result queue. Wildcard-index associative arrays are excluded.
 - **Failure and fix:** Before the change, valid calls were rejected in both editions. The frontend now uses the existing typed keyed-locator path; VVP begins at the last key, walks predecessors, and stops at the first predicate match in reverse order.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 8/8. Coverage includes multiple matches, signed integer and string keys, empty/no-match results, existing associative `find_index`/`find_first_index` controls, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md).
@@ -4260,7 +4273,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### SV23-RAND-REAL — IEEE 1800-2023 scalar real randomization
 
-- **State:** Implemented and locally qualified as Fix 34. Add it to the existing draft PR #407; the broader IEEE 1800 goal remains active.
+- **State:** Implemented and locally qualified as Fix 34; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The broader IEEE 1800 goal remains active.
 - **Standard:** IEEE 1800-2023 §18.4 permits scalar class `rand real`; §18.5.9 permits real solve-before operands and requires uniform real selection. IEEE 1800-2017 retains the strict rejection.
 - **Implementation:** The frontend edition-gates scalar real properties. Constraint lowering preserves binary64 literals and property values; the Z3 path handles real arithmetic/comparisons and finite interval membership, samples feasible binary64 candidates against the full hard solver, stages real solve-before values, and writes back only successful solves.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 3/3: 2023 positive, 2017 negative, and 2023 `randc real` negative. The positive test checks bounds, a relational bit, solve-before, 2,048-draw equal-half frequency (1,004 lower-half draws), and failed-call rollback. Image hashes and commands are in [qualification evidence](../../evidence/rand-real-scalar-20261007/README.md).
@@ -4268,7 +4281,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### SV23-ARRAY-INDEX-ARGUMENT — IEEE 1800-2023 array-method index argument
 
-- **State:** Implemented and locally qualified as Fix 35; add it to the existing draft PR #407. The broader IEEE 1800 goal remains active.
+- **State:** Implemented and locally qualified as Fix 35; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The broader IEEE 1800 goal remains active.
 - **Standard:** IEEE 1800-2023 §7.12 adds the optional `index_argument` name to array-method calls. It names the iterator's index-query alias; strict `-g2017` must reject it.
 - **Failure and fix:** The frontend accepted only the iterator argument for locator, reduction, min/max, and unique methods. The shared validator now accepts and edition-gates the second identifier, and iterator binding resolves it for ordinary and associative arrays. Class-element lookup preserves a real property such as `item.index` while resolving a distinct custom alias such as `item.position` to the array index.
 - **Validation:** Paired JSON/VVP and legacy focused lists pass 2/2, including class-member collision, associative string-key lookup, `sum`, `min`, `max`, and `unique_index`. Adjacent 2023 `map()` lists pass 4/4 in each harness. Build and install succeed. Exact commands and executable hashes are in [qualification evidence](../../evidence/array-index-argument-20261007/README.md); no broad suite or OpenTitan corpus was run.
