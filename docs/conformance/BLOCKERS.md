@@ -71,8 +71,12 @@
   package test passes after initializing UVM. These three pass in focused
   reruns; two unrelated VIF diagnostic gold mismatches remain (DD-113). The
   full JSON runner stopped at the unrelated zero-time
-  `sv_always_comb_fixed_point` loop (DD-114) and has no aggregate result. CI is
-  not yet qualified. The GitHub backlog already contains 50 open IEEE issues
+  `sv_always_comb_fixed_point` loop (DD-114) and has no aggregate result. The
+  Ubuntu hard-gate run on the superseded PR head also failed because the
+  negative suite still expects rejection of legal unequal-length `intersect`
+  (DD-115). Exact current-head run 37739410742 remains queued on all six
+  platforms. Stop this ticket on the unrelated CI failures without editing
+  those cases; do not claim qualification. The GitHub backlog already contains 50 open IEEE issues
   (#414–#463); this is issue #449, not a new ticket.
 - **Requirement:** IEEE 1800-2023 A.2.7 permits `[const] ref [static]`;
   §13.5.2 restricts actuals to static-lifetime storage or another `ref static`
@@ -87,9 +91,9 @@
   lifetime, enforce the detached-fork rule, and bind fixed-array-word function
   actuals directly so nested reads observe writes immediately. Preserve
   ordinary ref behavior and fork scheduling.
-- **Next:** Keep the remaining full-gate findings in `DISCOVERED_DEBT.md` and
-  update the existing draft PR #464. Do not merge until the exact PR head has
-  green required CI.
+- **Next:** DD-113/115 are recorded in `DISCOVERED_DEBT.md`; update the existing
+  draft PR #464 with the CI evidence, then return to coordinator selection from
+  refreshed `origin/main`. Do not merge or claim this ticket CI-qualified.
 
 ### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
 
