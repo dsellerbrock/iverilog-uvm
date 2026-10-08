@@ -3974,7 +3974,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   name-diff gate is clean and bundled VPI passes 131/131. A local replay on
   the #460 worktree identifies the sole case as `m9b_intersect_unequal_len`;
   the CI logs report the count but do not name that case. At the last snapshot,
-  macOS was queued and the three Windows jobs were still in progress.
+  macOS was queued and the three Windows jobs were still in progress. PR #466
+  (issue #450) repeats the same 152/153 negative-suite failure on Ubuntu 22.04
+  and 24.04 in run `37767274293`; the logs show the legacy suite and name-diff
+  gate pass, then the negative gate fails. A local replay identifies
+  `m9b_intersect_unequal_len` as the sole failure.
 - **Local identification:** The available source-built compiler's negative
   runner reports its sole failure as `m9b_intersect_unequal_len`. That fixture
   asserts unequal-length SVA `intersect` operands must be rejected. The PR #412
@@ -3988,12 +3992,14 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   workflow `37676515427`; [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413),
   workflow `37717798761`; direct job logs and a local `tests/negative/run_negative.sh`
   replay.
-- **Correction:** The fixture now carries `NEG-LEGACY-ONLY`. The default NFA
+- **Correction:** The fixture now carries `NEG-LEGACY-ONLY` on PR #467. The default NFA
   accepts the legal form; `IVL_SVA_LEGACY=1` preserves the explicit unsupported-
   lowering diagnostic. The full negative suite passes locally, 153/153.
-- **Triage status:** The correction is cherry-picked onto main-based PR #467.
-  Exact-head CI has not yet verified it; do not claim the hard gate qualified
-  until the updated run passes.
+- **Triage status:** The correction is on main-based PR #467. The integrated
+  exact head `dc7bea1c76b51e9f6acd91fc31c2687eb7170633` has run
+  `37821537530` queued on all six platforms; do not claim the hard gate
+  qualified until that exact-head run passes. PR #466 remains on its earlier
+  failed head and should be reassessed after the shared correction is validated.
 
 ### DD-108 — PR #411 Ubuntu 24.04 check failed after merge
 

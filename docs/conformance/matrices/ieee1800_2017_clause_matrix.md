@@ -2486,3 +2486,24 @@ grammar file changed. Bison 3.8.2 reports the same conflict counts on clean
 `origin/main` and this branch: 574 shift/reduce and 1,122 reduce/reduce. Exact-
 head CI qualification remains pending. The implementation and tested boundary
 are limited to this conditional-expression feature.
+
+## 2026-10-08 IEEE 1800 §22.5 escaped conditional identifiers
+
+IEEE 1800-2017 and 1800-2023 §22.5 Syntax 22-5 use `text_macro_identifier`
+for plain `ifdef`, `ifndef`, and `elsif` conditions. Under §5.6.1, an escaped
+identifier starts with a backslash, contains printable ASCII, and ends at
+terminating whitespace; neither delimiter belongs to the identifier. The
+clean-main reproducer for issue #468 defines `\foo` and then uses
+`` `ifdef \foo``; it reports `` `ifdef without a macro name`` in both
+strict editions.
+
+The #468 candidate adds escaped-name recognition to the four plain conditional
+lexer states, requires a whitespace terminator, and looks up the macro without
+the leading backslash. Permanent tests cover defined and undefined `ifdef` /
+`ifndef` conditions, a punctuation-bearing name used by `elsif`, newline and
+space terminators, both editions, and an unterminated-name diagnostic. The new
+focus passes 3/3 in both legacy and JSON runners after a forced ivlpp rebuild;
+macro-definition neighbors pass 28/28 legacy and 8/8 JSON, and the separate
+#460 expression focus passes 3/3 in both runners. Exact-head CI and full-suite
+qualification remain pending. See [issue #468](https://github.com/dsellerbrock/iverilog-uvm/issues/468)
+and [draft PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467).

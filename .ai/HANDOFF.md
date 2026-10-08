@@ -2,50 +2,39 @@
 
 ## Active task
 
-Issue #460: IEEE 1800-2023 §22.5 parenthesized conditional-compilation
-expressions. Work in `agent/ieee-ifdef-parenthesized-20261008`, based on fresh
-`origin/main` `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft PR #467 targets
-`main`.
+Issue #468: accept escaped `text_macro_identifier` names in ordinary
+`ifdef`, `ifndef`, and `elsif` conditions under IEEE 1800-2017 and 1800-2023.
+The work is on `agent/ieee-ifdef-parenthesized-20261008`, which updates draft
+PR #467 to `main`; #460 remains a separately tracked change in that PR.
 
-The driver passes the selected generation to `ivlpp`; expression conditions
-for `ifdef`, `ifndef`, and `elsif` are enabled only for 2023. The local change
-also accepts comments and line breaks between a directive and `(`, per §22.5
-token separation, including nested suppressed branches. The fixture covers
-simple and escaped identifiers, an escaped name containing operator
-punctuation, all operators, precedence, nesting, comments, line breaks, and
-plain-identifier controls. No `parse.y` changes.
+`ivlpp/lexor.lex` recognizes escaped names in the four plain conditional
+states, requires the whitespace terminator without consuming it, and removes
+the leading backslash for macro lookup. Punctuation inside the name is
+preserved. The no-terminator case remains an error. No parser grammar change.
 
-## Current verification
+## Verification
 
-- `make -C ivlpp -j2 && make install`: passes after the current lexer change.
-- Focused legacy and JSON lists: 3/3 each, including the directive comment and
-  line-break cases.
-- Neighboring macro definition legacy list: 28/28; JSON/VVP list: 8/8.
-- Negative suite: 152/153 locally. Its only failure is
-  `m9b_intersect_unequal_len`, an unrelated SVA case already recorded as
-  DD-107. Do not fix it under #460.
-- Bison conflicts are unchanged from clean `origin/main`: 574 shift/reduce and
-  1,122 reduce/reduce.
+- Forced `make -B -C ivlpp -j2` and `make -C ivlpp install` pass. Flex emits
+  its two existing misleading-indentation warnings in generated scanner code.
+- Issue #468 legacy focus: 3/3; JSON focus: 3/3.
+- Neighboring macro-definition tests: legacy 28/28; JSON 8/8.
+- Issue #460 parenthesized-expression tests: legacy 3/3; JSON 3/3.
+- These are local macOS results. Full ivtest/UVM gates and exact-head CI have
+  not been run for the current uncommitted #468 increment.
 
-## CI and next action
+The baseline failure is recorded in issue #468. The applicable standards
+clauses are 1800-2017/2023 §22.5 Syntax 22-5 and §5.6.1.
 
-Pushed PR head `812c2c364cdf655f1125406a3f656cab8ee12549` run
-`37775071993` failed the Ubuntu 22.04 and 24.04 hard gates at the negative
-suite (152/153). Both logs show a clean ivtest name-diff gate and bundled VPI
-131/131. The local replay identifies DD-107's `m9b_intersect_unequal_len`;
-the CI log only reports the suite count. At the last snapshot macOS was queued
-and MINGW64, UCRT64, and CLANG64 were still running.
+## Next action
 
-The token-separator follow-up is pushed in commit `9bca7ab6`; the PR body and
-DD-107 record the previous Ubuntu failures. Run `37796344976` was queued on
-this source head when checked. The handoff update itself may advance the PR
-head, so read the current SHA and checks from GitHub before relying on that
-run. Inspect exact-head CI once after any head update. Keep PR #467 draft; do
-not merge or call it CI-qualified while a required check fails.
+Review the complete diff and YAML/CSV validity, commit and push the #468
+increment to existing PR #467, update its body with the exact local commands,
+then inspect exact-head CI once. Investigate any reported failure. Keep the PR
+draft and do not merge or claim qualification before every required platform
+check is green.
 
-## Worktree boundary
+## Worktrees
 
-Three checkouts remain. Reuse the existing feature worktree; do not create a
-new one. Preserve dirty `agent/timeunit-timeprecision-20261007` and canonical
-`main` with the shared graph. Do not select DD-107 as the next blocker; it is
-record-only and outside #460.
+Three checkouts remain. Reuse the current feature checkout; do not create a
+new worktree. Preserve the clean census checkout and canonical `main` checkout
+with the shared graph.

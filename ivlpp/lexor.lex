@@ -983,6 +983,18 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
         yyterminate();
 }
 
+<IFDEF_NAME,IFNDEF_NAME,ELSIF_NAME,ELSIF_SUPR>\\[!-~]+/[ \t\b\f\r\n] {
+    if (YY_START == ELSIF_SUPR) {
+        BEGIN(IFDEF_SUPR);
+    } else {
+        int defined = is_defined(yytext + 1);
+        if ((YY_START == IFNDEF_NAME) ? !defined : defined)
+            BEGIN(IFDEF_TRUE);
+        else
+            BEGIN(IFDEF_FALSE);
+    }
+}
+
 <IFDEF_NAME>[a-zA-Z_][a-zA-Z0-9_$]* {
     if (is_defined(yytext))
 	BEGIN(IFDEF_TRUE);
