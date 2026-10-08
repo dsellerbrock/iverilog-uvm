@@ -36,13 +36,12 @@ suite (152/153). Both logs show a clean ivtest name-diff gate and bundled VPI
 the CI log only reports the suite count. At the last snapshot macOS was queued
 and MINGW64, UCRT64, and CLANG64 were still running.
 
-The uncommitted follow-up includes token-separator handling in
-`ivlpp/lexor.lex`, its regression in
-`ivtest/ivltests/sv_ifdef_expression_2023.v`, and refreshed active-handoff and
-DD-107 evidence. Focused tests pass. The PR body still needs the CI update.
-Commit and push this in-scope follow-up, then inspect the new exact-head CI
-once. Keep PR #467 draft; do not merge or call it CI-qualified while a
-required check fails.
+The token-separator follow-up is pushed in commit `9bca7ab6`; the PR body and
+DD-107 record the previous Ubuntu failures. Run `37796344976` was queued on
+this source head when checked. The handoff update itself may advance the PR
+head, so read the current SHA and checks from GitHub before relying on that
+run. Inspect exact-head CI once after any head update. Keep PR #467 draft; do
+not merge or call it CI-qualified while a required check fails.
 
 ## Worktree boundary
 
