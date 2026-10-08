@@ -1,5 +1,4 @@
-// These min/max forms are legal array locators, but their comparison and
-// keyed-iteration semantics remain deliberately loud until implemented.
+// min/max on arrays of non-integral elements remains unsupported.
 module real_dynamic_receiver;
   real values[];
   real result[$];
@@ -12,11 +11,4 @@ module string_dynamic_receiver;
   string result[$];
 
   initial result = values.max;
-endmodule
-
-module associative_receiver;
-  int values[string];
-  int result[$];
-
-  initial result = values.min;
 endmodule

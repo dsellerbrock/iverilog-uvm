@@ -932,16 +932,24 @@ static int eval_object_array(ivl_expr_t expr)
 		       reaches here. */
 		  kind = VVP_ARRDAR_OBJ;
 		  break;
-		case IVL_VT_QUEUE:
-		case IVL_VT_DARRAY:
-		    /* Value containers: one object per word, deep-copied. */
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_DARRAY:
+	      /* Value containers: one object per word, deep-copied. */
+	    kind = VVP_ARRDAR_OBJ | VVP_ARRDAR_COPY;
+	    break;
+	  case IVL_VT_NO_TYPE:
+	      /* Unpacked structs are object-backed value elements. */
+	    if (ivl_signal_net_type(sig)
+	        && ivl_type_properties(ivl_signal_net_type(sig)) > 0) {
 		  kind = VVP_ARRDAR_OBJ | VVP_ARRDAR_COPY;
 		  break;
-		default:
-		  fprintf(stderr, "%s:%u: sorry: the whole unpacked array "
-			  "`%s' cannot be used as an object: only arrays of "
-			  "integral, real, string or class-handle elements can be "
-			  "marshaled into dynamic-array storage.\n",
+	    }
+	    /* fall through */
+	  default:
+	    fprintf(stderr, "%s:%u: sorry: the whole unpacked array "
+		    "`%s' cannot be used as an object: only arrays of "
+		    "integral, real, string, unpacked-struct or class-handle elements can be "
+		    "marshaled into dynamic-array storage.\n",
 			  ivl_expr_file(expr), ivl_expr_lineno(expr),
 			  ivl_signal_basename(sig));
 		  vvp_errors += 1;
@@ -1681,6 +1689,162 @@ static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int traversal)
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
       fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
       clr_flag(pred_flag);
+      clr_flag(traversal_flag);
+      return errors;
+}
+
+/* Select the best value while traversing associative-array keys. */
+static int draw_assoc_minmax_expr_(ivl_expr_t expr)
+{
+      unsigned parm_count = ivl_expr_parms(expr);
+      if (parm_count != 9 && parm_count != 10) {
+	    fprintf(stderr, "%s:%u: internal error: malformed associative "
+		    "min/max payload\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc minmax payload failure\n");
+	    return 1;
+      }
+
+      const char*kind = ivl_expr_name(expr) + 31;
+      int is_min = strcmp(kind, "min") == 0;
+      ivl_expr_t array_arg = ivl_expr_parm(expr, 0);
+      ivl_expr_t iter_arg = ivl_expr_parm(expr, 1);
+      ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
+      ivl_expr_t key_arg = ivl_expr_parm(expr, 3);
+      ivl_expr_t best_arg = ivl_expr_parm(expr, 4);
+      ivl_expr_t best_item_arg = ivl_expr_parm(expr, 5);
+      ivl_expr_t idx_arg = ivl_expr_parm(expr, 6);
+      ivl_expr_t value = ivl_expr_parm(expr, 7);
+      ivl_expr_t element = ivl_expr_parm(expr, 8);
+      ivl_expr_t recv_arg = parm_count == 10 ? ivl_expr_parm(expr, 9) : 0;
+      ivl_signal_t array_sig = draw_array_method_recv_(array_arg, recv_arg);
+      if (!array_sig
+	  || !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	  || !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
+	  || !key_arg || ivl_expr_type(key_arg) != IVL_EX_SIGNAL
+	  || !best_arg || ivl_expr_type(best_arg) != IVL_EX_SIGNAL
+	  || !best_item_arg || ivl_expr_type(best_item_arg) != IVL_EX_SIGNAL
+	  || !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+	  || !value || !element) {
+	    fprintf(stderr, "%s:%u: internal error: malformed associative "
+		    "min/max fields\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc minmax field failure\n");
+	    return 1;
+      }
+
+      ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+      ivl_signal_t result_sig = ivl_expr_signal(result_arg);
+      ivl_signal_t key_sig = ivl_expr_signal(key_arg);
+      ivl_signal_t best_sig = ivl_expr_signal(best_arg);
+      ivl_signal_t best_item_sig = ivl_expr_signal(best_item_arg);
+      ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+      ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+      ivl_type_t key_type = ivl_signal_net_type(key_sig);
+      ivl_type_t result_queue_type = ivl_signal_net_type(result_sig);
+      ivl_type_t result_type = result_queue_type
+	    ? ivl_type_element(result_queue_type) : 0;
+      if (!iter_type || !key_type || !result_type
+	  || (ivl_type_base(iter_type) != IVL_VT_BOOL
+	      && ivl_type_base(iter_type) != IVL_VT_LOGIC)
+	  || ivl_type_base(result_type) != ivl_type_base(iter_type)
+	  || (ivl_type_base(key_type) != IVL_VT_BOOL
+	      && ivl_type_base(key_type) != IVL_VT_LOGIC
+	      && ivl_type_base(key_type) != IVL_VT_STRING)) {
+	    fprintf(stderr, "%s:%u: internal error: unsupported associative "
+		    "min/max runtime type\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc minmax type failure\n");
+	    return 1;
+      }
+
+      const char*key_kind = expr_is_string_assoc_key_(key_arg)
+	    ? "str" : (ivl_type_signed(key_type) ? "sv" : "v");
+      char result_enc[64];
+      container_element_enc_(result_type, result_enc, sizeof result_enc);
+      unsigned iter_wid = ivl_type_packed_width(iter_type);
+      if (!iter_wid) iter_wid = 32;
+      unsigned value_wid = ivl_expr_width(value);
+      if (!value_wid) value_wid = 32;
+      const char*cmp_op = ivl_expr_signed(value) ? "%cmp/s" : "%cmp/u";
+      unsigned lab_top = local_count++;
+      unsigned lab_end = local_count++;
+      unsigned lab_take = local_count++;
+      unsigned lab_skip = local_count++;
+      unsigned lab_next = local_count++;
+      unsigned lab_done = local_count++;
+      int traversal_flag = allocate_flag();
+      int errors = 0;
+
+      fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+      fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
+      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+      fprintf(vvp_out, "    %%aa/first/sig/%s v%p_0, v%p_0;\n",
+	      key_kind, array_sig, key_sig);
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
+	      thread_count, lab_end, traversal_flag);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+      errors += draw_unique_store_signal_(element, iter_sig, iter_type);
+      draw_eval_vec4(value);
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+      fprintf(vvp_out, "    %%cmp/u;\n");
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+	      thread_count, lab_take);
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", best_sig);
+      fprintf(vvp_out, "    %s;\n", cmp_op);
+      if (is_min) {
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5;\n",
+		    thread_count, lab_take);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+		    thread_count, lab_skip);
+      } else {
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5;\n",
+		    thread_count, lab_skip);
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+		    thread_count, lab_skip);
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, 5;\n",
+		    thread_count, lab_take);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+		    thread_count, lab_skip);
+      }
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_take);
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+	      best_sig, value_wid);
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", iter_sig);
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+	      best_item_sig, iter_wid);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_next);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
+      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_next);
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+      fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+      fprintf(vvp_out, "    %%add;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+      fprintf(vvp_out, "    %%aa/next/sig/%s v%p_0, v%p_0;\n",
+	      key_kind, array_sig, key_sig);
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
+	      thread_count, lab_top, traversal_flag);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+      fprintf(vvp_out, "    %%cmp/u;\n");
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+	      thread_count, lab_done);
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", best_item_sig);
+      fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, %u;\n",
+	      result_sig, iter_wid);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_done);
+      fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
       clr_flag(traversal_flag);
       return errors;
 }
@@ -3100,6 +3264,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strcmp(name, "$ivl_queue_method$assoc_find_last_index") == 0)
 	    return draw_assoc_index_locator_expr_(expr, -1);
 
+      if (strncmp(name, "$ivl_queue_method$assoc_minmax|", 31) == 0)
+	    return draw_assoc_minmax_expr_(expr);
+
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;
 	    int is_fixed_property = parm_count == 9;
@@ -3129,7 +3296,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 
 	    ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_parm);
 	    if (!q_sig
-		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+		|| !iter_arg
+		|| (ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+		    && ivl_expr_type(iter_arg) != IVL_EX_ARRAY)
 		|| !ivl_expr_signal(iter_arg)
 		|| !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(result_arg)
@@ -3193,6 +3362,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    char elem_enc_buf[32];
 	    if (is_index) {
 		  result_enc = "sb32";
+	    } else if (ivl_signal_dimensions(iter_sig) > 0) {
+		  result_enc = "o";
 	    } else if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
 		  const char*sgn = ivl_type_signed(iter_type) ? "s" : "";
 		  const char*type_enc = (bt == IVL_VT_BOOL) ? "b" : "v";
@@ -3246,7 +3417,17 @@ static int eval_object_sfunc(ivl_expr_t expr)
 
 	    /* iter_sig = q[idx_sig] — type-specific load/store pair */
 	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
-	    if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
+	    if (ivl_signal_dimensions(iter_sig) > 0) {
+		  unsigned kind;
+		  if (!uarray_container_kind_(iter_sig, &kind,
+					      ivl_signal_file(iter_sig),
+					      ivl_signal_lineno(iter_sig))) {
+			fprintf(vvp_out, "    %%null; ; find_with: invalid iterator array\n");
+			return 1;
+		  }
+		  fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", q_sig);
+		  emit_store_arr_dar_(iter_sig, kind);
+	    } else if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
 		  draw_array_elem_load_vec4_(q_sig);
 		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
 			  iter_sig, iter_wid);
@@ -3293,6 +3474,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n",
 			  is_fixed_property ? declared_idx_sig : idx_sig);
 		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n", result_sig);
+	    } else if (ivl_signal_dimensions(iter_sig) > 0) {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%store/qb/obj v%p_0, 5;\n", result_sig);
 	    } else if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
 		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
 		  draw_array_elem_load_vec4_(q_sig);
