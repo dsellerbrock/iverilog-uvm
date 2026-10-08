@@ -13040,6 +13040,29 @@ expr_primary
 	delete $3;
 	$$ = tmp;
       }
+  | SYSTEM_IDENTIFIER '(' PACKAGE_IDENTIFIER ')'
+      { /* IEEE 1800-2023 20.4.1 permits a package scope here as a
+	   hierarchical_identifier, not as a value expression. Preserve its
+	   PPackage identity for elaboration-time scope resolution. */
+	if (strcmp($1, "$timeunit") != 0
+	    && strcmp($1, "$timeprecision") != 0)
+	      yyerror(@1, "error: A package scope argument is only valid for "
+		      "$timeunit or $timeprecision.");
+	pform_name_t path;
+	path.push_back(name_component_t($3->pscope_name()));
+	PEIdent*scope_arg = new PEIdent($3, path, @3.lexical_pos);
+	FILE_NAME(scope_arg, @3);
+	std::vector<named_pexpr_t> parms;
+	named_pexpr_t parm;
+	FILE_NAME(&parm, @3);
+	parm.name = perm_string();
+	parm.parm = scope_arg;
+	parms.push_back(parm);
+	PECallFunction*tmp = new PECallFunction(lex_strings.make($1), parms);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
   | SYSTEM_IDENTIFIER argument_list_parens
       { perm_string tn = lex_strings.make($1);
 	PECallFunction *tmp = new PECallFunction(tn, *$2);

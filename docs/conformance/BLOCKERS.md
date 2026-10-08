@@ -74,6 +74,25 @@
   green. Variable/ranged mismatches and broader nested combinator trees remain
   open.
 
+### SV-TIMEUNIT-TIMEPRECISION-SYSTEM-FUNCTIONS — locally focused-tested
+
+- **Requirement:** IEEE 1800-2023 §20.4.1 and Syntax 20-3 add integer
+  exponent results for the current design element or an optional hierarchical
+  module/package scope; `$unit` selects the compilation unit and `$root` returns
+  the simulation time unit for both functions. Strict IEEE 1800-2017 rejects
+  these functions.
+- **Failure and fix:** Bare and empty-parentheses calls previously compiled but
+  failed at VVP as undefined functions. Package scope arguments also need their
+  `PPackage` identity retained by the parser. The frontend now resolves immutable
+  design-scope time metadata during elaboration.
+- **Validation:** A macOS ARM64 build and install succeeded. The paired focus
+  passes 3/3 in both legacy and JSON/VVP runners: strict 2017 rejection, 2023
+  exact values for bare, `()`, selected module and nested module, package,
+  `$unit`, `$root`, and rejection of a non-scope argument. This is local
+  evidence; no CI result is claimed.
+- **Boundary:** No timescale declaration parsing, `$time` scaling, `$printtimescale`,
+  or `$timeformat` behavior changed. See [focused evidence](../../evidence/timeunit-functions-20261007/README.md).
+
 ### OpenTitan 49-target post-fix census — 2026-09-29
 
 - **Frozen-image result:** **23 PASS / 49** on the pinned OpenTitan source with selected exact-hash overlays and native DPI, up from 18 PASS in the previous raw census. The other 26 are 3 DEBT, 4 compile FAIL, 9 RUNTIME_FAIL, 7 RUNTIME_MEMORY_LIMIT, 2 RUNTIME_TIMEOUT, and 1 MATRIX_ERROR. The [complete 49-row evidence](../../evidence/opentitan-49-post-fixes-20260929/README.md) includes source/compiler hashes and logs.

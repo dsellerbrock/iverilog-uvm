@@ -8732,6 +8732,14 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 {
       perm_string name = peek_tail_name(path_);
 
+      if (name == "$timeunit" || name == "$timeprecision") {
+	    expr_type_   = IVL_VT_LOGIC;
+	    expr_width_  = integer_width;
+	    min_width_   = integer_width;
+	    signed_flag_ = true;
+	    return expr_width_;
+      }
+
       if (name=="$ivlh_to_unsigned") {
 	    ivl_assert(*this, parms_.size() == 2);
 	      // The Icarus Verilog specific $ivlh_to_unsigned() system
@@ -11677,6 +11685,77 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		       << "` has no argument called `" << parm.name << "`."
 		       << endl;
 	    }
+      }
+
+	/* IEEE 1800-2023 20.4.1: these functions return immutable time
+	   metadata, so resolve the requested design scope during elaboration.
+	   `$root` denotes the global simulation time unit rather than a VPI
+	   object; `$unit` arrives here as the current compilation-unit scope. */
+      if (name == "$timeunit" || name == "$timeprecision") {
+	    if (!sv_require_feature(this,
+				    SVF_TIMESCALE_RETRIEVAL_FUNCTIONS)) {
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    int result;
+	    if (parms_.empty()) {
+		  result = name == "$timeunit" ? scope->time_unit()
+			: scope->time_precision();
+	    } else if (parms_.size() == 1 && parms_[0].parm) {
+		  PExpr*arg = parms_[0].parm;
+		  const PECallFunction*root = dynamic_cast<const PECallFunction*>(arg);
+		  if (root && root->receiver_expr() == nullptr
+		      && root->path().package == nullptr
+		      && root->path().name.size() == 1
+		      && peek_tail_name(root->path()) == "$root"
+		      && root->get_parms().empty()) {
+		    result = des->get_precision();
+		  } else {
+			NetExpr*target = nullptr;
+			const NetScope*target_scope = nullptr;
+			if (const PEIdent*package_arg =
+			      dynamic_cast<const PEIdent*>(arg)) {
+			      const pform_scoped_name_t&path = package_arg->path();
+			      if (path.package && path.name.size() == 1
+				  && path.name.front().name ==
+				       path.package->pscope_name())
+				    target_scope = des->find_package(
+					  path.package->pscope_name());
+			}
+			if (!target_scope) {
+			      target = elab_sys_task_arg(des, scope, name, 0, arg);
+			      const NetEScope*scope_expr =
+				    dynamic_cast<const NetEScope*>(target);
+			      target_scope = scope_expr
+				    ? scope_expr->scope() : nullptr;
+			}
+			if (!target_scope
+			    || (target_scope->type() != NetScope::MODULE
+				&& target_scope->type() != NetScope::PACKAGE)) {
+			      cerr << arg->get_fileline() << ": error: The " << name
+				   << " argument must name a module, interface, program, "
+				   << "or package scope." << endl;
+			      des->errors += 1;
+			      delete target;
+			      return nullptr;
+			}
+			result = name == "$timeunit"
+			      ? target_scope->time_unit()
+			      : target_scope->time_precision();
+			delete target;
+		  }
+	    } else {
+		  cerr << get_fileline() << ": error: The " << name
+		       << " function takes zero arguments or one hierarchical "
+		       << "identifier argument." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    NetEConst*value = make_const_val_s(result);
+	    value->set_line(*this);
+	    return cast_to_width_(value, expr_wid);
       }
 
 	/* A constant $sformatf("%m") is instance-dependent, but it is still
