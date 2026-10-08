@@ -1,5 +1,7 @@
 # Discovered debt (parking lot)
 
+The canonical open-issue inventory, selection rules, and census dispositions are in the [IEEE conformance index](INDEX.md).
+
 This file exists so that finding a defect while working a different
 `.ai/ACTIVE_WORK.yaml` ticket never becomes an excuse to widen that ticket.
 
@@ -31,6 +33,12 @@ done outside any single targeted-fix run.
 
 Previously recorded debt follows. The delivery-audit items below are
 record-only; they were not implemented in this ticket.
+
+### 2026-10-08 IEEE census — escaped conditional macro identifier
+
+- **Issue status:** [OPEN #468](https://github.com/dsellerbrock/iverilog-uvm/issues/468).
+- **Gap/evidence:** A self-authored `` `ifdef \foo `` reducer fails on clean `origin/main` with “without a macro name.” IEEE 1800-2017 and 1800-2023 §22.5 use `text_macro_identifier`; §5.6 includes escaped identifiers. See the issue for the exact reducer and clean-main `ivlpp` evidence. This is separate from #460’s parenthesized conditional-expression gap.
+
 
 
 ## 2026-10-07 delivery-audit debt
@@ -90,6 +98,8 @@ record-only; they were not implemented in this ticket.
 - Reproducer status: resolved within L04 reviewed locally validated automatic integral default publication. Broader types and derived Boolean contexts remain unqualified.
 
 ### DD-005 — Non-fanout assertion paths omit vacuous user pass actions
+
+- **Issue status:** [OPEN #470](https://github.com/dsellerbrock/iverilog-uvm/issues/470).
 
 - Active blocker: S03; record-only outside the endpoint aggregation path.
 - Observation: `tests/sva_recursive_consequent_test.sv` executes17 enabled
@@ -915,6 +925,8 @@ probe that depended on it. An upstream report is a separate, unfiled action.
 
 ### DD049 — vpiLineNo/vpiFile never captured for signals, part-selects or class variables
 
+- **Issue status:** [OPEN #501](https://github.com/dsellerbrock/iverilog-uvm/issues/501).
+
 - **Active blocker:** DD046 triage; record-only.
 - **Observation:** `vpi_get(vpiLineNo, handle)` returns a hardcoded `0` for
   every ordinary signal/net/reg (`__vpiSignal`, `vvp/vpi_signal.cc:552`),
@@ -993,6 +1005,8 @@ probe that depended on it. An upstream report is a separate, unfiled action.
 
 ### DD-020 — Unresolved task calls compile and continue after a warning
 
+- **Issue status:** [OPEN #500](https://github.com/dsellerbrock/iverilog-uvm/issues/500).
+
 - **Discovered during:** L44, independent next-blocker assessment.
 - **Observation:** the OpenTitan synchronizer test calls mode/interval setter
   tasks absent from the pinned `prim_cdc_rand_delay` implementation. The
@@ -1046,6 +1060,8 @@ tasks and class fallback paths remain OPEN. Full batch qualification is pending.
 
 ### DD-021 — Dynamic subpart of a disjoint mixed-driver element is rejected
 
+- **Issue status:** [OPEN #472](https://github.com/dsellerbrock/iverilog-uvm/issues/472).
+
 - **Discovered during:** L44 boundary validation.
 - **Observation:** a fixed packed element written procedurally through a dynamic
   subpart, with a different fixed element continuously driven, is rejected as
@@ -1057,6 +1073,8 @@ tasks and class fallback paths remain OPEN. Full batch qualification is pending.
   Do not register this legal source as an expected language-error regression.
 
 ### DD-022 — Packed subpart writes escape the selected element
+
+- **Issue status:** [OPEN #471](https://github.com/dsellerbrock/iverilog-uvm/issues/471).
 
 - **Discovered during:** DD-021 prerequisite assessment alongside L45.
 - **Reducer:** `evidence/dynamic-mixed-driver-assessment/subpart_bounds.sv`;
@@ -1434,6 +1452,8 @@ remains pending at the feature-batch gate.
 
 ### DD-026 — Two-state assignment expression retains unknown bits at runtime
 
+- **Issue status:** [OPEN #473](https://github.com/dsellerbrock/iverilog-uvm/issues/473).
+
 - **Discovered while working:** L58 independent destination-conversion controls.
 - **Reducer:** `evidence/constant-assignment-expression-assessment/root-boundaries/bit_assign_x-runtime.sv`.
   Local `bit[3:0] i,j; j=(i=4'bx101);` should produce `{i,j}=8'h55` after
@@ -1458,6 +1478,8 @@ independent exact-result tests. Evidence is under
 `evidence/constant-assignment-expression-assessment/root-boundaries/`.
 
 ### DD-027 — Runtime increment of a fixed-array element crashes VVP
+
+- **Issue status:** [OPEN #502](https://github.com/dsellerbrock/iverilog-uvm/issues/502).
 
 - **Discovered while working:** L58 indexed-local constant-function controls.
 - **Reducer:** `evidence/constant-assignment-expression-assessment/root-boundaries/array_index_post-runtime.sv`.
@@ -1574,6 +1596,8 @@ Stable-hash evidence: `evidence/runtime-property-increment-assessment/matrix/bas
 
 ### DD-029 — Wide fixed string-array reads alias a valid element
 
+- **Census disposition (2026-10-08):** No active gap. [Issue #503](https://github.com/dsellerbrock/iverilog-uvm/issues/503) was opened then closed after current-main review: `of_LOAD_STRA` rejects `thr->flags[4] != BIT4_0` before address use, and the L62 normalized candidate plus paired wide-index matrix pass. The issue close comment includes the exact current-main evidence. Historical baseline failures below are retained.
+
 - **Discovered during:** L60 shared array load/store review.
 - **Reducers:** `evidence/runtime-string-array-index-assessment/read-32.sv`
   and `read-100.sv`. A two-element string array indexed by unsigned 128-bit
@@ -1596,6 +1620,8 @@ increment validation also required correction before integration.
 
 
 ### DD-030 — Matching-width packed-select increment crashes at runtime
+
+- **Issue status:** [OPEN #498](https://github.com/dsellerbrock/iverilog-uvm/issues/498).
 
 - **Discovered during:** L60 operand-reconstruction boundary review.
 - **Reducers:** `evidence/runtime-selected-increment-assessment/matching-width/`.
@@ -1740,6 +1766,8 @@ During L101, a constant local fixed-string-array aggregate initializer crashed b
 
 ### DD-033 — Package-scope fixed unpacked-array `parameter` with a keyed assignment-pattern value (2026-09-16)
 
+- **Issue status:** [OPEN #474](https://github.com/dsellerbrock/iverilog-uvm/issues/474).
+
 Found compiling real, unmodified Caliptra formal-verification source
 directly (`src/sha256/formal/properties/fv_sha256_core_pkg.sv`, line 26):
 ```systemverilog
@@ -1808,6 +1836,8 @@ Status: recorded, not selected.
 
 ### DD-034 — Mixing `int` and `logic` assertion-local variable declarations in one property breaks binding (2026-09-16)
 
+- **Issue status:** [OPEN #475](https://github.com/dsellerbrock/iverilog-uvm/issues/475).
+
 Found while building a permanent regression for the L122 comma-
 separated multi-identifier local-declaration fix. **Not caused by that
 fix** — reproduces with zero commas involved, using only the pre-
@@ -1846,6 +1876,8 @@ deliberately avoids mixing kinds to stay in scope. Status: recorded,
 not selected.
 
 ### DD-035 — Sequence match-item assignment LHS is a bare identifier only, no part-/bit-select (2026-09-16)
+
+- **Issue status:** [OPEN #476](https://github.com/dsellerbrock/iverilog-uvm/issues/476).
 
 Found compiling real, unmodified Caliptra source directly
 (`src/ecc/formal/properties/fv_montmultiplier_glue.sv`, line 113):
@@ -2954,6 +2986,9 @@ Unlike DD-040's plain-statement form, this grammar rule does not check the selec
 
 ### DD-044 — Class-state array indices in constraint foreach bodies can drop an entire constraint (2026-09-20)
 
+This remains record-only: the first reducer contained redundant constraints, so no discriminating unsatisfiable failure is established.
+
+
 Observed while repairing DD-043 selector validation on local integration
 `0133287ec` using the unchanged `104541cde` compiler. A declared integral
 class-state selector resolves, but the body `a[selected][j] == 10 + j`
@@ -3348,6 +3383,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-047 — OpenTitan ADC filter-size constraint is ignored
 
+**Issue status:** [OPEN existing issue #419](https://github.com/dsellerbrock/iverilog-uvm/issues/419); nested-array randomization is tracked there, not as a duplicate.
+
+
 - **Discovered while working:** OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG.
 - **Observation:** The pinned ADC target compiles after the macro fix, but ignores `foreach (filter_cfg[channel]) { filter_cfg[channel].size == ADC_CTRL_NUM_FILTERS; }` at line 94. The direct outer `filter_cfg.size` constraint at line 91 is accepted. A nested `struct[][]` reducer returns successful `randomize()` while inner arrays retain size 1 instead of constrained size 3.
 - **File/function:** OpenTitan `hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv:91-94`; `elaborate.cc` rejects nested dynamic-array foreach and indexed `.size` lowering; `vvp/vvp_z3.cc` rejects resize of an unallocated nested class-handle collection during a global solve.
@@ -3358,6 +3396,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-048 — Caliptra masking struct member loses packed bit select
 
+- **Issue status:** [OPEN #499](https://github.com/dsellerbrock/iverilog-uvm/issues/499).
+
 - **Discovered while working:** PR339 compiler CI repair and pinned Caliptra unit-census assessment.
 - **Observation:** Clean Adams Bridge v2.0.3 `masking_tb` uses `inputs.x_boolean[j][0]`, where the first index selects an unpacked struct-member element and the second its packed bit. Icarus reports two indices where it expects one; a whole-element control passes.
 - **File/function:** `elab_expr.cc` struct-member index elaboration; the read and lvalue paths both need assessment.
@@ -3366,6 +3406,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** reproduced, not selected for implementation; it overlaps the OpenTitan class-event `elab_expr.cc` candidate.
 
 ### DD-049 — OpenTitan SPI class-event `.triggered` is rejected
+
+- **Status:** Fixed in merged [PR #340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at `909e3f314`. This is separate from the still-open explicit `triggered()` call forms in [issue #439](https://github.com/dsellerbrock/iverilog-uvm/issues/439).
 
 - **Discovered while working:** PR339 repaired-head pinned SPI Device compile.
 - **Observation:** Three released `spi_item` event properties are rejected when the scoreboard reads `.triggered`. A per-instance class-event trigger/wait control executes; a paired `.triggered` reducer fails before simulation.
@@ -3394,6 +3436,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** untriaged; separate from `.triggered` expression reads and waits. Do not expand the active ticket to repair explicit `@(...)` event lists.
 
 ### DD-052 — explicit named-event `triggered()` call aborts `ivl`
+
+- **Issue status:** [OPEN existing issue #439](https://github.com/dsellerbrock/iverilog-uvm/issues/439); the recorded crash is candidate-only and still needs a clean current-main check.
 
 - **Discovered while working:** OT-SPI-CLASS-EVENT-TRIGGERED.
 - **Observation:** `event ev; ev.triggered()` aborts in `ivl` at an assertion, while the parenthesis-free spelling has a separate working path. A class-event `obj.ev.triggered()` call is also rejected as an unknown method.
@@ -3435,6 +3479,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-056 — OTP smoke reaches an EDN pull-agent sequencer cast fatal
 
+**Census disposition (2026-10-08):** no active ticket. Current-main history includes `bb92498ad` (“Canonicalize concrete multi-value class specializations”), and the clause matrix records the corresponding §8.25 identity fix; no current-main reproducer was established in this census.
+
+
 - **Discovered while working:** OT-CSRNG-CFG-JOINT-DIST
 - **Observation:** The private ordered-guard VVP advances the named-overlay OTP smoke past cfg.randomize(), then dv_base_seq.sv:10 raises DCLPSQ at 0 ps for m_edn_pull_agent[0].sequencer. The compiled factory creates a push_pull_sequencer #(32,33) descriptor different from the same-parameter descriptor required by p_sequencer; both use the same registry get. A bytecode-only diagnostic accepting the factory descriptor clears DCLPSQ but the run still ends in assertion failure, so OTP remains 0/1 DV with no meaningful traffic or pass.
 - **File/function:** elab_scope.cc:3533-3540 uses source-sensitive specialization keys for multiple value parameters; elaborate_specialized_class_type in elab_scope.cc:4013-4043 uses the semantic cache only for C-prefixed keys. Named versus positional forms of the same parameter values therefore emit different class descriptors.
@@ -3444,6 +3491,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** separate compiler canonicalization blocker, outside the selected vvp/vvp_z3.cc solver patch. No pinned-source or compiler fix has been applied.
 
 ### DD-057 — scalar function output to associative class-property element is skipped
+
+- **Issue status:** [OPEN existing issue #429](https://github.com/dsellerbrock/iverilog-uvm/issues/429).
 
 - **Discovered while working:** OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
 - **Observation:** A function output `logic[1023:0]` actual `holder.entries["k"]` where `entries` is a class associative array of `bit[31:0]` compiles with `Skipping indexed property copy-out for data`; the element remains zero. This differs from the selected whole scalar `holder.value` copy-out.
@@ -3455,6 +3504,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-058 — mismatched two-state/four-state ref actual is accepted
 
+- **Issue status:** [OPEN #477](https://github.com/dsellerbrock/iverilog-uvm/issues/477).
+
 - **Discovered while working:** OT-CSRNG-FUNCTION-OUTPUT-BIT-COPYBACK
 - **Observation:** Both strict editions accept a `ref logic[31:0]` formal bound to a `bit[31:0]` actual, even though a `ref` argument must have an equivalent type; this is distinct from an `output` argument's assignment conversion.
 - **File/function:** function ref-argument validation in elaboration; exact source symbol not traced.
@@ -3465,6 +3516,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-059 — inline constraints capture an aliased active random variable as caller state
 
+- **Issue status:** [OPEN #478](https://github.com/dsellerbrock/iverilog-uvm/issues/478).
+
 - **Discovered while working:** OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT.
 - **Observation:** With `owner.alt` and `owner.req` pointing to the same item, `alt.randomize() with { req.clen == 12; }` returns zero and leaves `clen=0` in both strict editions. The direct `req.randomize() with { req.clen == 12; }` now succeeds, while a distinct object reference remains fixed caller state. A spelling-only receiver-root mapping cannot distinguish the two aliases.
 - **File/function:** `elab_expr.cc` receiver-root extraction and `elaborate.cc` inline constraint caller-value capture; a general fix needs active-object identity at solve time rather than lexical root matching alone.
@@ -3474,6 +3527,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** separate identity-aware blocker; the current PR qualifies only the stable direct receiver spelling and must not claim general inline alias conformance.
 
 ### DD-060 — explicit `this` inline target lookup accepts a caller-only member
+
+- **Issue status:** [OPEN #479](https://github.com/dsellerbrock/iverilog-uvm/issues/479).
 
 - **Discovered while working:** OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT.
 - **Observation:** `this.no_such_member` in a target object's inline constraint is accepted when the caller class declares `no_such_member` but the randomized class does not. Both strict editions compile it without an error, although explicit `this` must bind in the randomized class.
@@ -3495,6 +3550,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-062 — `$system` accepts an extra argument
 
+- **Issue status:** [OPEN #480](https://github.com/dsellerbrock/iverilog-uvm/issues/480).
+
 - **Discovered while working:** OT-SYSTEM-FUNCTION-RETURN.
 - **Observation:** Both strict editions compile `$system("exit 0", "exit 7")` without an arity diagnostic. The current ticket only repairs the returned status and legal task use.
 - **File/function:** `vpi/sys_icarus.c` `$system` registration has no `compiletf`; `system_calltf` reads only the first argument.
@@ -3504,6 +3561,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** untriaged, outside the function-result blocker.
 
 ### DD-063 — covergroup sampling loses X/Z before ordinary-bin matching
+
+- **Issue status:** [OPEN #481](https://github.com/dsellerbrock/iverilog-uvm/issues/481).
 
 - **Discovered while working:** OT-LC-PACKED-COVERPOINT-SHAPE.
 - **Observation:** In both strict 2017 and 2023 modes, a five-bit X-valued class property and its bitwise expression evaluate as `xxxxx`, but the first `sample()` raises ordinary zero/negative-bin coverage from 0% to 50%. A direct-property coverpoint fails alongside the bitwise expression, so this is independent of the selected declaration-time shape fix. An explicit X/Z-bin diagnostic also remains unsupported; simply skipping all unknown samples would be incomplete.
@@ -3525,6 +3584,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-065 — virtual-interface covergroup sampling silently has zero coverpoints
 
+- **Issue status:** [OPEN #482](https://github.com/dsellerbrock/iverilog-uvm/issues/482).
+
 - **Discovered while working:** OT-STD-RANDOMIZE-RANGED-SIZE-EXACT.
 - **Observation:** In strict 2017 and 2023, `vif.cg.sample()` compiles without a diagnostic but leaves two bound interface instances at 0% coverage. The same calls through physical `u0.cg` and `u1.cg` reach 50% each. A direct `coverpoint v` fails through `vif` too, so the loss precedes coverpoint expression lookup.
 - **File/function:** `elaborate.cc` `PCallTask::elaborate_method_` reads `covgrp_ncoverpoints()` from the virtual receiver's covergroup type; `elab_type.cc` `interface_layout_view_` supplies its interface layout type. The emitted virtual calls use `%covgrp/sample 0, 0`, whereas physical calls evaluate the coverpoint and use `%covgrp/sample 1, 1`.
@@ -3534,6 +3595,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** separate elaboration/type-metadata blocker. A fixed concrete-instance lookup cannot cover a rebinding virtual handle; retain the selected receiver while making its covergroup metadata and sample expressions available, or reject unsupported sampling explicitly. No implementation in the active solver ticket.
 
 ### DD-066 — const-ref forwarding is rejected as an assignment to const
+
+- **Issue status:** [OPEN #483](https://github.com/dsellerbrock/iverilog-uvm/issues/483).
 
 - **Discovered while working:** OT-PACKED-CONSTRAINT-INDEX-EXACT.
 - **Observation:** The released OpenTitan SPID `tlul_rmw` task passes its `const ref` clock and response arguments to `tlul_read` and `tlul_write`, whose corresponding formals are also `const ref`. After a disposable source overlay clears an unrelated missing struct field, Icarus reports four `Assignment to const signal` errors at the two calls. A 16-line standalone reducer produces the same four errors under local Icarus `-g2012`, with or without `-gcommercial-unsafe`. Slang 11.0.448 accepts it with zero errors and warnings under both `--std 1800-2017` and `--std 1800-2023`. A negative control changing one receiving formal to writable `ref` is rejected by Slang in both editions (`cannot bind const variable to 'ref' argument`). Icarus has no 2017/2023 language switch; `-g2012` is its highest available mode.
@@ -3545,6 +3608,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-067 — associative arrays of fixed arrays lack a sound VVP representation
 
+- **Issue status:** [OPEN #484](https://github.com/dsellerbrock/iverilog-uvm/issues/484).
+
 - **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
 - **Observation:** A three-line `bit tgt[enum][2]` declaration fails under Icarus strict 2017/2023 while Slang accepts it. This is the largest family in the saved patched-copy Flash compile (114 diagnostics). Removing the `netuarray_t` type guard alone would lose fixed bounds and default element construction in VVP.
 - **File/function:** `elab_type.cc` associative element check; `tgt-vvp/vvp_priv.h` container layout; `vvp/vvp_object.*` layout; `vvp/vthread.cc` associative element construction.
@@ -3554,6 +3619,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** active compiler blocker OT-FLASH-ASSOC-OF-FIXED-ARRAY, separate from the RSTMGR source patch.
 
 ### DD-068 — nested queue constraints cannot reach fixed-array queue leaves
+
+- **Issue status:** [OPEN existing issue #419](https://github.com/dsellerbrock/iverilog-uvm/issues/419).
 
 - **Discovered while working:** OT-RSTMGR-DERIVED-ARRAY-OPEN-FORMAL corpus triage.
 - **Observation:** `q[i].size()==2` under `rand bit q[2][$]` fails elaboration, and `foreach(q[i,j]) q[i][j]==1` warns that it is unrepresentable before `randomize()` fails. Flat queue controls pass in both editions; Slang accepts the nested sources.
@@ -3585,6 +3652,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-071 — missing associative key read omits the required warning
 
+- **Issue status:** [OPEN #486](https://github.com/dsellerbrock/iverilog-uvm/issues/486).
+
 - **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
 - **Observation:** Reading a nonexistent scalar associative entry returns its default value without allocating, but emits no runtime warning. This predates fixed-array element support; the active blocker preserves the same read/value behavior and does not claim full missing-key diagnostic conformance.
 - **Warning distinction:** The fixed-child runtime currently stores its implicit default through `has_default_`, which also marks a user-specified default. A later warning fix must distinguish those cases so implicit fixed defaults do not suppress the §7.8.6 warning.
@@ -3596,6 +3665,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-072 — variable-size whole-map pattern items need transactional validation
 
+- **Issue status:** [OPEN #485](https://github.com/dsellerbrock/iverilog-uvm/issues/485).
+
 - **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
 - **Observation:** A dynamic array or queue can legally supply a fixed-array associative pattern item when its runtime size matches. On a mismatch, the whole-map assignment must report an error and leave the old map unchanged. The current typed pattern builder loses destination layout until after map replacement, so this slice explicitly rejects variable-size items at compile time instead of silently replacing the map.
 - **File/function:** `tgt-vvp/stmt_assign.c` `draw_eval_assoc_default`, `draw_assoc_pattern_value_`; `vvp/vthread.cc` `aa_new_default`; `vvp/vvp_assoc.h` map copy/rebind.
@@ -3605,6 +3676,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** explicit unsupported boundary for this blocker; select separately before claiming full §7.6 pattern assignment support.
 
 ### DD-073 — module associative fixed arrays with class-handle leaves still reject indexed writes
+
+- **Issue status:** [OPEN #484](https://github.com/dsellerbrock/iverilog-uvm/issues/484).
 
 - **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
 - **Observation:** A module variable `entry src[int][8:9]` with a class-handle leaf still fails target code generation on `src[4][8] = handle` with `could not recover the selected nested container type`. The active class-property handle control passes; the pinned Flash handle array is a class property.
@@ -3616,6 +3689,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-074 — packed-bit write after an associative fixed slot is unsupported
 
+- **Issue status:** [OPEN #484](https://github.com/dsellerbrock/iverilog-uvm/issues/484).
+
 - **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
 - **Observation:** `m[key][fixed_slot][packed_bit] = value` is legal and accepted by Slang, but current Icarus gives an explicit `one key and one fixed slot index` elaboration error. The selected Flash sites use whole packed-leaf assignments.
 - **File/function:** `elab_lval.cc` nested fixed-child lvalue selection.
@@ -3625,6 +3700,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** separate follow-on; no packed-bit write support claimed by this blocker.
 
 ### DD-075 — nonblocking indexed write to an associative fixed child is unsupported
+
+- **Issue status:** [OPEN #484](https://github.com/dsellerbrock/iverilog-uvm/issues/484).
 
 - **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
 - **Observation:** `m[key][fixed_slot] <= value` is legal, but current target reports that the nonblocking property assignment form is unsupported rather than scheduling the write with NBA semantics. The selected Flash sites do not require this form.
@@ -3646,6 +3723,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-077 — queue foreach silently skips a packed element dimension
 
+- **Issue status:** [OPEN #487](https://github.com/dsellerbrock/iverilog-uvm/issues/487).
+
 - **Discovered while working:** OT-FLASH-FOREACH-MIXED-RANK.
 - **Observation:** `bit [1:0] q[$]; foreach (q[i,j])` compiles in strict 2017/2023 but executes zero body visits after a two-bit queue element is inserted. Slang accepts the same source. This predates the mixed fixed/runtime repair; that repair gives an explicit unsupported diagnostic when a packed rank follows its selected runtime leaf, rather than silently dropping the loop.
 - **File/function:** `elaborate.cc` `PForeach::elaborate_runtime_array_` and `make_foreach_array_element_expr_` currently descend through runtime array ranks only.
@@ -3655,6 +3734,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** separate foreach packed-tail lowering task; no packed-tail runtime support claimed by the mixed-rank repair.
 
 ### DD-078 — physical-interface packed inner index aliases a neighbor
+
+- **Issue status:** [OPEN existing issue #414](https://github.com/dsellerbrock/iverilog-uvm/issues/414).
 
 - **Discovered while working:** OT-FLASH-VIF-PACKED-STRUCT-FIELD.
 - **Observation:** With distinct packed-struct values in `rd_buf[0][0] = 8'h11`, `[0][1] = 8'h22`, `[1][0] = 8'h33`, and `[1][1] = 8'h44`, direct physical-interface reads `fi.rd_buf[0][2].addr` and `fi.rd_buf[1][-1].addr` return `8'h33` and `8'h22`. The invalid inner index carries into the neighboring outer row. The selected VIF repair returns X for both because it selects each packed rank separately. Valid direct slots still provide the field-value oracle for the active blocker.
@@ -3666,6 +3747,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-079 — packed child rank after an omitted associative foreach key
 
+- **Issue status:** [OPEN #487](https://github.com/dsellerbrock/iverilog-uvm/issues/487).
+
 - **Discovered while working:** OT-FLASH-FOREACH-OMITTED-ASSOC-KEY.
 - **Observation:** `foreach (map[, bank, bit_index])` is legal when `map` has an associative rank, one fixed child rank, and a packed vector leaf. Slang accepts the strict 2017/2023 reducer. The selected repair iterates the fixed bank rank but explicitly diagnoses the packed tail as unsupported; no packed-rank execution is claimed.
 - **File/function:** `elaborate.cc` `PForeach::elaborate_assoc_array_` and packed-rank descent after fixed child iteration.
@@ -3676,6 +3759,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-080 — indexed parent path before an omitted associative foreach key
 
+- **Issue status:** [OPEN #487](https://github.com/dsellerbrock/iverilog-uvm/issues/487).
+
 - **Discovered while working:** OT-FLASH-FOREACH-OMITTED-ASSOC-KEY.
 - **Observation:** `foreach (boxes[next_idx()].m[, bank])` is legal and the indexed parent expression must be evaluated. A candidate that deleted the target expression without evaluating it visited banks but called `next_idx()` zero times. The selected repair explicitly diagnoses this form as unsupported, while the unindexed Flash target works.
 - **File/function:** `elaborate.cc` `PForeach::elaborate_assoc_array_`; selector evaluation must precede fixed child loop execution.
@@ -3685,6 +3770,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** separate indexed-target evaluation ticket; no dropped side effects accepted.
 
 ### DD-081 — ascending packed class-property indexed read selects wrong bits
+
+- **Issue status:** [OPEN #488](https://github.com/dsellerbrock/iverilog-uvm/issues/488).
 
 - **Discovered while working:** OT-FLASH-CONSTRAINT-CONSTANT-INDEXED-PART-SELECT.
 - **Observation:** A class property `bit [0:7] value = 8'hA6` reads `value[2+:3] == 3'b101` and `value[5-:3] == 3'b110`; copying it into a local `bit [0:7]` and selecting the same ranges gives the correct `3'b100` and `3'b001`. The whole property remains `8'hA6`. This predates the selected constraint change and occurs without randomization.
@@ -3706,6 +3793,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-083 — X/Z numeric literal in a constraint can alias zero
 
+- **Issue status:** [OPEN #489](https://github.com/dsellerbrock/iverilog-uvm/issues/489).
+
 - **Discovered while working:** OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER.
 - **Observation:** Both `rand logic [3:0] en; en == 4'hx` and a packed-struct array member constrained to `4'hx` compile without a diagnostic and `randomize()` wrongly succeeds with value zero in strict 2017 and 2023. The plain scalar control shows this predates the selected member path.
 - **File/function:** `elaborate.cc` `PENumber` constraint IR lowering calls `constraint_const_bits_ir_`, which serializes only one-bits and loses X/Z information.
@@ -3715,6 +3804,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** untriaged; selected Flash RHS uses known enum literals and a pure function, so do not broaden the packed-member fix or claim X/Z RHS support.
 
 ### DD-084 — fixed class-property ordering method silently skips its receiver
+
+- **Issue status:** [OPEN #490](https://github.com/dsellerbrock/iverilog-uvm/issues/490).
 
 - **Discovered while working:** OT-FLASH-ASSOC-FIXED-CHILD-SHUFFLE.
 - **Observation:** A direct one-dimensional fixed-array class property accepts `.reverse()` in strict 2017/2023, but target emission warns that `$ivl_uarray_method$order` has an unsupported receiver and skips it. The runtime array remains unchanged. This is distinct from the selected associative child: that child can use typed associative vivify to obtain stored object storage, while a direct fixed property needs explicit copyback.
@@ -3726,6 +3817,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-085 — whole selected queue masquerades as a scalar solve-order target
 
+- **Issue status:** [OPEN #491](https://github.com/dsellerbrock/iverilog-uvm/issues/491).
+
 - **Discovered while working:** OT-FLASH-SOLVE-BEFORE-MULTIDIM-ARRAY.
 - **Observation:** `solve first before values[0][0]` for a fixed-array-of-queue class property compiles without warning and `randomize()` reports success, but the emitted order target is `e:1:1:0`, a scalar fixed-element slot. It is neither the queue size nor its contents. A strict 2017/2023 control with selected queue contents warns and fails instead.
 - **File/function:** `elaborate.cc` selected fixed-element constraint reference at 33630–33635; `vvp/vvp_z3.cc` `ElemVar` and scalar element read/writeback.
@@ -3735,6 +3828,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** reject whole-queue order until a typed nested queue-content representation exists; a simple dimension-guard removal is unsound.
 
 ### DD-086 — unpacked-array output port connected to a slice of a 2-D unpacked array reads X
+
+- **Issue status:** [OPEN #492](https://github.com/dsellerbrock/iverilog-uvm/issues/492).
 
 - **Discovered while working:** VVP-HOTPATH-PERF (Caliptra/Adams Bridge single-core performance assessment; no conformance ticket).
 - **Observation:** `m u0(.s(s[0]))`, where `s` is `logic [1:0] s [2][3:0]` and the port is `output logic [1:0] s [3:0]` driven by `always_comb`, leaves every `s[0][k]` at X. Connecting a whole one-dimensional array (`.s(s1)`) works. No diagnostic is issued. The first Adams Bridge A2B reducer hit this and reported an all-X output hash.
@@ -3746,6 +3841,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-087 — out-of-range part select of a two-state vector leaves X in a two-state variable
 
+- **Issue status:** [OPEN #469](https://github.com/dsellerbrock/iverilog-uvm/issues/469).
+
 - **Discovered while working:** VVP-HOTPATH-PERF.
 - **Observation:** `bit [7:0] br = bv[b +: 8]`, with `bit [99:0] bv` and `b = 96`, stores `xxxx1111` into the two-state `br`. A two-state variable cannot hold X or Z bits.
 - **File/function:** Two-state conversion of a dynamic part-select result on store (`tgt-vvp` select/assignment lowering). Not traced further.
@@ -3755,6 +3852,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** untriaged. `vvp_load_vec4_part_select.v` checks two-state selects only in range.
 
 ### DD-088 — packed-subfield `release` asserts on non-immediate LHS offset
+
+- **Issue status:** [OPEN #493](https://github.com/dsellerbrock/iverilog-uvm/issues/493).
 
 - **Discovered while working:** OT-OTP-FORCE-RHS-BANKED.
 - **Observation:** A `release dut.part_access[0].read_lock` on a packed array of packed structs aborts the VVP target with `Assertion failed: (number_is_immediate(part_off_ex, 64, 0)), function show_stmt_release, file vvp_process.c, line 3322.` This occurs after the separately selected packed-force link guard is applied. Whole-array `release dut.part_access` and `release dut.part_access_dai` compile and run; these are the exact release forms used by the selected OTP task.
@@ -3796,6 +3895,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-092 — function argument capture rejects fixed queue size leaves
 
+- **Issue status:** [OPEN #494](https://github.com/dsellerbrock/iverilog-uvm/issues/494).
+
 - **Discovered while working:** OT-ADC-FIXED-2D-PACKED-STRUCT-MEMBER-CONSTRAINT integrated JSON gate.
 - **Observation:** Both editions of `sv_constraint_fixed_queue_leaf_size` pass direct size constraints but fail the function-argument leaf-identity check. Emitted `.constraint_dep 3 0 1` denotes the requested fixed queue leaf SIZE; VVP rejects a function dependency on any fixed queue before capturing that value. A dynamic queue-size function argument also fails, so removing this one guard is not a proven fix.
 - **File/function:** `vvp/vvp_z3.cc` around lines 11632–11636, fixed queue function-argument dependency guard and stage/capture path.
@@ -3835,6 +3936,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** DONE for the tested compiler scope: exact-image JSON 4129/0, legacy 6880 passed/0 failed, real-DPI UVM 361/361, VPI 131/131, negative 154/154. [DD-095 evidence](../../evidence/opentitan-otbn-dynamic-sample-formal-20260929/focus.json) records exact source/tool hashes and the selected compile. No OTBN VVP/DV pass or 49-target update.
 
 ### DD-096 — X/Z coverpoint samples hit known-value bins
+
+- **Issue status:** [OPEN #481](https://github.com/dsellerbrock/iverilog-uvm/issues/481).
 
 - **Discovered while working:** DD-095 focused regression.
 - **Observation:** A scalar non-ref covergroup sample formal `logic flag` is sampled as `1'bx` and `1'bz` in `{fg, flag}`; each sample reports 50% coverage of explicit known-value bins `2'b00` and `2'b11`, then the guard fatals. The sample has no dynamic array or packed-struct selection.
@@ -3906,6 +4009,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-103 — exact clipping for a dynamic inner packed class-property range
 
+- **Issue status:** [OPEN #495](https://github.com/dsellerbrock/iverilog-uvm/issues/495).
+
 - **Discovered while working:** OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX.
 - **Observation:** Flattening `property[outer][base +: width]` into an absolute offset can alias the neighboring outer element when the inner range crosses its declared dimension. Rejecting every dynamic base also rejects valid bounded byte selectors. The validated CSRNG fix admits ranges proven wholly inside the inner dimension, including the existing dynamic UVM nested-slice control; unproven crossing ranges remain explicit compile errors.
 - **File/function:** `netmisc.cc::check_packed_property_tail_range`; class-property RMW in `tgt-vvp/stmt_assign.c`. Ordinary signal lvalues already use `NetAssign_::set_dynamic_part_carrier` and `%clip/vec4/d`, but class-property blocking, compound, and nonblocking stores need their own preserved carrier and evaluation order.
@@ -3915,6 +4020,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-104 — procedural `$past` history captures the Active-region value, not the Preponed value
 
+- **Issue status:** [OPEN #496](https://github.com/dsellerbrock/iverilog-uvm/issues/496).
+
 - **Discovered while working:** OpenTitan hmac same-event wake-order fix (FIFO waiters), via `sv_sampled_value_procedural`.
 - **Observation:** The generated sampler process (`pform_make_sampled_history_process_`) shifts `hist <= expr` under NBA, but `expr` is evaluated when the sampler thread runs in the Active region. A writer that shares the sampling edge and runs first is therefore captured; one that runs later is not. With the writer first, `$past(d)` at the 4th negedge answers 3, IEEE 1800-2017 16.5.1 / 16.9.3 (Preponed sampling) says 2.
 - **File/function:** `pform.cc` `pform_make_sampled_history_process_`, `sva_rewrite_sampled_`.
@@ -3922,6 +4029,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** locally qualified on `agent/ieee-procedural-past-preponed-20261007`. Shared capture/history-enable helpers wrap supported static operands through the existing `$ivl_clocking_sample` path for inferred-edge, explicit-event, and default-clocking routes, enabling signal history before the first edge. A simple direct automatic local stays in the reader and uses its current value; unsupported direct automatic call shapes diagnose, and a compound automatic local fails elaboration rather than escaping into the detached sampler. Clocking-input operands are explicitly diagnosed and covered by paired compile-error tests. The writer-first 2017/2023 regression and related controls pass 5/5 legacy rows and 10/10 strict JSON/VVP checks, including expected compile errors. See [DD-104 evidence](../../evidence/procedural-past-preponed-20261007/README.md). This does not close clause 16 or qualify arbitrary automatic, clocking-input, or expression shapes.
 
 ### DD-105 — fixed-array assignment patterns reach the VVP vector evaluator
+
+**Census disposition (2026-10-08):** excluded pending a clean current-main replay; the cited failures are tied to PR #411’s head.
+
 
 - **Discovered while working:** SV23-CLASS-FINAL, while reviewing PR #411's replayed conformance gate.
 - **Observation:** Registered assignment-pattern cases emit `this expression (kind 26) cannot be evaluated in a vector context` during VVP code generation. The affected cases are `sv_default_assign_pattern` (source lines 44 and 102), `sv_uarray_slice_pattern_assign` (67), `sv_byte_array_string` (17), `sv_array_packed_select_incdec_scopes` (17 under both editions), and `sv_assignment_pattern_keys_replication` (26). The fixtures are unchanged by PR #411; this is not a demonstrated class-final regression.
@@ -3932,6 +4042,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** Untriaged, record-only during SV23-CLASS-FINAL. Keep separate from the adjacent whole-unpacked-struct-array representation diagnostic; do not widen PR #411.
 
 ### DD-106 — package-qualified class call probe cases (a)-(e)
+
+- **Issue status:** [OPEN #497](https://github.com/dsellerbrock/iverilog-uvm/issues/497).
 
 - **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL.
 - **Observation:** Before the active fix, probes (a) `x = p::c::get()`, (b)
@@ -3987,6 +4099,8 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-109 — wide packed-struct constraint state is silently accepted
 
+- **Issue status:** [OPEN existing issue #421](https://github.com/dsellerbrock/iverilog-uvm/issues/421).
+
 - **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL, during the full
   JSON ivtest gate.
 - **Observation:** `sv_constraint_state_packed_select_invalid_2017` and its
@@ -4005,6 +4119,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   change. Do not expand the active ticket to fix it.
 
 ### DD-110 — registered global-uniform tests exceed the guarded run budget
+
+**Census disposition (2026-10-08):** no semantic mismatch was measured; this is a host runtime-budget observation, not a confirmed IEEE result defect.
+
 
 - **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL, during the full
   JSON ivtest gate.

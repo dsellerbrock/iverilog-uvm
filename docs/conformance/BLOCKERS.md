@@ -1,5 +1,7 @@
 # Blockers registry (Level 3 — operational backlog)
 
+The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
+
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
 - **State:** Implemented on `agent/pkg-class-static-call-20261007`; exact reducer
@@ -81,6 +83,8 @@
 - **Boundary:** Pinned source and immutable historical **23 PASS / 49** corpus are unchanged. The unrelated DVSIM UVM metadata notice remains a description of the directed bench; it is not an actionable setup warning.
 
 ### OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX — packed element becomes property slot
+- **IEEE issue:** [#495](https://github.com/dsellerbrock/iverilog-uvm/issues/495) tracks the verified generic partial-overlap clipping gap (DD-103).
+
 
 - **State:** DONE at local commit `c0abdfa48`; implementation and exact-image validation are complete. The old compiler used a packed element index as a class-property slot and asserted in `property_logic::get_vec4`; paired 2017/2023 reducers reproduce the read and write failure. Final installed `ivl` SHA-256 `7427219cfcf964d35119fb738f237596083f41aa3214219bf6a24071c37c5013` passes 28/28 focused JSON, 16/16 focused official legacy, full JSON 4,147/0, real-DPI UVM 362/362, full legacy 6,898 passed/0 failed (6,903 total; 2 not implemented, 3 expected failures), VPI 140/140, negatives 154/154, and `make check`. The selected pinned-copy CSRNG smoke **passes** in 92.528 seconds with zero hard errors, semantic notices, or runtime errors/debt; peak physical footprint was 4,076,064,032 bytes under a 6 GiB guard. The first final-image replay hit its 4 GiB guard, and earlier candidate gate failures remain archived. See [evidence](../../evidence/opentitan-csrng-packed-property-20260929/README.md). The frozen 23 PASS / 49 corpus row is historical and unchanged.
 - **Boundary:** Fully in-range bounded dynamic inner packed ranges are supported; unproven crossing ranges fail closed. IEEE partial-overlap clipping for an arbitrary dynamic range remains [DD-103](DISCOVERED_DEBT.md#dd-103--exact-clipping-for-a-dynamic-inner-packed-class-property-range), a separate implementation ticket.
@@ -130,6 +134,8 @@
 - **Boundary:** Strict 2017/2023 modes reject all possible same-member continuous/procedural overlaps under §6.5. Unsafe runtime-selected ordinary and simple-modport VIF writes compile; an actual alias fails with the exact VVP driver error, while a disjoint receiver preserves both interfaces' values. The named modport and virtual clocking-output forms remain conservative compile errors even if a particular runtime binding could be disjoint. This compatibility behavior is not an IEEE qualification claim. The historical `4097/32` full JSON result remains unchanged until an exact-head rerun.
 
 ### OT-FLASH-CONSTRAINT-NESTED-QUEUE-CONTENT — randomize queue elements below fixed property ranks
+- **IEEE issue:** [#419](https://github.com/dsellerbrock/iverilog-uvm/issues/419) includes the verified nested-container randomization evidence (DD-047, DD-068).
+
 
 - **State:** The prerequisite passes on the current compiler image. Three already-registered controls pass in strict 2017 and 2023 (**6/6 invocations**), including nonempty queue contents, nested `foreach`, packed fields, per-element `dist`, external 2-D state weights, rand-mode state, rollback, and invalid/X/Z reads. Exact commands, image hashes, and separate output-channel gold checks are in [the paired evidence](../../evidence/opentitan-census-20261002/flash-queue-content-current-image/README.md).
 - **Expected behavior and cause:** A selected queue element below fixed unpacked property ranks is represented distinctly by its property, fixed-array leaf, queue index, and packed value; constraints, state reads, size/bounds, `rand_mode`, rollback, and writeback use that same identity. The current-image controls now establish this behavior for the exercised shapes.
@@ -148,6 +154,8 @@
 - **Boundary:** Direct fixed class-property ordering is a separate silent-copyback defect [DD-084](DISCOVERED_DEBT.md#dd-084--fixed-class-property-ordering-method-silently-skips-its-receiver). Two whole-array `solve before` hard errors and ten nested queue-element warnings that say `randomize()` will fail remain separate. The compile exits 2 without a VVP image. Pinned sources, unsafe flags, broad suites, installation, and Flash DV runtime are unchanged.
 
 ### OT-FLASH-CONSTRAINT-INDEXED-QUEUE-SIZE — indexed queue leaf in a class constraint
+- **IEEE issue:** [#494](https://github.com/dsellerbrock/iverilog-uvm/issues/494) tracks the fixed queue-size leaf captured by a constraint function (DD-092).
+
 
 - **State:** Focused compiler repair passes strict 2017/2023 JSON and legacy tests 8/8 each, six adjacent JSON tests and one direct queue legacy control; independent review found no scoped blocker. One hash-guarded patched-copy Flash compile removes all ten indexed `rand_info[i][j].size()` and `mp_info_pages[i][j].size()` hard errors, **13 → 3**, with no new hard errors. Warnings rise **125 → 135** because ten separate nested queue-element constraint items now report that `randomize()` will fail. The compiler image SHA-256 is `923a9b4fd62760a8de1a4a977f92983da72bce64fedc5044b33b2c7bb9e3f308`; see the [focused session](session_logs/2026-09-28_ot_flash_indexed_queue_size_focus.json) and projectless `outputs/flash-indexed-queue-size-evidence-20260928.md`.
 - **Cause and correction:** Constraint capture rejected indexed fixed-array-to-queue size calls; direct size IR and VVP variables keyed only the class property, so a parser-only acceptance would alias every leaf to word zero. The repair carries a canonical flat leaf through size IR, solver identity, activity/state pinning, function priority, and queue writeback. Strict runtime tests distinguish 1D/2D lengths, bounds, packed elements, rand modes, non-rand state, function dependencies, contradiction rollback, and loud invalid/unsupported forms.
@@ -230,6 +238,8 @@
 
 ### OT-SPI-CLASS-EVENT-TRIGGERED — per-instance event state in expressions
 
+- **IEEE issue:** The explicit function-call forms remain tracked in [#439](https://github.com/dsellerbrock/iverilog-uvm/issues/439); this blocker’s parenthesis-free property-read fix is merged in PR #340.
+
 - **State:** Merged in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at `909e3f314` after exact-head Ubuntu 22.04 success. The [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) shows all three class-event errors removed from the pinned SPI compile. No SPI Device DV qualification is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps an event's triggered state true for the firing time step and lets `wait (obj.ev.triggered)` handle either same-time trigger order. Different class instances must remain independent.
 - **Cause and boundary:** Class-event reads fell into ordinary class-property lookup before per-object event lowering; `wait` also entered an unrelated direct-event fast path. The candidate reuses per-object VVP event opcodes and passes paired positive, negative, boundary, and instance-isolation checks. Explicit `triggered()` calls remain separate debt; the pinned SPI compile still fails on other mechanisms.
@@ -253,6 +263,8 @@
 - **Boundary:** Integral and string keys are tested; wildcard/object keys and other associative locators remain loud unsupported cases. The separate queue `std::randomize` rejection is cleared; the pinned SPI Device compile still reports later vector-context diagnostics.
 
 ### OT-CLASS-EVENT-MULTI-OBJECT-LIST — event controls lose object identity
+- **IEEE issue:** [#440](https://github.com/dsellerbrock/iverilog-uvm/issues/440) tracks the multi-object class-event identity gap (DD-051).
+
 
 - **State:** Merged in [PR341](https://github.com/dsellerbrock/iverilog-uvm/pull/341) at `7943dffd1` after exact-head Ubuntu 24.04 success. The [paired RED reducer](../../evidence/ot-class-event-multi-object-list-triage-20260923/README.md) now passes at runtime in both editions; see the shared [candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json).
 - **Requirement:** IEEE 1800-2017/2023 §15.5 `@(a.ev or b.ev)` wakes on either selected class object's event. The candidate gives each leaf its existing per-object waiter and joins them for a one-shot event control.

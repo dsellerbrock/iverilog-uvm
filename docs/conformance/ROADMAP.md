@@ -1,5 +1,7 @@
 # Conformance roadmap
 
+Start with the [IEEE conformance index](INDEX.md) for the live GitHub issue inventory, active selection, and evidence rules.
+
 This page describes the program's goals. The [blocker registry](BLOCKERS.md)
 owns the backlog; [ACTIVE_WORK](../../.ai/ACTIVE_WORK.yaml) names the selected
 ticket. Milestone labels and old priority lists do not authorize work.
