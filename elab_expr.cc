@@ -27245,14 +27245,14 @@ static NetExpr* make_packed_bit_select_(const PEIdent&ident,
 						NetExpr*base,
 						ivl_select_type_t sel_type = IVL_SEL_OTHER)
 {
-      NetESelect*res =
-	    make_four_state_packed_select_(ident, source, base, 1, sel_type);
       if (source->expr_type() != IVL_VT_BOOL)
-	    return res;
+	    return make_four_state_packed_select_(ident, source, base, 1,
+						  sel_type);
 
-      NetExpr*cast = cast_to_int2(res, 1);
-      cast->set_line(ident);
-      return cast;
+      ivl_type_t bit_type = new netvector_t(IVL_VT_BOOL, 0, 0, false);
+      NetESelect*res = new NetESelect(source, base, 1, bit_type, sel_type);
+      res->set_line(ident);
+      return res;
 }
 
 /*
@@ -30236,6 +30236,15 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 			    inc_lval->get_base()->dup_expr(), inc_lval->lwidth());
 		      ip->set_line(*this);
 		      ip->cast_signed(signed_flag_);
+		}
+		/* A part-select read can be four-state to preserve X for an
+		 * out-of-range read, while ++/-- still yields the l-value's type. */
+		if (inc_lval->sig()
+		    && inc_lval->sig()->data_type() == IVL_VT_BOOL
+		    && ip->expr_type() == IVL_VT_LOGIC) {
+		      NetExpr*cast = cast_to_int2(ip, ip->expr_width());
+		      cast->set_line(*this);
+		      ip = cast;
 		}
 		delete inc_lval;
 		inc_lval = 0;
