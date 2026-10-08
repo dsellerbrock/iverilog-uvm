@@ -1,17 +1,19 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: "agent/repair-ivtest-gate-410-20261007"
-checkpoint_head: "27fedd536c1b071f69cca1c1f4a9cca08226e596"
+active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
+branch: "agent/pkg-class-static-call-20261007"
+checkpoint_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
 active_ieee_lane:
-  blocker: "SVA-INTERSECT-UNEQUAL-LENGTHS"
-  phase: "DOCUMENTED_CI_PENDING"
-  baseline_head: "e487a59fde4f46f1740ab24dd68b84c874384b99"
-  reproducer: "tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv; current strict -g2017/-g2023 compile rejects `(a ##1 b) intersect (c ##2 d)` although IEEE defines it as a legal sequence with no match."
-  standards: "IEEE 1800-2017/2023 §16.9.6, §16.12.7, and A.2.10."
-  root_cause: "pform_sva_seq_intersect() rejects unequal fixed lengths; pform_sva_nfa_try_assertion() also declines NFAs whose accept state is unreachable."
-  scope: "Route unequal fixed intersect through the existing NFA product, lower the resulting empty language correctly, preserve the explicit legacy-engine diagnostic, and qualify implication vacuity/consequent failure in both strict editions."
-  next: "Commit and push the locally regression-tested G11 increment to existing PR #412. Snapshot exact-head CI once; do not wait on queued checks, but investigate and fix any reported failure. Keep status unqualified until required CI jobs pass."
-  boundary: "Do not broaden to variable-length intersect, other temporal operators, or full clause-16 closure. PR #412 platform jobs were queued at selection; proceed locally and triage only if a check reports failure."
+  blocker: "SV-PACKAGE-CLASS-STATIC-CALL"
+  phase: "PUBLISHING"
+  baseline_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
+  reproducer: "Self-authored package/class reducer: p::c::set(5); failed as syntax error / Malformed statement on clean origin/main under strict 2017 and 2023; imported c::set(5) control passed."
+  standards: "IEEE 1800-2017 §8.23 covers class-scope access to static methods/properties and use in subroutine calls; §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords this as access to static public methods/properties from outside the class hierarchy, while §26.3 retains the same package-reference wording."
+  root_cause: "The grammar had package-qualified class-scope identifier carriers but no direct call continuation into a statement PCallTask."
+  scope: "Narrow parser support for pkg::class::static_subroutine(args); statements, including static void functions and tasks. Cases (a)-(e) are probe-only unless the same root cause is proven within scope."
+  next: "UVM regression passed 363/363 with zero skips; read-only axi-vip revision 16d0f444299014b2079c941925ea8b43d85a13f7 passes the package-call site and next reports impure get_width calls in axi_trans.svh:40-41 (DD-111); no later diagnostic was triaged. The guarded full JSON run completed 4,499 tests with 4 unrelated failures: packed-struct constraint state in both editions (DD-109) and global-uniform tests reaching the 300-second per-process CPU guard (DD-110). Update docs, commit, push, open one draft PR to main, and follow exact-head CI without merging."
+  boundary: "No broad scope-resolution restructuring. Record cases (a)-(e), the next axi-vip diagnostic, and unrelated CI failures as triage-pending; do not follow the axi-vip diagnostic chain."
+pre_ticket_ieee_blocker: "SVA-INTERSECT-UNEQUAL-LENGTHS was merged in PR #412; its CI rollup later reported Ubuntu 22.04 failure, two jobs in progress, and three queued. See DD-107. Reconcile stale records after this ticket before selecting the next IEEE blocker."
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
   phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_RUNTIME_49_OF_49_CANDIDATE_COMPILE_PENDING"
@@ -645,11 +647,11 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "PR #411 is open against main; its six platform CI jobs are queued. Treat green CI as a merge gate, not a campaign gate: select and continue the next bounded IEEE blocker on the existing PR branch toward the ten-fix checkpoint. If any check reports failure, pause new work and triage whether the current patch caused it; repair attributable failures before continuing. Do not merge until required checks are green or without the user's separate merge request."
+next_command: "Poll the existing full JSON ivtest session 39705 with tools.write_stdin; do not start a duplicate run while it is live. The run was launched from ivtest as PATH=\"$PWD/../local-install/bin:$PATH\" ../../evidence/arm64-tooling/resource-runner python3 ./vvp_reg.py."
 current_execution_checkpoint:
-  active_work_item: "SV23-CLASS-FINAL"
-  source_head: "13600306d7ff9d460901bab32a4aa0e768836d01"
-  phase: "FOCUSED_TESTS_AND_MACOS_BUILD_GREEN_PR_CI_QUEUED"
-  completed: "PR #411 implements IEEE 1800-2023 class :final parsing and derivation rejection while preserving strict 2017 rejection. Focused legacy and JSON/VVP tests pass 4/4 each; the macOS frontend build passed. Exact-main replay identified the preceding broad-suite failures as baseline failures by test name."
-  next_action: "SV23-CLASS-FINAL implementation and focused validation are complete; PR #411's six platform jobs are queued. Treat green CI as a merge gate, not a campaign gate. Return to coordinator selection and continue the next bounded IEEE blocker on the existing PR branch. If a check fails, pause new work and triage exact-head results; fix attributable regressions and record unrelated baseline failures as debt."
-  next_command: "Select the next bounded IEEE blocker from the current registry and local standards PDFs; check PR #411 only when the watcher reports a state change or after meaningful progress."
+  active_work_item: "SV-PACKAGE-CLASS-STATIC-CALL"
+  source_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
+  phase: "VALIDATING_FULL_GATES"
+  completed: "Narrow parser fix and permanent positive/negative tests are present. Strict paired reducer passes; focused legacy 7/7 and JSON 8/8 pass; full legacy totals 7,243 / 0 failed; Bison counts are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Full JSON attempt 1 was stopped after the unguarded VVP child exceeded 300 CPU seconds. The guarded full JSON run is live in session 39705. PR #412 Ubuntu 22.04 failure is unrelated and recorded as triage-pending DD-107."
+  next_action: "Poll the same guarded JSON runner to completion; then run remaining UVM and axi-vip validations one at a time. Update exact results, diff-check, commit/push, and open one draft PR to main. Do not merge."
+  next_command: "Use tools.write_stdin(session_id=39705, chars=\"\", yield_time_ms=30000); if still live, continue that run rather than restarting it."
