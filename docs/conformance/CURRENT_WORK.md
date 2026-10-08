@@ -1,5 +1,18 @@
 # Current evidence and work
 
+## Current IEEE 1800 batch — 2026-10-08
+
+PR [#514](https://github.com/dsellerbrock/iverilog-uvm/pull/514) batches the
+five open Chapter 7 issues #422-#426 and targets `main`. Local macOS focused
+legacy and JSON/VVP runs pass 16/16 each under `-g2012`, `-g2017`, and
+`-g2023`; exact-head CI is pending, so the batch is not yet qualified or
+merged. The `#426` assignment-pattern behavior was already present; this batch
+adds its remaining focused tests. See the [dated clause-matrix entry](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--chapter-7-array-locators-and-associative-minmax).
+
+After #514 merges, the selected next five issue candidates are #427-#431; do
+not begin them from this unmerged branch. See [.ai/ACTIVE_WORK.yaml](../../.ai/ACTIVE_WORK.yaml)
+for the current exact-head CI status and acceptance boundary.
+
 ## Current IEEE 1800 focus — 2026-10-07
 
 **Fix 41 locally qualified:** unequal fixed-length `intersect` operands now

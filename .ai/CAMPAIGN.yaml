@@ -1,19 +1,19 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
-branch: "agent/ieee-packed-select-oob-20261008"
-checkpoint_head: "af89cfc50be1084cc86c48865f3f6ba78d4512fa"
+branch: "agent/ieee-ch7-array-methods-20261008"
+checkpoint_head: "040bbdadeea9e0766f67673548ca353cbd60822e"
 active_ieee_lane:
-  blocker: "SV23-REF-STATIC-TF-ARGUMENTS"
-  issue: "#449"
-  phase: "FOCUSED_TESTED"
-  baseline_head: "e22741743a64c6b963c1e88df6c147c52fafee6f"
-  reproducer: "The combined local image rejects task automatic update(ref static int value) under both -g2017 and -g2023; ordinary ref formal use inside join_none compiles under both."
-  standards: "2017 A.2.7/§13.5.2 have no ref static; §9.3.2 prohibits detached-fork references except fork-local initializer value expressions. 2023 A.2.7 adds [static], §13.5.2 limits actual lifetime, and §9.3.2 exempts ref static. Verified against the local IEEE PDFs."
-  root_cause: "Formal direction metadata lacked the static qualifier. detached_fork_refs_name captured references and excluded initializer values but only supported warnings. The VVP function-call path copied fixed-array-word ref actuals through a temporary."
-  scope: "2023 grammar/formal metadata, ref static actual-lifetime validation, §9.3.2 detached-fork legality, and direct VVP function binding for fixed-array words. Preserve ordinary ref behavior and join scheduling."
-  next: "Local CI regressions are fixed without changing VIF golds or the stale intersect negative. Commit and push the tested export/diagnostic fixes, then inspect the first exact-head CI result. If only DD-115 remains, record the stop and resume coordinator selection from freshly fetched origin/main; do not merge this draft."
-  boundary: "No broad scope-resolution grammar changes, ref storage/copy changes, or unrelated scheduler edits. Preserve dirty $stacktrace changes in the original checkout."
+  blocker: "IEEE-CH7-ARRAY-METHODS-BATCH"
+  issue: "#422-#426; PR #514"
+  phase: "DOCUMENTED_WAITING_FOR_EXACT_HEAD_CI"
+  baseline_head: "12052ba68"
+  reproducer: "Five issue reducers cover fixed multidimensional locators, aggregate result-copy behavior, wrapper result typing, associative min/max, and assignment-pattern expression/type-key boundaries. The #426 behavior was already implemented; tests now qualify the covered subset."
+  standards: "IEEE 1800-2017/2023 §7.12.1 and §10.9.1; local standards PDFs checked."
+  root_cause: "Elaboration did not retain fixed multidimensional row and wrapper result types, VVP lacked object-backed row/aggregate handling, and associative min/max was routed to an unsupported diagnostic."
+  scope: "Issues #422-#426, permanent dual-runner tests, and directly related conformance records."
+  next: "The last inspected PR #514 head 040bbdadeea9e0766f67673548ca353cbd60822e had all six jobs queued in run 37843522053. This state-only follow-up changes the PR head and needs fresh exact-head CI; do not poll repeatedly or start the next batch until #514 is merged."
+  boundary: "No broader associative locator support, untested associative value/key types, or unrelated array/NBA repair is claimed. Full local ivtest/UVM/Linux/Windows qualification was not run."
 previous_batch_pr464:
   head: "870442199088b468b681983a7cbbe9f653bebeb3 (pre-follow-up exact CI head)"
   changes: "Issues #414 packed-select bounds, #449 ref static, and #458 IEEE 1800-2023 $timeunit/$timeprecision, plus local fixes for their observed Windows-export and property-diagnostic regressions."
@@ -410,15 +410,16 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-LC-PACKED-COVERPOINT-SHAPE
-  phase: PR376_PUBLISHED_LOCAL_QUALIFIED
-  owner: Coordinator owns paired reducers, private build, pinned unsafe LC_CTRL replay, evidence, docs, and review; separate Caliptra agent owns its runs.
-  reproducer: Pinned LC_CTRL packed-struct bitwise coverpoint drops literal zero bin and nonzero open range with a loud runtime-range sorry; four later hard compile errors are distinct.
-  expected: Preserve both bins and their exact zero/nonzero sampling denominator with correct integral width and signedness.
-  root_cause_hypothesis: Confirmed declaration-time PEIdent::test_width zero for nested class properties under bitwise operators; coverpoint_effective_shape formerly resolved only direct identifier/member type, causing eval_ranges to drop bins. Recursive packed operand shape recovery uses standard width/sign rules.
-  source_scope: elaborate.cc shape inference if proven, paired dedicated tests, OpenTitan evidence and owning docs. No pinned source, VVP, Caliptra, shared installation, Verilator, GPU, or CI polling.
-  validation: Paired legal RED was 1.5625% instead of 50%; final private paired focus passes 10/10 legacy and 10/10 JSON, make check, negatives 155/155, SVA 62/62, full legacy 6704 total with zero failures, VPI 140/140, JSON/VVP 3753/3753, and real-DPI UVM 358/358. Exact pinned unsafe LC_CTRL compile improves from six to four hard error sites and 20 to 18 debt diagnostics but remains 0/1 released DV. Preceding partial logs are unqualified. Checked compatibility baseline remains prior 11/49.
-  next: Retain DD-063 as separate X/Z sampling debt and respond if PR376 CI later reports an issue; do not poll CI.
+  id: IEEE-CH7-ARRAY-METHODS-BATCH
+  phase: DOCUMENTED_WAITING_FOR_EXACT_HEAD_CI
+  owner: Coordinator owns the five issue reducers, implementation, paired legacy/JSON tests, documentation, and review.
+  reproducer: Issues #422-#425 have new regressions for fixed multidimensional locator shapes, aggregate locator values, wrapper typing, and associative min/max. Issue #426 adds positive and negative assignment-pattern key coverage for already-present behavior.
+  expected: Support the tested legal subset on both IEEE 1800-2017 and 1800-2023 modes; preserve explicit errors for malformed assignment-pattern keys and incompatible result contexts.
+  root_cause_hypothesis: Fixed-array dimension/result typing was lost through selected elaboration paths; VVP did not marshal subarray/struct elements consistently; associative min/max lacked runtime lowering.
+  source_scope: elab_expr.cc, tgt-vvp/eval_object.c, paired ivtest regressions, and directly related conformance records only.
+  validation: On the local macOS build, permanent focused legacy and JSON/VVP lists pass 16/16 under -g2012; generated temporary variants pass 16/16 in each runner under -g2017 and -g2023. Exact-head PR #514 run 37843522053 had all six platform checks queued; no CI-qualified status.
+  next: Finish exact-head CI for PR #514 without repeated polling; repair only failures caused by this batch. After merge, fetch main, update the canonical graph, then select the next five open IEEE issues (#427-#431).
+  boundary: Do not start another implementation batch or claim whole-standard completion from this subset. Associative locators and broader min/max type combinations remain open.
 completed_ot_inline_receiver:
   id: OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/366
