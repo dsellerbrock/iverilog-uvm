@@ -1,0 +1,4 @@
+# IEEE 1800-2023 20.4.1 and Syntax 20-3; strict 2017 must reject
+sv_timeunit_functions_2017 vvp_tests/sv_timeunit_functions_2017.json
+sv_timeunit_functions_2023 vvp_tests/sv_timeunit_functions_2023.json
+sv_timeunit_functions_invalid_2023 vvp_tests/sv_timeunit_functions_invalid_2023.json

@@ -5,6 +5,11 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The 2023 §11.5.1 two-state packed-select read correction shares the paired
+[2017 implementation record](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--two-state-packed-select-read-results).
+Strict `-g2023` direct and JSON/VVP cases pass locally. No edition-specific
+wording difference was identified; exact-head CI remains pending.
+
 The procedural sampled-value semantics in §§16.5.1 and 16.9.3 share the
 [October 7, 2026 paired qualification](matrices/ieee1800_2017_clause_matrix.md#october-7-2026--procedural-past-preponed-sampling).
 The writer-first behavior passes in strict `-g2023` for inferred-edge,
@@ -148,7 +153,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | # | Item | Scoping confidence | Fork status (historically probed) | Size |
 |---|------|------------|----------------------|------|
 | 1 | Triple-quoted strings `"""…"""` (5.9) | CERTAIN | FOCUSED IMPLEMENTATION (lexer, multiline macros, 2017 gate; see 2026-10-06 record) | S |
-| 2 | `ref static` tf arguments | CERTAIN | UNSUPPORTED (grammar) | M |
+| 2 | `ref static` tf arguments | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-08: A.2.7 grammar/2017 gate, §13.5.2 lifetime checks, §9.3.2 detached-fork exception; paired focus 7/7 in both runners and UVM 363/363. Full legacy has two unrelated VIF gold mismatches; JSON stops at the unrelated `sv_always_comb_fixed_point` zero-time loop; see DD-113/114 | M |
 | 3 | Associative-array-typed parameters | CERTAIN | UNSUPPORTED | M |
 | 4 | Restricted type parameters (`type enum/struct/class`) | CERTAIN | UNSUPPORTED | S–M |
 | 5 | `type(this)` self-type | CERTAIN | UNSUPPORTED | M |
@@ -161,7 +166,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 12 | Constraint `:extends`/`:initial`/`:final` | CERTAIN | UNSUPPORTED | S–M |
 | 13 | `dist` catch-all `default :/ expr` | CERTAIN | UNSUPPORTED (isolated cleanly: base dist fine, `default:/` errors) | S |
 | 14 | Covergroup `extends` in a subclass | CERTAIN | UNSUPPORTED by grammar inspection | M |
-| 15 | `$timeunit`/`$timeprecision` system functions | CERTAIN | needs a dedicated probe (keyword-collision risk); tentatively UNSUPPORTED | S |
+| 15 | `$timeunit`/`$timeprecision` system functions | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-07: 2023 scope values and strict 2017 rejection covered; see [focused blocker record](BLOCKERS.md#sv-timeunit-timeprecision-system-functions) | S |
 | 16 | `$stacktrace` standardized (task + string function) | CERTAIN | task form ALREADY IMPLEMENTED (R21, comment updated); string-function form open | doc + S |
 | 17 | Preprocessor boolean `` `ifdef (A && B) `` (syntax 22-5) | CERTAIN | UNSUPPORTED (parenthesized-boolean form) | M |
 | 18 | `weak_reference#(T)` | CERTAIN | UNSUPPORTED; needs GC/refcount hooks | L |

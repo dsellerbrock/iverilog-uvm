@@ -84,6 +84,8 @@ class PWire : public PNamedItem {
 
       void set_const(bool is_const) { is_const_ = is_const; };
       bool get_const() const { return is_const_; };
+      void set_ref_static(bool value) { is_ref_static_ = value; };
+      bool get_ref_static() const { return is_ref_static_; };
 
       void set_signed(bool flag);
       bool get_signed() const;
@@ -137,6 +139,7 @@ class PWire : public PNamedItem {
 
         // Whether the wire is variable declared with the const keyword.
       bool is_const_ = false;
+      bool is_ref_static_ = false;
 
       bool is_elaborating_ = false;
 

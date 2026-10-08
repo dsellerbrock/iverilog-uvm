@@ -456,7 +456,8 @@ extern NetExpr*make_checked_canonical_property_index(
 extern NetExpr*make_checked_canonical_packed_prefix(
       Design*des, NetScope*scope, const LineInfo*loc,
       const std::list<index_component_t>&src, const netranges_t&dims,
-      unsigned long carrier_width, bool warn_undefined = true);
+      unsigned long carrier_width, bool warn_undefined = true,
+      bool property_index = false);
 /* A trailing range after a packed-property element index must stay within
  * its own declared dimension; flattening a crossing range aliases a neighbor.
  * Until partial crossing ranges are lowered element by element, diagnose them
@@ -888,6 +889,14 @@ extern NetPartSelect* detect_partselect_lval(Link&pin);
  * that one argument without changing what the formal is.
  */
 extern bool ref_formal_is_bound(const NetNet*port);
+
+/* A `ref static` actual must refer to static-lifetime storage, except when
+ * the actual is another `ref static` formal. */
+extern bool ref_static_actual_is_static_lifetime(const NetAssign_*actual);
+
+/* Enforce IEEE 1800-2017/2023 9.3.2 for a subroutine's ref formals. */
+extern bool check_ref_formal_detached_fork_use(
+		Design*des, const NetNet*port, const Statement*body);
 
 /*
  * R25 (IEEE 1800-2017 13.5.2, Option B diagnostic): a `ref' formal that

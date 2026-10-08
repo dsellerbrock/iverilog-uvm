@@ -1,0 +1,4 @@
+# IEEE 1800-2023 20.4.1 and Syntax 20-3; strict 2017 must reject
+sv_timeunit_functions_2017 CE,-g2017,-s,test,-I./ivltests ivltests
+sv_timeunit_functions_2023 normal,-g2023,-s,test,-I./ivltests ivltests gold=sv_timeunit_functions.gold
+sv_timeunit_functions_invalid_2023 CE,-g2023,-s,timeunit_functions_invalid,-I./ivltests ivltests

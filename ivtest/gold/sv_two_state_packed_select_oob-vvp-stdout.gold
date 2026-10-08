@@ -1,0 +1,4 @@
+direct two-state OOB=0
+direct two-state X=0
+direct four-state OOB=x
+PASSED

@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_ref_formal_detached_fork_fail.v","iverilog-args":["-g2017","-s","sv_ref_formal_detached_fork_fail"],"gold":"sv_ref_formal_detached_fork_fail_2017"}

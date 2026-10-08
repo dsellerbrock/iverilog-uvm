@@ -126,6 +126,10 @@
 		     "the final class specifier")			\
 	SV_FEATURE_ROW(SVF_CROSS_RETAIN_AUTO_BINS, GN_VER2023,		\
 		     "option.cross_retain_auto_bins")			\
+	SV_FEATURE_ROW(SVF_TIMESCALE_RETRIEVAL_FUNCTIONS, GN_VER2023,\
+		     "the $timeunit and $timeprecision system functions")\
+	SV_FEATURE_ROW(SVF_REF_STATIC_TF_ARGUMENTS, GN_VER2023,\
+		     "ref static task/function arguments")\
       SV_FEATURE_ROW(SVF_ITERATOR_INDEX, GN_VER2005_SV,		\
 		     "the `index' iterator method of an array "		\
 		     "manipulation method")
