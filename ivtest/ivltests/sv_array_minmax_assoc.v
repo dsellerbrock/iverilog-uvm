@@ -8,6 +8,8 @@ module sv_array_minmax_assoc;
     by_int[8] = 9;
     by_int[1] = 4;
     by_int[5] = 7;
+    by_int[9] = 4;
+    by_int[10] = 9;
     by_string["z"] = 9;
     by_string["a"] = 4;
     by_string["m"] = 7;

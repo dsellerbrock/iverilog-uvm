@@ -2319,9 +2319,11 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   carries a separate declared index for `item.index`/`*_index` results,
   computed generically for any base, so nothing else needed to change.
 - **Scope:** Fixed-array (direct-signal and class-property) locator
-  methods only. Multidimensional fixed arrays remain a genuine, still-loud
-  `sorry` (iterating subarrays is unimplemented) -- confirmed still correct
-  and unaffected. Also repaired two stale ivtest negative tests whose own
+  methods only. At L36 closure, multidimensional fixed arrays still produced
+  a genuine, loud `sorry` because subarray iteration was unimplemented. The
+  October 8 candidate for issues #422-#426 adds that support and related
+  aggregate-copy/result-typing cases; local focused tests pass, with exact-head
+  CI pending. Also repaired two stale ivtest negative tests whose own
   comments already admitted the rejected forms were legal SV.
 - **Reducers:** `evidence/campaign-20260908/l36/` (nonzero/descending base,
   string/real elements, paren-less syntax, multidim-still-rejected).
