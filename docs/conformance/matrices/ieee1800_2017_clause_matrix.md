@@ -2449,3 +2449,33 @@ remain open.
 Fix 23 extends sparse wide-randc history to eligible graph-coupled direct scalar properties from 21 through 64 bits when an enabled owner constraint references the property and its complete feasible domain is exactly enumerable at no more than 1,024 values. The strict paired regression completes all 101 values, checks graph rollback on an unsatisfiable call, and verifies cycle reset. Graph domains above the cap, aggregate properties, and unconstrained properties retain explicit failure controls. Focused JSON and legacy harnesses pass 4/4 each; the full registered uniformity suites remain deferred to the ten-fix checkpoint. See the [revision evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#owner-referenced-graph-coupled-wide-randc-fix-23).
 
 Fix 24 covers a different graph constraint shape: a wide `randc` child with no local constraint is now recognized when its parent constrains the child through an `r:` object path. The paired strict 2017/2023 regression completes a 65-value cycle, verifies parent-and-child rollback, and checks cycle reset. Unreferenced, over-cap, and aggregate controls still fail closed. Focused JSON and legacy harnesses pass 4/4 each; the full registered uniformity suites remain deferred to the ten-fix checkpoint. See the [revision evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#parent-referenced-graph-randc-property-paths-fix-24).
+
+## 2026-10-08 IEEE 1800-2023 §22.5 parenthesized conditional expressions
+
+IEEE 1800-2017 §22.5 Syntax 22-5 permits only a `text_macro_identifier`
+condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a parenthesized
+`ifdef_macro_expression`: identifiers become 1 when defined and 0 otherwise,
+and `ifndef` negates the full expression. IEEE 1800-2023 §11.3.2 Table 11-2
+puts `&&` above `||`, with `->` and `<->` at equal, lower precedence and
+right-to-left associativity; §11.4.7 defines implication and equivalence.
+
+Issue #460 adds this grammar to `ivlpp` behind an `iverilog`-forwarded `-g2023`
+flag in both the top-level compiler path and lazy `-y` library-source path.
+Plain identifier conditions retain their prior behavior. Focused tests
+cover all four binary operators, unary negation, precedence and associativity,
+nested conditions, defined and undefined macros, `ifdef`/`ifndef`/`elsif`,
+comments and line breaks, 2017 identifier compatibility, and 2017 rejection.
+Malformed and unterminated expressions produce diagnostics rather than a
+crash. The recursive parser has a 256-frame depth guard; deeper input is
+rejected as malformed.
+
+The three permanent cases pass 3/3 in the legacy and JSON runners. Neighboring
+macro-definition legacy tests pass 28/28, legacy `ifdef`/`else` cases pass 8/8,
+and macro-definition JSON tests pass 14/14. A mutation of implication
+evaluation makes the positive expression case fail, then passes after the
+source is restored. The full root `make -j2` passes with Bison 3.8.2. System
+Bison 2.3 alone rejects the unchanged `parse.y:2236` `%destructor`; no parser
+grammar file changed. Bison 3.8.2 reports the same conflict counts on clean
+`origin/main` and this branch: 574 shift/reduce and 1,122 reduce/reduce. Exact-
+head CI qualification remains pending. The implementation and tested boundary
+are limited to this conditional-expression feature.

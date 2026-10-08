@@ -1,11 +1,33 @@
-# Compiler campaign handoff — 2026-09-23
+# Compiler campaign handoff — 2026-10-08
 
-The issue checkout sheet is [ISSUE_CHECKOUT.csv](ISSUE_CHECKOUT.csv). Before starting an issue, update its owner, state, branch/PR, file boundary, and next action in that file and commit the checkout. `observed_in_draft_pr` records visible PR authorship; it is not a claim that Claude has accepted this ledger. Keep implementation authorization in [ACTIVE_WORK.yaml](ACTIVE_WORK.yaml), not in the sheet.
+The issue checkout sheet is [ISSUE_CHECKOUT.csv](ISSUE_CHECKOUT.csv). Before
+starting a new issue, update its owner, state, branch/PR, file boundary, and
+next action there and commit the checkout. Keep implementation authorization
+in [ACTIVE_WORK.yaml](ACTIVE_WORK.yaml), not in the sheet.
 
-Current checkout: `agent/spi-inline-state-functions-20260922` at `378a8d121` (merged `main` base `3ccd5d73e691411caf43b407f05c84ddcade8820`). Codex committed the focused-tested state-only candidate in [PR323](https://github.com/dsellerbrock/iverilog-uvm/pull/323). Both editions pass the external, self, target, null/X, virtual, retained-receiver, signed-width and direction checks; the eight permanent cases pass in both legacy and JSON runners. Full broad qualification and staged random-variable function arguments are still open. Do not count this candidate as fully qualified. See [ACTIVE_WORK.yaml](ACTIVE_WORK.yaml) and `evidence/review-20260920/spi-external-cfg-constraint-next/build5-main/` for detailed provenance.
+## Active task
 
-Claude's draft [PR322](https://github.com/dsellerbrock/iverilog-uvm/pull/322) has independent VVP args, DPI export, fixed-array solve-before, and matrix-runner changes. Its `elaborate.cc` caller-method change overlaps the Codex inline-function patch. Reconcile that commit before merging the PR; the independent commits can be reviewed on their own merits. The shared `elaborate.cc` file also requires serial integration of the fixed-array change.
+Issue #460, IEEE 1800-2023 §22.5 parenthesized conditional-compilation
+expressions, on `agent/ieee-ifdef-parenthesized-20261008`. The branch starts at
+fresh `origin/main` `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. The driver now
+passes `-g2023` to `ivlpp`; parenthesized `ifdef`/`ifndef`/`elsif` expressions
+are edition-gated. Permanent 2017/2023 cases pass 3/3 in the legacy and JSON
+runners, and neighboring macro checks pass. See the clause record in
+`docs/conformance/matrices/ieee1800_2017_clause_matrix.md` and the exact results
+in `ACTIVE_WORK.yaml`.
 
-The externally modified `AGENTS.md`, unrelated untracked evidence, and the safety stash from the baseline fast-forward are not part of the inline-function commit. Build, installation, and shared test output remain coordinator-owned. Preserve the stable-release OpenTitan and Caliptra source trees unmodified.
+The full root `make -j2` passes with Bison 3.8.2. System Bison 2.3 alone rejects
+the unchanged `parse.y:2236` `%destructor`. The conflict counts match clean
+`origin/main`: 574 shift/reduce and 1,122 reduce/reduce. No PR exists yet, so
+there is no CI qualification claim.
 
-Next command: `python3 evidence/review-20260920/spi-external-cfg-constraint-next/run_focus.py build5-main-recheck` after any new compiler source edit, followed by the boundary and target focused runners. The staged random-argument red/control record is `evidence/review-20260920/spi-external-cfg-constraint-next/staged/build4-red.json`.
+## Next
+
+Review the final diff, commit and push the feature, then open one draft PR with
+base `main`. Inspect exact-head CI once it reports; investigate any failures
+reported by CI. Do not merge or claim completion until required checks pass.
+
+Keep the checkout limit at three. Preserve dirty
+`agent/timeunit-timeprecision-20261007` and the canonical `main` checkout with
+the shared graph. Do not select DD-107 from the previous package-call ticket;
+it remains triage-pending and out of scope for issue #460.

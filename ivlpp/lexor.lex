@@ -58,6 +58,251 @@ static void include_filename(int macro_str);
 static void do_include(void);
 
 static int load_next_input(void);
+struct include_stack_t;
+static struct include_stack_t* istack;
+static void emit_pathline(struct include_stack_t* isp);
+
+enum ifdef_expr_kind {
+    IFDEF_EXPR_IFDEF,
+    IFDEF_EXPR_IFNDEF,
+    IFDEF_EXPR_ELSIF,
+    IFDEF_EXPR_ELSIF_SUPPRESSED
+};
+
+static char* ifdef_expr_text = 0;
+static size_t ifdef_expr_length = 0;
+static size_t ifdef_expr_capacity = 0;
+static size_t ifdef_expr_parens = 0;
+static enum ifdef_expr_kind ifdef_expr_condition;
+static int ifdef_expr_invalid = 0;
+
+static void ifdef_expr_append(const char* text, size_t length);
+static void ifdef_expr_begin(enum ifdef_expr_kind kind);
+static int ifdef_expr_finish(void);
+
+struct ifdef_expr_parser {
+    const char* text;
+    size_t length;
+    size_t pos;
+    unsigned depth;
+    int invalid;
+};
+
+#define MAX_IFDEF_EXPR_DEPTH 256
+
+static char ifdef_expr_lookahead(struct ifdef_expr_parser* parser, size_t offset)
+{
+    if (offset > (size_t)-1 - parser->pos ||
+	  parser->pos + offset >= parser->length)
+	  return 0;
+    return parser->text[parser->pos + offset];
+}
+
+static void ifdef_expr_skip_space(struct ifdef_expr_parser* parser)
+{
+    while (parser->text[parser->pos] == ' ' ||
+           parser->text[parser->pos] == '\t' ||
+           parser->text[parser->pos] == '\b' ||
+           parser->text[parser->pos] == '\f' ||
+           parser->text[parser->pos] == '\n' ||
+           parser->text[parser->pos] == '\r')
+	  parser->pos += 1;
+}
+
+static int ifdef_expr_identifier_start(char ch)
+{
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_';
+}
+
+static int ifdef_expr_identifier_part(char ch)
+{
+    return ifdef_expr_identifier_start(ch) || (ch >= '0' && ch <= '9') || ch == '$';
+}
+
+static int ifdef_expr_parse_expression(struct ifdef_expr_parser* parser, int min_precedence);
+
+static int ifdef_expr_parse_unary(struct ifdef_expr_parser* parser)
+{
+    int result;
+    if (parser->depth >= MAX_IFDEF_EXPR_DEPTH) {
+	  parser->invalid = 1;
+	  return 0;
+    }
+    parser->depth += 1;
+    ifdef_expr_skip_space(parser);
+    if (parser->text[parser->pos] == '!') {
+	  parser->pos += 1;
+	  result = !ifdef_expr_parse_unary(parser);
+    } else if (parser->text[parser->pos] == '(') {
+	  parser->pos += 1;
+	  result = ifdef_expr_parse_expression(parser, 1);
+	  ifdef_expr_skip_space(parser);
+	  if (parser->text[parser->pos] != ')')
+		parser->invalid = 1;
+	  else
+		parser->pos += 1;
+    } else if (ifdef_expr_identifier_start(parser->text[parser->pos])) {
+	  size_t start = parser->pos;
+	  size_t length;
+	  char* name;
+	  while (ifdef_expr_identifier_part(parser->text[parser->pos]))
+		parser->pos += 1;
+	  length = parser->pos - start;
+	  name = malloc(length + 1);
+	  assert(name != 0);
+	  memcpy(name, parser->text + start, length);
+	  name[length] = 0;
+	  result = is_defined(name);
+	  free(name);
+    } else {
+	  parser->invalid = 1;
+	  result = 0;
+    }
+    parser->depth -= 1;
+    return result;
+}
+
+static int ifdef_expr_operator(struct ifdef_expr_parser* parser, int* precedence)
+{
+    ifdef_expr_skip_space(parser);
+    if (ifdef_expr_lookahead(parser, 0) == '<' &&
+	  ifdef_expr_lookahead(parser, 1) == '-' &&
+	  ifdef_expr_lookahead(parser, 2) == '>') {
+	  *precedence = 1;
+	  return 3;
+    }
+    if (ifdef_expr_lookahead(parser, 0) == '-' &&
+	  ifdef_expr_lookahead(parser, 1) == '>') {
+	  *precedence = 1;
+	  return 2;
+    }
+    if (ifdef_expr_lookahead(parser, 0) == '|' &&
+	  ifdef_expr_lookahead(parser, 1) == '|') {
+	  *precedence = 2;
+	  return 1;
+    }
+    if (ifdef_expr_lookahead(parser, 0) == '&' &&
+	  ifdef_expr_lookahead(parser, 1) == '&') {
+	  *precedence = 3;
+	  return 0;
+    }
+    return -1;
+}
+
+static int ifdef_expr_parse_expression(struct ifdef_expr_parser* parser, int min_precedence)
+{
+    int left;
+    int op;
+    int precedence;
+
+    if (parser->depth >= MAX_IFDEF_EXPR_DEPTH) {
+	  parser->invalid = 1;
+	  return 0;
+    }
+    parser->depth += 1;
+    left = ifdef_expr_parse_unary(parser);
+    while (!parser->invalid &&
+	   (op = ifdef_expr_operator(parser, &precedence)) >= 0 &&
+	   precedence >= min_precedence) {
+	  int right;
+	  parser->pos += (op == 3) ? 3 : 2;
+	  right = ifdef_expr_parse_expression(parser,
+		precedence + (precedence == 1 ? 0 : 1));
+	  if (op == 0)
+		left = left && right;
+	  else if (op == 1)
+		left = left || right;
+	  else if (op == 2)
+		left = !left || right;
+	  else
+		left = left == right;
+    }
+    parser->depth -= 1;
+    return left;
+}
+
+static void ifdef_expr_report(const char* message)
+{
+    emit_pathline(istack);
+    fprintf(stderr, "error: %s\n", message);
+    error_count += 1;
+}
+
+static void ifdef_expr_append(const char* text, size_t length)
+{
+    size_t needed;
+    if (length > (size_t)-1 - ifdef_expr_length - 1) {
+	  ifdef_expr_invalid = 1;
+	  return;
+    }
+    needed = ifdef_expr_length + length + 1;
+    if (needed > ifdef_expr_capacity) {
+	  size_t capacity = ifdef_expr_capacity ? ifdef_expr_capacity : 64;
+	  while (capacity < needed) {
+		if (capacity > (size_t)-1 / 2) {
+		      capacity = needed;
+		      break;
+		}
+		capacity *= 2;
+	  }
+	  ifdef_expr_text = realloc(ifdef_expr_text, capacity);
+	  assert(ifdef_expr_text != 0);
+	  ifdef_expr_capacity = capacity;
+    }
+    memcpy(ifdef_expr_text + ifdef_expr_length, text, length);
+    ifdef_expr_length += length;
+    ifdef_expr_text[ifdef_expr_length] = 0;
+}
+
+static void ifdef_expr_begin(enum ifdef_expr_kind kind)
+{
+    ifdef_expr_length = 0;
+    ifdef_expr_parens = 1;
+    ifdef_expr_condition = kind;
+    ifdef_expr_invalid = 0;
+    if (ifdef_expr_text)
+	  ifdef_expr_text[0] = 0;
+}
+
+static int ifdef_expr_finish(void)
+{
+    struct ifdef_expr_parser parser;
+    int result = 0;
+
+    if (!ifdef_expr_invalid) {
+	  parser.text = ifdef_expr_text ? ifdef_expr_text : "";
+	  parser.length = ifdef_expr_length;
+	  parser.pos = 0;
+	  parser.depth = 0;
+	  parser.invalid = 0;
+	  result = ifdef_expr_parse_expression(&parser, 1);
+	  ifdef_expr_skip_space(&parser);
+	  if (parser.text[parser.pos] != 0)
+		parser.invalid = 1;
+	  if (parser.invalid)
+		ifdef_expr_invalid = 1;
+    }
+
+    if (!sv_2023_enabled)
+	  ifdef_expr_report("parenthesized `ifdef expressions require -g2023");
+    else if (ifdef_expr_invalid)
+	  ifdef_expr_report("malformed parenthesized `ifdef expression");
+
+    if (sv_2023_enabled && !ifdef_expr_invalid) {
+	  if (ifdef_expr_condition == IFDEF_EXPR_IFNDEF)
+		result = !result;
+    } else {
+	  result = 0;
+    }
+
+    if (ifdef_expr_condition == IFDEF_EXPR_ELSIF_SUPPRESSED)
+	  return 2;
+    if (ifdef_expr_condition == IFDEF_EXPR_ELSIF ||
+	ifdef_expr_condition == IFDEF_EXPR_IFDEF ||
+	ifdef_expr_condition == IFDEF_EXPR_IFNDEF)
+	  return result ? 1 : 0;
+    return 0;
+}
 
 struct include_stack_t
 {
@@ -237,6 +482,9 @@ static int macro_expansion_limit_reported = 0;
 
 %x IFDEF_NAME
 %x IFNDEF_NAME
+%x IFDEF_EXPR
+%x IFDEF_EXPR_BLOCK_COMMENT
+%x IFDEF_EXPR_LINE_COMMENT
 %s IFDEF_TRUE
 %x IFDEF_FALSE
 %x IFDEF_SUPR
@@ -505,6 +753,89 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 <IFDEF_TRUE>`else  |
 <IFDEF_SUPR>`else  { BEGIN(ELSE_SUPR); }
 <IFDEF_FALSE>`else { BEGIN(ELSE_TRUE); }
+
+<IFDEF_NAME>"(" {
+    ifdef_expr_begin(IFDEF_EXPR_IFDEF);
+    BEGIN(IFDEF_EXPR);
+}
+
+<IFNDEF_NAME>"(" {
+    ifdef_expr_begin(IFDEF_EXPR_IFNDEF);
+    BEGIN(IFDEF_EXPR);
+}
+
+<ELSIF_NAME>"(" {
+    ifdef_expr_begin(IFDEF_EXPR_ELSIF);
+    BEGIN(IFDEF_EXPR);
+}
+
+<ELSIF_SUPR>"(" {
+    ifdef_expr_begin(IFDEF_EXPR_ELSIF_SUPPRESSED);
+    BEGIN(IFDEF_EXPR);
+}
+
+<IFDEF_EXPR>[a-zA-Z_][a-zA-Z0-9_$]* { ifdef_expr_append(yytext, yyleng); }
+<IFDEF_EXPR>{W} { ifdef_expr_append(yytext, yyleng); }
+<IFDEF_EXPR>"//" {
+    ifdef_expr_append(" ", 1);
+    BEGIN(IFDEF_EXPR_LINE_COMMENT);
+}
+<IFDEF_EXPR>"/*" {
+    ifdef_expr_append(" ", 1);
+    BEGIN(IFDEF_EXPR_BLOCK_COMMENT);
+}
+<IFDEF_EXPR>("&&"|"||"|"->"|"<->"|"!") {
+    ifdef_expr_append(yytext, yyleng);
+}
+<IFDEF_EXPR>"(" {
+    ifdef_expr_parens += 1;
+    ifdef_expr_append(yytext, yyleng);
+}
+<IFDEF_EXPR>")" {
+    ifdef_expr_parens -= 1;
+    if (ifdef_expr_parens == 0) {
+        int result = ifdef_expr_finish();
+        if (result == 2)
+            BEGIN(IFDEF_SUPR);
+        else if (result)
+            BEGIN(IFDEF_TRUE);
+        else
+            BEGIN(IFDEF_FALSE);
+    } else {
+        ifdef_expr_append(yytext, yyleng);
+    }
+}
+<IFDEF_EXPR>\n\r |
+<IFDEF_EXPR>\r\n |
+<IFDEF_EXPR>\n |
+<IFDEF_EXPR>\r { ifdef_expr_append(" ", 1); istack->lineno += 1; fputc('\n', yyout); }
+<IFDEF_EXPR>. { ifdef_expr_invalid = 1; }
+
+<IFDEF_EXPR_LINE_COMMENT>[^\r\n] { }
+<IFDEF_EXPR_LINE_COMMENT>\n\r |
+<IFDEF_EXPR_LINE_COMMENT>\r\n |
+<IFDEF_EXPR_LINE_COMMENT>\n |
+<IFDEF_EXPR_LINE_COMMENT>\r {
+    istack->lineno += 1;
+    fputc('\n', yyout);
+    BEGIN(IFDEF_EXPR);
+}
+
+<IFDEF_EXPR_BLOCK_COMMENT>"*/" { BEGIN(IFDEF_EXPR); }
+<IFDEF_EXPR_BLOCK_COMMENT>\n\r |
+<IFDEF_EXPR_BLOCK_COMMENT>\r\n |
+<IFDEF_EXPR_BLOCK_COMMENT>\n |
+<IFDEF_EXPR_BLOCK_COMMENT>\r { istack->lineno += 1; fputc('\n', yyout); }
+<IFDEF_EXPR_BLOCK_COMMENT>. { }
+
+<IFDEF_EXPR,IFDEF_EXPR_BLOCK_COMMENT,IFDEF_EXPR_LINE_COMMENT><<EOF>> {
+    ifdef_expr_report("unterminated parenthesized ifdef expression");
+    ifdef_expr_length = 0;
+    ifdef_expr_invalid = 0;
+    BEGIN(IFDEF_FALSE);
+    if (!load_next_input())
+        yyterminate();
+}
 
 <IFDEF_NAME>[a-zA-Z_][a-zA-Z0-9_$]* {
     if (is_defined(yytext))

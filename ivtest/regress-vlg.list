@@ -1837,4 +1837,7 @@ z1			normal			ivltests foo
 z2			normal			ivltests foo
 zero_repl		normal			ivltests
 zero_repl_fail		CE			ivltests
+sv_ifdef_expression_2023 normal,-g2023,-s,test,-yivltests ivltests gold=sv_ifdef_expression_2023.gold
+sv_ifdef_expression_2017 normal,-g2017,-s,test ivltests gold=sv_ifdef_expression_2017.gold
+sv_ifdef_expression_2017_fail CE,-g2017,-s,test ivltests gold=sv_ifdef_expression_2017_fail.gold
 cmpi			normal			ivltests

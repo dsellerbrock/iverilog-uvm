@@ -1,9 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
-### IEEE-1800-PARENTHESIZED-IFDEF-EXPRESSIONS — issue #460 (baseline reproduced)
+### IEEE-1800-PARENTHESIZED-IFDEF-EXPRESSIONS — issue #460 (locally validated)
 
-- **State:** Active on `agent/ieee-ifdef-parenthesized-20261008`, based on clean
-  `origin/main` `af89cfc50be1084cc86c48865f3f6ba78d4512fa`.
+- **State:** Implementation and focused tests pass on
+  `agent/ieee-ifdef-parenthesized-20261008`, based on clean `origin/main`
+  `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft PR creation and exact-head
+  CI qualification are pending.
 - **Requirement:** IEEE 1800-2017 §22.5 Syntax 22-5 allows only a
   `text_macro_identifier` condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a
   parenthesized `ifdef_macro_expression` with identifiers, logical operators,
@@ -12,13 +14,22 @@
 - **Failure:** A self-authored `ifdef (A && (!B || C))` and `ifndef (A && B)`
   probe reports `` `ifdef without a macro name`` under both `-g2017` and
   `-g2023`. The plain identifier control passes in both editions.
-- **Root cause:** `ivlpp/lexor.lex` has identifier-only `IFDEF_NAME`,
-  `IFNDEF_NAME`, and `ELSIF_NAME` states. Trace edition propagation into ivlpp
-  before choosing the gate implementation.
+- **Root cause:** `ivlpp/lexor.lex` accepted identifiers only, and the driver did
+  not pass the selected generation to `ivlpp`. The driver now forwards
+  `-g2023` both for top-level sources and lazy `-y` library sources; the
+  preprocessor parses boolean expressions only in that edition.
 - **Scope:** Boolean conditional-expression parsing/evaluation for `ifdef`,
   `ifndef`, and `elsif`; strict 2017 behavior; paired regression coverage.
-- **Next:** Add permanent failing/compatibility cases, implement the syntax and
-  evaluation, then run focused and neighboring tests.
+- **Validation:** Permanent legacy and JSON fixtures pass 3/3 each. Neighboring
+  macro legacy tests pass 28/28 and 8/8; neighboring macro JSON tests pass
+  14/14. The focused implementation uses the precedence in IEEE 1800-2023
+  §11.3.2 Table 11-2 and semantics in §11.4.7. The full root build passes with
+  Bison 3.8.2; system Bison 2.3 alone rejects the unchanged
+  `parse.y:2236` `%destructor`. Bison 3.8.2 reports 574 shift/reduce and 1,122
+  reduce/reduce conflicts on both `origin/main` and this branch. See the
+  [clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-2023-225-parenthesized-conditional-expressions).
+- **Next:** Open one PR against `main`; investigate CI failures if reported and
+  do not claim completion until the PR head's required checks pass.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 

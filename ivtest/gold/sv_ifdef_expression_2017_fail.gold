@@ -1,0 +1,2 @@
+./ivltests/sv_ifdef_expression_2017_fail.v:2: error: parenthesized `ifdef expressions require -g2023
+Preprocessor failed with 1 errors.
