@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_pkg_class_static_call.v",
+  "iverilog-args": ["-g2017", "-ssv_pkg_class_static_call"],
+  "gold": "sv_pkg_class_static_call"
+}

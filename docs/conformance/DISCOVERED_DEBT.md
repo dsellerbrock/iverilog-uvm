@@ -3930,3 +3930,113 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Replay logs at `/tmp/pr409-repro-logs2/` for the five named cases, generated at PR #411 head `32cfc8dcc5c670e5fcd7f7ed7f53838310a26b33`.
 - **Reproducer status:** Confirmed by registered-case replay; repeat against a current `main` image for independent baseline attribution.
 - **Triage status:** Untriaged, record-only during SV23-CLASS-FINAL. Keep separate from the adjacent whole-unpacked-struct-array representation diagnostic; do not widen PR #411.
+
+### DD-106 — package-qualified class call probe cases (a)-(e)
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL.
+- **Observation:** Before the active fix, probes (a) `x = p::c::get()`, (b)
+  `void'(p::c::get())`, (c) `p::c#(8)::set(1)`, (d) non-static
+  `p::c::m()`, and (e) nonexistent-class `p::missing::set(1)` all failed in
+  parsing with `syntax error` / `Malformed statement` under strict 2017 and
+  2023. After the statement-call fix, (b) and (c) pass in both editions, (d)
+  reports the focused non-static-method diagnostic, and (e) reports an unknown
+  task/class diagnostic without crashing. The reducer passes and prints
+  `v=5`; (a) still fails in expression position. Extending the raw carrier into
+  `expr_primary` increased Bison conflicts, so that grammar change was reverted
+  and (a) remains outside this ticket.
+- **File/function:** Parser grammar for package-qualified class-scope call
+  statements; elaboration diagnostics for the negative forms.
+- **Possible clause:** IEEE 1800-2017/2023 §§8.23 and 26.3.
+- **Evidence:** Pre/post-patch probes compiled with the active worktree's
+  `local-install/bin/iverilog` and executed with its `local-install/bin/vvp`;
+  permanent reducer and non-static logs are in `ivtest/log/`.
+- **Reproducer status:** Confirmed on the clean baseline.
+- **Triage status:** Triage-pending, record-only. Cases (a)-(e) are probes for
+  the active fix, not separately authorized blockers; retain the post-fix
+  result here and promote none from this entry without coordinator selection.
+
+### DD-107 — PR #412 Ubuntu 22.04 check failed after merge
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL.
+- **Observation:** GitHub reports PR #412 merged at `7c4aa26e`, but workflow
+  `37676515427` has Ubuntu 22.04 and Ubuntu 24.04 failures (jobs
+  `112981302851` and `112981303086`). Both built successfully and failed at
+  the hard ivtest name-diff gate. CLANG64 and MINGW64 remain in progress;
+  macOS and UCRT64 are queued.
+- **Scope:** This is the already-merged unequal-length SVA intersect / PR #412
+  change, not the package-qualified class-call patch in this ticket.
+- **Evidence:** [PR #412 check rollup](https://github.com/dsellerbrock/iverilog-uvm/pull/412)
+  and workflow run `37676515427`. The task recorded the check status only and
+  did not inspect unrelated failure logs.
+- **Triage status:** Triage-pending. Do not claim PR #412 CI is green. Inspect
+  the completed workflow log when available and select any repair separately.
+
+### DD-108 — PR #411 Ubuntu 24.04 check failed after merge
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL.
+- **Observation:** GitHub reports PR #411 merged at `32cfc8d` on 2026-10-07.
+  Its workflow `37659524348` has an Ubuntu 24.04 failure (job
+  `112923171077`, completed 2026-10-08 00:33 UTC); macOS, Ubuntu 22.04,
+  MINGW64, UCRT64, and CLANG64 remain queued.
+- **Scope:** This is the already-merged IEEE 1800-2023 class `:final` change,
+  not the package-qualified class-call patch in this ticket.
+- **Evidence:** [PR #411 check rollup](https://github.com/dsellerbrock/iverilog-uvm/pull/411)
+  and workflow run `37659524348`, job `112923171077`.
+- **Triage status:** Triage-pending. Do not claim PR #411 CI is green. Inspect
+  the completed workflow log and select any repair separately.
+
+### DD-109 — wide packed-struct constraint state is silently accepted
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL, during the full
+  JSON ivtest gate.
+- **Observation:** `sv_constraint_state_packed_select_invalid_2017` and its
+  2023 counterpart fail. The fixture expects an unsupported wide packed-struct
+  state select in a constraint to fail closed, but `wide_state.randomize()`
+  returns success and triggers the fatal at source line 37. The same run
+  diagnoses the separate four-state `struct_state` case at line 20.
+- **File/function:** `ivtest/ivltests/sv_constraint_state_packed_select_invalid.sv:20,25,37`;
+  exact solver path not yet isolated.
+- **Possible clause:** IEEE 1800-2017/2023 §18.3.
+- **Evidence:** Full JSON run on this ticket's branch: 4,499 tests, 4 failed;
+  both edition logs show the line-37 fatal and omit the expected wide-state
+  diagnostic.
+- **Reproducer status:** Confirmed in both editions by the registered fixture.
+- **Triage status:** Triage-pending, unrelated to the package-call parser
+  change. Do not expand the active ticket to fix it.
+
+### DD-110 — registered global-uniform tests exceed the guarded run budget
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL, during the full
+  JSON ivtest gate.
+- **Observation:** `sv_randomize_global_uniform` and
+  `sv_randomize_global_uniform_2023` produced empty VVP output instead of the
+  expected `PASSED` gold under the 300-second per-process CPU guard. The
+  guarded run reached the resource limit on each statistical test.
+- **File/function:** `ivtest/ivltests/sv_randomize_global_uniform.v` and
+  `sv_randomize_global_uniform_2023.v`; runtime duration in the global uniform
+  sampler.
+- **Possible clause:** IEEE 1800-2017 §18.5.10 / IEEE 1800-2023 §18.5.9.
+- **Evidence:** Full JSON run on this ticket's branch: 4,499 tests, 4 failed;
+  the two uniform tests have empty VVP stdout/stderr and no expected pass
+  marker. An earlier unguarded attempt was manually stopped after exceeding
+  the same CPU budget.
+- **Reproducer status:** Confirmed as a bounded-runtime failure on this host;
+  no distribution mismatch was measured in this run.
+- **Triage status:** Triage-pending, unrelated to the package-call parser
+  change. Do not expand the active ticket to optimize the solver.
+
+### DD-111 — axi-vip constraint calls an impure width helper
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL, in the required
+  read-only axi-vip compile at revision
+  `16d0f444299014b2079c941925ea8b43d85a13f7`.
+- **Observation:** After the package-qualified static-call parser fix, the
+  compile advances beyond `axi_base_test.sv:53`. The next diagnostic is that
+  `get_width` is not pure when called from constraints at
+  `common/sim/vip_lib/axi_uvc/axi_trans.svh:40-41`.
+- **Evidence:** From the external axi-vip checkout root, ran
+  `iverilog -uvm -g2012 -s axi_tb_top -o /private/tmp/axi-pkg-class-static-call-20261007.vvp -f axi.f`
+  using this worktree's compiler. This entry records only the next diagnostic;
+  subsequent output is intentionally not triaged here.
+- **Triage status:** Triage-pending, record-only. Do not continue the axi-vip
+  compile chain from this observation.

@@ -1,0 +1,2 @@
+./ivltests/sv_pkg_class_static_call_nonstatic_fail.v:9: error: Non-static method `m' requires an object receiver.
+Elaboration failed

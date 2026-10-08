@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_pkg_class_static_call_nonstatic_fail.v",
+  "iverilog-args": ["-g2017", "-ssv_pkg_class_static_call_nonstatic_fail"],
+  "gold": "sv_pkg_class_static_call_nonstatic_fail"
+}

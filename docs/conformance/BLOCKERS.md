@@ -1,6 +1,34 @@
 # Blockers registry (Level 3 — operational backlog)
 
-### SVA-INTERSECT-UNEQUAL-LENGTHS — locally regression-tested, CI pending
+### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
+
+- **State:** Implemented on `agent/pkg-class-static-call-20261007`; exact reducer
+  fails on clean `origin/main` `7c4aa26e` and passes on this branch under strict
+  2017 and 2023. Draft PR and exact-head CI remain pending.
+- **Requirement:** IEEE 1800-2017 §8.23 allows access to static class methods
+  and properties and says scoped expressions can be used in subroutine calls;
+  §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords
+  this as access to static public methods and properties from outside the
+  class hierarchy; §26.3 retains the same package-reference wording.
+- **Failure:** A self-authored `p::c::set(5);` statement reports `syntax error`
+  and `Malformed statement`. The imported `c::set(5)` control compiles and
+  prints the expected value.
+- **Root-cause hypothesis and scope:** Direct package/class/member call
+  continuations are missing from the parser even though deeper nested static
+  calls and scoped identifiers have grammar paths. Keep the correction local
+  to the requested static function/task call path and its focused negative.
+- **Validation:** Focused legacy 7/7 and JSON 8/8 pass. Full legacy reports
+  7,243 total, 7,238 passed, 0 failed, 2 not implemented, and 3 expected
+  failures. Full JSON reports 4,499 tests with 4 unrelated failures (DD-109 and
+  DD-110); the package-call cases pass. UVM regression passes 363/363 with no
+  skips. The read-only axi-vip probe passes the fixed call site and next reports
+  the impure `get_width` constraint call (DD-111); later diagnostics were not
+  triaged. Bison counts are unchanged at 574 shift/reduce and 1,122
+  reduce/reduce conflicts.
+- **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
+  merge this ticket's PR.
+
+### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
 
 - **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length
   operands; they produce no `intersect` match. Implication follows §16.12.7.
@@ -8,9 +36,10 @@
   `tests/sva_nfa/run.sh` passes 64/64; strict legacy passes 1/1; paired strict
   2017/2023 JSON/VVP passes 2/2. The explicit legacy-engine diagnostic remains.
   See [focused evidence](../../evidence/sva-intersect-unequal-lengths-20261007/README.md).
-- **State:** Included in draft [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412).
-  Required platform checks are queued/in progress; this is not CI-qualified or
-  closed. Variable/ranged mismatches and broader nested combinator trees remain
+- **State:** Merged to `main` in [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412).
+  The Ubuntu 22.04 and 24.04 ivtest gates have failed; CLANG64 and MINGW64 are
+  still running; macOS and UCRT64 are queued. Do not claim the merged head is
+  green. Variable/ranged mismatches and broader nested combinator trees remain
   open.
 
 ### OpenTitan 49-target post-fix census — 2026-09-29

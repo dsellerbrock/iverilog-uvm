@@ -11914,10 +11914,9 @@ expr_primary_or_typename
 
   ;
 
-/* Statement-only raw carrier for package-qualified class static l-values.
-   Keeping this out of expr_primary prevents the first package member from
-   stealing a package-qualified type actual before ps_type_identifier can
-   reduce it. */
+/* Raw carrier for package-qualified class-scope members. Keep the identifier
+   itself out of expr_primary so it cannot steal a package-qualified type
+   actual; call productions consume it only when followed by arguments. */
 package_scoped_lvalue
   : PACKAGE_IDENTIFIER K_SCOPE_RES identifier_name K_SCOPE_RES identifier_name
       { pform_name_t path;
@@ -17518,6 +17517,18 @@ subroutine_call
 	delete $4;
 	$$ = tmp;
       }
+  | package_scoped_lvalue argument_list_parens_opt
+      { PEIdent*prefix = dynamic_cast<PEIdent*>($1);
+	assert(prefix);
+	pform_scoped_name_t scoped = prefix->path();
+	PCallTask*tmp = new PCallTask(scoped.package, scoped.name, *$2);
+	tmp->set_leading_type_args(prefix->take_leading_type_args());
+	tmp->set_scoped_type_prefix();
+	FILE_NAME(tmp, @1);
+	delete prefix;
+	delete $2;
+	$$ = tmp;
+	}
   | hierarchy_identifier '.' K_unique argument_list_parens_opt
       { /* Statement form of q.unique() — `unique` is a keyword so it isn't
 	   captured by the IDENTIFIER rule above. */
