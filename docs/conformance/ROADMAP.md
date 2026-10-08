@@ -4,7 +4,7 @@ Start with the [IEEE conformance index](INDEX.md) for the live GitHub issue inve
 
 This page describes the program's goals. The [blocker registry](BLOCKERS.md)
 owns the backlog; [ACTIVE_WORK](../../.ai/ACTIVE_WORK.yaml) names the selected
-ticket. Milestone labels and old priority lists do not authorize work.
+ticket. Milestone labels and old priority lists do not authorize work. IEEE issue intake is uncapped; uncertain clause questions are tracked as validation-only tickets, separately labeled from reproduced gaps.
 
 ## Goals and evidence owners
 

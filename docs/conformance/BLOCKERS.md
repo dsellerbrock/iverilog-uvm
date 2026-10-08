@@ -1213,12 +1213,13 @@ qualification remain open. Evidence: campaign-20260908/s03.
   unsaturated real aggregation. Multiple named wide families can exceed64 bits.
 - **Scope:** Preserve supported merged totals through percentage calculation,
   retaining bin identity, thresholds, weights and mode dispatch.
-- **Closure:** Paired relative-error reducer/controls and independent review; the clean-main recheck confirms the V04 registered reducer in `-g2017` and `-g2023`. Parent V01, transition-family cardinality and cross-bin universe obligations remain separate.
-- **Residuals:** ParentV01, transition-family cardinality and cross-bin universe
-  obligations remain separate. No per-blocker PR under updated cadence.
+- **Closure:** Paired relative-error reducer/controls and independent review; the clean-main recheck confirms the V04 registered reducer in `-g2017` and `-g2023`. Parent V01 and cross-bin universe obligations remain separate; merged transition-family cardinality is a validation question in [#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513).
+- **Residuals:** Parent V01 and cross-bin universe obligations remain separate.
+  Merged transition-family cardinality is validation-only under [#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513).
+  No per-blocker PR under updated cadence.
 
 - **V04 candidate:** Local128-bit merged total/hit accumulation; individual
-  transition-family cardinality unchanged. Focus2/2+2/2, coverage neighbors75/65,
+  The reducer does not change individual transition-family cardinality. Focus2/2+2/2, coverage neighbors75/65,
   makecheck and independent review pass. Integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
   fullJSON1664/0,UVM355/0/0,NFA58/58 all pass.
 
@@ -1240,8 +1241,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
   Includes named/arrayed transition identities and malformed-plan denominator
   assertions. Integrated4785total4780pass0fail2NI3EF,VPI105,negative149,
   runtime checks,fullJSON1677/0,real-DPIUVM355/0/0 and makecheck all pass.
-  ParentV01 remains open; unsupported topologies, transition cardinality and
-  unqualified options are not closed. No immediate PR under milestone cadence.
+  Parent V01 remains open; unsupported topologies and unqualified options are not closed. Merged transition-family cardinality is tracked as a validation question in [#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513); no incorrect result has been reproduced. The clean-main census separately confirmed the CrossQueueType rejection in [#511](https://github.com/dsellerbrock/iverilog-uvm/issues/511) and the oversized-cross silent drop in [#512](https://github.com/dsellerbrock/iverilog-uvm/issues/512). No immediate PR under milestone cadence.
 
 
 ### V06 — Merged item coverage uses instance weights instead of type weights

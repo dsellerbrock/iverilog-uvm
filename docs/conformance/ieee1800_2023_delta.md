@@ -207,9 +207,13 @@ empty ignore/illegal selectors. Procedural-write and repeated-assignment
 evidence remains to be added.
 
 This remains bounded clause-19 support. The matrix owns common coverage
-limitations; the 2023 real-valued coverpoint-bin gap is tracked by
-[#510](https://github.com/dsellerbrock/iverilog-uvm/issues/510), while
-clause-11 tolerance range operators are tracked separately by
+limitations. The uncapped census links the CrossQueueType set-expression
+rejection to [#511](https://github.com/dsellerbrock/iverilog-uvm/issues/511), the
+validation-only 65,536-bin automatic-cross boundary to [#512](https://github.com/dsellerbrock/iverilog-uvm/issues/512),
+and a validation-only merged transition-family question to
+[#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513). The 2023
+real-valued coverpoint-bin gap remains [#510](https://github.com/dsellerbrock/iverilog-uvm/issues/510),
+while clause-11 tolerance range operators are tracked separately by
 [#462](https://github.com/dsellerbrock/iverilog-uvm/issues/462). Historical
 application counts are preserved in the [survey archive](session_logs/2026-09-14_edition_survey_history.md);
 [CURRENT_WORK](CURRENT_WORK.md) links later evidence.
