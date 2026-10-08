@@ -4,9 +4,9 @@
 
 ## Current selection
 
-The active campaign item is [issue #460](https://github.com/dsellerbrock/iverilog-uvm/issues/460) in [draft PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), based on `main`, branch `agent/ieee-ifdef-parenthesized-20261008`, exact head `dc7bea1c76b51e9f6acd91fc31c2687eb7170633`. PR #467 is open and draft. The latest check run [37821537530](https://github.com/dsellerbrock/iverilog-uvm/actions/runs/37821537530) has all six platform jobs queued; **no green CI status is claimed**. Its local negative suite passes 153/153 after classifying the stale unequal-length intersect fixture as legacy-only. Local reproductions and historical evidence in issue bodies are not CI results.
+The active campaign item is [issue #468](https://github.com/dsellerbrock/iverilog-uvm/issues/468), in [draft PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which also carries the parenthesized-expression fix for [issue #460](https://github.com/dsellerbrock/iverilog-uvm/issues/460). PR #467 targets `main`, branch `agent/ieee-ifdef-parenthesized-20261008`, exact head `cf9b27366ed65259ffa8c0ac50d626deb05127c0`. The exact-head run [37824513181](https://github.com/dsellerbrock/iverilog-uvm/actions/runs/37824513181) has all six platform jobs queued; **no green CI status is claimed**. Focused local #468, #460, and macro-neighbor results are recorded in the PR body; they are not CI results.
 
-The checked-in [`ACTIVE_WORK.yaml`](../../.ai/ACTIVE_WORK.yaml) and [`CAMPAIGN.yaml`](../../.ai/CAMPAIGN.yaml) still describe an earlier package-qualified class-call task. For this census, the live GitHub #460/#467 state is the selected-task source; the archival work records were not rewritten. The [issue checkout map](../../.ai/ISSUE_CHECKOUT.csv) remains a historical checkout record.
+The `ACTIVE_WORK.yaml`, `CAMPAIGN.yaml`, and handoff updates for #468 are on PR #467 and are not copied into this documentation-only branch. The [issue checkout map](../../.ai/ISSUE_CHECKOUT.csv) on `main` remains a historical checkout record until that PR merges.
 
 ## Inventory
 
