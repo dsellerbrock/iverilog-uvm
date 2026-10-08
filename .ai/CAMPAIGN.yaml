@@ -1,19 +1,19 @@
 campaign: IEEE1800-UVM-continuous
-mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
+mission: IEEE 1800-2017 and IEEE 1800-2023 frontend and runtime support. OpenTitan and Caliptra application work is closed for current selection; their historical records remain below for provenance only.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-assoc-array-typed-params-20261008"
 checkpoint_head: "af89cfc50be1084cc86c48865f3f6ba78d4512fa"
 active_ieee_lane:
   blocker: "IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS"
   github_issue: 450
-  phase: "SELECTED"
+  phase: "LOCAL_VALIDATION_COMPLETE_PR_PENDING"
   baseline_head: "af89cfc50be1084cc86c48865f3f6ba78d4512fa"
-  reproducer: "Not established. Separately probe value parameters with associative dimensions and type parameters bound to associative-array types."
-  standards: "Issue #450 is open. Verify the exact 2017/2023 clauses and legal forms; the issue title's §8 citation and survey label are not normative evidence."
-  root_cause: "Unknown. Investigate grammar, specialization identity, and parameter value/type use paths in that order."
-  scope: "Only the LRM-supported parameter forms covered by issue #450, with strict edition behavior and focused legacy/JSON regressions."
-  next: "Read exact clauses and Annex A productions; establish a baseline reproducer under strict -g2017 and -g2023 before patching."
-  boundary: "No OpenTitan/Caliptra work, broad type-system rewrite, or unrelated CI fixes in this ticket. Preserve the dirty $stacktrace checkout."
+  standards: "2017 A.2.4 param_assignment uses unpacked_dimension; 2023 A.2.4 uses variable_dimension and A.2.5 includes associative_dimension. 2023 §8.25(b) defines value-parameter specialization identity by matching value types and equal values. The issue's §8 citation is §8.25; grammar is Annex A."
+  reproducer: "Source-built baseline: module parameter int Values[string] fails elaboration in both editions on PEAssocType; class parameter int Values[string] is accepted by Slang 2023 and syntax-errors in Icarus both editions. Typedef-based associative type parameter passes both editions."
+  root_cause: "Class parameter grammar omits post-name dimensions; module parameter elaboration routes associative dimensions through fixed-bound evaluation and finite element expansion; `elab_scope.cc::evaluated_parameter_signature_` also assumes finite bounds/elements; direct syntax has no 2023 feature gate."
+  scope: "2023 associative value parameters, class specialization/value use paths, edition gate, paired tests only. No OpenTitan/Caliptra or unrelated cleanup."
+  next: "Review the diff and conformance evidence, commit and open one draft PR to main. Full legacy is 5046/5046; UVM is 363/363 with real DPI; full JSON reported 4 failures, of which two optional-FPGA setup cases pass after target installation and two constraint-state failures remain documented in DD-112. Follow exact-head CI without repetitive polling."
+  boundary: "Preserve 2017 rejection; do not widen into unrelated type-system work. Keep dirty $stacktrace checkout untouched."
 previous_ieee_blocker: "Package-qualified class static calls merged in PR #413 at af89cfc50. Its exact workflow reported Ubuntu 22.04 and 24.04 failures; remaining jobs/logs were unavailable at last check. Do not claim CI green."
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"

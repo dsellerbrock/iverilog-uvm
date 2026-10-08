@@ -114,6 +114,8 @@
  * and IEEE 1800-2005 5.15.4. GN_VER2005 is Verilog-2005; the first
  * SystemVerilog generation in this table is GN_VER2005_SV. */
 #define SV_FEATURE_TABLE						\
+      SV_FEATURE_ROW(SVF_ASSOC_ARRAY_PARAMETER, GN_VER2023,	\
+		     "associative-array-typed parameter")		\
       SV_FEATURE_ROW(SVF_ARRAY_MAP, GN_VER2023,			\
 		     "the array map() method")				\
       SV_FEATURE_ROW(SVF_ARRAY_INDEX_ARGUMENT, GN_VER2023,	\

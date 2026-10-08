@@ -1706,6 +1706,12 @@ class NetScope : public Definitions, public Attrib {
 	    bool type_flag = false;
 	    // Is it an unpacked array parameter (elements stored as "name[i]")
 	    bool is_array_param = false;
+	    // Is it an associative-array value parameter represented by one
+	    // constant associative-pattern expression instead of finite elements.
+	    bool is_assoc_param = false;
+	    // Complete declared type for an associative-array value parameter;
+	    // ivl_type remains the element type for indexed parameter reads.
+	    ivl_type_t array_type = nullptr;
 	    // Unpacked dimensions from the declaration (pform data, not
 	    // owned). Needed to expand and index the elements under their
 	    // REAL declared indices ([3:0] stores "name[3]" first), not

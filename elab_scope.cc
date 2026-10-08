@@ -995,6 +995,45 @@ static void append_cache_netexpr_value_key_(std::ostringstream&out,
 	return;
       }
 
+	if (const NetESFunc*function = dynamic_cast<const NetESFunc*>(expr)) {
+	      const std::string name(function->name());
+	      if (name == "$ivl_assoc_pattern" && function->nparms() % 3 == 0) {
+		    std::vector<std::string>entries;
+		    for (unsigned idx = 0; idx < function->nparms(); idx += 3) {
+			  std::ostringstream entry;
+			  for (unsigned part = 0; part < 3; ++part) {
+				std::ostringstream value;
+				append_cache_netexpr_value_key_(
+				      value, function->parm(idx + part));
+				const std::string key = value.str();
+				entry << key.size() << ":";
+				entry.write(key.data(), key.size());
+			  }
+			  entries.push_back(entry.str());
+		    }
+		    std::sort(entries.begin(), entries.end());
+		    out << "<associative-pattern:entries=" << entries.size() << ":";
+		    for (const std::string&entry : entries) {
+			  out << entry.size() << ":";
+			  out.write(entry.data(), entry.size());
+		    }
+		    out << ">";
+		    return;
+	      }
+	      if (name == "$ivl_assoc_default") {
+		    out << "<associative-default:" << function->nparms() << ":";
+		    for (unsigned idx = 0; idx < function->nparms(); idx += 1) {
+			  std::ostringstream value;
+			  append_cache_netexpr_value_key_(value, function->parm(idx));
+			  const std::string key = value.str();
+			  out << key.size() << ":";
+			  out.write(key.data(), key.size());
+		    }
+		    out << ">";
+		    return;
+	      }
+	}
+
       if (dynamic_cast<const NetENull*>(expr)) {
 	out << "<null>";
 	return;
@@ -1497,15 +1536,27 @@ static bool evaluated_parameter_signature_(
 	    const std::string formal_name(cur->str());
 	    std::ostringstream item;
 	    item << "name=" << formal_name.size() << ":";
-	    item.write(formal_name.data(), formal_name.size());
-	    item
-		 << ":kind=" << (formal->second.type_flag ? "type" : "value")
+		  item.write(formal_name.data(), formal_name.size());
+		  item
+		       << ":kind=" << (formal->second.type_flag ? "type" : "value")
 		 << ":type=";
 	    if (exact_layout)
 		  append_cache_ivl_layout_type_key_(des, item, parameter_type);
 	    else
 		  append_cache_ivl_type_key_(des, item, parameter_type);
-	    if (formal->second.is_array_param) {
+	    if (formal->second.is_assoc_param) {
+		  if (!formal->second.array_type)
+			return false;
+		  item << ":associative-array-type=";
+		  if (exact_layout)
+			append_cache_ivl_layout_type_key_(
+			      des, item, formal->second.array_type);
+		  else
+			append_cache_ivl_type_key_(
+			      des, item, formal->second.array_type);
+		  item << ":associative-array-value=";
+		  append_cache_netexpr_value_key_(item, parameter_value);
+	    } else if (formal->second.is_array_param) {
 		  if (!formal->second.array_bounds_known)
 			return false;
 
@@ -3198,6 +3249,108 @@ static bool cache_typed_constant_value_key_(Design*des, NetScope*scope,
       return false;
 }
 
+static const PEAssocType* cache_assoc_parameter_dimension_(
+		const LexicalScope::param_expr_t*parameter)
+{
+      if (!parameter || !parameter->udims)
+	    return nullptr;
+      for (std::list<pform_range_t>::const_iterator cur =
+	       parameter->udims->begin() ; cur != parameter->udims->end() ; ++cur) {
+	    const PEAssocType*assoc = dynamic_cast<const PEAssocType*>(cur->first);
+	    if (assoc)
+		  return assoc;
+      }
+      return nullptr;
+}
+
+static NetExpr* cache_typed_assoc_literal_(Design*des, NetScope*scope,
+					   const PExpr*expr,
+					   ivl_type_t element_type,
+					   ivl_type_t index_type)
+{
+      const PEAssignPattern*pattern = dynamic_cast<const PEAssignPattern*>(expr);
+      if (!pattern || !element_type || !index_type
+	  || pattern->replication())
+	    return nullptr;
+
+      if (PExpr*default_expr = pattern->lone_default_()) {
+	    NetExpr*value = cache_typed_literal_value_(
+		  des, scope, default_expr, element_type);
+	    if (!value)
+		  return nullptr;
+	    NetESFunc*result = new NetESFunc("$ivl_assoc_default",
+					     element_type, 1);
+	    result->parm(0, value);
+	    return result;
+      }
+
+      const std::vector<assignment_pattern_key_t>&keys = pattern->keys();
+      const std::vector<PExpr*>&values = pattern->parms();
+      if (keys.empty() || keys.size() != values.size())
+	    return nullptr;
+
+      std::vector<NetExpr*>args;
+      args.reserve(keys.size() * 3);
+      bool failed = false;
+      for (size_t idx = 0 ; idx < keys.size() && !failed ; ++idx) {
+	    bool is_default = keys[idx].kind == assignment_pattern_key_t::DEFAULT;
+	    if (keys[idx].kind != assignment_pattern_key_t::EXPR && !is_default) {
+		  failed = true;
+		  break;
+	    }
+	    NetExpr*key = is_default
+		  ? static_cast<NetExpr*>(new NetEConst(
+			verinum(uint64_t(0), 32)))
+		  : cache_typed_literal_value_(
+			    des, scope, keys[idx].expr, index_type);
+	    NetExpr*value = cache_typed_literal_value_(
+		  des, scope, values[idx], element_type);
+	    if (!key || !value) {
+		  delete key;
+		  delete value;
+		  failed = true;
+		  break;
+	    }
+	    args.push_back(new NetEConst(verinum(
+		  uint64_t(is_default ? 1 : 0), 32)));
+	    args.push_back(key);
+	    args.push_back(value);
+      }
+      if (failed) {
+	    delete_cache_literal_items_(args);
+	    return nullptr;
+      }
+
+      NetESFunc*result = new NetESFunc("$ivl_assoc_pattern", element_type,
+					       static_cast<unsigned>(args.size()));
+      for (size_t idx = 0 ; idx < args.size() ; ++idx)
+	    result->parm(static_cast<unsigned>(idx), args[idx]);
+      return result;
+}
+
+static bool cache_assoc_parameter_value_key_(Design*des, NetScope*scope,
+					      const PExpr*expr,
+					      ivl_type_t element_type,
+					      ivl_type_t index_type,
+					      std::string&key)
+{
+      std::unique_ptr<NetExpr>literal(cache_typed_assoc_literal_(
+	    des, scope, expr, element_type, index_type));
+      const NetExpr*value = literal.get();
+      if (!value) {
+	    ivl_type_t parameter_type = nullptr;
+	    value = cache_simple_parameter_value_(des, scope, expr, parameter_type);
+	    const NetESFunc*function = dynamic_cast<const NetESFunc*>(value);
+	    if (!function || (std::string(function->name()) != "$ivl_assoc_pattern"
+			  && std::string(function->name()) != "$ivl_assoc_default"))
+		  return false;
+      }
+      std::ostringstream out;
+      append_cache_netexpr_value_key_(out, value);
+      key = out.str();
+      return true;
+}
+
 static bool cache_value_parameter_is_deferred_(
 	Design*des, NetScope*scope, const PExpr*expr,
 	std::set<std::pair<const NetScope*,const NetExpr*> >&seen)
@@ -3410,6 +3563,34 @@ static std::string canonical_specialization_parm_key_(
 		      || key.find("@scope=") != std::string::npos)
 			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  out << key;
+		  return out.str();
+	    }
+
+	    const PEAssocType*assoc_dimension =
+		  cache_assoc_parameter_dimension_(formal->second);
+	    if (assoc_dimension) {
+		  if (!formal->second->data_type || !assoc_dimension->index_type())
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  ivl_type_t element_type =
+			formal->second->data_type->elaborate_type(des, definition_scope);
+		  ivl_type_t index_type =
+			const_cast<data_type_t*>(assoc_dimension->index_type())->elaborate_type(
+			      des, definition_scope);
+		  if (!element_type || !index_type)
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  std::string value_key;
+		  bool cache_ok = cache_assoc_parameter_value_key_(
+			des, actual_scope, actual, element_type, index_type,
+			value_key);
+		  if (!cache_ok)
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  append_cache_ivl_type_key_(des, out, element_type);
+		  out << ":associative-index=";
+		  append_cache_ivl_type_key_(des, out, index_type);
+		  out << ":associative-wildcard="
+		      << assoc_dimension->wildcard_index()
+		      << ":associative-value=";
+		  append_cache_string_key_(out, value_key);
 		  return out.str();
 	    }
 

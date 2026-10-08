@@ -4040,3 +4040,22 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   subsequent output is intentionally not triaged here.
 - **Triage status:** Triage-pending, record-only. Do not continue the axi-vip
   compile chain from this observation.
+
+### DD-112 — constraint-state packed struct select fails in full JSON sweep
+
+- **Discovered while working:** IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS (#450),
+  during the full JSON ivtest run.
+- **Observation:** `sv_constraint_state_packed_select_invalid_2017` and
+  `_2023` both exit with a VVP error. The expected `PASSED` line is replaced by
+  a fatal at `wide_state.flags[64]`; the compiler also omits the expected
+  warning/error for the line-25 constraint. The associative parameter patch
+  does not change the packed-struct constraint path exercised here.
+- **Evidence:** Full JSON run: 4,503 tests, 4 failures. A targeted rerun of
+  those two cases reproduced both failures after installing the missing
+  optional FPGA target; the two FPGA rejection cases then passed. The full-run
+  constraint diffs are in `ivtest/log/` and identify the failing `wide_state`
+  case.
+- **Reproducer status:** Reproduced on the current candidate; baseline status
+  has not been checked.
+- **Triage status:** Triage-pending and outside #450 scope. No constraint
+  solver changes are included.

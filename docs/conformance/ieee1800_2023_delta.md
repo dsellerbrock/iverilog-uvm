@@ -149,7 +149,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 |---|------|------------|----------------------|------|
 | 1 | Triple-quoted strings `"""…"""` (5.9) | CERTAIN | FOCUSED IMPLEMENTATION (lexer, multiline macros, 2017 gate; see 2026-10-06 record) | S |
 | 2 | `ref static` tf arguments | CERTAIN | UNSUPPORTED (grammar) | M |
-| 3 | Associative-array-typed parameters | CERTAIN | UNSUPPORTED | M |
+| 3 | Associative-array-typed parameters | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-08; see [paired evidence](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--associative-array-value-parameters) | M |
 | 4 | Restricted type parameters (`type enum/struct/class`) | CERTAIN | UNSUPPORTED | S–M |
 | 5 | `type(this)` self-type | CERTAIN | UNSUPPORTED | M |
 | 6 | Soft packed unions (`union soft`) | CERTAIN | UNSUPPORTED (hard packed unions work) | M |
@@ -256,8 +256,12 @@ the tested subset. The common implementation and boundaries are owned by the
 covered in the paired randomization checks. Broader interface,
 uniform-sampling, and application qualification remain open.
 
-Associative-array assignment patterns do not implement the separate 2023
-associative-array-typed parameter feature in the scoping table.
+The 2023 associative-array-typed value-parameter subset is implemented and
+locally verified for module/class parameters, string, integral, and wildcard
+keys, constant key reads, default values, and class-specialization identity.
+Strict 2017 rejects direct associative parameter dimensions. Full JSON still has the two unrelated
+constraint-state failures recorded in [DD-112](DISCOVERED_DEBT.md#dd-112--constraint-state-packed-struct-select-fails-in-full-json-sweep);
+this is focused evidence, not full parameter-feature closure.
 
 ## Explicitly unverified (do not implement without direct LRM citation)
 

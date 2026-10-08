@@ -1,0 +1,4 @@
+sv_param_assoc_value_2023 normal,-g2023,-s,sv_param_assoc_value_2023 ivltests
+sv_param_assoc_class_value_2023 normal,-g2023,-s,sv_param_assoc_class_value_2023 ivltests
+sv_param_assoc_value_2017_fail CE,-g2017,-s,sv_param_assoc_value_2017_fail ivltests
+sv_param_assoc_class_2017_fail CE,-g2017,-s,sv_param_assoc_class_2017_fail ivltests

@@ -2449,3 +2449,28 @@ remain open.
 Fix 23 extends sparse wide-randc history to eligible graph-coupled direct scalar properties from 21 through 64 bits when an enabled owner constraint references the property and its complete feasible domain is exactly enumerable at no more than 1,024 values. The strict paired regression completes all 101 values, checks graph rollback on an unsatisfiable call, and verifies cycle reset. Graph domains above the cap, aggregate properties, and unconstrained properties retain explicit failure controls. Focused JSON and legacy harnesses pass 4/4 each; the full registered uniformity suites remain deferred to the ten-fix checkpoint. See the [revision evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#owner-referenced-graph-coupled-wide-randc-fix-23).
 
 Fix 24 covers a different graph constraint shape: a wide `randc` child with no local constraint is now recognized when its parent constrains the child through an `r:` object path. The paired strict 2017/2023 regression completes a 65-value cycle, verifies parent-and-child rollback, and checks cycle reset. Unreferenced, over-cap, and aggregate controls still fail closed. Focused JSON and legacy harnesses pass 4/4 each; the full registered uniformity suites remain deferred to the ten-fix checkpoint. See the [revision evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#parent-referenced-graph-randc-property-paths-fix-24).
+
+## October 8, 2026 — associative-array value parameters (IEEE 1800-2023)
+
+IEEE 1800-2017 Annex A A.2.4 `param_assignment` uses
+`{unpacked_dimension}`, so a direct associative dimension is rejected in
+strict `-g2017`. IEEE 1800-2023 A.2.4 uses `{variable_dimension}`, and A.2.5
+includes `associative_dimension` (`[data_type]` or `[*]`). Section 8.25(b)
+defines class value-parameter specialization identity by matching value types
+and equal values. The implementation adds the direct 2023 parameter form and
+keeps the 2017 edition gate.
+
+Paired reducers cover module parameters with string, integral, and wildcard
+keys, explicit entries and defaults, module overrides, class parameter values,
+constant-key reads, and class identity for reordered versus changed map values.
+The four focused legacy/JSON cases pass 4/4 in each runner; neighboring tests pass 6/6
+legacy and 8/8 JSON; full legacy passes 5,046/5,046; real-DPI UVM passes
+363/363. Bison counts are unchanged at 574 shift/reduce and 1,122
+reduce/reduce. Full JSON ran 4,503 cases and reported four failures: two
+optional-FPGA-target setup failures passed after installing that target and
+rerunning the two cases, while the two packed-struct constraint-state failures
+remain recorded as [DD-112](../DISCOVERED_DEBT.md#dd-112--constraint-state-packed-struct-select-fails-in-full-json-sweep).
+
+This is focused 2023 support, not full parameter closure. Dynamic-key reads
+from associative parameter values remain unsupported; broader value contexts
+and parameter forms are not qualified.

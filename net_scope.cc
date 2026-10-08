@@ -26,6 +26,7 @@
 # include  "netenum.h"
 # include  "netmisc.h"
 # include  "netparray.h"
+# include  "netqueue.h"
 # include  "netvector.h"
 # include  "PExpr.h"
 # include  "PPackage.h"
@@ -504,6 +505,17 @@ void NetScope::set_parameter(perm_string key, bool is_annotatable,
       ref.type_flag = param.type_flag;
       ref.lexical_pos = param.lexical_pos;
       ref.is_array_param = (param.udims != nullptr && !param.udims->empty());
+      ref.is_assoc_param = false;
+	if (param.udims) {
+	      for (std::list<pform_range_t>::const_iterator cur = param.udims->begin()
+			 ; cur != param.udims->end() ; ++cur) {
+		    if (dynamic_cast<const PEAssocType*>(cur->first)) {
+			  ref.is_assoc_param = true;
+			  break;
+		    }
+	      }
+	}
+	ref.array_type = nullptr;
       ref.udims = param.udims;
       ivl_assert(param, !ref.range);
       ref.range = range_list;

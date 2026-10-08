@@ -1,20 +1,49 @@
 # Blockers registry (Level 3 — operational backlog)
 
-### IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS — issue #450 (selected; investigation)
+### IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS — issue #450 (root-caused)
 
-- **State:** Selected from the open IEEE issue backlog on fresh `origin/main`
-  `af89cfc50`. No minimal failing reproducer or implementation root cause has
-  been established yet.
-- **Requirement under review:** Issue #450 asks for associative-array-typed
-  parameters, including legal grammar, specialization identity, and value/type
-  use paths, with strict edition gating. Its `§8` title and the survey's
-  `UNSUPPORTED` label are leads, not verified standards evidence.
-- **Next:** Verify the exact legal forms and clauses in both local IEEE PDFs;
-  probe the smallest candidate forms under strict 2017 and 2023 on the clean
-  baseline. Do not patch until the failing form, expected semantics, and root
-  cause are established.
-- **Scope:** IEEE frontend/elaboration and permanent regressions only. OpenTitan
-  and Caliptra application work are outside this selection.
+- **State:** Active on `agent/ieee-assoc-array-typed-params-20261008`, based on
+  fresh `origin/main` `af89cfc50`. The candidate parser, 2023 gate, associative
+  parameter value path, and specialization signature are implemented. The
+  target emitter omits associative maps from scalar-only target metadata.
+  Fixes to canonicalize keyed maps for class identity and consume associative
+  indices as map keys make all four focused legacy and JSON cases pass (4/4 in
+  each runner). Neighboring checks pass legacy 6/6 and JSON 8/8; full legacy
+  passes 5,046/5,046. Full JSON ran 4,503 cases and reported four failures;
+  the two FPGA-target cases pass after installing the optional local target,
+  while the 2017/2023 constraint-state cases still fail and are recorded in
+  DD-112. UVM passes 363/363 with real DPI. This is the only blocker selected by
+  `.ai/ACTIVE_WORK.yaml`.
+- **Requirement:** IEEE 1800-2017 Annex A A.2.4 `param_assignment` uses
+  `{unpacked_dimension}`. IEEE 1800-2023 A.2.4 uses `{variable_dimension}`;
+  A.2.5 includes `associative_dimension` (`[data_type]` or `[*]`) in that
+  grammar. IEEE 1800-2023 §8.25(b) defines class value-parameter
+  specialization identity using matching value types and equal values. The
+  issue's §8 reference is relevant to specialization; the grammar change is in
+  Annex A. A typedef-based associative type parameter is already supported in
+  both editions.
+- **Baseline:** Exact-source Icarus fails a self-authored module parameter
+  `int Values[string]` under `-g2017` and `-g2023` during elaboration
+  (`Dimension size must be greater than zero` on `PEAssocType`). A class
+  parameter with the same associative dimension syntax-errors in Icarus under
+  both editions; Slang accepts the class form in 1800-2023. The typedef type
+  parameter control compiles and prints `PASS 23` under both editions.
+- **Cause:** Class parameter grammar omitted dimensions following the
+  parameter identifier. Module parameter elaboration sent associative
+  dimensions to finite unpacked-bound evaluation and element expansion. The
+  parameter model and specialization signature represented finite
+  bounds/elements, not associative keys/map values, and direct syntax lacked
+  the 2023 feature gate. The target API also exposes only scalar parameter
+  metadata; keyed-map patterns must stay out of that interface. Class map
+  identity then failed because the cache rejected keyed patterns based on
+  their legacy `parm_names`, and value selection was typed as a string
+  character/packed bit select instead of an associative key.
+- **Next:** Finish conformance evidence and prepare one draft PR to `main`.
+  Bison conflict counts are unchanged at 574
+  shift/reduce and 1,122 reduce/reduce. Keep scope to
+  2023 associative value-parameter forms, specialization/value uses, strict
+  2017 rejection, and paired tests. OpenTitan and Caliptra application work
+  are outside this issue.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 

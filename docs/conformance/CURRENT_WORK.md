@@ -1,6 +1,31 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus — 2026-10-07
+## Current IEEE 1800 focus — 2026-10-08: issue #450
+
+**Associative-array value parameters — locally validated, draft PR pending.**
+IEEE 1800-2023 Annex A A.2.4/A.2.5 admits associative dimensions for
+parameters; 1800-2017 A.2.4 does not. The change adds direct 2023 module and
+class value parameters, string/integral/wildcard keys and defaults,
+constant-key reads, and class specialization identity, while preserving strict
+2017 rejection.
+The class map identity test checks reordered entries and a changed value.
+
+Focused legacy/JSON tests pass 4/4 each; neighboring legacy passes 6/6 and
+JSON 8/8; full legacy passes 5,046/5,046; real-DPI UVM passes 363/363. A
+full JSON run reported 4 failures. Two FPGA-target cases passed after the
+optional local target was installed and those cases rerun. Two packed-struct
+constraint-state variants still fail; they are recorded as DD-112, with
+baseline status unverified. The clean Ubuntu 24.04 ARM64/GCC build completed
+under a 4 GB container memory cap. Bison conflicts remain 574 shift/reduce and
+1,122 reduce/reduce. Do not claim CI green; follow exact-head PR CI without
+repeated polling. See [blocker evidence](BLOCKERS.md#ieee-1800-assoc-array-typed-parameters--issue-450-root-caused)
+and [the 2023 matrix entry](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--associative-array-value-parameters).
+
+**Next:** finish review and open one draft PR to `main`. After issue #450's
+delivery, return to the requested IEEE-only backlog of the next 50 missing
+items. Keep OpenTitan and Caliptra out of active selection unless redirected.
+
+## Previous IEEE 1800 focus — 2026-10-07
 
 **Fix 41 locally qualified:** unequal fixed-length `intersect` operands now
 lower as a legal empty sequence in the default SVA NFA engine. The paired
