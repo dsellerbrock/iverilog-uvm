@@ -3747,12 +3747,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### DD-087 — out-of-range part select of a two-state vector leaves X in a two-state variable
 
 - **Discovered while working:** VVP-HOTPATH-PERF.
-- **Observation:** `bit [7:0] br = bv[b +: 8]`, with `bit [99:0] bv` and `b = 96`, stores `xxxx1111` into the two-state `br`. A two-state variable cannot hold X or Z bits.
-- **File/function:** Two-state conversion of a dynamic part-select result on store (`tgt-vvp` select/assignment lowering). Not traced further.
-- **Possible clause:** IEEE 1800-2017/2023 §6.11.2 (two-state conversion of unknown bits) and §11.5.1 (out-of-bounds part-select reads); review exact wording before implementation.
-- **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/two_state_oob_part_select.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log), identical on the unmodified 7a04009f baseline and with the new part-load opcode.
-- **Reproducer status:** confirmed, paired 2017/2023.
-- **Triage status:** untriaged. `vvp_load_vec4_part_select.v` checks two-state selects only in range.
+- **Observation:** Invalid bit-selects from `bit` packed values returned X, and partially or fully out-of-range part-select reads retained X when assigned to `bit` destinations. IEEE 1800-2017/2023 §11.5.1 requires invalid two-state bit-selects to return 0 and partial part-select reads to return X in missing positions; §6.11.2 converts X/Z to zero at a two-state destination.
+- **File/function:** `elab_expr.cc`, `PEIdent::elaborate_expr_net_bit_()`, `elaborate_expr_net_part_()`, and indexed part-select elaborators.
+- **Evidence:** The original [reducer](../../evidence/vvp-hotpath-perf-20260928/two_state_oob_part_select.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log) establish the partial-select failure. The expanded permanent paired regression is `ivtest/ivltests/sv_two_state_packed_select_oob.v`. A clean-main frozen binary failed eight checks in each edition; the candidate passes direct `-g2017`/`-g2023`, focused legacy 3/3, and JSON/VVP 6/6, including `vvp_load_vec4_part_select` neighbors.
+- **Reproducer status:** Confirmed before the patch and locally passing after it under both editions.
+- **Triage status:** Tracked by [issue #469](https://github.com/dsellerbrock/iverilog-uvm/issues/469). Implemented locally; exact-head CI and merge remain pending. This is not a qualification claim.
 
 ### DD-088 — packed-subfield `release` asserts on non-immediate LHS offset
 

@@ -1037,6 +1037,7 @@ sv_wildcard_import6	normal,-g2009		ivltests
 sv_wildcard_import7	normal,-g2009		ivltests
 sv_class_member_wildcard_import normal,-g2017 ivltests
 sv_class_member_wildcard_import_2023 normal,-g2023 ivltests
+sv_two_state_packed_select_oob normal,-g2017 ivltests gold=sv_two_state_packed_select_oob.gold
 sv_class_member_wildcard_import_ambiguous CE,-g2017 ivltests gold=sv_class_member_wildcard_import_ambiguous.gold
 sv_class_member_wildcard_import_ambiguous_2023 CE,-g2023 ivltests gold=sv_class_member_wildcard_import_ambiguous.gold
 sv_class_member_wildcard_imported_function_fail CE,-g2017 ivltests gold=sv_class_member_wildcard_imported_function_fail.gold

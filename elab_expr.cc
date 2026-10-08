@@ -27219,6 +27219,42 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
       return res;
 }
 
+/* Packed part-select reads can contain X bits even when their source is a
+ * two-state vector. Keep that value four-state until the assignment context
+ * performs any required conversion. A bit-select from a two-state source is
+ * itself two-state, so its invalid-index X value must instead be converted
+ * back to zero before it reaches the surrounding expression. */
+static NetESelect* make_four_state_packed_select_(const PEIdent&ident,
+						  NetExpr*source,
+						  NetExpr*base,
+						  unsigned long width,
+						  ivl_select_type_t sel_type = IVL_SEL_OTHER)
+{
+      ivl_type_t use_type = source->expr_type() == IVL_VT_BOOL
+	    ? new netvector_t(IVL_VT_LOGIC, (long)width - 1, 0, false)
+	    : nullptr;
+      NetESelect*res = use_type
+	    ? new NetESelect(source, base, width, use_type, sel_type)
+	    : new NetESelect(source, base, width, sel_type);
+      res->set_line(ident);
+      return res;
+}
+
+static NetExpr* make_packed_bit_select_(const PEIdent&ident,
+						NetExpr*source,
+						NetExpr*base,
+						ivl_select_type_t sel_type = IVL_SEL_OTHER)
+{
+      NetESelect*res =
+	    make_four_state_packed_select_(ident, source, base, 1, sel_type);
+      if (source->expr_type() != IVL_VT_BOOL)
+	    return res;
+
+      NetExpr*cast = cast_to_int2(res, 1);
+      cast->set_line(ident);
+      return cast;
+}
+
 /*
  * Handle part selects of NetNet identifiers.
  */
@@ -27371,8 +27407,7 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
       }
 
       NetExpr*ex = new NetEConst(verinum(sb_lsb));
-      NetESelect*ss = new NetESelect(net, ex, wid);
-      ss->set_line(*this);
+      NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
       return ss;
 }
 
@@ -27480,18 +27515,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, true, 0);
-	    ivl_type_t select_type = net->sig()->data_type() == IVL_VT_BOOL
-		  ? new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false)
-		  : nullptr;
-	    NetESelect*ss = select_type
-		  ? new NetESelect(carrier, base, wid, select_type, IVL_SEL_IDX_UP)
-		  : new NetESelect(carrier, base, wid, IVL_SEL_IDX_UP);
-	    ss->set_line(*this);
-	    if (!select_type)
-		  return ss;
-	    NetECast*cast = new NetECast('2', ss, wid, false);
-	    cast->set_line(*this);
-	    return cast;
+	    return make_four_state_packed_select_(*this, carrier, base, wid,
+						  IVL_SEL_IDX_UP);
       }
 
       list<long>prefix_indices;
@@ -27506,9 +27531,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
 	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
 						  wid, true);
-	    NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_UP);
-	    ss->set_line(*this);
-	    return ss;
+	    return make_four_state_packed_select_(*this, net, base, wid,
+						  IVL_SEL_IDX_UP);
       }
 
 	// Handle the special case that the base is constant as
@@ -27610,8 +27634,7 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 		  }
 		  return ex;
 	    }
-	    NetESelect*ss = new NetESelect(net, ex, wid);
-	    ss->set_line(*this);
+	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
 
 	    delete base;
 	    return ss;
@@ -27624,8 +27647,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	// an expression that returns a canonical base.
       base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, true);
 
-      NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_UP);
-      ss->set_line(*this);
+      NetESelect*ss = make_four_state_packed_select_(*this, net, base, wid,
+							IVL_SEL_IDX_UP);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate part "
@@ -27674,18 +27697,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, false, 0);
-	    ivl_type_t select_type = net->sig()->data_type() == IVL_VT_BOOL
-		  ? new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false)
-		  : nullptr;
-	    NetESelect*ss = select_type
-		  ? new NetESelect(carrier, base, wid, select_type, IVL_SEL_IDX_DOWN)
-		  : new NetESelect(carrier, base, wid, IVL_SEL_IDX_DOWN);
-	    ss->set_line(*this);
-	    if (!select_type)
-		  return ss;
-	    NetECast*cast = new NetECast('2', ss, wid, false);
-	    cast->set_line(*this);
-	    return cast;
+	    return make_four_state_packed_select_(*this, carrier, base, wid,
+						  IVL_SEL_IDX_DOWN);
       }
 
       list<long>prefix_indices;
@@ -27700,9 +27713,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
 	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
 						  wid, false);
-	    NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_DOWN);
-	    ss->set_line(*this);
-	    return ss;
+	    return make_four_state_packed_select_(*this, net, base, wid,
+						  IVL_SEL_IDX_DOWN);
       }
 
 	// Handle the special case that the base is constant as
@@ -27804,8 +27816,7 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 		  }
 		  return ex;
 	    }
-	    NetESelect*ss = new NetESelect(net, ex, wid);
-	    ss->set_line(*this);
+	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
 
 	    delete base;
 	    return ss;
@@ -27817,8 +27828,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	// an expression that returns a canonical base.
       base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, false);
 
-      NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_DOWN);
-      ss->set_line(*this);
+      NetESelect*ss = make_four_state_packed_select_(*this, net, base, wid,
+							IVL_SEL_IDX_DOWN);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate part "
@@ -27850,6 +27861,10 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  ivl_type_t selected = packed_select_type_(net->sig(),
 							 path_.back().index,
 							 sel_wid);
+		  if (sel_wid == 1 && net->expr_type() == IVL_VT_BOOL
+		      && (!selected || dynamic_cast<const netvector_t*>(selected))) {
+			return make_packed_bit_select_(*this, net, base);
+		  }
 		  NetESelect*res = selected
 			? new NetESelect(net, base, sel_wid, selected)
 			: new NetESelect(net, base, sel_wid);
@@ -27930,7 +27945,8 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  }
 
 		    // FIXME: Should I be using slice_width() here?
-		  NetEConst*tmp = make_const_x(1);
+		  NetEConst*tmp = net->expr_type() == IVL_VT_BOOL
+			? make_const_0(1) : make_const_x(1);
 		  tmp->set_line(*this);
 		  delete mux;
 		  return tmp;
@@ -28029,7 +28045,8 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 			     << endl;
 		  }
 
-		  NetEConst*tmp = make_const_x(1);
+		  NetEConst*tmp = net->expr_type() == IVL_VT_BOOL
+			? make_const_0(1) : make_const_x(1);
 		  tmp->set_line(*this);
 
 		  delete mux;
@@ -28047,10 +28064,7 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 	    idx_c->set_line(*net);
 
 	      // Make a bit select with the canonical index
-	    NetESelect*res = new NetESelect(net, idx_c, 1);
-	    res->set_line(*net);
-
-	    return res;
+	    return make_packed_bit_select_(*this, net, idx_c);
       }
 
       const netranges_t& sig_packed = net->sig()->packed_dims();
@@ -28103,9 +28117,7 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 	// values to canonical values that are used internally.
       mux = normalize_variable_bit_base(prefix_indices, mux, net->sig());
 
-      NetESelect*ss = new NetESelect(net, mux, 1);
-      ss->set_line(*this);
-      return ss;
+      return make_packed_bit_select_(*this, net, mux);
 }
 
 NetExpr* PEIdent::elaborate_expr_net_bit_last_(Design*, NetScope*,

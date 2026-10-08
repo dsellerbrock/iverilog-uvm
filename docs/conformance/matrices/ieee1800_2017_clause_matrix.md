@@ -5,6 +5,18 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 8, 2026 — two-state packed-select read results
+
+IEEE 1800-2017/2023 §11.5.1 requires invalid bit-selects of two-state packed
+values to return 0 and four-state values to return X. A partially out-of-range
+part-select returns X in missing positions; §6.11.2 converts X/Z to zero when
+the result is assigned to a two-state destination. The paired reducer checks
+constant and dynamic invalid bit indices, partial indexed selects in both
+directions, a non-indexed partial select, fully out-of-range assignment, and
+four-state/in-range controls. On the local macOS build, strict 2017/2023 direct
+runs pass; focused legacy passes 3/3 and JSON/VVP passes 6/6. The implementation
+is pending exact-head CI and is not yet qualified. See [issue #469](https://github.com/dsellerbrock/iverilog-uvm/issues/469).
+
 ### October 7, 2026 — unequal fixed-length sequence `intersect`
 
 IEEE 1800-2017 §16.9.6 defines an `intersect` match only when both operands

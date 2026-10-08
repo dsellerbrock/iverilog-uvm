@@ -2,8 +2,8 @@
 
 ### IEEE-PACKED-MULTIDIM-SELECT-OOB — issue #414
 
-- **State:** Implemented and locally validated on fresh `origin/main`
-  `af89cfc50`; PR preparation remains.
+- **State:** Implemented and locally validated in main-based PR #464 together
+  with issue #469; exact-head CI qualification remains pending.
 - **Requirement:** IEEE 1800-2017 §§7.4.6 and 11.5.1; IEEE 1800-2023
   §§7.4.5 and 11.5.1. The invalid packed-index rule is unchanged: §11.5.1
   requires X for four-state results and 0 for two-state results.
@@ -29,10 +29,38 @@
   tests pass 4/4; JSON/VVP strict 2017/2023 prefix tests pass 8/8. Singleton
   runtime-index neighbors pass legacy 2/2 and JSON 1/1; indexed-subpart
   neighbors pass legacy 1/1 and JSON 2/2; class packed-property index
-  neighbors pass 16/16 in each runner. The independent two-state OOB result
-  issue is tracked as DD-112.
-- **Delivery:** One PR to `main`; investigate any red CI fully and merge only
-  when required checks are green on the exact PR head.
+  neighbors pass 16/16 in each runner. The two-state OOB behavior is covered by
+  issue #469 and its paired regression in PR #464.
+- **Delivery:** PR #464 targets `main`; investigate reported failures and merge
+  only when required checks are green on the exact PR head.
+
+### IEEE-TWO-STATE-PACKED-SELECT — issue #469; added to PR #464
+
+- **State:** Implemented locally and integrated into PR #464; integrated
+  exact-head CI has not started yet.
+- **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid
+  bit-select from a two-state value and X for a four-state value. A partially
+  out-of-range part-select returns X in missing positions; §6.11.2 converts
+  those X bits to 0 when assigned to a two-state destination.
+- **Failure:** Clean `origin/main` returns X for two-state invalid bit-selects
+  and preserves X bits when a partial part-select is assigned to a `bit`
+  vector. The permanent paired reducer covers constant/dynamic invalid bit
+  indices, constant/dynamic indexed part-selects in both directions, a
+  non-indexed partial select, and fully out-of-range assignment.
+- **Cause and scope:** Packed-select elaboration inherited the two-state source
+  type, suppressing conversion of out-of-range X bits at two-state destinations;
+  constant invalid bit-selects also returned X without checking source state.
+  Scope remains packed read-select elaboration only.
+- **Validation:** Clean-main frozen compiler fails eight checks per edition;
+  the candidate passes strict `-g2017` and `-g2023`. Current local build/install
+  passes; focused legacy is 3/3 and JSON/VVP is 6/6. Bison counts remain 574
+  shift/reduce and 1,122 reduce/reduce. These are local results, not CI
+  qualification.
+- **Delivery:** PR #464 already targets `main`. Its latest pre-integration CI
+  run failed Ubuntu 22.04 and 24.04 in the negative suite (152/153) on the
+  unrelated obsolete `m9b_intersect_unequal_len` case, tracked as DD-115. No
+  #469-specific CI result exists yet; do not merge until all required checks
+  pass on the integrated exact head.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
@@ -74,10 +102,10 @@
   `sv_always_comb_fixed_point` loop (DD-114) and has no aggregate result. The
   Ubuntu hard-gate run on the superseded PR head also failed because the
   negative suite still expects rejection of legal unequal-length `intersect`
-  (DD-115). Exact current-head run 37739410742 remains queued on all six
-  platforms. Stop this ticket on the unrelated CI failures without editing
-  those cases; do not claim qualification. The GitHub backlog already contains 50 open IEEE issues
-  (#414–#463); this is issue #449, not a new ticket.
+  (DD-115). Exact pre-integration run 37806441317 failed both Ubuntu jobs at
+  152/153 and left four platform jobs pending. Stop this ticket on the unrelated CI failures without editing
+  those cases; do not claim qualification. The uncapped census in draft PR #504
+  indexes 94 open IEEE issues; #449 is one issue in the existing #464 batch.
 - **Requirement:** IEEE 1800-2023 A.2.7 permits `[const] ref [static]`;
   §13.5.2 restricts actuals to static-lifetime storage or another `ref static`
   formal; §9.3.2 exempts `ref static` from the detached-fork reference ban.
