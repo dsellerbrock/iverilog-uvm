@@ -14037,7 +14037,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		  netranges_t one_dim(1, dims[depth]);
 		  NetExpr*c = make_checked_canonical_packed_prefix(
 			des, scope, li, one_index, one_dim,
-			(unsigned long)stride[depth], false);
+			(unsigned long)stride[depth], false, true);
 		  if (!c)
 			return fail();
 		  add_off(c, 1);

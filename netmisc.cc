@@ -1446,7 +1446,7 @@ static NetEConst* make_i64_index_constant_(int64_t value,
 static NetExpr* make_checked_canonical_index_(
       Design*des, const LineInfo*loc, list<NetExpr*>&indices_expr,
       const indices_flags&flags, const netranges_t&dims,
-      bool warn_undefined)
+      bool warn_undefined, bool property_index)
 {
       ivl_assert(*loc, !dims.empty());
 
@@ -1456,6 +1456,13 @@ static NetExpr* make_checked_canonical_index_(
       }
 
       for (NetExpr*raw : indices_expr) {
+	    if (raw->expr_type() == IVL_VT_REAL && property_index) {
+		  cerr << loc->get_fileline() << ": error: "
+		       << "real expression cannot index a property." << endl;
+		  des->errors += 1;
+		  delete_index_expressions_(indices_expr);
+		  return 0;
+	    }
 	    if (raw->expr_type() != IVL_VT_BOOL
 		&& raw->expr_type() != IVL_VT_LOGIC) {
 		  cerr << loc->get_fileline() << ": error: "
@@ -1583,7 +1590,7 @@ static NetExpr* make_checked_canonical_index_(
 static NetExpr* make_checked_canonical_index_(
       Design*des, NetScope*scope, const LineInfo*loc,
       const list<index_component_t>&src, const netranges_t&dims,
-      bool need_const, bool warn_undefined)
+      bool need_const, bool warn_undefined, bool property_index)
 {
       ivl_assert(*loc, src.size() == dims.size());
       list<long> indices_const;
@@ -1592,7 +1599,7 @@ static NetExpr* make_checked_canonical_index_(
       indices_to_expressions(des, scope, loc, src, src.size(), need_const,
                             flags, indices_expr, indices_const);
       return make_checked_canonical_index_(des, loc, indices_expr, flags,
-					   dims, warn_undefined);
+					   dims, warn_undefined, property_index);
 }
 
 NetExpr* make_checked_canonical_property_index(
@@ -1601,7 +1608,8 @@ NetExpr* make_checked_canonical_property_index(
 {
       ivl_assert(*loc, indices_expr.size() == stype->static_dimensions().size());
       return make_checked_canonical_index_(des, loc, indices_expr, flags,
-                                           stype->static_dimensions(), true);
+                                           stype->static_dimensions(), true,
+                                           true);
 }
 
 NetExpr* make_checked_canonical_property_index(
@@ -1611,13 +1619,13 @@ NetExpr* make_checked_canonical_property_index(
 {
       return make_checked_canonical_index_(des, scope, loc, src,
 					   stype->static_dimensions(),
-					   need_const, true);
+					   need_const, true, true);
 }
 
 NetExpr* make_checked_canonical_packed_prefix(
       Design*des, NetScope*scope, const LineInfo*loc,
       const list<index_component_t>&src, const netranges_t&dims,
-      unsigned long carrier_width, bool warn_undefined)
+      unsigned long carrier_width, bool warn_undefined, bool property_index)
 {
       ivl_assert(*loc, src.size() == dims.size());
       NetExpr*base = 0;
@@ -1630,7 +1638,7 @@ NetExpr* make_checked_canonical_packed_prefix(
             netranges_t one_dim(1, dims[idx]);
             NetExpr*term = make_checked_canonical_index_(
                   des, scope, loc, one_index, one_dim, false,
-			  warn_undefined);
+			  warn_undefined, property_index);
             if (!term) {
                   delete base;
                   return 0;

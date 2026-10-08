@@ -456,7 +456,8 @@ extern NetExpr*make_checked_canonical_property_index(
 extern NetExpr*make_checked_canonical_packed_prefix(
       Design*des, NetScope*scope, const LineInfo*loc,
       const std::list<index_component_t>&src, const netranges_t&dims,
-      unsigned long carrier_width, bool warn_undefined = true);
+      unsigned long carrier_width, bool warn_undefined = true,
+      bool property_index = false);
 /* A trailing range after a packed-property element index must stay within
  * its own declared dimension; flattening a crossing range aliases a neighbor.
  * Until partial crossing ranges are lowered element by element, diagnose them

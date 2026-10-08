@@ -4056,7 +4056,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   failure; do not expand the multidimensional fix to change one-dimensional
   result typing.
 
-### DD-113 — selected VIF real-index golds expect an older diagnostic
+### DD-113 — selected VIF real-index diagnostic changed in packed-property lowering
 
 - **Discovered while working:** SV23-REF-STATIC-TF-ARGUMENTS (#449), during the
   full legacy ivtest run.
@@ -4072,8 +4072,12 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   6295–6296 and output diffs in `ivtest/log/`.
 - **Reproducer status:** Confirmed in both editions; the full runner reports
   only a gold mismatch.
-- **Triage status:** Triage-pending, unrelated to `ref static`; leave the
-  diagnostic golds unchanged in this ticket.
+- **Follow-up:** The packed-property selector now carries property-index
+  context to the shared checker, preserving the historical property-specific
+  error while direct packed-signal indices retain the integral-type error.
+  Both VIF cases pass in legacy (2/2) and JSON/VVP (2/2) on the updated local
+  image; their gold files are unchanged.
+- **Triage status:** Locally resolved in PR #464; exact-head CI is pending.
 
 ### DD-114 — `sv_always_comb_fixed_point` spins in zero time
 
@@ -4112,10 +4116,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   bash tests/negative/run_negative.sh` reports 152 passed and one failed,
   `m9b_intersect_unequal_len`. Superseded PR #464 run 37725785483 also reports
   this failure on Ubuntu 22.04/24.04, alongside the two DD-113 VIF gold
-  mismatches. Exact current head `ccbe596ee` run 37739410742 was still queued
-  at the time of this entry.
-- **Reproducer status:** Confirmed locally on the current PR worktree; the
-  full current-head hosted result is unavailable while its jobs remain queued.
+  mismatches. Exact PR #464 head `870442199088b468b681983a7cbbe9f653bebeb3`
+  run 37740368288 also reports 152 passed and one failed in both Ubuntu jobs;
+  it additionally shows the VIF diagnostic mismatch and Windows link failure.
+- **Reproducer status:** Confirmed locally on the current PR worktree and in
+  the exact-head Ubuntu checks above.
 - **Triage status:** Triage-pending and unrelated to `ref static`. Do not edit
   this negative test during #449; select it with the existing SVA/negative-gate
   backlog when the coordinator returns to that work.
