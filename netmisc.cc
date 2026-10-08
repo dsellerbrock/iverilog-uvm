@@ -1456,9 +1456,10 @@ static NetExpr* make_checked_canonical_index_(
       }
 
       for (NetExpr*raw : indices_expr) {
-	    if (raw->expr_type() == IVL_VT_REAL) {
+	    if (raw->expr_type() != IVL_VT_BOOL
+		&& raw->expr_type() != IVL_VT_LOGIC) {
 		  cerr << loc->get_fileline() << ": error: "
-		       << "real expression cannot index a property." << endl;
+		       << "index expression must be integral." << endl;
 		  des->errors += 1;
 		  delete_index_expressions_(indices_expr);
 		  return 0;
@@ -3461,6 +3462,27 @@ NetExpr*collapse_packed_base(Design*des, NetScope*scope, const LineInfo*loc,
       unsigned ndims = net->packed_dimensions();
       if (indices.size() > ndims)
 	    return 0;
+
+      // Preserve per-dimension bounds checks on a runtime bit-select chain.
+      // The unchecked flattened offset can let an inner OOB index carry into
+      // a neighboring outer slice. The existing helper materializes each
+      // runtime index once.
+      if (!indices.empty()
+          && indices.back().sel == index_component_t::SEL_BIT) {
+            const netranges_t& packed_dims = net->packed_dims();
+            netranges_t prefix_dims(packed_dims.begin(),
+                                    packed_dims.begin() + indices.size());
+            sel_wid = net->slice_width(indices.size());
+            unsigned errors_before = des->errors;
+            NetExpr* off = make_checked_canonical_packed_prefix(
+                  des, scope, loc, indices, prefix_dims, sel_wid, false);
+            if (!off && des->errors > errors_before) {
+                  NetEConst* invalid = make_const_x(64);
+                  invalid->set_line(*loc);
+                  return invalid;
+            }
+            return off;
+      }
 
 	// A trailing part-select is legal on top of run-time element
 	// indices -- `d[i][31:0]', `d[i][b +: 8]' (IEEE 1800-2017

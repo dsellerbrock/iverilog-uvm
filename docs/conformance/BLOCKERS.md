@@ -1,10 +1,42 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### IEEE-PACKED-MULTIDIM-SELECT-OOB — issue #414
+
+- **State:** Implemented and locally validated on fresh `origin/main`
+  `af89cfc50`; PR preparation remains.
+- **Requirement:** IEEE 1800-2017 §§7.4.6 and 11.5.1; IEEE 1800-2023
+  §§7.4.5 and 11.5.1. The invalid packed-index rule is unchanged: §11.5.1
+  requires X for four-state results and 0 for two-state results.
+- **Failure recorded in the matrix:** A runtime inner packed index outside its
+  own declared dimension can carry into a neighboring outer dimension when
+  the computed base is flattened. Such an out-of-range four-state select must
+  produce X, not a neighboring bit. A non-integral packed index must be
+  rejected with a focused diagnostic.
+- **Reproducer:** On clean baseline, self-authored
+  `logic [1:0][3:0] value` with runtime `outer=0`, `inner=4` returned the
+  adjacent slice's `1` instead of X. A runtime real leading index triggered a
+  compiler assertion. Permanent regressions cover each dimension, X indices,
+  valid boundary mapping, once-only evaluation, and the illegal real index.
+- **Root cause and scope:** `collapse_packed_base()` flattened per-dimension
+  offsets without retaining each dimension's validity. Also,
+  `packed_base_needs_expr_()` left a runtime final bit index on the old path
+  when earlier indices were constants. The fix routes both through the
+  existing checked packed-prefix helper, which rejects non-integral indices
+  and evaluates each runtime index once. Scope is ordinary packed r-value
+  selects; unpacked indexing, parameters, class/VIF selects, lvalue writes,
+  synthesis, and constraints remain outside this change.
+- **Validation:** Serial ARM64 build/install succeeds. Focused legacy prefix
+  tests pass 4/4; JSON/VVP strict 2017/2023 prefix tests pass 8/8. Singleton
+  runtime-index neighbors pass legacy 2/2 and JSON 1/1; indexed-subpart
+  neighbors pass legacy 1/1 and JSON 2/2; class packed-property index
+  neighbors pass 16/16 in each runner. The independent two-state OOB result
+  issue is tracked as DD-112.
+- **Delivery:** One PR to `main`; investigate any red CI fully and merge only
+  when required checks are green on the exact PR head.
+
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
-- **State:** Implemented on `agent/pkg-class-static-call-20261007`; exact reducer
-  fails on clean `origin/main` `7c4aa26e` and passes on this branch under strict
-  2017 and 2023. Draft PR and exact-head CI remain pending.
+- **State:** Implemented and merged by the user in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413). At the latest CI snapshot, all six platform checks were pending; do not claim the merged head CI-green.
 - **Requirement:** IEEE 1800-2017 §8.23 allows access to static class methods
   and properties and says scoped expressions can be used in subroutine calls;
   §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords

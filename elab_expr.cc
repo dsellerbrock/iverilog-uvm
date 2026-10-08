@@ -21259,10 +21259,19 @@ bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
 
 	// If the prefix IS constant the old path handles it, and handles
 	// it better (a constant offset rather than a computed one), so
-	// only take over when it genuinely cannot.
+	// keep that path for constant-only selects. A run-time final bit
+	// index still needs per-dimension checking: flattening it after a
+	// constant prefix lets an inner OOB value alias the next slice.
       list<long> tmp;
-      if (evaluate_index_prefix(des, scope, tmp, idx, /*quiet=*/true))
-	    return false;
+      if (evaluate_index_prefix(des, scope, tmp, idx, /*quiet=*/true)) {
+	    if (idx.back().sel != index_component_t::SEL_BIT || !idx.back().msb)
+		  return false;
+	    NetExpr*last = elab_and_eval(des, scope, idx.back().msb, -1, false);
+	    bool runtime = last
+		  && !dynamic_cast<const NetEConst*>(last);
+	    delete last;
+	    return runtime;
+	  }
 
       return true;
 }

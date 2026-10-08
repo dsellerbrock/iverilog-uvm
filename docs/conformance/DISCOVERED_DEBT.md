@@ -4040,3 +4040,18 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   subsequent output is intentionally not triaged here.
 - **Triage status:** Triage-pending, record-only. Do not continue the axi-vip
   compile chain from this observation.
+
+### DD-112 — two-state packed bit-select OOB returns X
+
+- **Discovered while working:** IEEE-PACKED-MULTIDIM-SELECT-OOB (#414), while
+  checking the result-type wording of IEEE 1800-2017/2023 §11.5.1.
+- **Observation:** `bit [7:0] value; integer index; value = '1; index = 8;`
+  followed by `$display("%b", value[index])` prints `x`; §11.5.1 requires an
+  invalid select to return 0 for a two-state value. The same one-dimensional
+  direct-select path remains unchanged by #414's checked multidimensional
+  prefix fix.
+- **Reproducer:** `/tmp/sv_one_dim_bit_oob.sv`; current local ARM64 image prints
+  `one_dim_oob=x`.
+- **Triage status:** Triage-pending, separate from #414's four-state alias
+  failure; do not expand the multidimensional fix to change one-dimensional
+  result typing.
