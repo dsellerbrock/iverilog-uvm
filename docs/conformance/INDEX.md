@@ -4,7 +4,7 @@
 
 ## Current selection
 
-The active campaign item is [issue #460](https://github.com/dsellerbrock/iverilog-uvm/issues/460) in [draft PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), based on `main`, branch `agent/ieee-ifdef-parenthesized-20261008`, exact head `dafe3e642710b61984503ba121586f88811d7a4d`. PR #467 is open and draft. GitHub check run [37796590435](https://github.com/dsellerbrock/iverilog-uvm/actions/runs/37796590435) reports macOS queued, Ubuntu 22.04 and Ubuntu 24.04 failed, and MINGW64, UCRT64, and CLANG64 in progress. **No green CI status is claimed.** Local reproductions and historical evidence in issue bodies are not CI results.
+The active campaign item is [issue #460](https://github.com/dsellerbrock/iverilog-uvm/issues/460) in [draft PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), based on `main`, branch `agent/ieee-ifdef-parenthesized-20261008`, exact head `dc7bea1c76b51e9f6acd91fc31c2687eb7170633`. PR #467 is open and draft. The latest check run [37821537530](https://github.com/dsellerbrock/iverilog-uvm/actions/runs/37821537530) has all six platform jobs queued; **no green CI status is claimed**. Its local negative suite passes 153/153 after classifying the stale unequal-length intersect fixture as legacy-only. Local reproductions and historical evidence in issue bodies are not CI results.
 
 The checked-in [`ACTIVE_WORK.yaml`](../../.ai/ACTIVE_WORK.yaml) and [`CAMPAIGN.yaml`](../../.ai/CAMPAIGN.yaml) still describe an earlier package-qualified class-call task. For this census, the live GitHub #460/#467 state is the selected-task source; the archival work records were not rewritten. The [issue checkout map](../../.ai/ISSUE_CHECKOUT.csv) remains a historical checkout record.
 
