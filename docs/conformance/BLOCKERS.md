@@ -5,7 +5,8 @@
 - **State:** Implementation and focused tests pass on
   `agent/ieee-ifdef-parenthesized-20261008`, based on clean `origin/main`
   `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467)
-  targets `main`; exact-head CI qualification remains pending.
+  targets `main`; its stale negative-suite fixture is corrected locally and the
+  updated exact-head CI qualification remains pending.
 - **Requirement:** IEEE 1800-2017 §22.5 Syntax 22-5 allows only a
   `text_macro_identifier` condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a
   parenthesized `ifdef_macro_expression` with identifiers, logical operators,
@@ -35,8 +36,8 @@
   `parse.y:2236` `%destructor`. Bison 3.8.2 reports 574 shift/reduce and 1,122
   reduce/reduce conflicts on both `origin/main` and this branch. See the
   [clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-2023-225-parenthesized-conditional-expressions).
-- **Next:** Open one PR against `main`; investigate CI failures if reported and
-  do not claim completion until the PR head's required checks pass.
+- **Next:** Push the focused DD-107 repair to the existing PR #467, then inspect
+  that exact head's CI once. Do not claim completion until required checks pass.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
@@ -54,10 +55,10 @@
   legacy reports zero failures; UVM reports 363/363. Full JSON has unrelated
   failures recorded as DD-109/DD-110. The read-only axi-vip probe's next
   diagnostic is DD-111.
-- **Boundary:** No package-call code repair is authorized under the unrelated
-  SVA negative-suite failure; DD-107 remains triage-pending.
+- **Boundary:** Package-call code changes remain out of scope for the SVA
+  negative-suite repair recorded in DD-107.
 
-### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
+### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI gate repair in progress
 
 - **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length
   operands; they produce no `intersect` match. Implication follows §16.12.7.
@@ -65,11 +66,7 @@
   `tests/sva_nfa/run.sh` passes 64/64; strict legacy passes 1/1; paired strict
   2017/2023 JSON/VVP passes 2/2. The explicit legacy-engine diagnostic remains.
   See [focused evidence](../../evidence/sva-intersect-unequal-lengths-20261007/README.md).
-- **State:** Merged to `main` in [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412).
-  The Ubuntu 22.04 and 24.04 ivtest gates have failed; CLANG64 and MINGW64 are
-  still running; macOS and UCRT64 are queued. Do not claim the merged head is
-  green. Variable/ranged mismatches and broader nested combinator trees remain
-  open.
+- **State:** The semantic fix is merged to `main` in [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412). Its hard gate exposed a stale negative fixture that still expects the now-legal default-engine form to be rejected. The fixture is classified `NEG-LEGACY-ONLY`; the full negative suite passes locally 153/153. The classification repair is on main-based PR #467; exact-head CI has not yet verified it. Variable/ranged mismatches and broader nested combinator trees remain open.
 
 ### OpenTitan 49-target post-fix census — 2026-09-29
 

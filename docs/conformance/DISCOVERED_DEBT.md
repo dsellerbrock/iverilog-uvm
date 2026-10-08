@@ -3988,9 +3988,12 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   workflow `37676515427`; [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413),
   workflow `37717798761`; direct job logs and a local `tests/negative/run_negative.sh`
   replay.
-- **Triage status:** Triage-pending, record-only. Do not fix this as part of the
-  package-call ticket or select this debt as the next blocker. Select a separate
-  SVA issue if this stale/invalid rejection expectation needs repair.
+- **Correction:** The fixture now carries `NEG-LEGACY-ONLY`. The default NFA
+  accepts the legal form; `IVL_SVA_LEGACY=1` preserves the explicit unsupported-
+  lowering diagnostic. The full negative suite passes locally, 153/153.
+- **Triage status:** The correction is cherry-picked onto main-based PR #467.
+  Exact-head CI has not yet verified it; do not claim the hard gate qualified
+  until the updated run passes.
 
 ### DD-108 — PR #411 Ubuntu 24.04 check failed after merge
 
