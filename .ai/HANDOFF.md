@@ -7,11 +7,10 @@ Issue #468: accept escaped `text_macro_identifier` names in ordinary
 The work is on `agent/ieee-ifdef-parenthesized-20261008`, which updates draft
 PR #467 to `main`; #460 remains a separately tracked change in that PR.
 
-Commit `cf9b27366ed65259ffa8c0ac50d626deb05127c0` recognizes escaped names
-in the four plain conditional states, requires the whitespace terminator
-without consuming it, and removes the leading backslash for macro lookup.
-Punctuation inside the name is preserved. The no-terminator case remains an
-error. No parser grammar change.
+The committed change recognizes escaped names in the four plain conditional
+states, requires the whitespace terminator without consuming it, and removes
+the leading backslash for macro lookup. Punctuation inside the name is
+preserved. The no-terminator case remains an error. No parser grammar change.
 
 ## Verification
 
@@ -28,10 +27,10 @@ clauses are 1800-2017/2023 §22.5 Syntax 22-5 and §5.6.1.
 
 ## CI and next action
 
-Exact PR head `cf9b27366ed65259ffa8c0ac50d626deb05127c0` is run
-`37824513181`; all six required platform jobs were queued at the last check.
-Avoid repeat polling. Investigate any reported failure, and keep PR #467 draft
-until all required checks for the exact head are green.
+PR #467 is open and draft. Use its current description or the conformance
+index for the exact head and latest CI run. Avoid repeat polling. Investigate
+any reported failure, and do not qualify or merge until all required checks
+for the exact head are green.
 
 ## Worktrees
 
