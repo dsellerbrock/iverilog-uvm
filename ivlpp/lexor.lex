@@ -733,6 +733,18 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
    * condition that stacks on top of the IFDEF_FALSE so that output is
    * not accidentally turned on within nested ifdefs.
    */
+`ifdef"(" {
+    ifdef_enter();
+    yy_push_state(IFDEF_NAME);
+    yyless(yyleng - 1);
+}
+
+`ifndef"(" {
+    ifdef_enter();
+    yy_push_state(IFNDEF_NAME);
+    yyless(yyleng - 1);
+}
+
 `ifdef{W} {
     ifdef_enter();
     yy_push_state(IFDEF_NAME);
@@ -746,9 +758,16 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 <IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifdef{W}  |
 <IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifndef{W} { ifdef_enter(); yy_push_state(IFDEF_SUPR); }
 
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifdef"("  |
+<IFDEF_FALSE,IFDEF_SUPR,ELSE_SUPR>`ifndef"(" { ifdef_enter(); yy_push_state(IFDEF_SUPR); yyless(yyleng - 1); }
+
 <IFDEF_TRUE>`elsif{W}  |
 <IFDEF_SUPR>`elsif{W}  { prev_state = YYSTATE; BEGIN(ELSIF_SUPR); }
 <IFDEF_FALSE>`elsif{W} { prev_state = YYSTATE; BEGIN(ELSIF_NAME); }
+
+<IFDEF_TRUE>`elsif"("  |
+<IFDEF_SUPR>`elsif"("  { prev_state = YYSTATE; BEGIN(ELSIF_SUPR); yyless(yyleng - 1); }
+<IFDEF_FALSE>`elsif"(" { prev_state = YYSTATE; BEGIN(ELSIF_NAME); yyless(yyleng - 1); }
 
 <IFDEF_TRUE>`else  |
 <IFDEF_SUPR>`else  { BEGIN(ELSE_SUPR); }

@@ -8,7 +8,7 @@ module test;
   initial begin
     errors = 0;
 
-`ifdef (A || B && C)
+`ifdef(A || B && C)
 `else
     errors = errors + 1;
 `endif
@@ -32,7 +32,7 @@ module test;
     errors = errors + 1;
 `endif
 
-`ifndef (A && !B)
+`ifndef(A && !B)
     errors = errors + 1;
 `endif
 
@@ -53,8 +53,11 @@ module test;
 
 `ifdef (C)
     errors = errors + 1;
-`elsif (A && !B)
-`elsif (A)
+`ifdef(A)
+    errors = errors + 1;
+`endif
+`elsif(A && !B)
+`elsif(A)
     errors = errors + 1;
 `else
     errors = errors + 1;

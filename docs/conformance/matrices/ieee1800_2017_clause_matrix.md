@@ -2461,7 +2461,10 @@ right-to-left associativity; §11.4.7 defines implication and equivalence.
 
 Issue #460 adds this grammar to `ivlpp` behind an `iverilog`-forwarded `-g2023`
 flag in both the top-level compiler path and lazy `-y` library-source path.
-Plain identifier conditions retain their prior behavior. Focused tests
+Plain identifier conditions retain their prior behavior. Per §22.5 token
+separation, `(` may immediately follow `ifdef`, `ifndef`, or `elsif`; focused
+cases cover adjacent and whitespace-separated forms, including a nested
+conditional in a suppressed branch and 2017 rejection. Focused tests
 cover all four binary operators, unary negation, precedence and associativity,
 nested conditions, defined and undefined macros, `ifdef`/`ifndef`/`elsif`,
 comments and line breaks, 2017 identifier compatibility, and 2017 rejection.
@@ -2469,7 +2472,8 @@ Malformed and unterminated expressions produce diagnostics rather than a
 crash. The recursive parser has a 256-frame depth guard; deeper input is
 rejected as malformed.
 
-The three permanent cases pass 3/3 in the legacy and JSON runners. Neighboring
+The three permanent cases pass 3/3 in the legacy and JSON runners after adding
+the token-adjacent delimiter cases. Neighboring
 macro-definition legacy tests pass 28/28, legacy `ifdef`/`else` cases pass 8/8,
 and macro-definition JSON tests pass 14/14. A mutation of implication
 evaluation makes the positive expression case fail, then passes after the

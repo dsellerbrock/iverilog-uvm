@@ -1,5 +1,5 @@
 `define A
-`ifdef (A && B)
+`ifdef(A && B)
 module should_not_compile;
 `endif
 
