@@ -1,19 +1,20 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
-branch: "agent/pkg-class-static-call-20261007"
-checkpoint_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
+branch: "agent/ieee-assoc-array-typed-params-20261008"
+checkpoint_head: "af89cfc50be1084cc86c48865f3f6ba78d4512fa"
 active_ieee_lane:
-  blocker: "SV-PACKAGE-CLASS-STATIC-CALL"
-  phase: "PUBLISHING"
-  baseline_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
-  reproducer: "Self-authored package/class reducer: p::c::set(5); failed as syntax error / Malformed statement on clean origin/main under strict 2017 and 2023; imported c::set(5) control passed."
-  standards: "IEEE 1800-2017 §8.23 covers class-scope access to static methods/properties and use in subroutine calls; §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords this as access to static public methods/properties from outside the class hierarchy, while §26.3 retains the same package-reference wording."
-  root_cause: "The grammar had package-qualified class-scope identifier carriers but no direct call continuation into a statement PCallTask."
-  scope: "Narrow parser support for pkg::class::static_subroutine(args); statements, including static void functions and tasks. Cases (a)-(e) are probe-only unless the same root cause is proven within scope."
-  next: "UVM regression passed 363/363 with zero skips; read-only axi-vip revision 16d0f444299014b2079c941925ea8b43d85a13f7 passes the package-call site and next reports impure get_width calls in axi_trans.svh:40-41 (DD-111); no later diagnostic was triaged. The guarded full JSON run completed 4,499 tests with 4 unrelated failures: packed-struct constraint state in both editions (DD-109) and global-uniform tests reaching the 300-second per-process CPU guard (DD-110). Update docs, commit, push, open one draft PR to main, and follow exact-head CI without merging."
-  boundary: "No broad scope-resolution restructuring. Record cases (a)-(e), the next axi-vip diagnostic, and unrelated CI failures as triage-pending; do not follow the axi-vip diagnostic chain."
-pre_ticket_ieee_blocker: "SVA-INTERSECT-UNEQUAL-LENGTHS was merged in PR #412; its CI rollup later reported Ubuntu 22.04 failure, two jobs in progress, and three queued. See DD-107. Reconcile stale records after this ticket before selecting the next IEEE blocker."
+  blocker: "IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS"
+  github_issue: 450
+  phase: "SELECTED"
+  baseline_head: "af89cfc50be1084cc86c48865f3f6ba78d4512fa"
+  reproducer: "Not established. Separately probe value parameters with associative dimensions and type parameters bound to associative-array types."
+  standards: "Issue #450 is open. Verify the exact 2017/2023 clauses and legal forms; the issue title's §8 citation and survey label are not normative evidence."
+  root_cause: "Unknown. Investigate grammar, specialization identity, and parameter value/type use paths in that order."
+  scope: "Only the LRM-supported parameter forms covered by issue #450, with strict edition behavior and focused legacy/JSON regressions."
+  next: "Read exact clauses and Annex A productions; establish a baseline reproducer under strict -g2017 and -g2023 before patching."
+  boundary: "No OpenTitan/Caliptra work, broad type-system rewrite, or unrelated CI fixes in this ticket. Preserve the dirty $stacktrace checkout."
+previous_ieee_blocker: "Package-qualified class static calls merged in PR #413 at af89cfc50. Its exact workflow reported Ubuntu 22.04 and 24.04 failures; remaining jobs/logs were unavailable at last check. Do not claim CI green."
 active_ast_synth_abort_lane:
   blocker: "OT-AST-SYNTH-ASYNC-NEXUS-ABORT-20261004"
   phase: "GENERATION_GUARDED_CANDIDATE_FOCUSED_GREEN_RUNTIME_49_OF_49_CANDIDATE_COMPILE_PENDING"

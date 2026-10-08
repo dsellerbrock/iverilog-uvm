@@ -1,10 +1,28 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS — issue #450 (selected; investigation)
+
+- **State:** Selected from the open IEEE issue backlog on fresh `origin/main`
+  `af89cfc50`. No minimal failing reproducer or implementation root cause has
+  been established yet.
+- **Requirement under review:** Issue #450 asks for associative-array-typed
+  parameters, including legal grammar, specialization identity, and value/type
+  use paths, with strict edition gating. Its `§8` title and the survey's
+  `UNSUPPORTED` label are leads, not verified standards evidence.
+- **Next:** Verify the exact legal forms and clauses in both local IEEE PDFs;
+  probe the smallest candidate forms under strict 2017 and 2023 on the clean
+  baseline. Do not patch until the failing form, expected semantics, and root
+  cause are established.
+- **Scope:** IEEE frontend/elaboration and permanent regressions only. OpenTitan
+  and Caliptra application work are outside this selection.
+
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
-- **State:** Implemented on `agent/pkg-class-static-call-20261007`; exact reducer
-  fails on clean `origin/main` `7c4aa26e` and passes on this branch under strict
-  2017 and 2023. Draft PR and exact-head CI remain pending.
+- **State:** Merged to `main` by [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413)
+  at `af89cfc50`. The exact PR workflow later reported Ubuntu 22.04 and 24.04
+  failures; other jobs were still queued/in progress at the last check. The run
+  remained active and did not expose failed-job logs yet, so do not call this
+  CI-qualified.
 - **Requirement:** IEEE 1800-2017 §8.23 allows access to static class methods
   and properties and says scoped expressions can be used in subroutine calls;
   §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords
@@ -25,8 +43,9 @@
   the impure `get_width` constraint call (DD-111); later diagnostics were not
   triaged. Bison counts are unchanged at 574 shift/reduce and 1,122
   reduce/reduce conflicts.
-- **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
-  merge this ticket's PR.
+- **Delivery:** Merged by PR #413 to `main`; its exact-head workflow has reported
+  Ubuntu failures, so merge status must not be described as CI-qualified. Keep
+  any CI repair separate from the selected issue #450 work.
 
 ### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
 
