@@ -71,9 +71,9 @@ record-only; they were not implemented in this ticket.
 ### DD-003 — Boolean event-expression driver discards automatic activation context
 
 - Active blocker: L02. Record-only; not a regression from L02.
-- Observation: simultaneous task activations using posedge (value[2] | 1'b0)
+- **Historical observation (S03):** simultaneous task activations using posedge (value[2] | 1'b0)
   both report transition time 2 instead of 2,3.
-- Mechanism: vvp/logic.cc vvp_fun_boolean_ receives no retained context and
+- **Historical mechanism (S03):** vvp/logic.cc vvp_fun_boolean_ receives no retained context and
   vvp_fun_or::run_run sends its result with context 0; input storage is shared.
 - Authority: IEEE 1800-2017/2023 6.21 and 9.4.2; expression event transition
   must use the invocation's value.
@@ -87,9 +87,9 @@ record-only; they were not implemented in this ticket.
 ### DD-004 — Unchanged partial write can manufacture a default-bit negedge
 
 - Active blocker: L02; record-only, not introduced by frame selection.
-- Observation: default bit vector 0, unchanged value[2:1]=0 at t1 wakes
+- **Historical observation (S03):** default bit vector 0, unchanged value[2:1]=0 at t1 wakes
   negedge value[0], although the intended first negedge is at t3.
-- Mechanism: vvp_fun_signal4_aa::reset_instance emits no initial sample;
+- **Historical mechanism (S03):** vvp_fun_signal4_aa::reset_instance emits no initial sample;
   recv_vec4_pv sends even an unchanged vector, exposing probe history X.
 - Authority: IEEE 1800-2017/2023 6.8 and 9.4.2.
 - Evidence: u01-loop/default-negedge.sv and baseline/candidate logs, both
@@ -99,21 +99,21 @@ record-only; they were not implemented in this ticket.
 
 ### DD-005 — Non-fanout assertion paths omit vacuous user pass actions
 
-- **Issue status:** [OPEN #470](https://github.com/dsellerbrock/iverilog-uvm/issues/470).
+- **Issue status:** [CLOSED #470](https://github.com/dsellerbrock/iverilog-uvm/issues/470); no current-main failure reproduced.
 
-- Active blocker: S03; record-only outside the endpoint aggregation path.
-- Observation: `tests/sva_recursive_consequent_test.sv` executes17 enabled
+- **Current disposition:** Historical S03 finding; no active blocker after current-main recheck.
+- **Historical observation (S03):** `tests/sva_recursive_consequent_test.sv` executes17 enabled
   starts; the fixed negated consequence has one nonvacuous success and one
   failure, but reports only1pass rather than16 including vacuity. Existing
   until/eventual controls similarly count only nonvacuous successes.
-- Mechanism: unchanged non-endpoint NFA/legacy implication handling suppresses
+- **Historical mechanism (S03):** unchanged non-endpoint NFA/legacy implication handling suppresses
   vacuous pass dispatch. S03 repairs only the split endpoint parent path.
 - Authority: IEEE1800-2017/2023 16.12.7; a no-match antecedent succeeds.
 - Evidence: campaign-20260908/s03/recursive-red-2017.log and2023.log;
   old baseline test already expects1pass, and the unaffected source path
   omits its vacuous action. Nested/throughout parent paths now report17.
-- Reproducer status: observed in both editions; triage pending. Do not infer
-  general vacuity qualification from the S03 endpoint-path controls.
+- **Reproducer status:** Historical paired S03 red logs remain valid for that revision. On clean origin/main af89cfc50be1084cc86c48865f3f6ba78d4512fa, the reducer passes in both strict editions; the registered legacy focus passes 17/17, JSON focus 8/8, and endpoint fan-out VPI 1/1. Closeout details: https://github.com/dsellerbrock/iverilog-uvm/issues/470#issuecomment-6066898539.
+
 
 ### DD-006 — nested parameterized sequence alias does not expand
 
@@ -3175,7 +3175,7 @@ Review under VPI-PACKED-ELEMENT-ACCESS confirmed IEEE1800-2017/2023 38.36.1 requ
 ## UVM-STRICT-REGEX-GLOB-FALLBACK — 2026-09-21
 
 - Active work: nine-fix batch qualification; read-only GPIO DPI assessment.
-- Observation: the modern Icarus UVM DPI wrapper retries invalid strict regular expressions as globs even when the caller passes deglob=0. A paired 2017/2023 direct-DPI reducer fails because `uvm_re_comp("*_shadowed", 0)` returns a compiled handle. Explicit deglob=1 and valid strict `.*_shadowed` controls succeed.
+- **Historical observation (S03):** the modern Icarus UVM DPI wrapper retries invalid strict regular expressions as globs even when the caller passes deglob=0. A paired 2017/2023 direct-DPI reducer fails because `uvm_re_comp("*_shadowed", 0)` returns a compiled handle. Explicit deglob=1 and valid strict `.*_shadowed` controls succeed.
 - Root: `uvm_dpi/uvm_dpi_iverilog.cc::uvm_ivl_regcomp` fallback overrides the explicit mode passed through the unmodified upstream UVM regex API.
 - Authority: pinned `uvm-core/src/dpi/uvm_regex.{svh,cc}` explicitly distinguishes strict matching from requested glob conversion; this is a UVM-library semantic issue, not an IEEE1800 language-feature count. Exact IEEE1800.2 clause mapping remains unassessed.
 - Evidence: `evidence/review-20260920/next-uvm-regex-assessment/current-results.json` and `strict_regex.sv`; installed binary, real DPI, no corpus edits.
@@ -3238,14 +3238,14 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### 2026-09-21 continuous until consequent misses a late failure
 
 - Active blocker: OT-SPI-SELECTED-VIF-EDGE (frozen during qualification).
-- Observation: The official OpenTitan checker backport uses `$rose(dead_count == 138) |=> timeout until !rst_lc_ni`. With timeout true on the first consequent sample and false later, installed NFA mode reports no assertion failure; a negative reducer requires one. Both 2017 and 2023 reproduce; legacy mode does not provide an alternate passing implementation.
+- **Historical observation (S03):** The official OpenTitan checker backport uses `$rose(dead_count == 138) |=> timeout until !rst_lc_ni`. With timeout true on the first consequent sample and false later, installed NFA mode reports no assertion failure; a negative reducer requires one. Both 2017 and 2023 reproduce; legacy mode does not provide an alternate passing implementation.
 - Evidence: `evidence/review-20260920/pwrmgr-seed3-revalidation/ASSESSMENT.md`, `upstream_counter_repro.sv`, corrected `focused-results/dropped_timeout-*-nfa1.run.log`. Initial parameter-override harness mistake is preserved separately and not counted.
 - Status: Reproduced; bounded root-cause assessment of forbidden-until NFA lowering underway. Parser precedence checked. No implementation change or qualification claim yet; do not weaken the upstream check or treat smoke success as proof of continuation semantics.
 
 ### 2026-09-22 legacy `uvm_re_match` regex capacity on TRE
 
 - Active blocker: CI-WIN-UVM-REGEX-NOOUTPUT.
-- Observation: the fork-owned legacy `uvm_re_match` in `uvm_dpi/uvm_dpi_iverilog.cc` compiles with `REG_EXTENDED` only and never reads submatches. On TRE (MSYS2 libsystre), literal patterns longer than 1463 characters fail with REG_ESPACE without `REG_NOSUB`; glibc accepts them. The active fix covers `uvm_re_comp` only.
+- **Historical observation (S03):** the fork-owned legacy `uvm_re_match` in `uvm_dpi/uvm_dpi_iverilog.cc` compiles with `REG_EXTENDED` only and never reads submatches. On TRE (MSYS2 libsystre), literal patterns longer than 1463 characters fail with REG_ESPACE without `REG_NOSUB`; glibc accepts them. The active fix covers `uvm_re_comp` only.
 - Evidence: `evidence/win-regex-tre/` harness technique; the capacity limit was measured against Ubuntu TRE 0.8.0. Not reproduced through the legacy SV API, and no Windows run has been made.
 - Triage: recorded only. Check the pinned UVM 1.x legacy source flags before any change; there is no correctness defect on glibc/macOS.
 
@@ -3260,70 +3260,70 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### 2026-09-22 scalar constraint state reads discard X/Z
 
 - Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD.
-- Observation: IEEE 1800-2017/2023 18.3 makes X/Z values in constraints illegal. Inline caller-state value slots (`vvp/vthread.cc` `%randomize/with` pop loops near lines 6028 and 6181) keep only BIT4_1 bits, so `lanes == x` with `x = 'x` succeeds with `lanes == 0`. The class-state `r:` read (`vvp/vvp_z3.cc` `parse_state_path`) drops X/Z the same way. Class function captures, guards, container elements and associative reads already reject X/Z.
+- **Historical observation (S03):** IEEE 1800-2017/2023 18.3 makes X/Z values in constraints illegal. Inline caller-state value slots (`vvp/vthread.cc` `%randomize/with` pop loops near lines 6028 and 6181) keep only BIT4_1 bits, so `lanes == x` with `x = 'x` succeeds with `lanes == 0`. The class-state `r:` read (`vvp/vvp_z3.cc` `parse_state_path`) drops X/Z the same way. Class function captures, guards, container elements and associative reads already reject X/Z.
 - Evidence: 2017 private reducer with `logic [2:0] x = 'x` in the caller prints `x-slot ret=1 lanes=0`; installed build of main `1af223c8`.
 - Triage: reproduced; a cross-path 18.3 blocker candidate. Rejection must stay guard-aware (inactive implication/if branches), like the existing `qbad:` path.
 
 ### 2026-09-22 method call and property read through a null handle execute silently
 
 - Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD.
-- Observation: `r = c.get_size();` with `c == null` runs the body and returns a value built from zero-valued properties (prints 2). An inline constraint reading `cfg.mode` through a null caller handle succeeds with 0. IEEE 1800-2017/2023 8.4 makes accessing nonstatic members through null illegal. The class-constraint capture path guards this explicitly; ordinary expressions and inline caller slots do not.
+- **Historical observation (S03):** `r = c.get_size();` with `c == null` runs the body and returns a value built from zero-valued properties (prints 2). An inline constraint reading `cfg.mode` through a null caller handle succeeds with 0. IEEE 1800-2017/2023 8.4 makes accessing nonstatic members through null illegal. The class-constraint capture path guards this explicitly; ordinary expressions and inline caller slots do not.
 - Evidence: private reducers `nullcall.sv` and `null_slot.sv` (commands in the active session log).
 - Triage: reproduced; general runtime/elaboration 8.4 candidate. The inline caller-method subset excludes null receivers until this is fixed.
 
 ### 2026-09-22 OpenTitan matrix runner mis-parses edalize v0.4.0 TOPLEVEL
 
 - Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD (application reproduction).
-- Observation: pinned M6 `python-requirements.txt` edalize v0.4.0 writes `TOPLEVEL := tb` and uses `-s$(TOPLEVEL)` in its recipe. `scripts/opentitan_matrix.py::parse_makefile` passes TOPLEVEL tokens through verbatim, so the compile command gets a bare `tb` source argument ("tb: No such file or directory"). The historical Mac environment evidently used an edalize emitting `-s` inside TOPLEVEL.
+- **Historical observation (S03):** pinned M6 `python-requirements.txt` edalize v0.4.0 writes `TOPLEVEL := tb` and uses `-s$(TOPLEVEL)` in its recipe. `scripts/opentitan_matrix.py::parse_makefile` passes TOPLEVEL tokens through verbatim, so the compile command gets a bare `tb` source argument ("tb: No such file or directory"). The historical Mac environment evidently used an edalize emitting `-s` inside TOPLEVEL.
 - Triage: harness defect, not compiler semantics. The manual equivalent compile (`-s tb`, run from `sim-icarus/`) is used meanwhile. Fix in the runner with a recorded ticket.
 
 ### 2026-09-22 dropped DPI export `sorry` still exits successfully
 
 - Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD (negative-gate differential).
-- Observation: `tests/negative/m10_dpi_export_class_handle_argument.sv` and `m10_dpi_export_open_array_argument.sv` print `sorry: ... The export is dropped; calls from C will not link.`, then write stubs to `<output>.dpiexport.c` and exit 0. The negative suite passes in CI only because a non-root user cannot create `/dev/null.dpiexport.c`, which fails the run. As root, both tests report "accepted or no diagnostic". This is identical on a baseline `ivl` built from `1af223c8` `elaborate.cc`, so it is independent of the active patch.
+- **Historical observation (S03):** `tests/negative/m10_dpi_export_class_handle_argument.sv` and `m10_dpi_export_open_array_argument.sv` print `sorry: ... The export is dropped; calls from C will not link.`, then write stubs to `<output>.dpiexport.c` and exit 0. The negative suite passes in CI only because a non-root user cannot create `/dev/null.dpiexport.c`, which fails the run. As root, both tests report "accepted or no diagnostic". This is identical on a baseline `ivl` built from `1af223c8` `elaborate.cc`, so it is independent of the active patch.
 - Triage: reproduced. A dropped export is a semantic loss, so the compile should fail. The negative suite's pass is currently environment-dependent. Selected as DPI-EXPORT-DROPPED-EXIT-STATUS (see BLOCKERS).
 
 ### 2026-09-22 vvp extended arguments rejected on glibc (compatibility regression)
 
 - Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD (JSON-gate differential).
-- Observation: `vvp/main.cc` uses `getopt(argc, argv, "d:hil:M:m:nNqsvV")` without a leading `+`, deliberately allowing permutation (commit `b6cb9eea`). glibc then parses Icarus extended arguments that follow the input file, such as `vvp x.vvp -vcd -dumpfile=foo`, as vvp options: `vvp: invalid option -- 'c'`. JSON tests `br_gh710a`, `br_gh710b`, `br_gh710c`, `dumpfile` and `sdf_header` fail on Linux. macOS getopt does not permute, so the Mac JSON gate passed. The vvp binary is unchanged by the active patch.
+- **Historical observation (S03):** `vvp/main.cc` uses `getopt(argc, argv, "d:hil:M:m:nNqsvV")` without a leading `+`, deliberately allowing permutation (commit `b6cb9eea`). glibc then parses Icarus extended arguments that follow the input file, such as `vvp x.vvp -vcd -dumpfile=foo`, as vvp options: `vvp: invalid option -- 'c'`. JSON tests `br_gh710a`, `br_gh710b`, `br_gh710c`, `dumpfile` and `sdf_header` fail on Linux. macOS getopt does not permute, so the Mac JSON gate passed. The vvp binary is unchanged by the active patch.
 - Evidence: `python3 ./vvp_reg.py` on this Linux container (cloud session log for this checkpoint); the tests fail identically when rerun alone.
 - Triage: reproduced upstream-compatibility regression, Linux only. A fix must keep plusarg/option interleaving for dvsim while stopping option parsing at the input file for extended arguments. Selected as VVP-EXTENDED-ARGS-GLIBC-PERMUTE (see BLOCKERS).
 
 ### 2026-09-22 Caliptra power2round testbench passes with zero vectors
 
 - Active work: application replay after VVP-EXTENDED-ARGS-GLIBC-PERMUTE.
-- Observation: unmodified Adams Bridge v2.0.3 `power2round_tb.sv` runs `python power2round.py` via `$system`. If the generator fails (for example without numpy), `$fopen` of the vector files fails and the testbench still prints `TESTCASE PASSED`.
+- **Historical observation (S03):** unmodified Adams Bridge v2.0.3 `power2round_tb.sv` runs `python power2round.py` via `$system`. If the generator fails (for example without numpy), `$fopen` of the vector files fails and the testbench still prints `TESTCASE PASSED`.
 - Triage: application-harness hazard, not a compiler defect. Replays must confirm the generated vector files exist (2048 lines each) before counting a pass; `2026-09-22_application_replay_linux.json` records the invalidated first run.
 
 ### 2026-09-22 opentitan_matrix self-test timeout-descendant check fails in container
 
-- Observation: `scripts/opentitan_matrix.py --self-test` asserts "timed-out command left a descendant running" on this Linux container, both before and after the TOPLEVEL normalization change.
+- **Historical observation (S03):** `scripts/opentitan_matrix.py --self-test` asserts "timed-out command left a descendant running" on this Linux container, both before and after the TOPLEVEL normalization change.
 - Triage: environment or harness issue; not yet root-caused.
 
 ### 2026-09-22 SPI Host remaining compile errors are IEEE-invalid source
 
 - Active blocker: SOLVE-BEFORE-FIXED-ARRAY (application recompile).
-- Observation: after this batch, pristine Earlgrey-PROD-M6 SPI Host fails only at `spi_host_driver.sv:156` and `:256`. `issue_data(req.data, rsp.data, ...)` binds `logic [7:0] data[$]` actuals to `bit [7:0] ...[$]` formals. IEEE 1800-2017/2023 7.6 requires equivalent element types for unpacked array assignment compatibility, and 6.22.2 makes 2-state and 4-state vectors non-equivalent. Slang 11 independently rejects the same shape ("no implicit conversion ... are you missing a cast?"), and Icarus rejects both argument directions consistently.
+- **Historical observation (S03):** after this batch, pristine Earlgrey-PROD-M6 SPI Host fails only at `spi_host_driver.sv:156` and `:256`. `issue_data(req.data, rsp.data, ...)` binds `logic [7:0] data[$]` actuals to `bit [7:0] ...[$]` formals. IEEE 1800-2017/2023 7.6 requires equivalent element types for unpacked array assignment compatibility, and 6.22.2 makes 2-state and 4-state vectors non-equivalent. Slang 11 independently rejects the same shape ("no implicit conversion ... are you missing a cast?"), and Icarus rejects both argument directions consistently.
 - Triage: upstream-invalid source relying on apparent commercial-simulator leniency. The user selected a separately labeled, opt-in compatibility extension; documented VCS behavior is still unverified, so it must not be represented as VCS or IEEE conformance. Pristine sources stay unmodified.
 - Flag-design assessment: `elaborate.cc` already has a narrow unconditional whole queue/dynamic-array assignment exception for bit/logic element-state mismatch; task and function output copy-back use separate strict checks. The proposed `-gcommercial-unsafe` must gate the existing exception as well as any new copy-back allowance so the default remains strict. No flag implementation is visible at `origin/main` `1520ccee6`.
 
 ### 2026-09-23 same-event process resume order is unstable (compatibility question)
 
 - Active item: CALIPTRA-REJ-BOUNDED-RUNTIME (diagnosis only).
-- Observation: `vthread_add_event_wait` in `vvp/vthread.cc` pushes waiters at the list head, so two `initial forever @(posedge clk)` processes resume B,A on one edge and A,B on the next (`evidence/caliptra-rej-bounded/event_resume_order.sv`). IEEE 1800-2017/2023 4.7 permits any order, so this conforms. Unmodified Caliptra `rej_bounded_tb.sv` depends on declaration order between its scoreboard and zeroize checker and fails 8/10 vectors.
+- **Historical observation (S03):** `vthread_add_event_wait` in `vvp/vthread.cc` pushes waiters at the list head, so two `initial forever @(posedge clk)` processes resume B,A on one edge and A,B on the next (`evidence/caliptra-rej-bounded/event_resume_order.sv`). IEEE 1800-2017/2023 4.7 permits any order, so this conforms. Unmodified Caliptra `rej_bounded_tb.sv` depends on declaration order between its scoreboard and zeroize checker and fails 8/10 vectors.
 - Triage: application race, recorded in `session_logs/2026-09-23_caliptra_rej_bounded_race.json`. Stable declaration-order resume would be a scheduler-wide compatibility change needing a user decision and documented vendor behavior; not selected.
 
 ### 2026-09-23 IEEE 1800-2023 random real variables remain unsupported
 
 - Active blocker: SOLVE-BEFORE-FIXED-ARRAY integration boundary.
-- Observation: IEEE 1800-2023 18.4 permits `rand real` and 18.5.9 permits real values in `solve...before`. The current `-g2023` compiler rejects a `rand real` fixed array using an IEEE 1800-2017 18.4 diagnostic before solve-before lowering. The 2017 rejection is expected; the 2023 rejection is an unsupported edition feature, not proof that real ordering is invalid.
+- **Historical observation (S03):** IEEE 1800-2023 18.4 permits `rand real` and 18.5.9 permits real values in `solve...before`. The current `-g2023` compiler rejects a `rand real` fixed array using an IEEE 1800-2017 18.4 diagnostic before solve-before lowering. The 2017 rejection is expected; the 2023 rejection is an unsupported edition feature, not proof that real ordering is invalid.
 - Evidence: `evidence/review-20260920/pr322-reconcile-build2/real_array_order.sv` and paired compile logs. Status: reproduced, not selected; real-valued solver representation and distributions require a separate scope.
 
 ### 2026-09-23 known caller-state values wider than 64 bits are truncated
 
 - Discovery ID: CONSTRAINT-CALLER-STATE-WIDE-KNOWN. Active blocker: CONSTRAINT-STATE-XZ-SCALAR.
-- Observation: `vvp/vthread.cc` stores ordinary caller-state slots as `uint64_t`; `vvp/vvp_z3.cc::substitute_slots` changes a `v:N:65` token to width 32 and uses only the low 64 bits. A `logic [64:0]` caller value of `65'h10000000000000000` makes a `rand bit [64:0]` target solve to zero even though the active constraint equates them. Private reducer `evidence/review-20260920/state-xz-port/known-wide-state.sv` prints `FAILED known wide caller state got=00000000000000000 expected=10000000000000000` with the active worktree compiler.
+- **Historical observation (S03):** `vvp/vthread.cc` stores ordinary caller-state slots as `uint64_t`; `vvp/vvp_z3.cc::substitute_slots` changes a `v:N:65` token to width 32 and uses only the low 64 bits. A `logic [64:0]` caller value of `65'h10000000000000000` makes a `rand bit [64:0]` target solve to zero even though the active constraint equates them. Private reducer `evidence/review-20260920/state-xz-port/known-wide-state.sv` prints `FAILED known wide caller state got=00000000000000000 expected=10000000000000000` with the active worktree compiler.
 - Possible standard scope: IEEE 1800-2017/2023 18.3 and integral expression width rules. Status: reproduced, not selected. The active X/Z port scans all bits for unknown state but does not expand the solver's known-value slot representation; select a separate full-width implementation ticket.
 
 ### OT-SPI-INLINE-FOREACH-INDEX — inline foreach index remains unresolved

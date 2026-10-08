@@ -1,6 +1,6 @@
 # IEEE 1800 conformance index
 
-**Census date:** 2026-10-08. This is the concise front door for IEEE 1800-2017/2023 gaps. There is **no issue cap**: represent each distinct verified gap in GitHub, and file uncertain but actionable standards questions only as clearly labeled validation issues. The list is not a priority queue.
+**Census date:** 2026-10-08. This is the concise front door for IEEE 1800-2017/2023 gaps. There is **no 50-issue cap**: the 50 pre-census issues below are simply the existing open backlog. Represent each distinct verified gap in GitHub, and file uncertain but actionable standards questions only as clearly labeled validation issues. The list is not a priority queue.
 
 ## Current selection
 
@@ -10,11 +10,11 @@ The `ACTIVE_WORK.yaml`, `CAMPAIGN.yaml`, and handoff updates for #468 are on PR 
 
 ## Inventory
 
-There are **94 open IEEE issues**: **50 existing** issues (#414–#463) and **44 new active issues** (#468–#502, #505–#513), of which 42 are new issues for reproduced gaps and #512/#513 are validation-only standards questions. The census created **45 issues total** (#468–#503 and #505–#513); [#503](https://github.com/dsellerbrock/iverilog-uvm/issues/503) was closed after the final current-main check showed its claimed defect was already fixed. Six existing issues were refreshed with debt evidence: [#414](https://github.com/dsellerbrock/iverilog-uvm/issues/414) (DD-078), [#419](https://github.com/dsellerbrock/iverilog-uvm/issues/419) (DD-047 and DD-068), [#421](https://github.com/dsellerbrock/iverilog-uvm/issues/421) (DD-109), [#429](https://github.com/dsellerbrock/iverilog-uvm/issues/429) (DD-057), [#439](https://github.com/dsellerbrock/iverilog-uvm/issues/439) (DD-052), and [#440](https://github.com/dsellerbrock/iverilog-uvm/issues/440) (DD-051). A paired clean-main evidence comment was also added to existing [#448](https://github.com/dsellerbrock/iverilog-uvm/issues/448).
+There are **93 open IEEE issues**: **50 existing** issues (#414–#463) and **43 new active issues** (#468–#469, #471–#502, #505–#513), of which 41 are new issues for reproduced gaps and #512/#513 are validation-only standards questions. The census created **45 issues total** (#468–#503 and #505–#513); [#503](https://github.com/dsellerbrock/iverilog-uvm/issues/503) was closed after its claimed defect was found fixed, and [#470](https://github.com/dsellerbrock/iverilog-uvm/issues/470) was closed after the current-main reducer and registered SVA controls passed. Thus 43 census-created issues remain open. Six existing issues were refreshed with debt evidence: [#414](https://github.com/dsellerbrock/iverilog-uvm/issues/414) (DD-078), [#419](https://github.com/dsellerbrock/iverilog-uvm/issues/419) (DD-047 and DD-068), [#421](https://github.com/dsellerbrock/iverilog-uvm/issues/421) (DD-109), [#429](https://github.com/dsellerbrock/iverilog-uvm/issues/429) (DD-057), [#439](https://github.com/dsellerbrock/iverilog-uvm/issues/439) (DD-052), and [#440](https://github.com/dsellerbrock/iverilog-uvm/issues/440) (DD-051). A paired clean-main evidence comment was also added to existing [#448](https://github.com/dsellerbrock/iverilog-uvm/issues/448).
 
 The final catalog sweep covers all 111 numbered debt records, the complete 2017 clause matrix, the complete 2023 delta survey, and current open/closed GitHub issue state. There is **no cap**: every distinct verified, actionable IEEE gap in these sources must have one open issue, while fixed, duplicate, unsupported, or non-actionable records are linked or explicitly excluded below. The catalog is complete for this source set; issue state is a tracking status, not selection priority. Details stay in the [blockers registry](BLOCKERS.md), [discovered-debt ledger](DISCOVERED_DEBT.md), [2017 clause matrix](matrices/ieee1800_2017_clause_matrix.md), and [2023 delta survey](ieee1800_2023_delta.md).
 
-### Existing open issues: 50
+### Pre-census issues still open: 50
 
 <details>
 <summary>Show #414–#463</summary>
@@ -74,16 +74,15 @@ The final catalog sweep covers all 111 numbered debt records, the complete 2017 
 
 </details>
 
-### New issues: 44 open
+### New issues: 43 open
 
 <details>
-<summary>Show #468–#502 and #505–#513</summary>
+<summary>Show #468–#469, #471–#502, and #505–#513</summary>
 
 | Issue | Title |
 | --- | --- |
 | [#468](https://github.com/dsellerbrock/iverilog-uvm/issues/468) | [IEEE 1800] §22 — Accept escaped identifiers in conditional compilation |
 | [#469](https://github.com/dsellerbrock/iverilog-uvm/issues/469) | [IEEE 1800] §§6.11.2/11.5.1 — Preserve two-state packed-select results |
-| [#470](https://github.com/dsellerbrock/iverilog-uvm/issues/470) | [IEEE 1800] §16 — Run vacuous pass actions on non-fanout assertion paths |
 | [#471](https://github.com/dsellerbrock/iverilog-uvm/issues/471) | [IEEE 1800] §11.5.1 — Keep packed subpart accesses inside the selected element |
 | [#472](https://github.com/dsellerbrock/iverilog-uvm/issues/472) | [IEEE 1800] §6.5 — Accept disjoint mixed-driver packed elements |
 | [#473](https://github.com/dsellerbrock/iverilog-uvm/issues/473) | [IEEE 1800] §§6.11/11.3 — Convert assignment-expression results to two-state destinations |
@@ -143,6 +142,7 @@ The compiler used for this recheck was built from clean `origin/main` at `af89cf
 ## Final-sweep exclusions and dispositions
 
 - **Closed as already fixed:** DD-029 / [#503](https://github.com/dsellerbrock/iverilog-uvm/issues/503). Current `main` string loads reject `thr->flags[4] != BIT4_0` before using the address; this includes overflow from `vec4_to_index`. The normalized L62 candidate and paired wide-index matrix pass. The closeout issue comment was corrected with this exact evidence.
+- **Closed as no longer reproducible:** DD-005 / [#470](https://github.com/dsellerbrock/iverilog-uvm/issues/470). On clean origin/main af89cfc50be1084cc86c48865f3f6ba78d4512fa, tests/sva_recursive_consequent_test.sv passes under -g2017 and -g2023; registered SVA legacy focus passes 17/17, JSON focus 8/8, and endpoint fan-out VPI passes 1/1. Closeout evidence: https://github.com/dsellerbrock/iverilog-uvm/issues/470#issuecomment-6066898539.
 - **Reproducer not discriminating or not reduced:** DD-001 (source hypothesis only); DD-012 (historical queue-of-fixed-array boundary lacks a current-main reproducer and precise clause disposition); DD-013 (class-property/root-member last-index forms were not independently reproduced after the direct queue fix); DD-014 (no source reproducer); DD-037 and DD-038 (crashes follow cascaded unrelated diagnostics); DD-044 (original constraints were redundant; a discriminating unsatisfiable reducer and root-cause repair remain absent); DD-050 (nested queue-size reducer pending); DD-053 (no legal source case for the fallback); DD-061 (possible out-of-range default issue, not confirmed); DD-098 (application compile notices have no minimized causal reducer).
 - **Baseline/requirement not established:** DD-009 (selector interpretation withdrawn; invalid-header validation not isolated); DD-023 (L47 correction exists; residual metadata/callback edges have no current failing reducer); DD-024 (synthesis-only crash has no prior-baseline comparison or verified IEEE synthesis obligation); DD-052 (the crash probe is candidate-only and current-main comparison is pending; explicit `triggered()` forms are already tracked by #439); DD-076 (null-method diagnostic behavior is not established as a normative requirement); DD-082 and DD-093 (diagnostic-quality issues, not demonstrated semantic conformance gaps).
 - **Not reproducible on current main:** DD-105’s five saved assignment-pattern cases all compile with exit 0 on the current-main install; the old PR #411 `kind 26` code-generation diagnostic did not reproduce. No runtime/output replay was done, so this excludes only the reported compile-time gap.
