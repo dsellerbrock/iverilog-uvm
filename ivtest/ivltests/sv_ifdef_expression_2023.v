@@ -1,5 +1,7 @@
 `define A
 `define Y
+`define \foo 1
+`define \A&&B 1
 
 module test;
   integer errors;
@@ -7,6 +9,20 @@ module test;
 
   initial begin
     errors = 0;
+
+`ifdef (\foo )
+`else
+    errors = errors + 1;
+`endif
+
+`ifdef (\A&&B )
+`else
+    errors = errors + 1;
+`endif
+
+`ifdef (\missing )
+    errors = errors + 1;
+`endif
 
 `ifdef(A || B && C)
 `else

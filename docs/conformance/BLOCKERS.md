@@ -9,23 +9,27 @@
 - **Requirement:** IEEE 1800-2017 §22.5 Syntax 22-5 allows only a
   `text_macro_identifier` condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a
   parenthesized `ifdef_macro_expression` with identifiers, logical operators,
-  and parentheses; defined identifiers evaluate to 1 and undefined identifiers
-  to 0. `ifndef` negates the expression. §22.5 requires no extra whitespace
+  and parentheses; §5.6 identifiers may be simple or escaped. Defined
+  identifiers evaluate to 1 and undefined identifiers to 0. `ifndef` negates
+  the expression. §22.5 requires no extra whitespace
   when punctuation such as `(` already separates tokens.
 - **Failure:** A self-authored `ifdef (A && (!B || C))` and `ifndef (A && B)`
   probe reports `` `ifdef without a macro name`` under both `-g2017` and
   `-g2023`. The plain identifier control passes in both editions.
-- **Root cause:** `ivlpp/lexor.lex` accepted identifiers only, and the driver did
-  not pass the selected generation to `ivlpp`. The driver now forwards
-  `-g2023` both for top-level sources and lazy `-y` library sources; the
-  preprocessor parses boolean expressions only in that edition. The lexer also
-  hands off `ifdef(`/`ifndef(`/`elsif(` without requiring whitespace.
+- **Root cause:** `ivlpp/lexor.lex` initially accepted only simple identifiers
+  in parenthesized expressions, and the driver did not pass the selected
+  generation to `ivlpp`. The driver now forwards `-g2023` both for top-level
+  sources and lazy `-y` library sources; the expression lexer preserves
+  whitespace-terminated escaped identifiers, and the parser looks up their
+  normalized macro names. Expressions remain enabled only in 2023. The lexer
+  also hands off `ifdef(`/`ifndef(`/`elsif(` without requiring whitespace.
 - **Scope:** Boolean conditional-expression parsing/evaluation for `ifdef`,
   `ifndef`, and `elsif`; strict 2017 behavior; paired regression coverage.
 - **Validation:** Permanent legacy and JSON fixtures pass 3/3 each, including
-  adjacent directive/parenthesis tokens and the 2017 rejection case. Neighboring
-  macro legacy tests pass 28/28 and 8/8; neighboring macro JSON tests pass
-  14/14. The focused implementation uses the precedence in IEEE 1800-2023
+  simple and operator-punctuated escaped identifiers, adjacent
+  directive/parenthesis tokens, and the 2017 rejection case. Neighboring macro
+  legacy tests pass 28/28; neighboring macro JSON tests pass 14/14. The focused
+  implementation uses the precedence in IEEE 1800-2023
   §11.3.2 Table 11-2 and semantics in §11.4.7. The full root build passes with
   Bison 3.8.2; system Bison 2.3 alone rejects the unchanged
   `parse.y:2236` `%destructor`. Bison 3.8.2 reports 574 shift/reduce and 1,122

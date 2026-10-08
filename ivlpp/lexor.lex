@@ -154,6 +154,26 @@ static int ifdef_expr_parse_unary(struct ifdef_expr_parser* parser)
 	  name[length] = 0;
 	  result = is_defined(name);
 	  free(name);
+    } else if (parser->text[parser->pos] == '\\') {
+	  /* The LRM excludes the escape and terminating whitespace from the name. */
+	  size_t start = ++parser->pos;
+	  size_t length;
+	  char* name;
+	  while ((unsigned char)parser->text[parser->pos] >= 33 &&
+		 (unsigned char)parser->text[parser->pos] <= 126)
+		parser->pos += 1;
+	  length = parser->pos - start;
+	  if (length == 0) {
+		parser->invalid = 1;
+		result = 0;
+	  } else {
+		name = malloc(length + 1);
+		assert(name != 0);
+		memcpy(name, parser->text + start, length);
+		name[length] = 0;
+		result = is_defined(name);
+		free(name);
+	  }
     } else {
 	  parser->invalid = 1;
 	  result = 0;
@@ -793,6 +813,7 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
     BEGIN(IFDEF_EXPR);
 }
 
+<IFDEF_EXPR>\\[!-~]+ { ifdef_expr_append(yytext, yyleng); }
 <IFDEF_EXPR>[a-zA-Z_][a-zA-Z0-9_$]* { ifdef_expr_append(yytext, yyleng); }
 <IFDEF_EXPR>{W} { ifdef_expr_append(yytext, yyleng); }
 <IFDEF_EXPR>"//" {

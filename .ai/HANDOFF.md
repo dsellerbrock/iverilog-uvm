@@ -14,21 +14,25 @@ passes `-g2023` to `ivlpp`; parenthesized `ifdef`/`ifndef`/`elsif` expressions
 are edition-gated. IEEE 1800-2023 §22.5 token separation also permits the
 opening parenthesis to directly follow `ifdef`, `ifndef`, or `elsif`; the
 lexer now handles those adjacent forms, including nested suppressed branches.
-The 2017 adjacent-expression form still rejects. Focused 2017/2023 cases pass
-3/3 in the legacy and JSON runners, and neighboring macro checks pass. See the clause record in
+The 2017 adjacent-expression form still rejects. The 2023 expression parser
+accepts simple and escaped identifiers, including an escaped name containing
+operator punctuation. Focused 2017/2023 cases pass 3/3 in the legacy and JSON
+runners; neighboring macro checks pass 28/28 legacy and 14/14 JSON. See the clause record in
 `docs/conformance/matrices/ieee1800_2017_clause_matrix.md` and the exact results
 in `ACTIVE_WORK.yaml`.
 
-The full root `make -j2` passes with Bison 3.8.2. System Bison 2.3 alone rejects
+The full root `make -j2` passed before the escaped-identifier follow-up; the
+current `make -C ivlpp -j2` and `make install` pass. System Bison 2.3 alone rejects
 the unchanged `parse.y:2236` `%destructor`. The conflict counts match clean
 `origin/main`: 574 shift/reduce and 1,122 reduce/reduce. Draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467)
-targets `main`; the first CI run was on the pre-adjacency head and is no longer
-the qualification target. Verify the updated PR head across all six platforms;
-CI qualification is not yet established.
+targets `main`; the current local escaped-identifier follow-up is not yet
+committed. The latest CI run is on an earlier head and is not the qualification
+target. Verify the pushed PR head across all six platforms; CI qualification is
+not yet established.
 
 ## Next
 
-Commit and push the adjacent-parenthesis fix and evidence updates, then inspect
+Commit and push escaped-identifier support and its evidence updates, then inspect
 the new exact-head CI after it has had time to run. Investigate any reported
 failures deeply. Merge and advance to the next IEEE ticket only after all six
 required checks are green; do not repeatedly poll unchanged CI.
