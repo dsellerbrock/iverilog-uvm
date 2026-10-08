@@ -18,14 +18,15 @@ in `ACTIVE_WORK.yaml`.
 
 The full root `make -j2` passes with Bison 3.8.2. System Bison 2.3 alone rejects
 the unchanged `parse.y:2236` `%destructor`. The conflict counts match clean
-`origin/main`: 574 shift/reduce and 1,122 reduce/reduce. No PR exists yet, so
-there is no CI qualification claim.
+`origin/main`: 574 shift/reduce and 1,122 reduce/reduce. Draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467)
+targets `main`; the first CI snapshot had all six platform jobs pending and no
+failure. CI qualification is not yet established.
 
 ## Next
 
-Review the final diff, commit and push the feature, then open one draft PR with
-base `main`. Inspect exact-head CI once it reports; investigate any failures
-reported by CI. Do not merge or claim completion until required checks pass.
+Inspect exact-head CI once after it has had time to run. Investigate any
+reported failures deeply. Merge and advance to the next IEEE ticket only after
+all six required checks are green; do not repeatedly poll unchanged CI.
 
 Keep the checkout limit at three. Preserve dirty
 `agent/timeunit-timeprecision-20261007` and the canonical `main` checkout with

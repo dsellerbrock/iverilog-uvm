@@ -3,6 +3,7 @@ phase: "IMPLEMENTED_LOCAL_VALIDATION"
 blocker: "IEEE-1800-PARENTHESIZED-IFDEF-EXPRESSIONS"
 github_issue: 460
 branch: "agent/ieee-ifdef-parenthesized-20261008"
+pull_request: "https://github.com/dsellerbrock/iverilog-uvm/pull/467 (draft, base main)"
 baseline: "Fresh origin/main af89cfc50be1084cc86c48865f3f6ba78d4512fa."
 goal: "Implement IEEE 1800-2023 boolean expressions in conditional-compilation directives while preserving the 2017 identifier-only grammar."
 standards:
@@ -16,7 +17,7 @@ allowed_scope: "Issue #460 only: preprocessor conditional-expression grammar/eva
 forbidden_scope: "No changes to ordinary macro argument/expansion parsing, unrelated directives, OpenTitan or Caliptra sources, or unrelated cleanup."
 acceptance: "Use the confirmed 2017/2023 Syntax 22-5 delta; keep plain identifier controls; test 2023 ifdef/ifndef/elsif expressions including undefined names, nesting, and operator semantics; register in legacy and JSON; run focused and neighboring suites; update conformance records; PR targets main and does not merge before required exact-head CI passes."
 evidence: "IEEE 1800-2017/2023 PDFs confirm the §22.5 Syntax 22-5 delta; §11.3.2 Table 11-2 supplies precedence and associativity; §11.4.7 supplies operator semantics. Red baseline was reproduced. Candidate legacy and JSON focus pass 3/3 each; neighboring macro legacy passes 28/28 and 8/8, neighboring macro JSON 14/14. Mutation of implication evaluation makes the positive fixture fail; source restored and focus reruns pass. Full root make passes with Homebrew Bison 3.8.2; system Bison 2.3 alone rejects the unchanged parse.y:2236 %destructor. Bison reports 574 shift/reduce and 1,122 reduce/reduce conflicts on both clean origin/main and this branch."
-next_action: "Review diff, commit and push one PR targeting main, then inspect exact-head CI once; investigate any reported failures. Do not claim completion until required CI checks pass."
+next_action: "PR #467 is open; all six platform checks were pending at the first snapshot. Avoid repeated polling, investigate any reported failure deeply, and merge only after every required check passes on the exact head."
 worktree_state: "Three checkouts remain; reused the prior feature checkout, with no new worktree. Preserve dirty agent/timeunit-timeprecision-20261007 and canonical main with the shared graph."
 previous_ticket_stop: "SV-PACKAGE-CLASS-STATIC-CALL reached its record-and-stop condition: PR #413 was merged, but Ubuntu CI failed the negative suite for an unrelated SVA case. DD-107 records the evidence. Do not fix or select that debt here."
 separate_ci_context: "Issue #450 remains in draft PR #466 at 75ba540778c0bf44c559e73180b7c843d6b79394, targeting main. Run 37767274293 had all six platform checks pending at the latest snapshot and no failure; do not repeatedly poll."

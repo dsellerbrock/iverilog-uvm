@@ -4,8 +4,8 @@
 
 - **State:** Implementation and focused tests pass on
   `agent/ieee-ifdef-parenthesized-20261008`, based on clean `origin/main`
-  `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft PR creation and exact-head
-  CI qualification are pending.
+  `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467)
+  targets `main`; exact-head CI qualification remains pending.
 - **Requirement:** IEEE 1800-2017 §22.5 Syntax 22-5 allows only a
   `text_macro_identifier` condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a
   parenthesized `ifdef_macro_expression` with identifiers, logical operators,
