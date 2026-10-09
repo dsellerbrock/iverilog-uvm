@@ -3556,7 +3556,8 @@ void note_dpi_export(ivl_scope_t scope)
    shape is supported. On success writes the runtime signature letter
    (*sig_letter) and the C type spelling (*c_type). Signature letters:
      'i' unsigned integer atom, 'I' signed integer atom,
-     'B' scalar bit, 'g' scalar logic, 'p' chandle, 'f' shortreal,
+     'B' scalar bit return/fixed bit array, 't' scalar bit argument,
+     'g' scalar logic, 'p' chandle, 'f' shortreal,
      'r' real (double), 's' string, 'V' packed bit vector,
      'W' packed logic vector, 'v' void (return only). */
 static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
@@ -3640,7 +3641,8 @@ static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
 	    return 1;
       }
       if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) && pwid == 1) {
-	    *sig_letter = ptype == IVL_VT_BOOL ? 'B' : 'g';
+	    *sig_letter = ptype == IVL_VT_BOOL
+		  ? (is_return ? 'B' : 't') : 'g';
 	    *c_type = ptype == IVL_VT_BOOL ? "svBit" : "svLogic";
 	    return 1;
       }
