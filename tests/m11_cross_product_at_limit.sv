@@ -10,4 +10,9 @@ module m11_cross_product_at_limit;
   endgroup
 
   cg coverage = new;
+
+  initial begin
+    $display("PASS m11_cross_product_at_limit");
+    $finish;
+  end
 endmodule
