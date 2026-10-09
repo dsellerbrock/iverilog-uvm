@@ -17818,14 +17818,14 @@ bool of_DISABLE_FLOW(vthread_t thr, vvp_code_t cp)
       const __vpiScope*scope = static_cast<__vpiScope*>(cp->handle);
       vthread_t cur = thr;
       vthread_t name_match = 0;
-      const char*target_name = scope ? vpi_get_str(vpiFullName, (vpiHandle)scope) : 0;
-      const char*thr_name = thr && thr->parent_scope
-                          ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+	// vpi_get_str reuses one result buffer, so keep owned copies.
+      lazy_scope_name_s target_name(const_cast<__vpiScope*>(scope));
+      lazy_scope_name_s thr_name(thr ? thr->parent_scope : 0);
 
       while (cur && cur->parent_scope != scope) {
-            if (!name_match && target_name && cur->parent_scope) {
+            if (!name_match && cur->parent_scope && target_name.get()) {
                   const char*cur_name = vpi_get_str(vpiFullName, cur->parent_scope);
-                  if (cur_name && (strcmp(cur_name, target_name) == 0))
+                  if (cur_name && (strcmp(cur_name, target_name.get()) == 0))
                         name_match = cur;
             }
             cur = cur->parent;
@@ -17849,13 +17849,12 @@ bool of_DISABLE_FLOW(vthread_t thr, vvp_code_t cp)
       if (flow_trace_enabled_()) {
             static unsigned trace_count = 0;
             if (trace_count < 256) {
-                  const char*sel_name = cur && cur->parent_scope
-                                      ? vpi_get_str(vpiFullName, cur->parent_scope) : 0;
+                  lazy_scope_name_s sel_name(cur ? cur->parent_scope : 0);
                   fprintf(stderr,
                           "trace flow: disable/flow src=%s target=%s selected=%s self=%d\n",
-                          thr_name ? thr_name : "<unknown>",
-                          target_name ? target_name : "<unknown>",
-                          sel_name ? sel_name : "<unknown>",
+                          thr_name.get() ? thr_name.get() : "<unknown>",
+                          target_name.get() ? target_name.get() : "<unknown>",
+                          sel_name.get() ? sel_name.get() : "<unknown>",
                           (cur == thr) ? 1 : 0);
                   trace_count += 1;
             }
@@ -17869,9 +17868,9 @@ bool of_DISABLE_FLOW_CHILD(vthread_t thr, vvp_code_t cp)
       const __vpiScope*scope = static_cast<__vpiScope*>(cp->handle);
       vthread_t cur = thr;
       vthread_t child = 0;
-      const char*target_name = scope ? vpi_get_str(vpiFullName, (vpiHandle)scope) : 0;
-      const char*thr_name = thr && thr->parent_scope
-                          ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+	// vpi_get_str reuses one result buffer, so keep owned copies.
+      lazy_scope_name_s target_name(const_cast<__vpiScope*>(scope));
+      lazy_scope_name_s thr_name(thr ? thr->parent_scope : 0);
 
       while (cur && cur->parent_scope != scope) {
             child = cur;
@@ -17893,13 +17892,12 @@ bool of_DISABLE_FLOW_CHILD(vthread_t thr, vvp_code_t cp)
       if (flow_trace_enabled_()) {
             static unsigned trace_count = 0;
             if (trace_count < 256) {
-                  const char*sel_name = child && child->parent_scope
-                                      ? vpi_get_str(vpiFullName, child->parent_scope) : 0;
+                  lazy_scope_name_s sel_name(child ? child->parent_scope : 0);
                   fprintf(stderr,
                           "trace flow: disable/flow/child src=%s target=%s selected=%s self=%d\n",
-                          thr_name ? thr_name : "<unknown>",
-                          target_name ? target_name : "<unknown>",
-                          sel_name ? sel_name : "<unknown>",
+                          thr_name.get() ? thr_name.get() : "<unknown>",
+                          target_name.get() ? target_name.get() : "<unknown>",
+                          sel_name.get() ? sel_name.get() : "<unknown>",
                           (child == thr) ? 1 : 0);
                   trace_count += 1;
             }
