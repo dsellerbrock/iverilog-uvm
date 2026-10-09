@@ -8292,6 +8292,62 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
  */
 static const uint64_t ENUM_DOMAIN_CAP = 1024;
 
+/* Collect every value of VAR in [0, HI] that keeps BASE satisfiable, in
+ * ascending order. A satisfiable range query yields one feasible value from
+ * its model and splits the range around it; an unsatisfiable one prunes the
+ * whole range. About 2F+1 checks for F feasible values, and BASE's
+ * assertions never grow, unlike blocking each model value (whose model
+ * construction cost grows with every blocked value). Returns false, with OUT
+ * cleared, when a query is indeterminate or more than CAP values exist. */
+static bool z3_walk_feasible_(Z3_context ctx, Z3_solver base, Z3_ast var,
+                              unsigned width, uint64_t hi, size_t cap,
+                              vector<uint64_t>& out)
+{
+      out.clear();
+      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+      auto fail = [&]() { out.clear(); return false; };
+      auto probe = [&](uint64_t bits) -> Z3_lbool {
+	    Z3_ast eq = Z3_mk_eq(ctx, var, Z3_mk_unsigned_int64(ctx, bits, sort));
+	    Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 1, &eq);
+	    if (r == Z3_L_TRUE) out.push_back(bits);
+	    return r;
+      };
+      vector<pair<uint64_t, uint64_t> > pending(1, make_pair((uint64_t)0, hi));
+      while (!pending.empty()) {
+	    uint64_t lo = pending.back().first, top = pending.back().second;
+	    pending.pop_back();
+	    if (out.size() > cap) return fail();
+	    if (top - lo >= 4) {
+		  Z3_ast range[2] = {
+			Z3_mk_bvuge(ctx, var, Z3_mk_unsigned_int64(ctx, lo, sort)),
+			Z3_mk_bvule(ctx, var, Z3_mk_unsigned_int64(ctx, top, sort))};
+		  Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 2, range);
+		  if (r == Z3_L_FALSE) continue;
+		  if (r != Z3_L_TRUE) return fail();
+		  Z3_model model = Z3_solver_get_model(ctx, base);
+		  Z3_model_inc_ref(ctx, model);
+		  uint64_t hit = 0;
+		  bool have = z3_eval_uint64(ctx, model, var, hit);
+		  Z3_model_dec_ref(ctx, model);
+		  if (have && hit >= lo && hit <= top) {
+			out.push_back(hit);
+			if (hit > lo) pending.push_back(make_pair(lo, hit - 1));
+			if (hit < top) pending.push_back(make_pair(hit + 1, top));
+			continue;
+		  }
+		    // No usable model value: probe a small range value by value.
+		  if (top - lo >= ENUM_DOMAIN_CAP) return fail();
+	    }
+	    for (uint64_t bits = lo; ; ++bits) {
+		  if (probe(bits) == Z3_L_UNDEF) return fail();
+		  if (bits == top) break;
+	    }
+      }
+      if (out.size() > cap) return fail();
+      std::sort(out.begin(), out.end());
+      return true;
+}
+
 /* Enumerate every value `var` (a WIDTH-bit bitvector constant) can take
  * while `base` remains satisfiable. `base` already carries every hard
  * constraint/pin relevant to this solve.
@@ -8342,47 +8398,9 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
 		  }
 	    }
       }
-	/* Collect the feasible values of [lo, hi] in ascending order. A
-	 * satisfiable range query yields one feasible value from its model and
-	 * splits the range around it; an unsatisfiable one prunes the whole
-	 * range. Same result as probing every value, with about 2F+1 checks for
-	 * F feasible values instead of one per domain value. */
-      auto probe = [&](uint64_t bits) -> Z3_lbool {
-	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
-	    Z3_ast eq = Z3_mk_eq(ctx, var, cv);
-	    Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 1, &eq);
-	    if (r == Z3_L_TRUE) out.push_back(bits);
-	    return r;
-      };
-      std::function<bool(uint64_t, uint64_t)> walk =
-	    [&](uint64_t lo, uint64_t hi) -> bool {
-	    if (lo > hi) return true;
-	    auto scan = [&]() -> bool {
-		  for (uint64_t bits = lo; bits <= hi; ++bits)
-			if (probe(bits) == Z3_L_UNDEF) return false;
-		  return true;
-	    };
-	    if (hi - lo < 4) return scan();
-	    Z3_ast range[2] = {
-		  Z3_mk_bvuge(ctx, var, Z3_mk_unsigned_int64(ctx, lo, sort)),
-		  Z3_mk_bvule(ctx, var, Z3_mk_unsigned_int64(ctx, hi, sort))};
-	    Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 2, range);
-	    if (r == Z3_L_FALSE) return true;
-	    if (r != Z3_L_TRUE) return false;
-	    Z3_model model = Z3_solver_get_model(ctx, base);
-	    Z3_model_inc_ref(ctx, model);
-	    uint64_t hit = 0;
-	    bool have = z3_eval_uint64(ctx, model, var, hit);
-	    Z3_model_dec_ref(ctx, model);
-	    if (!have || hit < lo || hit > hi) return scan();
-	    if (hit > lo && !walk(lo, hit - 1)) return false;
-	    out.push_back(hit);
-	    return walk(hit + 1, hi);
-      };
-      if (!walk(0, domain - 1)) {
-	    out.clear();
+      if (!z3_walk_feasible_(ctx, base, var, width, domain - 1,
+                             ENUM_DOMAIN_CAP, out))
 	    return false;
-      }
       return !out.empty();
 }
 
@@ -8390,8 +8408,9 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
  * z3_enumerate_domain, this is useful for a 32/64-bit property constrained to
  * an equality or short interval (the normal shape of protocol transactions),
  * without attempting its enormous declared domain.  Returning false after
- * CAP+1 distinct models leaves sampling to the general fallback; returning
- * true means the solver proved the complete feasible set was exhausted. */
+ * CAP+1 distinct values leaves sampling to the general fallback; returning
+ * true means the solver proved the complete feasible set was exhausted. The
+ * set comes back in ascending order, independent of Z3's model choices. */
 static const size_t SPARSE_DOMAIN_CAP = 64;
 
 static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
@@ -8402,36 +8421,10 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
       out.clear();
       if (width == 0 || width > 64) return false;
 
-      bool exhausted = false;
-      Z3_solver_push(ctx, base);
-      while (out.size() <= cap) {
-	    Z3_lbool r = Z3_solver_check(ctx, base);
-	    if (r == Z3_L_FALSE) {
-		  exhausted = true;
-		  break;
-	    }
-	    if (r != Z3_L_TRUE) break;
-
-	    Z3_model m = Z3_solver_get_model(ctx, base);
-	    Z3_model_inc_ref(ctx, m);
-	    uint64_t bits = 0;
-	    bool ok = z3_eval_uint64(ctx, m, var, bits);
-	    Z3_model_dec_ref(ctx, m);
-	    if (!ok) break;
-
-	    out.push_back(bits);
-	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits,
-					 Z3_mk_bv_sort(ctx, width));
-	    Z3_solver_assert(ctx, base,
-			     Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
-      }
-      Z3_solver_pop(ctx, base, 1);
-
-      if (!exhausted || out.empty()) {
-	    out.clear();
+      uint64_t top = width == 64 ? UINT64_MAX : ((uint64_t)1 << width) - 1;
+      if (!z3_walk_feasible_(ctx, base, var, width, top, cap, out))
 	    return false;
-      }
-      return true;
+      return !out.empty();
 }
 
 /* Sample an exact constrained randc scalar without materializing its whole

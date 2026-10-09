@@ -115,6 +115,7 @@ alignment, implications); 1,000 calls took 76 s (76 ms per call).
 | A 32-bit variable with more legal values than the enumerators handle was chosen by minimizing `x ^ random_target` in Z3 `optimize`. That is not uniform: for `x inside {0, [32'h1000:32'h1FFF]}` it returned `x == 0` in 208 of 400 draws (uniform: about 0.1). | The existing exact interval sampler was gated to widths above 32 bits and to classes with a single rand variable. It now applies to any width when the variable is an isolated factor (its hard clauses mention no other free variable), which the sampler proves before use. | Correct distribution (IEEE 1800-2017 18.5.10 / 2023 18.5.9); 0 of 400 above. |
 | That sampler issued every query against the whole problem and walked every interval, so a strided set (`addr[1:0] == 0`) exceeded its query budget and `randomize()` failed. | Legality tests evaluate the isolated factor at a constant through one reusable model; range queries use a solver holding only the factor; proposals are drawn uniformly from the legal hull `[min, max]` (exact rejection sampling) before any interval walk. | Strided and clustered domains sample in a few checks. |
 | Sparse enumeration collected 65 models and then discarded them whenever a variable had more than 64 legal values. | A cheap exact proof (more than 64 legal values found by evaluating the isolated factor near one model value) skips that probe. Identical outcome. | Same results, fewer solver calls. |
+| A wide or randc variable coupled to another variable was enumerated by blocking each model value; every `get_model` then re-checked all earlier blocking clauses, so cost grew quadratically (an 11-bit randc with 1,025 legal values took 0.73 s per `randomize()`). | The same model-guided range walk, capped at the same count, with the set returned in ascending order. The legal set is identical; picks no longer depend on Z3's model order, so they are the same across Z3 versions. | 5.9 s → 1.4 s for 8 calls of the coupled-randc reducer, same values. |
 | Small domains (up to 1,024 values) were probed one value at a time (256 checks for an 8-bit variable). | Model-guided interval splitting returns the same ascending list with about 2F+1 checks for F legal values. | Same results. |
 
 Result: 76 s → 25 s for 1,000 `randomize_dv_txn` calls, with the address
@@ -129,6 +130,8 @@ pins the distribution; the unmodified runtime fails it.
 | Keep freed memory (mallopt) around `Z3_mk_context` | 2.97 → 2.75 ms per context | not adopted, 7% |
 | Build the next fresh Z3 context on a background thread | 3.0 → 3.6–4.8 ms per iteration | rejected, slower (lock contention) |
 | Reuse one Z3 context across calls | not built | rejected: values picked from model-ordered lists would depend on unrelated earlier randomizations, breaking random stability (18.14) |
+| Delete each Z3 context on a background thread | 3.0 → 3.5 ms per call | rejected, slower (allocator contention) |
+| `auto_config=false` context parameter | 2.9 → 2.5 ms per context | not adopted: it changes Z3's solver configuration, so models and hard-problem behavior can change |
 
 `Z3_mk_context` remains about 2.7 ms per `randomize()` that reaches Z3 (one
 fresh context per call keeps calls independent). It dominates the
