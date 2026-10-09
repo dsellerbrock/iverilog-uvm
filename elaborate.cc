@@ -16230,7 +16230,7 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 		     && (method_name == perm_string::literal("put")
 			 || method_name == perm_string::literal("try_put")))
 		  argv[idx + 1] = elab_typed_mailbox_input(
-			des, scope, method_name, args[idx]);
+			des, scope, method_name, args[idx], class_type);
 	    else
 		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
 							idx, args[idx]);
@@ -16263,10 +16263,10 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
       if (class_type && class_type->is_typed_mailbox()
 	  && mailbox_message_method && nparms == 1
 	  && (mailbox_ref_output || argv[1])
-	  && !class_type->mailbox_message_type_equivalent(
-		mailbox_ref_output
-		      ? netassign_type_for_equivalence(mailbox_ref_output)
-		      : netexpr_type_for_equivalence(argv[1]))) {
+	  && !(mailbox_ref_output
+	       ? class_type->mailbox_message_type_equivalent(
+		       netassign_type_for_equivalence(mailbox_ref_output))
+	       : typed_mailbox_put_compatible(class_type, argv[1]))) {
 	    cerr << get_fileline() << ": error: Typed mailbox method `"
 		 << method_name << "' argument must have a type equivalent to the "
 		    "mailbox message type (IEEE 1800-2017/2023 15.4.9)."

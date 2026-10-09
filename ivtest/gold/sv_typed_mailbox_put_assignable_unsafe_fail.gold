@@ -1,0 +1,5 @@
+./ivltests/sv_typed_mailbox_put_assignable_unsafe_fail.v:13: error: Typed mailbox method `put' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_put_assignable_unsafe_fail.v:14: error: Typed mailbox method `try_put' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_put_assignable_unsafe_fail.v:15: error: Typed mailbox method `put' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_put_assignable_unsafe_fail.v:16: error: Typed mailbox method `get' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+4 error(s) during elaboration.

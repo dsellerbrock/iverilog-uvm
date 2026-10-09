@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_typed_mailbox_put_assignable_unsafe_fail.v",
+  "iverilog-args": ["-g2017", "-gcommercial-unsafe", "-s", "main"],
+  "gold": "sv_typed_mailbox_put_assignable_unsafe_fail"
+}
