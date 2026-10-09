@@ -14239,6 +14239,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       size_t depth = 0;                // dims consumed by leading bit indices
       unsigned wid = 0;
       bool done = false;
+      bool runtime_tail_select = false;
       NetExpr*inner_off = nullptr;     // run-time base inside the selected element
       unsigned element_wid = 0;        // bits of that element
 
@@ -14358,6 +14359,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 			inner_off = (stride[depth] == 1)
 			      ? c : scale_index_to_bits(c, (unsigned long)stride[depth], *li);
 			element_wid = (unsigned)(dims[depth].width() * stride[depth]);
+			runtime_tail_select = true;
 		  } else
 			add_off(c, stride[depth]);
 		  wid = (unsigned)(w * stride[depth]);
@@ -14414,13 +14416,13 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	 * address semantics before converting its result to the enum base type
 	 * (11.5.1). Keep that conversion local to this exact enum carrier; a broad
 	 * target-side BOOL cast also changes 4-state parameter selects. */
-      ivl_type_t select_type = enum_bool
+	ivl_type_t select_type = enum_bool || runtime_tail_select
 	    ? ivl_type_t(new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0))
 	    : ivl_type_t(res_type);
       NetESelect*sel = new NetESelect(prop_expr, base, wid, select_type);
       sel->set_line(*li);
-      out_type = res_type;
-      if (enum_bool) {
+	out_type = runtime_tail_select ? select_type : res_type;
+	if (enum_bool && !runtime_tail_select) {
 	    NetECast*cast = new NetECast('2', sel, wid, false, res_type);
 	    cast->set_line(*li);
 	    return cast;

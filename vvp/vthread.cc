@@ -31121,7 +31121,9 @@ bool of_ASSIGN_PROP_V_BITSUX(vthread_t thr, vvp_code_t cp)
  *
  * As %store/prop/v/bits, but the destination bit offset is taken at run
  * time from index register <off_reg> (thr->words[off_reg]) rather than
- * being an assembled literal. This is the read-modify-write path for a
+ * being an assembled literal. A zero <wid> uses the actual vec4 stack width
+ * after a dynamic carrier has clipped a partially out-of-range selection.
+ * This is the read-modify-write path for a
  * VARIABLE bit-select or indexed part-select of a vector property, e.g.
  * `obj.m_bits[i +: 4] = ...`. The /x spelling interprets the register as
  * signed; /ux interprets all 64 bits as an unsigned offset. Bits that fall
@@ -31143,6 +31145,8 @@ static bool store_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
 
       const vvp_vector4_t*top = thr->safe_peek_vec4(0);
       unsigned wid = indexed && top ? top->size() : cp->bit_idx[1];
+      if (!indexed && wid == 0 && top)
+	    wid = top->size();
       if ((indexed && idx_reg >= vthread_s::WORDS_COUNT)
           || off_reg >= vthread_s::WORDS_COUNT || wid == 0 || !top
           || top->size() < wid || thr->object_stack_size() < 1) {

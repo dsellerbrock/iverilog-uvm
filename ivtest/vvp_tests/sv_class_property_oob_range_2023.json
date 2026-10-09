@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_class_property_oob_range.v",
+  "iverilog-args": ["-g2023", "-gstrict-expr-width", "-s", "sv_class_property_oob_range"],
+  "gold": "sv_class_property_oob_range"
+}

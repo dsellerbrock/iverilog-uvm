@@ -164,6 +164,31 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   historical and were not rerun after this merge. No CI qualification is
   claimed.
 
+### SV-CLASS-PACKED-PARTIAL-RANGE-CLIPPING (#495)
+
+- **State:** Implementation and paired tests are locally focused-tested on
+  `agent/ieee-batch-499-495-20261009`, after merging latest `origin/main` at
+  `4b3f342`. No full-suite or CI qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §11.5.1 requires partially out-of-range
+  reads to fill only missing bits with X and writes to update only in-range
+  bits. Cover blocking, compound, and nonblocking writes, one index evaluation,
+  and ascending/descending ranges in both editions.
+- **Root cause and scope:** Flattening a dynamic class-property select loses
+  the selected inner packed carrier, so clipping can reject a legal overlap or
+  alias an adjacent element. Keep the repair and paired tests limited to
+  dynamic packed class-property ranges. See [DD-103](DISCOVERED_DEBT.md#dd-103--exact-clipping-for-a-dynamic-inner-packed-class-property-range)
+  and [issue #495](https://github.com/dsellerbrock/iverilog-uvm/issues/495).
+- **Validation:** Guarded serial macOS build (60 s) and install (5 s) passed;
+  free RAM stayed at 67–68%. Paired focused legacy and JSON/VVP suites pass
+  18/18 each in strict 2017/2023, covering partial and wholly out-of-range
+  reads/writes, X indices, truncation, both directions, blocking/compound/NBA
+  writes, and single-evaluation checks for reads and all three write forms.
+  Linux Docker full-build attempts did not complete because the out-of-tree
+  build encountered host-object/VPATH and read-only-source setup errors; no
+  Linux pass is claimed.
+- **Next:** Commit the verified #495 change and continue the five-fix IEEE
+  batch. Do not open its main-based PR before five fixes are verified.
+
 ### SV23-REF-STATIC-TF-ARGUMENTS — IEEE 1800-2023 `ref static` arguments
 
 - **State:** Implemented in PR batch #464, based on refreshed `origin/main`

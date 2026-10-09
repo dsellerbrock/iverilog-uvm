@@ -2,18 +2,18 @@ campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-batch-499-495-20261009"
-checkpoint_head: "2d02bb1955141765b2b51b7b3112ed42ef312be5"
+checkpoint_head: "c2f2964827803539e3e8efe0ee9ae7e0593678a9"
 active_ieee_lane:
-  blocker: "IEEE-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)"
-  issue: "#497; current batch contains local fixes for #499 and #497 (2 of 5 actual fixes)"
+  blocker: "IEEE-CLASS-PACKED-PARTIAL-RANGE-CLIPPING (#495)"
+  issue: "#495; #499 and #497 are locally completed, #495 now passes focused validation (3 of 5 candidate fixes)"
   phase: "FOCUSED_TESTED"
-  baseline_head: "127b887dfdc09283ab0187a2e618421dee3d5dcc"
-  reproducer: "`value = p::c::get()` failed in strict 2017/2023 before the parser production; the paired call reducer now passes."
-  standards: "IEEE 1800-2017/2023 §§8.23 and 26.3; local standards PDFs checked."
-  root_cause: "parse.y lacked the direct package_type_identifier::method(args) expression production; it now preserves package and type-parameter metadata."
-  scope: "Issue #497 expression support and paired legacy/JSON-VVP focus lists only."
-  next: "After committing the exact #497 focus evidence, activate #495 from the preserved stash. Do not open a batch PR until five actual fixes are integrated."
-  boundary: "Guarded macOS ARM64 build/install and paired focus pass locally. No post-merge full suite or CI qualification is claimed. Historical pre-merge totals remain historical."
+  baseline_head: "4b3f3424c440aca6af92153b6860a7253b925234"
+  reproducer: "DD-103: a dynamic inner packed class-property part-select crossing its declared range is rejected or aliases adjacent outer elements; partial bits must clip per §11.5.1."
+  standards: "IEEE 1800-2017/2023 §11.5.1."
+  root_cause: "Flattened class-property offsets lose the selected inner packed carrier; lvalue clipping must retain carrier bounds across blocking, compound, and nonblocking paths."
+  scope: "Issue #495 class-property dynamic packed range lowering and paired regressions only."
+  next: "Review all acceptance cases against the reapplied patch; add any missing blocking/compound/NBA, unknown-index, wholly-out-of-range, or direction tests; then run a guarded serial source build and focused legacy/JSON suites. Do not open a batch PR until five fixes are verified."
+  boundary: "Latest origin/main was merged as c2f296482. Guarded macOS build/install and paired focused tests pass. Linux full-build attempts did not complete because the out-of-tree build setup encountered VPATH/read-only source issues; no Linux or CI pass is claimed. No full suite was run."
 previous_batch_pr464:
   head: "870442199088b468b681983a7cbbe9f653bebeb3 (pre-follow-up exact CI head)"
   changes: "Issues #414 packed-select bounds, #449 ref static, and #458 IEEE 1800-2023 $timeunit/$timeprecision, plus local fixes for their observed Windows-export and property-diagnostic regressions."
@@ -653,11 +653,11 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "git diff --check"
+next_command: "Run final diff/YAML checks, commit the #495 implementation, paired tests, and evidence, then select the next open IEEE issue."
 current_execution_checkpoint:
-  active_work_item: "IEEE-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)"
-  source_head: "2d02bb1955141765b2b51b7b3112ed42ef312be5"
+  active_work_item: "IEEE-CLASS-PACKED-PARTIAL-RANGE-CLIPPING (#495)"
+  source_head: "c2f2964827803539e3e8efe0ee9ae7e0593678a9"
   phase: "FOCUSED_TESTED"
-  completed: "Latest origin/main 127b887 was merged with a two-parent merge commit. Guarded serial ARM64 build/install passed; Bison remained 574 SR/1,122 RR. After expanding the focus manifests to both editions and the expression-negative path, legacy passes 11/11 and JSON/VVP 12/12. The test-list and record updates are in the worktree."
-  next_action: "Run git diff --check, stage only the #497 focus lists and current status records, commit them, then activate #495 from stash@{0}. No PR until five actual fixes are integrated."
+  completed: "Latest origin/main 4b3f342 was merged with a two-parent commit. The #495 patch passes guarded serial macOS build/install and paired focus 18/18 in legacy and JSON/VVP. A Linux out-of-tree build attempt did not complete due local build setup issues and is not counted as a pass. Bot workflow unit test passes locally; its post-merge sync run was queued at last check."
+  next_action: "Run final diff/YAML checks, commit #495 implementation and evidence, and push the batch branch; then select the next open IEEE issue."
   next_command: "git diff --check"
