@@ -2,7 +2,7 @@ campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-sparse-coupled-sampling-20261009"
-checkpoint_head: "7975acc6"
+checkpoint_head: "713ec580bcabf69b6c931732e725f74d9b84c0bd"
 active_ieee_lane:
   blocker: "CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS (#416)"
   issue: "#416 is OPEN; draft PR #526 now exactly samples all finite tuple cardinalities for eligible connected direct-scalar components. Wider, soft, and container shapes remain open."
@@ -663,7 +663,7 @@ preservation:
 next_command: "Keep draft PR #526 open; inspect CI only if a failure is reported."
 current_execution_checkpoint:
   active_work_item: "CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS (#416)"
-  source_head: "7975acc6cc9e09663085d5bfc3df4fff67ed9169"
+  source_head: "713ec580bcabf69b6c931732e725f74d9b84c0bd"
   phase: "DRAFT_PR_OPEN"
   completed: "Built and installed the branch. The reducer turns the 64,26,30/120 baseline failure into passing paired 2017/2023 checks. A pre-patch 2017 run selected the singleton of a 4,097-tuple component 3/4 times; the exact sampler now enumerates projected tuples with a finite-domain bound and reservoir-samples them. Sparse legacy and JSON/VVP each pass 2/2, as do adjacent sampling-failure controls. Draft PR #526 remains open. No CI status was checked."
   next_action: "Keep #526 in draft and #416 open while wider, soft, and container shapes remain unsupported; address a CI failure only if one is reported."
