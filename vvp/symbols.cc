@@ -100,11 +100,12 @@ symbol_table_s::symbol_table_s()
 /*
  * Return the slot that holds KEY, or the empty slot where it belongs.
  */
-symbol_table_s::entry_s* symbol_table_s::find_slot_(const char*key)
+symbol_table_s::entry_s* symbol_table_s::find_slot_(const char*key, size_t hash)
 {
       size_t mask = table_size_ - 1;
-      size_t idx = symbol_key_hash_(key) & mask;
-      while (table_[idx].key && strcmp(table_[idx].key, key) != 0)
+      size_t idx = hash & mask;
+      while (table_[idx].key && (table_[idx].hash != hash
+				 || strcmp(table_[idx].key, key) != 0))
 	    idx = (idx + 1) & mask;
       return table_ + idx;
 }
@@ -122,16 +123,18 @@ void symbol_table_s::grow_()
       for (size_t idx = 0 ; idx < old_size ; idx += 1) {
 	    if (old_table[idx].key == 0)
 		  continue;
-	    *find_slot_(old_table[idx].key) = old_table[idx];
+	    *find_slot_(old_table[idx].key, old_table[idx].hash) = old_table[idx];
       }
       delete[]old_table;
 }
 
 void symbol_table_s::sym_set_value(const char*key, symbol_value_t val)
 {
-      entry_s*slot = find_slot_(key);
+      size_t hash = symbol_key_hash_(key);
+      entry_s*slot = find_slot_(key, hash);
       if (slot->key == 0) {
 	    slot->key = key_strdup_(key);
+	    slot->hash = hash;
 	    table_used_ += 1;
 	    slot->val = val;
 	      /* Keep the table at most half full. */
@@ -144,7 +147,8 @@ void symbol_table_s::sym_set_value(const char*key, symbol_value_t val)
 
 symbol_value_t symbol_table_s::sym_get_value(const char*key)
 {
-      entry_s*slot = find_slot_(key);
+      size_t hash = symbol_key_hash_(key);
+      entry_s*slot = find_slot_(key, hash);
       if (slot->key)
 	    return slot->val;
 
@@ -153,6 +157,7 @@ symbol_value_t symbol_table_s::sym_get_value(const char*key)
       symbol_value_t def;
       def.ptr = 0;
       slot->key = key_strdup_(key);
+      slot->hash = hash;
       slot->val = def;
       table_used_ += 1;
       if (2 * table_used_ > table_size_)
