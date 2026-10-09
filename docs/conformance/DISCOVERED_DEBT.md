@@ -4328,5 +4328,5 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   gate was stopped with exit 143 after 16 minutes while
   `sv_randomize_global_uniform` was still consuming CPU; it has no aggregate
   result. PR CI has not yet verified the repair.
-- **Status:** Repair is pending review in the #522 PR. Do not call it
+- **Status:** Repair is pending review in draft PR #523. Do not call it
   CI-qualified until all required checks pass on that exact PR head.

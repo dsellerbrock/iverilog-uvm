@@ -3906,7 +3906,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   const parmvalue_t*leading_type_args = 0,
 						   bool*illegal_bare_generic = 0,
 						   perm_string*nonclass_typedef = 0,
-						   bool declaration_probe = false)
+						   bool declaration_probe = false,
+						   bool*illegal_nonstatic = 0)
 {
       static int trace_class_method = -1;
       auto scope_text = [](const NetScope*use_scope) -> std::string {
@@ -3929,6 +3930,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 	    *illegal_bare_generic = false;
       if (nonclass_typedef)
 	    *nonclass_typedef = perm_string();
+      if (illegal_nonstatic)
+	    *illegal_nonstatic = false;
 
       pform_name_t type_path = path.name;
       perm_string method_name = peek_tail_name(type_path);
@@ -4012,6 +4015,34 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       }
       if (!method_scope || method_scope->type() != NetScope::FUNC)
 	    return nullptr;
+
+      if (illegal_nonstatic && path.package) {
+	    const PTaskFunc*definition = method_scope->func_pform();
+	    if (definition && !definition->method_qualifiers().test_static()) {
+		  const netclass_t*caller = scope->get_class_scope()
+			? scope->get_class_scope()->class_def() : nullptr;
+		  bool implicit_this = false;
+		  for (const netclass_t*cur = caller; cur; cur = cur->get_super())
+			if (cur == class_type) {
+			      implicit_this = true;
+			      break;
+			}
+		  for (NetScope*cur = scope; implicit_this && cur; cur = cur->parent()) {
+			  const PTaskFunc*caller_def = cur->func_pform();
+			  if (!caller_def) caller_def = cur->task_pform();
+			  if (!caller_def) continue;
+			  if (caller_def->method_qualifiers().test_static())
+				implicit_this = false;
+			  break;
+		  }
+		  if (implicit_this && !find_implicit_this_handle(des, scope))
+			implicit_this = false;
+		  if (!implicit_this) {
+			  *illegal_nonstatic = true;
+			  return nullptr;
+		  }
+	    }
+      }
 
       return method_scope;
 }
@@ -13244,7 +13275,7 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		    // itself be another struct.
 		  if (const netenum_t*cur_enum =
 			dynamic_cast<const netenum_t*>(cur_type)) {
-			if (!member_comp.index.empty()) {
+		  if (!member_comp.index.empty()) {
 			      cerr << li->get_fileline() << ": error: enumeration "
 				      "method name cannot be indexed." << endl;
 			      des->errors += 1;
@@ -13343,11 +13374,11 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		    // dropped the whole assignment or passed a blank argument,
 		    // so every `s.arr[i]' read back as nothing at all while a
 		    // scalar member beside it was correct.
-		  if (!member_comp.index.empty()) {
+			if (!member_comp.index.empty()) {
 			if (const netuarray_t*member_ua =
 				  dynamic_cast<const netuarray_t*>(member_type)) {
 			      const auto&dims = member_ua->static_dimensions();
-			      if (dims.size() != member_comp.index.size()) {
+			      if (member_comp.index.size() < dims.size()) {
 				    cerr << li->get_fileline() << ": error: "
 					 << "Got " << member_comp.index.size()
 					 << " indices, expecting " << dims.size()
@@ -13357,8 +13388,14 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 				    delete base_expr;
 				    return 0;
 			      }
+			      auto packed_begin = member_comp.index.begin();
+			      std::advance(packed_begin, dims.size());
+			      std::list<index_component_t> array_indices(
+				    member_comp.index.begin(), packed_begin);
+			      std::list<index_component_t> packed_indices(
+				    packed_begin, member_comp.index.end());
 		      NetExpr*widx = make_canonical_property_index_(
-			    des, scope, li, member_comp.index,
+			    des, scope, li, array_indices,
 			    member_ua, false);
 			      if (!widx) {
 				    delete base_expr;
@@ -13369,6 +13406,34 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 			      iprop->set_line(*li);
 			      base_expr = iprop;
 			      cur_type = member_ua->element_type();
+			      // Leading indices select the unpacked element; any remainder
+			      // selects bits from that element's packed value.
+			      if (!packed_indices.empty()) {
+				    const netvector_t*mvec =
+					  dynamic_cast<const netvector_t*>(cur_type);
+				    if (!mvec) {
+					  cerr << li->get_fileline() << ": error: packed select after "
+					       << "unpacked struct member " << member_comp.name
+					       << " requires a packed vector element." << endl;
+					  des->errors += 1;
+					  delete base_expr;
+					  return 0;
+				    }
+				    ivl_type_t sel_type = nullptr;
+				    NetExpr*sel = make_vector_property_select_(
+					  des, scope, li, base_expr, mvec,
+					  packed_indices, sel_type);
+				    if (!sel) {
+					  cerr << li->get_fileline() << ": sorry: this form of select "
+					       << "on struct member " << member_comp.name
+					       << " is not yet supported." << endl;
+					  des->errors += 1;
+					  delete base_expr;
+					  return 0;
+				    }
+				    base_expr = sel;
+				    cur_type = sel_type;
+			      }
 			      continue;
 			}
 
@@ -14174,6 +14239,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
       size_t depth = 0;                // dims consumed by leading bit indices
       unsigned wid = 0;
       bool done = false;
+      bool runtime_tail_select = false;
       NetExpr*inner_off = nullptr;     // run-time base inside the selected element
       unsigned element_wid = 0;        // bits of that element
 
@@ -14293,6 +14359,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 			inner_off = (stride[depth] == 1)
 			      ? c : scale_index_to_bits(c, (unsigned long)stride[depth], *li);
 			element_wid = (unsigned)(dims[depth].width() * stride[depth]);
+			runtime_tail_select = true;
 		  } else
 			add_off(c, stride[depth]);
 		  wid = (unsigned)(w * stride[depth]);
@@ -14349,13 +14416,13 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 	 * address semantics before converting its result to the enum base type
 	 * (11.5.1). Keep that conversion local to this exact enum carrier; a broad
 	 * target-side BOOL cast also changes 4-state parameter selects. */
-      ivl_type_t select_type = enum_bool
+	ivl_type_t select_type = enum_bool || runtime_tail_select
 	    ? ivl_type_t(new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0))
 	    : ivl_type_t(res_type);
       NetESelect*sel = new NetESelect(prop_expr, base, wid, select_type);
       sel->set_line(*li);
-      out_type = res_type;
-      if (enum_bool) {
+	out_type = runtime_tail_select ? select_type : res_type;
+	if (enum_bool && !runtime_tail_select) {
 	    NetECast*cast = new NetECast('2', sel, wid, false, res_type);
 	    cast->set_line(*li);
 	    return cast;
@@ -16878,13 +16945,20 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
       NetScope*scoped_static_func = nullptr;
       bool illegal_bare_generic = false;
+      bool illegal_nonstatic = false;
       perm_string nonclass_typedef;
       bool scoped_type_call_candidate = path_.name.size() >= 2
 	    && (leading_type_args() || !search_flag || search_results.is_scope());
       if (scoped_type_call_candidate) {
 	    scoped_static_func = resolve_scoped_class_method_func_(
 		  des, scope, path_, leading_type_args(), &illegal_bare_generic,
-		  &nonclass_typedef);
+		  &nonclass_typedef, false, &illegal_nonstatic);
+	    if (illegal_nonstatic) {
+		  cerr << get_fileline() << ": error: Non-static method `"
+		       << peek_tail_name(path_) << "' requires an object receiver." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    if (!nonclass_typedef.nil()) {
 		  if (!bare_generic_scope_error_reported_) {
 			report_nonclass_typedef_class_scope_(

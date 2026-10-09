@@ -1786,6 +1786,12 @@ bool check_packed_property_tail_range(
 		  : base_inside(static_cast<int64_t>(first_low))
 		    && base_inside(static_cast<int64_t>(first_high));
       }
+      if (!inside && runtime_checked && !first_ok
+	  && select.sel != index_component_t::SEL_PART) {
+	    /* A caller with a carrier can preserve partial overlap at run time. */
+	    *runtime_checked = true;
+	    return true;
+      }
       if (!inside)
 	    return diagnose("sorry: packed class-property range crosses its "
 			    "declared packed dimension; exact partial "
@@ -3753,6 +3759,24 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
 		      return false;
 		}
 		unit_count = (unsigned long)w;
+		if (k == 1) {
+		      NetExpr*base = elab_and_eval(
+			    des, scope, tail_back.msb, -1, false);
+		      if (!base)
+			    return false;
+		      unsigned long stride = 1;
+		      netranges_t::const_iterator inner = tdim;
+		      for (++inner; inner != pdims.end(); ++inner)
+			    stride *= inner->width();
+		      off_expr = normalize_variable_base(
+			    base, tdim->get_msb(), tdim->get_lsb(), unit_count,
+			    tail_back.sel == index_component_t::SEL_IDX_UP);
+		      if (stride > 1)
+			    off_expr = scale_index_to_bits(off_expr, stride, *loc);
+		      sel_wid = unit_count * stride;
+		      eval_expr(off_expr, -1);
+		      return true;
+		}
 
 		  // The lowest-canonical-position DECLARED index of the
 		  // covered range [b..b+w-1] (+:) or [b-w+1..b] (-:):

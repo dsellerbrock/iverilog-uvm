@@ -1,39 +1,39 @@
-# Compiler campaign handoff — 2026-10-08
+# Compiler campaign handoff — 2026-10-09
 
-## Active task
+## Active blocker
 
-Issue #468: accept escaped `text_macro_identifier` names in ordinary
-`ifdef`, `ifndef`, and `elsif` conditions under IEEE 1800-2017 and 1800-2023.
-The work is on `agent/ieee-ifdef-parenthesized-20261008`, which updates draft
-PR #467 to `main`; #460 remains a separately tracked change in that PR.
+Issue #495: clip partially out-of-range dynamic packed class-property ranges
+under IEEE 1800-2017/2023 §11.5.1. Work is on
+`agent/ieee-batch-499-495-20261009`.
 
-The committed change recognizes escaped names in the four plain conditional
-states, requires the whitespace terminator without consuming it, and removes
-the leading backslash for macro lookup. Punctuation inside the name is
-preserved. The no-terminator case remains an error. No parser grammar change.
+Latest `origin/main` (`4b3f3424c440aca6af92153b6860a7253b925234`) is merged
+with two parents as `c2f2964827803539e3e8efe0ee9ae7e0593678a9`. The preserved
+#495 patch is reapplied; `stash@{0}` remains intact until the commit is safely
+pushed.
 
-## Verification
+## Validation
 
-- Forced `make -B -C ivlpp -j2` and `make -C ivlpp install` pass. Flex emits
-  its two existing misleading-indentation warnings in generated scanner code.
-- Issue #468 legacy focus: 3/3; JSON focus: 3/3.
-- Neighboring macro-definition tests: legacy 28/28; JSON 8/8.
-- Issue #460 parenthesized-expression tests: legacy 3/3; JSON 3/3.
-- These are local macOS results. Full ivtest/UVM gates and exact-head CI have
-  not been run for the current uncommitted #468 increment.
+- Guarded serial macOS build: pass, 60 seconds; install: pass, 5 seconds.
+- Free RAM stayed at 67–68% with the 34% minimum-free guard.
+- Paired focused class-property suites: legacy 18/18 and JSON/VVP 18/18.
+  Both editions cover clipping, X behavior, truncation, both directions,
+  blocking/compound/NBA writes, and once-only index evaluation.
+- Linux full build did not complete. The first out-of-tree attempt linked the
+  top-level compiler but hit host-object/VPATH failure in `ivlpp`; forced
+  attempts hit read-only source regeneration and an existing `dep` directory.
+  No Linux or CI pass is claimed.
+- No full suite was run.
 
-The baseline failure is recorded in issue #468. The applicable standards
-clauses are 1800-2017/2023 §22.5 Syntax 22-5 and §5.6.1.
+The batch has three locally verified candidate fixes (#499, #497, #495). Keep
+the batch PR closed until five fixes are verified. After committing and pushing
+#495, select the next open IEEE issue from the existing queue.
 
-## CI and next action
+## PR sync bot
 
-PR #467 is open and draft. Use its current description or the conformance
-index for the exact head and latest CI run. Avoid repeat polling. Investigate
-any reported failure, and do not qualify or merge until all required checks
-for the exact head are green.
+PR #519 was merged into main as `4b3f3424c440aca6af92153b6860a7253b925234`.
+Its conflict-resolution unit test passes locally. The post-merge sync workflow
+run was queued at the last check; do not repeatedly poll it.
 
-## Worktrees
-
-Three checkouts remain. Reuse the current feature checkout; do not create a
-new worktree. Preserve the clean census checkout and canonical `main` checkout
-with the shared graph.
+Three checkouts remain. Keep the separate Caliptra BFM checkout and its live
+processes untouched; the retained shared-graph checkout has expected untracked
+`graphify-out` files.
