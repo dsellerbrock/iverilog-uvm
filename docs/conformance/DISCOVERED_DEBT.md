@@ -3856,15 +3856,15 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-086 — unpacked-array output port connected to a slice of a 2-D unpacked array reads X
 
-- **Issue status:** [OPEN #492](https://github.com/dsellerbrock/iverilog-uvm/issues/492).
+- **Issue status:** [OPEN #492](https://github.com/dsellerbrock/iverilog-uvm/issues/492); implementation is locally focused-tested on the batch branch, awaiting a main-based PR and CI.
 
 - **Discovered while working:** VVP-HOTPATH-PERF (Caliptra/Adams Bridge single-core performance assessment; no conformance ticket).
 - **Observation:** `m u0(.s(s[0]))`, where `s` is `logic [1:0] s [2][3:0]` and the port is `output logic [1:0] s [3:0]` driven by `always_comb`, leaves every `s[0][k]` at X. Connecting a whole one-dimensional array (`.s(s1)`) works. No diagnostic is issued. The first Adams Bridge A2B reducer hit this and reported an all-X output hash.
-- **File/function:** Port binding of unpacked-array slices; exact elaboration path not traced.
-- **Possible clause:** IEEE 1800-2017/2023 §7.6 (unpacked array assignment compatibility) and §23.3.3 (port connection rules); review exact wording before implementation.
+- **File/function:** `elaborate_unpacked_port` now uses `PEIdent::elaborate_lnet` for identifier output actuals and checks unpacked dimensions and element types before connecting the port.
+- **Standard basis:** IEEE 1800-2017/2023 §7.6 and §23.3.3.5; compatible unpacked arrays require matching dimension counts and sizes, and elements correspond left-to-right.
 - **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/unpacked_slice_output_port.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log): `xx xx xx xx | 01 10` in both strict editions, identical on the unmodified 7a04009f baseline.
-- **Reproducer status:** confirmed, paired 2017/2023.
-- **Triage status:** untriaged. The performance reducer now uses per-instance arrays.
+- **Reproducer status:** baseline failure confirmed in paired strict 2017/2023. The original reducer now prints `01 00 10 zz | 01 10` in both editions; whole-array and selected-row mappings pass.
+- **Triage status:** locally fixed on the IEEE batch branch. Focused legacy and JSON/VVP lists pass 6/6 each; serial macOS build/install and `make check` pass. No CI qualification yet. The performance reducer now uses per-instance arrays.
 
 ### DD-087 — out-of-range part select of a two-state vector leaves X in a two-state variable
 
