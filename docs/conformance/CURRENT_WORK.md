@@ -1,5 +1,19 @@
 # Current evidence and work
 
+## Current IEEE 1800 focus — 2026-10-09: issue #421 packed constraint select
+
+**Locally qualified bounded subset:** class constraints now support an
+in-range symbolic index into a one-dimensional packed array of packed structs,
+followed by unindexed packed-member reads. The paired strict 2017/2023 tests
+cover both indices, exact selected values, and the four-state out-of-range
+failure. Legacy passes 2/2 and JSON/VVP passes 4/4, including the prior packed
+array neighbor, in ordinary and strict-expression-width modes. A fresh local
+build and install passed. No full suite or CI checks were run. Other nested
+packed-select forms remain open; see [focused evidence](../../evidence/ieee-packed-symbolic-nested-select-20261009/README.md).
+
+**Next:** review and publish the bounded #421 change as a draft PR targeting
+`main`; leave CI unchecked unless a failure is reported.
+
 ## Current IEEE 1800 focus — 2026-10-09: PR #466 refresh
 
 **Associative-array value parameters — refreshed on latest main.**

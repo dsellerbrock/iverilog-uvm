@@ -5,6 +5,20 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 9, 2026 — symbolic packed-array-of-struct constraint select
+
+IEEE 1800-2017/2023 §§7.4.1 and 11.5.1 define packed-array elements and
+expression-addressed packed selects; §18.3 demonstrates selected packed bits
+in class constraints and requires a solution when one exists. The local copies
+have materially equivalent wording for these rules. A bounded class-constraint
+case now solves a symbolic index into a one-dimensional packed array of packed
+structs, then constrains an unindexed packed member of the selected element.
+Paired focused legacy tests pass 2/2 and JSON/VVP tests pass 4/4 in both
+ordinary and strict-expression-width modes. Index 2 of a `[1:0]` array retains
+the four-state invalid-read failure. Other nested packed-select shapes and
+broad §18 qualification remain open. See the [focused evidence](../../../evidence/ieee-packed-symbolic-nested-select-20261009/README.md)
+and [issue #421](https://github.com/dsellerbrock/iverilog-uvm/issues/421).
+
 ### October 8, 2026 — Chapter 7 array locators and associative min/max
 
 IEEE 1800-2017/2023 §7.12.1 permits locator methods on unpacked arrays;
