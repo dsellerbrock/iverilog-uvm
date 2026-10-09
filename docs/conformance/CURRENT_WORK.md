@@ -1,6 +1,32 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus — 2026-10-09: PR #466 refresh
+## Current IEEE 1800 focus — 2026-10-09: sparse coupled sampling (#416)
+
+Issue [#416](https://github.com/dsellerbrock/iverilog-uvm/issues/416) remains
+OPEN. Work is based on refreshed `origin/main` at
+`c339b9f2287a743aeb7ab6de6528e8d34a4dd602`. The local 2017 §18.5.10 text and
+2023 §18.5.9 PDF both require uniform value combinations; the local 2017
+errata has no correction to this rule.
+
+The minimal three-tuple reducer produced `64,26,30/120` on refreshed main in
+both editions. The branch now enumerates eligible connected direct-scalar
+components after 64 rejected proposals, then samples uniformly from complete
+solution tuples up to 4,096 tuples. Wider components, pending soft constraints,
+arrays, and over-cap solution sets remain outside this exact path. The paired
+positive, UNSAT rollback, and over-cap legality controls pass 2/2 in the legacy
+runner and 2/2 in JSON/VVP. Adjacent sampling-failure controls pass 2/2 in each
+runner; the refreshed build/install passed.
+
+At the previous checkpoint, issue #415 was suspended with qualification
+pending. A fresh metadata read now shows [PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524)
+merged at its recorded head and issue #415 closed. Its retained worktree remains
+clean and untouched. CI was not checked, so qualification is unverified here.
+PR #525's sampler changes are included in the new baseline.
+
+**Next:** Finish final local review and evidence for #416, then prepare its
+draft PR. CI has not been checked; inspect it only if a failure is reported.
+
+## Previous IEEE 1800 focus — 2026-10-09: PR #466 refresh
 
 **Associative-array value parameters — refreshed on latest main.**
 IEEE 1800-2023 Annex A A.2.4/A.2.5 admits associative dimensions for

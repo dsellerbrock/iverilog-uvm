@@ -11220,6 +11220,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       vector<vector<Z3_ast> > uniform_joint_components;
       map<Z3_ast, unsigned> uniform_joint_property;
       map<Z3_ast, unsigned> uniform_joint_width;
+      set<Z3_ast> uniform_joint_direct_scalars;
       map<Z3_ast, vector<uint64_t> > uniform_joint_domains;
       map<Z3_ast, pair<unsigned,uint64_t> > uniform_joint_dynamic_size_weights;
       map<Z3_ast, uint64_t> uniform_joint_dynamic_size_minimum;
@@ -11247,6 +11248,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    active_uniform_vars.push_back(pv.var);
 	    uniform_joint_property[pv.var] = pv.idx;
 	    uniform_joint_width[pv.var] = pv.width;
+	    uniform_joint_direct_scalars.insert(pv.var);
       }
       if (uniform_joint_eligible) {
 	    for (const auto&ev : builder.elem_vars) {
@@ -11621,10 +11623,56 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  return fail_joint("the solver returned UNKNOWN before uniform joint sampling");
 	    for (const auto&component : uniform_joint_components) {
 		  // Sparse legal tuples can make rejection sampling take impractically
-		  // long. After the cap, let the existing solver path finish the
-		  // component; only sampled components receive the uniformity claim.
+		  // long. Keep rejection cheap for dense components, then enumerate small
+		  // direct-scalar tuple sets exactly before using the legacy fallback.
 		  static const unsigned uniform_joint_attempt_cap = 4096;
+		  static const unsigned uniform_joint_enumerate_after = 64;
+		  static const size_t uniform_joint_tuple_cap = 4096;
+		  static const char*const uniform_joint_tuple_overflow =
+			"the complete joint solution set exceeds the enumeration limit";
+		  // shortcut: exact tuple enumeration stops at 4,096 tuples; use symbolic
+		  // counting when larger sparse coupled components need exact draws.
+		  bool enumerate_direct_scalars = builder.pending_soft.empty();
+		  for (Z3_ast var : component)
+			if (!uniform_joint_direct_scalars.count(var)
+			    || uniform_joint_width.at(var) > 64)
+			      enumerate_direct_scalars = false;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
+			if (enumerate_direct_scalars
+			    && attempt == uniform_joint_enumerate_after) {
+			      vector<vector<uint64_t> > tuples;
+			      const char*reason = nullptr;
+			      Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
+				    component, uniform_joint_tuple_cap, tuples, reason);
+			      if (enumerated == Z3_L_TRUE) {
+				    // Keep tuple choice on an existing property-owned RNG stream.
+				    z3_rng_stream_t&rng = property_rng(
+					  uniform_joint_property.at(component.front()));
+				    const vector<uint64_t>&tuple = tuples[
+					  rng.uniform_index(tuples.size())];
+				    vector<Z3_ast> pins;
+				    pins.reserve(component.size());
+				    for (size_t i = 0; i < component.size(); ++i) {
+					  Z3_ast var = component[i];
+					  Z3_ast value = Z3_mk_unsigned_int64(ctx, tuple[i],
+						Z3_get_sort(ctx, var));
+					  pins.push_back(Z3_mk_eq(ctx, var, value));
+				    }
+				    for (size_t i = 0; i < component.size(); ++i) {
+					  Z3_solver_assert(ctx, base, pins[i]);
+					  Z3_optimize_assert(ctx, opt, pins[i]);
+					  uniform_sampled_vars.insert(component[i]);
+				    }
+				    break;
+			      }
+			      if (enumerated == Z3_L_FALSE)
+				    return fail_joint(
+					  "the joint solution set became empty during enumeration");
+			      if (enumerated == Z3_L_UNDEF
+				  && (!reason || strcmp(reason, uniform_joint_tuple_overflow) != 0))
+				    return fail_joint(reason ? reason
+					  : "joint tuple enumeration became indeterminate");
+			}
 			vector<Z3_ast> pins;
 			pins.reserve(component.size());
 			for (Z3_ast var : component) {

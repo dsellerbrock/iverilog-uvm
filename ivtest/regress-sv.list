@@ -2824,6 +2824,8 @@ sv_randomize_global_cycle_soft_priority_2023 normal,-g2023,-s,main ivltests gold
 # Bounded joint sampling and constraint prototype identity.
 sv_randomize_global_uniform normal,-g2017,-s,main ivltests gold=sv_randomize_global_uniform.gold
 sv_randomize_global_uniform_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_uniform.gold
+sv_randomize_sparse_coupled normal,-g2017,-s,main ivltests gold=sv_randomize_sparse_coupled.gold
+sv_randomize_sparse_coupled_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_sparse_coupled.gold
 sv_randomize_global_sampling_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_sampling_fail.gold
 sv_randomize_global_sampling_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_sampling_fail.gold
 sv_constraint_prototype_collision_fail CE,-g2017,-s,main ivltests gold=sv_constraint_prototype_collision_fail.gold

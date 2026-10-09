@@ -2495,6 +2495,26 @@ Fix 23 extends sparse wide-randc history to eligible graph-coupled direct scalar
 
 Fix 24 covers a different graph constraint shape: a wide `randc` child with no local constraint is now recognized when its parent constrains the child through an `r:` object path. The paired strict 2017/2023 regression completes a 65-value cycle, verifies parent-and-child rollback, and checks cycle reset. Unreferenced, over-cap, and aggregate controls still fail closed. Focused JSON and legacy harnesses pass 4/4 each; the full registered uniformity suites remain deferred to the ten-fix checkpoint. See the [revision evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md#parent-referenced-graph-randc-property-paths-fix-24).
 
+## 2026-10-09 sparse coupled direct-scalar sampling (#416)
+
+IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 remain **PARTIAL**. The
+local 2017 text and 2023 PDF require equal probability for legal value
+combinations; the 2017 errata has no correction to §18.5.10. On refreshed main,
+a three-tuple constraint with unequal branch sizes produced bins `64,26,30`
+in 120 draws in both editions.
+
+The current branch keeps rejection sampling for dense components. After 64
+rejected proposals, it enumerates an eligible connected direct-scalar component
+when all variables are at most 64 bits and no soft constraints are pending.
+Complete sets up to 4,096 tuples are sampled uniformly with the existing
+property-owned RNG. The paired sparse positive, UNSAT rollback, and 4,097-tuple
+boundary controls pass 2/2 in legacy and 2/2 in JSON/VVP; adjacent
+`sv_randomize_global_sampling_fail` controls pass 2/2 in each runner. The
+over-cap boundary checks legal output only, not uniformity. Larger solution
+sets and soft, wide, array, and member components remain outside this exact
+path. No full uniformity suite or CI run was performed for this increment.
+See the [revision-scoped evidence](../../../evidence/solve-before-array/sparse-coupled-uniform-sampling-20261009.md).
+
 ## 2026-10-08 IEEE 1800-2023 §22.5 parenthesized conditional expressions
 
 IEEE 1800-2017 §22.5 Syntax 22-5 permits only a `text_macro_identifier`
