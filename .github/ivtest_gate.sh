@@ -24,6 +24,13 @@ trap 'rm -rf "$WORK"' EXIT
 
 status=0
 
+# The standalone checks below default to $ROOT/local-install, which CI does
+# not have (it installs to the default prefix); test the PATH toolchain, as
+# the ivtest sweep does.
+IVERILOG=${IVERILOG:-$(command -v iverilog 2>/dev/null)}
+VVP=${VVP:-$(command -v vvp 2>/dev/null)}
+export IVERILOG VVP
+
 if ! python3 "$ROOT/tests/vvp_runtime/run_covgrp_exports.py"; then
     status=1
 fi

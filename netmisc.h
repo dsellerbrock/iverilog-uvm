@@ -621,7 +621,15 @@ extern NetExpr* elab_sys_task_arg(Design*des, NetScope*scope,
  * a string value. */
 extern NetExpr* elab_typed_mailbox_input(Design*des, NetScope*scope,
                                          perm_string method_name,
-                                         PExpr*pe);
+                                         PExpr*pe,
+                                         const netclass_t*mailbox);
+/* IEEE 1800-2017/2023 15.4.9 requires put/try_put arguments of a type
+ * equivalent to the mailbox type. Under -gcommercial-unsafe, accept what
+ * commercial simulators accept for this input argument: for a class T, null or
+ * a handle of T or a class derived from T; for an integral or real T, any
+ * integral or real value (elab_typed_mailbox_input converts it to T). */
+extern bool typed_mailbox_put_compatible(const netclass_t*mailbox,
+                                         const NetExpr*actual);
 /*
  * This function elaborates an expression as if it is for the r-value
  * of an assignment, The lv_type and lv_width are the type and width

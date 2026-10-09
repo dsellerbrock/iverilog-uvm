@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_randomize_isolated_wide_uniform.v",
+  "iverilog-args": ["-g2017", "-s", "main"]
+}

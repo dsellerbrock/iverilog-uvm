@@ -1,0 +1,2 @@
+sv_randomize_isolated_wide_uniform normal,-g2017,-s,main ivltests
+sv_randomize_isolated_wide_uniform_2023 normal,-g2023,-s,main,-I./ivltests ivltests

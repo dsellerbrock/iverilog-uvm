@@ -19241,12 +19241,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				    return sys;
 			      }
 			      NetExpr*a = elab_typed_mailbox_input(
-				    des, scope, method_name, message_args[0]);
+				    des, scope, method_name, message_args[0],
+				    class_type);
 				  if (!a) {
 					delete sys;
 					return 0;
 				  }
-				  if (!typed_mailbox_argument_equivalent_(
+				  if (!typed_mailbox_put_compatible(class_type, a)
+				      && !typed_mailbox_argument_equivalent_(
 						*this, des, class_type,
 						method_name, a)) {
 					delete a;

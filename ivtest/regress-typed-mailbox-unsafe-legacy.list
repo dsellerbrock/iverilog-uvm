@@ -1,0 +1,3 @@
+sv_typed_mailbox_put_assignable_unsafe normal,-g2017,-gcommercial-unsafe,-s,main ivltests
+sv_typed_mailbox_put_assignable_unsafe_2023 normal,-g2023,-gcommercial-unsafe,-s,main,-I./ivltests ivltests
+sv_typed_mailbox_put_assignable_unsafe_fail CE,-g2017,-gcommercial-unsafe,-s,main ivltests gold=sv_typed_mailbox_put_assignable_unsafe_fail.gold

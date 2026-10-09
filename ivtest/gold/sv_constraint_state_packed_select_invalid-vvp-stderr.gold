@@ -1,4 +1,3 @@
 ERROR: constraint state read: invalid 4-state packed bit index in constraint.
 ERROR: constraint state read: X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).
-ERROR: constraint state read: the constraint item at ivltests/sv_constraint_state_packed_select_invalid.sv:20 is not supported by the constraint solver; randomize() fails rather than ignore it.
-ERROR: constraint state read: the constraint item at ivltests/sv_constraint_state_packed_select_invalid.sv:25 is not supported by the constraint solver; randomize() fails rather than ignore it.
+ERROR: constraint state read: the constraint item at ivltests/sv_constraint_state_packed_select_invalid.sv:22 is not supported by the constraint solver; randomize() fails rather than ignore it.

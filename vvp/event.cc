@@ -807,14 +807,16 @@ void vvp_fun_edge_sa::add_multi_waiting_thread(vthread_t thread)
       if (!thread)
             return;
       multi_threads_.insert(thread);
+      vthread_note_wait_start(thread);
       vif_multi_wait_edges_[thread].insert(this);
 }
 
 void vvp_fun_edge_sa::run_multi_waiting_threads_()
 {
-      std::set<vthread_t>waiters;
-      waiters.swap(multi_threads_);
-      for (std::set<vthread_t>::const_iterator cur = waiters.begin();
+      std::set<vthread_t>waiting;
+      waiting.swap(multi_threads_);
+      std::vector<vthread_t>waiters = vthread_in_wait_order(waiting);
+      for (std::vector<vthread_t>::const_iterator cur = waiters.begin();
            cur != waiters.end(); ++cur) {
             vthread_t thread = *cur;
             vvp_cancel_multi_waiting_thread(thread);
@@ -1306,6 +1308,7 @@ void vvp_fun_anyedge_sa::add_multi_waiting_thread(vthread_t thread)
       if (!thread)
             return;
       multi_threads_.insert(thread);
+      vthread_note_wait_start(thread);
       vif_multi_wait_anyedges_[thread].insert(this);
 }
 
@@ -1342,9 +1345,10 @@ bool vvp_cancel_multi_waiting_thread(vthread_t thread)
 
 void vvp_fun_anyedge_sa::run_multi_waiting_threads_()
 {
-      std::set<vthread_t>waiters;
-      waiters.swap(multi_threads_);
-      for (std::set<vthread_t>::const_iterator cur = waiters.begin();
+      std::set<vthread_t>waiting;
+      waiting.swap(multi_threads_);
+      std::vector<vthread_t>waiters = vthread_in_wait_order(waiting);
+      for (std::vector<vthread_t>::const_iterator cur = waiters.begin();
            cur != waiters.end(); ++cur) {
             vthread_t thread = *cur;
             vvp_cancel_multi_waiting_thread(thread);

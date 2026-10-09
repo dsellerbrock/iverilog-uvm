@@ -449,6 +449,11 @@ struct vthread_s {
       static void* operator new(std::size_t size);
       static void operator delete(void*ptr);
 
+	// When this thread last joined a pointer-keyed waiter set.
+      uint64_t wait_order;
+	// Creation order, for walks that would otherwise follow pointers.
+      uint64_t serial;
+
       void debug_dump(ostream&fd, const char*label_text);
 
 	/* This is the program counter. */
@@ -1222,6 +1227,9 @@ inline vthread_s::vthread_s()
       stream_plan_second_reg = 0;
       force_pending = 0;
       stack_obj_size_ = 0;
+      wait_order = 0;
+      static uint64_t next_serial = 0;
+      serial = ++next_serial;
       filenm_ = 0;
       lineno_ = 0;
       waiting_for_resource = 0;
@@ -1341,10 +1349,12 @@ void vvp_process::signal_waiters_()
 	   last reference an awaiting thread held to this process object. */
       vvp_object_t keep_self(this);
       vvp_object_t claimed;
-      std::set<vthread_t> waiters = waiters_;
+      std::vector<vthread_t> waiters = vthread_in_wait_order(waiters_);
       waiters_.clear();
-      for (set<vthread_t>::iterator cur = waiters.begin()
-		 ; cur != waiters.end() ; ++cur) {
+	/* Each waiter is pushed to the front of the Active queue, so push the
+	   last waiter first to run them in wait order. */
+      for (std::vector<vthread_t>::reverse_iterator cur = waiters.rbegin()
+		 ; cur != waiters.rend() ; ++cur) {
 	    vthread_t waiter = *cur;
 	    if (!waiter)
 		  continue;
@@ -1434,6 +1444,7 @@ bool vvp_process::add_waiter(vthread_t thr)
       if (!thr || thr->i_have_ended)
 	    return false;
       waiters_.insert(thr);
+      vthread_note_wait_start(thr);
       thr->awaited_processes_.insert(this);
       return true;
 }
@@ -11392,6 +11403,22 @@ bool of_CHUNK_LINK(vthread_t thr, vvp_code_t code)
  * its list. I in fact created that list in the %wait instruction, and
  * I also am certain that the waiting_for_event flag is set.
  */
+static uint64_t next_wait_order_ = 0;
+
+void vthread_note_wait_start(vthread_t thr)
+{
+      thr->wait_order = ++next_wait_order_;
+}
+
+std::vector<vthread_t> vthread_in_wait_order(const std::set<vthread_t>&waiters)
+{
+      std::vector<vthread_t> res (waiters.begin(), waiters.end());
+      std::sort(res.begin(), res.end(), [](vthread_t a, vthread_t b) {
+	    return a->wait_order < b->wait_order;
+      });
+      return res;
+}
+
 void vthread_schedule_list(vthread_t thr)
 {
       std::vector<vthread_t>claimed;
@@ -17766,9 +17793,11 @@ bool of_DISABLE(vthread_t thr, vvp_code_t cp)
       bool disabled_myself_flag = false;
 
       while (! scope->threads.empty()) {
-	    set<vthread_t>::iterator cur = scope->threads.begin();
+	      // Oldest first, independent of where the threads were allocated.
+	    vthread_t cur = *std::min_element(scope->threads.begin(), scope->threads.end(),
+		  [](vthread_t a, vthread_t b) { return a->serial < b->serial; });
 
-	    if (do_disable(*cur, thr))
+	    if (do_disable(cur, thr))
 		  disabled_myself_flag = true;
       }
 
@@ -17789,14 +17818,14 @@ bool of_DISABLE_FLOW(vthread_t thr, vvp_code_t cp)
       const __vpiScope*scope = static_cast<__vpiScope*>(cp->handle);
       vthread_t cur = thr;
       vthread_t name_match = 0;
-      const char*target_name = scope ? vpi_get_str(vpiFullName, (vpiHandle)scope) : 0;
-      const char*thr_name = thr && thr->parent_scope
-                          ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+	// vpi_get_str reuses one result buffer, so keep owned copies.
+      lazy_scope_name_s target_name(const_cast<__vpiScope*>(scope));
+      lazy_scope_name_s thr_name(thr ? thr->parent_scope : 0);
 
       while (cur && cur->parent_scope != scope) {
-            if (!name_match && target_name && cur->parent_scope) {
+            if (!name_match && cur->parent_scope && target_name.get()) {
                   const char*cur_name = vpi_get_str(vpiFullName, cur->parent_scope);
-                  if (cur_name && (strcmp(cur_name, target_name) == 0))
+                  if (cur_name && (strcmp(cur_name, target_name.get()) == 0))
                         name_match = cur;
             }
             cur = cur->parent;
@@ -17820,13 +17849,12 @@ bool of_DISABLE_FLOW(vthread_t thr, vvp_code_t cp)
       if (flow_trace_enabled_()) {
             static unsigned trace_count = 0;
             if (trace_count < 256) {
-                  const char*sel_name = cur && cur->parent_scope
-                                      ? vpi_get_str(vpiFullName, cur->parent_scope) : 0;
+                  lazy_scope_name_s sel_name(cur ? cur->parent_scope : 0);
                   fprintf(stderr,
                           "trace flow: disable/flow src=%s target=%s selected=%s self=%d\n",
-                          thr_name ? thr_name : "<unknown>",
-                          target_name ? target_name : "<unknown>",
-                          sel_name ? sel_name : "<unknown>",
+                          thr_name.get() ? thr_name.get() : "<unknown>",
+                          target_name.get() ? target_name.get() : "<unknown>",
+                          sel_name.get() ? sel_name.get() : "<unknown>",
                           (cur == thr) ? 1 : 0);
                   trace_count += 1;
             }
@@ -17840,9 +17868,9 @@ bool of_DISABLE_FLOW_CHILD(vthread_t thr, vvp_code_t cp)
       const __vpiScope*scope = static_cast<__vpiScope*>(cp->handle);
       vthread_t cur = thr;
       vthread_t child = 0;
-      const char*target_name = scope ? vpi_get_str(vpiFullName, (vpiHandle)scope) : 0;
-      const char*thr_name = thr && thr->parent_scope
-                          ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+	// vpi_get_str reuses one result buffer, so keep owned copies.
+      lazy_scope_name_s target_name(const_cast<__vpiScope*>(scope));
+      lazy_scope_name_s thr_name(thr ? thr->parent_scope : 0);
 
       while (cur && cur->parent_scope != scope) {
             child = cur;
@@ -17864,13 +17892,12 @@ bool of_DISABLE_FLOW_CHILD(vthread_t thr, vvp_code_t cp)
       if (flow_trace_enabled_()) {
             static unsigned trace_count = 0;
             if (trace_count < 256) {
-                  const char*sel_name = child && child->parent_scope
-                                      ? vpi_get_str(vpiFullName, child->parent_scope) : 0;
+                  lazy_scope_name_s sel_name(child ? child->parent_scope : 0);
                   fprintf(stderr,
                           "trace flow: disable/flow/child src=%s target=%s selected=%s self=%d\n",
-                          thr_name ? thr_name : "<unknown>",
-                          target_name ? target_name : "<unknown>",
-                          sel_name ? sel_name : "<unknown>",
+                          thr_name.get() ? thr_name.get() : "<unknown>",
+                          target_name.get() ? target_name.get() : "<unknown>",
+                          sel_name.get() ? sel_name.get() : "<unknown>",
                           (child == thr) ? 1 : 0);
                   trace_count += 1;
             }

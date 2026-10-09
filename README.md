@@ -86,7 +86,10 @@ when every conflicting task-body write is proven unreachable for that concrete
 instance. Called or uncertain tasks, active writable port/ref aliases, and
 non-task writers remain errors. The flag accepts a string-first `$fatal` as a compatibility
 form; strict mode still requires an explicit finish number when arguments are
-present.
+present. It also lets typed mailbox `put`/`try_put` take an assignment-compatible
+argument (a derived-class handle or `null` for a class message type, or any
+integral/real value for an integral/real message type, converted to that
+type); strict mode requires the type equivalence of IEEE 1800 15.4.9.
 
 ### Run UVM
 

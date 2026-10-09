@@ -2844,29 +2844,81 @@ NetExpr* elab_sys_task_arg(Design*des, NetScope*scope, perm_string name,
       return tmp;
 }
 
+static bool mailbox_numeric_type_(ivl_type_t type)
+{
+      if (!type || !(type->packed() || type->base_type() == IVL_VT_REAL))
+	    return false;
+      switch (type->base_type()) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_REAL:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+static bool numeric_expr_(const NetExpr*expr)
+{
+      return expr->expr_type() == IVL_VT_BOOL
+	  || expr->expr_type() == IVL_VT_LOGIC
+	  || expr->expr_type() == IVL_VT_REAL;
+}
+
 NetExpr* elab_typed_mailbox_input(Design*des, NetScope*scope,
-                                  perm_string method_name, PExpr*pe)
+                                  perm_string method_name, PExpr*pe,
+                                  const netclass_t*mailbox)
 {
       if (!pe)
 	    return nullptr;
 
       PExpr::width_mode_t mode = PExpr::SIZED;
       pe->test_width(des, scope, mode);
-      if (pe->expr_type() != IVL_VT_STRING)
-	    return elab_sys_task_arg(des, scope, method_name, 0, pe);
+      NetExpr*tmp;
+      if (pe->expr_type() != IVL_VT_STRING) {
+	    tmp = elab_sys_task_arg(des, scope, method_name, 0, pe);
+      } else {
+	      /* The width overload of PEString::elaborate_expr deliberately
+	       * produces packed bytes for ordinary system tasks. Select the
+	       * declared-type overload for a dynamic string mailbox value. This
+	       * does not context-cast a non-string actual: test_width()
+	       * established its self-determined string category before this
+	       * call. */
+	    tmp = pe->elaborate_expr(des, scope, &netstring_t::type_string,
+				     PExpr::SYS_TASK_ARG);
+	    if (!tmp)
+		  return nullptr;
+	    eval_expr(tmp, -1);
+      }
 
-	/* The width overload of PEString::elaborate_expr deliberately produces
-	 * packed bytes for ordinary system tasks. Select the declared-type
-	 * overload for a dynamic string mailbox value. This does not context-cast
-	 * a non-string actual: test_width() established its self-determined string
-	 * category before this call. */
-      NetExpr*tmp = pe->elaborate_expr(des, scope,
-				    &netstring_t::type_string,
-				    PExpr::SYS_TASK_ARG);
-      if (!tmp)
-	    return nullptr;
-      eval_expr(tmp, -1);
+	/* -gcommercial-unsafe: convert an integral or real actual to an
+	 * integral or real message type, as for an input argument. */
+      ivl_type_t msg_type = mailbox ? mailbox->mailbox_message_type() : 0;
+      if (gn_commercial_unsafe_flag && tmp && msg_type
+	  && !mailbox->mailbox_message_type_equivalent(netexpr_type_for_equivalence(tmp))
+	  && mailbox_numeric_type_(msg_type) && numeric_expr_(tmp)) {
+	    delete tmp;
+	    tmp = elaborate_rval_expr(des, scope, msg_type, pe);
+      }
       return tmp;
+}
+
+bool typed_mailbox_put_compatible(const netclass_t*mailbox, const NetExpr*actual)
+{
+      if (!mailbox || !mailbox->is_typed_mailbox() || !actual)
+	    return true;
+      ivl_type_t msg_type = mailbox->mailbox_message_type();
+      ivl_type_t actual_type = netexpr_type_for_equivalence(actual);
+      if (mailbox->mailbox_message_type_equivalent(actual_type))
+	    return true;
+      if (!gn_commercial_unsafe_flag)
+	    return false;
+      if (mailbox_numeric_type_(msg_type))
+	    return numeric_expr_(actual);
+      if (!dynamic_cast<const netclass_t*>(msg_type))
+	    return false;
+      return dynamic_cast<const NetENull*>(actual)
+	  || (actual_type && msg_type->type_compatible(actual_type));
 }
 
 bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,

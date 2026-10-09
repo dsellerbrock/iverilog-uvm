@@ -1,0 +1,2 @@
+sv_waiter_set_wake_order normal,-g2017,-s,main ivltests
+sv_waiter_set_wake_order_2023 normal,-g2023,-s,main,-I./ivltests ivltests

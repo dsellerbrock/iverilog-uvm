@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_typed_mailbox_put_assignable_unsafe.v",
+  "iverilog-args": ["-g2023", "-gcommercial-unsafe", "-s", "main"]
+}

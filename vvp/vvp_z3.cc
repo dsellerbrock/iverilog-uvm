@@ -8292,6 +8292,62 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
  */
 static const uint64_t ENUM_DOMAIN_CAP = 1024;
 
+/* Collect every value of VAR in [0, HI] that keeps BASE satisfiable, in
+ * ascending order. A satisfiable range query yields one feasible value from
+ * its model and splits the range around it; an unsatisfiable one prunes the
+ * whole range. About 2F+1 checks for F feasible values, and BASE's
+ * assertions never grow, unlike blocking each model value (whose model
+ * construction cost grows with every blocked value). Returns false, with OUT
+ * cleared, when a query is indeterminate or more than CAP values exist. */
+static bool z3_walk_feasible_(Z3_context ctx, Z3_solver base, Z3_ast var,
+                              unsigned width, uint64_t hi, size_t cap,
+                              vector<uint64_t>& out)
+{
+      out.clear();
+      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+      auto fail = [&]() { out.clear(); return false; };
+      auto probe = [&](uint64_t bits) -> Z3_lbool {
+	    Z3_ast eq = Z3_mk_eq(ctx, var, Z3_mk_unsigned_int64(ctx, bits, sort));
+	    Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 1, &eq);
+	    if (r == Z3_L_TRUE) out.push_back(bits);
+	    return r;
+      };
+      vector<pair<uint64_t, uint64_t> > pending(1, make_pair((uint64_t)0, hi));
+      while (!pending.empty()) {
+	    uint64_t lo = pending.back().first, top = pending.back().second;
+	    pending.pop_back();
+	    if (out.size() > cap) return fail();
+	    if (top - lo >= 4) {
+		  Z3_ast range[2] = {
+			Z3_mk_bvuge(ctx, var, Z3_mk_unsigned_int64(ctx, lo, sort)),
+			Z3_mk_bvule(ctx, var, Z3_mk_unsigned_int64(ctx, top, sort))};
+		  Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 2, range);
+		  if (r == Z3_L_FALSE) continue;
+		  if (r != Z3_L_TRUE) return fail();
+		  Z3_model model = Z3_solver_get_model(ctx, base);
+		  Z3_model_inc_ref(ctx, model);
+		  uint64_t hit = 0;
+		  bool have = z3_eval_uint64(ctx, model, var, hit);
+		  Z3_model_dec_ref(ctx, model);
+		  if (have && hit >= lo && hit <= top) {
+			out.push_back(hit);
+			if (hit > lo) pending.push_back(make_pair(lo, hit - 1));
+			if (hit < top) pending.push_back(make_pair(hit + 1, top));
+			continue;
+		  }
+		    // No usable model value: probe a small range value by value.
+		  if (top - lo >= ENUM_DOMAIN_CAP) return fail();
+	    }
+	    for (uint64_t bits = lo; ; ++bits) {
+		  if (probe(bits) == Z3_L_UNDEF) return fail();
+		  if (bits == top) break;
+	    }
+      }
+      if (out.size() > cap) return fail();
+      std::sort(out.begin(), out.end());
+      return true;
+}
+
 /* Enumerate every value `var` (a WIDTH-bit bitvector constant) can take
  * while `base` remains satisfiable. `base` already carries every hard
  * constraint/pin relevant to this solve.
@@ -8342,17 +8398,9 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
 		  }
 	    }
       }
-      for (uint64_t bits = 0 ; bits < domain ; bits += 1) {
-	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
-	    Z3_ast eq = Z3_mk_eq(ctx, var, cv);
-	    Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 1, &eq);
-	    if (r == Z3_L_TRUE) {
-		  out.push_back(bits);
-	    } else if (r == Z3_L_UNDEF) {
-		  out.clear();
-		  return false;
-	    }
-      }
+      if (!z3_walk_feasible_(ctx, base, var, width, domain - 1,
+                             ENUM_DOMAIN_CAP, out))
+	    return false;
       return !out.empty();
 }
 
@@ -8360,8 +8408,9 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
  * z3_enumerate_domain, this is useful for a 32/64-bit property constrained to
  * an equality or short interval (the normal shape of protocol transactions),
  * without attempting its enormous declared domain.  Returning false after
- * CAP+1 distinct models leaves sampling to the general fallback; returning
- * true means the solver proved the complete feasible set was exhausted. */
+ * CAP+1 distinct values leaves sampling to the general fallback; returning
+ * true means the solver proved the complete feasible set was exhausted. The
+ * set comes back in ascending order, independent of Z3's model choices. */
 static const size_t SPARSE_DOMAIN_CAP = 64;
 
 static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
@@ -8372,36 +8421,10 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
       out.clear();
       if (width == 0 || width > 64) return false;
 
-      bool exhausted = false;
-      Z3_solver_push(ctx, base);
-      while (out.size() <= cap) {
-	    Z3_lbool r = Z3_solver_check(ctx, base);
-	    if (r == Z3_L_FALSE) {
-		  exhausted = true;
-		  break;
-	    }
-	    if (r != Z3_L_TRUE) break;
-
-	    Z3_model m = Z3_solver_get_model(ctx, base);
-	    Z3_model_inc_ref(ctx, m);
-	    uint64_t bits = 0;
-	    bool ok = z3_eval_uint64(ctx, m, var, bits);
-	    Z3_model_dec_ref(ctx, m);
-	    if (!ok) break;
-
-	    out.push_back(bits);
-	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits,
-					 Z3_mk_bv_sort(ctx, width));
-	    Z3_solver_assert(ctx, base,
-			     Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
-      }
-      Z3_solver_pop(ctx, base, 1);
-
-      if (!exhausted || out.empty()) {
-	    out.clear();
+      uint64_t top = width == 64 ? UINT64_MAX : ((uint64_t)1 << width) - 1;
+      if (!z3_walk_feasible_(ctx, base, var, width, top, cap, out))
 	    return false;
-      }
-      return true;
+      return !out.empty();
 }
 
 /* Sample an exact constrained randc scalar without materializing its whole
@@ -8478,13 +8501,14 @@ static bool z3_sample_constrained_randc_(Z3_context ctx, Z3_solver base,
  * feasible value as a model numeral. A wide variable is typically an enum or
  * an inside set with a handful of values; choosing uniformly among the proven
  * complete set avoids an expensive wide optimizer objective. */
+// ponytail: cap blocking-model enumeration at 256; larger domains use
+// full-width rejection (exact but slow when sparse); add count/unrank
+// proposals if sparse domains need bounded runtime.
+static const size_t WIDE_DOMAIN_CAP = 256;
+
 static bool z3_enumerate_wide_values_(Z3_context ctx, Z3_solver base,
                                       Z3_ast var, vector<Z3_ast>& out)
 {
-      // ponytail: cap blocking-model enumeration at 256; larger domains use
-      // full-width rejection (exact but slow when sparse); add count/unrank
-      // proposals if sparse domains need bounded runtime.
-      static const size_t WIDE_DOMAIN_CAP = 256;
       out.clear();
       bool exhausted = false;
       Z3_solver_push(ctx, base);
@@ -8922,6 +8946,73 @@ struct dist_wide_uint_t {
       }
 };
 
+/* Evaluate a formula over one bit-vector constant at given values, through a
+ * reusable model rather than building a substituted copy per value.
+ * eval() returns Z3_L_UNDEF when the result does not reduce to a constant. */
+struct z3_ground_eval_t {
+      Z3_context ctx;
+      Z3_ast formula;
+      Z3_func_decl decl;
+      Z3_model model;
+      z3_ground_eval_t(Z3_context c, Z3_ast f, Z3_ast var)
+      : ctx(c), formula(f), decl(Z3_get_app_decl(c, Z3_to_app(c, var))),
+        model(Z3_mk_model(c))
+      { Z3_model_inc_ref(ctx, model); }
+      ~z3_ground_eval_t() { Z3_model_dec_ref(ctx, model); }
+      Z3_lbool eval(Z3_ast value)
+      {
+	    Z3_add_const_interp(ctx, model, decl, value);
+	    Z3_ast out = nullptr;
+	    if (!Z3_model_eval(ctx, model, formula, true, &out) || !out)
+		  return Z3_L_UNDEF;
+	    return Z3_get_bool_value(ctx, out);
+      }
+};
+
+/* True when VAR provably has more than CAP legal values, so an enumeration
+ * capped at CAP would fail. Exact: VAR must be an isolated factor of BASE, and
+ * every counted value is checked against that factor by ground evaluation
+ * around one model value. False means "not shown", never "few". */
+static bool z3_isolated_count_exceeds_(Z3_context ctx, Z3_solver base,
+                                       Z3_ast var, unsigned width, size_t cap)
+{
+      typedef dist_wide_uint_t big;
+      if (width == 0) return false;
+      Z3_ast formula = nullptr;
+      if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
+      if (Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
+      Z3_model model = Z3_solver_get_model(ctx, base);
+      Z3_model_inc_ref(ctx, model);
+      Z3_ast value = nullptr;
+      big anchor;
+      bool have = Z3_model_eval(ctx, model, var, true, &value) && value
+            && big::from_numeral(ctx, value, anchor);
+      Z3_model_dec_ref(ctx, model);
+      if (!have) return false;
+
+      big maximum;
+      maximum.set_bit(width);
+      maximum = big::sub(maximum, big::from_u64(1));
+      z3_ground_eval_t ground(ctx, formula, var);
+      size_t legal = 1;
+	// Probe outward on both sides; a set denser than one value in four
+	// near the anchor is proven within the budget.
+      for (uint64_t d = 1; d <= 4 * cap; ++d) {
+            big step = big::from_u64(d);
+            big up = big::add(anchor, step);
+            const bool in_range[2] = {big::cmp(up, maximum) <= 0,
+                                      big::cmp(step, anchor) <= 0};
+            for (unsigned side = 0; side < 2; ++side) {
+                  if (!in_range[side]) continue;
+                  big probe = side ? big::sub(anchor, step) : up;
+                  Z3_lbool known = ground.eval(probe.numeral(ctx, width));
+                  if (known == Z3_L_UNDEF) return false;
+                  if (known == Z3_L_TRUE && ++legal > cap) return true;
+            }
+      }
+      return false;
+}
+
 static const unsigned WIDE_INTERVAL_MAX_WIDTH = 4096;
 
 enum wide_interval_sampling_t {
@@ -8959,6 +9050,12 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
       Z3_solver outside = Z3_mk_simple_solver(ctx);
       Z3_solver_inc_ref(ctx, outside);
       Z3_solver_assert(ctx, outside, Z3_mk_not(ctx, formula));
+	/* The isolated factor alone decides which values of VAR extend to a
+	 * full solution, so query a solver that holds only the factor instead
+	 * of the whole problem in BASE. */
+      Z3_solver inside = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, inside);
+      Z3_solver_assert(ctx, inside, formula);
 
       big power;
       power.set_bit(width);
@@ -8981,14 +9078,23 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
             Z3_solver_pop(ctx, solver, 1);
             return result;
       };
-      auto rejection_sample = [&](size_t attempts) -> Z3_lbool {
+	// Is VALUE legal? The factor mentions only VAR, so evaluating it at a
+	// numeral usually gives true or false without a solver search.
+      z3_ground_eval_t ground(ctx, formula, var);
+      auto legal = [&](Z3_ast value) -> Z3_lbool {
+            Z3_lbool known = ground.eval(value);
+            if (known != Z3_L_UNDEF) return known;
+            Z3_ast eq = Z3_mk_eq(ctx, var, value);
+            return Z3_solver_check_assumptions(ctx, inside, 1, &eq);
+      };
+	// Uniform proposals over [FIRST, FIRST+SPAN); the first legal one is
+	// uniform over the legal values in that range.
+      auto rejection_sample_in = [&](size_t attempts, const big&first,
+                                     const big&span) -> Z3_lbool {
             for (size_t i = 0; i < attempts; ++i) {
-                  big candidate = big::uniform_below(rng, power);
+                  big candidate = big::add(first, big::uniform_below(rng, span));
                   Z3_ast value = candidate.numeral(ctx, width);
-                  Z3_solver_push(ctx, base);
-                  Z3_solver_assert(ctx, base, Z3_mk_eq(ctx, var, value));
-                  Z3_lbool result = Z3_solver_check(ctx, base);
-                  Z3_solver_pop(ctx, base, 1);
+                  Z3_lbool result = legal(value);
                   if (result == Z3_L_TRUE) {
                         sample = value;
                         return result;
@@ -8997,8 +9103,12 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
             }
             return Z3_L_FALSE;
       };
+      auto rejection_sample = [&](size_t attempts) -> Z3_lbool {
+            return rejection_sample_in(attempts, big(), power);
+      };
       auto finish = [&](wide_interval_sampling_t result) {
             Z3_solver_dec_ref(ctx, outside);
+            Z3_solver_dec_ref(ctx, inside);
             return result;
       };
 
@@ -9016,19 +9126,47 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
             return finish(WIDE_INTERVAL_INDETERMINATE);
       };
 
+	// Narrow proposals to the hull [low, high] of the legal values, found
+	// by binary search; strided or clustered domains are then dense enough
+	// for rejection, which walking every interval would not be.
+      auto bound = [&](bool lowest, big&out) -> Z3_lbool {
+            big lo, hi = maximum;
+            while (big::cmp(lo, hi) < 0) {
+                  big mid = big::shift_right_one(big::add(lo, hi));
+                  Z3_lbool r = lowest ? exists_in(inside, big(), mid)
+                                      : exists_in(inside, big::add(mid, one), maximum);
+                  if (r == Z3_L_UNDEF) return r;
+                  if ((r == Z3_L_TRUE) == lowest) hi = mid;
+                  else lo = big::add(mid, one);
+            }
+            out = lo;
+            return Z3_L_TRUE;
+      };
+      big low, high;
+      if (bound(true, low) == Z3_L_UNDEF || bound(false, high) == Z3_L_UNDEF)
+            return recover_after_boundary_search();
+      if (big::cmp(low, high) > 0)            // no legal value at all
+            return finish(WIDE_INTERVAL_NOT_APPLICABLE);
+      Z3_lbool hull = rejection_sample_in(4096, low,
+            big::add(big::sub(high, low), one));
+      if (hull == Z3_L_TRUE)
+            return finish(WIDE_INTERVAL_SAMPLED);
+      if (hull == Z3_L_UNDEF)
+            return finish(WIDE_INTERVAL_INDETERMINATE);
+
       struct interval_t { big first, last; };
       vector<interval_t> intervals;
       big total;
-      big cursor;
+      big cursor = low;
       for (;;) {
-            Z3_lbool any = exists_in(base, cursor, maximum);
+            Z3_lbool any = exists_in(inside, cursor, maximum);
             if (any == Z3_L_FALSE) break;
             if (any == Z3_L_UNDEF) return recover_after_boundary_search();
 
             big lo = cursor, hi = maximum;
             while (big::cmp(lo, hi) < 0) {
                   big mid = big::shift_right_one(big::add(lo, hi));
-                  Z3_lbool left = exists_in(base, cursor, mid);
+                  Z3_lbool left = exists_in(inside, cursor, mid);
                   if (left == Z3_L_UNDEF) return recover_after_boundary_search();
                   if (left == Z3_L_TRUE) hi = mid;
                   else lo = big::add(mid, one);
@@ -9060,6 +9198,7 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
             cursor = big::add(last, one);
       }
       Z3_solver_dec_ref(ctx, outside);
+      Z3_solver_dec_ref(ctx, inside);
       if (intervals.empty() || total.zero())
             return WIDE_INTERVAL_NOT_APPLICABLE;
 
@@ -11964,11 +12103,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!fallback_managed && !enumerated)
 		  enumerated = z3_enumerate_domain(ctx, base, pv.var,
 						pv.width, feasible);
-	    if (!fallback_managed && !enumerated)
+	    size_t sparse_cap = property_randc ? (size_t)ENUM_DOMAIN_CAP
+	                                       : SPARSE_DOMAIN_CAP;
+	      // Skip a probe that would only collect sparse_cap+1 models and
+	      // fail; the outcome is the same, minus the solver calls.
+	    if (!fallback_managed && !enumerated
+		&& !z3_isolated_count_exceeds_(ctx, base, pv.var, pv.width,
+		                               sparse_cap))
 		  enumerated = z3_enumerate_sparse_wide_domain_(
-			ctx, base, pv.var, pv.width, feasible,
-			property_randc ? (size_t)ENUM_DOMAIN_CAP
-			               : SPARSE_DOMAIN_CAP);
+			ctx, base, pv.var, pv.width, feasible, sparse_cap);
 	    if (enumerated && property_randc && pv.width > 20
 		&& (pv.width > 64
 		    || builder.type(pv.idx)->property_is_static(
@@ -12063,7 +12206,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!fallback_managed && pv.width > 64
 		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
 		  vector<Z3_ast> values;
-		  if (z3_enumerate_wide_values_(ctx, base, pv.var, values)) {
+		  if (!z3_isolated_count_exceeds_(ctx, base, pv.var, pv.width,
+						  WIDE_DOMAIN_CAP)
+		      && z3_enumerate_wide_values_(ctx, base, pv.var, values)) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var,
 			      values[property_rng(pv.idx).uniform_index(values.size())]);
 			Z3_optimize_assert(ctx, opt, eq);
@@ -12071,10 +12216,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			continue;
 		  }
 	    }
-	    if (!fallback_managed && single_var_fast_ok
-		&& pv.width > 32 && pv.width <= WIDE_INTERVAL_MAX_WIDTH
+	      /* Enumeration could not take this variable. The interval sampler
+	         proves it is an isolated factor (no other free variable in its
+	         hard clauses), so other variables' dist constraints and the
+	         class's variable count cannot affect its uniform draw
+	         (IEEE 1800-2017/2023 18.5.10). */
+	    if (!fallback_managed
+		&& pv.width <= WIDE_INTERVAL_MAX_WIDTH
 		&& !exact_joint && builder.order_pairs.empty()
-		&& builder.dist_specs.empty() && builder.pending_soft.empty()
+		&& builder.pending_soft.empty()
 		&& builder.state_checks.empty() && builder.qelem_vars.empty()
 		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
 		  Z3_ast sampled = nullptr;
@@ -12186,12 +12336,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (!enumerated)
 			enumerated = z3_enumerate_domain(ctx, base, ev.var,
 					 ev.width, feasible);
-		  if (!enumerated)
+		  size_t sparse_cap = direct_dynamic_randc && ev.width > 20
+			? (size_t)ENUM_DOMAIN_CAP : SPARSE_DOMAIN_CAP;
+		  if (!enumerated
+		      && !z3_isolated_count_exceeds_(ctx, base, ev.var,
+						     ev.width, sparse_cap))
 			enumerated = z3_enumerate_sparse_wide_domain_(
-			      ctx, base, ev.var, ev.width, feasible,
-			      direct_dynamic_randc && ev.width > 20
-				    ? (size_t)ENUM_DOMAIN_CAP
-						  : SPARSE_DOMAIN_CAP);
+			      ctx, base, ev.var, ev.width, feasible, sparse_cap);
 
 		  if (enumerated) {
 			uint64_t chosen;
@@ -12344,7 +12495,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 	    if (!element_randc && !fallback_managed && ev.width > 64) {
 		  vector<Z3_ast> values;
-		  if (z3_enumerate_wide_values_(ctx, base, ev.var, values)) {
+		  if (!z3_isolated_count_exceeds_(ctx, base, ev.var, ev.width,
+						  WIDE_DOMAIN_CAP)
+		      && z3_enumerate_wide_values_(ctx, base, ev.var, values)) {
 			Z3_ast eq = Z3_mk_eq(ctx, ev.var,
 			      values[property_rng(ev.idx).uniform_index(values.size())]);
 			Z3_optimize_assert(ctx, opt, eq);
@@ -13879,7 +14032,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!fallback_managed && !enumerated)
 		  enumerated = z3_enumerate_domain(ctx, base, mv.var,
 					   mv.width, feasible);
-	    if (!fallback_managed && !enumerated)
+	    if (!fallback_managed && !enumerated
+		&& !z3_isolated_count_exceeds_(ctx, base, mv.var, mv.width,
+					       SPARSE_DOMAIN_CAP))
 		  enumerated = z3_enumerate_sparse_wide_domain_(
 			ctx, base, mv.var, mv.width, feasible);
 	    if (enumerated) {

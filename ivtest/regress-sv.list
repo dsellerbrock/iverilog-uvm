@@ -5471,3 +5471,10 @@ sv_array_index_argument_2017_fail CE,-g2017,-ssv_array_index_argument,-I./ivltes
 sv_timeunit_functions_2017 CE,-g2017,-s,test,-I./ivltests ivltests
 sv_timeunit_functions_2023 normal,-g2023,-s,test,-I./ivltests ivltests gold=sv_timeunit_functions.gold
 sv_timeunit_functions_invalid_2023 CE,-g2023,-s,timeunit_functions_invalid,-I./ivltests ivltests
+sv_waiter_set_wake_order normal,-g2017,-s,main ivltests
+sv_waiter_set_wake_order_2023 normal,-g2023,-s,main,-I./ivltests ivltests
+sv_randomize_isolated_wide_uniform normal,-g2017,-s,main ivltests
+sv_randomize_isolated_wide_uniform_2023 normal,-g2023,-s,main,-I./ivltests ivltests
+sv_typed_mailbox_put_assignable_unsafe normal,-g2017,-gcommercial-unsafe,-s,main ivltests
+sv_typed_mailbox_put_assignable_unsafe_2023 normal,-g2023,-gcommercial-unsafe,-s,main,-I./ivltests ivltests
+sv_typed_mailbox_put_assignable_unsafe_fail CE,-g2017,-gcommercial-unsafe,-s,main ivltests gold=sv_typed_mailbox_put_assignable_unsafe_fail.gold
