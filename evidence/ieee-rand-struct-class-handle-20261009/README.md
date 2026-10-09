@@ -66,5 +66,5 @@ The installed image hashes are:
 | `local-install/bin/vvp` | `9e45fe181fac2825ea652838aefcfead1e31e09f88f756602863688ce2b1ad3e` |
 | `local-install/lib/ivl/vvp.tgt` | `06e10bff454b294e89afed01693e94b874ad69dc8a124788cb695aaefa2171a0` |
 
-No CI status was queried. The branch remains a local implementation pending
-review and draft PR creation; no CI qualification is claimed.
+Draft PR [#527](https://github.com/dsellerbrock/iverilog-uvm/pull/527) carries
+this increment. No CI status was queried, and no CI qualification is claimed.

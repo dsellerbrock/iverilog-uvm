@@ -1,8 +1,8 @@
 status: "in_progress"
-phase: "FOCUSED_TESTED"
+phase: "SUSPENDED_PR_QUALIFICATION_PENDING"
 blocker: "IEEE-RAND-STRUCT-CLASS-HANDLE (#419 bounded sub-slice)"
 github_issue: "#419 — randomize class-handle and container-member variables; issue remains open"
-pull_request: null
+pull_request: "#527 — draft PR to main: https://github.com/dsellerbrock/iverilog-uvm/pull/527"
 branch: "agent/ieee-nested-queue-randomize-20261009"
 baseline: "Fresh origin/main c339b9f2287a743aeb7ab6de6528e8d34a4dd602, fetched 2026-10-09."
 goal: "Randomize an enabled class-handle member of a rand unpacked struct as part of its containing class object's joint randomization."
@@ -15,7 +15,7 @@ forbidden_scope: "No nested dynamic-array, queue, associative-array, real/string
 acceptance: "Paired regressions cover aliased child handles, child and parent constraints, identity, once-per-object hooks, unsatisfiable-solve rollback including randc history, and successful retry. Focused legacy and JSON/VVP lists pass in both editions; dynamic-array member rejection remains intact."
 discovery_policy: "Record adjacent debt precisely; keep implementation within this active class-handle member shape."
 current_validation: "Local build/install passed. New paired reducer passes 2/2 legacy and 2/2 JSON/VVP. Nested-struct neighbor passes 2/2 in each runner; class-declaration/member focus passes 15/15 legacy and 14/14 JSON/VVP after correcting the stale CE classification for an existing positive test. The updated dynamic-array fail-closed case passes. No CI status was checked."
-next_action: "Push the committed bounded increment and open a draft PR. Do not inspect CI. Keep #419 open for remaining shapes."
+next_action: "Keep draft PR #527 untouched and do not inspect CI unless a failure is reported. Continue with the next independent open IEEE blocker; keep #419 open for remaining shapes."
 post_review_validation: "The previous class-handle diagnostic was removed from both legacy and VVP golds for sv_struct_member_random_unsupported_fail; only the still-unsupported dynamic-array diagnostic remains. Paired focused results are recorded in evidence/ieee-rand-struct-class-handle-20261009/README.md."
 stop_after_completion: false
 after_completion: "Record this bounded sub-slice complete while keeping issue #419 open for remaining container/member shapes; then select the next genuinely open IEEE blocker."
