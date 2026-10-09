@@ -8951,19 +8951,32 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cross_guards,
 				const vector<uint64_t>&bin_guards);
 
+static uint64_t covgrp_real_key_(double value)
+{
+      if (value == 0.0) value = 0.0;
+      uint64_t bits;
+      memcpy(&bits, &value, sizeof bits);
+      return (bits & (UINT64_C(1) << 63)) ? ~bits
+	    : bits ^ (UINT64_C(1) << 63);
+}
+
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
-      unsigned ncp = cp->number;
+	 uint64_t packed_ncp = cp->number;
+	 unsigned ncp = (unsigned)packed_ncp;
+	 unsigned nreal = (unsigned)(packed_ncp >> 32);
       unsigned guard_flags = cp->bit_idx[0];
       unsigned has_cp_guards = guard_flags & 1;
 	 unsigned ncross_guards = (guard_flags >> 1) & 0x7fff;
 	 unsigned nbin_guards = guard_flags >> 16;
-	 uint64_t vec4_need = ncp;
+	 uint64_t vec4_need = ncp - nreal;
 	 if (has_cp_guards) vec4_need += ncp;
 	 vec4_need += ncross_guards;
 	 vec4_need += nbin_guards;
-	 if (vec4_need > 2097152
+	 if (nreal > ncp || ncp > 2097152
+	     || vec4_need > 2097152
 	     || vec4_need > thr->vec4_stack_size()
+	     || nreal > thr->real_stack_size()
 	     || thr->object_stack_size() < 1) {
 	       fprintf(stderr,
 		     "vvp: malformed %%covgrp/sample metadata or stack "
@@ -8972,6 +8985,19 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 		     vec4_need, thr->vec4_stack_size(),
 		     thr->object_stack_size());
 	       return true;
+	 }
+
+	 vvp_cobject*cobj = thr->peek_object().peek<vvp_cobject>();
+	 if (cobj) {
+	       unsigned metadata_real = 0;
+	       for (unsigned ii = 0; ii < ncp; ++ii)
+		     metadata_real += cobj->get_defn()->covgrp_cp_real(ii) ? 1 : 0;
+	       if (metadata_real != nreal) {
+		     fprintf(stderr, "vvp: malformed %%covgrp/sample real-value metadata "
+			     "(instruction %u, class %u); operands not consumed.\n",
+			     nreal, metadata_real);
+		     return true;
+	       }
 	 }
 
 	 vector<uint64_t> bin_guards(nbin_guards, 1);
@@ -9003,6 +9029,18 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       vector<vvp_vector4_t> wide_vals(ncp);
       vector<bool> cp_has_xz(ncp, false);
       for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
+	    if (cobj && cobj->get_defn()->covgrp_cp_real(ii)) {
+		  cp_vals[ii] = covgrp_real_key_(thr->pop_real());
+		  continue;
+	    }
+	    if (!cobj && nreal > 0) {
+		  // A null receiver has no bin metadata; drain real stack operands
+		  // before the vector operands because the call cannot sample.
+		  while (nreal > 0) {
+			thr->pop_real();
+			nreal -= 1;
+		  }
+	    }
 	    vvp_vector4_t v = thr->pop_vec4();
 	    if (v.size() > 64) wide_vals[ii] = v;
 	    uint64_t val = 0;
@@ -9018,9 +9056,9 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 	    cp_has_xz[ii] = xz;
       }
 
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	 vvp_object_t obj;
+	 thr->pop_object(obj);
+	 cobj = obj.peek<vvp_cobject>();
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
@@ -9451,8 +9489,11 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 		  uint64_t v; bool low;
 		  int sp = defn->covgrp_srcprop(ci);
 		  if (sp >= 0) {
-			read_u64(parent, (unsigned)sp, v, low,
-				 &wide_vals[ci]);
+			if (defn->covgrp_cp_real(ci))
+			      v = covgrp_real_key_(parent->get_real((unsigned)sp));
+			else
+			      read_u64(parent, (unsigned)sp, v, low,
+				       &wide_vals[ci]);
 			vals[ci] = v;
 		  }
 		  int gp = defn->covgrp_guardsrc(ci);

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_covergroup_real_interval.v",
+  "iverilog-args": ["-g2023", "-s", "sv_covergroup_real_interval"],
+  "gold": "sv_covergroup_real_interval"
+}

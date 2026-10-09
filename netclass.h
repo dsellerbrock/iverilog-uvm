@@ -516,6 +516,7 @@ class netclass_t : public ivl_type_s {
       static const unsigned COVGRP_NO_PROP = 0xFFFFFFFF;
       static const unsigned COVGRP_NO_FAMILY = 0xFFFFFFFF;
       static const unsigned COVGRP_NO_GUARD = 0xFFFFFFFF;
+	static const unsigned COVGRP_REAL_BIN = 0x100;
 
       void add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
 			  unsigned kind = 0, unsigned tuple = 0,
