@@ -8,7 +8,7 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
 - **Requirement:** IEEE 1800-2017/2023 §§7.6 and 23.3.3.5 require compatible unpacked-array connections with matching dimension counts and sizes; element correspondence is left-to-right.
 - **Cause and scope:** Output actuals used the array rvalue path, creating a read-side view instead of a selected lvalue connection. Identifier output actuals now use lvalue elaboration, with dimension-size and element-type checks; whole-array outputs keep the same path.
 - **Validation:** The original DD-086 reducer passes in strict 2017/2023. Paired selected-row, direction-mapping, whole-array, isolation, and incompatible-shape tests pass 6/6 in legacy and JSON/VVP. Serial macOS build/install and `make check` pass. This is local evidence only.
-- **Next:** Include the fix in the five-issue draft PR to `main`; leave #492 open pending delivery and CI.
+- **Next:** Include the fix in the five-issue draft PR to `main`; leave #492 open pending merge and CI.
 
 ### IEEE-1800-PACKED-SUBFIELD-RELEASE — issue #493 (locally focused-tested)
 

@@ -2,7 +2,7 @@ campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-batch-499-495-20261009"
-checkpoint_head: "9f895773a"
+checkpoint_head: "b3fd9ec33"
 active_ieee_lane:
   blocker: "IEEE-UNPACKED-ARRAY-OUTPUT-SLICE (#492)"
   issue: "#499, #497, #495, and #493 are locally completed; #492 is the fifth candidate fix"
@@ -12,7 +12,7 @@ active_ieee_lane:
   standards: "IEEE 1800-2017/2023 §§7.6 and 23.3.3.5."
   root_cause: "Output actuals go through rvalue array elaboration, creating a read-side IMPLICIT view rather than an output lvalue view."
   scope: "Unpacked-array module output actual elaboration and shape validation, paired regressions, and directly related records only."
-  next: "Commit #492 as the fifth locally verified fix and open one draft PR to main containing #499, #497, #495, #493, and #492. Continue with the next open IEEE issue while CI runs; do not repeatedly poll CI."
+  next: "Open one draft PR to main containing #499, #497, #495, #493, and #492. Continue with the next open IEEE issue while CI runs; do not repeatedly poll CI."
   boundary: "Strict paired legacy and JSON/VVP focus lists pass 6/6 each, serial macOS make/install and make check pass, and the original DD-086 reducer passes in both editions. Local evidence only; no CI qualification yet."
 pending_issue_494_ci: "#494 fixed/dynamic queue-size cases appear in mainline tests, but the latest main test workflow is queued. Leave the GitHub issue open until CI evidence is available; this does not block unrelated #493 work."
 previous_batch_pr464:
