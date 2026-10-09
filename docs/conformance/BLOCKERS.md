@@ -2,6 +2,55 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
+### IEEE-1800-ESCAPED-IFDEF-IDENTIFIERS — issue #468 (reproduced)
+
+- **State:** Focused implementation and permanent regressions are pushed to existing draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which targets `main` and also carries #460. The two issues stay separately tracked; no additional PR is opened.
+- **Requirement:** IEEE 1800-2017/2023 §22.5 Syntax 22-5 uses `text_macro_identifier`; §5.6.1 defines escaped identifiers as a leading backslash followed by printable ASCII and terminated by whitespace. The backslash and terminator are not part of the macro name.
+- **Failure:** A self-authored `\foo` macro definition and `` `ifdef \foo`` condition reports `` `ifdef without a macro name`` and selects no branch under strict `-g2017` and `-g2023`. Punctuation-bearing escaped names must remain one identifier through the terminator.
+- **Root cause:** The plain-name `IFDEF_NAME`, `IFNDEF_NAME`, `ELSIF_NAME`, and `ELSIF_SUPR` lexer states accept simple identifiers only. Their fallback treats `\` as a missing name, even though definitions and 2023 parenthesized expressions already process escaped names.
+- **Scope:** Add plain escaped-name handling for `ifdef`, `ifndef`, and `elsif`; paired edition tests for defined, undefined, punctuation, terminator, and malformed cases. Parenthesized-expression semantics remain #460.
+- **Validation:** Baseline reducer fails in both editions. After a forced ivlpp rebuild/install, the new legacy focus passes 3/3 and JSON focus 3/3; neighboring macro-definition tests pass 28/28 legacy and 8/8 JSON; #460 expression tests pass 3/3 in each runner. These are local results. Consult PR #467 for current exact-head CI status; no CI pass is claimed here.
+
+### IEEE-1800-PARENTHESIZED-IFDEF-EXPRESSIONS — issue #460 (locally validated)
+
+- **State:** Implementation and focused tests pass on
+  `agent/ieee-ifdef-parenthesized-20261008`, based on clean `origin/main`
+  `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467)
+  targets `main`; its stale negative-suite fixture is corrected locally and the
+  updated exact-head CI qualification remains pending.
+- **Requirement:** IEEE 1800-2017 §22.5 Syntax 22-5 allows only a
+  `text_macro_identifier` condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a
+  parenthesized `ifdef_macro_expression` with identifiers, logical operators,
+  and parentheses; §5.6 identifiers may be simple or escaped. Defined
+  identifiers evaluate to 1 and undefined identifiers to 0. `ifndef` negates
+  the expression. §22.5 requires no extra whitespace
+  when punctuation such as `(` already separates tokens.
+- **Failure:** A self-authored `ifdef (A && (!B || C))` and `ifndef (A && B)`
+  probe reports `` `ifdef without a macro name`` under both `-g2017` and
+  `-g2023`. The plain identifier control passes in both editions.
+- **Root cause:** `ivlpp/lexor.lex` initially accepted only simple identifiers
+  in parenthesized expressions, and the driver did not pass the selected
+  generation to `ivlpp`. The driver now forwards `-g2023` both for top-level
+  sources and lazy `-y` library sources; the expression lexer preserves
+  whitespace-terminated escaped identifiers, and the parser looks up their
+  normalized macro names. Expressions remain enabled only in 2023. The lexer
+  also hands off `ifdef(`/`ifndef(`/`elsif(` without requiring whitespace.
+- **Scope:** Boolean conditional-expression parsing/evaluation for `ifdef`,
+  `ifndef`, and `elsif`; strict 2017 behavior; paired regression coverage.
+- **Validation:** Permanent legacy and JSON fixtures pass 3/3 each, including
+  simple and operator-punctuated escaped identifiers, adjacent
+  directive/parenthesis tokens, and the 2017 rejection case. Neighboring macro
+  legacy tests pass 28/28; neighboring macro JSON tests pass 14/14. The focused
+  implementation uses the precedence in IEEE 1800-2023
+  §11.3.2 Table 11-2 and semantics in §11.4.7. The full root build passes with
+  Bison 3.8.2; system Bison 2.3 alone rejects the unchanged
+  `parse.y:2236` `%destructor`. Bison 3.8.2 reports 574 shift/reduce and 1,122
+  reduce/reduce conflicts on both `origin/main` and this branch. See the
+  [clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-2023-225-parenthesized-conditional-expressions).
+- **Next:** Issue #460 and the DD-107 repair remain in PR #467. Consult the
+  PR for the current exact-head CI status. Do not call CI qualified or merge
+  until every required platform passes.
+
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
 - **State:** Implemented and merged by the user in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413). At the latest CI snapshot, all six platform checks were pending; do not claim the merged head CI-green.

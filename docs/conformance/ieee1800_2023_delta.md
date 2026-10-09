@@ -168,7 +168,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 14 | Covergroup `extends` in a subclass | CERTAIN | UNSUPPORTED by grammar inspection | M |
 | 15 | `$timeunit`/`$timeprecision` system functions | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-07: 2023 scope values and strict 2017 rejection covered; see [focused blocker record](BLOCKERS.md#sv-timeunit-timeprecision-system-functions) | S |
 | 16 | `$stacktrace` standardized (task + string function) | CERTAIN | task form ALREADY IMPLEMENTED (R21, comment updated); string-function form open | doc + S |
-| 17 | Preprocessor boolean `` `ifdef (A && B) `` (syntax 22-5) | CERTAIN | UNSUPPORTED (parenthesized-boolean form) | M |
+| 17 | Preprocessor conditional identifiers and boolean form (syntax 22-5) | CERTAIN | Parenthesized 2023 expressions are under #460; plain escaped `text_macro_identifier` support in both editions is separately under #468. Focused candidate evidence and boundaries are recorded in the [paired clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-225-escaped-conditional-identifiers); PR/CI pending | M |
 | 18 | `weak_reference#(T)` | CERTAIN | UNSUPPORTED; needs GC/refcount hooks | L |
 | 19 | `rand real` | CERTAIN | FOCUSED IMPLEMENTATION: scalar finite-interval constraints and real solve-before; broader real-solving shapes remain open (2026-10-07) | L |
 | 20 | Tolerance range operators `[a +/- b]`, `[a +%- b]` | CERTAIN | UNSUPPORTED by grammar inspection | S–M |

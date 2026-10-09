@@ -4094,21 +4094,50 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   the active fix, not separately authorized blockers; retain the post-fix
   result here and promote none from this entry without coordinator selection.
 
-### DD-107 — PR #412 Ubuntu 22.04 check failed after merge
+### DD-107 — unequal-length SVA negative case leaves Linux CI red
 
-- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL.
-- **Observation:** GitHub reports PR #412 merged at `7c4aa26e`, but workflow
-  `37676515427` has Ubuntu 22.04 and Ubuntu 24.04 failures (jobs
-  `112981302851` and `112981303086`). Both built successfully and failed at
-  the hard ivtest name-diff gate. CLANG64 and MINGW64 remain in progress;
-  macOS and UCRT64 are queued.
-- **Scope:** This is the already-merged unequal-length SVA intersect / PR #412
-  change, not the package-qualified class-call patch in this ticket.
-- **Evidence:** [PR #412 check rollup](https://github.com/dsellerbrock/iverilog-uvm/pull/412)
-  and workflow run `37676515427`. The task recorded the check status only and
-  did not inspect unrelated failure logs.
-- **Triage status:** Triage-pending. Do not claim PR #412 CI is green. Inspect
-  the completed workflow log when available and select any repair separately.
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL; during review of
+  merged SVA intersect support and its later package-call CI run.
+- **Observation:** PR #412 merged at `7c4aa26e`. Its Ubuntu 22.04 job
+  `112981302851` (workflow `37676515427`) failed the hard gate; the job log
+  reports the negative suite at 152 passed / 1 failed. PR #413 merged at
+  `af89cfc50`, but its Ubuntu 22.04 job `113118218660` and Ubuntu 24.04 job
+  `113118218666` in workflow `37717798761` also failed the negative suite at
+  152/153. The legacy sweep on those PR #413 jobs reports 7,243 total, 7,238
+  passed, 0 failed, 2 not implemented, 3 expected failures, and a clean name
+  diff; the bundled VPI suite passes 131/131. The workflow was still running
+  on macOS, MINGW64, and CLANG64 when captured, so no all-platform result is
+  claimed. PR #467 on issue #460 repeated the failure on Ubuntu 22.04 job
+  `113303751524` and Ubuntu 24.04 job `113303751404` (workflow
+  `37775071993`): both report 152/153 negative tests, while the legacy
+  name-diff gate is clean and bundled VPI passes 131/131. A local replay on
+  the #460 worktree identifies the sole case as `m9b_intersect_unequal_len`;
+  the CI logs report the count but do not name that case. At the last snapshot,
+  macOS was queued and the three Windows jobs were still in progress. PR #466
+  (issue #450) repeats the same 152/153 negative-suite failure on Ubuntu 22.04
+  and 24.04 in run `37767274293`; the logs show the legacy suite and name-diff
+  gate pass, then the negative gate fails. A local replay identifies
+  `m9b_intersect_unequal_len` as the sole failure.
+- **Local identification:** The available source-built compiler's negative
+  runner reports its sole failure as `m9b_intersect_unequal_len`. That fixture
+  asserts unequal-length SVA `intersect` operands must be rejected. The PR #412
+  log exposes the same suite count but only prints its final five lines, so the
+  identity of its earlier failing test is not independently confirmed.
+- **Scope:** The failing fixture concerns SVA intersect semantics and predates
+  package-call PR #413. PR #413 does not modify the fixture or negative runner;
+  it adds a package-qualified class static-call grammar continuation and paired
+  tests. Treat this as unrelated to the package-call ticket.
+- **Evidence:** [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412),
+  workflow `37676515427`; [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413),
+  workflow `37717798761`; direct job logs and a local `tests/negative/run_negative.sh`
+  replay.
+- **Correction:** The fixture now carries `NEG-LEGACY-ONLY` on PR #467. The default NFA
+  accepts the legal form; `IVL_SVA_LEGACY=1` preserves the explicit unsupported-
+  lowering diagnostic. The full negative suite passes locally, 153/153.
+- **Triage status:** The correction is on main-based PR #467. Consult that PR
+  for current exact-head CI status; do not claim the hard gate
+  qualified until that exact-head run passes. PR #466 remains on its earlier
+  failed head and should be reassessed after the shared correction is validated.
 
 ### DD-108 — PR #411 Ubuntu 24.04 check failed after merge
 

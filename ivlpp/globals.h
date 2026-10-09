@@ -55,6 +55,7 @@ extern int verbose_flag;
 
 extern int warn_redef;
 extern int warn_redef_all;
+extern int sv_2023_enabled;
 
 /* This is the entry to the lexer. */
 extern int yylex(void);
