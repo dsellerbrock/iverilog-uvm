@@ -4146,10 +4146,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Observation:** Ten unrelated registered tests failed their output golds:
   `pr2835632b`, `pr2913927`, `pr3054101a` through `pr3054101f`,
   `sel_rval_bit_ob`, and `sel_rval_part_ob`. The select fixtures report
-  mismatches involving out-of-range packed/array selects; a shared cause has
-  not been isolated. The package-call parser change does not touch these
-  select paths; attribution to the branch's other select work remains
-  unverified.
+  mismatches involving out-of-range packed selects. Source review confirms
+  these inputs use packed parameters or ordinary signals and contain no
+  struct/class member selection. The #499 change is confined to unpacked
+  struct-member selects, and #497 changes package-qualified calls, so neither
+  changed path is exercised. The failure cause remains unisolated; this run
+  alone does not establish whether the mismatches also occur on a fresh main
+  baseline.
 - **Evidence:** `/tmp/issue497-full-legacy.log` reports 7,260 total, 7,243
   passed, 12 failed, 2 not implemented, and 3 expected failures. These ten
   rows account for ten of the twelve failures; the other two are the bounded
