@@ -140,10 +140,9 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
 
 ### SV-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)
 
-- **State:** Implemented and committed locally on
-  `agent/ieee-batch-499-495-20261009`; full JSON is still running. This issue
-  remains part of the five-issue main-based campaign batch; no PR or CI result
-  is claimed yet.
+- **State:** The implementation and paired focus are locally complete on
+  `agent/ieee-batch-499-495-20261009`. It remains in the five-fix main-based
+  batch; the batch PR has not been opened and no CI result is claimed.
 - **Failure:** `value = p::c::get();` reports a syntax error in strict 2017 and
   2023; the package-qualified statement call and `void'(p::c::get())` controls
   compile.
@@ -155,24 +154,15 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   scopes, but lacks the direct `package::class::method(args)` expression
   production. Keep the repair limited to that expression form and its paired
   positive/negative regressions.
-- **Validation:** The reducer failed before the patch and passes after it in
-  strict `-g2017` and `-g2023`. The narrow
-  `package_type_identifier::method(args)` production preserves package and
-  type-argument metadata. ARM64 source build succeeds; Bison 3.8.2 conflict
-  counts remain unchanged (574 shift/reduce, 1,122 reduce/reduce). Focused
-  legacy and JSON/VVP sets pass 6/6 each; neighboring package/class sets pass
-  14/14 each. The `void'(...)` and parameterized forms pass; explicit
-  non-static calls report a focused receiver diagnostic, and a missing class
-  fails without a crash. Full legacy finished with 7,260 total, 7,243 passed,
-  12 failed, 2 not implemented, and 3 expected failures; ten failures are
-  unrelated select gold mismatches and two are manually timeboxed uniform
-  tests (DD-110). Full JSON remains in progress; both global-uniform variants
-  were manually timeboxed at 300 seconds (DD-110). The real-DPI
-  `.github/uvm_test.sh` finished 362 passed, 1 failed, 0 skipped; its unrelated
-  `m10_dpi_export_small_abi_test` C companion compile failure is recorded in
-  DD-117. The external read-only axi-vip probe advances past the fixed
-  call and reaches DD-111's impure `get_width` constraint diagnostic. No CI
-  qualification is claimed.
+- **Validation:** After merging `origin/main` at `127b887`, a guarded serial
+  ARM64 build and install pass. Bison 3.8.2 reports 574 shift/reduce and 1,122
+  reduce/reduce conflicts, unchanged from the recorded baseline. The paired
+  focus passes legacy 11/11 and JSON/VVP 12/12, including the strict 2017 and
+  2023 positive call forms and non-static statement/expression diagnostics.
+  The `void'(...)`, parameterized, nested, and statement-control cases are in
+  the positive reducer. Earlier full-suite totals in the prior candidate are
+  historical and were not rerun after this merge. No CI qualification is
+  claimed.
 
 ### SV23-REF-STATIC-TF-ARGUMENTS — IEEE 1800-2023 `ref static` arguments
 

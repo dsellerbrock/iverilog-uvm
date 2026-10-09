@@ -1,5 +1,5 @@
 status: "in_progress"
-phase: "POST_MERGE_REVALIDATION"
+phase: "FOCUSED_TESTED"
 blocker: "IEEE-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)"
 github_issue: "#497 — package-qualified static class calls in expression positions"
 branch: "agent/ieee-batch-499-495-20261009"
@@ -13,8 +13,8 @@ allowed_scope: "Parser and expression elaboration needed for package-qualified s
 forbidden_scope: "No broad scope-resolution grammar redesign, unrelated class calls, or general package import changes."
 acceptance: "Paired 2017/2023 tests cover direct expression, nested expression/argument use, and the existing statement control; preserve return values and focused non-static/missing-method errors. Legacy and JSON/VVP focused suites pass. Create one main-based PR after the five-issue batch is complete; never claim CI qualification without exact-head green checks."
 discovery_policy: "Record unrelated findings in docs/conformance/DISCOVERED_DEBT.md; do not broaden this blocker."
-current_validation: "The package-qualified static-call implementation and full legacy/JSON/UVM totals recorded below are from the pre-merge candidate. They are historical, not post-merge qualification. Post-merge focused reducer and legacy/JSON/VVP results are pending. No CI qualification is claimed."
-next_action: "Run post-merge focused #497 reducers and legacy/JSON tests on the current source, record exact results, then continue with #495 after #497 remains regression-clean."
+current_validation: "After merging origin/main 127b887dfdc09283ab0187a2e618421dee3d5dcc, a guarded serial ARM64 build and install passed. Bison 3.8.2 remains at 574 shift/reduce and 1,122 reduce/reduce conflicts. The expanded package-class focus passes legacy 11/11 and JSON/VVP 12/12, including strict 2017/2023 positive and non-static expression-negative cases. Full legacy/JSON/UVM totals below are pre-merge historical results; no broad post-merge suite or CI qualification is claimed."
+next_action: "Commit the paired focus-list and blocker-record updates, then transition the active blocker to #495 from the preserved stash. Keep the batch PR closed until five actual fixes are integrated."
 stop_after_completion: false
 after_completion: "Continue the IEEE campaign with #495 after #497. #496 is already on main and closed; select additional open IEEE issues if needed to reach five actual fixes before the main-based PR. Keep each issue isolated and do not schedule check-ins or wait on queued CI."
 

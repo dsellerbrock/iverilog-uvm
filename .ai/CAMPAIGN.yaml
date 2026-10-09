@@ -1,19 +1,19 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
-branch: "agent/ieee-ch7-array-methods-20261008"
-checkpoint_head: "040bbdadeea9e0766f67673548ca353cbd60822e"
+branch: "agent/ieee-batch-499-495-20261009"
+checkpoint_head: "2d02bb1955141765b2b51b7b3112ed42ef312be5"
 active_ieee_lane:
-  blocker: "IEEE-CH7-ARRAY-METHODS-BATCH"
-  issue: "#422-#426; PR #514"
-  phase: "CI_FAILURE_REPAIR"
-  baseline_head: "12052ba68"
-  reproducer: "Five issue reducers cover fixed multidimensional locators, aggregate result-copy behavior, wrapper result typing, associative min/max, and assignment-pattern expression/type-key boundaries. The #426 behavior was already implemented; tests now qualify the covered subset."
-  standards: "IEEE 1800-2017/2023 §7.12.1 and §10.9.1; local standards PDFs checked."
-  root_cause: "Elaboration did not retain fixed multidimensional row and wrapper result types, VVP lacked object-backed row/aggregate handling, and associative min/max was routed to an unsupported diagnostic."
-  scope: "Issues #422-#426, permanent dual-runner tests, and directly related conformance records."
-  next: "Repair c0138ef07520e7d2e807a79b411a07df1cffa007 is pushed to PR #514. The local hard gate is running and exact-head CI is underway. Inspect results after a meaningful status change; the ready-PR agent may merge only if all six platform checks pass on this exact head. Repair only failures caused by this batch; do not start the next batch until merge."
-  boundary: "No broader associative locator support, untested associative value/key types, or unrelated array/NBA repair is claimed. The local full ivtest hard gate is still running; no local UVM/Linux/Windows suite was run."
+  blocker: "IEEE-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)"
+  issue: "#497; current batch contains local fixes for #499 and #497 (2 of 5 actual fixes)"
+  phase: "FOCUSED_TESTED"
+  baseline_head: "127b887dfdc09283ab0187a2e618421dee3d5dcc"
+  reproducer: "`value = p::c::get()` failed in strict 2017/2023 before the parser production; the paired call reducer now passes."
+  standards: "IEEE 1800-2017/2023 §§8.23 and 26.3; local standards PDFs checked."
+  root_cause: "parse.y lacked the direct package_type_identifier::method(args) expression production; it now preserves package and type-parameter metadata."
+  scope: "Issue #497 expression support and paired legacy/JSON-VVP focus lists only."
+  next: "After committing the exact #497 focus evidence, activate #495 from the preserved stash. Do not open a batch PR until five actual fixes are integrated."
+  boundary: "Guarded macOS ARM64 build/install and paired focus pass locally. No post-merge full suite or CI qualification is claimed. Historical pre-merge totals remain historical."
 previous_batch_pr464:
   head: "870442199088b468b681983a7cbbe9f653bebeb3 (pre-follow-up exact CI head)"
   changes: "Issues #414 packed-select bounds, #449 ref static, and #458 IEEE 1800-2023 $timeunit/$timeprecision, plus local fixes for their observed Windows-export and property-diagnostic regressions."
@@ -653,11 +653,11 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Poll the existing full JSON ivtest session 39705 with tools.write_stdin; do not start a duplicate run while it is live. The run was launched from ivtest as PATH=\"$PWD/../local-install/bin:$PATH\" ../../evidence/arm64-tooling/resource-runner python3 ./vvp_reg.py."
+next_command: "git diff --check"
 current_execution_checkpoint:
-  active_work_item: "SV-PACKAGE-CLASS-STATIC-CALL"
-  source_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
-  phase: "VALIDATING_FULL_GATES"
-  completed: "Narrow parser fix and permanent positive/negative tests are present. Strict paired reducer passes; focused legacy 7/7 and JSON 8/8 pass; full legacy totals 7,243 / 0 failed; Bison counts are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Full JSON attempt 1 was stopped after the unguarded VVP child exceeded 300 CPU seconds. The guarded full JSON run is live in session 39705. PR #412 Ubuntu 22.04 failure is unrelated and recorded as triage-pending DD-107."
-  next_action: "Poll the same guarded JSON runner to completion; then run remaining UVM and axi-vip validations one at a time. Update exact results, diff-check, commit/push, and open one draft PR to main. Do not merge."
-  next_command: "Use tools.write_stdin(session_id=39705, chars=\"\", yield_time_ms=30000); if still live, continue that run rather than restarting it."
+  active_work_item: "IEEE-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)"
+  source_head: "2d02bb1955141765b2b51b7b3112ed42ef312be5"
+  phase: "FOCUSED_TESTED"
+  completed: "Latest origin/main 127b887 was merged with a two-parent merge commit. Guarded serial ARM64 build/install passed; Bison remained 574 SR/1,122 RR. After expanding the focus manifests to both editions and the expression-negative path, legacy passes 11/11 and JSON/VVP 12/12. The test-list and record updates are in the worktree."
+  next_action: "Run git diff --check, stage only the #497 focus lists and current status records, commit them, then activate #495 from stash@{0}. No PR until five actual fixes are integrated."
+  next_command: "git diff --check"
