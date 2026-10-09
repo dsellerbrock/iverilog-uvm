@@ -15,7 +15,7 @@ ldflags=$($ivpi --ldflags)
 ldlibs=$($ivpi --ldlibs)
 # shellcheck disable=SC2086
 $cc_bin -std=c11 -Wall -Wextra -Werror $cflags -c \
-  "$repo_dir/tests/m11_vpi_source_location_test.c" -o "$work_dir/source.o"
+  "$script_dir/vpi_source_location_test.c" -o "$work_dir/source.o"
 # shellcheck disable=SC2086
 $cc_bin $ldflags -o "$work_dir/source.vpi" "$work_dir/source.o" $ldlibs
 
@@ -23,7 +23,7 @@ for standard in 2017 2023; do
   image=$work_dir/source-$standard.vvp
   output=$work_dir/source-$standard.log
   "$iverilog" -g"$standard" -o "$image" \
-    "$repo_dir/tests/m11_vpi_source_location_test.sv"
+    "$script_dir/vpi_source_location_test.sv"
   if ! "$vvp" -n -M "$work_dir" -m source "$image" >"$output" 2>&1; then
     cat "$output"
     echo "FAIL VPI source locations (-g$standard)" >&2
