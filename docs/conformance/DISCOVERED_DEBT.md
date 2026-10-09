@@ -4098,28 +4098,20 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** Triage-pending, unrelated to `ref static`; do not expand
   this ticket to change event scheduling or add runner timeouts.
 
-### DD-115 — obsolete negative expects unequal-length `intersect` rejection
+### DD-115 — obsolete negative expected unequal-length `intersect` rejection (resolved)
 
 - **Discovered while working:** SV23-REF-STATIC-TF-ARGUMENTS (#449), while
-  investigating the Ubuntu hard-gate failures on PR #464's superseded head.
-- **Observation:** `tests/negative/m9b_intersect_unequal_len.sv` expects the
-  compiler to reject `(a ##1 b) intersect c`. IEEE 1800-2017 §16.9.6 permits
-  unequal fixed-length operands as a legal sequence expression; they simply
-  have no `intersect` matches. The current implementation accepts the source,
-  so this stale negative fails.
-- **File/function:** `tests/negative/m9b_intersect_unequal_len.sv` and
-  `tests/negative/run_negative.sh`.
-- **Possible clause:** IEEE 1800-2017 §16.9.6; see the October 7 unequal-length
-  `intersect` matrix entry and PR #412 evidence.
-- **Evidence:** On the current PR worktree image, `PATH="$PWD/local-install/bin:$PATH"
-  bash tests/negative/run_negative.sh` reports 152 passed and one failed,
-  `m9b_intersect_unequal_len`. Superseded PR #464 run 37725785483 also reports
-  this failure on Ubuntu 22.04/24.04, alongside the two DD-113 VIF gold
-  mismatches. Exact PR #464 head `870442199088b468b681983a7cbbe9f653bebeb3`
-  run 37740368288 also reports 152 passed and one failed in both Ubuntu jobs;
-  it additionally shows the VIF diagnostic mismatch and Windows link failure.
-- **Reproducer status:** Confirmed locally on the current PR worktree and in
-  the exact-head Ubuntu checks above.
-- **Triage status:** Triage-pending and unrelated to `ref static`. Do not edit
-  this negative test during #449; select it with the existing SVA/negative-gate
-  backlog when the coordinator returns to that work.
+  investigating Ubuntu hard-gate failures.
+- **Observation:** The old negative expected `(a ##1 b) intersect c` to be
+  rejected. IEEE 1800-2017/2023 §16.9.6 defines a match only when both operands
+  end on the same tick; unequal fixed-length operands are legal and produce no
+  match.
+- **Resolution:** Removed the obsolete negative. The same behavior already has
+  a positive runtime regression in
+  `ivtest/ivltests/sv_assert_intersect_unequal_lengths.v`, registered for strict
+  2017 and 2023 runs.
+- **Evidence:** PR #515 Ubuntu 22.04/24.04 run 37890533641 and the local negative
+  suite exposed the obsolete test. The positive strict-edition regressions cover
+  the legal empty-match result.
+- **Triage status:** Resolved. Variable or ranged-length mismatches remain
+  outside that regression's scope.
