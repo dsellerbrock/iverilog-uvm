@@ -9,7 +9,11 @@ module sv_uarray_nested_function_return_shape_fail;
   endfunction
 
   pairs_t nested;
+  pairs_t defaulted;
 
-  initial nested = '{make_triple(11), make_triple(21)};
+  initial begin
+    nested = '{make_triple(11), make_triple(21)};
+    defaulted = '{default: make_triple(31)};
+  end
 
 endmodule

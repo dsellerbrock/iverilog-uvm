@@ -1,3 +1,5 @@
-./ivltests/sv_uarray_nested_function_return_shape_fail_2023.v:13: error: The expression 'make_triple('sd11)' cannot be implicitly cast to the target type.
-./ivltests/sv_uarray_nested_function_return_shape_fail_2023.v:13: error: The expression 'make_triple('sd21)' cannot be implicitly cast to the target type.
-2 error(s) during elaboration.
+./ivltests/sv_uarray_nested_function_return_shape_fail_2023.v:15: error: The expression 'make_triple('sd11)' cannot be implicitly cast to the target type.
+./ivltests/sv_uarray_nested_function_return_shape_fail_2023.v:15: error: The expression 'make_triple('sd21)' cannot be implicitly cast to the target type.
+./ivltests/sv_uarray_nested_function_return_shape_fail_2023.v:16: error: The expression 'make_triple('sd31)' cannot be implicitly cast to the target type.
+./ivltests/sv_uarray_nested_function_return_shape_fail_2023.v:16: error: The expression 'make_triple('sd31)' cannot be implicitly cast to the target type.
+4 error(s) during elaboration.
