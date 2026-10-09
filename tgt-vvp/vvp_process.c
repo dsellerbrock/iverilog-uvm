@@ -8197,8 +8197,9 @@ int draw_task_definition(ivl_scope_t scope)
  * atoms (byte/shortint/int/longint), 'p' chandle (void*), 'V'/'W'
  * canonical packed bit/logic vectors, 'g' 4-state scalar (svLogic),
  * 'f' shortreal, 'r' real, 's' string, 'x'/'y' dynamic/open arrays of packed bit/logic
- * vectors, 'X'/'Y' their fixed-array counterparts, and 'B'/'G' fixed arrays
- * of true scalar svBit/svLogic elements. The distinctions let the runtime
+ * vectors, 'X'/'Y' their fixed-array counterparts, 'B'/'G' fixed arrays
+ * of true scalar svBit/svLogic elements, and 'q'/'Q' shortreal open/fixed
+ * arrays. The distinctions let the runtime
  * expose the exact Annex H C representation, including canonical packed
  * element storage when the actual is a non-contiguous queue.
  *
@@ -8309,17 +8310,6 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	       Materialize the inline word array before the call and copy it
 	       back below for output/inout directions. */
 		  ivl_type_t nt = ivl_signal_net_type(port);
-		  if (ptype == IVL_VT_REAL && ivl_type_is_shortreal(nt)) {
-			fprintf(stderr, "%s:%u: sorry: DPI import '%s': fixed "
-				"shortreal array argument '%s' needs float-array "
-				"marshaling, which is not yet supported; the call is "
-				"skipped.\n", ivl_scope_def_file(scope),
-				ivl_scope_def_lineno(scope), c_name,
-				ivl_signal_basename(port));
-			unsupported = 1;
-			vvp_errors += 1;
-			break;
-		  }
 		  int elem_ok = (ptype == IVL_VT_REAL)
 			|| ((ptype == IVL_VT_BOOL || ptype == IVL_VT_LOGIC)
 			    && pwid > 0);
@@ -8336,6 +8326,9 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  }
 		  if (nt && ivl_type_is_packed_vector(nt)) {
 			letter = (ptype == IVL_VT_LOGIC) ? 'Y' : 'X';
+		  } else if (ptype == IVL_VT_REAL
+			     && ivl_type_is_shortreal(nt)) {
+			letter = 'Q';
 		  } else if (pwid == 1 && ptype == IVL_VT_BOOL) {
 			letter = 'B';
 		  } else if (pwid == 1 && ptype == IVL_VT_LOGIC) {
@@ -8368,17 +8361,6 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  int elem_ok = (ebase == IVL_VT_REAL)
 			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
 			    && ewid > 0);
-		  if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et)) {
-			fprintf(stderr, "%s:%u: sorry: DPI import '%s': open "
-				"shortreal array argument '%s' needs float-array "
-				"marshaling, which is not yet supported; the call is "
-				"skipped.\n", ivl_scope_def_file(scope),
-				ivl_scope_def_lineno(scope), c_name,
-				ivl_signal_basename(port));
-			unsupported = 1;
-			vvp_errors += 1;
-			break;
-		  }
 		  if (! elem_ok) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
 				"open array argument '%s' must have packed "
@@ -8390,7 +8372,9 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			unsupported = 1;
 			break;
 		  }
-		  if (et && ivl_type_is_packed_vector(et))
+		  if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et))
+			letter = 'q';
+		  else if (et && ivl_type_is_packed_vector(et))
 			letter = (ebase == IVL_VT_LOGIC) ? 'y' : 'x';
 		  else
 			letter = 'o';
@@ -8455,6 +8439,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    else if (letter == 's')
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
 	    else if (letter == 'o' || letter == 'O'
+		     || letter == 'q' || letter == 'Q'
 		     || letter == 'B' || letter == 'G'
 		     || letter == 'x' || letter == 'X'
 		     || letter == 'y' || letter == 'Y') {
@@ -8554,6 +8539,8 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 		case 'o':
 		case 'O':
+		case 'q':
+		case 'Q':
 		case 'B':
 		case 'G':
 		case 'x':

@@ -43156,17 +43156,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				cerr << " product=" << nprod << endl;
 			  }
 				  if (nprod == 0) {
-					cerr << (has_wide_bin ? "error: " : "sorry: ")
-					     << "cross '"
-					     << (cross.label.nil() ? "(unnamed)"
-								   : cross.label.str())
-					     << (product_too_large ? "' would generate more than "
-								   : "' would generate ")
-					     << (product_too_large ? cross_bin_limit : nprod)
-					     << " bins (limit " << cross_bin_limit
-				     << "); the cross is "
-				     << "dropped." << endl;
-				if (has_wide_bin) des->errors += 1;
+					if (product_too_large) {
+					      cerr << "error: cross '"
+						   << (cross.label.nil() ? "(unnamed)"
+								 : cross.label.str())
+						   << "' requires more than " << cross_bin_limit
+						   << " automatic bins (supported limit "
+						   << cross_bin_limit
+						   << "); reduce the crossed bin cardinality or split the cross."
+						   << endl;
+					      des->errors += 1;
+					} else {
+					      cerr << (has_wide_bin ? "error: " : "sorry: ")
+						   << "cross '"
+						   << (cross.label.nil() ? "(unnamed)"
+								 : cross.label.str())
+						   << "' would generate " << nprod
+						   << " bins; the cross is dropped." << endl;
+					      if (has_wide_bin) des->errors += 1;
+				}
 				continue;
 			  }
 

@@ -78,6 +78,8 @@ extern void wide_inputs_connect(vvp_wide_fun_core*core,
 
 extern vvp_net_t* vvp_net_lookup(const char*label);
 extern vpiHandle vvp_lookup_handle(const char*label);
+extern void compile_vpi_source_location(char*label, uint64_t file_idx,
+                                        uint64_t lineno);
 extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
                                       __vpiScope**scope, bool exact = false);
 
@@ -87,8 +89,8 @@ extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
  * name, the TD_ thread-definition label, the return signature letter
  * ('v' void, 'i'/'I' unsigned/signed integer, 'r' real), the per-argument
  * signature string, the return-net label ("" for void/task) and a
- * space-separated list of argument-net labels. The net labels are
- * resolved to vvp_net_t* immediately (the VPI symbol table is discarded
+ * space-separated list of argument labels. Scalar nets and fixed-array
+ * storage are resolved immediately (the VPI symbol table is discarded
  * after link); the TD_ entry is resolved lazily at first call.
  *
  * A given C name may be registered more than once: a module that exports a
@@ -105,6 +107,7 @@ struct dpi_export_info_s {
       const char*arg_sig;
       class vvp_net_t*ret_net;
       class vvp_net_t*const*arg_nets;
+      struct __vpiArray*const*arg_arrays;
       unsigned nargs;
 };
 extern void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,

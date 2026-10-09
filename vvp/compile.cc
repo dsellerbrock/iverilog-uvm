@@ -33,6 +33,7 @@
 # include  "statistics.h"
 # include  "class_type.h"
 # include  "vvp_darray.h"
+# include  "array.h"
 # include  "schedule.h"
 # include  <iostream>
 # include  <list>
@@ -1559,10 +1560,18 @@ struct dpi_export_rec_s {
       std::string arg_sig;
       vvp_net_t*ret_net;
       std::vector<vvp_net_t*> arg_nets;
+      std::vector<vvp_array_t> arg_arrays;
 };
 // A C name maps to one record per exported instance (a module exporting a
 // subroutine and instantiated N times registers N records).
 static std::map<std::string, std::vector<dpi_export_rec_s> > dpi_export_map;
+
+static bool dpi_export_array_letter_(char letter)
+{
+      return letter == 'O' || letter == 'Q' || letter == 'R'
+	  || letter == 'B' || letter == 'G'
+	  || letter == 'X' || letter == 'Y';
+}
 
 void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
 			char*arg_sig, char*ret_net, char*arg_nets)
@@ -1581,7 +1590,8 @@ void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
 	    compile_errors += 1;
       }
 
-	/* Split the space-separated argument-net label list and resolve. */
+	/* Split the argument labels, resolving array storage separately from nets. */
+      unsigned arg_index = 0;
       for (char*cur = arg_nets ; cur && *cur ; ) {
 	    while (*cur == ' ') cur += 1;
 	    if (*cur == 0) break;
@@ -1589,13 +1599,28 @@ void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
 	    while (*end && *end != ' ') end += 1;
 	    char save = *end;
 	    *end = 0;
-	    vvp_net_t*net = vvp_net_lookup(cur);
-	    if (net == 0) {
-		  fprintf(stderr, "error: DPI export '%s' argument net '%s' "
-			  "not found.\n", c_name, cur);
-		  compile_errors += 1;
+	    char letter = arg_index * 2 < rec.arg_sig.size()
+		  ? rec.arg_sig[arg_index * 2] : 0;
+	    if (dpi_export_array_letter_(letter)) {
+		  vvp_array_t array = array_find(cur);
+		  if (array == 0) {
+			fprintf(stderr, "error: DPI export '%s' argument array '%s' "
+				"not found.\n", c_name, cur);
+			compile_errors += 1;
+		  }
+		  rec.arg_arrays.push_back(array);
+		  rec.arg_nets.push_back(0);
+	    } else {
+		  vvp_net_t*net = vvp_net_lookup(cur);
+		  if (net == 0) {
+			fprintf(stderr, "error: DPI export '%s' argument net '%s' "
+				"not found.\n", c_name, cur);
+			compile_errors += 1;
+		  }
+		  rec.arg_nets.push_back(net);
+		  rec.arg_arrays.push_back(0);
 	    }
-	    rec.arg_nets.push_back(net);
+	    arg_index += 1;
 	    *end = save;
 	    cur = end;
       }
@@ -1635,6 +1660,7 @@ bool dpi_export_lookup(const char*c_name, unsigned index,
       out->arg_sig  = rec.arg_sig.c_str();
       out->ret_net  = rec.ret_net;
       out->arg_nets = rec.arg_nets.empty() ? 0 : &rec.arg_nets[0];
+      out->arg_arrays = rec.arg_arrays.empty() ? 0 : &rec.arg_arrays[0];
       out->nargs    = rec.arg_nets.size();
       return true;
 }

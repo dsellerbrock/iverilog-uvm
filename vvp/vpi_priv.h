@@ -401,6 +401,14 @@ struct __vpiSignal : public __vpiHandle {
     public:
       unsigned width() const;
       vpiHandle get_index(int index);
+      void set_source_location(unsigned file_idx, unsigned lineno)
+      { source_file_idx = file_idx; source_lineno = lineno;
+        has_source_location = true; }
+      unsigned get_source_lineno() const
+      { return has_source_location ? source_lineno : 0; }
+      unsigned get_source_file_idx() const
+      { return source_file_idx; }
+      bool has_source_loc() const { return has_source_location; }
       void get_bit_value(const struct __vpiBit*bit, p_vpi_value vp);
       vpiHandle put_bit_value(struct __vpiBit*bit, p_vpi_value vp, int flags);
       void make_bits();
@@ -435,6 +443,10 @@ struct __vpiSignal : public __vpiHandle {
 	/* Effective declared storage lifetime. This can differ from the
 	   lexical scope for an explicit static/automatic declaration. */
       unsigned automatic_storage : 1;
+	/* The source declaration used for VPI vpiFile/vpiLineNo. */
+      unsigned source_file_idx = 0;
+      unsigned source_lineno = 0;
+      bool has_source_location = false;
 	/* The represented value is here. */
       vvp_net_t*node;
 
@@ -1145,6 +1157,7 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
@@ -1154,8 +1167,18 @@ class __vpiCobjectVar : public __vpiBaseVar {
 	// vpi_handle_by_name dotted-path descent). Returns nil when
 	// the object is null or has no such property.
       vpiHandle member_by_name(const char*name);
+      void set_source_location(unsigned file_idx, unsigned lineno)
+      { source_file_idx_ = file_idx; source_lineno_ = lineno;
+        has_source_location_ = true; }
+      unsigned get_source_lineno() const
+      { return has_source_location_ ? source_lineno_ : 0; }
+      unsigned get_source_file_idx() const { return source_file_idx_; }
+      bool has_source_loc() const { return has_source_location_; }
 
     private:
+      unsigned source_file_idx_ = 0;
+      unsigned source_lineno_ = 0;
+      bool has_source_location_ = false;
       std::vector<vpiHandle> members_;
       const class class_type* members_defn_ = nullptr;
       void refresh_members_();
