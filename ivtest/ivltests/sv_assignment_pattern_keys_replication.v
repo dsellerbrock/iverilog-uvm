@@ -6,6 +6,8 @@ module test;
   typedef struct { int a; int b[4]; } unpacked_nested_t;
   typedef int ascending_t [1:3];
   typedef int descending_t [3:1];
+  typedef int value_t;
+  typedef value_t alias_ascending_t [1:3];
 
   localparam int Pick = 2;
 
@@ -15,6 +17,7 @@ module test;
   packed_pair_t member_over_type = '{a:3, int:4, default:5};
   ascending_t ascending = '{1:11, default:22};
   descending_t descending = '{1:33, default:44};
+  alias_ascending_t alias_ascending;
   logic [1:3][7:0] packed_indexed = '{1:8'h11, default:8'h22};
 
   initial begin
@@ -44,9 +47,16 @@ module test;
     ascending = '{Pick:55, default:66};
     if (ascending[1] != 66 || ascending[2] != 55 || ascending[3] != 66)
       $fatal(1, "constant identifier index key failed");
+    ascending = '{(Pick + 1):57, default:66};
+    if (ascending[1] != 66 || ascending[2] != 66 || ascending[3] != 57)
+      $fatal(1, "constant expression index key failed");
     ascending = '{int:77, default:0};
     if (ascending[1] != 77 || ascending[2] != 77 || ascending[3] != 77)
       $fatal(1, "array type key failed");
+    alias_ascending = '{value_t:88, default:0};
+    if (alias_ascending[1] != 88 || alias_ascending[2] != 88
+        || alias_ascending[3] != 88)
+      $fatal(1, "user-defined type key failed");
     if (packed_indexed[1] != 8'h11 || packed_indexed[2] != 8'h22
         || packed_indexed[3] != 8'h22)
       $fatal(1, "packed array index key failed");

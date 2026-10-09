@@ -805,6 +805,19 @@ static ivl_type_t array_locator_queue_type_(ivl_type_t element_type)
       return res;
 }
 
+/* A locator on a multidimensional fixed array visits the outer dimension;
+ * each iterator/result value is therefore one fixed subarray. */
+static ivl_type_t fixed_array_locator_element_type_(
+      const netuarray_t*array)
+{
+      const netranges_t&dimensions = array->static_dimensions();
+      if (dimensions.size() < 2)
+            return array->element_type();
+      netranges_t element_dimensions(dimensions.begin() + 1,
+                                     dimensions.end());
+      return new netuarray_t(element_dimensions, array->element_type());
+}
+
 static NetNet* make_array_method_recv_net_(
       const LineInfo*li, Design*des, NetScope*scope,
       NetExpr*array_expr, ivl_type_t container_type, const char*kind);
@@ -1649,8 +1662,14 @@ static NetExpr* make_queue_locator_with_expr_(
        * calls on arrays of different element types must not share a
        * binding; the name is aliased to this net only while the
        * predicate elaborates. */
-      NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
-                                   NetNet::REG, element_type);
+      const netuarray_t*iter_array_type =
+	    dynamic_cast<const netuarray_t*>(element_type);
+      NetNet*iter_net = iter_array_type
+	    ? new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			 iter_array_type->static_dimensions(),
+			 iter_array_type->element_type())
+	    : new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			 element_type);
       iter_net->set_line(*call);
       iter_net->local_flag(true);
 
@@ -2437,6 +2456,140 @@ static NetExpr* make_array_minmax_expr_(
 	    delete array_expr;
 	    return 0;
       }
+
+	  const netqueue_t*assoc_type =
+		dynamic_cast<const netqueue_t*>(container_type);
+	  if (assoc_type && assoc_type->assoc_compat()) {
+	    ivl_type_t key_type = assoc_type->assoc_index_type();
+	    if (assoc_type->assoc_wildcard()
+		|| !key_type
+		|| (key_type->base_type() != IVL_VT_BOOL
+		    && key_type->base_type() != IVL_VT_LOGIC
+		    && key_type->base_type() != IVL_VT_STRING)) {
+		  cerr << li->get_fileline() << ": sorry: " << kind
+		       << "() on this associative index type is not yet "
+		          "implemented." << endl;
+		  des->errors += 1;
+		  delete array_expr;
+		  return nullptr;
+	    }
+
+	    NetNet*recv_net = 0;
+	    if (!dynamic_cast<NetESignal*>(array_expr)) {
+		  recv_net = make_array_method_recv_net_(li, des, scope,
+						 array_expr, container_type, kind);
+		  if (!recv_net) {
+			delete array_expr;
+			return nullptr;
+		  }
+	    }
+
+	    NetNet*iter_net = make_array_method_iter_net_(li, scope,
+							 element_type,
+							 parms, iter_name);
+	    NetNet*key_net = new NetNet(scope, scope->local_symbol(),
+					 NetNet::REG, key_type);
+	    key_net->set_line(*li);
+	    key_net->local_flag(true);
+	    NetExpr*element_source = recv_net
+		  ? static_cast<NetExpr*>(new NetESignal(recv_net))
+		  : array_expr->dup_expr();
+	    if (recv_net)
+		  element_source->set_line(*li);
+	    NetExpr*element = make_assoc_unique_element_expr_(
+		  li, element_source, key_net, element_type);
+	    if (!element) {
+		  cerr << li->get_fileline() << ": internal error: cannot build "
+		       << "the associative-array " << kind << " element select."
+		       << endl;
+		  des->errors += 1;
+		  delete array_expr;
+		  return nullptr;
+	    }
+
+	    NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
+	    push_array_method_iter_ctx_(iter_net, key_net, true, index_name);
+	    NetExpr*value = nullptr;
+	    if (with_exprs.empty()) {
+		  NetESignal*iter_ref = new NetESignal(iter_net);
+		  iter_ref->set_line(*li);
+		  value = iter_ref;
+	    } else if (with_exprs.front()) {
+		  value = elab_and_eval(des, scope, with_exprs.front(), -1, false);
+	    }
+	    pop_array_method_iter_ctx();
+	    scope->restore_signal_alias(iter_name, previous);
+	    if (!value) {
+		  delete array_expr;
+		  delete element;
+		  return nullptr;
+	    }
+	    if (value->expr_type() != IVL_VT_BOOL
+		&& value->expr_type() != IVL_VT_LOGIC) {
+		  cerr << li->get_fileline() << ": sorry: " << kind
+		       << "() with a non-integral with expression is not yet "
+		          "implemented." << endl;
+		  des->errors += 1;
+		  delete array_expr;
+		  delete element;
+		  delete value;
+		  return nullptr;
+	    }
+
+	    unsigned value_width = value->expr_width();
+	    if (!value_width) value_width = 32;
+	    netvector_t*best_type = new netvector_t(
+		  value->expr_type(), value_width - 1, 0, value->has_sign());
+	    NetNet*best_net = new NetNet(scope, scope->local_symbol(),
+					 NetNet::REG, best_type);
+	    best_net->set_line(*li);
+	    best_net->local_flag(true);
+	    NetNet*best_item_net = new NetNet(scope, scope->local_symbol(),
+					       NetNet::REG, element_type);
+	    best_item_net->set_line(*li);
+	    best_item_net->local_flag(true);
+	    NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
+					NetNet::REG, &netvector_t::atom2s32);
+	    idx_net->set_line(*li);
+	    idx_net->local_flag(true);
+	    ivl_type_t result_type = array_locator_queue_type_(element_type);
+	    NetNet*result_net = new NetNet(scope, scope->local_symbol(),
+					    NetNet::REG, result_type);
+	    result_net->set_line(*li);
+	    result_net->local_flag(true);
+
+	    NetESFunc*fn = new NetESFunc(
+		  (string("$ivl_queue_method$assoc_minmax|") + kind).c_str(),
+		  result_type, recv_net ? 10 : 9);
+	    fn->parm(0, array_expr);
+	    NetESignal*iter_ref = new NetESignal(iter_net);
+	    iter_ref->set_line(*li);
+	    fn->parm(1, iter_ref);
+	    NetESignal*result_ref = new NetESignal(result_net);
+	    result_ref->set_line(*li);
+	    fn->parm(2, result_ref);
+	    NetESignal*key_ref = new NetESignal(key_net);
+	    key_ref->set_line(*li);
+	    fn->parm(3, key_ref);
+	    NetESignal*best_ref = new NetESignal(best_net);
+	    best_ref->set_line(*li);
+	    fn->parm(4, best_ref);
+	    NetESignal*best_item_ref = new NetESignal(best_item_net);
+	    best_item_ref->set_line(*li);
+	    fn->parm(5, best_item_ref);
+	    NetESignal*idx_ref = new NetESignal(idx_net);
+	    idx_ref->set_line(*li);
+	    fn->parm(6, idx_ref);
+	    fn->parm(7, value);
+	    fn->parm(8, element);
+	    if (recv_net) {
+		  NetESignal*recv_ref = new NetESignal(recv_net);
+		  recv_ref->set_line(*li);
+		  fn->parm(9, recv_ref);
+	    }
+	    fn->set_line(*li);
+	    return fn;
+	  }
 
       const netuarray_t*fixed_type =
 	    dynamic_cast<const netuarray_t*>(container_type);
@@ -9826,9 +9979,20 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
       bool target_indexed = search_results.net
 			 && !search_results.path_head.empty()
 			 && !search_results.path_head.back().index.empty();
+      bool root_indexed = target_indexed;
 
       if (!target_type && search_results.net)
 	    target_type = search_results.net->net_type();
+
+	  // PEIdent normally reports the element type for a fixed unpacked
+	  // signal. A bare method receiver is the full array regardless of
+	  // whether symbol_search returned the identical type pointer.
+	  if (!root_indexed && search_results.net
+	      && search_results.net->unpacked_dimensions() > 0) {
+	    if (const netuarray_t*array_type =
+		  dynamic_cast<const netuarray_t*>(search_results.net->array_type()))
+		  target_type = array_type;
+	  }
 
       if (search_results.net
 	  && search_results.net->unpacked_dimensions() > 0
@@ -9922,9 +10086,16 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	 * specialized. */
       if (search_results.net)
 	    target_type = specialize_bare_class_receiver_on_use(
-		des, scope,
-		method_receiver_wire_declared_type_(search_results.net),
-		target_type);
+		  des, scope,
+		  method_receiver_wire_declared_type_(search_results.net),
+		  target_type);
+
+	  if (!root_indexed && search_results.net
+	      && search_results.net->unpacked_dimensions() > 0) {
+	    if (const netuarray_t*array_type =
+		  dynamic_cast<const netuarray_t*>(search_results.net->array_type()))
+		  target_type = array_type;
+	  }
 
 	// IEEE 1800-2017 7.12.4: for an associative array the iterator
 	// index() call has the array's declared key type, not int.
@@ -17947,6 +18118,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       bool target_indexed = search_results.net
 			  && !search_results.path_head.empty()
 			  && !search_results.path_head.back().index.empty();
+      bool root_indexed = target_indexed;
       bool selected_string_byte = search_results.net
 	    && search_results.net->data_type() == IVL_VT_STRING
 	    && search_results.net->unpacked_dimensions() == 0
@@ -18255,9 +18427,16 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
       if (search_results.net)
 	    target_type = specialize_bare_class_receiver_on_use(
-		des, scope,
-		method_receiver_wire_declared_type_(search_results.net),
-		target_type);
+		  des, scope,
+		  method_receiver_wire_declared_type_(search_results.net),
+		  target_type);
+
+	  if (!root_indexed && search_results.net
+	      && search_results.net->unpacked_dimensions() > 0) {
+	    if (const netuarray_t*array_type =
+		  dynamic_cast<const netuarray_t*>(search_results.net->array_type()))
+		  target_type = array_type;
+	  }
 
 	      while (method_path.size() > 1) {
 		    if (!sub_expr) {
@@ -18467,7 +18646,6 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
       bool explicit_super = !search_results.path_head.empty()
 	    && search_results.path_head.front().name == perm_string::literal(SUPER_TOKEN);
-
       if (should_defer_type_parameter_expr_call_(
 		des, scope, search_results.net, orig_method_path,
 		target_type, method_name)) {
@@ -18622,22 +18800,20 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  return nullptr;
 
 	      // IEEE 1800-2017 7.12 array manipulation methods apply
-	      // to fixed-size unpacked arrays too; the tgt-vvp loop
-	      // uses the compile-time word count as the bound.  A
-	      // multidimensional receiver iterates sub-arrays (the
-	      // LRM nested-with idiom), which the flat element loop
-	      // cannot model — diagnose instead of mis-iterating.
+	      // to fixed-size unpacked arrays too. min/max on a
+	      // multidimensional receiver remains unsupported.
 	    const netuarray_t*uarray =
 		  dynamic_cast<const netuarray_t*>(target_type);
-	    ivl_type_t element_type = uarray->element_type();
+	    ivl_type_t element_type = is_array_locator_name_(method_name)
+		  ? fixed_array_locator_element_type_(uarray)
+		  : uarray->element_type();
 	    if (method_name == "map")
 		  return make_array_map_expr_(this, des, scope, sub_expr,
 					      target_type, element_type,
 					      parms_, with_constraints());
 
 	    if (uarray->static_dimensions().size() > 1
-		&& (is_array_locator_name_(method_name)
-		    || method_name == "min" || method_name == "max")) {
+		&& (method_name == "min" || method_name == "max")) {
 		  cerr << get_fileline() << ": sorry: " << method_name
 		       << "() on multidimensional arrays is not yet "
 			  "implemented." << endl;
@@ -18663,7 +18839,9 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  bool element_supported =
 			base_type == IVL_VT_BOOL || base_type == IVL_VT_LOGIC
 			|| base_type == IVL_VT_REAL || base_type == IVL_VT_STRING
-			|| base_type == IVL_VT_CLASS;
+			|| base_type == IVL_VT_CLASS
+			|| dynamic_cast<const netstruct_t*>(element_type)
+			|| dynamic_cast<const netuarray_t*>(element_type);
 		  if (!element_supported) {
 			cerr << get_fileline() << ": sorry: " << method_name
 			     << "() on a fixed-size array of this element type "
@@ -18688,7 +18866,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 						 with_constraints());
 
 	    if (is_array_locator_name_(method_name)) {
-		  NetExpr*loc = make_queue_locator_with_expr_(
+	  NetExpr*loc = make_queue_locator_with_expr_(
 			this, des, scope, sub_expr, target_type,
 			element_type,
 			method_name.str(), parms_);
@@ -18800,6 +18978,11 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		    // queues, but the runtime loop indexes elements
 		    // positionally, which has no meaning for an AA.
 		  if (queue->assoc_compat()) {
+			if (method_name == "min" || method_name == "max")
+			      return make_array_minmax_expr_(
+				    this, des, scope, sub_expr, target_type,
+				    element_type, method_name.str(), parms_,
+				    with_constraints());
 			cerr << get_fileline() << ": sorry: " << method_name
 			     << "() on associative arrays is not yet "
 				"implemented." << endl;
