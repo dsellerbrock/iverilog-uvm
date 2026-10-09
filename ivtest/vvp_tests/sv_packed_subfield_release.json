@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_packed_subfield_release.v",
+    "iverilog-args": ["-g2017", "-gstrict-expr-width", "-s", "test"],
+    "gold": "sv_packed_subfield_release"
+}

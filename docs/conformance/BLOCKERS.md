@@ -2,9 +2,16 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
+### IEEE-1800-PACKED-SUBFIELD-RELEASE — issue #493 (locally focused-tested)
+
+- **State:** Implemented on the existing IEEE batch branch; issue remains open. The DD-088 reducer aborted before the patch with exit 134 at `show_stmt_release` because the packed offset was non-immediate. Paired focused regressions now pass 6/6 legacy and 7/7 JSON/VVP; serial macOS build/install and `make check` pass. No full-suite or CI qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §10.6 release behavior applies to the selected packed variable lvalue.
+- **Cause and scope:** VVP target lowering required immediate packed offsets, and release opcodes lacked register-backed offsets. The fix adds that path while preserving variable-release retention and net-driver restoration. Scope is packed release lowering, related VVP instructions, paired tests, and records.
+- **Next:** Commit and push to the four-of-five IEEE batch branch; open one PR to `main` after the fifth fix is verified. See [DD-088](DISCOVERED_DEBT.md#dd-088--packed-subfield-release-asserts-on-non-immediate-lhs-offset) and the [session record](session_logs/2026-10-09_ieee_packed_subfield_release.json).
+
 ### IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS — issue #450 (root-caused)
 
-- **State:** Implemented in open PR [#466](https://github.com/dsellerbrock/iverilog-uvm/pull/466), which targets `main`. The refreshed branch merges `origin/main` at `9443fffb69fa304cbc4e9604153ad4040583d419`. A macOS build/install and paired focused legacy/JSON tests pass (4/4 each) when using the checkout's `local-install/bin` first in `PATH`. Prior local evidence on the pre-merge branch includes neighboring checks 6/6 legacy and 8/8 JSON, full legacy 5,046/5,046, and UVM 363/363 with real DPI. The full JSON run had four failures: two optional FPGA target cases passed after target installation; the two constraint-state failures are triage-pending as DD-116. No CI-green claim applies to the refreshed head.
+- **State:** PR [#466](https://github.com/dsellerbrock/iverilog-uvm/pull/466) merged into `main` on 2026-10-09 at merge commit `127b887dfdc09283ab0187a2e618421dee3d5dcc`; refreshed `origin/main` contains that commit. GitHub showed all six platform checks pending when rechecked, so CI qualification is not established. A macOS build/install and paired focused legacy/JSON tests passed (4/4 each) on the PR branch. Prior local evidence on the pre-merge branch includes neighboring checks 6/6 legacy and 8/8 JSON, full legacy 5,046/5,046, and UVM 363/363 with real DPI. The full JSON run had four failures: two optional FPGA target cases passed after target installation; the two constraint-state failures remain triage-pending as DD-116.
 - **Requirement:** IEEE 1800-2017 Annex A A.2.4 `param_assignment` uses
   `{unpacked_dimension}`. IEEE 1800-2023 A.2.4 uses `{variable_dimension}`;
   A.2.5 includes `associative_dimension` (`[data_type]` or `[*]`) in that
@@ -29,7 +36,7 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   identity then failed because the cache rejected keyed patterns based on
   their legacy `parm_names`, and value selection was typed as a string
   character/packed bit select instead of an associative key.
-- **Next:** Check the refreshed PR head's exact CI after it becomes actionable; the user will merge #466. Bison conflict counts on the merged local build are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Keep scope to 2023 associative value-parameter forms, specialization/value uses, strict 2017 rejection, and paired tests. OpenTitan and Caliptra application work are outside this issue.
+- **Next:** Let the existing six checks complete; if a required check fails, address it in a follow-up PR. Bison conflict counts on the merged local build are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Keep scope to 2023 associative value-parameter forms, specialization/value uses, strict 2017 rejection, and paired tests. OpenTitan and Caliptra application work are outside this issue.
 
 ### IEEE-1800-ESCAPED-IFDEF-IDENTIFIERS — issue #468 (reproduced)
 

@@ -28731,37 +28731,50 @@ bool of_QPOP_O_F_V(vthread_t thr, vvp_code_t cp)
  * the release/reg command instead. These are very similar to the
  * %deassign instruction.
  */
-static bool do_release_vec(vvp_code_t cp, bool net_flag)
+static bool do_release_vec(vthread_t thr, vvp_code_t cp, bool net_flag,
+			   int64_t base, unsigned width, bool offset_valid)
 {
+      force_pending_clear_(thr);
       vvp_force_statement_context stmt_context(
 	    vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
-      unsigned base  = cp->bit_idx[0];
-      unsigned width = cp->bit_idx[1];
 
       assert(net->fil);
 
-      if (base >= net->fil->filter_size()) return true;
-      if (base+width > net->fil->filter_size())
-	    width = net->fil->filter_size() - base;
+      if (!offset_valid || width == 0) return true;
 
-      bool full_sig = base == 0 && width == net->fil->filter_size();
+      unsigned sig_wid = net->fil->filter_size();
+      uint64_t clipped_width = width;
+      if (base < 0) {
+	    uint64_t below = (uint64_t)(-(base + 1)) + 1;
+	    if (below >= clipped_width) return true;
+	    clipped_width -= below;
+	    base = 0;
+      }
+      if ((uint64_t)base >= sig_wid) return true;
+      unsigned use_base = (unsigned)base;
+      unsigned available = sig_wid - use_base;
+      if (clipped_width > available) clipped_width = available;
+      if (clipped_width == 0) return true;
+      unsigned use_width = (unsigned)clipped_width;
+
+      bool full_sig = use_base == 0 && use_width == sig_wid;
 
       if (full_sig)
 	    net->fil->force_unlink();
-      else
-	    net->fil->force_unlink_pv(base, width);
+	else
+	    net->fil->force_unlink_pv(use_base, use_width);
 
 	/* Do we release all or part of the net? */
       vvp_net_ptr_t ptr (net, 0);
       if (full_sig) {
 	    net->fil->release(ptr, net_flag);
       } else {
-	    net->fil->release_pv(ptr, base, width, net_flag);
+	    net->fil->release_pv(ptr, use_base, use_width, net_flag);
       }
       net->fun->force_flag(false);
 	// M12B-fr: report the release to overlapping cbRelease callbacks.
-      net->fil->run_force_callbacks(cbRelease, base, width);
+      net->fil->run_force_callbacks(cbRelease, use_base, use_width);
 
       return true;
 }
@@ -29250,15 +29263,27 @@ bool of_REF_STORE_MBX(vthread_t thr, vvp_code_t)
 
 bool of_RELEASE_NET(vthread_t thr, vvp_code_t cp)
 {
-      force_pending_clear_(thr);
-      return do_release_vec(cp, true);
+      return do_release_vec(thr, cp, true, cp->bit_idx[0], cp->bit_idx[1], true);
 }
 
 
 bool of_RELEASE_REG(vthread_t thr, vvp_code_t cp)
 {
-      force_pending_clear_(thr);
-      return do_release_vec(cp, false);
+      return do_release_vec(thr, cp, false, cp->bit_idx[0], cp->bit_idx[1], true);
+}
+
+bool of_RELEASE_NET_OFF(vthread_t thr, vvp_code_t cp)
+{
+      int off_idx = cp->bit_idx[0];
+      return do_release_vec(thr, cp, true, thr->words[off_idx].w_int,
+			    cp->bit_idx[1], thr->flags[4] == BIT4_0);
+}
+
+bool of_RELEASE_REG_OFF(vthread_t thr, vvp_code_t cp)
+{
+      int off_idx = cp->bit_idx[0];
+      return do_release_vec(thr, cp, false, thr->words[off_idx].w_int,
+			    cp->bit_idx[1], thr->flags[4] == BIT4_0);
 }
 
 /* %release/reg/a <array>, <off-reg>, <width-reg>

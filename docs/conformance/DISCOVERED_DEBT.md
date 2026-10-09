@@ -3885,10 +3885,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Discovered while working:** OT-OTP-FORCE-RHS-BANKED.
 - **Observation:** A `release dut.part_access[0].read_lock` on a packed array of packed structs aborts the VVP target with `Assertion failed: (number_is_immediate(part_off_ex, 64, 0)), function show_stmt_release, file vvp_process.c, line 3322.` This occurs after the separately selected packed-force link guard is applied. Whole-array `release dut.part_access` and `release dut.part_access_dai` compile and run; these are the exact release forms used by the selected OTP task.
 - **File/function:** `tgt-vvp/vvp_process.c` `show_stmt_release`, packed LHS offset handling.
-- **Possible clause:** IEEE 1800-2017/2023 §10.6 procedural continuous assignment `release` semantics; inspect the exact packed-select requirements before implementation.
+- **Clause:** IEEE 1800-2017/2023 §10.6 procedural continuous assignment `release` semantics.
 - **Evidence:** [Reducer](../../evidence/opentitan-otp-force-rhs-20260928/packed_partial_release_repro.sv) and [focused OTP evidence](../../evidence/opentitan-otp-force-rhs-20260928/README.md). Strict `-g2017` and `-g2023`, each with `-gstrict-expr-width`, both exit 134 at the assertion on the private force-corrected VVP target.
-- **Reproducer status:** confirmed paired compile-time assertion; no selected OTP runtime implicated.
-- **Triage status:** separate targeted ticket; do not broaden the OTP force-RHS correction to partial release.
+- **Reproducer status:** The pre-fix reducer confirmed the paired compile-time assertion; no selected OTP runtime was implicated. The paired packed-subfield regressions pass after the patch.
+- **Triage status:** Implemented for #493 on the current IEEE batch branch. Focused tests pass locally (legacy 6/6, JSON/VVP 7/7), as do `make check` and the serial macOS build/install. Exact-head CI is pending the five-fix main-based batch PR; this is not yet CI-qualified. Keep the fix limited to packed release offsets and do not broaden the OTP force-RHS correction.
 
 ### DD-089 — type-only parameterized OTP test specialization is not registered
 
