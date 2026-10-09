@@ -4308,6 +4308,12 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   has not been checked.
 - **Triage status:** Triage-pending and outside #450 scope. No constraint
   solver changes are included.
+- **Resolution (2026-10-09, agent/sim-perf-hotspots-20261009):** stale
+  expectation, not a runtime defect. The 65-bit two-state struct state is now
+  supported: `flags[64] == 1'b1` with `flags[64]` set is satisfiable, so
+  `randomize()` must succeed (IEEE 1800-2017 18.3). The test now expects that
+  and adds `flags[64] == 1'b0`, which must fail, so a dropped constraint would
+  still be caught. Both editions pass in the JSON runner.
 
 ### DD-117 — legacy/JSON expectations drift for real-valued coverpoint tests
 
@@ -4330,3 +4336,94 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   result. PR CI has not yet verified the repair.
 - **Status:** Repair is pending review in draft PR #523. Do not call it
   CI-qualified until all required checks pass on that exact PR head.
+- **Follow-up (2026-10-09, agent/sim-perf-hotspots-20261009):** the 2023
+  case's silence was a compiler regression, not a gold drift: the
+  compiler at f3f394f3 emitted the `sorry: ... the bin is dropped` line, and the
+  test states the real bitwise operand must not make the bin legal. The
+  coverpoint now counts as real only for `+ - * / **` (elaborate.cc), which
+  restores that diagnostic, and the two golds are restored to their pre-#523
+  content. Covergroup tests pass 236/236 legacy and 215/215 JSON.
+
+### DD-118 — `%disable/flow` name fallback compares one shared VPI buffer
+
+- **Discovered while working:** simulation-performance hotspot survey
+  (2026-10-09), while checking `vpi_get_str` calls on hot paths.
+- **Observation:** `of_DISABLE_FLOW` keeps `target_name`, `thr_name`, and each
+  `cur_name` from `vpi_get_str(vpiFullName, ...)`. Those calls return the same
+  static `RBUF_STR` buffer (`need_result_buf` in `vvp/vpi_signal.cc`), so the
+  later calls overwrite `target_name` and `strcmp(cur_name, target_name)` always
+  compares the buffer with itself. When no ancestor matches the target scope
+  pointer, the fallback selects the first ancestor that has a scope instead of
+  one with a matching name.
+- **File/function:** `vvp/vthread.cc`, `of_DISABLE_FLOW`.
+- **Possible clause:** IEEE 1800-2017/2023 §9.6.2 (`disable`), only if the
+  pointer match can fail for a legal disable target.
+- **Evidence:** Source read; `scope_get_str` returns `simple_set_rbuf_str(p)`.
+- **Reproducer status:** the shared buffer is confirmed through
+  `IVL_FLOW_TRACE=1`, which printed the same name for source, target and
+  selected thread; no design was found that reaches the name fallback.
+- **Triage status:** fixed on agent/sim-perf-hotspots-20261009. Both
+  `%disable/flow` opcodes keep owned name copies (built only when needed),
+  so the fallback compares real names and the trace prints distinct names.
+
+### DD-119 — typed mailbox rejects a derived class handle
+
+- **Discovered while working:** simulation-performance hotspot survey
+  (2026-10-09), while writing a class/mailbox benchmark.
+- **Observation:** `mailbox #(txn) mb; btxn t = new(i); mb.put(t);` with
+  `class btxn extends txn` fails elaboration: "Typed mailbox method `put'
+  argument must have a type equivalent to the mailbox message type". The
+  benchmark was changed to assign the handle to a `txn` variable first.
+- **File/function:** `elaborate.cc` typed-mailbox method check
+  (`mailbox_message_type_equivalent`).
+- **Possible clause:** IEEE 1800-2017/2023 §15.4.9. Verify during triage whether
+  the clause requires type equivalence or assignment compatibility for `put`.
+- **Evidence:** `benchmarks/sim-hotspots/classq.sv` before the workaround.
+- **Reproducer status:** confirmed (three-line reducer above).
+- **Triage status:** resolved as a compatibility option (2026-10-09). The
+  default mode keeps IEEE behavior: §15.4.9 says the compiler verifies that
+  put, try_put, peek, try_peek, get and try_get use argument types
+  *equivalent* to the mailbox type, as the registered
+  `sv_typed_mailbox_{statement,expression}_type_fail` tests pin. Under
+  `-gcommercial-unsafe`, put/try_put accept what commercial simulators accept
+  for that input argument: null or a handle of the message class or a
+  subclass, and integral/real values converted to an integral/real message
+  type. get/peek keep requiring equivalence (ref arguments). Pinned by
+  `sv_typed_mailbox_put_assignable_unsafe{,_2023}` and its `_fail` CE pair.
+  Re-check the §15.4.9 sentence against the local PDF.
+
+### DD-120 — string variable assigned to an integral target without a cast
+
+- **Discovered while working:** DD-119 investigation (2026-10-09).
+- **Observation:** `int i; string s; i = s;` and passing `s` to a function
+  `int` input both elaborate without a diagnostic in -g2017.
+- **File/function:** `elaborate_rval_expr` (elab_expr.cc) type checking.
+- **Possible clause:** IEEE 1800-2017/2023 §6.16 and §6.24 (casting). Verify
+  against the PDF whether string-to-integral assignment requires a cast
+  before changing behavior.
+- **Evidence:** reducer above, compiled with the current `ivl`.
+- **Reproducer status:** confirmed.
+- **Triage status:** untriaged; clause text not available in this session.
+
+### DD-121 — coupled wide rand variables are sampled by XOR distance, not uniformly
+
+- **Discovered while working:** simulation-performance hotspot survey, Z3 path
+  (2026-10-09).
+- **Observation:** A rand integral variable whose legal set is too large to
+  enumerate gets its value from Z3 `optimize` minimizing `var ^ target` for a
+  random target. That favors values bordering large illegal gaps: for
+  `x inside {0, [32'h1000:32'h1FFF]}` it chose `x == 0` in 208 of 400 draws
+  (uniform: about 0.1). The same branch now uses the exact interval sampler
+  when the variable is an isolated factor; variables whose constraints also
+  mention another free variable (for example `addr + len <= LIMIT`) still take
+  the XOR path.
+- **File/function:** `vvp/vvp_z3.cc`, `z3_minimize_diversity_` call sites in
+  `z3_solve_pass_`.
+- **Possible clause:** IEEE 1800-2017 §18.5.10 / 1800-2023 §18.5.9 (uniform
+  distribution over legal value combinations).
+- **Evidence:** `ivtest/ivltests/sv_randomize_isolated_wide_uniform.v` fails on
+  the pre-fix runtime (`zeros=208`).
+- **Reproducer status:** confirmed for the isolated case (fixed); coupled case
+  by source read.
+- **Triage status:** isolated case fixed on agent/sim-perf-hotspots-20261009;
+  coupled case needs exact joint sampling and is open.

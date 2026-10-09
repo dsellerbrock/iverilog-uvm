@@ -81,14 +81,69 @@ has a different allocator, so the thread-frame gains there may differ.
 - Every benchmark's full output, including the UVM report, matches the
   reference runtime.
 
+## Event ordering audit
+
+Every change was checked against the IEEE 1800-2017/2023 scheduling rules
+(4.4 regions, 4.6 determinism, 4.7 nondeterminism):
+
+- The functor changes compute the same value and send it once, as before;
+  functor scheduling (`schedule_functor`) and the event regions are untouched.
+- The deferred-assertion flush skip only skips a flush that has nothing to
+  discard; Observed-region maturing is unchanged (16.4).
+- Context records, the liveness cache, `release_instance`, the visited set,
+  lazy names, the dispatch memo and the load changes do not schedule anything.
+- **Allocation-order dependence.** Event-control waiters wake in the order
+  they began waiting (an existing rule in `vthread_schedule_list`). Three
+  other waiter sets — `process::await()` waiters, class-property `wait()`
+  waiters, and virtual-interface multi-signal waits — iterated a
+  `std::set<vthread_t>`, i.e. in **pointer order**, so their relative wake
+  order depended on where the allocator placed each thread (it already
+  differed between allocators and platforms, and the `vthread_s` slab would
+  change it again). They now wake in wait order too, and `disable <scope>`
+  kills a scope's threads oldest first. Pinned by
+  `ivtest/ivltests/sv_waiter_set_wake_order.v` (2017/2023); the unmodified
+  runtime fails it (`prop order 210354`, `vif order 012345`). §4.7 allows
+  any order here; the point is a stable, allocation-independent one.
+
+## Constrained randomization (Z3)
+
+`randomize_dv_txn.sv` is a typical bus transaction (`dist`, `inside` ranges,
+alignment, implications); 1,000 calls took 76 s (76 ms per call).
+
+| Finding | Change | Effect |
+| --- | --- | --- |
+| A 32-bit variable with more legal values than the enumerators handle was chosen by minimizing `x ^ random_target` in Z3 `optimize`. That is not uniform: for `x inside {0, [32'h1000:32'h1FFF]}` it returned `x == 0` in 208 of 400 draws (uniform: about 0.1). | The existing exact interval sampler was gated to widths above 32 bits and to classes with a single rand variable. It now applies to any width when the variable is an isolated factor (its hard clauses mention no other free variable), which the sampler proves before use. | Correct distribution (IEEE 1800-2017 18.5.10 / 2023 18.5.9); 0 of 400 above. |
+| That sampler issued every query against the whole problem and walked every interval, so a strided set (`addr[1:0] == 0`) exceeded its query budget and `randomize()` failed. | Legality tests evaluate the isolated factor at a constant through one reusable model; range queries use a solver holding only the factor; proposals are drawn uniformly from the legal hull `[min, max]` (exact rejection sampling) before any interval walk. | Strided and clustered domains sample in a few checks. |
+| Sparse enumeration collected 65 models and then discarded them whenever a variable had more than 64 legal values. | A cheap exact proof (more than 64 legal values found by evaluating the isolated factor near one model value) skips that probe. Identical outcome. | Same results, fewer solver calls. |
+| Small domains (up to 1,024 values) were probed one value at a time (256 checks for an 8-bit variable). | Model-guided interval splitting returns the same ascending list with about 2F+1 checks for F legal values. | Same results. |
+
+Result: 76 s → 25 s for 1,000 `randomize_dv_txn` calls, with the address
+distribution corrected. `sv_randomize_isolated_wide_uniform.v` (2017/2023)
+pins the distribution; the unmodified runtime fails it.
+
+### Attempt ledger
+
+| Idea | Measured | Verdict |
+| --- | --- | --- |
+| Range queries as `check_assumptions` instead of push/assert/pop | 10.79 s → 10.75 s (bias case) | reverted, noise |
+| Keep freed memory (mallopt) around `Z3_mk_context` | 2.97 → 2.75 ms per context | not adopted, 7% |
+| Build the next fresh Z3 context on a background thread | 3.0 → 3.6–4.8 ms per iteration | rejected, slower (lock contention) |
+| Reuse one Z3 context across calls | not built | rejected: values picked from model-ordered lists would depend on unrelated earlier randomizations, breaking random stability (18.14) |
+
+`Z3_mk_context` remains about 2.7 ms per `randomize()` that reaches Z3 (one
+fresh context per call keeps calls independent). It dominates the
+statistical `sv_randomize_global_uniform` test (DD-110), which now completes
+and passes but still exceeds the 300-second CPU guard on this host.
+
 ## Not changed (recorded candidates)
 
-- **Z3 context per `randomize()`.** In `randomize_z3.sv` and
-  `sv_randomize_global_uniform`, `Z3_mk_context` is about 40% of the time,
-  plus kernel page-fault churn from releasing and refaulting its memory.
-  Reusing a context would likely change which model Z3 `optimize` returns,
-  and so the values a fixed seed produces. It needs a determinism study
-  before any change.
+- **Model-order independence.** Sparse-domain picks index a list in Z3
+  model order, so seeded values depend on Z3 internals (and version).
+  Sorting those lists would make them version-independent and would allow
+  context reuse; it changes seeded values once, so it is left for a separate
+  decision.
+- **Coupled wide variables** (constraints linking a wide variable to another
+  free variable) still use the XOR-distance objective, which is not uniform.
 - **Allocator.** With `GLIBC_TUNABLES=glibc.malloc.tcache_count=1000` the
   UVM workload ran a further ~25% faster before the slab change. The
   remaining per-frame allocations (`vthread_s` deques, scope thread sets)
