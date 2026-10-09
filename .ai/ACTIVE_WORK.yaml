@@ -1,5 +1,5 @@
 status: "in_progress"
-phase: "REGRESSION_TESTED"
+phase: "PR_OPEN_CI_PENDING"
 blocker: "IEEE-PACKED-SELECT-PARAMETER-TYPE-REGRESSION (follow-up to #469)"
 github_issue: "#469 (feature merged in PR #464; follow-up PR will target main)"
 branch: "agent/fix-packed-select-cast-20261009"
@@ -13,8 +13,8 @@ allowed_scope: "Parameter read-select typing in net_design.cc and elab_expr.cc, 
 forbidden_scope: "No packed lvalue writes, unpacked-array selection, unrelated select/type repairs, or unrelated negative-suite cleanup (DD-115)."
 acceptance: "The ten affected legacy cases and paired two-state packed-select regression pass in legacy and JSON/VVP. Publish one draft PR to main; do not merge until every required check is green on its exact head."
 discovery_policy: "Keep DD-115 as a separate unrelated finding; do not broaden this repair."
-current_validation: "Local macOS ARM64 make -j2 and make install pass with the temporary prefix. The ten-case legacy focus passes 10/10. The paired sv_two_state_packed_select_oob 2017/2023 JSON/VVP focus passes 2/2 after adding explicit bit/logic parameter checks to its existing fixture. PR #464 run 37834845943 failed Ubuntu 22.04 and 24.04 with the same ten legacy failures and also reports one separate negative failure (152/153; DD-115). This follow-up has not run on CI; no CI qualification is claimed."
-next_action: "Finish the focused review, commit, push, and open a draft PR targeting main. Check its CI results without waiting on unchanged jobs; fix failures caused by this change and do not merge until all required checks are green."
+current_validation: "Local macOS ARM64 make -j2 and make install pass with the temporary prefix. The ten-case legacy focus passes 10/10. The paired sv_two_state_packed_select_oob 2017/2023 JSON/VVP focus passes 2/2 after adding explicit bit/logic parameter checks to its existing fixture. PR #464 run 37834845943 failed Ubuntu 22.04 and 24.04 with the same ten legacy failures and also reports one separate negative failure (152/153; DD-115). Draft PR #515 targets main. Its first exact-head status snapshot showed all six platform jobs pending; no CI qualification is claimed."
+next_action: "Keep PR #515 open as a draft until required checks pass on its latest head. If CI reports a failure, inspect logs and fix failures caused by this change; record unrelated failures without expanding scope."
 stop_after_completion: false
 after_completion: "Return once to the pre-ticket campaign backlog and select one existing IEEE blocker from fresh origin/main. Do not select census additions recorded as triage-pending, and do not start a loop or schedule check-ins."
 

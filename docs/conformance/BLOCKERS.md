@@ -67,8 +67,9 @@
   The follow-up preserves the source type after width testing and carries
   parameter types through select nodes. Its paired fixture now also checks
   invalid selects from explicit `bit` and `logic` parameters.
-- **Delivery:** PR #464 is merged. The follow-up must target `main`; do not
-  merge it until every required check is green on its exact head. The separate
+- **Delivery:** PR #464 is merged. Draft PR #515 targets `main`; its first
+  exact-head status snapshot showed all six required platform jobs pending.
+  Do not merge until every required check is green on the latest head. The separate
   Ubuntu negative-suite failure is the obsolete `m9b_intersect_unequal_len`
   case tracked as DD-115 and remains outside this repair.
 
