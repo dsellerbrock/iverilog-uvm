@@ -1,0 +1,41 @@
+name: Sync open PRs with main
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: "Update one PR number, or leave blank to update all open PRs"
+        required: false
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: sync-open-prs-with-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test PR conflict resolution
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+
+      - name: Merge main into open PR branches
+        # The sync script treats PR refs as Git data and never runs their code.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.inputs.pull_request || '' }}
+        run: python3 .github/scripts/sync_pr_branches.py
