@@ -1213,6 +1213,10 @@ sv_uarray_func_return_fail CE,-g2012 ivltests
 sv_uarray_func_return_nb_fail CE,-g2012 ivltests gold=sv_uarray_func_return_nb_fail.gold
 sv_uarray_func_return normal,-g2012 ivltests
 sv_uarray_func_return_queue_property normal,-g2012 ivltests gold=sv_uarray_func_return_queue_property.gold
+sv_uarray_nested_function_return normal,-g2017 ivltests gold=sv_uarray_nested_function_return.gold
+sv_uarray_nested_function_return_2023 normal,-g2023 ivltests gold=sv_uarray_nested_function_return.gold
+sv_uarray_nested_function_return_shape_fail CE,-g2017 ivltests gold=sv_uarray_nested_function_return_shape_fail.gold
+sv_uarray_nested_function_return_shape_fail_2023 CE,-g2023 ivltests gold=sv_uarray_nested_function_return_shape_fail_2023.gold
 sv_class_prop_real_string_array normal,-g2012 ivltests
 sv_fork_call_arg_capture normal,-g2012 ivltests
 sv_this_nested_detached_fork normal,-g2012 ivltests

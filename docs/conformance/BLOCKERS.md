@@ -2,6 +2,14 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
+### IEEE-1800-NESTED-ARRAY-FUNCTION-RETURN — issue #415 (draft PR #524)
+
+- **State:** Draft [PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524) targets `main` from `agent/ieee-nested-array-return-20261009`; no CI qualification yet. The PR branch includes latest `origin/main` at `0d8815feb` (including the VVP performance changes in PR #521).
+- **Requirement:** IEEE 1800-2017/2023 §§10.9.1 and 13.4.1 allow array-pattern items to be evaluated in the corresponding element assignment context, including nonvoid function results.
+- **Failure and cause:** Nested fixed-array patterns rejected array-valued function calls although direct whole-array returns worked. Elaboration lacked a context-typed function-call path, and VVP pattern lowering handled only nested pattern nodes or scalar leaves. A deeper case showed that typedef-composed dimensions were flattened in reverse declaration order and function return signals retained only their outer dimension layer.
+- **Validation:** The original reducer failed in both editions and the direct 1-D whole-array control printed `got=11,12`. The asymmetric typedef-composed 3-D regression failed before the follow-up and now passes, along with its direct 2-D function-return control, under -g2017/-g2023. macOS ARM64 `make -j2 && make install` passes; the array-return focus is 12/12 in legacy and JSON/VVP, and the neighboring const-local-array-pattern focus is 10/10 in both. Independent typedef-order and 3-D probes pass in both editions. Earlier temporary probes also pass for parenthesized calls, opposite source/target ranges, and real, string, and packed-struct elements. Bison conflict counts remain 574 shift/reduce and 1,122 reduce/reduce. The broad legacy gate has no aggregate result; full JSON/VVP and UVM sweeps have not run. CI qualification is pending on the new exact PR head.
+- **Next:** Fix failures if the newest exact-head run reports any. Do not mark #415 done before all required CI jobs pass on that head.
+
 ### IEEE-1800-UNPACKED-ARRAY-OUTPUT-SLICE — issue #492 (locally focused-tested)
 
 - **State:** Implemented as the fifth fix in [draft PR #520](https://github.com/dsellerbrock/iverilog-uvm/pull/520) to `main`; issue #492 remains open. All six CI jobs are queued; no CI qualification yet.

@@ -5002,13 +5002,43 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	    unsigned n = dims[cur_dim].width();
 	    vector<NetExpr*> elem_exprs (n);
 	    bool inner = (cur_dim + 1) < dims.size();
+	    ivl_type_t default_element_type = uarray_type->element_type();
+	    std::unique_ptr<netuarray_t> default_element_view;
+	    bool array_default = false;
+	    if (inner) {
+		  netranges_t remaining(dims.begin() + cur_dim + 1, dims.end());
+		  default_element_view.reset(new netuarray_t(
+			remaining, uarray_type->element_type()));
+		  default_element_type = default_element_view.get();
+
+		  /* An array-valued function may stand for each unmatched
+		     subarray. Scalar-valued defaults still recurse to the leaf. */
+		  if (PECallFunction*call = dynamic_cast<PECallFunction*>(dflt)) {
+			unsigned errors_before = des->errors;
+			PExpr::width_mode_t mode = PExpr::SIZED;
+			unsigned width = call->test_width(des, scope, mode);
+			if (des->errors != errors_before)
+			      return nullptr;
+			NetExpr*probe = call->elaborate_expr(
+			      des, scope, width,
+			      need_const ? PExpr::NEED_CONST : PExpr::NO_FLAGS);
+			if (des->errors != errors_before) {
+			      delete probe;
+			      return nullptr;
+			}
+			array_default = probe
+			      && dynamic_cast<const netuarray_t*>(probe->net_type());
+			delete probe;
+		  }
+	    }
 	    for (unsigned idx = 0 ; idx < n ; idx += 1) {
-		  NetExpr*e = inner
-			? elaborate_expr_uarray_(des, scope, uarray_type,
-						 dims, cur_dim + 1, need_const)
-			: elaborate_rval_expr(des, scope,
-					      uarray_type->element_type(),
-					      dflt, need_const);
+		  NetExpr*e;
+		  if (inner && !array_default)
+			e = elaborate_expr_uarray_(des, scope, uarray_type,
+						   dims, cur_dim + 1, need_const);
+		  else
+			e = elaborate_rval_expr(des, scope, default_element_type,
+					 dflt, need_const);
 		  elem_exprs[up ? idx : (n - 1 - idx)] = e;
 	    }
 	    NetEArrayPattern*res = new NetEArrayPattern(uarray_type, elem_exprs);
@@ -5074,6 +5104,9 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	    } else if (const auto str = dynamic_cast<PEString*>(pv[idx])) {
 		  expr = str->elaborate_expr_uarray_(des, scope, uarray_type,
 						     dims, cur_dim);
+	    } else if (dynamic_cast<PECallFunction*>(pv[idx])) {
+		  expr = elaborate_rval_expr(des, scope, keyed_element_type,
+					     pv[idx], need_const);
 	    } else if (dynamic_cast<PEConcat*>(pv[idx])) {
 		  cerr << get_fileline() << ": sorry: "
 		       << "Array concatenation is not yet supported."

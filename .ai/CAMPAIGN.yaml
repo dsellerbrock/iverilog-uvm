@@ -1,19 +1,25 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
-branch: "agent/ieee-batch-499-495-20261009"
-checkpoint_head: "aeecd2eeb"
+branch: "agent/ieee-nested-array-return-20261009"
+checkpoint_head: "0d8815feb"
 active_ieee_lane:
-  blocker: "IEEE-UNPACKED-ARRAY-OUTPUT-SLICE (#492)"
-  issue: "#499, #497, #495, #493, and #492 are locally verified and included in draft PR #520 to main"
+  blocker: "IEEE-NESTED-ARRAY-FUNCTION-RETURN (#415)"
+  issue: "#415 is open in draft PR #524 to main; the branch includes latest origin/main 0d8815feb."
   phase: "PR_OPEN"
-  baseline_head: "4b3f3424c440aca6af92153b6860a7253b925234"
-  reproducer: "The paired DD-086 reducer printed X on the output-connected selected row while the whole-array control passed. After the fix it prints 01 00 10 zz | 01 10 under strict -g2017 and -g2023."
-  standards: "IEEE 1800-2017/2023 §§7.6 and 23.3.3.5."
-  root_cause: "Output actuals go through rvalue array elaboration, creating a read-side IMPLICIT view rather than an output lvalue view."
-  scope: "Unpacked-array module output actual elaboration and shape validation, paired regressions, and directly related records only."
-  next: "Address failures reported on PR #520's exact head; do not merge until all required jobs are green. After this turn, implement the requested main-to-PR synchronization/conflict-resolution bot using the existing bot worktree."
-  boundary: "Strict paired legacy and JSON/VVP focus lists pass 6/6 each, serial macOS make/install and make check pass, and the original DD-086 reducer passes in both editions. PR #520 is draft; all six CI jobs are queued, with no CI qualification yet."
+  baseline_head: "0d8815feb"
+  reproducer: "Fork-built local-install fails the two nested make_pair calls with generic array-context errors under -g2017 and -g2023; direct whole-array controls print got=11,12. Its affected source files are identical to origin/main."
+  standards: "IEEE 1800-2017/2023 §§10.9.1 and 13.4.1; the local 2023 PDF retains the corresponding wording."
+  root_cause: "Elaboration rejects function calls in nested array-pattern items; VVP draw_array_pattern has no array-return leaf path, while whole-RHS returns use draw_ufunc_uarray."
+  scope: "Nested fixed-array function-return pattern items, correct copy at each flat subarray offset, paired regressions, and related conformance records."
+  next: "Keep only the newest exact-head CI run active. Fix failures if reported; mark #415 done only after all required jobs for the current head are green, then select the next open IEEE issue."
+  boundary: "Latest main includes PR #521 VVP performance changes and is merged into the PR branch. Fresh macOS ARM64 make/install passed; nested-return focus passes 12/12 in legacy and JSON/VVP, and #521 vector-functor focus passes 2/2 in both. Temporary probes also pass for parenthesized calls, opposite source/target ranges, and real, string, and packed-struct elements. The full legacy gate passed its initial runtime/API checks, then was stopped with exit 143 after five minutes in sv_randomize_global_uniform; it has no aggregate result. Full JSON/VVP and UVM sweeps remain unrun. Bison conflict counts remain 574/1,122. No CI qualification is claimed."
+pr_branch_sync_bot:
+  status: "implemented on main via merged PR #519"
+  behavior: "Syncs open in-repository PRs targeting main on main pushes, hourly, or manual dispatch; merges main rather than rebasing; deterministically resolves overlapping text hunks by documented file policy; dispatches test.yml on updated branch heads."
+  validation: "Focused unittest and py_compile pass locally. Main-push bot run 37967303962 completed successfully. The queue cleanup canceled and verified 35 test runs not owned by an open PR; sync-bot workflows were preserved."
+ci_cleanup:
+  status: "Completed 2026-10-09. Cancelled 35 active test runs without an open PR owner; verified all completed/cancelled. No unrelated active test runs remained at the final snapshot."
 pending_issue_494_ci: "#494 fixed/dynamic queue-size cases appear in mainline tests, but the latest main test workflow is queued. Leave the GitHub issue open until CI evidence is available; this does not block unrelated #493 work."
 previous_batch_pr464:
   head: "870442199088b468b681983a7cbbe9f653bebeb3 (pre-follow-up exact CI head)"

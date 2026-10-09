@@ -3023,20 +3023,24 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 			if (return_type_)
 			      return_type_->pform_dump(cerr, 8);
 		  }
-		  if (const netuarray_t*ret_ua =
-			dynamic_cast<const netuarray_t*>(ret_type)) {
+		  if (dynamic_cast<const netuarray_t*>(ret_type)) {
 			  // A function returning an unpacked array (issue
-			  // #99): the return signal must be a real array --
-			  // the NetNet needs its unpacked dimensions split
-			  // out, else it degenerates to a scalar of array
-			  // type, the body's element stores target an array
-			  // that is never emitted, and callers see a 1-bit
-			  // return. The function body stores the result into
-			  // this array and the caller copies the words out
-			  // after the call.
+			  // #99): keep every fixed dimension on the return
+			  // signal. Typedef-composed arrays are nested netuarray_t
+			  // layers; a NetNet stores their complete shape as one
+			  // ordered dimension list, like ordinary variable signals.
+			netranges_t return_dimensions;
+			ivl_type_t return_element_type = ret_type;
+			while (const netuarray_t*ret_ua =
+			       dynamic_cast<const netuarray_t*>(return_element_type)) {
+			      const netranges_t&dimensions = ret_ua->static_dimensions();
+			      return_dimensions.insert(return_dimensions.end(),
+					       dimensions.begin(), dimensions.end());
+			      return_element_type = ret_ua->element_type();
+			}
 			ret_sig = new NetNet(scope, fname, NetNet::REG,
-					     ret_ua->static_dimensions(),
-					     ret_ua->element_type());
+					     return_dimensions,
+					     return_element_type);
 		  } else {
 			ret_sig = new NetNet(scope, fname, NetNet::REG, ret_type);
 		  }
@@ -3876,7 +3880,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	// If this is an unpacked array extract the base type and unpacked
 	// dimensions as these are separate properties of the NetNet.
       while (const netuarray_t *atype = dynamic_cast<const netuarray_t*>(type)) {
-	    unpacked_dimensions.insert(unpacked_dimensions.begin(),
+	    unpacked_dimensions.insert(unpacked_dimensions.end(),
 				       atype->static_dimensions().begin(),
 				       atype->static_dimensions().end());
 	    type = atype->element_type();

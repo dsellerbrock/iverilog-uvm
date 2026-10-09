@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_uarray_nested_function_return.v",
+    "iverilog-args": ["-g2017", "-s", "sv_uarray_nested_function_return"],
+    "gold": "sv_uarray_nested_function_return"
+}
