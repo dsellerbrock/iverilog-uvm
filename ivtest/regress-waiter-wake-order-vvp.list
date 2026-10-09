@@ -1,0 +1,2 @@
+sv_waiter_set_wake_order vvp_tests/sv_waiter_set_wake_order.json
+sv_waiter_set_wake_order_2023 vvp_tests/sv_waiter_set_wake_order_2023.json

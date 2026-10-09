@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_waiter_set_wake_order.v",
+  "iverilog-args": ["-g2023", "-s", "main"]
+}

@@ -22,6 +22,8 @@
 # include  "vvp_net.h"
 
 # include  <string>
+# include  <set>
+# include  <vector>
 
 /*
  * A vthread is a simulation thread that executes instructions when
@@ -150,6 +152,11 @@ extern void vthread_schedule_event_waiters(vthread_t&thr);
 extern bool vthread_schedule_non_pure_comb_waiters(vthread_t&thr);
 extern void vthread_schedule_pure_comb_waiters(vthread_t&thr);
 extern void vthread_schedule_mutation_waiter(vthread_t thr);
+/* Waiter sets keyed by thread pointer wake in the order the threads began
+ * waiting, as event wait lists do, never in pointer (allocation) order.
+ * Call vthread_note_wait_start when a thread joins such a set. */
+extern void vthread_note_wait_start(vthread_t thr);
+extern std::vector<vthread_t> vthread_in_wait_order(const std::set<vthread_t>&waiters);
 /* Retain a waiter snapshot while one member's synchronous expression recipe
  * may disable or reap another member of that same snapshot. */
 extern void vthread_pin(vthread_t thr);

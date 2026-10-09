@@ -439,6 +439,7 @@ void vvp_object::add_mutation_waiter(vthread_t thread, unsigned property,
             return;
       object_mutation_key_t key = {this, property, word, bit, active};
       object_mutation_waiters_[key].insert(thread);
+      vthread_note_wait_start(thread);
       thread_mutation_objects_[thread].insert(
             std::make_pair(key, vvp_object_t(this)));
 }
@@ -493,8 +494,9 @@ void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
       for (std::set<vthread_t>::const_iterator cur = waiters.begin();
            cur != waiters.end(); ++cur)
             vthread_pin(*cur);
-      for (std::set<vthread_t>::const_iterator cur = waiters.begin();
-           cur != waiters.end(); ++cur) {
+      std::vector<vthread_t> ordered = vthread_in_wait_order(waiters);
+      for (std::vector<vthread_t>::const_iterator cur = ordered.begin();
+           cur != ordered.end(); ++cur) {
             vthread_t thread = *cur;
             remove_mutation_waiter_(thread);
             vthread_schedule_mutation_waiter(thread);
