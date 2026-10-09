@@ -9,13 +9,11 @@ import tempfile
 from collections import defaultdict
 
 
-# These files describe the campaign's current state; preserve main where edits overlap.
+# Shared campaign records follow main; active-work records stay with each PR.
 MAIN_WINS = {
-    ".ai/ACTIVE_WORK.yaml",
     ".ai/CAMPAIGN.yaml",
     ".ai/ISSUE_CHECKOUT.csv",
     "docs/conformance/BLOCKERS.md",
-    "docs/conformance/CURRENT_WORK.md",
     "docs/conformance/DISCOVERED_DEBT.md",
     "docs/conformance/matrices/ieee1800_2017_clause_matrix.md",
     "docs/conformance/ieee1800_2023_delta.md",

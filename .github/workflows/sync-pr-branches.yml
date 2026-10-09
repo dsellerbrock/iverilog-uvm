@@ -29,6 +29,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Test PR conflict resolution
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+
       - name: Merge main into open PR branches
         # The sync script treats PR refs as Git data and never runs their code.
         env:
