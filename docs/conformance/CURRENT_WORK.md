@@ -1,8 +1,8 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus — 2026-10-09: issue #450 refresh
+## Current IEEE 1800 focus — 2026-10-09: PR #466 refresh
 
-**Associative-array value parameters — refreshed PR #466.**
+**Associative-array value parameters — refreshed on latest main.**
 IEEE 1800-2023 Annex A A.2.4/A.2.5 admits associative dimensions for
 parameters; 1800-2017 A.2.4 does not. The change adds direct 2023 module and
 class value parameters, string/integral/wildcard keys and defaults,
@@ -10,10 +10,32 @@ constant-key reads, and class specialization identity, while preserving strict
 2017 rejection.
 The class map identity test checks reordered entries and a changed value.
 
-After merging latest `origin/main`, the macOS `make YACC=/opt/homebrew/opt/bison/bin/bison -j2` and install pass; the paired focused legacy and JSON/VVP lists each pass 4/4. Prior full legacy passed 5,046/5,046 and real-DPI UVM passed 363/363. The earlier full JSON run had four failures: two optional FPGA target cases passed when rerun after target installation, and the two packed-struct constraint-state variants remain triage-pending as DD-116. Bison remains at 574 shift/reduce and 1,122 reduce/reduce. No refreshed exact-head CI result is reported. See [blocker evidence](BLOCKERS.md#ieee-1800-assoc-array-typed-parameters--issue-450-root-caused)
+After merging latest `origin/main` at `9443fffb69fa304cbc4e9604153ad4040583d419`,
+the macOS `make YACC=/opt/homebrew/opt/bison/bin/bison -j2` build and install
+passed. With this checkout's `local-install/bin` first in `PATH`, the paired
+focused legacy and JSON/VVP lists each pass 4/4. The full legacy run (5,046/5,046)
+and real-DPI UVM run (363/363) predate this refresh. The earlier full JSON run
+reported four failures: two optional FPGA target cases passed after target
+installation; the two packed-struct constraint-state failures are triage-pending
+as DD-116. Bison remains at 574 shift/reduce and 1,122 reduce/reduce. Exact-head
+CI has not yet reported checks for the refreshed commit; do not claim CI green.
+See [blocker evidence](BLOCKERS.md#ieee-1800-assoc-array-typed-parameters--issue-450-root-caused)
 and [the 2023 matrix entry](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--associative-array-value-parameters).
 
-**Next:** inspect exact-head CI when checks appear. The user will merge PR #466. Continue with the existing IEEE-only backlog after issue #450 is delivered; keep OpenTitan and Caliptra out of active selection unless redirected.
+**Next:** the user will make the merge decision for PR #466 after reviewing its
+refreshed exact head and CI. Continue with the existing IEEE-only backlog after
+issue #450 is delivered; keep OpenTitan and Caliptra out of active selection
+unless the user redirects.
+
+## PR #514 refresh — 2026-10-09
+
+PR [#514](https://github.com/dsellerbrock/iverilog-uvm/pull/514) batches the
+five Chapter 7 array-method issues #422-#426 and is merged into `main` at
+`9443fffb69fa304cbc4e9604153ad4040583d419`. Before merge, its refreshed branch
+passed the paired focused legacy and JSON/VVP lists 16/16 under `-g2012`.
+Issue #426 behavior was already present; this batch adds its remaining focused
+tests. See the [dated clause-matrix
+entry](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--chapter-7-array-locators-and-associative-minmax).
 
 The complete uncapped IEEE 1800-2017/2023 issue inventory and selection rules
 are in the [conformance index](INDEX.md). The remaining clause-35 DPI array
