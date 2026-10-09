@@ -125,14 +125,21 @@ increment, not closure of §18.4/§18.5.9. See the
 [qualification evidence](../../evidence/rand-real-scalar-20261007/README.md)
 and [blocker record](BLOCKERS.md#sv23-rand-real).
 
+**#419 bounded slice locally verified (2026-10-09):** an active class handle
+inside a `rand` unpacked struct now participates in the containing joint
+solve. The paired test checks two aliases, parent and child constraints,
+object identity, one child hook pair, failed-solve value/`randc` rollback,
+and retry under strict 2017 and 2023. Other class-handle/container member
+shapes remain open. See the [focused evidence](../../evidence/ieee-rand-struct-class-handle-20261009/README.md).
+
 **Fix 33 qualified locally:** constraints on scalar integral/enum leaves now
 work through finite nested unpacked-struct member paths rooted at a randomized
 class property. The paired regression covers nested `rand`/`randc`, enum
 membership, state-derived values, failed-solve rollback, and resumption. The
 strict new-case lists pass 2/2 in legacy and JSON/VVP; adjacent struct/class
 declaration lists pass 15/15 legacy and 14/14 JSON/VVP. Fixed indexed scalar
-leaves are covered by Fix 36; symbolic selectors and aggregate, array, or
-class-handle leaves remain open. See the
+leaves are covered by Fix 36; symbolic selectors, aggregate/array leaves, and
+other class-handle/container shapes remain open. See the
 [qualification evidence](../../evidence/nested-unpacked-struct-constraint-20261007/README.md).
 
 **Fix 32 qualified locally:** explicit `disable iff` now aborts supported
