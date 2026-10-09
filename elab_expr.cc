@@ -9979,6 +9979,7 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
       bool target_indexed = search_results.net
 			 && !search_results.path_head.empty()
 			 && !search_results.path_head.back().index.empty();
+      bool root_indexed = target_indexed;
 
       if (!target_type && search_results.net)
 	    target_type = search_results.net->net_type();
@@ -9986,7 +9987,7 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	  // PEIdent normally reports the element type for a fixed unpacked
 	  // signal. A bare method receiver is the full array regardless of
 	  // whether symbol_search returned the identical type pointer.
-	  if (!target_indexed && search_results.net
+	  if (!root_indexed && search_results.net
 	      && search_results.net->unpacked_dimensions() > 0) {
 	    if (const netuarray_t*array_type =
 		  dynamic_cast<const netuarray_t*>(search_results.net->array_type()))
@@ -10089,7 +10090,7 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  method_receiver_wire_declared_type_(search_results.net),
 		  target_type);
 
-	  if (!target_indexed && search_results.net
+	  if (!root_indexed && search_results.net
 	      && search_results.net->unpacked_dimensions() > 0) {
 	    if (const netuarray_t*array_type =
 		  dynamic_cast<const netuarray_t*>(search_results.net->array_type()))
@@ -18117,6 +18118,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       bool target_indexed = search_results.net
 			  && !search_results.path_head.empty()
 			  && !search_results.path_head.back().index.empty();
+      bool root_indexed = target_indexed;
       bool selected_string_byte = search_results.net
 	    && search_results.net->data_type() == IVL_VT_STRING
 	    && search_results.net->unpacked_dimensions() == 0
@@ -18429,7 +18431,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  method_receiver_wire_declared_type_(search_results.net),
 		  target_type);
 
-	  if (!target_indexed && search_results.net
+	  if (!root_indexed && search_results.net
 	      && search_results.net->unpacked_dimensions() > 0) {
 	    if (const netuarray_t*array_type =
 		  dynamic_cast<const netuarray_t*>(search_results.net->array_type()))

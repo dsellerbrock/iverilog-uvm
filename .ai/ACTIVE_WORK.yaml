@@ -1,9 +1,9 @@
 status: "in_progress"
-phase: "DOCUMENTED"
+phase: "CI_FAILURE_REPAIR"
 blocker: "IEEE-CH7-ARRAY-METHODS-BATCH (#422-#426)"
 github_issue: "#422, #423, #424, #425, #426 (PR #514)"
 branch: "agent/ieee-ch7-array-methods-20261008"
-baseline: "Code/test revision 040bbdadeea9e0766f67673548ca353cbd60822e based on origin/main 12052ba68; this follow-up only corrects campaign-state documentation."
+baseline: "Code/test revision 040bbdadeea9e0766f67673548ca353cbd60822e based on origin/main 12052ba68; this follow-up fixes CI-reproduced indexed fixed-array method receiver type recovery."
 goal: "Implement and qualify the five open Chapter 7 array-method issues in IEEE 1800-2017/2023."
 standards: "IEEE 1800-2017/2023 §7.12.1 for array locator/minmax methods; §10.9.1 for assignment-pattern key coverage."
 failing_reproducer: "Issues #422-#425 are covered by multidimensional fixed-array locator, aggregate locator value-copy, wrapper result-type, and associative min/max regressions. Issue #426's constant-expression/user-defined-type key behavior was already implemented; this batch adds positive and negative qualification cases. A clean-main red rerun was not recorded before patching."
@@ -13,8 +13,8 @@ allowed_scope: "The changes and regressions for issues #422-#426, focused confor
 forbidden_scope: "Do not begin issues #427-#431 or change unrelated active/OpenTitan work before PR #514 is merged. Do not claim CI qualification from local results."
 acceptance: "Focused legacy and JSON/VVP lists pass 16/16 under -g2012, -g2017, and -g2023. PR #514 targets main; merge only after all six required platform checks pass on the exact head."
 discovery_policy: "Record unrelated findings in docs/conformance/DISCOVERED_DEBT.md; do not broaden this batch."
-current_validation: "Local macOS make -j2 and make install passed. Permanent focused lists pass 16/16 in each runner under -g2012; equivalent temporary lists pass 16/16 in each runner under -g2017 and -g2023. The last inspected PR head 040bbdadeea9e0766f67673548ca353cbd60822e had all six checks queued in run 37843522053. This state-only follow-up changes the PR head and needs its own exact-head CI; no green CI result is established. Full ivtest, UVM, Linux, and Windows suites were not run locally."
-next_action: "Do not poll CI repeatedly. On a fresh status event, merge #514 only if all required checks are green on the exact head; if it fails, repair only regressions caused by this batch. After merge, update the canonical main checkout and graph, then select issues #427-#431 from fresh origin/main."
+current_validation: "Local macOS make -j2 and make install passed. The old exact PR head 38f08fe2ba2f0e17ef793a3471efc59d5dbe4e72 failed Ubuntu 22.04/24.04 ivtest name-diff/negative gates and the parameterized-VIF focus on all three MSYS2 environments. The focus failures were four indexed fixed-array queue .size() cases (two tests under 2017/2023). Root fix preserves whether the original receiver was indexed through type recovery. After the fix, focused legacy and JSON/VVP suites pass 68/68 each; seven adjacent fixed-array/container/associative regressions pass locally under -g2017. The local negative suite passes 152/153; the sole failure is the unrelated tracked m9b_intersect_unequal_len case. Full local .github/ivtest_gate.sh remains in progress. No exact-head CI result is green yet."
+next_action: "Finish the already-running local hard gate. Commit and push the indexed-receiver type-recovery fix to this PR; update the PR body with actual results and the unrelated m9b failure. Recheck exact-head CI once after push and repair only failures caused by this batch; do not start issues #427-#431 before PR #514 merges."
 stop_after_completion: false
 after_completion: "After PR #514 merges, retire no active checkout blindly; audit all worktrees and fresh origin/main, then select the next five open IEEE issues (#427-#431) under the campaign coordinator."
 
