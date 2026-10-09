@@ -3752,7 +3752,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   const parmvalue_t*leading_type_args = 0,
 						   bool*illegal_bare_generic = 0,
 						   perm_string*nonclass_typedef = 0,
-						   bool declaration_probe = false)
+						   bool declaration_probe = false,
+						   bool*illegal_nonstatic = 0)
 {
       static int trace_class_method = -1;
       auto scope_text = [](const NetScope*use_scope) -> std::string {
@@ -3775,6 +3776,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 	    *illegal_bare_generic = false;
       if (nonclass_typedef)
 	    *nonclass_typedef = perm_string();
+      if (illegal_nonstatic)
+	    *illegal_nonstatic = false;
 
       pform_name_t type_path = path.name;
       perm_string method_name = peek_tail_name(type_path);
@@ -3858,6 +3861,34 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       }
       if (!method_scope || method_scope->type() != NetScope::FUNC)
 	    return nullptr;
+
+      if (illegal_nonstatic && path.package) {
+	    const PTaskFunc*definition = method_scope->func_pform();
+	    if (definition && !definition->method_qualifiers().test_static()) {
+		  const netclass_t*caller = scope->get_class_scope()
+			? scope->get_class_scope()->class_def() : nullptr;
+		  bool implicit_this = false;
+		  for (const netclass_t*cur = caller; cur; cur = cur->get_super())
+			if (cur == class_type) {
+			      implicit_this = true;
+			      break;
+			}
+		  for (NetScope*cur = scope; implicit_this && cur; cur = cur->parent()) {
+			  const PTaskFunc*caller_def = cur->func_pform();
+			  if (!caller_def) caller_def = cur->task_pform();
+			  if (!caller_def) continue;
+			  if (caller_def->method_qualifiers().test_static())
+				implicit_this = false;
+			  break;
+		  }
+		  if (implicit_this && !find_implicit_this_handle(des, scope))
+			implicit_this = false;
+		  if (!implicit_this) {
+			  *illegal_nonstatic = true;
+			  return nullptr;
+		  }
+	    }
+      }
 
       return method_scope;
 }
@@ -16740,13 +16771,20 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
       NetScope*scoped_static_func = nullptr;
       bool illegal_bare_generic = false;
+      bool illegal_nonstatic = false;
       perm_string nonclass_typedef;
       bool scoped_type_call_candidate = path_.name.size() >= 2
 	    && (leading_type_args() || !search_flag || search_results.is_scope());
       if (scoped_type_call_candidate) {
 	    scoped_static_func = resolve_scoped_class_method_func_(
 		  des, scope, path_, leading_type_args(), &illegal_bare_generic,
-		  &nonclass_typedef);
+		  &nonclass_typedef, false, &illegal_nonstatic);
+	    if (illegal_nonstatic) {
+		  cerr << get_fileline() << ": error: Non-static method `"
+		       << peek_tail_name(path_) << "' requires an object receiver." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    if (!nonclass_typedef.nil()) {
 		  if (!bare_generic_scope_error_reported_) {
 			report_nonclass_typedef_class_scope_(

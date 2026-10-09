@@ -12917,6 +12917,19 @@ expr_primary
 	delete $6;
 	$$ = tmp;
       }
+  | package_type_identifier K_SCOPE_RES identifier_name argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PECallFunction*tmp = new PECallFunction($1.package, hident, *$4);
+	tmp->set_leading_type_args($1.type_args);
+	tmp->set_scoped_type_prefix();
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3;
+	delete $4;
+	$$ = tmp;
+      }
   /* A scoped (typed) constructor call `C::new(...)`. The generic
      class_new path (class_scope K_new) is unreachable from expression
      position: these direct TYPE_IDENTIFIER K_SCOPE_RES rules win the

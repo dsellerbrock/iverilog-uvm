@@ -90,6 +90,39 @@
 - **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
   merge this ticket's PR.
 
+### SV-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)
+
+- **State:** Implemented locally on `agent/ieee-batch-499-495-20261009`;
+  full local legacy and JSON suites are running. This issue remains part of
+  the five-issue main-based campaign batch; no PR or CI result is claimed yet.
+- **Failure:** `value = p::c::get();` reports a syntax error in strict 2017 and
+  2023; the package-qualified statement call and `void'(p::c::get())` controls
+  compile.
+- **Requirement:** IEEE 1800-2017/2023 §8.23 permits `::` access to static
+  class methods; §26.3 describes package-qualified references. The 2023
+  wording retains the relevant behavior for fully defined package classes.
+- **Root cause and scope:** `parse.y` has a package-scoped statement-call
+  carrier and expression rules for package functions and deeper nested class
+  scopes, but lacks the direct `package::class::method(args)` expression
+  production. Keep the repair limited to that expression form and its paired
+  positive/negative regressions.
+- **Validation:** The reducer failed before the patch and passes after it in
+  strict `-g2017` and `-g2023`. The narrow
+  `package_type_identifier::method(args)` production preserves package and
+  type-argument metadata. ARM64 source build succeeds; Bison 3.8.2 conflict
+  counts remain unchanged (574 shift/reduce, 1,122 reduce/reduce). Focused
+  legacy and JSON/VVP sets pass 6/6 each; neighboring package/class sets pass
+  14/14 each. The `void'(...)` and parameterized forms pass; explicit
+  non-static calls report a focused receiver diagnostic, and a missing class
+  fails without a crash. Full legacy finished with 7,260 total, 7,243 passed,
+  12 failed, 2 not implemented, and 3 expected failures; ten failures are
+  unrelated select gold mismatches and two are manually timeboxed uniform
+  tests (DD-110). Full JSON and `.github/uvm_test.sh` remain in progress. The
+  UVM run uses real DPI and has one unrelated `m10_dpi_export_small_abi_test`
+  failure so far. The external read-only axi-vip probe advances past the fixed
+  call and reaches DD-111's impure `get_width` constraint diagnostic. No CI
+  qualification is claimed.
+
 ### SV23-REF-STATIC-TF-ARGUMENTS — IEEE 1800-2023 `ref static` arguments
 
 - **State:** Implemented in PR batch #464, based on refreshed `origin/main`

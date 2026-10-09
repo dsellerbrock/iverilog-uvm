@@ -1612,10 +1612,15 @@ increment validation also required correction before integration.
   probes were rejected as unsupported vector slices. That evidence does not
   prove all packed-select increment forms are diagnosed: matching result
   widths reach the backend path, which uses the whole carrier width.
-- **Expected:** IEEE 1800-2017/2023 11.4.2 selected-lvalue update with the
+- **Expected:** IEEE 1800-2017/2023 §11.4.2 increment/decrement behavior with
   selected width, correct prefix/postfix result, and untouched carrier bits.
-- **Status:** OPEN. Separate from L60 whole unpacked-array elements. Queued
-  after the silent-result DD-028 and DD-029 defects.
+- **Current status (2026-10-09):** GitHub issue #498's scalar packed-signal
+  bit/part-select scope is already implemented on main by merged PR #283 (L67).
+  The issue's exact bit and matching-width part reducers pass in both strict
+  editions; registered `sv_packed_select_incdec`, `_bounds`, and `_context`
+  cases pass 6/6 through both legacy and JSON/VVP runners. Issue #498 is closed
+  as already fixed. Broader nested array/property carrier limits remain a
+  separate boundary and are not claimed by that issue.
 
 
 ### DD-027 L60 final review — 2026-09-14
@@ -3939,26 +3944,26 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 ### DD-106 — package-qualified class call probe cases (a)-(e)
 
 - **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL.
-- **Observation:** Before the active fix, probes (a) `x = p::c::get()`, (b)
+- **Observation:** On the pre-fix compiler, probes (a) `x = p::c::get()`, (b)
   `void'(p::c::get())`, (c) `p::c#(8)::set(1)`, (d) non-static
-  `p::c::m()`, and (e) nonexistent-class `p::missing::set(1)` all failed in
-  parsing with `syntax error` / `Malformed statement` under strict 2017 and
-  2023. After the statement-call fix, (b) and (c) pass in both editions, (d)
-  reports the focused non-static-method diagnostic, and (e) reports an unknown
-  task/class diagnostic without crashing. The reducer passes and prints
-  `v=5`; (a) still fails in expression position. Extending the raw carrier into
-  `expr_primary` increased Bison conflicts, so that grammar change was reverted
-  and (a) remains outside this ticket.
+  `p::c::m()`, and (e) nonexistent-class `p::missing::set(1)` failed in
+  parsing under strict 2017 and 2023. On the current candidate, (a)-(c) pass in
+  both editions; (d) reports the focused non-static-method diagnostic, and (e)
+  reports an unknown class/task diagnostic without crashing. The statement
+  reducer prints `v=5`. Probe (a) is the active #497 campaign issue; these
+  results are its test record, not a new blocker.
 - **File/function:** Parser grammar for package-qualified class-scope call
   statements; elaboration diagnostics for the negative forms.
 - **Possible clause:** IEEE 1800-2017/2023 §§8.23 and 26.3.
 - **Evidence:** Pre/post-patch probes compiled with the active worktree's
   `local-install/bin/iverilog` and executed with its `local-install/bin/vvp`;
   permanent reducer and non-static logs are in `ivtest/log/`.
-- **Reproducer status:** Confirmed on the clean baseline.
-- **Triage status:** Triage-pending, record-only. Cases (a)-(e) are probes for
-  the active fix, not separately authorized blockers; retain the post-fix
-  result here and promote none from this entry without coordinator selection.
+- **Reproducer status:** Confirmed on clean baseline and rerun on the current
+  candidate in both strict editions.
+- **Triage status:** Triage-pending evidence only. Case (a) is being addressed
+  under the already-selected issue #497; cases (b)-(e) are controls. Do not
+  select this record as a separate next blocker or resume axi-vip compilation
+  beyond DD-111.
 
 ### DD-107 — PR #412 Ubuntu 22.04 check failed after merge
 
@@ -4023,8 +4028,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017 §18.5.10 / IEEE 1800-2023 §18.5.9.
 - **Evidence:** Full JSON run on this ticket's branch: 4,499 tests, 4 failed;
   the two uniform tests have empty VVP stdout/stderr and no expected pass
-  marker. An earlier unguarded attempt was manually stopped after exceeding
-  the same CPU budget.
+  marker. The 2026-10-09 full legacy run also reached these two tests; each was
+  manually stopped at a 300-second per-test limit and is counted as a gold
+  mismatch in its 7,260-test total. An earlier unguarded attempt was manually
+  stopped after exceeding the same CPU budget.
 - **Reproducer status:** Confirmed as a bounded-runtime failure on this host;
   no distribution mismatch was measured in this run.
 - **Triage status:** Triage-pending, unrelated to the package-call parser
@@ -4100,9 +4107,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   `ivtest/regress-vvp.list` line 1607. `vvp work/a.out` stayed CPU-active with
   under 3 MB RSS and an empty VVP output log until explicitly stopped; the
   Python runner exited 143 after termination.
-- **Reproducer status:** Confirmed on the local macOS ARM64 image.
-- **Triage status:** Triage-pending, unrelated to `ref static`; do not expand
-  this ticket to change event scheduling or add runner timeouts.
+- **Reproducer status:** The 2026-10-08 run reproduced the stall. In the
+  2026-10-09 full JSON rerun on the current candidate, this registered row
+  passed; the prior stall does not reproduce on that image.
+- **Triage status:** Triage-pending historical observation, unrelated to
+  `ref static`. Do not select it without a fresh failing reproduction.
 
 ### DD-115 — obsolete negative expects unequal-length `intersect` rejection
 
@@ -4129,3 +4138,25 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** Triage-pending and unrelated to `ref static`. Do not edit
   this negative test during #449; select it with the existing SVA/negative-gate
   backlog when the coordinator returns to that work.
+
+### DD-116 — legacy select gold mismatches in the full #497 validation run
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL-EXPRESSION
+  (#497), during the full legacy ivtest run on the current batch branch.
+- **Observation:** Ten unrelated registered tests failed their output golds:
+  `pr2835632b`, `pr2913927`, `pr3054101a` through `pr3054101f`,
+  `sel_rval_bit_ob`, and `sel_rval_part_ob`. The select fixtures report
+  mismatches involving out-of-range packed/array selects; a shared cause has
+  not been isolated. The package-call parser change does not touch these
+  select paths; attribution to the branch's other select work remains
+  unverified.
+- **Evidence:** `/tmp/issue497-full-legacy.log` reports 7,260 total, 7,243
+  passed, 12 failed, 2 not implemented, and 3 expected failures. These ten
+  rows account for ten of the twelve failures; the other two are the bounded
+  global-uniform runs recorded under DD-110. Per-test output is in
+  `ivtest/log/<test>.log`.
+- **Reproducer status:** Confirmed by the registered full-suite rows on the
+  current ARM64 build.
+- **Triage status:** Triage-pending and record-only. Do not select these cases
+  as separate blockers from this evidence or widen #497 to change select
+  behavior.
