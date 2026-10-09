@@ -5185,12 +5185,18 @@ static bool connect_dominated_wire_port(Design*des, const LineInfo&loc,
       return true;
 }
 
+static bool unpacked_array_shapes_match_(const netranges_t&formal,
+					 const netranges_t&actual);
+
 void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
 			     PExpr *expr, NetNet::PortType port_type,
 			     const Module *mod, unsigned int port_idx)
 {
-      NetNet *expr_net = elaborate_unpacked_array(des, scope, *expr, port_net,
-						  expr);
+      PEIdent*output_ident = port_type == NetNet::POUTPUT
+	    ? dynamic_cast<PEIdent*>(expr) : nullptr;
+      NetNet *expr_net = output_ident
+	    ? output_ident->elaborate_lnet(des, scope, true)
+	    : elaborate_unpacked_array(des, scope, *expr, port_net, expr);
       if (!expr_net) {
 	    perm_string port_name = mod->get_port_name(port_idx);
 	    cerr << expr->get_fileline() << ":      : Port "
@@ -5201,10 +5207,32 @@ void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
 	    return;
       }
 
-      ivl_assert(*port_net, expr_net->pin_count() == port_net->pin_count());
       if (port_type == NetNet::POUTPUT) {
+		if (output_ident) {
+		      if (!unpacked_array_shapes_match_(port_net->unpacked_dims(),
+						       expr_net->unpacked_dims())) {
+				perm_string port_name = mod->get_port_name(port_idx);
+				cerr << expr->get_fileline() << ": error: Output port '"
+				     << port_name << "' of " << mod->mod_name()
+				     << " has incompatible unpacked-array dimensions."
+				     << endl;
+				des->errors += 1;
+				return;
+		      }
+		      if (!port_net->net_type()->type_equivalent(
+				expr_net->net_type())) {
+				perm_string port_name = mod->get_port_name(port_idx);
+				cerr << expr->get_fileline() << ": error: Output port '"
+				     << port_name << "' of " << mod->mod_name()
+				     << " has an incompatible unpacked-array element type."
+				     << endl;
+				des->errors += 1;
+				return;
+		      }
+		}
+	    ivl_assert(*port_net, expr_net->pin_count() == port_net->pin_count());
 	    // elaborate_unpacked_array normally elaborates a RHS expression
-	    // so does not perform this check.
+	    // so non-identifier output actuals still need this check.
 	    if (gn_var_can_be_uwire() && (expr_net->type() == NetNet::REG)) {
 		  if (expr_net->peek_lref() > 0) {
 			perm_string port_name = mod->get_port_name(port_idx);
@@ -5219,8 +5247,10 @@ void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
 		  expr_net->type(NetNet::UNRESOLVED_WIRE);
 	    }
 	    assign_unpacked_with_bufz(des, scope, port_net, expr_net, port_net);
-      } else
+	  } else {
+	    ivl_assert(*port_net, expr_net->pin_count() == port_net->pin_count());
 	    assign_unpacked_with_bufz(des, scope, port_net, port_net, expr_net);
+	  }
 }
 
 /* An interconnect has no independently declared data type.  Settle the
@@ -5584,11 +5614,11 @@ static unsigned long interface_array_ltr_word_(const netranges_t&dims,
       return word;
 }
 
-/* IEEE 1800-2023 23.3.3.5 permits different bounds and directions, but an
- * unpacked-array port and actual must have the same number of dimensions and
- * the same size in each dimension. */
-static bool interface_array_shapes_match_(const netranges_t&formal,
-					  const netranges_t&actual)
+/* IEEE 1800-2017/2023 23.3.3.5 permits different bounds and directions, but
+ * an unpacked-array port and actual must have the same number of dimensions
+ * and the same size in each dimension. */
+static bool unpacked_array_shapes_match_(const netranges_t&formal,
+					 const netranges_t&actual)
 {
       if (formal.size() != actual.size())
 	    return false;
@@ -6302,7 +6332,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						      prts[0]->unpacked_dims();
 						const netranges_t&actual_dims =
 						      actual_signal->unpacked_dims();
-						if (!interface_array_shapes_match_(
+						if (!unpacked_array_shapes_match_(
 						      formal_dims, actual_dims)) {
 						      cerr << pins[idx]->get_fileline()
 							   << ": error: Cannot bind interface-port array `"
@@ -8652,7 +8682,7 @@ static bool fixed_uarray_shapes_compatible_(const netuarray_t*dst,
 {
       if (!dst || !src)
 	    return false;
-      if (!interface_array_shapes_match_(dst->static_dimensions(),
+      if (!unpacked_array_shapes_match_(dst->static_dimensions(),
 					 src->static_dimensions()))
 	    return false;
 

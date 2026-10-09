@@ -59,7 +59,8 @@ static bool is_force_release_opcode(const char* name)
       static const char*const names[] = {
 	    "%force/vec4", "%force/vec4/a", "%force/vec4/off",
 	    "%force/vec4/off/d", "%force/wr", "%release/net",
-	    "%release/reg", "%release/reg/a", "%release/wr", 0
+	    "%release/net/off", "%release/reg", "%release/reg/a",
+	    "%release/reg/off", "%release/wr", 0
       };
       for (unsigned idx = 0; names[idx]; idx += 1)
 	    if (strcmp(name, names[idx]) == 0) return true;

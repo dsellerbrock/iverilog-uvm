@@ -1,0 +1,46 @@
+{
+  "blocker": "IEEE-PACKED-SUBFIELD-RELEASE",
+  "issue": 493,
+  "branch": "agent/ieee-batch-499-495-20261009",
+  "baseline_main": "4b3f3424c440aca6af92153b6860a7253b925234",
+  "reproducer": {
+    "source": "evidence/opentitan-otp-force-rhs-20260928/packed_partial_release_repro.sv",
+    "before_patch": "Strict -g2017 and -g2023 target generation aborts in show_stmt_release because ivl_lval_part_off is non-immediate; exit 134."
+  },
+  "implementation": "Lower packed release offsets through register-backed VVP release instructions. Constant and non-immediate packed member releases preserve selected-bit behavior for variables and nets.",
+  "bison_vvp_parser_conflicts": {
+    "shift_reduce": 14,
+    "reduce_reduce": 5,
+    "note": "Counts observed in the serial build after regeneration; no grammar productions were added."
+  },
+  "validation": [
+    {
+      "command": "make -j1",
+      "result": "pass; serial macOS ARM64 build"
+    },
+    {
+      "command": "make install",
+      "result": "pass"
+    },
+    {
+      "command": "PATH=../local-install/bin:$PATH perl vvp_reg.pl regress-packed-subfield-release-legacy.list",
+      "working_directory": "ivtest",
+      "result": "6/6 passed"
+    },
+    {
+      "command": "PATH=../local-install/bin:$PATH python3 vvp_reg.py regress-packed-subfield-release-vvp.list",
+      "working_directory": "ivtest",
+      "result": "7/7 passed"
+    },
+    {
+      "command": "make check",
+      "result": "pass"
+    }
+  ],
+  "not_run": [
+    "Full legacy and JSON suites",
+    "GitHub CI on a PR head"
+  ],
+  "batch": "Four of five locally verified fixes are on the existing branch; no PR is open for this batch yet.",
+  "qualification": "Local focused validation only; not CI-qualified and issue #493 remains open."
+}

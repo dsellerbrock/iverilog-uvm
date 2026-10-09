@@ -3856,15 +3856,15 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-086 — unpacked-array output port connected to a slice of a 2-D unpacked array reads X
 
-- **Issue status:** [OPEN #492](https://github.com/dsellerbrock/iverilog-uvm/issues/492).
+- **Issue status:** [OPEN #492](https://github.com/dsellerbrock/iverilog-uvm/issues/492); locally focused-tested fix is in [draft PR #520](https://github.com/dsellerbrock/iverilog-uvm/pull/520), with CI pending.
 
 - **Discovered while working:** VVP-HOTPATH-PERF (Caliptra/Adams Bridge single-core performance assessment; no conformance ticket).
 - **Observation:** `m u0(.s(s[0]))`, where `s` is `logic [1:0] s [2][3:0]` and the port is `output logic [1:0] s [3:0]` driven by `always_comb`, leaves every `s[0][k]` at X. Connecting a whole one-dimensional array (`.s(s1)`) works. No diagnostic is issued. The first Adams Bridge A2B reducer hit this and reported an all-X output hash.
-- **File/function:** Port binding of unpacked-array slices; exact elaboration path not traced.
-- **Possible clause:** IEEE 1800-2017/2023 §7.6 (unpacked array assignment compatibility) and §23.3.3 (port connection rules); review exact wording before implementation.
+- **File/function:** `elaborate_unpacked_port` now uses `PEIdent::elaborate_lnet` for identifier output actuals and checks unpacked dimensions and element types before connecting the port.
+- **Standard basis:** IEEE 1800-2017/2023 §7.6 and §23.3.3.5; compatible unpacked arrays require matching dimension counts and sizes, and elements correspond left-to-right.
 - **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/unpacked_slice_output_port.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log): `xx xx xx xx | 01 10` in both strict editions, identical on the unmodified 7a04009f baseline.
-- **Reproducer status:** confirmed, paired 2017/2023.
-- **Triage status:** untriaged. The performance reducer now uses per-instance arrays.
+- **Reproducer status:** baseline failure confirmed in paired strict 2017/2023. The original reducer now prints `01 00 10 zz | 01 10` in both editions; whole-array and selected-row mappings pass.
+- **Triage status:** locally fixed on the IEEE batch branch. Focused legacy and JSON/VVP lists pass 6/6 each; serial macOS build/install and `make check` pass. No CI qualification yet. The performance reducer now uses per-instance arrays.
 
 ### DD-087 — out-of-range part select of a two-state vector leaves X in a two-state variable
 
@@ -3885,10 +3885,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Discovered while working:** OT-OTP-FORCE-RHS-BANKED.
 - **Observation:** A `release dut.part_access[0].read_lock` on a packed array of packed structs aborts the VVP target with `Assertion failed: (number_is_immediate(part_off_ex, 64, 0)), function show_stmt_release, file vvp_process.c, line 3322.` This occurs after the separately selected packed-force link guard is applied. Whole-array `release dut.part_access` and `release dut.part_access_dai` compile and run; these are the exact release forms used by the selected OTP task.
 - **File/function:** `tgt-vvp/vvp_process.c` `show_stmt_release`, packed LHS offset handling.
-- **Possible clause:** IEEE 1800-2017/2023 §10.6 procedural continuous assignment `release` semantics; inspect the exact packed-select requirements before implementation.
+- **Clause:** IEEE 1800-2017/2023 §10.6 procedural continuous assignment `release` semantics.
 - **Evidence:** [Reducer](../../evidence/opentitan-otp-force-rhs-20260928/packed_partial_release_repro.sv) and [focused OTP evidence](../../evidence/opentitan-otp-force-rhs-20260928/README.md). Strict `-g2017` and `-g2023`, each with `-gstrict-expr-width`, both exit 134 at the assertion on the private force-corrected VVP target.
-- **Reproducer status:** confirmed paired compile-time assertion; no selected OTP runtime implicated.
-- **Triage status:** separate targeted ticket; do not broaden the OTP force-RHS correction to partial release.
+- **Reproducer status:** The pre-fix reducer confirmed the paired compile-time assertion; no selected OTP runtime was implicated. The paired packed-subfield regressions pass after the patch.
+- **Triage status:** Implemented for #493 on the current IEEE batch branch. Focused tests pass locally (legacy 6/6, JSON/VVP 7/7), as do `make check` and the serial macOS build/install. Exact-head CI is pending the five-fix main-based batch PR; this is not yet CI-qualified. Keep the fix limited to packed release offsets and do not broaden the OTP force-RHS correction.
 
 ### DD-089 — type-only parameterized OTP test specialization is not registered
 
@@ -4043,7 +4043,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** `netmisc.cc::check_packed_property_tail_range`; class-property RMW in `tgt-vvp/stmt_assign.c`. Ordinary signal lvalues already use `NetAssign_::set_dynamic_part_carrier` and `%clip/vec4/d`, but class-property blocking, compound, and nonblocking stores need their own preserved carrier and evaluation order.
 - **Possible clause:** IEEE 1800-2017 and 1800-2023 §11.5.1: a partly out-of-bounds read fills only missing bits with X; a write updates only in-range bits. An all-or-nothing runtime guard is insufficient.
 - **Evidence/reproducer:** Paired `ivtest/ivltests/sv_class_packed_property_2d_range_invalid.v` and `sv_class_packed_property_dynamic_slice_cross.v` reject aliases; paired `sv_class_packed_property_dynamic_nested_slice.v`, `sv_class_packed_property_dynamic_range_width.v`, `sv_class_packed_property_narrow_cast_cross.v`, and `sv_class_packed_property_ascending_dynamic_slice.v` cover bounded, width, truncation, and direction cases. The existing `tests/class_packed_dynamic_nested_slice_test.sv` passes again. The exact final gates and selected CSRNG result are under `evidence/opentitan-csrng-packed-property-20260929/`.
-- **Triage status:** Open, record-only beyond the validated bounded subset. Exact carrier clipping for arbitrary runtime bases needs a separate target/read-lowering ticket with single-evaluation, ascending/descending, partial-overlap, blocking/compound/NBA, and X/Z controls. Do not count the selected CSRNG PASS as qualification of partial-overlap behavior.
+- **Triage status:** Active IEEE issue #495. The current local candidate implements carrier clipping and passes paired strict 2017/2023 focused legacy and JSON/VVP tests 18/18 each, including partial/whole out-of-range, X-index, truncation, direction, blocking/compound/NBA, and once-only selector checks. No full-suite, Linux-build, or CI qualification is claimed. Do not count the selected CSRNG PASS as qualification of partial-overlap behavior.
 
 ### DD-104 — procedural `$past` history captures the Active-region value, not the Preponed value
 
@@ -4308,3 +4308,27 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   has not been checked.
 - **Triage status:** Triage-pending and outside #450 scope. No constraint
   solver changes are included.
+
+### DD-117 — legacy/JSON expectations drift for real-valued coverpoint tests
+
+- **Discovered while working:** IEEE-UNPACKED-ARRAY-OUTPUT-SLICE (#492), while
+  reviewing CI failures reported after PR #466 merged.
+- **Observation:** The Ubuntu 22.04 and 24.04 jobs in run 37947939833 both fail
+  the hard ivtest gate on `sv_covergroup_bitwise_real_operand_unsupported` and
+  `sv_covergroup_bitwise_real_operand_unsupported_2023`. The focused two-test
+  legacy run and JSON/VVP run on the current local image each reproduce 2/2
+  failures.
+- **Details:** The 2017 case is registered as a normal pass, but `-g2017`
+  rejects real-valued coverpoint bins with the IEEE1800-2023 edition diagnostic.
+  The 2023 legacy gold combines a `sorry` diagnostic with runtime output, while
+  the default legacy command (`-D__ICARUS_UNSIZED__`) produces only
+  `UNSUPPORTED_DIAGNOSTIC`. The JSON stderr gold also expects that diagnostic
+  although the default JSON invocation produces empty compiler stderr. A direct
+  compile without the legacy define does emit the `sorry` line.
+- **Files:** `ivtest/regress-sv.list`, `ivtest/gold/sv_covergroup_bitwise_real_operand_unsupported.gold`,
+  the paired JSON configs, and their stream-specific golds. The edition gate is
+  covered by existing tests from #516; the older unsupported-operand fixtures
+  were introduced in #376.
+- **Triage status:** Tracked by [issue #522](https://github.com/dsellerbrock/iverilog-uvm/issues/522).
+  Out of scope for #492; keep this PR limited to unpacked-array output actuals.
+  Do not allowlist these failures to make CI green.

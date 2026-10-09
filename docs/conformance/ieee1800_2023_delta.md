@@ -1,5 +1,9 @@
 # IEEE 1800-2023 first-class conformance survey
 
+The paired 2023 §10.6 packed-subfield release behavior shares the locally
+tested implementation and qualification boundary in the
+[2017 clause record](matrices/ieee1800_2017_clause_matrix.md#october-9-2026--packed-subfield-release-offsets-ieee-1800-106).
+
 Canonical 2023 edition record. The initial scoping table is historical; later
 dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);

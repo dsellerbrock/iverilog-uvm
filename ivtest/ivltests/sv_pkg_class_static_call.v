@@ -29,6 +29,13 @@ package pkg_class_static_call_pkg;
 endpackage
 
 module sv_pkg_class_static_call;
+  int getter_value;
+  int argument_value;
+
+  function automatic int add_one(input int value);
+    return value + 1;
+  endfunction
+
   initial begin
     pkg_class_static_call_pkg::call_target::set(5);
     if (pkg_class_static_call_pkg::call_target::value != 5)
@@ -38,10 +45,20 @@ module sv_pkg_class_static_call;
     if (pkg_class_static_call_pkg::call_target::value != 7)
       $fatal(1, "package class static task call failed");
 
+    getter_value = pkg_class_static_call_pkg::call_target::get();
+    if (getter_value != 7)
+      $fatal(1, "package class static function expression failed");
+    argument_value = add_one(pkg_class_static_call_pkg::call_target::get());
+    if (argument_value != 8
+        || 2 + pkg_class_static_call_pkg::call_target::get() != 9)
+      $fatal(1, "nested package class static function expression failed");
     void'(pkg_class_static_call_pkg::call_target::get());
     pkg_class_static_call_pkg::parameterized_target#(8)::set(1);
     if (pkg_class_static_call_pkg::parameterized_target#(8)::value != 9)
       $fatal(1, "parameterized package class static call failed");
+    getter_value = pkg_class_static_call_pkg::parameterized_target#(8)::get();
+    if (getter_value != 9)
+      $fatal(1, "parameterized package class static expression failed");
 
     $display("PASSED");
   end

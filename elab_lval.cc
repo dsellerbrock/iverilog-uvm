@@ -4316,13 +4316,77 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			NetExpr*canonical_off = 0;
 			unsigned long canonical_wid = 0;
 			unsigned errors_before = des->errors;
-			if (collapse_checked_packed_property_indices(
+			bool used_dynamic_carrier = false;
+			size_t prefix_count = 0;
+			for (const index_component_t&index : member_cur.index) {
+			      if (index.sel != index_component_t::SEL_BIT
+				  || !index.msb || index.lsb)
+				    break;
+			      prefix_count += 1;
+			}
+			if (prefix_count != 0
+			    && prefix_count + 1 == member_cur.index.size()
+			    && prefix_count < dims.size()) {
+			      const index_component_t&tail = member_cur.index.back();
+			      if (tail.sel == index_component_t::SEL_IDX_UP
+				  || tail.sel == index_component_t::SEL_IDX_DO) {
+				    bool runtime_checked = false;
+				    if (!check_packed_property_tail_range(
+					  des, scope, this, tail, dims[prefix_count],
+					  &runtime_checked)) {
+					  delete lv;
+					  return 0;
+				    }
+				    if (runtime_checked) {
+					  std::list<index_component_t>::iterator
+						prefix_end = member_cur.index.end();
+					  --prefix_end;
+					  std::list<index_component_t>prefix(
+						member_cur.index.begin(),
+						prefix_end);
+					  netranges_t prefix_dims(dims.begin(),
+							dims.begin() + prefix_count);
+					  unsigned long carrier_width =
+						(unsigned long)pvec->packed_width();
+					  for (size_t idx = 0; idx < prefix_count; ++idx)
+						carrier_width /= dims[idx].width();
+					  NetExpr*carrier_off =
+						make_checked_canonical_packed_prefix(
+						      des, scope, this, prefix, prefix_dims,
+						      carrier_width, false);
+					  netranges_t tail_dims(
+						dims.begin() + prefix_count, dims.end());
+					  std::list<index_component_t>tail_only(1, tail);
+					  NetExpr*tail_off = 0;
+					  unsigned long tail_width = 0;
+					  if (carrier_off && collapse_packed_member_indices(
+						des, scope, this, tail_dims, tail_only,
+						tail_off, tail_width, true)) {
+						canonical_wid = tail_width;
+						lv->set_part(tail_off,
+						      new netvector_t(pvec->base_type(),
+							     (long)tail_width - 1, 0));
+						lv->set_dynamic_part_carrier(
+						      carrier_off,
+						      (unsigned)carrier_width);
+						used_dynamic_carrier = true;
+					  } else {
+						delete carrier_off;
+						delete tail_off;
+					  }
+				    }
+			      }
+			}
+			if (used_dynamic_carrier) {
+			      canonical_off = nullptr;
+			} else if (collapse_checked_packed_property_indices(
 			      des, scope, this, dims, member_cur.index,
 			      (unsigned long)pvec->packed_width(),
 			      canonical_off, canonical_wid)) {
-			      lv->set_part(canonical_off,
-				    new netvector_t(pvec->base_type(),
-						     (long)canonical_wid - 1, 0));
+			      if (canonical_wid > 0)
+				    lv->set_part(canonical_off,
+					  new netvector_t(pvec->base_type(),
+							 (long)canonical_wid - 1, 0));
 			} else {
 			      const index_component_t&tail = member_cur.index.back();
 			      bool mixed_range = member_cur.index.size() > 1

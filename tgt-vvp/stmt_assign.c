@@ -5073,10 +5073,13 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
       ivl_expr_t rval = ivl_stmt_rval(net);
       ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
+      ivl_expr_t dynamic_carrier = ivl_lval_dynamic_part_carrier(lval);
+      unsigned carrier_wid = ivl_lval_part_carrier_width(lval);
       unsigned lwid = ivl_lval_width(lval);
       int prop_idx = ivl_lval_property_idx(lval);
       unsigned bitoff = 0;
       int off_reg = 0, off_flag = 0;
+      int carrier_reg = 0, carrier_flag = 0;
       int dynamic_part_off = 0;
 
       if (ivl_stmt_lvals(net) != 1)
@@ -5095,6 +5098,8 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	    return -1;
       if (delay > 0xffffffffUL)
 	    return -1;
+      if (dynamic_carrier && carrier_wid == 0)
+	    return -1;
 
       ivl_type_t sig_type = draw_lval_expr(lval);
       ivl_type_t prop_type = ivl_type_prop_type(sig_type, prop_idx);
@@ -5109,6 +5114,14 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	    uint64_t negative_bits;
 	    off_reg = allocate_word();
 	    off_flag = allocate_flag();
+	    if (dynamic_carrier) {
+		  carrier_reg = allocate_word();
+		  carrier_flag = allocate_flag();
+		  draw_eval_expr_into_integer(dynamic_carrier, carrier_reg);
+		  fprintf(vvp_out,
+			  "    %%flag_mov %d, 4; capture NBA carrier validity\n",
+			  carrier_flag);
+	    }
 	    if (packed_property_negative_offset_bits64_(part_off_ex,
 						 &negative_bits))
 		  emit_packed_property_negative_offset_(off_reg, negative_bits);
@@ -5122,6 +5135,9 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	    }
 	    else
 		  draw_eval_expr_into_integer(part_off_ex, off_reg);
+	    if (dynamic_carrier)
+		  fprintf(vvp_out, "    %%flag_or 4, %d; combine NBA carrier validity\n",
+			  carrier_flag);
 	    fprintf(vvp_out, "    %%flag_mov %d, 4; capture NBA offset validity\n",
 		    off_flag);
       }
@@ -5134,6 +5150,12 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 
       if (dynamic_part_off) {
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
+	    if (dynamic_carrier) {
+		  fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+			  carrier_wid);
+		  fprintf(vvp_out, "    %%clip/vec4/d %d, %d;\n",
+			  off_reg, carrier_reg);
+	    }
 	    fprintf(vvp_out, "    %%assign/prop/v/bits/%s %d, %lu, %d;"
 		    " NBA store to selected property %s\n",
 		    ivl_expr_signed(part_off_ex) ? "x" : "ux",
@@ -5141,6 +5163,10 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 		    ivl_type_prop_name(sig_type, prop_idx));
 	    clr_word(off_reg);
 	    clr_flag(off_flag);
+	    if (carrier_reg) {
+		  clr_word(carrier_reg);
+		  clr_flag(carrier_flag);
+	    }
       } else if (part_off_ex) {
 	    fprintf(vvp_out, "    %%assign/prop/v/bits %d, %lu, %u;"
 		    " NBA store to field [%u+:%u] of property %s\n",
@@ -5426,6 +5452,10 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  int prop_word_idx = 0;
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 		  ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
+		  ivl_expr_t dynamic_carrier =
+			ivl_lval_dynamic_part_carrier(lval);
+		  unsigned carrier_wid =
+			ivl_lval_part_carrier_width(lval);
 		  uint64_t negative_part_off_bits = 0;
 		  int negative_part_off_fits = part_off_ex
 			&& packed_property_negative_offset_bits64_(
@@ -5526,33 +5556,69 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  if (part_off_ex && !idx_expr) {
 			int off_reg = allocate_word();
 			int off_flag = allocate_flag();
+			int carrier_reg = 0;
+			int carrier_flag = 0;
 			int signed_offset = ivl_expr_signed(part_off_ex);
 			const char*store_opcode = signed_offset
 			      ? "%store/prop/v/bits/x"
 			      : "%store/prop/v/bits/ux";
+			if (dynamic_carrier && carrier_wid == 0) {
+			      fprintf(stderr,
+				      "vvp.tgt error: dynamic packed-property carrier has zero width.\n");
+			      vvp_errors += 1;
+			      return errors + 1;
+			}
 			if (ivl_stmt_opcode(net) != 0) {
-			      /* Compound assignment: load the current field
-				 value first. Evaluate the offset once as a
-				 vec4, keep a copy in off_reg (for the store),
-				 and part-select [off+:lwid] off the loaded
-				 property so the binary opcode has both
-				 operands. */
+			      /* Compound assignment: select the packed carrier first so
+				 an out-of-range inner part sees X, not adjacent bits. */
 			      fprintf(vvp_out, "    %%prop/v %d;\n", prop_idx);
+			      if (dynamic_carrier) {
+				    carrier_reg = allocate_word();
+				    carrier_flag = allocate_flag();
+				    draw_eval_vec4(dynamic_carrier);
+				    fprintf(vvp_out, "    %%dup/vec4;\n");
+				    fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
+					    ivl_expr_signed(dynamic_carrier)
+						  ? "/s" : "", carrier_reg);
+				    fprintf(vvp_out,
+					    "    %%flag_mov %d, 4; capture carrier validity\n",
+					    carrier_flag);
+				    fprintf(vvp_out,
+					    "    %%part/u %u; select packed carrier\n",
+					    carrier_wid);
+			      }
 			      draw_eval_vec4(part_off_ex);
 			      fprintf(vvp_out, "    %%dup/vec4;\n");
 			      fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
 				      signed_offset ? "/s" : "", off_reg);
+			      if (dynamic_carrier)
+				    fprintf(vvp_out,
+					    "    %%flag_or 4, %d; combine carrier validity\n",
+					    carrier_flag);
 			      fprintf(vvp_out, "    %%flag_mov %d, 4;\n",
 				      off_flag);
 			      fprintf(vvp_out, "    %%part/%c %u;\n",
 				      signed_offset ? 's' : 'u', lwid);
 			} else {
+			      if (dynamic_carrier) {
+				    carrier_reg = allocate_word();
+				    carrier_flag = allocate_flag();
+				    draw_eval_expr_into_integer(dynamic_carrier,
+							       carrier_reg);
+				    fprintf(vvp_out,
+					    "    %%flag_mov %d, 4; capture carrier validity\n",
+					    carrier_flag);
+			      }
 			      if (negative_part_off_fits)
 				    emit_packed_property_negative_offset_(
 					  off_reg, negative_part_off_bits);
 			      else
 				    draw_eval_expr_into_integer(part_off_ex,
 							 off_reg);
+			      if (dynamic_carrier)
+				    fprintf(vvp_out,
+					    "    %%flag_or 4, %d; combine carrier validity\n",
+					    carrier_flag);
 			      fprintf(vvp_out, "    %%flag_mov %d, 4;\n",
 				      off_flag);
 			}
@@ -5561,13 +5627,24 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			     4. Restore the offset-validity flag immediately before
 			     the run-time partial store consumes it. */
 			fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
+			if (dynamic_carrier) {
+			      fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+				      carrier_wid);
+			      fprintf(vvp_out, "    %%clip/vec4/d %d, %d;\n",
+				      off_reg, carrier_reg);
+			}
 			fprintf(vvp_out,
 				"    %s %d, %d, %u;"
 				" Store field [<var>+:%u] of property %s\n",
-				store_opcode, prop_idx, off_reg, lwid, lwid,
+				store_opcode, prop_idx, off_reg,
+				dynamic_carrier ? 0 : lwid, lwid,
 				ivl_type_prop_name(sig_type, prop_idx));
 			clr_word(off_reg);
 			clr_flag(off_flag);
+			if (carrier_reg) {
+			      clr_word(carrier_reg);
+			      clr_flag(carrier_flag);
+			}
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			/* Emit the null-guard epilogue inline and return. */
 			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);

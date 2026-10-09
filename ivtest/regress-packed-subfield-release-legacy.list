@@ -1,0 +1,6 @@
+sv_packed_subfield_release normal,-g2017,-gstrict-expr-width,-s,test ivltests gold=sv_packed_subfield_release.gold
+sv_packed_subfield_release_2023 normal,-g2023,-gstrict-expr-width,-s,test ivltests gold=sv_packed_subfield_release.gold
+sv_force_array_word normal,-g2012 ivltests gold=sv_force_array_word.gold
+sv_force_partial_live_overlap normal,-g2012 ivltests gold=sv_force_partial_live_overlap.gold
+sv_force_packed_bank_rhs_live normal,-g2017,-gstrict-expr-width,-s,top ivltests gold=sv_force_packed_bank_rhs_live.gold
+sv_explicit_static_fixed_array_force_release normal,-g2012 ivltests gold=sv_explicit_static_fixed_array_force_release.gold

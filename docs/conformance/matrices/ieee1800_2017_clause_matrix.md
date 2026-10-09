@@ -2571,3 +2571,21 @@ remain recorded as [DD-116](../DISCOVERED_DEBT.md#dd-116--constraint-state-packe
 This is focused 2023 support, not full parameter closure. Dynamic-key reads
 from associative parameter values remain unsupported; broader value contexts
 and parameter forms are not qualified.
+
+## October 9, 2026 — packed-subfield release offsets (IEEE 1800 §10.6)
+
+IEEE 1800-2017 §10.6 release applies to the selected variable lvalue. On the
+clean-main baseline, releasing a packed struct member selected through a
+runtime offset aborted target generation because `show_stmt_release` required
+an immediate offset. The candidate lowers runtime offsets through VVP release
+instructions, preserving variable-release retention and restoring the driver
+for net releases. Constant and runtime selections are covered by paired
+2017/2023 regressions.
+
+The DD-088 reducer failed before the patch with exit 134. After the patch,
+focused legacy tests pass 6/6 and JSON/VVP tests 7/7; neighboring
+force/release controls are included. A serial macOS build/install and `make
+check` pass. The VVP parser conflict count is 14 shift/reduce and 5
+reduce/reduce. Full-suite and CI qualification remain pending; see the
+[session record](../session_logs/2026-10-09_ieee_packed_subfield_release.json)
+and [issue #493](https://github.com/dsellerbrock/iverilog-uvm/issues/493).
