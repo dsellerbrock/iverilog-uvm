@@ -846,8 +846,11 @@ closed:
 - Fixed-array function returns: direct whole-array assignments and
   compatible fixed-prefix slices are supported; nested fixed-array pattern
   items accept compatible array-valued function calls in positional and
-  `default:` forms, while scalar defaults still recurse to leaf elements
-  (issue #415; `sv_uarray_nested_function_return{,_2023}`). Incompatible
+  `default:` forms, while scalar defaults still recurse to leaf elements.
+  Typedef-composed dimensions retain declaration order on signals and function
+  returns, including a multi-dimensional function result used as a deeper
+  pattern item (issue #415; `sv_uarray_nested_function_return{,_2023}`).
+  Incompatible
   return shapes are diagnosed during elaboration. The nested-literal-into-
   array-of-packed-struct abort is
   resolved: module-scope literals work and the class-property whole-array
