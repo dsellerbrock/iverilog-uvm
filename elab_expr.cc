@@ -8732,6 +8732,14 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 {
       perm_string name = peek_tail_name(path_);
 
+      if (name == "$timeunit" || name == "$timeprecision") {
+	    expr_type_   = IVL_VT_LOGIC;
+	    expr_width_  = integer_width;
+	    min_width_   = integer_width;
+	    signed_flag_ = true;
+	    return expr_width_;
+      }
+
       if (name=="$ivlh_to_unsigned") {
 	    ivl_assert(*this, parms_.size() == 2);
 	      // The Icarus Verilog specific $ivlh_to_unsigned() system
@@ -11679,6 +11687,77 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    }
       }
 
+	/* IEEE 1800-2023 20.4.1: these functions return immutable time
+	   metadata, so resolve the requested design scope during elaboration.
+	   `$root` denotes the global simulation time unit rather than a VPI
+	   object; `$unit` arrives here as the current compilation-unit scope. */
+      if (name == "$timeunit" || name == "$timeprecision") {
+	    if (!sv_require_feature(this,
+				    SVF_TIMESCALE_RETRIEVAL_FUNCTIONS)) {
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    int result;
+	    if (parms_.empty()) {
+		  result = name == "$timeunit" ? scope->time_unit()
+			: scope->time_precision();
+	    } else if (parms_.size() == 1 && parms_[0].parm) {
+		  PExpr*arg = parms_[0].parm;
+		  const PECallFunction*root = dynamic_cast<const PECallFunction*>(arg);
+		  if (root && root->receiver_expr() == nullptr
+		      && root->path().package == nullptr
+		      && root->path().name.size() == 1
+		      && peek_tail_name(root->path()) == "$root"
+		      && root->get_parms().empty()) {
+		    result = des->get_precision();
+		  } else {
+			NetExpr*target = nullptr;
+			const NetScope*target_scope = nullptr;
+			if (const PEIdent*package_arg =
+			      dynamic_cast<const PEIdent*>(arg)) {
+			      const pform_scoped_name_t&path = package_arg->path();
+			      if (path.package && path.name.size() == 1
+				  && path.name.front().name ==
+				       path.package->pscope_name())
+				    target_scope = des->find_package(
+					  path.package->pscope_name());
+			}
+			if (!target_scope) {
+			      target = elab_sys_task_arg(des, scope, name, 0, arg);
+			      const NetEScope*scope_expr =
+				    dynamic_cast<const NetEScope*>(target);
+			      target_scope = scope_expr
+				    ? scope_expr->scope() : nullptr;
+			}
+			if (!target_scope
+			    || (target_scope->type() != NetScope::MODULE
+				&& target_scope->type() != NetScope::PACKAGE)) {
+			      cerr << arg->get_fileline() << ": error: The " << name
+				   << " argument must name a module, interface, program, "
+				   << "or package scope." << endl;
+			      des->errors += 1;
+			      delete target;
+			      return nullptr;
+			}
+			result = name == "$timeunit"
+			      ? target_scope->time_unit()
+			      : target_scope->time_precision();
+			delete target;
+		  }
+	    } else {
+		  cerr << get_fileline() << ": error: The " << name
+		       << " function takes zero arguments or one hierarchical "
+		       << "identifier argument." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    NetEConst*value = make_const_val_s(result);
+	    value->set_line(*this);
+	    return cast_to_width_(value, expr_wid);
+      }
+
 	/* A constant $sformatf("%m") is instance-dependent, but it is still
 	   completely known while that instance's parameters are elaborated.
 	   Fold this form here instead of leaving it as a run-time VPI call. Apart
@@ -13958,7 +14037,7 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		  netranges_t one_dim(1, dims[depth]);
 		  NetExpr*c = make_checked_canonical_packed_prefix(
 			des, scope, li, one_index, one_dim,
-			(unsigned long)stride[depth], false);
+			(unsigned long)stride[depth], false, true);
 		  if (!c)
 			return fail();
 		  add_off(c, 1);
@@ -17514,7 +17593,14 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 				parm_errors += 1;
 				delete lval;
 				continue;
-			      }
+				  }
+			}
+			if (formal->get_ref_static()
+			    && !ref_static_actual_is_static_lifetime(lval)) {
+			      des->errors += 1;
+			      parm_errors += 1;
+			      delete lval;
+			      continue;
 			}
 
 			const netuarray_t*fixed_actual =
@@ -21259,10 +21345,19 @@ bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
 
 	// If the prefix IS constant the old path handles it, and handles
 	// it better (a constant offset rather than a computed one), so
-	// only take over when it genuinely cannot.
+	// keep that path for constant-only selects. A run-time final bit
+	// index still needs per-dimension checking: flattening it after a
+	// constant prefix lets an inner OOB value alias the next slice.
       list<long> tmp;
-      if (evaluate_index_prefix(des, scope, tmp, idx, /*quiet=*/true))
-	    return false;
+      if (evaluate_index_prefix(des, scope, tmp, idx, /*quiet=*/true)) {
+	    if (idx.back().sel != index_component_t::SEL_BIT || !idx.back().msb)
+		  return false;
+	    NetExpr*last = elab_and_eval(des, scope, idx.back().msb, -1, false);
+	    bool runtime = last
+		  && !dynamic_cast<const NetEConst*>(last);
+	    delete last;
+	    return runtime;
+	  }
 
       return true;
 }
@@ -27124,6 +27219,42 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
       return res;
 }
 
+/* Packed part-select reads can contain X bits even when their source is a
+ * two-state vector. Keep that value four-state until the assignment context
+ * performs any required conversion. A bit-select from a two-state source is
+ * itself two-state, so its invalid-index X value must instead be converted
+ * back to zero before it reaches the surrounding expression. */
+static NetESelect* make_four_state_packed_select_(const PEIdent&ident,
+						  NetExpr*source,
+						  NetExpr*base,
+						  unsigned long width,
+						  ivl_select_type_t sel_type = IVL_SEL_OTHER)
+{
+      ivl_type_t use_type = source->expr_type() == IVL_VT_BOOL
+	    ? new netvector_t(IVL_VT_LOGIC, (long)width - 1, 0, false)
+	    : nullptr;
+      NetESelect*res = use_type
+	    ? new NetESelect(source, base, width, use_type, sel_type)
+	    : new NetESelect(source, base, width, sel_type);
+      res->set_line(ident);
+      return res;
+}
+
+static NetExpr* make_packed_bit_select_(const PEIdent&ident,
+						NetExpr*source,
+						NetExpr*base,
+						ivl_select_type_t sel_type = IVL_SEL_OTHER)
+{
+      if (source->expr_type() != IVL_VT_BOOL)
+	    return make_four_state_packed_select_(ident, source, base, 1,
+						  sel_type);
+
+      ivl_type_t bit_type = new netvector_t(IVL_VT_BOOL, 0, 0, false);
+      NetESelect*res = new NetESelect(source, base, 1, bit_type, sel_type);
+      res->set_line(ident);
+      return res;
+}
+
 /*
  * Handle part selects of NetNet identifiers.
  */
@@ -27276,8 +27407,7 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
       }
 
       NetExpr*ex = new NetEConst(verinum(sb_lsb));
-      NetESelect*ss = new NetESelect(net, ex, wid);
-      ss->set_line(*this);
+      NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
       return ss;
 }
 
@@ -27385,18 +27515,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, true, 0);
-	    ivl_type_t select_type = net->sig()->data_type() == IVL_VT_BOOL
-		  ? new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false)
-		  : nullptr;
-	    NetESelect*ss = select_type
-		  ? new NetESelect(carrier, base, wid, select_type, IVL_SEL_IDX_UP)
-		  : new NetESelect(carrier, base, wid, IVL_SEL_IDX_UP);
-	    ss->set_line(*this);
-	    if (!select_type)
-		  return ss;
-	    NetECast*cast = new NetECast('2', ss, wid, false);
-	    cast->set_line(*this);
-	    return cast;
+	    return make_four_state_packed_select_(*this, carrier, base, wid,
+						  IVL_SEL_IDX_UP);
       }
 
       list<long>prefix_indices;
@@ -27411,9 +27531,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
 	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
 						  wid, true);
-	    NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_UP);
-	    ss->set_line(*this);
-	    return ss;
+	    return make_four_state_packed_select_(*this, net, base, wid,
+						  IVL_SEL_IDX_UP);
       }
 
 	// Handle the special case that the base is constant as
@@ -27515,8 +27634,7 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 		  }
 		  return ex;
 	    }
-	    NetESelect*ss = new NetESelect(net, ex, wid);
-	    ss->set_line(*this);
+	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
 
 	    delete base;
 	    return ss;
@@ -27529,8 +27647,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	// an expression that returns a canonical base.
       base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, true);
 
-      NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_UP);
-      ss->set_line(*this);
+      NetESelect*ss = make_four_state_packed_select_(*this, net, base, wid,
+							IVL_SEL_IDX_UP);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate part "
@@ -27579,18 +27697,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, false, 0);
-	    ivl_type_t select_type = net->sig()->data_type() == IVL_VT_BOOL
-		  ? new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false)
-		  : nullptr;
-	    NetESelect*ss = select_type
-		  ? new NetESelect(carrier, base, wid, select_type, IVL_SEL_IDX_DOWN)
-		  : new NetESelect(carrier, base, wid, IVL_SEL_IDX_DOWN);
-	    ss->set_line(*this);
-	    if (!select_type)
-		  return ss;
-	    NetECast*cast = new NetECast('2', ss, wid, false);
-	    cast->set_line(*this);
-	    return cast;
+	    return make_four_state_packed_select_(*this, carrier, base, wid,
+						  IVL_SEL_IDX_DOWN);
       }
 
       list<long>prefix_indices;
@@ -27605,9 +27713,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
 	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
 						  wid, false);
-	    NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_DOWN);
-	    ss->set_line(*this);
-	    return ss;
+	    return make_four_state_packed_select_(*this, net, base, wid,
+						  IVL_SEL_IDX_DOWN);
       }
 
 	// Handle the special case that the base is constant as
@@ -27709,8 +27816,7 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 		  }
 		  return ex;
 	    }
-	    NetESelect*ss = new NetESelect(net, ex, wid);
-	    ss->set_line(*this);
+	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
 
 	    delete base;
 	    return ss;
@@ -27722,8 +27828,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	// an expression that returns a canonical base.
       base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, false);
 
-      NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_DOWN);
-      ss->set_line(*this);
+      NetESelect*ss = make_four_state_packed_select_(*this, net, base, wid,
+							IVL_SEL_IDX_DOWN);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate part "
@@ -27755,6 +27861,10 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  ivl_type_t selected = packed_select_type_(net->sig(),
 							 path_.back().index,
 							 sel_wid);
+		  if (sel_wid == 1 && net->expr_type() == IVL_VT_BOOL
+		      && (!selected || dynamic_cast<const netvector_t*>(selected))) {
+			return make_packed_bit_select_(*this, net, base);
+		  }
 		  NetESelect*res = selected
 			? new NetESelect(net, base, sel_wid, selected)
 			: new NetESelect(net, base, sel_wid);
@@ -27835,7 +27945,8 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  }
 
 		    // FIXME: Should I be using slice_width() here?
-		  NetEConst*tmp = make_const_x(1);
+		  NetEConst*tmp = net->expr_type() == IVL_VT_BOOL
+			? make_const_0(1) : make_const_x(1);
 		  tmp->set_line(*this);
 		  delete mux;
 		  return tmp;
@@ -27934,7 +28045,8 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 			     << endl;
 		  }
 
-		  NetEConst*tmp = make_const_x(1);
+		  NetEConst*tmp = net->expr_type() == IVL_VT_BOOL
+			? make_const_0(1) : make_const_x(1);
 		  tmp->set_line(*this);
 
 		  delete mux;
@@ -27952,10 +28064,7 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 	    idx_c->set_line(*net);
 
 	      // Make a bit select with the canonical index
-	    NetESelect*res = new NetESelect(net, idx_c, 1);
-	    res->set_line(*net);
-
-	    return res;
+	    return make_packed_bit_select_(*this, net, idx_c);
       }
 
       const netranges_t& sig_packed = net->sig()->packed_dims();
@@ -28008,9 +28117,7 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 	// values to canonical values that are used internally.
       mux = normalize_variable_bit_base(prefix_indices, mux, net->sig());
 
-      NetESelect*ss = new NetESelect(net, mux, 1);
-      ss->set_line(*this);
-      return ss;
+      return make_packed_bit_select_(*this, net, mux);
 }
 
 NetExpr* PEIdent::elaborate_expr_net_bit_last_(Design*, NetScope*,
@@ -30129,6 +30236,15 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 			    inc_lval->get_base()->dup_expr(), inc_lval->lwidth());
 		      ip->set_line(*this);
 		      ip->cast_signed(signed_flag_);
+		}
+		/* A part-select read can be four-state to preserve X for an
+		 * out-of-range read, while ++/-- still yields the l-value's type. */
+		if (inc_lval->sig()
+		    && inc_lval->sig()->data_type() == IVL_VT_BOOL
+		    && ip->expr_type() == IVL_VT_LOGIC) {
+		      NetExpr*cast = cast_to_int2(ip, ip->expr_width());
+		      cast->set_line(*this);
+		      ip = cast;
 		}
 		delete inc_lval;
 		inc_lval = 0;

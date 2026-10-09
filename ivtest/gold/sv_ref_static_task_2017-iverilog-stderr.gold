@@ -1,0 +1,4 @@
+ivltests/sv_ref_static_task_2023.v:11: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_ref_static_task_2023.v:19: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_ref_static_task_2023.v:23: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_ref_static_task_2023.v:28: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).

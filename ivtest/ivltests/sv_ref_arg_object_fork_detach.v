@@ -2,7 +2,7 @@
 // written from a `fork ... join_none' branch after the task itself
 // returns lost the write, with no diagnostic.
 //
-//   task automatic spawn(ref process out_p);
+//   task automatic spawn(ref static process out_p);
 //     fork begin out_p = process::self(); #4; end join_none
 //   endtask
 //   initial begin
@@ -13,7 +13,10 @@
 //
 // IEEE 1800-2017 13.5.2: "A reference to the original argument is passed
 // to the subroutine" -- out_p IS gp, under another name, for as long as
-// anything can still reach out_p through the binding. A `ref' formal was
+// anything can still reach out_p through the binding. IEEE 1800-2023 §9.3.2
+// exempts `ref static' formals from the detached-fork restriction; ordinary
+// `ref' use in these branches is tested as a compile error separately. A
+// `ref' formal was
 // bound as a REAL reference (`.ref' / `%ref/bind') only for packed
 // integral formals; a class-handle formal kept the legacy copy-in/
 // copy-out pair. The copy-out ran when spawn() itself returned -- which
@@ -26,7 +29,7 @@
 // write lands in the caller's variable whenever the branch executes, no
 // matter how long it outlives the call.
 //
-// R25 stretch (CLOSED for TASK real formals): a `ref real' formal of a
+// R25 stretch (CLOSED for TASK real formals): a `ref static real' formal of a
 // TASK is now bound the same way -- real reads/writes already went
 // through the exact same generic interfaces the class-handle case uses
 // (vvp_signal_value::real_value(), vvp_net_fun_t::recv_real()), so no
@@ -58,18 +61,9 @@
 //
 // String TASK formals are bound references too: their type-specific load
 // now follows the reference wrapper, including detached element storage.
-// Container (dynamic array, queue, fixed array) formals still take the
-// copy pair on TASKS -- their element/word operations cannot yet use a
-// bound formal -- and remain below as a control that pins the residual
-// gap. R25 also asks that this hazard be LOUD AT ELABORATION for exactly
-// this residual shape (a copy-bound container `ref' formal on a task
-// whose body forks a detached branch, IEEE 1800-2017 13.5.2): spawn_q
-// below is EXPECTED TO WARN at compile time (spawn_real and spawn_str
-// are not, now that their formals are bound). This test is registered
-// WITH a gold file (ivtest/gold/sv_ref_arg_object_fork_detach.gold) that
-// pins the exact remaining warning in the compile log, so the warning
-// text and closed real/string gaps are checked on every run, not merely
-// inspected once.
+// This 2023 case uses `ref static' for the detached object, real, string,
+// and queue aliases. The static actuals remain visible to nested and
+// detached work; ordinary `ref' formals are covered by the negative gate.
 
 module main;
 
@@ -95,7 +89,7 @@ module main;
   //    itself has already returned.
   // ------------------------------------------------------------------
   process gp;
-  task automatic spawn(ref process out_p);
+  task automatic spawn(ref static process out_p);
     fork begin out_p = process::self(); #4; end join_none
   endtask
 
@@ -111,7 +105,7 @@ module main;
   Foo captured;
   Foo made_ref;   // the object the branch actually constructs
 
-  task automatic spawn_user(ref Foo out_h);
+  task automatic spawn_user(ref static Foo out_h);
     fork begin
       made_ref = new(99);
       out_h = made_ref;
@@ -169,7 +163,7 @@ module main;
   //    header comment).
   // ------------------------------------------------------------------
   real gr;
-  task automatic spawn_real(ref real out_r);
+  task automatic spawn_real(ref static real out_r);
     fork begin out_r = 3.5; #4; end join_none
   endtask
 
@@ -196,7 +190,7 @@ module main;
   // copy-pair control in the same fork/join_none-after-return shape.
   // ------------------------------------------------------------------
   string gs;
-  task automatic spawn_str(ref string out_s);
+  task automatic spawn_str(ref static string out_s);
     fork begin
       out_s = "hello";
       out_s[0] = "H";
@@ -218,7 +212,7 @@ module main;
   endtask
 
   int gq[$];
-  task automatic spawn_q(ref int out_q[$]);
+  task automatic spawn_q(ref static int out_q[$]);
     fork begin out_q.push_back(1); #4; end join_none
   endtask
 
@@ -289,7 +283,7 @@ module main;
     count_down_real(racc, 4);
     chk_real("real ref: recursive chained binding", racc, 10.0);
 
-    // ---- string binding and the residual container control ----
+    // ---- string and queue reference-static aliases ----
     fork spawn_str(gs); join_none
     fork spawn_q(gq); join_none
     #6;
@@ -301,8 +295,10 @@ module main;
     traverse_keys(walk_key);
     chk_int("string ref: associative traversal writes through binding",
             walk_key == "beta", 1);
-    if (gq.size() != 0)
-      $display("NOTE: ref queue now also survives a detached branch (gap closed; update this control).");
+    chk_int("queue ref static: detached branch write survives the return",
+            gq.size(), 1);
+    if (gq.size() == 1)
+      chk_int("queue ref static: written element", gq[0], 1);
 
     if (fails == 0) $display("PASSED");
     else            $display("FAILED (%0d)", fails);

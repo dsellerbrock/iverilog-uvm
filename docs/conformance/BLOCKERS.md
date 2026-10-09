@@ -1,5 +1,69 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### IEEE-PACKED-MULTIDIM-SELECT-OOB — issue #414
+
+- **State:** Implemented and locally validated in main-based PR #464 together
+  with issue #469; exact-head CI qualification remains pending.
+- **Requirement:** IEEE 1800-2017 §§7.4.6 and 11.5.1; IEEE 1800-2023
+  §§7.4.5 and 11.5.1. The invalid packed-index rule is unchanged: §11.5.1
+  requires X for four-state results and 0 for two-state results.
+- **Failure recorded in the matrix:** A runtime inner packed index outside its
+  own declared dimension can carry into a neighboring outer dimension when
+  the computed base is flattened. Such an out-of-range four-state select must
+  produce X, not a neighboring bit. A non-integral packed index must be
+  rejected with a focused diagnostic.
+- **Reproducer:** On clean baseline, self-authored
+  `logic [1:0][3:0] value` with runtime `outer=0`, `inner=4` returned the
+  adjacent slice's `1` instead of X. A runtime real leading index triggered a
+  compiler assertion. Permanent regressions cover each dimension, X indices,
+  valid boundary mapping, once-only evaluation, and the illegal real index.
+- **Root cause and scope:** `collapse_packed_base()` flattened per-dimension
+  offsets without retaining each dimension's validity. Also,
+  `packed_base_needs_expr_()` left a runtime final bit index on the old path
+  when earlier indices were constants. The fix routes both through the
+  existing checked packed-prefix helper, which rejects non-integral indices
+  and evaluates each runtime index once. Scope is ordinary packed r-value
+  selects; unpacked indexing, parameters, class/VIF selects, lvalue writes,
+  synthesis, and constraints remain outside this change.
+- **Validation:** Serial ARM64 build/install succeeds. Focused legacy prefix
+  tests pass 4/4; JSON/VVP strict 2017/2023 prefix tests pass 8/8. Singleton
+  runtime-index neighbors pass legacy 2/2 and JSON 1/1; indexed-subpart
+  neighbors pass legacy 1/1 and JSON 2/2; class packed-property index
+  neighbors pass 16/16 in each runner. The two-state OOB behavior is covered by
+  issue #469 and its paired regression in PR #464.
+- **Delivery:** PR #464 targets `main`; investigate reported failures and merge
+  only when required checks are green on the exact PR head.
+
+### IEEE-TWO-STATE-PACKED-SELECT — issue #469; added to PR #464
+
+- **State:** Implemented locally and integrated into PR #464. Run 37820062119
+  for code commit `85350903084628febd4d1d0bf1c0d390bad4f41d` had all six
+  platform checks pending at its latest snapshot; it predates the status-only
+  documentation update. No green result is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid
+  bit-select from a two-state value and X for a four-state value. A partially
+  out-of-range part-select returns X in missing positions; §6.11.2 converts
+  those X bits to 0 when assigned to a two-state destination.
+- **Failure:** Clean `origin/main` returns X for two-state invalid bit-selects
+  and preserves X bits when a partial part-select is assigned to a `bit`
+  vector. The permanent paired reducer covers constant/dynamic invalid bit
+  indices, constant/dynamic indexed part-selects in both directions, a
+  non-indexed partial select, and fully out-of-range assignment.
+- **Cause and scope:** Packed-select elaboration inherited the two-state source
+  type, suppressing conversion of out-of-range X bits at two-state destinations;
+  constant invalid bit-selects also returned X without checking source state.
+  Scope remains packed read-select elaboration only.
+- **Validation:** Clean-main frozen compiler fails eight checks per edition;
+  the candidate passes strict `-g2017` and `-g2023`. Current local build/install
+  passes; focused legacy is 3/3 and JSON/VVP is 6/6. Bison counts remain 574
+  shift/reduce and 1,122 reduce/reduce. These are local results, not CI
+  qualification.
+- **Delivery:** PR #464 targets `main`. Pre-integration run 37806441317 failed
+  Ubuntu 22.04 and 24.04 in the negative suite (152/153) on the unrelated
+  obsolete `m9b_intersect_unequal_len` case, tracked as DD-115. The integrated
+  head's checks are pending; leave the draft open and do not merge until every
+  required job passes on the exact head.
+
 ### IEEE-1800-ESCAPED-IFDEF-IDENTIFIERS — issue #468 (reproduced)
 
 - **State:** Focused implementation and permanent regressions are pushed to existing draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which targets `main` and also carries #460. The two issues stay separately tracked; no additional PR is opened.
@@ -51,24 +115,66 @@
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
-- **State:** Implemented and merged in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413)
-  at `af89cfc50`. The package-call ticket reached its record-and-stop condition
-  after Ubuntu 22.04 and 24.04 failed the unrelated negative suite; see DD-107.
-  Do not claim the exact PR workflow green.
+- **State:** Implemented and merged by the user in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413). At the latest CI snapshot, all six platform checks were pending; do not claim the merged head CI-green.
 - **Requirement:** IEEE 1800-2017 §8.23 allows access to static class methods
   and properties and says scoped expressions can be used in subroutine calls;
   §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords
-  this as access to static public methods and properties from outside the class
-  hierarchy; §26.3 retains the package-reference wording.
-- **Validation:** The self-authored statement reducer and non-static negative
-  are registered in both runners. Focused legacy and JSON tests pass; full
-  legacy reports zero failures; UVM reports 363/363. Full JSON has unrelated
-  failures recorded as DD-109/DD-110. The read-only axi-vip probe's next
-  diagnostic is DD-111.
-- **Boundary:** Package-call code changes remain out of scope for the SVA
-  negative-suite repair recorded in DD-107.
+  this as access to static public methods and properties from outside the
+  class hierarchy; §26.3 retains the same package-reference wording.
+- **Failure:** A self-authored `p::c::set(5);` statement reports `syntax error`
+  and `Malformed statement`. The imported `c::set(5)` control compiles and
+  prints the expected value.
+- **Root-cause hypothesis and scope:** Direct package/class/member call
+  continuations are missing from the parser even though deeper nested static
+  calls and scoped identifiers have grammar paths. Keep the correction local
+  to the requested static function/task call path and its focused negative.
+- **Validation:** Focused legacy 7/7 and JSON 8/8 pass. Full legacy reports
+  7,243 total, 7,238 passed, 0 failed, 2 not implemented, and 3 expected
+  failures. Full JSON reports 4,499 tests with 4 unrelated failures (DD-109 and
+  DD-110); the package-call cases pass. UVM regression passes 363/363 with no
+  skips. The read-only axi-vip probe passes the fixed call site and next reports
+  the impure `get_width` constraint call (DD-111); later diagnostics were not
+  triaged. Bison counts are unchanged at 574 shift/reduce and 1,122
+  reduce/reduce conflicts.
+- **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
+  merge this ticket's PR.
 
-### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI gate repair in progress
+### SV23-REF-STATIC-TF-ARGUMENTS — IEEE 1800-2023 `ref static` arguments
+
+- **State:** Implemented in PR batch #464, based on refreshed `origin/main`
+  `af89cfc50`. The paired seven-case legacy and JSON/VVP focus passes 7/7 in
+  each runner; the adjusted storage tests plus UVM package compile pass 3/3.
+  UVM passes 363/363 with real DPI. The full legacy snapshot had 5 failures:
+  the two storage fixtures were updated to use ordinary `ref` with blocking
+  joins and `ref static` only with static actuals, and the UVM-dependent
+  package test passes after initializing UVM. These three pass in focused
+  reruns; two unrelated VIF diagnostic gold mismatches remain (DD-113). The
+  full JSON runner stopped at the unrelated zero-time
+  `sv_always_comb_fixed_point` loop (DD-114) and has no aggregate result. The
+  Ubuntu hard-gate run on the superseded PR head also failed because the
+  negative suite still expects rejection of legal unequal-length `intersect`
+  (DD-115). Exact pre-integration run 37806441317 failed both Ubuntu jobs at
+  152/153 and left four platform jobs pending. Stop this ticket on the unrelated CI failures without editing
+  those cases; do not claim qualification. The uncapped census in draft PR #504
+  indexes 94 open IEEE issues; #449 is one issue in the existing #464 batch.
+- **Requirement:** IEEE 1800-2023 A.2.7 permits `[const] ref [static]`;
+  §13.5.2 restricts actuals to static-lifetime storage or another `ref static`
+  formal; §9.3.2 exempts `ref static` from the detached-fork reference ban.
+  2017 A.2.7, §13.5.2, and §9.3.2 have no corresponding qualifier/exception.
+  Checked against the local 2017 and 2023 IEEE PDFs.
+- **Pre-fix failure:** The image at PR-batch head `e22741743` rejected
+  `ref static` in both editions and accepted an ordinary `ref` formal
+  referenced from `fork...join_none`. The controls cover automatic actuals,
+  2017 rejection, a fork-local initializer, and blocking `join`.
+- **Scope:** Carry the 2023 qualifier through formal metadata, validate actual
+  lifetime, enforce the detached-fork rule, and bind fixed-array-word function
+  actuals directly so nested reads observe writes immediately. Preserve
+  ordinary ref behavior and fork scheduling.
+- **Next:** DD-113/115 are recorded in `DISCOVERED_DEBT.md`; update the existing
+  draft PR #464 with the CI evidence, then return to coordinator selection from
+  refreshed `origin/main`. Do not merge or claim this ticket CI-qualified.
+
+### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
 
 - **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length
   operands; they produce no `intersect` match. Implication follows §16.12.7.
@@ -76,7 +182,30 @@
   `tests/sva_nfa/run.sh` passes 64/64; strict legacy passes 1/1; paired strict
   2017/2023 JSON/VVP passes 2/2. The explicit legacy-engine diagnostic remains.
   See [focused evidence](../../evidence/sva-intersect-unequal-lengths-20261007/README.md).
-- **State:** The semantic fix is merged to `main` in [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412). Its hard gate exposed a stale negative fixture that still expects the now-legal default-engine form to be rejected. The fixture is classified `NEG-LEGACY-ONLY`; the full negative suite passes locally 153/153. The classification repair is on main-based PR #467; exact-head CI has not yet verified it. Variable/ranged mismatches and broader nested combinator trees remain open.
+- **State:** Merged to `main` in [PR #412](https://github.com/dsellerbrock/iverilog-uvm/pull/412).
+  The Ubuntu 22.04 and 24.04 ivtest gates have failed; CLANG64 and MINGW64 are
+  still running; macOS and UCRT64 are queued. Do not claim the merged head is
+  green. Variable/ranged mismatches and broader nested combinator trees remain
+  open.
+
+### SV-TIMEUNIT-TIMEPRECISION-SYSTEM-FUNCTIONS — locally focused-tested
+
+- **Requirement:** IEEE 1800-2023 §20.4.1 and Syntax 20-3 add integer
+  exponent results for the current design element or an optional hierarchical
+  module/package scope; `$unit` selects the compilation unit and `$root` returns
+  the simulation time unit for both functions. Strict IEEE 1800-2017 rejects
+  these functions.
+- **Failure and fix:** Bare and empty-parentheses calls previously compiled but
+  failed at VVP as undefined functions. Package scope arguments also need their
+  `PPackage` identity retained by the parser. The frontend now resolves immutable
+  design-scope time metadata during elaboration.
+- **Validation:** A macOS ARM64 build and install succeeded. The paired focus
+  passes 3/3 in both legacy and JSON/VVP runners: strict 2017 rejection, 2023
+  exact values for bare, `()`, selected module and nested module, package,
+  `$unit`, `$root`, and rejection of a non-scope argument. This is local
+  evidence; no CI result is claimed.
+- **Boundary:** No timescale declaration parsing, `$time` scaling, `$printtimescale`,
+  or `$timeformat` behavior changed. See [focused evidence](../../evidence/timeunit-functions-20261007/README.md).
 
 ### OpenTitan 49-target post-fix census — 2026-09-29
 

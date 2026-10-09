@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_timeunit_functions_invalid_2023.v",
+  "iverilog-args": ["-g2023", "-s", "timeunit_functions_invalid"]
+}

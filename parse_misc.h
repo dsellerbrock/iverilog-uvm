@@ -42,6 +42,7 @@ struct rs_formal_t : public LineInfo {
 struct pform_tf_port_direction_t {
       NetNet::PortType direction;
       bool is_const;
+      bool is_ref_static;
 };
 
 struct rs_case_item_t;
