@@ -213,7 +213,7 @@ int __vpiCobjectVar::vpi_get(int code)
 {
       switch (code) {
 	case vpiLineNo:
-	    return 0;  // Not implemented for now!
+	    return get_source_lineno();
 
 	case vpiSize:
 	    return 64;
@@ -237,6 +237,16 @@ int __vpiCobjectVar::vpi_get(int code)
 	                    "by vpiClassVar\n", code);
 	    return vpiUndefined;
       }
+}
+
+char* __vpiCobjectVar::vpi_get_str(int code)
+{
+      if (code == vpiFile) {
+	    if (has_source_loc() && get_source_file_idx() < file_names.size())
+		  return simple_set_rbuf_str(file_names[get_source_file_idx()]);
+	    return NULL;
+      }
+      return __vpiBaseVar::vpi_get_str(code);
 }
 
 void __vpiCobjectVar::vpi_get_value(p_vpi_value val)

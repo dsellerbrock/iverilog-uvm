@@ -110,7 +110,7 @@ static char* bit_get_str(int code, vpiHandle ref)
       assert(rfp);
 
       if (code == vpiFile) {  // Not implemented for now!
-            return simple_set_rbuf_str(file_names[0]);
+            return vpi_get_str(vpiFile, rfp->get_parent());
       }
 
       if ((code != vpiName) && (code != vpiFullName)) return NULL;

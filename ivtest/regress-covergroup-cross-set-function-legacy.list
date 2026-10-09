@@ -1,0 +1,4 @@
+sv_covergroup_cross_set_function normal,-g2017 ivltests gold=sv_covergroup_cross_set_function.gold
+sv_covergroup_cross_set_function_2023 normal,-g2023 ivltests gold=sv_covergroup_cross_set_function.gold
+sv_covergroup_cross_set_function_fail CE,-g2017 ivltests gold=sv_covergroup_cross_set_function_fail.gold
+sv_covergroup_cross_set_function_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_cross_set_function_fail_2023.gold

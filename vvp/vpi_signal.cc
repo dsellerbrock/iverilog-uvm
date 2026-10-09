@@ -552,7 +552,7 @@ static int signal_get(int code, vpiHandle ref)
 
       switch (code) {
 	  case vpiLineNo:
-	    return 0;  // Not implemented for now!
+	    return rfp->get_source_lineno();
 
 	  case vpiSigned:
 	    return rfp->signed_flag != 0;
@@ -634,8 +634,11 @@ static char* signal_get_str(int code, vpiHandle ref)
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
 
-      if (code == vpiFile) {  // Not implemented for now!
-	    return simple_set_rbuf_str(file_names[0]);
+	if (code == vpiFile) {
+	    if (rfp->has_source_loc()
+		&& rfp->get_source_file_idx() < file_names.size())
+		  return simple_set_rbuf_str(file_names[rfp->get_source_file_idx()]);
+	    return NULL;
       }
 
       if ((code != vpiName) && (code != vpiFullName)) return NULL;
@@ -1532,7 +1535,7 @@ static int PV_get(int code, vpiHandle ref)
 
       switch (code) {
 	case vpiLineNo:
-	    return 0;  // Not implemented for now!
+	    return vpi_get(vpiLineNo, rfp->parent);
 
 	case vpiSigned:
 	    return 0;  // A part/bit select is always unsigned!
@@ -1575,8 +1578,8 @@ static char* PV_get_str(int code, vpiHandle ref)
       assert(rfp);
 
       switch (code) {
-	case vpiFile:  // Not implemented for now!
-	    return simple_set_rbuf_str(file_names[0]);
+	case vpiFile:
+	    return vpi_get_str(vpiFile, rfp->parent);
 
 	case vpiName:
 	case vpiFullName: {

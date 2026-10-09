@@ -2,6 +2,7 @@
 module test;
   typedef struct { int a; int b; } pair_t;
   typedef int ascending_t [1:3];
+  localparam logic [1:0] UndefinedIndex = 2'bx;
   int live_index;
 
   initial begin
@@ -13,6 +14,8 @@ module test;
     values = '{4:1, default:0};
     values = '{1:1};
     values = '{live_index:1, default:0};
+    values = '{UndefinedIndex:1, default:0};
+    values = '{shortint:7};
     values = '{1:1, 1:2, default:0};
     pair = '{a:1, a:2, default:0};
     pair = '{default:1, default:2};

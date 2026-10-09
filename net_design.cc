@@ -42,6 +42,7 @@
 # include  "compiler.h"
 # include  "netmisc.h"
 # include  "netparray.h"
+# include  "netqueue.h"
 # include  "PExpr.h"
 # include  "PClass.h"
 # include  "PPackage.h"
@@ -876,6 +877,37 @@ static string array_param_elem_suffix(const netranges_t&dims,
 
 void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 {
+	if (cur->second.is_assoc_param) {
+	      if (!cur->second.array_type && cur->second.udims)
+		    cur->second.array_type = elaborate_array_type(
+			  des, this, cur->second, cur->second.ivl_type,
+			  *cur->second.udims);
+
+	      if (!cur->second.array_type || !cur->second.val_expr) {
+		    cerr << cur->second.get_fileline() << ": error: "
+			 << "Unable to elaborate associative-array parameter `"
+			 << cur->first << "`." << endl;
+		    des->errors += 1;
+		    cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+		    cur->second.val_expr = nullptr;
+		    return;
+	      }
+
+	      NetExpr*value = elab_and_eval(des, cur->second.val_scope,
+					    cur->second.val_expr,
+					    cur->second.array_type, true);
+	      if (!value) {
+		    cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+		    cur->second.val_expr = nullptr;
+		    return;
+	      }
+	      cur->second.val = value;
+	      cur->second.val_expr = nullptr;
+	      cur->second.array_dims.clear();
+	      cur->second.array_bounds_known = false;
+	      return;
+	}
+
 	/* The element parameters created below each infer their own type
 	   from their own expression, but the ARRAY parameter itself keeps
 	   whatever type the declaration gave it, and nothing fills that in
@@ -1013,8 +1045,10 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	    ref.source_scope = vscope;
 	    ref.local_flag = cur->second.local_flag;
 	    ref.overridable = false;
-	    ref.type_flag = false;
-	    ref.is_array_param = false;
+	      ref.type_flag = false;
+	      ref.is_array_param = false;
+	      ref.is_assoc_param = false;
+	      ref.array_type = nullptr;
 	    // A copied element carries its source type. An unevaluated element
 	    // carries the declared array element type so typed expressions,
 	    // especially nested assignment patterns, can be elaborated exactly.
@@ -1401,6 +1435,12 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
       if (! expr)
             return;
 
+      if (!param_type && use_type == IVL_VT_NO_TYPE) {
+	    use_type = val_expr->expr_type();
+	    if (use_type == IVL_VT_NO_TYPE)
+		  use_type = expr->expr_type();
+      }
+
       if (NetEConst*unbounded = dynamic_cast<NetEConst*>(expr)) {
 	    if (unbounded->is_unbounded()) {
 		    /* Enum assignment still requires an enum member/cast, and
@@ -1491,7 +1531,7 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 	    // If the parameter has no type, then infer its type from the
 	    // r-value expression.
 	    if (param_type==0) {
-		  param_type = new netvector_t(expr->expr_type(), expr->expr_width()-1,
+		  param_type = new netvector_t(use_type, expr->expr_width()-1,
 					       0, expr->has_sign());
 		  cur->second.ivl_type = param_type;
 	    }
@@ -1996,6 +2036,15 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
 		  cur->second.array_dims = array_type->static_dimensions();
 		  cur->second.array_bounds_known = true;
 		  cur->second.ivl_type = array_type->element_type();
+		  param_type = cur->second.ivl_type;
+	    }
+	    const netqueue_t*assoc_type =
+		  dynamic_cast<const netqueue_t*>(param_type);
+	    if (assoc_type && assoc_type->assoc_compat()) {
+		  cur->second.is_array_param = true;
+		  cur->second.is_assoc_param = true;
+		  cur->second.array_type = const_cast<netqueue_t*>(assoc_type);
+		  cur->second.ivl_type = assoc_type->element_type();
 		  param_type = cur->second.ivl_type;
 	    }
       }
