@@ -74,8 +74,11 @@ class symbol_table_s {
 	// into the key_strings chunks, which live as long as the table.
 	// A flat array (no allocation per symbol) keeps a design load from
 	// scattering hundreds of thousands of small blocks across the heap.
+	// Each entry also keeps its key's hash so a probe compares key
+	// strings only when the hashes match.
       struct entry_s {
 	    const char*key;
+	    size_t hash;
 	    symbol_value_t val;
       };
       entry_s*table_;
@@ -84,7 +87,7 @@ class symbol_table_s {
       struct key_strings*str_chunk;
       unsigned str_used;
 
-      entry_s*find_slot_(const char*key);
+      entry_s*find_slot_(const char*key, size_t hash);
       void grow_();
       char*key_strdup_(const char*str);
 };

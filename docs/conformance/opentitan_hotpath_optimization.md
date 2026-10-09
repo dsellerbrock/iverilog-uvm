@@ -7,6 +7,10 @@ Bounded reproducers and measurements are in
 Profiles are phase snapshots with overlapping inclusive counts, not whole-run
 CPU percentages.
 
+General (non-OpenTitan) runtime hot spots — vector functors, call-frame
+bookkeeping, virtual dispatch, and design load — and their measured fixes are
+recorded in [benchmarks/sim-hotspots](../../benchmarks/sim-hotspots/README.md).
+
 ## Prioritized plan
 
 The Flash associative-array successor index is implemented. The 262,144-key
