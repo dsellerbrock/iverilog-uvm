@@ -1,0 +1,4 @@
+PASS: ifdef defined
+PASS: ifndef undefined
+PASS: ifndef defined
+PASS: elsif escaped punctuation name

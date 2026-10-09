@@ -3263,6 +3263,13 @@ extern "C" int ivl_signal_const(ivl_signal_t net)
       return net->net_->get_const() ? 1 : 0;
 }
 
+extern "C" int ivl_signal_ref_static(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->get_ref_static() ? 1 : 0;
+}
+
 extern "C" int ivl_signal_module_port_index(ivl_signal_t net)
 {
       assert(net);

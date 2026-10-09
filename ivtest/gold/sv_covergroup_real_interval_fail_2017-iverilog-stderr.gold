@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_real_interval_fail_2017.v:5: error: real-valued coverpoint bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+1 error(s) during elaboration.

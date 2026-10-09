@@ -1,0 +1,2 @@
+./ivltests/sv_packed_multidim_real_index_fail.v:10: error: index expression must be integral.
+1 error(s) during elaboration.

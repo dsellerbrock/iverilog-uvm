@@ -193,6 +193,7 @@ class PFunction : public PTaskFunc {
       void set_statement(Statement *s);
       void release_elaboration_memory();
       void set_return(data_type_t*t);
+      void set_return_type_scope_local() { return_type_scope_local_ = true; }
 
       inline Statement* get_statement() { return statement_; }
       inline const Statement* get_statement() const { return statement_; }
@@ -225,6 +226,7 @@ class PFunction : public PTaskFunc {
       data_type_t* return_type_;
       Statement *statement_;
       bool is_auto_;
+      bool return_type_scope_local_ = false;
 };
 
 // A let is like a simple function that is expanded in the compiler

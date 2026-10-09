@@ -1,11 +1,39 @@
-# Compiler campaign handoff — 2026-09-23
+# Compiler campaign handoff — 2026-10-08
 
-The issue checkout sheet is [ISSUE_CHECKOUT.csv](ISSUE_CHECKOUT.csv). Before starting an issue, update its owner, state, branch/PR, file boundary, and next action in that file and commit the checkout. `observed_in_draft_pr` records visible PR authorship; it is not a claim that Claude has accepted this ledger. Keep implementation authorization in [ACTIVE_WORK.yaml](ACTIVE_WORK.yaml), not in the sheet.
+## Active task
 
-Current checkout: `agent/spi-inline-state-functions-20260922` at `378a8d121` (merged `main` base `3ccd5d73e691411caf43b407f05c84ddcade8820`). Codex committed the focused-tested state-only candidate in [PR323](https://github.com/dsellerbrock/iverilog-uvm/pull/323). Both editions pass the external, self, target, null/X, virtual, retained-receiver, signed-width and direction checks; the eight permanent cases pass in both legacy and JSON runners. Full broad qualification and staged random-variable function arguments are still open. Do not count this candidate as fully qualified. See [ACTIVE_WORK.yaml](ACTIVE_WORK.yaml) and `evidence/review-20260920/spi-external-cfg-constraint-next/build5-main/` for detailed provenance.
+Issue #468: accept escaped `text_macro_identifier` names in ordinary
+`ifdef`, `ifndef`, and `elsif` conditions under IEEE 1800-2017 and 1800-2023.
+The work is on `agent/ieee-ifdef-parenthesized-20261008`, which updates draft
+PR #467 to `main`; #460 remains a separately tracked change in that PR.
 
-Claude's draft [PR322](https://github.com/dsellerbrock/iverilog-uvm/pull/322) has independent VVP args, DPI export, fixed-array solve-before, and matrix-runner changes. Its `elaborate.cc` caller-method change overlaps the Codex inline-function patch. Reconcile that commit before merging the PR; the independent commits can be reviewed on their own merits. The shared `elaborate.cc` file also requires serial integration of the fixed-array change.
+The committed change recognizes escaped names in the four plain conditional
+states, requires the whitespace terminator without consuming it, and removes
+the leading backslash for macro lookup. Punctuation inside the name is
+preserved. The no-terminator case remains an error. No parser grammar change.
 
-The externally modified `AGENTS.md`, unrelated untracked evidence, and the safety stash from the baseline fast-forward are not part of the inline-function commit. Build, installation, and shared test output remain coordinator-owned. Preserve the stable-release OpenTitan and Caliptra source trees unmodified.
+## Verification
 
-Next command: `python3 evidence/review-20260920/spi-external-cfg-constraint-next/run_focus.py build5-main-recheck` after any new compiler source edit, followed by the boundary and target focused runners. The staged random-argument red/control record is `evidence/review-20260920/spi-external-cfg-constraint-next/staged/build4-red.json`.
+- Forced `make -B -C ivlpp -j2` and `make -C ivlpp install` pass. Flex emits
+  its two existing misleading-indentation warnings in generated scanner code.
+- Issue #468 legacy focus: 3/3; JSON focus: 3/3.
+- Neighboring macro-definition tests: legacy 28/28; JSON 8/8.
+- Issue #460 parenthesized-expression tests: legacy 3/3; JSON 3/3.
+- These are local macOS results. Full ivtest/UVM gates and exact-head CI have
+  not been run for the current uncommitted #468 increment.
+
+The baseline failure is recorded in issue #468. The applicable standards
+clauses are 1800-2017/2023 §22.5 Syntax 22-5 and §5.6.1.
+
+## CI and next action
+
+PR #467 is open and draft. Use its current description or the conformance
+index for the exact head and latest CI run. Avoid repeat polling. Investigate
+any reported failure, and do not qualify or merge until all required checks
+for the exact head are green.
+
+## Worktrees
+
+Three checkouts remain. Reuse the current feature checkout; do not create a
+new worktree. Preserve the clean census checkout and canonical `main` checkout
+with the shared graph.

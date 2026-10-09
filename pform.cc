@@ -6172,7 +6172,8 @@ vector<pform_tf_port_t>*pform_make_task_ports(const struct vlltype&loc,
 				      NetNet::PortType pt,
 				      data_type_t*vtype,
 				      list<pform_port_t>*ports,
-				      bool allow_implicit, bool is_const)
+				      bool allow_implicit, bool is_const,
+				      bool is_ref_static)
 {
       ivl_assert(loc, pt != NetNet::PIMPLICIT && pt != NetNet::NOT_A_PORT);
       ivl_assert(loc, ports);
@@ -6204,6 +6205,9 @@ vector<pform_tf_port_t>*pform_make_task_ports(const struct vlltype&loc,
 	    if (rt == SR_BOTH)
 		  curw->set_data_type(vtype);
 	    curw->set_const(is_const);
+	    curw->set_ref_static(is_ref_static);
+	    if (is_ref_static && !sv_require_feature(curw, SVF_REF_STATIC_TF_ARGUMENTS))
+		  error_count += 1;
 
 	    pform_set_net_range(curw, vec_type, rt);
 

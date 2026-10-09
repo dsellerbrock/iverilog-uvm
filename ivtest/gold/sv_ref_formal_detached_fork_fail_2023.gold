@@ -1,0 +1,2 @@
+./ivltests/sv_ref_formal_detached_fork_fail.v:4: error: ref formal `value' shall not be referenced within fork...join_any or fork...join_none except in a fork block-item initializer value expression (IEEE 1800-2017/2023 9.3.2).
+1 error(s) during elaboration.

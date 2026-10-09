@@ -64,8 +64,8 @@ int c_check_small_exports(void)
             UINT32_C(0x13579bdf), UINT32_C(0x2468ace0),
             UINT32_C(0x0badf00d)
       };
-      svBitVecVal bit_out[3] = {0, 0, 0};
-      svBitVecVal bit_inout[3] = {
+      svBitVecVal bit_vector_out[3] = {0, 0, 0};
+      svBitVecVal bit_vector_inout[3] = {
             UINT32_C(0xffffffff), UINT32_C(0xaaaaaaaa),
             UINT32_C(0x55555555)
       };
@@ -77,10 +77,12 @@ int c_check_small_exports(void)
             UINT32_C(0xeca86420), UINT32_C(0x8ec2064a),
             UINT32_C(0x5ef8a558)
       };
-      int bit_vector_result = sv_bit_vector(bit_value, bit_out, bit_inout);
+      int bit_vector_result = sv_bit_vector(bit_value, bit_vector_out,
+                                            bit_vector_inout);
       if (bit_vector_result != 17 ||
-          memcmp(bit_out, expected_bit_out, sizeof bit_out) != 0 ||
-          memcmp(bit_inout, expected_bit_inout, sizeof bit_inout) != 0)
+          memcmp(bit_vector_out, expected_bit_out, sizeof bit_vector_out) != 0 ||
+          memcmp(bit_vector_inout, expected_bit_inout,
+                 sizeof bit_vector_inout) != 0)
             fails += 1;
 
       const svLogicVecVal logic_value[3] = {

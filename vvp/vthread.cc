@@ -48,6 +48,7 @@
 # include  "vvp_darray.h"
 # include  "vvp_mailbox.h"
 # include  "vvp_vinterface.h"
+# include  "array.h"
 # include  "class_type.h"
 # include  "vvp_z3.h"
 # include  "compile.h"
@@ -8951,19 +8952,32 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cross_guards,
 				const vector<uint64_t>&bin_guards);
 
+static uint64_t covgrp_real_key_(double value)
+{
+      if (value == 0.0) value = 0.0;
+      uint64_t bits;
+      memcpy(&bits, &value, sizeof bits);
+      return (bits & (UINT64_C(1) << 63)) ? ~bits
+	    : bits ^ (UINT64_C(1) << 63);
+}
+
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
-      unsigned ncp = cp->number;
+	 uint64_t packed_ncp = cp->number;
+	 unsigned ncp = (unsigned)packed_ncp;
+	 unsigned nreal = (unsigned)(packed_ncp >> 32);
       unsigned guard_flags = cp->bit_idx[0];
       unsigned has_cp_guards = guard_flags & 1;
 	 unsigned ncross_guards = (guard_flags >> 1) & 0x7fff;
 	 unsigned nbin_guards = guard_flags >> 16;
-	 uint64_t vec4_need = ncp;
+	 uint64_t vec4_need = ncp - nreal;
 	 if (has_cp_guards) vec4_need += ncp;
 	 vec4_need += ncross_guards;
 	 vec4_need += nbin_guards;
-	 if (vec4_need > 2097152
+	 if (nreal > ncp || ncp > 2097152
+	     || vec4_need > 2097152
 	     || vec4_need > thr->vec4_stack_size()
+	     || nreal > thr->real_stack_size()
 	     || thr->object_stack_size() < 1) {
 	       fprintf(stderr,
 		     "vvp: malformed %%covgrp/sample metadata or stack "
@@ -8972,6 +8986,19 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 		     vec4_need, thr->vec4_stack_size(),
 		     thr->object_stack_size());
 	       return true;
+	 }
+
+	 vvp_cobject*cobj = thr->peek_object().peek<vvp_cobject>();
+	 if (cobj) {
+	       unsigned metadata_real = 0;
+	       for (unsigned ii = 0; ii < ncp; ++ii)
+		     metadata_real += cobj->get_defn()->covgrp_cp_real(ii) ? 1 : 0;
+	       if (metadata_real != nreal) {
+		     fprintf(stderr, "vvp: malformed %%covgrp/sample real-value metadata "
+			     "(instruction %u, class %u); operands not consumed.\n",
+			     nreal, metadata_real);
+		     return true;
+	       }
 	 }
 
 	 vector<uint64_t> bin_guards(nbin_guards, 1);
@@ -9003,6 +9030,18 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       vector<vvp_vector4_t> wide_vals(ncp);
       vector<bool> cp_has_xz(ncp, false);
       for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
+	    if (cobj && cobj->get_defn()->covgrp_cp_real(ii)) {
+		  cp_vals[ii] = covgrp_real_key_(thr->pop_real());
+		  continue;
+	    }
+	    if (!cobj && nreal > 0) {
+		  // A null receiver has no bin metadata; drain real stack operands
+		  // before the vector operands because the call cannot sample.
+		  while (nreal > 0) {
+			thr->pop_real();
+			nreal -= 1;
+		  }
+	    }
 	    vvp_vector4_t v = thr->pop_vec4();
 	    if (v.size() > 64) wide_vals[ii] = v;
 	    uint64_t val = 0;
@@ -9018,9 +9057,9 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 	    cp_has_xz[ii] = xz;
       }
 
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	 vvp_object_t obj;
+	 thr->pop_object(obj);
+	 cobj = obj.peek<vvp_cobject>();
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
@@ -9451,8 +9490,11 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 		  uint64_t v; bool low;
 		  int sp = defn->covgrp_srcprop(ci);
 		  if (sp >= 0) {
-			read_u64(parent, (unsigned)sp, v, low,
-				 &wide_vals[ci]);
+			if (defn->covgrp_cp_real(ci))
+			      v = covgrp_real_key_(parent->get_real((unsigned)sp));
+			else
+			      read_u64(parent, (unsigned)sp, v, low,
+				       &wide_vals[ci]);
 			vals[ci] = v;
 		  }
 		  int gp = defn->covgrp_guardsrc(ci);
@@ -16207,8 +16249,13 @@ static bool dpi_packed_open_letter_(char type)
 
 static bool dpi_fixed_array_letter_(char type)
 {
-      return type == 'O' || type == 'B' || type == 'G'
+      return type == 'O' || type == 'Q' || type == 'B' || type == 'G'
 	  || type == 'X' || type == 'Y';
+}
+
+static bool dpi_shortreal_array_letter_(char type)
+{
+      return type == 'q' || type == 'Q';
 }
 
 static bool dpi_scalar_array_letter_(char type)
@@ -16292,6 +16339,104 @@ static void dpi_unpack_scalar_array_(const vvp_dpi_open_array_t&open)
 		  val = data[elem] == 1 ? BIT4_1 : BIT4_0;
 	    }
 	    open.storage->set_word(elem, vvp_vector4_t(1, val));
+      }
+}
+
+static bool dpi_pack_shortreal_array_(const char*c_name, unsigned arg_index,
+		vvp_darray*root, vvp_dpi_open_array_t&open)
+{
+      open.shortreal_scratch = true;
+      open.storage = root;
+      open.length = root && root->get_size() <= UINT_MAX
+		? (unsigned)root->get_size() : 0;
+      if (root && root->get_size() > UINT_MAX) {
+	    fprintf(stderr, "DPI error: '%s': shortreal array argument %u "
+		    "has an unrepresentable element count; passing an empty "
+		    "array argument.\n", c_name, arg_index);
+	    return false;
+      }
+
+      vector<vvp_darray*> pending;
+      try {
+	    if (root) pending.push_back(root);
+	    while (!pending.empty()) {
+		  vvp_darray*array = pending.back();
+		  pending.pop_back();
+		  if (array->dpi_elem_is_real()) {
+			size_t count = array->get_size();
+			if (count > SIZE_MAX / sizeof(float)) {
+			      fprintf(stderr, "DPI error: '%s': shortreal array argument %u "
+				      "storage size overflows; the call is skipped.\n",
+				      c_name, arg_index);
+			      return false;
+			}
+			vvp_dpi_shortreal_buffer_t buffer;
+			buffer.array = array;
+			buffer.values.resize(count);
+			for (size_t idx = 0; idx < count; idx += 1) {
+			      double value = 0.0;
+			      array->get_word((unsigned)idx, value);
+			      buffer.values[idx] = (float)value;
+			}
+			open.shortreal_buffers.push_back(std::move(buffer));
+		  } else if (array->get_size() != 0) {
+			vvp_darray_object*objects =
+			      dynamic_cast<vvp_darray_object*>(array);
+			if (!objects) {
+			      fprintf(stderr, "DPI error: '%s': shortreal array argument %u "
+				      "contains a non-real array element; the call is "
+				      "skipped.\n", c_name, arg_index);
+			      return false;
+			}
+			for (size_t idx = 0; idx < array->get_size(); idx += 1) {
+			      vvp_object_t value;
+			      objects->get_word((unsigned)idx, value);
+			      vvp_darray*child = value.peek<vvp_darray>();
+			      if (!child) {
+				    fprintf(stderr, "DPI error: '%s': shortreal array argument %u "
+					    "contains a non-array element; the call is "
+					    "skipped.\n", c_name, arg_index);
+				    return false;
+			      }
+			      pending.push_back(child);
+			}
+		  }
+	    }
+      } catch (const std::bad_alloc&) {
+	    fprintf(stderr, "DPI error: '%s': shortreal array argument %u "
+		    "could not allocate its float buffer; the call is skipped.\n",
+		    c_name, arg_index);
+	    open.shortreal_buffers.clear();
+	    return false;
+      } catch (const std::length_error&) {
+	    fprintf(stderr, "DPI error: '%s': shortreal array argument %u "
+		    "exceeds the supported scratch-buffer size; the call is skipped.\n",
+		    c_name, arg_index);
+	    open.shortreal_buffers.clear();
+	    return false;
+      }
+
+      if (!open.outer && !open.shortreal_buffers.empty()) {
+	    const vector<float>&values = open.shortreal_buffers[0].values;
+	    open.data = values.empty() ? 0 : (void*)&values[0];
+	    open.elem_data = open.data;
+	    open.elem_bytes = sizeof(float);
+	    open.elem_is_real = true;
+      } else if (open.outer == 0 && root && root->get_size() == 0) {
+	    open.elem_bytes = sizeof(float);
+	    open.elem_is_real = true;
+      }
+      return true;
+}
+
+static void dpi_unpack_shortreal_array_(const vvp_dpi_open_array_t&open)
+{
+      if (!open.shortreal_scratch) return;
+      for (const vvp_dpi_shortreal_buffer_t&buffer : open.shortreal_buffers) {
+	    if (!buffer.array) continue;
+	    for (size_t idx = 0; idx < buffer.values.size(); idx += 1)
+		  buffer.array->set_word((unsigned)idx,
+					 (double)buffer.values[idx]);
       }
 }
 
@@ -16491,7 +16636,8 @@ static const char* split_dpi_name_types_(const char*text, char*name_buf,
  * (unsigned), then a base letter:
  *   'b' int8, 'h' int16, 'i' int32, 'l' int64 (longint/chandle),
  *   'g' svLogic scalar, 'r' double, 's' string,
- *   'B'/'G' fixed scalar bit/logic unpacked arrays,
+ *   'B'/'G' fixed scalar bit/logic unpacked arrays, 'q'/'Q' shortreal
+ *   open/fixed arrays,
  *   'x'/'X' packed bit open/fixed array, 'y'/'Y' packed logic array.
  */
 struct dpi_sig_tok_t {
@@ -16590,6 +16736,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       dpi_parse_types_(types, dflt_letter, nargs, sig);
 
       vector<vvp_dpi_arg_t> args (nargs);
+      bool array_marshaling_ok = true;
       vector<string> str_store (nargs);
 	// Open-array handles and their referenced objects must stay
 	// alive for the duration of the C call.
@@ -16627,6 +16774,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		  break;
 		case 'o':
 		case 'O':
+		case 'q':
+		case 'Q':
 		case 'B':
 		case 'G':
 		case 'x':
@@ -16645,6 +16794,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.packed_scratch = false;
 		      arr.packed_width = 0;
 		      arr.packed_four_state = false;
+		      arr.shortreal_scratch = false;
 		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
@@ -16661,7 +16811,13 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			    arr.left  = da->dpi_decl_left();
 			    arr.right = da->dpi_decl_right();
 		      }
-		      if (da && dpi_scalar_array_letter_(sig[slot].base)) {
+	      if (da && dpi_shortreal_array_letter_(sig[slot].base)) {
+		    if (dpi_shortreal_array_letter_(sig[slot].base)
+			&& dpi_open_array_is_multidim_(da))
+			  arr.outer = da;
+		    if (!dpi_pack_shortreal_array_(c_name, slot+1, da, arr))
+			  array_marshaling_ok = false;
+	      } else if (da && dpi_scalar_array_letter_(sig[slot].base)) {
 			  dpi_pack_scalar_array_(c_name, slot+1, da,
 				sig[slot].base == 'G', arr,
 				arr_scalar_store[slot]);
@@ -16755,7 +16911,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       if (return_signature_ok && !sym) {
 	    fprintf(stderr, "DPI error: symbol '%s' not found in any "
 		    "loaded DPI library\n", c_name);
-      } else if (return_signature_ok) {
+      } else if (return_signature_ok && array_marshaling_ok) {
 	      // On marshaling failure vvp_dpi_call() has already
 	      // printed a diagnostic; fall through to push a default
 	      // result so the thread keeps a consistent stack.
@@ -16841,6 +16997,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    if (dpi_scalar_array_letter_(args[ii].type)
 		&& arr_store[ii].scalar_scratch)
 		  dpi_unpack_scalar_array_(arr_store[ii]);
+	    if (native_call_ok && dpi_shortreal_array_letter_(args[ii].type)
+		&& arr_store[ii].shortreal_scratch)
+		  dpi_unpack_shortreal_array_(arr_store[ii]);
 	    if (dpi_packed_open_letter_(args[ii].type)
 		&& arr_store[ii].packed_scratch)
 		  dpi_unpack_open_array_(arr_store[ii]);
@@ -16859,6 +17018,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  break;
 		case 'o':
 		case 'O':
+		case 'q':
+		case 'Q':
 		case 'B':
 		case 'G':
 		case 'x':
@@ -19679,7 +19840,8 @@ static void do_join(vthread_t thr, vthread_t child)
  * for SV->SV calls — then marshal the result back to C.
  *
  * Supported here: functions/tasks with integer atoms, scalar bit/logic,
- * shortreal/real, chandle, string, and packed-vector formals. A
+ * shortreal/real, chandle, string, packed vectors, and fixed unpacked arrays
+ * of Annex H atom or packed bit/logic elements. A
  * time-consuming void export reached through an imported DPI task uses the
  * coroutine bridge; a suspending export with no such bridge is a loud sorry,
  * never a silent wrong answer.
@@ -19690,7 +19852,232 @@ typedef union ivl_dpi_arg_u {
       const char*s;
       void*p;
       uint32_t*v;
+      void*a;
 } ivl_dpi_arg_t;
+
+static bool dpi_export_array_letter_(char letter)
+{
+      return letter == 'O' || letter == 'Q' || letter == 'R'
+	  || letter == 'B' || letter == 'G'
+	  || letter == 'X' || letter == 'Y';
+}
+
+static unsigned dpi_export_array_width_(vvp_array_t array)
+{
+      if (array->vals4) return array->vals4->width();
+      return array->vals ? array->vals->vec4_word_width() : 0;
+}
+
+static size_t dpi_export_array_stride_(unsigned width, char letter)
+{
+      if (letter == 'Q') return sizeof(float);
+      if (letter == 'R') return sizeof(double);
+      if (letter == 'B' || letter == 'G') return sizeof(uint8_t);
+      if (width == 0) return 0;
+      if (letter == 'O') {
+	    if (width != 8 && width != 16 && width != 32 && width != 64)
+		  return 0;
+	    return width / 8;
+      }
+      size_t words = ((size_t)width + 31) / 32;
+      size_t planes = letter == 'Y' ? 2 : 1;
+      if (words > SIZE_MAX / (planes * sizeof(uint32_t))) return 0;
+      return words * planes * sizeof(uint32_t);
+}
+
+static bool dpi_export_array_valid_(vvp_array_t array, char letter,
+				    size_t&bytes)
+{
+      if (!array || array->get_size() > UINT_MAX) return false;
+
+      if (array->vals && array->vals->dpi_elem_is_real()) {
+	    if (letter != 'Q' && letter != 'R') return false;
+	    size_t stride = letter == 'Q' ? sizeof(float) : sizeof(double);
+	    if (array->get_size() > SIZE_MAX / stride) return false;
+	    bytes = array->get_size() * stride;
+	    return true;
+      }
+      if (letter == 'Q' || letter == 'R') return false;
+
+      unsigned width = dpi_export_array_width_(array);
+      if (letter == 'B' || letter == 'G') {
+	    if (width != 1) return false;
+      } else if (letter == 'X' || letter == 'Y') {
+	    if (width == 0) return false;
+      } else if (letter != 'O') {
+	    return false;
+      }
+      size_t stride = dpi_export_array_stride_(width, letter);
+      if (stride == 0 || array->get_size() > SIZE_MAX / stride)
+	    return false;
+      bytes = array->get_size() * stride;
+      return true;
+}
+
+static uint64_t dpi_export_load_integer_(const uint8_t*data, unsigned width)
+{
+      uint64_t value = 0;
+      size_t bytes = width / 8;
+      memcpy(&value, data, bytes);
+      return value;
+}
+
+static void dpi_export_store_integer_(uint8_t*data, unsigned width,
+				      uint64_t value)
+{
+      memcpy(data, &value, width / 8);
+}
+
+static bool dpi_export_array_get_(vvp_array_t array, unsigned index,
+				  vvp_vector4_t&value)
+{
+	  if (array->vals) {
+		array->vals->get_word(index, value);
+		return true;
+	  }
+	  if (array->vals4) {
+		value = array->vals4->get_word(index);
+		return true;
+	  }
+	  return false;
+}
+
+static bool dpi_export_array_set_(vvp_array_t array, unsigned index,
+				  const vvp_vector4_t&value)
+{
+	  if (array->vals) {
+		array->vals->set_word(index, value);
+		return true;
+	  }
+	  if (array->vals4) {
+		array->vals4->set_word(index, value);
+		return true;
+	  }
+	  return false;
+}
+
+static bool dpi_export_array_copy_(vvp_array_t array, char letter,
+				   uint8_t*data, size_t&offset, bool to_sv)
+{
+	  if (!array) return false;
+	  if (array->vals && array->vals->dpi_elem_is_real()) {
+	    size_t stride = letter == 'Q' ? sizeof(float) : sizeof(double);
+	    for (size_t idx = 0; idx < array->get_size(); idx += 1) {
+		  if (to_sv) {
+			if (letter == 'Q') {
+			      float value;
+			      memcpy(&value, data + offset, sizeof value);
+			      array->vals->set_word((unsigned)idx, (double)value);
+			} else {
+			      double value;
+			      memcpy(&value, data + offset, sizeof value);
+			      array->vals->set_word((unsigned)idx, value);
+			}
+		  } else {
+			double value = 0.0;
+			array->vals->get_word((unsigned)idx, value);
+			if (letter == 'Q') {
+			      float output = (float)value;
+			      memcpy(data + offset, &output, sizeof output);
+			} else {
+			      memcpy(data + offset, &value, sizeof value);
+			}
+		  }
+		  offset += stride;
+	    }
+	    return true;
+	  }
+
+	  unsigned width = dpi_export_array_width_(array);
+	  size_t stride = dpi_export_array_stride_(width, letter);
+	  if (width == 0 || stride == 0) return false;
+	  for (size_t idx = 0; idx < array->get_size(); idx += 1) {
+		vvp_vector4_t value(width, BIT4_0);
+		if (to_sv) {
+		  if (letter == 'B' || letter == 'G') {
+			uint8_t raw = data[offset];
+			vvp_bit4_t bit = BIT4_0;
+			if (letter == 'G') {
+			      switch (raw) {
+				  case 0: bit = BIT4_0; break;
+				  case 1: bit = BIT4_1; break;
+				  case 2: bit = BIT4_Z; break;
+				  default: bit = BIT4_X; break;
+			      }
+			} else {
+			      bit = raw == 1 ? BIT4_1 : BIT4_0;
+			}
+			value.set_bit(0, bit);
+		  } else if (letter == 'O') {
+			uint64_t raw = dpi_export_load_integer_(data + offset, width);
+			for (unsigned bit = 0; bit < width; bit += 1)
+			      value.set_bit(bit, ((raw >> bit) & 1)
+					     ? BIT4_1 : BIT4_0);
+		  } else {
+			const uint32_t*words =
+			      (const uint32_t*)(data + offset);
+			for (unsigned bit = 0; bit < width; bit += 1) {
+			      unsigned word = bit / 32;
+			      uint32_t mask = uint32_t(1) << (bit % 32);
+			      bool aval = (words[(letter == 'Y' ? 2 : 1) * word]
+					   & mask) != 0;
+			      if (letter == 'X') {
+				    value.set_bit(bit, aval ? BIT4_1 : BIT4_0);
+			      } else {
+				    bool bval = (words[2 * word + 1] & mask) != 0;
+				    value.set_bit(bit, bval ? (aval ? BIT4_X : BIT4_Z)
+						   : (aval ? BIT4_1 : BIT4_0));
+			      }
+			}
+		  }
+		  if (!dpi_export_array_set_(array, (unsigned)idx, value))
+			return false;
+		} else {
+		  if (!dpi_export_array_get_(array, (unsigned)idx, value))
+			return false;
+		  if (letter == 'B' || letter == 'G') {
+			vvp_bit4_t bit = value.value(0);
+			data[offset] = letter == 'G'
+			      ? (bit == BIT4_0 ? 0 : bit == BIT4_1 ? 1
+				 : bit == BIT4_Z ? 2 : 3)
+			      : bit == BIT4_1 ? 1 : 0;
+		  } else if (letter == 'O') {
+			uint64_t raw = 0;
+			for (unsigned bit = 0; bit < width; bit += 1)
+			      if (value.value(bit) == BIT4_1)
+				    raw |= uint64_t(1) << bit;
+			dpi_export_store_integer_(data + offset, width, raw);
+		  } else {
+			uint32_t*words = (uint32_t*)(data + offset);
+			memset(words, 0, stride);
+			for (unsigned bit = 0; bit < width; bit += 1) {
+			      unsigned word = bit / 32;
+			      uint32_t mask = uint32_t(1) << (bit % 32);
+			      vvp_bit4_t val = value.value(bit);
+			      if (val == BIT4_1 || val == BIT4_X)
+				    words[(letter == 'Y' ? 2 : 1) * word] |= mask;
+			      if (letter == 'Y' && (val == BIT4_X || val == BIT4_Z))
+				    words[2 * word + 1] |= mask;
+			}
+		  }
+	    }
+	    offset += stride;
+      }
+      return true;
+}
+
+static bool dpi_export_array_copy_checked_(vvp_array_t array, char letter,
+					   void*data, bool to_sv)
+{
+      size_t bytes = 0;
+      if (!dpi_export_array_valid_(array, letter, bytes)) return false;
+      if (bytes == 0) return true;
+      if (!data) return true;
+      size_t offset = 0;
+      return dpi_export_array_copy_(array, letter,
+				    static_cast<uint8_t*>(data), offset, to_sv)
+	    && offset == bytes;
+}
 
 /* Copy exported output/inout formals from the completed SV activation into
  * the C-facing argument buffer while the activation context is still alive.
@@ -19712,7 +20099,19 @@ static void dpi_export_copy_out_(const struct dpi_export_info_s&info,
       for (unsigned idx = 0 ; idx < info.nargs && (int)idx < nargs ; idx += 1) {
 	    char letter = info.arg_sig[2*idx];
 	    char direction = info.arg_sig[2*idx+1];
-	    if (direction == 'i' || info.arg_nets[idx] == 0) continue;
+	    if (direction == 'i') continue;
+	    if (dpi_export_array_letter_(letter)) {
+		  if (args[idx].a) {
+			vvp_array_t array = info.arg_arrays[idx];
+			if (!dpi_export_array_copy_checked_(array, letter,
+							     args[idx].a, false))
+			      fprintf(stderr, "vvp: error: DPI export '%s': could not "
+				      "copy out fixed array argument %u.\n",
+				      info.td_label, idx + 1);
+		  }
+		  continue;
+	    }
+	    if (info.arg_nets[idx] == 0) continue;
 	    vvp_net_t*net = info.arg_nets[idx];
 	    vvp_signal_value*sv = vvp_fil_signal_value(net->fil);
 	    if (letter == 'f' || letter == 'r') {
@@ -19905,22 +20304,37 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       }
 
 	/* Marshal the C arguments into the subroutine's argument nets. */
+	// Fixed array adapters select automatic storage through running_thread.
+	// Select the new activation while copying its imported arguments.
+	  vthread_t caller_thread = running_thread;
+	  running_thread = child;
       for (unsigned idx = 0 ; idx < info.nargs && (int)idx < nargs ; idx += 1) {
 	    vvp_net_t*net = info.arg_nets[idx];
-	    if (net == 0)
-		  continue;
 	    char letter = info.arg_sig[2*idx];
 	    char direction = info.arg_sig[2*idx+1];
-	    if (letter == 'f' || letter == 'r') {
+	    if (dpi_export_array_letter_(letter)) {
+		  if (direction != 'o' && args[idx].a) {
+			vvp_array_t array = info.arg_arrays[idx];
+			if (!dpi_export_array_copy_checked_(array, letter,
+							     args[idx].a, true)) {
+			      fprintf(stderr, "vvp: error: DPI export '%s': could not "
+				      "copy in fixed array argument %u; export call skipped.\n",
+				      cname, idx + 1);
+			      running_thread = caller_thread;
+			      vthread_reap(child);
+			      return false;
+			}
+		  }
+	    } else if (net && (letter == 'f' || letter == 'r')) {
 		  vvp_send_real(vvp_net_ptr_t(net, 0),
 				direction == 'o' ? 0.0 : args[idx].r,
 				exp_context);
-	    } else if (letter == 's') {
+	    } else if (net && letter == 's') {
 		  vvp_send_string(vvp_net_ptr_t(net, 0),
 				  direction == 'o' ? std::string()
 				  : std::string(args[idx].s ? args[idx].s : ""),
 				  exp_context);
-	    } else {
+	    } else if (net) {
 		  vvp_signal_value*sv = vvp_fil_signal_value(net->fil);
 		  unsigned wid = sv ? sv->value_size() : 64;
 		  vvp_vector4_t val (
@@ -19961,6 +20375,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		  vvp_send_vec4(vvp_net_ptr_t(net, 0), val, exp_context);
 	    }
       }
+	  running_thread = caller_thread;
 
 #ifdef IVL_HAVE_DPI_CORO
 	/* Coroutine export path: a void task or function reached from an imported

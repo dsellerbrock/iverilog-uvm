@@ -2293,6 +2293,8 @@ extern ivl_signal_port_t ivl_signal_port(ivl_signal_t net);
 extern int         ivl_signal_module_port_index(ivl_signal_t net);
 /* True for a SystemVerilog const variable/formal, including const ref. */
 extern int         ivl_signal_const(ivl_signal_t net);
+/* True for a task/function formal declared with the 2023 `ref static` qualifier. */
+extern int         ivl_signal_ref_static(ivl_signal_t net);
 extern int         ivl_signal_signed(ivl_signal_t net);
 extern int         ivl_signal_integer(ivl_signal_t net);
 extern int         ivl_signal_local(ivl_signal_t net);

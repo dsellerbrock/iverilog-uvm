@@ -1,0 +1,7 @@
+ivltests/sv_covergroup_cross_set_function_fail_2023.v:9: error: Struct assignment pattern expects 2 element(s) in this context.
+ivltests/sv_covergroup_cross_set_function_fail_2023.v:9:      : Found 1 element(s).
+ivltests/sv_covergroup_cross_set_function_fail_2023.v:9: error: push_back() methods first argument could not be elaborated.
+ivltests/sv_covergroup_cross_set_function_fail_2023.v:20: error: integer literal is not compatible with an unpacked type in this context.
+ivltests/sv_covergroup_cross_set_function_fail_2023.v:20: error: push_back() methods first argument could not be elaborated.
+ivltests/sv_covergroup_cross_set_function_fail_2023.v:33: error: cross bin 'malformed' set expression must evaluate to a constant CrossQueueType value.
+5 error(s) during elaboration.

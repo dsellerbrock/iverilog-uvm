@@ -59,8 +59,9 @@ static struct {
       nettype_t* user_nettype;
       bool interconnect;
       bool is_const;
+      bool is_ref_static;
 } port_declaration_context = {
-      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false
+      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false
 };
 
 /* Modport port declaration lists use this structure for context. */
@@ -77,6 +78,10 @@ static struct {
    task/function that is currently in progress. */
 static PTask* current_task = 0;
 static PFunction* current_function = 0;
+static PFunction* pending_cross_outer_function_ = nullptr;
+static typedef_t* pending_cross_value_typedef_ = nullptr;
+static typedef_t* pending_cross_queue_typedef_ = nullptr;
+static bool pending_cross_scope_active_ = false;
 
 /* I1 (Phase 62g): accumulator for cross declarations seen during the
    current covergroup parse.  cross_item rules append here; the enclosing
@@ -90,10 +95,76 @@ std::map<perm_string, PExpr*> pending_cg_options_;
 static std::map<perm_string, PExpr*> pending_cp_options_;
 static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_;
 static uint64_t pending_cross_expr_serial_ = 0;
+static uint64_t pending_cross_scope_serial_ = 0;
+static struct_type_t* pending_cross_value_type_ = nullptr;
 static std::vector<perm_string>* pending_cg_ctor_names_ = nullptr;
 static std::vector<data_type_t*>* pending_cg_ctor_types_ = nullptr;
 static std::vector<bool>* pending_cg_ctor_is_ref_ = nullptr;
 static std::vector<PExpr*>* pending_cg_ctor_defaults_ = nullptr;
+
+/* IEEE 1800-2017 19.6.1 gives each cross body an implicit CrossValType
+ * (one field per cross item) and CrossQueueType. Keep their typedefs in a
+ * lexical scope local to this cross so helper functions can use the names. */
+static void pform_cross_scope_begin_(const struct vlltype&loc,
+				     const std::list<class_type_t::pform_cross_t::item_t>&items)
+{
+	  pending_cross_outer_function_ = current_function;
+	  pending_cross_scope_active_ = true;
+	  char scope_name[64];
+	  snprintf(scope_name, sizeof scope_name, "$__ivl_cross_scope_%llu",
+		   static_cast<unsigned long long>(pending_cross_scope_serial_++));
+	  pform_push_block_scope(loc, scope_name, PBlock::BL_SEQ);
+
+	  struct_type_t*value_type = new struct_type_t;
+	  FILE_NAME(value_type, loc);
+	  value_type->packed_flag = false;
+	  value_type->signed_flag = false;
+	  value_type->union_flag = false;
+	  value_type->members.reset(new std::list<struct_member_t*>);
+	  for (const auto&item : items) {
+		struct_member_t*member = new struct_member_t;
+		FILE_NAME(member, loc);
+		member->type.reset(new atom_type_t(atom_type_t::INT, true));
+		FILE_NAME(member->type.get(), loc);
+		member->names.reset(new std::list<decl_assignment_t*>);
+		decl_assignment_t*name = new decl_assignment_t;
+		name->name = pform_ident_t(item.label, loc.lexical_pos);
+		member->names->push_back(name);
+		value_type->members->push_back(member);
+	  }
+	  pending_cross_value_type_ = value_type;
+	  pform_set_typedef(loc, lex_strings.make("CrossValType"), value_type, nullptr);
+	  pending_cross_value_typedef_ = pform_test_type_identifier(loc, "CrossValType");
+	  std::list<pform_range_t>*dims = new std::list<pform_range_t>;
+	  PENull*queue_range = new PENull;
+	  FILE_NAME(queue_range, loc);
+	  dims->push_back(pform_range_t(queue_range, nullptr));
+	  uarray_type_t*queue_type = new uarray_type_t(
+		new typeref_t(pending_cross_value_typedef_), dims);
+	  FILE_NAME(queue_type, loc);
+	  pform_set_typedef(loc, lex_strings.make("CrossQueueType"),
+			    queue_type, nullptr);
+	  pending_cross_queue_typedef_ = pform_test_type_identifier(loc, "CrossQueueType");
+}
+
+static void pform_cross_bind_function_types_(PFunction*func)
+{
+	  if (!pending_cross_scope_active_ || !func)
+		return;
+	  func->typedefs[pending_cross_value_typedef_->name] = pending_cross_value_typedef_;
+	  func->typedefs[pending_cross_queue_typedef_->name] = pending_cross_queue_typedef_;
+	  func->set_return_type_scope_local();
+}
+
+static void pform_cross_scope_end_()
+{
+	  pform_pop_scope();
+	  current_function = pending_cross_outer_function_;
+	  pending_cross_outer_function_ = nullptr;
+	  pending_cross_value_typedef_ = nullptr;
+	  pending_cross_queue_typedef_ = nullptr;
+	  pending_cross_scope_active_ = false;
+}
 
 /* M13B: map a lexer edge-descriptor ("01", "0x", "z1", ...) to the
    PTimingCheck edge type. z transitions share the x codes (both are
@@ -173,6 +244,7 @@ static void cov_option_set_(std::map<perm_string, PExpr*>&dst,
    objects remain owned by the parse form; the covergroup keeps stable
    references just as `with function sample` already does. */
 static void cov_capture_ctor_ports_(
+      const struct vlltype&loc,
       const std::vector<pform_tf_port_t>*ports,
       std::vector<perm_string>*&names,
       std::vector<data_type_t*>*&types,
@@ -186,6 +258,11 @@ static void cov_capture_ctor_ports_(
       defaults = new std::vector<PExpr*>;
       for (const auto&port : *ports) {
 	    if (!port.port) continue;
+	    if (port.port->get_port_type() == NetNet::POUTPUT
+		|| port.port->get_port_type() == NetNet::PINOUT)
+		  yyerror(loc, "error: Covergroup constructor formal '%s' cannot "
+			  "have output or inout direction (IEEE 1800 19.3).",
+			  port.port->basename().operator const char*());
 	    names->push_back(port.port->basename());
 	    types->push_back(const_cast<data_type_t*>(port.port->data_type()));
 	    is_ref->push_back(port.port->get_port_type() == NetNet::PREF);
@@ -989,9 +1066,13 @@ static void recover_stale_function_scope(const YYLTYPE&loc)
 {
       if (current_function == 0)
 	    return;
+	  if (current_function == pending_cross_outer_function_) {
+	    current_function = 0;
+	    return;
+	  }
       cerr << loc << ": warning: recovering stale function parse state." << endl;
       warn_count += 1;
-      pform_pop_scope();
+	  pform_pop_scope();
       current_function = 0;
 }
 
@@ -1025,6 +1106,7 @@ void reset_parser_file_state(void)
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
+      port_declaration_context.is_ref_static = false;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -1754,6 +1836,7 @@ static void port_declaration_context_init(void)
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
+      port_declaration_context.is_ref_static = false;
 }
 
 Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
@@ -1813,6 +1896,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       port_declaration_context.data_type = data_type;
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
+      port_declaration_context.is_ref_static = false;
 
       return port;
 }
@@ -1839,6 +1923,7 @@ static Module::port_t *module_declare_nettype_port(
       port_declaration_context.data_type = nullptr;
       port_declaration_context.user_nettype = nettype;
       port_declaration_context.interconnect = false;
+      port_declaration_context.is_ref_static = false;
       return port;
 }
 
@@ -1864,6 +1949,7 @@ static Module::port_t *module_declare_interconnect_port(
       port_declaration_context.data_type = implicit_type;
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = true;
+      port_declaration_context.is_ref_static = false;
       return port;
 }
 
@@ -2098,6 +2184,7 @@ static Module::port_t *module_declare_port_continuation(
       std::vector<class_type_t::pform_cov_trans_term_t>* cov_trans_seq;
       std::vector<std::vector<class_type_t::pform_cov_trans_term_t>>* cov_seqs;
       class_type_t::pform_cross_t::select_t* cross_sel;
+      class_type_t::pform_cross_t::matches_t* cross_matches;
       std::list<class_type_t::pform_cross_t::item_t>* cross_items;
       std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
       class_type_t::pform_cov_bins_t* cov_bins;
@@ -2428,6 +2515,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <cov_seqs>    transition_seq_list
 %type <cross_sel>   cross_bins_expr cross_bins_or cross_bins_and cross_bins_with
 %type <cross_sel>   cross_bins_unary cross_bins_primary
+%type <cross_matches> cross_matches_clause cross_matches_opt
+%destructor { if ($$) { delete $$->expr; delete $$; } } <cross_matches>
 
 %type <expr>  constraint_expression constraint_block_item constraint_set_item
 %type <expr>  constraint_dist_consequent
@@ -2484,6 +2573,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <gatetype> gatetype switchtype
 %type <porttype> port_direction port_direction_opt
 %type <tf_port_direction> tf_port_direction_opt
+%type <tf_port_direction> tf_port_direction
+%type <tf_port_direction> tf_port_ref_direction
 %type <vartype> integer_vector_type
 %type <parmvalue> parameter_value_opt
 %type <parmvalue> type_parameter_value
@@ -3096,7 +3187,7 @@ class_cg_port_prefix
             @2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
-	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+	cov_capture_ctor_ports_(@1, $4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
 				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
@@ -3116,7 +3207,7 @@ module_cg_port_prefix
             @2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
-	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+	cov_capture_ctor_ports_(@1, $4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
 				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
@@ -4607,8 +4698,13 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
+  | K_cross cross_item_list coverpoint_iff_opt '{'
+	  { pform_cross_scope_begin_(@4, *$2); }
+	cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
+	pform_cross_scope_end_();
+	cx.value_type = pending_cross_value_type_;
+	pending_cross_value_type_ = nullptr;
 	if ($2) for (auto& item : *$2) {
 	      cx.cp_labels.push_back(item.label);
 	      cx.cp_exprs.push_back(item.expr);
@@ -4654,8 +4750,13 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
+  | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{'
+	  { pform_cross_scope_begin_(@6, *$4); }
+	cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
+	pform_cross_scope_end_();
+	cx.value_type = pending_cross_value_type_;
+	pending_cross_value_type_ = nullptr;
 	cx.label = lex_strings.make($1);
 	if ($4) for (auto& item : *$4) {
 	      cx.cp_labels.push_back(item.label);
@@ -4670,8 +4771,13 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{'
+	  { pform_cross_scope_begin_(@6, *$4); }
+	cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
+	pform_cross_scope_end_();
+	cx.value_type = pending_cross_value_type_;
+	pending_cross_value_type_ = nullptr;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (auto& item : *$4) {
 	      cx.cp_labels.push_back(item.label);
@@ -4943,39 +5049,80 @@ cross_body_opt
 	cb.select = $5;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
+  | cross_body_opt K_bins bins_name '=' hierarchy_identifier attribute_list_opt argument_list_parens ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.set_expr = pform_make_call_function(@5, *$5, *$7);
+	delete $5;
+	pform_discard_call_attributes($6);
+	delete $7;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   /* IEEE 1800-2017 19.6.1: filter cross tuples with a predicate over the
      contributing coverpoint values. Keep the source cross name so a typo
      cannot silently select tuples from the surrounding declaration. */
-  | cross_body_opt K_illegal_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+  | cross_body_opt K_illegal_bins bins_name '=' bins_name K_with '(' expression ')' cross_matches_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
 	cb.with_cross = lex_strings.make($5);
 	cb.with_expr = $8;
+	if ($10) { cb.matches_expr = $10->expr; $10->expr = nullptr;
+	  cb.matches_all = $10->all; delete $10; }
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
-  | cross_body_opt K_ignore_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+  | cross_body_opt K_ignore_bins bins_name '=' bins_name K_with '(' expression ')' cross_matches_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
 	cb.with_cross = lex_strings.make($5);
 	cb.with_expr = $8;
+	if ($10) { cb.matches_expr = $10->expr; $10->expr = nullptr;
+	  cb.matches_all = $10->all; delete $10; }
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
-  | cross_body_opt K_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+  | cross_body_opt K_bins bins_name '=' bins_name K_with '(' expression ')' cross_matches_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
 	cb.with_cross = lex_strings.make($5);
 	cb.with_expr = $8;
+	if ($10) { cb.matches_expr = $10->expr; $10->expr = nullptr;
+	  cb.matches_all = $10->all; delete $10; }
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
   | cross_body_opt IDENTIFIER '.' IDENTIFIER '=' expression ';'
       { cov_option_set_(pending_cp_options_, @2, $2, $4, $6); }
+  | cross_body_opt function_declaration
+      { current_function = pending_cross_outer_function_; }
   | cross_body_opt error ';'
       { cerr << @2 << ": sorry: unsupported cross body item was "
 	     << "ignored." << endl;
 	yyerrok; }
+  ;
+
+/* The matches policy is evaluated against each candidate cross-bin tuple. */
+cross_matches_clause
+  : K_matches number
+      { $$ = new class_type_t::pform_cross_t::matches_t;
+	PENumber*value = new PENumber($2);
+	FILE_NAME(value, @2);
+	$$->expr = value; }
+  | K_matches hierarchy_identifier
+      { $$ = new class_type_t::pform_cross_t::matches_t;
+	PEIdent*value = pform_new_ident(@2, *$2);
+	FILE_NAME(value, @2);
+	$$->expr = value;
+	delete $2; }
+  | K_matches '$'
+      { $$ = new class_type_t::pform_cross_t::matches_t;
+	$$->all = true; }
+  ;
+
+cross_matches_opt
+  : %empty { $$ = nullptr; }
+  | cross_matches_clause { $$ = $1; }
   ;
 
 /* cross_bins_expr: binsof-based set expression for cross body items.
@@ -5002,10 +5149,13 @@ cross_bins_and
   ;
 
 cross_bins_with
-  : cross_bins_with K_with '(' expression ')'
+  : cross_bins_with K_with '(' expression ')' cross_matches_opt
       { auto*s = new class_type_t::pform_cross_t::select_t();
 	s->op = class_type_t::pform_cross_t::select_t::SEL_WITH;
-	s->a = $1; s->with_expr = $4; $$ = s; }
+	s->a = $1; s->with_expr = $4;
+	if ($6) { s->matches_expr = $6->expr; $6->expr = nullptr;
+	  s->matches_all = $6->all; delete $6; }
+	$$ = s; }
   | cross_bins_unary { $$ = $1; }
   ;
 
@@ -5877,6 +6027,7 @@ function_declaration /* IEEE1800-2005: A.2.6 */
   | K_function lifetime_opt data_type_or_implicit_or_void function_identifier ';'
       { recover_stale_function_scope(@1);
 	current_function = pform_push_function_scope(@1, $4, $2);
+	pform_cross_bind_function_types_(current_function);
       }
     tf_item_list_opt
     statement_or_null_list_opt
@@ -5897,6 +6048,7 @@ function_declaration /* IEEE1800-2005: A.2.6 */
   | K_function lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
 	current_function = pform_push_function_scope(@1, $4, $2);
+	pform_cross_bind_function_types_(current_function);
       }
     '(' tf_port_list_opt ')' ';'
     block_item_decls_opt
@@ -7578,7 +7730,7 @@ package_cg_port_prefix
         current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
-	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+	cov_capture_ctor_ports_(@1, $4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
 				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
@@ -8040,22 +8192,37 @@ port_direction_opt
   |                { $$ = NetNet::PIMPLICIT; }
   ;
 
-/* SystemVerilog task/function formal arguments may use qualifiers like
-   "const ref". Preserve const separately from the ref direction. */
-tf_port_direction_opt
-  : port_direction_opt { $$.direction = $1; $$.is_const = false; }
-  | K_const K_ref
-      { $$.direction = NetNet::PREF; $$.is_const = true;
+/* Preserve ref qualifiers separately from direction for edition gating and
+   elaboration. */
+tf_port_direction
+  : port_direction
+      { $$.direction = $1; $$.is_const = false; $$.is_ref_static = false; }
+  | tf_port_ref_direction { $$ = $1; }
+  ;
+
+tf_port_ref_direction
+  : K_const K_ref
+      { $$.direction = NetNet::PREF; $$.is_const = true; $$.is_ref_static = false;
 	if (!pform_requires_sv(@2, "Reference port (ref)")) {
 	      $$.direction = NetNet::PINPUT;
 	}
       }
   | K_ref K_const
-	{ $$.direction = NetNet::PREF; $$.is_const = true;
+	{ $$.direction = NetNet::PREF; $$.is_const = true; $$.is_ref_static = false;
 	if (!pform_requires_sv(@1, "Reference port (ref)")) {
 	      $$.direction = NetNet::PINPUT;
 	}
       }
+	| K_ref K_static
+	  { $$.direction = NetNet::PREF; $$.is_const = false; $$.is_ref_static = true; }
+	| K_const K_ref K_static
+	  { $$.direction = NetNet::PREF; $$.is_const = true; $$.is_ref_static = true; }
+	;
+
+tf_port_direction_opt
+	: port_direction_opt
+	  { $$.direction = $1; $$.is_const = false; $$.is_ref_static = false; }
+	| tf_port_ref_direction { $$ = $1; }
   ;
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
@@ -9439,8 +9606,9 @@ task_declaration /* IEEE1800-2005: A.2.7 */
 
 
 tf_port_declaration /* IEEE1800-2005: A.2.7 */
-  : port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
-      { $$ = pform_make_task_ports(@1, $1, $3, $4, true);
+  : tf_port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
+      { $$ = pform_make_task_ports(@1, $1.direction, $3, $4, true,
+				   $1.is_const, $1.is_ref_static);
       }
   ;
 
@@ -9460,6 +9628,8 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	NetNet::PortType use_port_type = $1.direction;
 	bool use_const = $1.direction == NetNet::PIMPLICIT
 	      ? port_declaration_context.is_const : $1.is_const;
+	bool use_ref_static = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_ref_static : $1.is_ref_static;
         if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
               use_port_type = port_declaration_context.port_type;
 	list<pform_port_t>* port_list = make_port_list($4, @4.lexical_pos, $5, 0);
@@ -9477,7 +9647,7 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      }
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list, false, use_const);
+					  port_list, false, use_const, use_ref_static);
 
 	} else {
 		// Otherwise, the decorations for this identifier
@@ -9485,13 +9655,14 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 		// context that may come later.
 	      port_declaration_context.port_type = use_port_type;
 	      port_declaration_context.is_const = use_const;
+	      port_declaration_context.is_ref_static = use_ref_static;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
 	      }
 	      port_declaration_context.data_type = $3;
 	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list,
-					 false, use_const);
+					 false, use_const, use_ref_static);
 	}
 
 	$$ = tmp;
@@ -9508,6 +9679,8 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	NetNet::PortType use_port_type = $1.direction;
 	bool use_const = $1.direction == NetNet::PIMPLICIT
 	      ? port_declaration_context.is_const : $1.is_const;
+	bool use_ref_static = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_ref_static : $1.is_ref_static;
         if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
               use_port_type = port_declaration_context.port_type;
 	/* make_port_list takes ownership of $4.text and deletes it */
@@ -9520,17 +9693,18 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	if (($3 == 0) && ($1.direction==NetNet::PIMPLICIT)) {
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list, false, use_const);
+					  port_list, false, use_const, use_ref_static);
 	} else {
 	      port_declaration_context.port_type = use_port_type;
 	      port_declaration_context.is_const = use_const;
+	      port_declaration_context.is_ref_static = use_ref_static;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
 	      }
 	      port_declaration_context.data_type = $3;
 	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list,
-					 false, use_const);
+					 false, use_const, use_ref_static);
 	}
 
 	$$ = tmp;
@@ -13058,6 +13232,29 @@ expr_primary
 	delete $5;
 	delete[]$1;
 	delete $3;
+	$$ = tmp;
+      }
+  | SYSTEM_IDENTIFIER '(' PACKAGE_IDENTIFIER ')'
+      { /* IEEE 1800-2023 20.4.1 permits a package scope here as a
+	   hierarchical_identifier, not as a value expression. Preserve its
+	   PPackage identity for elaboration-time scope resolution. */
+	if (strcmp($1, "$timeunit") != 0
+	    && strcmp($1, "$timeprecision") != 0)
+	      yyerror(@1, "error: A package scope argument is only valid for "
+		      "$timeunit or $timeprecision.");
+	pform_name_t path;
+	path.push_back(name_component_t($3->pscope_name()));
+	PEIdent*scope_arg = new PEIdent($3, path, @3.lexical_pos);
+	FILE_NAME(scope_arg, @3);
+	std::vector<named_pexpr_t> parms;
+	named_pexpr_t parm;
+	FILE_NAME(&parm, @3);
+	parm.name = perm_string();
+	parm.parm = scope_arg;
+	parms.push_back(parm);
+	PECallFunction*tmp = new PECallFunction(lex_strings.make($1), parms);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
 	$$ = tmp;
       }
   | SYSTEM_IDENTIFIER argument_list_parens
@@ -18018,13 +18215,14 @@ statement_item /* This is roughly statement_item in the LRM */
      ports are appended now and set_ports() prepends the tf_item ports
      at end so declaration order is preserved. Only legal at the top
      level of a task/function body. */
-  | port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
+  | tf_port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
       { PTaskFunc*routine = current_task
 	      ? static_cast<PTaskFunc*>(current_task)
 	      : static_cast<PTaskFunc*>(current_function);
 	if (routine && pform_peek_scope() == routine) {
 	      std::vector<pform_tf_port_t>*ports =
-		    pform_make_task_ports(@1, $1, $3, $4, true);
+		    pform_make_task_ports(@1, $1.direction, $3, $4, true,
+				  $1.is_const, $1.is_ref_static);
 	      routine->append_stmt_port_decls(ports);
 	} else {
 	      yyerror(@1, "error: Task/function port direction declarations "

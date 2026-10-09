@@ -2875,8 +2875,13 @@ void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
 	 b.trans_alt_count = trans_alt_count;
 	 b.trans_family = trans_family;
 	 b.trans_base = trans_base;
-	 b.guard_idx = guard_idx;
+      b.guard_idx = guard_idx;
       covgrp_bins_.push_back(b);
+	if (kind & COV_REAL_BIN) {
+	      if (covgrp_real_cps_.size() <= cp_idx)
+		    covgrp_real_cps_.resize(cp_idx + 1, false);
+	      covgrp_real_cps_[cp_idx] = true;
+	}
 }
 
 void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,

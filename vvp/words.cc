@@ -109,6 +109,39 @@ class packed_dims_resolv_t : public resolv_list_s {
       vpiHandle obj_;
 };
 
+class source_location_resolv_t : public resolv_list_s {
+    public:
+      source_location_resolv_t(char*label, unsigned file_idx, unsigned lineno)
+      : resolv_list_s(label), file_idx_(file_idx), lineno_(lineno) { }
+
+      bool resolve(bool message_flag) override
+      {
+            vpiHandle obj = vvp_lookup_handle(label());
+            if (!obj) {
+                  if (message_flag) {
+                        yyerror("unresolved VPI source location target");
+                        compile_errors += 1;
+                        return true;
+                  }
+                  return false;
+            }
+            if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(obj)) {
+                  sig->set_source_location(file_idx_, lineno_);
+            } else if (__vpiCobjectVar*var =
+                       dynamic_cast<__vpiCobjectVar*>(obj)) {
+                  var->set_source_location(file_idx_, lineno_);
+            } else {
+                  yyerror("VPI source location target is not a supported source object");
+                  compile_errors += 1;
+            }
+            return true;
+      }
+
+    private:
+      unsigned file_idx_;
+      unsigned lineno_;
+};
+
 void compile_packed_dims(char*label, char*layout)
 {
       vector<__vpiSignal::packed_range_t> ranges;
@@ -520,6 +553,21 @@ void compile_variable(char*label, char*name,
 
       free(label);
       delete[] name;
+}
+
+void compile_vpi_source_location(char*label, uint64_t file_idx,
+                                 uint64_t lineno)
+{
+      if (file_idx > UINT_MAX || lineno > UINT_MAX) {
+	    yyerror("VPI source location is out of range");
+	    compile_errors += 1;
+	  } else {
+	    resolv_submit(new source_location_resolv_t(
+		  label, static_cast<unsigned>(file_idx),
+		  static_cast<unsigned>(lineno)));
+	    return;
+      }
+      free(label);
 }
 
 

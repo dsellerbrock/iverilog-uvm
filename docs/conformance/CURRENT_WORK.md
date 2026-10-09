@@ -1,8 +1,8 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus — 2026-10-08: issue #450
+## Current IEEE 1800 focus — 2026-10-09: issue #450 refresh
 
-**Associative-array value parameters — locally validated, draft PR pending.**
+**Associative-array value parameters — refreshed PR #466.**
 IEEE 1800-2023 Annex A A.2.4/A.2.5 admits associative dimensions for
 parameters; 1800-2017 A.2.4 does not. The change adds direct 2023 module and
 class value parameters, string/integral/wildcard keys and defaults,
@@ -10,22 +10,17 @@ constant-key reads, and class specialization identity, while preserving strict
 2017 rejection.
 The class map identity test checks reordered entries and a changed value.
 
-Focused legacy/JSON tests pass 4/4 each; neighboring legacy passes 6/6 and
-JSON 8/8; full legacy passes 5,046/5,046; real-DPI UVM passes 363/363. A
-full JSON run reported 4 failures. Two FPGA-target cases passed after the
-optional local target was installed and those cases rerun. Two packed-struct
-constraint-state variants still fail; they are recorded as DD-112, with
-baseline status unverified. The clean Ubuntu 24.04 ARM64/GCC build completed
-under a 4 GB container memory cap. Bison conflicts remain 574 shift/reduce and
-1,122 reduce/reduce. Do not claim CI green; follow exact-head PR CI without
-repeated polling. See [blocker evidence](BLOCKERS.md#ieee-1800-assoc-array-typed-parameters--issue-450-root-caused)
+After merging latest `origin/main`, the macOS `make YACC=/opt/homebrew/opt/bison/bin/bison -j2` and install pass; the paired focused legacy and JSON/VVP lists each pass 4/4. Prior full legacy passed 5,046/5,046 and real-DPI UVM passed 363/363. The earlier full JSON run had four failures: two optional FPGA target cases passed when rerun after target installation, and the two packed-struct constraint-state variants remain triage-pending as DD-116. Bison remains at 574 shift/reduce and 1,122 reduce/reduce. No refreshed exact-head CI result is reported. See [blocker evidence](BLOCKERS.md#ieee-1800-assoc-array-typed-parameters--issue-450-root-caused)
 and [the 2023 matrix entry](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--associative-array-value-parameters).
 
-**Next:** finish review and open one draft PR to `main`. After issue #450's
-delivery, return to the requested IEEE-only backlog of the next 50 missing
-items. Keep OpenTitan and Caliptra out of active selection unless redirected.
+**Next:** inspect exact-head CI when checks appear. The user will merge PR #466. Continue with the existing IEEE-only backlog after issue #450 is delivered; keep OpenTitan and Caliptra out of active selection unless redirected.
 
-## Previous IEEE 1800 focus — 2026-10-07
+The complete uncapped IEEE 1800-2017/2023 issue inventory and selection rules
+are in the [conformance index](INDEX.md). The remaining clause-35 DPI array
+gaps are tracked by [#505](https://github.com/dsellerbrock/iverilog-uvm/issues/505)
+and [#506](https://github.com/dsellerbrock/iverilog-uvm/issues/506).
+
+## Current IEEE 1800 focus — 2026-10-07
 
 **Fix 41 locally qualified:** unequal fixed-length `intersect` operands now
 lower as a legal empty sequence in the default SVA NFA engine. The paired

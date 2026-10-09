@@ -1,0 +1,5 @@
+ivltests/sv_covergroup_real_interval_fail_2023.v:5: error: type_option.real_interval requires a positive finite constant.
+ivltests/sv_covergroup_real_interval_fail_2023.v:4: error: real coverpoint array bin 'b' requires a positive finite type_option.real_interval.
+ivltests/sv_covergroup_real_interval_fail_2023.v:9: error: real coverpoint array bin 'b' requires a positive finite type_option.real_interval.
+ivltests/sv_covergroup_real_interval_fail_2023.v:15: error: real covergroup bin 'b' exceeds the 65536-bin implementation limit.
+4 error(s) during elaboration.

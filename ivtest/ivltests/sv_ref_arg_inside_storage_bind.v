@@ -1,6 +1,4 @@
-// R25 companion-path matrix: detached (join_none) write through a ref
-// formal, task returns before the write. IEEE 13.5.2: ref binds the
-// ACTUAL; the caller variable is alive, so the write must land.
+// Ordinary-ref actuals remain bound while a blocking fork writes them.
 class obj_c;
   int p = 0;
   real pr = 0.0;
@@ -18,8 +16,8 @@ module top;
   st_t s;
   int fails = 0;
 
-  task automatic wi(ref int x);    fork #1 x = 42;    join_none endtask
-  task automatic wr(ref real x);   fork #1 x = 3.5;   join_none endtask
+  task automatic wi(ref int x);    fork #1 x = 42;    join endtask
+  task automatic wr(ref real x);   fork #1 x = 3.5;   join endtask
 
   initial begin
     arr[2] = 0; q.push_back(0); da = new[2]; o = new;

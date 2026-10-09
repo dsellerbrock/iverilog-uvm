@@ -28,12 +28,14 @@
  */
 
 # include  <algorithm>
+# include  <cmath>
 # include  <functional>
 # include  <utility>
 # include  <typeinfo>
 # include  <climits>
 # include  <cstdlib>
 # include  <cstring>
+# include  <limits>
 # include  <ctime>
 # include  <iostream>
 # include  <sstream>
@@ -18456,6 +18458,12 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       if (NetAssign_*lv = actual->elaborate_lval(
 				des, scope, false, false, false,
 				port->get_const())) {
+	    if (port->get_ref_static()
+		&& !ref_static_actual_is_static_lifetime(lv)) {
+		  des->errors += 1;
+		  delete lv;
+		  return nullptr;
+	    }
 	    if (port->get_const()) {
 		ivl_type_t formal_type = port->net_type();
 		ivl_type_t actual_type = netassign_type_for_equivalence(lv);
@@ -18621,6 +18629,14 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       }
 
       if (sig == 0) {
+	    if (port->get_ref_static()) {
+		  cerr << actual->get_fileline() << ": error: ref static actual "
+		       << "cannot be copied through a temporary; it must be "
+		       << "bound directly to static storage (IEEE 1800-2023 13.5.2)."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	      /* Bind to a temporary of the formal's own type and let the
 		 caller copy the actual in and out through it. */
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
@@ -39869,8 +39885,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				"detect_overlap", "cross_num_print_missing",
 				"cross_retain_auto_bins",
 				"type_option.weight", "type_option.goal",
-				"type_option.comment", "type_option.strobe",
-				"type_option.merge_instances", 0 };
+		"type_option.comment", "type_option.strobe",
+		"type_option.merge_instances", "type_option.real_interval", 0 };
 				  for (auto&kv : opts) {
 					if (kv.first == "type_option.cross_retain_auto_bins") {
 					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
@@ -39887,9 +39903,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					      des->errors += 1;
 					      continue;
 					}
-					bool okopt = false;
-				for (const char**k = known; *k; k++)
-				      if (kv.first == *k) { okopt = true; break; }
+				bool okopt = false;
+			for (const char**k = known; *k; k++)
+			      if (kv.first == *k) { okopt = true; break; }
+			if (kv.first == "type_option.real_interval"
+			    && kv.second
+			    && !sv_require_feature(kv.second,
+						  SVF_REAL_COVERPOINT_BINS))
+			      des->errors += 1;
 				if (!okopt)
 				      cerr << "sorry: unknown covergroup option '"
 					   << kv.first << "' in " << where
@@ -40518,6 +40539,84 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  return true;
 		    };
+		    auto real_key = [](double value) -> uint64_t {
+			  if (value == 0.0) value = 0.0;
+			  uint64_t bits;
+			  memcpy(&bits, &value, sizeof bits);
+			  return (bits & (UINT64_C(1) << 63)) ? ~bits
+				: bits ^ (UINT64_C(1) << 63);
+		    };
+		    auto eval_real_ranges = [&](std::vector<std::pair<PExpr*,PExpr*>>&ranges,
+					std::vector<std::pair<uint64_t,uint64_t>>&rout,
+					const char*bin_name, double interval,
+					bool partition) -> bool {
+			  auto endpoint = [&](PExpr*expr, double&value) -> bool {
+				if (!expr || range_references_runtime(expr)) return false;
+				NetExpr*net = elab_and_eval(des, class_scope_, expr,
+							    -1, false, false);
+				bool ok = false;
+				if (const NetECReal*real = dynamic_cast<const NetECReal*>(net)) {
+				      value = real->value().as_double();
+				      ok = true;
+				} else if (const NetEConst*integer =
+					   dynamic_cast<const NetEConst*>(net)) {
+				      value = integer->value().as_double();
+				      ok = integer->value().is_defined();
+				}
+				delete net;
+				return ok && std::isfinite(value);
+			  };
+			  for (auto&range : ranges) {
+				if (!range.first || !range.second) {
+				      cerr << "error: real covergroup bin '" << bin_name
+					   << "' requires finite range endpoints." << endl;
+				      return false;
+				}
+				double lo, hi;
+				if (!endpoint(range.first, lo) || !endpoint(range.second, hi)) {
+				      cerr << range.first->get_fileline()
+					   << ": error: real covergroup bin '" << bin_name
+					   << "' requires constant finite endpoints." << endl;
+				      des->errors += 1;
+				      return false;
+				}
+				if (hi < lo) std::swap(lo, hi);
+				if (!partition) {
+				      rout.push_back(std::make_pair(real_key(lo), real_key(hi)));
+				      continue;
+				}
+				double quotient = (hi - lo) / interval;
+				double nearest = std::round(quotient);
+				if (std::fabs(quotient - nearest)
+				    <= 8.0 * std::numeric_limits<double>::epsilon()
+						 * std::max(1.0, std::fabs(quotient)))
+				      quotient = nearest;
+				if (!std::isfinite(quotient) || quotient > 65536.0) {
+				      cerr << range.first->get_fileline()
+					   << ": error: real covergroup bin '" << bin_name
+					   << "' exceeds the 65536-bin implementation limit."
+					   << endl;
+				      des->errors += 1;
+				      return false;
+				}
+				uint64_t count = std::max<uint64_t>(1,
+				      (uint64_t)std::ceil(quotient));
+				// shortcut: 65,536 generated bins, raise only with bounded
+				// runtime and coverage-count support.
+				for (uint64_t i = 0; i < count; ++i) {
+				      double first = lo + (double)i * interval;
+				      double last = i + 1 == count ? hi
+					    : std::min(hi, lo + (double)(i + 1) * interval);
+				      uint64_t key_lo = real_key(first);
+				      uint64_t key_hi = real_key(i + 1 == count ? last
+					    : std::nextafter(last,
+						  -std::numeric_limits<double>::infinity()));
+				      if (key_lo <= key_hi)
+					    rout.push_back(std::make_pair(key_lo, key_hi));
+				}
+			  }
+			  return true;
+		    };
 
 		      // Apply the common, potentially enormous, set-valued form
 		      //
@@ -40980,6 +41079,56 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  ivl_type_t cp_type = coverpoint_expr_type(cp.expr);
 			  ivl_variable_type_t cp_base = cp_type
 				? cp_type->base_type() : IVL_VT_NO_TYPE;
+			  bool cp_real_type = cp_base == IVL_VT_REAL
+				|| (cp.expr && cp.expr->expr_type() == IVL_VT_REAL);
+			  auto cp_interval_it = cp.options.find(
+				perm_string::literal("type_option.real_interval"));
+			  auto group_interval_it = cgdef->options.find(
+				perm_string::literal("type_option.real_interval"));
+			  PExpr*real_interval_expr = cp_interval_it != cp.options.end()
+				? cp_interval_it->second
+				: group_interval_it != cgdef->options.end()
+				      ? group_interval_it->second : nullptr;
+			  bool cp_real_supported = cp_real_type
+				&& sv_feature_available(SVF_REAL_COVERPOINT_BINS);
+			  if (cp_real_type && !cp_real_supported
+			      && !real_interval_expr) {
+				if (!sv_require_feature(cp.expr,
+							SVF_REAL_COVERPOINT_BINS))
+				      des->errors += 1;
+			  }
+			  double real_interval = 0.0;
+			  bool real_interval_valid = false;
+			  if (cp_real_supported && real_interval_expr) {
+				NetExpr*value = elab_and_eval(des, class_scope_,
+						      real_interval_expr, -1, false, false);
+				double interval = 0.0;
+				bool constant = false;
+				if (const NetECReal*real =
+				      dynamic_cast<const NetECReal*>(value)) {
+				      interval = real->value().as_double();
+				      constant = true;
+				} else if (const NetEConst*integer =
+					   dynamic_cast<const NetEConst*>(value)) {
+				      interval = integer->value().as_double();
+				      constant = integer->value().is_defined();
+				}
+				delete value;
+				if (!constant || !std::isfinite(interval) || interval <= 0.0) {
+				      cerr << real_interval_expr->get_fileline()
+					   << ": error: type_option.real_interval requires a "
+					   << "positive finite constant." << endl;
+				      des->errors += 1;
+				} else {
+				      real_interval = interval;
+				      real_interval_valid = true;
+				}
+			  }
+			  if (cp_real_supported) {
+				cp_value_width = 64;
+				cp_value_signed = false;
+				cp_value_supported = true;
+			  }
 			  bool cp_wide_exact_supported = cp_type && cp_type->packed()
 				&& (cp_base == IVL_VT_BOOL || cp_base == IVL_VT_LOGIC)
 				&& !cp_value_signed && cp_value_width > 64
@@ -41076,8 +41225,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (xbin.wildcard || !xbin.trans_seqs.empty())
 				      continue;
 				std::vector<std::pair<uint64_t,uint64_t>> xr;
-				if (eval_ranges(xbin.ranges, xr, cp_value_width,
-					  cp_value_signed, xbin.name.str()))
+				bool range_ok = cp_real_supported
+				      ? eval_real_ranges(xbin.ranges, xr,
+					    xbin.name.str(), real_interval, false)
+				      : eval_ranges(xbin.ranges, xr, cp_value_width,
+					    cp_value_signed, xbin.name.str());
+				if (range_ok)
 				      carve_ranges.insert(carve_ranges.end(),
 							  xr.begin(), xr.end());
 			  }
@@ -41211,12 +41364,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  for (auto& bin : cp.bins) {
 				unsigned base_kind = (unsigned)bin.kind;
 				unsigned kindval = base_kind | (bin.wildcard ? 8u : 0u);
+				if (cp_real_supported) kindval |= netclass_t::COVGRP_REAL_BIN;
 				unsigned bin_guard = bin.iff_expr
 				      ? cg_class->add_covgrp_bin_guard(bin.iff_expr)
 				      : netclass_t::COVGRP_NO_GUARD;
 				std::string bstem = std::string("__bin_")
 						  + std::string(cp.label.str())
-						  + "_" + std::string(bin.name.str());
+						+ "_" + std::string(bin.name.str());
+				if (cp_real_supported
+				    && (!bin.trans_seqs.empty() || bin.set_expr
+					|| bin.wildcard || !bin.source_coverpoint.nil()
+					|| bin.with_expr || bin.array_size)) {
+				      cerr << pclass->get_fileline()
+					   << ": error: real coverpoint bin '" << bin.name
+					   << "' uses a bin form outside real range bins." << endl;
+				      des->errors += 1;
+				      continue;
+				}
 				if (cp_value_width > 64 && !bin.trans_seqs.empty()) {
 				      cerr << pclass->get_fileline()
 					   << ": error: wide covergroup transition bin '"
@@ -41568,8 +41732,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // Runtime kinds 5 and 6 are the complements of all
 				        // ordinary bins in the item.  Keeping these distinct
 				        // preserves illegal_bins/ignore_bins = default.
-				      unsigned default_kind = base_kind == 2 ? 5u
-							    : base_kind == 1 ? 6u : 3u;
+					unsigned default_kind = (base_kind == 2 ? 5u
+							    : base_kind == 1 ? 6u : 3u)
+						    | (cp_real_supported
+							 ? netclass_t::COVGRP_REAL_BIN : 0u);
 					      int default_added = add_unique_cov_counter(bstem);
 					      if (default_added < 0) continue;
 					      unsigned default_prop = (unsigned)default_added;
@@ -41737,7 +41903,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      continue;
 				}
 
-				if (bin.set_expr) {
+				      if (bin.set_expr) {
 				        // A set_covergroup_expression is immutable for the
 				        // lifetime of a legal covergroup instance.  Preserve a
 				        // direct integral container property as compact runtime
@@ -41834,6 +42000,86 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    vbins.push_back(d);
 					    has_value_bins = true;
 				      }
+				      continue;
+				      }
+
+				if (cp_real_supported) {
+				      if (bin.arrayed && base_kind == 0
+					  && !real_interval_valid) {
+					cerr << pclass->get_fileline()
+					     << ": error: real coverpoint array bin '"
+					     << bin.name << "' requires a positive finite "
+					     << "type_option.real_interval." << endl;
+					des->errors += 1;
+					continue;
+				      }
+				      std::vector<std::pair<uint64_t,uint64_t>> real_ranges;
+				      if (!eval_real_ranges(bin.ranges, real_ranges,
+					    bin.name.str(), real_interval,
+					    bin.arrayed && base_kind == 0))
+					continue;
+				      if (real_ranges.empty()) {
+					if (base_kind == 0) has_value_bins = true;
+					continue;
+				      }
+				      if (base_kind == 1) {
+					unsigned tuple = 0;
+					for (auto&range : real_ranges)
+					      cg_class->add_covgrp_bin(cp_idx,
+						    netclass_t::COVGRP_NO_PROP,
+						    range.first, range.second, kindval,
+						    tuple++, cp_idx, 0, 1, 1, 0, 1,
+						    netclass_t::COVGRP_NO_FAMILY, 0,
+						    bin_guard);
+					continue;
+				      }
+				      if (base_kind == 2) {
+					unsigned prop = add_unique_cov_counter(bstem);
+					if (prop < 0) continue;
+					unsigned tuple = 0;
+					for (auto&range : real_ranges)
+					      cg_class->add_covgrp_bin(cp_idx,
+						    (unsigned)prop, range.first,
+						    range.second, kindval, tuple++, cp_idx,
+						    0, 1, 1, 0, 1,
+						    netclass_t::COVGRP_NO_FAMILY, 0,
+						    bin_guard);
+					continue;
+				      }
+				      if (!bin.arrayed) {
+					subtract_carved(real_ranges);
+					if (real_ranges.empty()) {
+					      has_value_bins = true;
+					      continue;
+					}
+					unsigned prop = add_value_prop(bstem, real_ranges,
+						      kindval, bin_guard);
+					xbin_desc_t desc;
+					desc.name = bin.name;
+					desc.ranges = real_ranges;
+					desc.source_prop = (int)prop;
+					desc.guard_idx = bin_guard;
+					vbins.push_back(std::move(desc));
+				      } else {
+					for (size_t idx = 0; idx < real_ranges.size(); ++idx) {
+					      std::vector<std::pair<uint64_t,uint64_t>> range(1,
+						    real_ranges[idx]);
+					      subtract_carved(range);
+					      if (range.empty()) continue;
+					      std::string name = bstem + "_" + std::to_string(idx);
+					      unsigned prop = add_value_prop(name, range,
+						    kindval, bin_guard);
+					      xbin_desc_t desc;
+					      desc.name = lex_strings.make(
+						    (std::string(bin.name.str()) + "["
+						     + std::to_string(idx) + "]").c_str());
+					      desc.ranges = range;
+					      desc.source_prop = (int)prop;
+					      desc.guard_idx = bin_guard;
+					      vbins.push_back(std::move(desc));
+					}
+				      }
+				      has_value_bins = true;
 				      continue;
 				}
 
@@ -42906,7 +43152,63 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  if (!cross_props_ok) continue;
 
 			  static const uint64_t cross_bin_limit = 65536;
-			  std::function<int(PExpr*, const std::vector<unsigned>&, size_t)> eval_with;
+			  struct match_policy_t {
+				uint64_t required = 1;
+				bool all = false;
+				bool valid = true;
+			  };
+			  auto make_match_policy = [&](PExpr*expr, bool all,
+					       size_t ub) -> match_policy_t {
+				match_policy_t policy;
+				if (all) { policy.all = true; return policy; }
+				if (!expr) return policy;
+				unsigned errors_before = des->errors;
+				unique_ptr<NetExpr>value(elab_and_eval(des, class_scope_,
+								       expr, -1, false, false));
+				const NetEConst*constant =
+				      dynamic_cast<const NetEConst*>(value.get());
+				bool negative = false;
+				uint64_t required = constant && constant->value().is_defined()
+				      ? verinum_signed_magnitude(constant->value(), negative) : 0;
+				if (!constant || !constant->value().is_defined()
+				    || negative || required == 0) {
+				      if (des->errors == errors_before) {
+					cerr << expr->get_fileline() << ": error: cross bin '"
+					     << cross.bins[ub].name << "' matches count must be a "
+						"positive constant integer or '$'." << endl;
+					des->errors += 1;
+				      }
+				      policy.valid = false;
+				      return policy;
+				}
+				policy.required = std::min(required, cross_bin_limit + 1);
+				return policy;
+			  };
+			  std::map<sel_t*, match_policy_t> select_matches;
+			  std::function<void(sel_t*, size_t)> prepare_select_matches;
+			  prepare_select_matches = [&](sel_t*s, size_t ub) {
+				if (!s) return;
+				if (s->op == sel_t::SEL_WITH) {
+				      match_policy_t policy = make_match_policy(
+					    s->matches_expr, s->matches_all, ub);
+				      select_matches[s] = policy;
+				      if (!policy.valid) ubin_sorried[ub] = true;
+				}
+				prepare_select_matches(s->a, ub);
+				prepare_select_matches(s->b, ub);
+			  };
+			  std::vector<match_policy_t> bin_matches(cross.bins.size());
+			  for (size_t ub = 0; ub < cross.bins.size(); ub++) {
+				prepare_select_matches(cross.bins[ub].select, ub);
+				if (cross.bins[ub].with_expr) {
+				      bin_matches[ub] = make_match_policy(
+					    cross.bins[ub].matches_expr,
+					    cross.bins[ub].matches_all, ub);
+				      if (!bin_matches[ub].valid) ubin_sorried[ub] = true;
+				}
+			  }
+			  std::function<int(PExpr*, const std::vector<unsigned>&, size_t,
+					    const match_policy_t&)> eval_with;
 			  std::function<bool(sel_t*)> select_has_with = [&](sel_t*s) {
 				  return s && (s->op == sel_t::SEL_WITH
 						|| select_has_with(s->a) || select_has_with(s->b));
@@ -42935,7 +43237,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    case sel_t::SEL_WITH: {
 				  int sa = eval_sel(s->a, tup, ub);
 				  if (sa <= 0) return sa;
-				  return eval_with(s->with_expr, tup, ub);
+				  auto policy = select_matches.find(s);
+				  if (policy == select_matches.end()) return -1;
+				  return eval_with(s->with_expr, tup, ub, policy->second);
 			    }
 				    case sel_t::SEL_BINSOF: {
 					  int k = -1;
@@ -42993,11 +43297,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				return -1;
 			  };
 
-			  eval_with = [&](PExpr*with_expr, const std::vector<unsigned>&idx, size_t ub) -> int {
+			  eval_with = [&](PExpr*with_expr, const std::vector<unsigned>&idx,
+					  size_t ub, const match_policy_t&policy) -> int {
+				if (!policy.valid) return -1;
 				  // The default `matches 1` policy needs only existence. For
 				  // relational comparisons over unsigned integral bin ranges,
 				  // extrema or range overlap decide that without enumerating
 				  // the full product of values.
+				  if (!policy.all && policy.required == 1)
 				  if (PEBinary*rel = dynamic_cast<PEBinary*>(with_expr)) {
 					char op = rel->get_op();
 					PEIdent*left = dynamic_cast<PEIdent*>(rel->get_left());
@@ -43053,7 +43360,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  bool value_product_too_large = false;
 				  for (size_t k = 0; k < idx.size(); k++) {
 					const xbin_desc_t&d = cp_value_bins[cp_indexes[k]][idx[k]];
-					if (d.ranges.empty() || d.wildcard || d.transition_prop >= 0
+					if (d.ranges.empty() || d.transition_prop >= 0
 					    || d.transition_family >= 0 || d.dyn_family >= 0) {
 					      values_ok = false; break;
 					}
@@ -43062,22 +43369,58 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					unsigned width = cp_value_widths[cp_index];
 					if (width == 0 || width > 64) { values_ok = false; break; }
 					uint64_t mask = width >= 64 ? UINT64_MAX : (((uint64_t)1 << width) - 1);
-					uint64_t sign = width ? ((uint64_t)1 << (width-1)) : 0;
-					for (const auto&r : d.ranges) {
-					      uint64_t first = r.first & mask, last = r.second & mask;
-					      bool crosses_zero = cp_value_signedness[cp_index]
-						    && !(first & sign) && (last & sign);
-					      if (!crosses_zero && last < first) { values_ok = false; break; }
-					      uint64_t count = crosses_zero ? (mask-last+1) + (first+1) : last-first+1;
-					      if (count == 0 || count > cross_bin_limit) { value_product_too_large = true; break; }
-					      uint64_t value = crosses_zero ? last : first;
-					      for (uint64_t n = 0; n < count; n++) {
-						    unique_values.insert(value);
-						    if (unique_values.size() > cross_bin_limit) { value_product_too_large = true; break; }
-						    if (crosses_zero && value == mask) value = 0; else value += 1;
+					if (d.wildcard) {
+					      std::set<std::pair<uint64_t,uint64_t>> patterns(
+						    d.ranges.begin(), d.ranges.end());
+					      uint64_t expanded_values = 0;
+					      for (const auto&pattern : patterns) {
+						    std::vector<unsigned> free_bits;
+						    for (unsigned bit = 0; bit < width; bit++)
+							  if (!(pattern.second & (UINT64_C(1) << bit)))
+								free_bits.push_back(bit);
+						    if (free_bits.size() > 16) {
+							  value_product_too_large = true;
+							  break;
+						    }
+						    uint64_t count = UINT64_C(1) << free_bits.size();
+						    for (uint64_t combination = 0; combination < count;
+							 combination++) {
+							  if (++expanded_values > cross_bin_limit) {
+								value_product_too_large = true;
+								break;
+							  }
+							  uint64_t value = pattern.first & mask;
+							  for (size_t free_idx = 0;
+							       free_idx < free_bits.size(); free_idx++)
+								if (combination & (UINT64_C(1) << free_idx))
+								      value |= UINT64_C(1) << free_bits[free_idx];
+							  unique_values.insert(value);
+							  if (unique_values.size() > cross_bin_limit) {
+								value_product_too_large = true;
+								break;
+							  }
+						    }
+						    if (value_product_too_large) break;
 					      }
-					      if (value_product_too_large) break;
+					} else {
+					      uint64_t sign = width ? ((uint64_t)1 << (width-1)) : 0;
+					      for (const auto&r : d.ranges) {
+						    uint64_t first = r.first & mask, last = r.second & mask;
+						    bool crosses_zero = cp_value_signedness[cp_index]
+							  && !(first & sign) && (last & sign);
+						    if (!crosses_zero && last < first) { values_ok = false; break; }
+						    uint64_t count = crosses_zero ? (mask-last+1) + (first+1) : last-first+1;
+						    if (count == 0 || count > cross_bin_limit) { value_product_too_large = true; break; }
+						    uint64_t value = crosses_zero ? last : first;
+						    for (uint64_t n = 0; n < count; n++) {
+							  unique_values.insert(value);
+							  if (unique_values.size() > cross_bin_limit) { value_product_too_large = true; break; }
+							  if (crosses_zero && value == mask) value = 0; else value += 1;
+						    }
+						    if (value_product_too_large) break;
+					      }
 					}
+					if (value_product_too_large || !values_ok) break;
 					dimension_values[k].assign(unique_values.begin(), unique_values.end());
 					if (value_product_too_large || dimension_values[k].empty()
 					    || value_tuple_count > cross_bin_limit / dimension_values[k].size()) {
@@ -43097,6 +43440,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  }
 				  if (!values_ok) return -1;
 				  std::vector<uint64_t> value_idx(idx.size(), 0);
+				  uint64_t satisfying_tuples = 0;
 				  for (uint64_t t = 0; t < value_tuple_count; t++) {
 					std::map<perm_string,int64_t> tuple_values;
 					for (size_t k = 0; k < idx.size(); k++) {
@@ -43109,14 +43453,142 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					}
 					int64_t result = 0;
 					if (cov_named_eval_(with_expr, tuple_values, result) < 0) return -1;
-					if (result != 0) return 1;
+					if (result != 0) {
+					      satisfying_tuples += 1;
+					      if (!policy.all
+						  && satisfying_tuples >= policy.required)
+						    return 1;
+					}
 					for (size_t k = 0; k < value_idx.size(); k++) {
 					      if (++value_idx[k] < dimension_values[k].size()) break;
 					      value_idx[k] = 0;
 					}
 				  }
-				  return 0;
+				  return policy.all
+					? (satisfying_tuples == value_tuple_count ? 1 : 0)
+					: 0;
 			  };
+			  std::vector<std::set<std::vector<unsigned>>> set_bin_tuples(
+				cross.bins.size());
+			  bool set_bins_ok = true;
+			  for (size_t ub = 0; ub < cross.bins.size(); ub += 1) {
+				xbin_t&cb = cross.bins[ub];
+				if (!cb.set_expr) continue;
+				unsigned errors_before = des->errors;
+				unique_ptr<NetExpr>set_value(elab_and_eval(
+				      des, class_scope_, cb.set_expr, -1, true, false));
+				const NetEArrayPattern*queue = dynamic_cast<const NetEArrayPattern*>(
+				      set_value.get());
+				if (!queue && !dynamic_cast<const NetENull*>(set_value.get())) {
+				      if (des->errors == errors_before) {
+					cerr << cb.set_expr->get_fileline() << ": error: cross bin '"
+					     << cb.name << "' set expression must evaluate to a "
+						"constant CrossQueueType value." << endl;
+					des->errors += 1;
+				      }
+				      set_bins_ok = false;
+				      continue;
+				}
+				if (!queue) continue;
+				if (queue->item_size() > cross_bin_limit) {
+				      cerr << cb.set_expr->get_fileline() << ": error: cross bin '"
+					   << cb.name << "' CrossQueueType exceeds the "
+					      << cross_bin_limit << " tuple limit." << endl;
+				      des->errors += 1;
+				      set_bins_ok = false;
+				      continue;
+				}
+				for (size_t qi = 0; qi < queue->item_size(); qi += 1) {
+				      const NetEArrayPattern*tuple = dynamic_cast<const NetEArrayPattern*>(
+					    queue->item(qi));
+				      if (!tuple || tuple->item_size() != cp_indexes.size()) {
+					    cerr << cb.set_expr->get_fileline() << ": error: cross bin '"
+						 << cb.name << "' contains a CrossValType value with the "
+						    "wrong number of cross fields." << endl;
+					    des->errors += 1;
+					    set_bins_ok = false;
+					    break;
+				      }
+				      std::vector<std::vector<unsigned>> dimensions;
+				      bool tuple_ok = true;
+				      for (size_t dim = 0; dim < cp_indexes.size(); dim += 1) {
+					    const NetEConst*field = dynamic_cast<const NetEConst*>(
+						  tuple->item(dim));
+					    unsigned cp_index = cp_indexes[dim];
+					    unsigned width = cp_value_widths[cp_index];
+					    if (!field || !field->value().is_defined()
+						|| width == 0 || width > 64) {
+						  cerr << cb.set_expr->get_fileline() << ": error: cross bin '"
+						       << cb.name << "' CrossValType fields must be defined "
+							  "integral values no wider than 64 bits." << endl;
+						  des->errors += 1;
+						  set_bins_ok = false;
+						  tuple_ok = false;
+						  break;
+				    }
+					    verinum bits = cast_to_width(field->value(), width);
+					    uint64_t value = bits.as_ulong64();
+					    if (width < 64) value &= (UINT64_C(1) << width) - 1;
+					    std::vector<unsigned> matches;
+					    const std::vector<xbin_desc_t>&descs =
+						  cp_value_bins[cp_index];
+					    for (size_t bi = 0; bi < descs.size(); bi += 1) {
+						  const xbin_desc_t&desc = descs[bi];
+						  if (desc.wildcard || desc.dyn_family >= 0
+						      || desc.transition_prop >= 0
+						      || desc.transition_family >= 0
+						      || !desc.wide_values.empty()) {
+							cerr << cb.set_expr->get_fileline()
+							     << ": error: cross bin '" << cb.name
+							     << "' CrossQueueType selection requires fixed "
+								"integral source bins." << endl;
+							des->errors += 1;
+							set_bins_ok = false;
+							tuple_ok = false;
+							break;
+						  }
+						  for (const auto&range : desc.ranges)
+							if (range.first <= value && value <= range.second) {
+							      matches.push_back(static_cast<unsigned>(bi));
+							      break;
+							}
+					    }
+					    if (!tuple_ok) break;
+					    dimensions.push_back(std::move(matches));
+				      }
+				      if (!tuple_ok) break;
+				      if (std::any_of(dimensions.begin(), dimensions.end(),
+						    [](const std::vector<unsigned>&dim) {
+							  return dim.empty();
+						    })) continue;
+				      std::vector<size_t> selected(dimensions.size(), 0);
+				      while (true) {
+					    std::vector<unsigned>cross_tuple;
+					    for (size_t dim = 0; dim < dimensions.size(); dim += 1)
+						  cross_tuple.push_back(dimensions[dim][selected[dim]]);
+					    set_bin_tuples[ub].insert(std::move(cross_tuple));
+					    if (set_bin_tuples[ub].size() > cross_bin_limit) {
+						  cerr << cb.set_expr->get_fileline()
+						       << ": error: cross bin '" << cb.name
+						       << "' selection exceeds the " << cross_bin_limit
+						       << " tuple limit." << endl;
+						  des->errors += 1;
+						  set_bins_ok = false;
+						  break;
+					    }
+					    size_t dim = 0;
+					    while (dim < selected.size()) {
+						  selected[dim] += 1;
+						  if (selected[dim] < dimensions[dim].size()) break;
+						  selected[dim] = 0;
+						  dim += 1;
+					    }
+					    if (dim == selected.size()) break;
+				      }
+				      if (!set_bins_ok) break;
+				}
+			  }
+			  if (!set_bins_ok) continue;
 
 			  // Product count check.  OpenTitan legitimately creates an
 			    // 8192-bin cross; keep a guard against accidental explosive
@@ -43142,17 +43614,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				cerr << " product=" << nprod << endl;
 			  }
 				  if (nprod == 0) {
-					cerr << (has_wide_bin ? "error: " : "sorry: ")
-					     << "cross '"
-					     << (cross.label.nil() ? "(unnamed)"
-								   : cross.label.str())
-					     << (product_too_large ? "' would generate more than "
-								   : "' would generate ")
-					     << (product_too_large ? cross_bin_limit : nprod)
-					     << " bins (limit " << cross_bin_limit
-				     << "); the cross is "
-				     << "dropped." << endl;
-				if (has_wide_bin) des->errors += 1;
+					if (product_too_large) {
+					      cerr << "error: cross '"
+						   << (cross.label.nil() ? "(unnamed)"
+								 : cross.label.str())
+						   << "' requires more than " << cross_bin_limit
+						   << " automatic bins (supported limit "
+						   << cross_bin_limit
+						   << "); reduce the crossed bin cardinality or split the cross."
+						   << endl;
+					      des->errors += 1;
+					} else {
+					      cerr << (has_wide_bin ? "error: " : "sorry: ")
+						   << "cross '"
+						   << (cross.label.nil() ? "(unnamed)"
+								 : cross.label.str())
+						   << "' would generate " << nprod
+						   << " bins; the cross is dropped." << endl;
+					      if (has_wide_bin) des->errors += 1;
+				}
 				continue;
 			  }
 
@@ -43174,11 +43654,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      xbin_t&cb = cross.bins[ub];
 				      int m = -1;
 				      bool has_with = cb.with_expr || select_has_with(cb.select);
-				      if (cb.with_expr) {
+				      if (cb.set_expr) {
+					m = set_bin_tuples[ub].count(idx) ? 1 : 0;
+				      } else if (cb.with_expr) {
 					int sel_m = cb.select
 					      ? eval_sel(cb.select, idx, ub)
 					      : ((!cross.label.nil() && cb.with_cross == cross.label) ? 1 : -1);
-					m = sel_m <= 0 ? sel_m : eval_with(cb.with_expr, idx, ub);
+					m = sel_m <= 0 ? sel_m
+					      : eval_with(cb.with_expr, idx, ub,
+							  bin_matches[ub]);
 				      } else {
 					m = eval_sel(cb.select, idx, ub);
 				      }

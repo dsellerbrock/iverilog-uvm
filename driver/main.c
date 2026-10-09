@@ -400,12 +400,13 @@ static int t_version_only(void)
 
 static void build_preprocess_command(int e_flag)
 {
-      snprintf(tmp, sizeof tmp, "%s%civlpp%s%s%s -F\"%s\" -f\"%s\" -p\"%s\"%s",
+      snprintf(tmp, sizeof tmp, "%s%civlpp%s%s%s%s -F\"%s\" -f\"%s\" -p\"%s\"%s",
 	       ivlpp_dir, sep,
                verbose_flag ? " -v" : "",
 	       e_flag ? "" : " -L",
                strchr(warning_flags, 'r') ? " -Wredef-all" :
                strchr(warning_flags, 'R') ? " -Wredef-chg" : "",
+               strcmp(generation, "2023") == 0 ? " -g2023" : "",
                defines_path, source_path,
 	       compiled_defines_path,
 	       e_flag ? "" : " |");
@@ -1882,10 +1883,11 @@ int main(int argc, char **argv)
 	/* Write the preprocessor command needed to preprocess a
 	   single file. This may be used to preprocess library
 	   files. */
-      fprintf(iconfig_file, "ivlpp:%s%civlpp %s -L -F\"%s\" -P\"%s\"\n",
+	fprintf(iconfig_file, "ivlpp:%s%civlpp %s%s -L -F\"%s\" -P\"%s\"\n",
 	      ivlpp_dir, sep,
               strchr(warning_flags, 'r') ? "-Wredef-all" :
               strchr(warning_flags, 'R') ? "-Wredef-chg" : "",
+              strcmp(generation, "2023") == 0 ? " -g2023" : "",
               defines_path, compiled_defines_path
       );
 

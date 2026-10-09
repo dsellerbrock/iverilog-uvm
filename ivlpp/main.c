@@ -101,6 +101,7 @@ FILE *depend_file = NULL;
 /* Should we warn about macro redefinitions? */
 int warn_redef = 0;
 int warn_redef_all = 0;
+int sv_2023_enabled = 0;
 
 static int flist_read_flags(const char*path)
 {
@@ -286,7 +287,7 @@ int main(int argc, char*argv[])
       include_dir[0] = 0;  /* 0 is reserved for the current files path. */
       include_dir[1] = strdup(".");
 
-      while ((opt=getopt(argc, argv, "F:f:K:Lo:p:P:vVW:")) != EOF) switch (opt) {
+      while ((opt=getopt(argc, argv, "F:f:g:K:Lo:p:P:vVW:")) != EOF) switch (opt) {
 
 	  case 'F':
 	    flist_read_flags(optarg);
@@ -298,6 +299,15 @@ int main(int argc, char*argv[])
 		  flag_errors += 1;
 	    }
 	    flist_path = optarg;
+	    break;
+
+	  case 'g':
+	    if (strcmp(optarg, "2023") == 0)
+		  sv_2023_enabled = 1;
+	    else {
+		  fprintf(stderr, "%s: unsupported generation: %s\n", argv[0], optarg);
+		  flag_errors += 1;
+	    }
 	    break;
 
 	  case 'K': {
@@ -370,9 +380,10 @@ int main(int argc, char*argv[])
       }
 
       if (flag_errors) {
-	    fprintf(stderr, "\nUsage: %s [-v][-L][-F<fil>][-f<fil>] <file>...\n"
+	    fprintf(stderr, "\nUsage: %s [-v][-L][-F<fil>][-f<fil>][-g2023] <file>...\n"
 		    "    -F<fil> - Get defines and includes from file\n"
 		    "    -f<fil> - Read the sources listed in the file\n"
+		    "    -g2023  - Enable IEEE 1800-2023 conditional expressions\n"
 		    "    -K<def> - Define a keyword macro that I just pass\n"
 		    "    -L      - Emit line number directives\n"
 		    "    -o<fil> - Send the output to <fil>\n"
