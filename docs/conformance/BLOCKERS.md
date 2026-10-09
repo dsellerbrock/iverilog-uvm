@@ -2,9 +2,24 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
+### IEEE-1800-UNPACKED-ARRAY-OUTPUT-SLICE — issue #492 (locally focused-tested)
+
+- **State:** Implemented as the fifth fix in [draft PR #520](https://github.com/dsellerbrock/iverilog-uvm/pull/520) to `main`; issue #492 remains open. All six CI jobs are queued; no CI qualification yet.
+- **Requirement:** IEEE 1800-2017/2023 §§7.6 and 23.3.3.5 require compatible unpacked-array connections with matching dimension counts and sizes; element correspondence is left-to-right.
+- **Cause and scope:** Output actuals used the array rvalue path, creating a read-side view instead of a selected lvalue connection. Identifier output actuals now use lvalue elaboration, with dimension-size and element-type checks; whole-array outputs keep the same path.
+- **Validation:** The original DD-086 reducer passes in strict 2017/2023. Paired selected-row, direction-mapping, whole-array, isolation, and incompatible-shape tests pass 6/6 in legacy and JSON/VVP. Serial macOS build/install and `make check` pass. This is local evidence only.
+- **Next:** Address any CI failures on PR #520's exact head; leave #492 open and do not merge until all required jobs are green.
+
+### IEEE-1800-PACKED-SUBFIELD-RELEASE — issue #493 (locally focused-tested)
+
+- **State:** Implemented on the existing IEEE batch branch; issue remains open. The DD-088 reducer aborted before the patch with exit 134 at `show_stmt_release` because the packed offset was non-immediate. Paired focused regressions now pass 6/6 legacy and 7/7 JSON/VVP; serial macOS build/install and `make check` pass. No full-suite or CI qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §10.6 release behavior applies to the selected packed variable lvalue.
+- **Cause and scope:** VVP target lowering required immediate packed offsets, and release opcodes lacked register-backed offsets. The fix adds that path while preserving variable-release retention and net-driver restoration. Scope is packed release lowering, related VVP instructions, paired tests, and records.
+- **Next:** Commit and push to the four-of-five IEEE batch branch; open one PR to `main` after the fifth fix is verified. See [DD-088](DISCOVERED_DEBT.md#dd-088--packed-subfield-release-asserts-on-non-immediate-lhs-offset) and the [session record](session_logs/2026-10-09_ieee_packed_subfield_release.json).
+
 ### IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS — issue #450 (root-caused)
 
-- **State:** Implemented in open PR [#466](https://github.com/dsellerbrock/iverilog-uvm/pull/466), which targets `main`. The refreshed branch merges `origin/main` at `9443fffb69fa304cbc4e9604153ad4040583d419`. A macOS build/install and paired focused legacy/JSON tests pass (4/4 each) when using the checkout's `local-install/bin` first in `PATH`. Prior local evidence on the pre-merge branch includes neighboring checks 6/6 legacy and 8/8 JSON, full legacy 5,046/5,046, and UVM 363/363 with real DPI. The full JSON run had four failures: two optional FPGA target cases passed after target installation; the two constraint-state failures are triage-pending as DD-116. No CI-green claim applies to the refreshed head.
+- **State:** PR [#466](https://github.com/dsellerbrock/iverilog-uvm/pull/466) merged into `main` on 2026-10-09 at merge commit `127b887dfdc09283ab0187a2e618421dee3d5dcc`; refreshed `origin/main` contains that commit. GitHub showed all six platform checks pending when rechecked, so CI qualification is not established. A macOS build/install and paired focused legacy/JSON tests passed (4/4 each) on the PR branch. Prior local evidence on the pre-merge branch includes neighboring checks 6/6 legacy and 8/8 JSON, full legacy 5,046/5,046, and UVM 363/363 with real DPI. The full JSON run had four failures: two optional FPGA target cases passed after target installation; the two constraint-state failures remain triage-pending as DD-116.
 - **Requirement:** IEEE 1800-2017 Annex A A.2.4 `param_assignment` uses
   `{unpacked_dimension}`. IEEE 1800-2023 A.2.4 uses `{variable_dimension}`;
   A.2.5 includes `associative_dimension` (`[data_type]` or `[*]`) in that
@@ -29,7 +44,7 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   identity then failed because the cache rejected keyed patterns based on
   their legacy `parm_names`, and value selection was typed as a string
   character/packed bit select instead of an associative key.
-- **Next:** Check the refreshed PR head's exact CI after it becomes actionable; the user will merge #466. Bison conflict counts on the merged local build are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Keep scope to 2023 associative value-parameter forms, specialization/value uses, strict 2017 rejection, and paired tests. OpenTitan and Caliptra application work are outside this issue.
+- **Next:** Let the existing six checks complete; if a required check fails, address it in a follow-up PR. Bison conflict counts on the merged local build are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Keep scope to 2023 associative value-parameter forms, specialization/value uses, strict 2017 rejection, and paired tests. OpenTitan and Caliptra application work are outside this issue.
 
 ### IEEE-1800-ESCAPED-IFDEF-IDENTIFIERS — issue #468 (reproduced)
 
@@ -137,6 +152,57 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   reduce/reduce conflicts.
 - **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
   merge this ticket's PR.
+
+### SV-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)
+
+- **State:** The implementation and paired focus are locally complete on
+  `agent/ieee-batch-499-495-20261009`. It remains in the five-fix main-based
+  batch; the batch PR has not been opened and no CI result is claimed.
+- **Failure:** `value = p::c::get();` reports a syntax error in strict 2017 and
+  2023; the package-qualified statement call and `void'(p::c::get())` controls
+  compile.
+- **Requirement:** IEEE 1800-2017/2023 §8.23 permits `::` access to static
+  class methods; §26.3 describes package-qualified references. The 2023
+  wording retains the relevant behavior for fully defined package classes.
+- **Root cause and scope:** `parse.y` has a package-scoped statement-call
+  carrier and expression rules for package functions and deeper nested class
+  scopes, but lacks the direct `package::class::method(args)` expression
+  production. Keep the repair limited to that expression form and its paired
+  positive/negative regressions.
+- **Validation:** After merging `origin/main` at `127b887`, a guarded serial
+  ARM64 build and install pass. Bison 3.8.2 reports 574 shift/reduce and 1,122
+  reduce/reduce conflicts, unchanged from the recorded baseline. The paired
+  focus passes legacy 11/11 and JSON/VVP 12/12, including the strict 2017 and
+  2023 positive call forms and non-static statement/expression diagnostics.
+  The `void'(...)`, parameterized, nested, and statement-control cases are in
+  the positive reducer. Earlier full-suite totals in the prior candidate are
+  historical and were not rerun after this merge. No CI qualification is
+  claimed.
+
+### SV-CLASS-PACKED-PARTIAL-RANGE-CLIPPING (#495)
+
+- **State:** Implementation and paired tests are locally focused-tested on
+  `agent/ieee-batch-499-495-20261009`, after merging latest `origin/main` at
+  `4b3f342`. No full-suite or CI qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §11.5.1 requires partially out-of-range
+  reads to fill only missing bits with X and writes to update only in-range
+  bits. Cover blocking, compound, and nonblocking writes, one index evaluation,
+  and ascending/descending ranges in both editions.
+- **Root cause and scope:** Flattening a dynamic class-property select loses
+  the selected inner packed carrier, so clipping can reject a legal overlap or
+  alias an adjacent element. Keep the repair and paired tests limited to
+  dynamic packed class-property ranges. See [DD-103](DISCOVERED_DEBT.md#dd-103--exact-clipping-for-a-dynamic-inner-packed-class-property-range)
+  and [issue #495](https://github.com/dsellerbrock/iverilog-uvm/issues/495).
+- **Validation:** Guarded serial macOS build (60 s) and install (5 s) passed;
+  free RAM stayed at 67–68%. Paired focused legacy and JSON/VVP suites pass
+  18/18 each in strict 2017/2023, covering partial and wholly out-of-range
+  reads/writes, X indices, truncation, both directions, blocking/compound/NBA
+  writes, and single-evaluation checks for reads and all three write forms.
+  Linux Docker full-build attempts did not complete because the out-of-tree
+  build encountered host-object/VPATH and read-only-source setup errors; no
+  Linux pass is claimed.
+- **Next:** Commit the verified #495 change and continue the five-fix IEEE
+  batch. Do not open its main-based PR before five fixes are verified.
 
 ### SV23-REF-STATIC-TF-ARGUMENTS — IEEE 1800-2023 `ref static` arguments
 

@@ -4309,37 +4309,24 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** Triage-pending and outside #450 scope. No constraint
   solver changes are included.
 
-### DD-117 — `%disable/flow` name fallback compares one shared VPI buffer
+### DD-117 — legacy/JSON expectations drift for real-valued coverpoint tests
 
-- **Discovered while working:** simulation-performance hotspot survey
-  (2026-10-09), while checking `vpi_get_str` calls on hot paths.
-- **Observation:** `of_DISABLE_FLOW` keeps `target_name`, `thr_name`, and each
-  `cur_name` from `vpi_get_str(vpiFullName, ...)`. Those calls return the same
-  static `RBUF_STR` buffer (`need_result_buf` in `vvp/vpi_signal.cc`), so the
-  later calls overwrite `target_name` and `strcmp(cur_name, target_name)` always
-  compares the buffer with itself. When no ancestor matches the target scope
-  pointer, the fallback selects the first ancestor that has a scope instead of
-  one with a matching name.
-- **File/function:** `vvp/vthread.cc`, `of_DISABLE_FLOW`.
-- **Possible clause:** IEEE 1800-2017/2023 §9.6.2 (`disable`), only if the
-  pointer match can fail for a legal disable target.
-- **Evidence:** Source read; `scope_get_str` returns `simple_set_rbuf_str(p)`.
-- **Reproducer status:** none (no case found where the pointer match fails).
-- **Triage status:** untriaged. The performance branch left this function
-  unchanged.
-
-### DD-118 — typed mailbox rejects a derived class handle
-
-- **Discovered while working:** simulation-performance hotspot survey
-  (2026-10-09), while writing a class/mailbox benchmark.
-- **Observation:** `mailbox #(txn) mb; btxn t = new(i); mb.put(t);` with
-  `class btxn extends txn` fails elaboration: "Typed mailbox method `put'
-  argument must have a type equivalent to the mailbox message type". The
-  benchmark was changed to assign the handle to a `txn` variable first.
-- **File/function:** `elaborate.cc` typed-mailbox method check
-  (`mailbox_message_type_equivalent`).
-- **Possible clause:** IEEE 1800-2017/2023 §15.4.9. Verify during triage whether
-  the clause requires type equivalence or assignment compatibility for `put`.
-- **Evidence:** `benchmarks/sim-hotspots/classq.sv` before the workaround.
-- **Reproducer status:** confirmed (three-line reducer above).
-- **Triage status:** untriaged.
+- **Discovered while working:** IEEE-UNPACKED-ARRAY-OUTPUT-SLICE (#492), while
+  reviewing CI failures reported after PR #466 merged.
+- **Observation:** The Ubuntu 22.04 and 24.04 jobs in run 37947939833 failed the
+  hard ivtest gate on `sv_covergroup_bitwise_real_operand_unsupported` and its
+  2023 variant. Focused legacy and JSON/VVP runs each reproduced 2/2 failures.
+- **Cause:** The 2017 case was registered as a normal pass although `-g2017`
+  rejects real-valued coverpoint bins. The 2023 legacy gold mixed a compiler
+  diagnostic with runtime output, and the default JSON invocation expected
+  compiler stderr that it does not emit.
+- **Repair:** Issue #522 removes the invalid 2017 normal-test registrations,
+  retains the existing 2017 compile-error feature-boundary case in the focused
+  lists, limits the unsupported-operand case to 2023, and aligns the legacy and
+  JSON stream golds with their actual outputs. Focused legacy and JSON/VVP
+  lists pass 10/10 each; the strict 2017/2023 pair passes 2/2. The full hard
+  gate was stopped with exit 143 after 16 minutes while
+  `sv_randomize_global_uniform` was still consuming CPU; it has no aggregate
+  result. PR CI has not yet verified the repair.
+- **Status:** Repair is pending review in draft PR #523. Do not call it
+  CI-qualified until all required checks pass on that exact PR head.

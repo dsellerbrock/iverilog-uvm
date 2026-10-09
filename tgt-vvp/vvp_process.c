@@ -3258,6 +3258,7 @@ static int show_stmt_release(ivl_statement_t net)
 	    unsigned use_wid;
 	    ivl_expr_t part_off_ex;
 	    unsigned part_off;
+	    int dynamic_part_off = 0;
 
 	    assert(lsig != 0);
 
@@ -3321,13 +3322,16 @@ static int show_stmt_release(ivl_statement_t net)
 	    part_off_ex = ivl_lval_part_off(lval);
 	    part_off = 0;
 	    if (part_off_ex != 0) {
-		  assert(number_is_immediate(part_off_ex, 64, 0));
-		    /* An out-of-range or undefined offset will have been
-		       converted to a canonical offset of 1'bx. Skip the
-		       assignment in this case. */
-		  if (number_is_unknown(part_off_ex))
-			goto force_release_done;
-		  part_off = get_number_immediate(part_off_ex);
+		  if (number_is_immediate(part_off_ex, 64, 0)) {
+			    /* An out-of-range or undefined offset will have been
+			       converted to a canonical offset of 1'bx. Skip the
+			       assignment in this case. */
+			if (number_is_unknown(part_off_ex))
+			      goto force_release_done;
+			part_off = get_number_immediate(part_off_ex);
+		  } else {
+			dynamic_part_off = 1;
+		  }
 	    }
 
 	    switch (ivl_signal_type(lsig)) {
@@ -3351,8 +3355,16 @@ static int show_stmt_release(ivl_statement_t net)
 
 	      /* Generate the appropriate release statement for this
 		 l-value. */
-	    fprintf(vvp_out, "    %%release/%s v%p_%lu, %u, %u;\n",
-		    opcode, lsig, use_word, part_off, use_wid);
+	    if (dynamic_part_off) {
+		  int off_index = allocate_word();
+		  draw_eval_expr_into_integer(part_off_ex, off_index);
+		  fprintf(vvp_out, "    %%release/%s/off v%p_%lu, %d, %u;\n",
+			  opcode, lsig, use_word, off_index, use_wid);
+		  clr_word(off_index);
+	    } else {
+		  fprintf(vvp_out, "    %%release/%s v%p_%lu, %u, %u;\n",
+			  opcode, lsig, use_word, part_off, use_wid);
+	    }
       }
 
 force_release_done:

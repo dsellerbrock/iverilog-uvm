@@ -1,19 +1,20 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
-branch: "agent/ieee-ch7-array-methods-20261008"
-checkpoint_head: "040bbdadeea9e0766f67673548ca353cbd60822e"
+branch: "agent/ieee-batch-499-495-20261009"
+checkpoint_head: "aeecd2eeb"
 active_ieee_lane:
-  blocker: "IEEE-CH7-ARRAY-METHODS-BATCH"
-  issue: "#422-#426; PR #514"
-  phase: "CI_FAILURE_REPAIR"
-  baseline_head: "12052ba68"
-  reproducer: "Five issue reducers cover fixed multidimensional locators, aggregate result-copy behavior, wrapper result typing, associative min/max, and assignment-pattern expression/type-key boundaries. The #426 behavior was already implemented; tests now qualify the covered subset."
-  standards: "IEEE 1800-2017/2023 §7.12.1 and §10.9.1; local standards PDFs checked."
-  root_cause: "Elaboration did not retain fixed multidimensional row and wrapper result types, VVP lacked object-backed row/aggregate handling, and associative min/max was routed to an unsupported diagnostic."
-  scope: "Issues #422-#426, permanent dual-runner tests, and directly related conformance records."
-  next: "Repair c0138ef07520e7d2e807a79b411a07df1cffa007 is pushed to PR #514. The local hard gate is running and exact-head CI is underway. Inspect results after a meaningful status change; the ready-PR agent may merge only if all six platform checks pass on this exact head. Repair only failures caused by this batch; do not start the next batch until merge."
-  boundary: "No broader associative locator support, untested associative value/key types, or unrelated array/NBA repair is claimed. The local full ivtest hard gate is still running; no local UVM/Linux/Windows suite was run."
+  blocker: "IEEE-UNPACKED-ARRAY-OUTPUT-SLICE (#492)"
+  issue: "#499, #497, #495, #493, and #492 are locally verified and included in draft PR #520 to main"
+  phase: "PR_OPEN"
+  baseline_head: "4b3f3424c440aca6af92153b6860a7253b925234"
+  reproducer: "The paired DD-086 reducer printed X on the output-connected selected row while the whole-array control passed. After the fix it prints 01 00 10 zz | 01 10 under strict -g2017 and -g2023."
+  standards: "IEEE 1800-2017/2023 §§7.6 and 23.3.3.5."
+  root_cause: "Output actuals go through rvalue array elaboration, creating a read-side IMPLICIT view rather than an output lvalue view."
+  scope: "Unpacked-array module output actual elaboration and shape validation, paired regressions, and directly related records only."
+  next: "Address failures reported on PR #520's exact head; do not merge until all required jobs are green. After this turn, implement the requested main-to-PR synchronization/conflict-resolution bot using the existing bot worktree."
+  boundary: "Strict paired legacy and JSON/VVP focus lists pass 6/6 each, serial macOS make/install and make check pass, and the original DD-086 reducer passes in both editions. PR #520 is draft; all six CI jobs are queued, with no CI qualification yet."
+pending_issue_494_ci: "#494 fixed/dynamic queue-size cases appear in mainline tests, but the latest main test workflow is queued. Leave the GitHub issue open until CI evidence is available; this does not block unrelated #493 work."
 previous_batch_pr464:
   head: "870442199088b468b681983a7cbbe9f653bebeb3 (pre-follow-up exact CI head)"
   changes: "Issues #414 packed-select bounds, #449 ref static, and #458 IEEE 1800-2023 $timeunit/$timeprecision, plus local fixes for their observed Windows-export and property-diagnostic regressions."
@@ -653,11 +654,11 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Poll the existing full JSON ivtest session 39705 with tools.write_stdin; do not start a duplicate run while it is live. The run was launched from ivtest as PATH=\"$PWD/../local-install/bin:$PATH\" ../../evidence/arm64-tooling/resource-runner python3 ./vvp_reg.py."
+next_command: "Run final diff/YAML checks, commit the #495 implementation, paired tests, and evidence, then select the next open IEEE issue."
 current_execution_checkpoint:
-  active_work_item: "SV-PACKAGE-CLASS-STATIC-CALL"
-  source_head: "7c4aa26e084b0352a0549f4b373a6d2a18b3bb88"
-  phase: "VALIDATING_FULL_GATES"
-  completed: "Narrow parser fix and permanent positive/negative tests are present. Strict paired reducer passes; focused legacy 7/7 and JSON 8/8 pass; full legacy totals 7,243 / 0 failed; Bison counts are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Full JSON attempt 1 was stopped after the unguarded VVP child exceeded 300 CPU seconds. The guarded full JSON run is live in session 39705. PR #412 Ubuntu 22.04 failure is unrelated and recorded as triage-pending DD-107."
-  next_action: "Poll the same guarded JSON runner to completion; then run remaining UVM and axi-vip validations one at a time. Update exact results, diff-check, commit/push, and open one draft PR to main. Do not merge."
-  next_command: "Use tools.write_stdin(session_id=39705, chars=\"\", yield_time_ms=30000); if still live, continue that run rather than restarting it."
+  active_work_item: "IEEE-CLASS-PACKED-PARTIAL-RANGE-CLIPPING (#495)"
+  source_head: "c2f2964827803539e3e8efe0ee9ae7e0593678a9"
+  phase: "FOCUSED_TESTED"
+  completed: "Latest origin/main 4b3f342 was merged with a two-parent commit. The #495 patch passes guarded serial macOS build/install and paired focus 18/18 in legacy and JSON/VVP. A Linux out-of-tree build attempt did not complete due local build setup issues and is not counted as a pass. Bot workflow unit test passes locally; its post-merge sync run was queued at last check."
+  next_action: "Run final diff/YAML checks, commit #495 implementation and evidence, and push the batch branch; then select the next open IEEE issue."
+  next_command: "git diff --check"
