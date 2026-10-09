@@ -27,7 +27,7 @@ for standard in 2017 2023; do
   over_output=$work_dir/over-limit-$standard.log
   set +e
   "$iverilog" -g"$standard" -o "$over_limit" \
-    "$repo_dir/tests/m11_cross_product_over_limit.sv" \
+    "$repo_dir/tests/vvp_runtime/cross_product_over_limit.sv" \
     >"$over_output" 2>&1
   rc=$?
   set -e
