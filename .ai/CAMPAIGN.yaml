@@ -2,18 +2,18 @@ campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-sparse-coupled-sampling-20261009"
-checkpoint_head: "c339b9f22"
+checkpoint_head: "7975acc6"
 active_ieee_lane:
   blocker: "CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS (#416)"
-  issue: "#416 is OPEN; this branch implements a bounded exact direct-scalar subset, with over-cap and unsupported cases still open."
-  phase: "FOCUSED_TESTED"
+  issue: "#416 is OPEN; draft PR #526 implements a bounded exact direct-scalar subset, with over-cap and unsupported cases still open."
+  phase: "DRAFT_PR_OPEN"
   baseline_head: "c339b9f22"
   reproducer: "Three legal tuples have unequal branch sizes. Refreshed-main seed 416 probes gave 64,26,30/120 in both editions; the registered paired reducer now checks uniform tuple bins, UNSAT rollback, and the 4,097-tuple boundary."
   standards: "Verified against the local IEEE 1800-2017 §18.5.10 text and 1800-2023 §18.5.9 PDF; the local 2017 errata has no correction to this requirement."
   root_cause: "Eligible connected components use uniform proposals for at most 4,096 rejection attempts; exhaustion leaves them for the existing non-uniform solver fallback. The branch now enumerates small direct-scalar components exactly after 64 rejected proposals."
   scope: "The existing eligible coupled-component sampler, paired minimal regressions and runner registrations, and directly related conformance records."
-  next: "Finish final local review/evidence and prepare a draft PR for #416. Do not inspect CI unless a failure is reported."
-  boundary: "Exact sampling is limited to connected direct-scalar components with widths <=64 bits, no pending soft constraints, and <=4,096 complete tuples. A 4,097-tuple case uses the existing fallback and is checked for legality only. Array, member, soft, wider, and larger solution sets remain outside this exact claim. PR #524 is merged and issue #415 is closed on refreshed main; its retained worktree is clean and untouched. No CI status was checked. PR #525 sampler changes are included in c339b9f22."
+  next: "Keep #526 in draft and #416 open while over-cap and unsupported cases remain. Do not inspect CI unless a failure is reported."
+  boundary: "Exact sampling is limited to connected direct-scalar components with widths <=64 bits, no pending soft constraints, and <=4,096 complete tuples. A 4,097-tuple case uses the existing fallback and is checked for legality only. Array, member, soft, wider, and larger solution sets remain outside this exact claim. Draft PR #526 contains commit 7975acc6. PR #524 is merged and issue #415 is closed on refreshed main; its retained worktree is clean and untouched. No CI status was checked. PR #525 sampler changes are included in c339b9f22."
 pr_branch_sync_bot:
   status: "implemented on main via merged PR #519"
   behavior: "Syncs open in-repository PRs targeting main on main pushes, hourly, or manual dispatch; merges main rather than rebasing; deterministically resolves overlapping text hunks by documented file policy; dispatches test.yml on updated branch heads."
@@ -660,11 +660,11 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: 'PATH="$PWD/../local-install/bin:$PATH" perl ./vvp_reg.pl regress-randomize-sparse-coupled-legacy.list'
+next_command: "Keep draft PR #526 open; inspect CI only if a failure is reported."
 current_execution_checkpoint:
   active_work_item: "CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS (#416)"
-  source_head: "c339b9f2287a743aeb7ab6de6528e8d34a4dd602"
-  phase: "FOCUSED_TESTED"
-  completed: "Built and installed the refreshed branch. The new direct-scalar tuple sampler turns the 64,26,30/120 baseline failure into passing paired 2017/2023 reducers; sparse legacy and JSON/VVP each pass 2/2, and adjacent sampling-failure controls each pass 2/2. Over-cap tuple legality and UNSAT rollback are included. No CI status was checked."
-  next_action: "Run final diff/YAML checks and local code review, then prepare the #416 draft PR."
+  source_head: "7975acc6cc9e09663085d5bfc3df4fff67ed9169"
+  phase: "DRAFT_PR_OPEN"
+  completed: "Built and installed the refreshed branch. The new direct-scalar tuple sampler turns the 64,26,30/120 baseline failure into passing paired 2017/2023 reducers; sparse legacy and JSON/VVP each pass 2/2, and adjacent sampling-failure controls each pass 2/2. Over-cap tuple legality and UNSAT rollback are included. Draft PR #526 is open. No CI status was checked."
+  next_action: "Keep #526 in draft and #416 open while the bounded support is reviewed; address a CI failure only if one is reported."
   next_command: "git diff --check"

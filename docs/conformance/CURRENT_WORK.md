@@ -23,8 +23,9 @@ merged at its recorded head and issue #415 closed. Its retained worktree remains
 clean and untouched. CI was not checked, so qualification is unverified here.
 PR #525's sampler changes are included in the new baseline.
 
-**Next:** Finish final local review and evidence for #416, then prepare its
-draft PR. CI has not been checked; inspect it only if a failure is reported.
+Draft [PR #526](https://github.com/dsellerbrock/iverilog-uvm/pull/526) contains
+the locally tested bounded slice. Keep #416 open while larger and unsupported
+cases remain. CI has not been checked; inspect it only if a failure is reported.
 
 ## Previous IEEE 1800 focus — 2026-10-09: PR #466 refresh
 

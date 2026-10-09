@@ -45,7 +45,7 @@ record-only; they were not implemented in this ticket.
 
 - **Per-test timeout:** Add a timeout to ivtest/vvp_reg.pl so one hung test fails without stalling a full sweep for hours. Not implemented here.
 - **Bulky evidence storage:** Move checked-in evidence logs (about 125 MB in the current checkout) to CI artifacts or Git LFS; the packed Git history is about 87 MB. Not implemented here.
-- **Exact sparse uniform sampling:** Branch `agent/ieee-sparse-coupled-sampling-20261009` adds exact tuple enumeration for eligible connected direct-scalar components with at most 4,096 complete solutions after 64 rejected proposals. Larger solution sets, widths above 64 bits, soft constraints, arrays, and member components still reach the existing non-uniform fallback. General exact counting for those cases remains open; see [#416 local evidence](../../evidence/solve-before-array/sparse-coupled-uniform-sampling-20261009.md).
+- **Exact sparse uniform sampling:** Draft PR #526 adds exact tuple enumeration for eligible connected direct-scalar components with at most 4,096 complete solutions after 64 rejected proposals. Larger solution sets, widths above 64 bits, soft constraints, arrays, and member components still reach the existing non-uniform fallback. General exact counting for those cases remains open; see [#416 local evidence](../../evidence/solve-before-array/sparse-coupled-uniform-sampling-20261009.md).
 
 ### DD-001 — joint active-randc prepass and enumeration-cap interaction
 

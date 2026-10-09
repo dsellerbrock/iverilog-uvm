@@ -2507,7 +2507,8 @@ The current branch keeps rejection sampling for dense components. After 64
 rejected proposals, it enumerates an eligible connected direct-scalar component
 when all variables are at most 64 bits and no soft constraints are pending.
 Complete sets up to 4,096 tuples are sampled uniformly with the existing
-property-owned RNG. The paired sparse positive, UNSAT rollback, and 4,097-tuple
+property-owned RNG. Draft [PR #526](https://github.com/dsellerbrock/iverilog-uvm/pull/526)
+contains the local change. The paired sparse positive, UNSAT rollback, and 4,097-tuple
 boundary controls pass 2/2 in legacy and 2/2 in JSON/VVP; adjacent
 `sv_randomize_global_sampling_fail` controls pass 2/2 in each runner. The
 over-cap boundary checks legal output only, not uniformity. Larger solution
