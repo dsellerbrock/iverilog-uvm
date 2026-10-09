@@ -2,6 +2,14 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
+### IEEE-1800-NESTED-ARRAY-FUNCTION-RETURN — issue #415 (locally focused-tested)
+
+- **State:** Implemented on `agent/ieee-nested-array-return-20261009`; no PR or CI qualification yet.
+- **Requirement:** IEEE 1800-2017/2023 §§10.9.1 and 13.4.1 allow array-pattern items to be evaluated in the corresponding element assignment context, including nonvoid function results.
+- **Failure and cause:** Nested fixed-array patterns rejected array-valued function calls although direct whole-array returns worked. Elaboration lacked a context-typed function-call path, and VVP pattern lowering handled only nested pattern nodes or scalar leaves.
+- **Validation:** On fresh `origin/main` 32c91a50, the nested reducer failed in both editions and direct whole-array control printed `got=11,12`. The fix passes paired focused legacy and JSON/VVP runs (12/12 each), including two automatic calls, descending indices, the direct-return boundary, neighboring real/string return tests, and a focused incompatible-shape diagnostic. Local macOS ARM64 build/install passed; Bison conflict counts remained 574 shift/reduce and 1,122 reduce/reduce. Full suites and CI have not run.
+- **Next:** Review and open one PR to `main`; report CI only from the exact PR head.
+
 ### IEEE-1800-UNPACKED-ARRAY-OUTPUT-SLICE — issue #492 (locally focused-tested)
 
 - **State:** Implemented as the fifth fix in [draft PR #520](https://github.com/dsellerbrock/iverilog-uvm/pull/520) to `main`; issue #492 remains open. All six CI jobs are queued; no CI qualification yet.

@@ -1,0 +1,3 @@
+ivltests/sv_uarray_nested_function_return_shape_fail.v:13: error: The expression 'make_triple('sd11)' cannot be implicitly cast to the target type.
+ivltests/sv_uarray_nested_function_return_shape_fail.v:13: error: The expression 'make_triple('sd21)' cannot be implicitly cast to the target type.
+2 error(s) during elaboration.

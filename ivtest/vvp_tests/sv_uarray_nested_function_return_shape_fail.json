@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_uarray_nested_function_return_shape_fail.v",
+    "iverilog-args": ["-g2017", "-s", "sv_uarray_nested_function_return_shape_fail"],
+    "gold": "sv_uarray_nested_function_return_shape_fail"
+}

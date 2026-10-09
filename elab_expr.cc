@@ -5074,6 +5074,9 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	    } else if (const auto str = dynamic_cast<PEString*>(pv[idx])) {
 		  expr = str->elaborate_expr_uarray_(des, scope, uarray_type,
 						     dims, cur_dim);
+	    } else if (dynamic_cast<PECallFunction*>(pv[idx])) {
+		  expr = elaborate_rval_expr(des, scope, keyed_element_type,
+					     pv[idx], need_const);
 	    } else if (dynamic_cast<PEConcat*>(pv[idx])) {
 		  cerr << get_fileline() << ": sorry: "
 		       << "Array concatenation is not yet supported."

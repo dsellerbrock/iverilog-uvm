@@ -1942,6 +1942,15 @@ static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
 		  }
 		  break;
 		default:
+		  if (ivl_expr_type(expr) == IVL_EX_UFUNC) {
+			ivl_scope_t def = ivl_expr_def(expr);
+			ivl_signal_t retval = def ? ivl_scope_port(def, 0) : 0;
+			if (retval && ivl_signal_dimensions(retval) > 0) {
+			      draw_ufunc_uarray(expr, var, array_idx);
+			      array_idx += ivl_signal_array_count(retval);
+			      break;
+			}
+		  }
 		  switch (ivl_type_base(elem_type)) {
 		      case IVL_VT_BOOL:
 		      case IVL_VT_LOGIC:
