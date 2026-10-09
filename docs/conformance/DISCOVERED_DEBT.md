@@ -1170,9 +1170,15 @@ signedness. This supersedes the broad-pending notes for L43–L52 above; DD-024
 is locally qualified within its stated empty-wait scope. The broader DD-020,
 DD-021 and DD-022 obligations remain open.
 
-Next DD-020 evidence: `unindexed-hier-frozen-candidate.json` still observes
-`dut.missing()` compiling successfully in both editions. Valid module/package
-forward tasks and indexed object methods pass the accompanying controls.
+Historical DD-020 L55 evidence: `unindexed-hier-frozen-candidate.json`
+observed `dut.missing()` compiling successfully in both editions. Valid
+module/package forward tasks and indexed object methods passed its controls.
+
+Current-main recheck (2026-10-09): the unindexed missing-member case is
+resolved on main and tracked by issue #500, which is closed. The reducer is
+covered by `sv_hierarchical_missing_task_fail` in the legacy list and its
+paired 2017/2023 JSON/VVP registrations; the expected result is an elaboration
+error. The remaining DD-020 lookup cases below are still separate open gaps.
 
 Next DD-022 evidence:
 `evidence/dynamic-mixed-driver-assessment/invalid-prefix-writes/results.json`
