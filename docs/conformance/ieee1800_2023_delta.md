@@ -159,8 +159,8 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 5 | `type(this)` self-type | CERTAIN | UNSUPPORTED | M |
 | 6 | Soft packed unions (`union soft`) | CERTAIN | UNSUPPORTED (hard packed unions work) | M |
 | 7 | Named `index_argument` for array methods | CERTAIN | RESOLVED 2026-10-07 for focused locator, reduction, min/max, unique, and associative-key cases; see [Fix 35](BLOCKERS.md#sv23-array-index-argument) | S |
-| 8 | Array `map()` method (7.12.5) | CERTAIN | UNSUPPORTED but scaffolded — fails at elaboration on the shared `.method(iter) with` dispatcher, not at parse | S |
-| 9 | Class `:final` specifier | CERTAIN | UNSUPPORTED | S |
+| 8 | Array `map()` method (7.12.5) | CERTAIN | IMPLEMENTED and locally qualified; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407), with strict 2017 rejection retained | S |
+| 9 | Class `:final` specifier | CERTAIN | IMPLEMENTED in current main by [commit 32cfc8dc](https://github.com/dsellerbrock/iverilog-uvm/commit/32cfc8dcc); paired focused tests cover 2023 acceptance and 2017 rejection | S |
 | 10 | Constructor `default` argument keyword | CERTAIN | UNSUPPORTED | M |
 | 11 | Method `:extends`/`:initial`/`:final` override specifiers | CERTAIN | UNSUPPORTED (no grammar) | M |
 | 12 | Constraint `:extends`/`:initial`/`:final` | CERTAIN | UNSUPPORTED | S–M |
@@ -168,7 +168,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 14 | Covergroup `extends` in a subclass | CERTAIN | UNSUPPORTED by grammar inspection | M |
 | 15 | `$timeunit`/`$timeprecision` system functions | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-07: 2023 scope values and strict 2017 rejection covered; see [focused blocker record](BLOCKERS.md#sv-timeunit-timeprecision-system-functions) | S |
 | 16 | `$stacktrace` standardized (task + string function) | CERTAIN | task form ALREADY IMPLEMENTED (R21, comment updated); string-function form open | doc + S |
-| 17 | Preprocessor boolean `` `ifdef (A && B) `` (syntax 22-5) | CERTAIN | UNSUPPORTED (parenthesized-boolean form) | M |
+| 17 | Preprocessor conditional identifiers and boolean form (syntax 22-5) | CERTAIN | Parenthesized 2023 expressions are under #460; plain escaped `text_macro_identifier` support in both editions is separately under #468. Focused candidate evidence and boundaries are recorded in the [paired clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-225-escaped-conditional-identifiers); PR/CI pending | M |
 | 18 | `weak_reference#(T)` | CERTAIN | UNSUPPORTED; needs GC/refcount hooks | L |
 | 19 | `rand real` | CERTAIN | FOCUSED IMPLEMENTATION: scalar finite-interval constraints and real solve-before; broader real-solving shapes remain open (2026-10-07) | L |
 | 20 | Tolerance range operators `[a +/- b]`, `[a +%- b]` | CERTAIN | UNSUPPORTED by grammar inspection | S–M |
@@ -212,7 +212,14 @@ empty ignore/illegal selectors. Procedural-write and repeated-assignment
 evidence remains to be added.
 
 This remains bounded clause-19 support. The matrix owns common coverage
-limitations; the 2023-only real/tolerance surface remains open. Historical
+limitations. The uncapped census links the CrossQueueType set-expression
+rejection to [#511](https://github.com/dsellerbrock/iverilog-uvm/issues/511), the
+validation-only 65,536-bin automatic-cross boundary to [#512](https://github.com/dsellerbrock/iverilog-uvm/issues/512),
+and a validation-only merged transition-family question to
+[#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513). The 2023
+real-valued coverpoint-bin gap remains [#510](https://github.com/dsellerbrock/iverilog-uvm/issues/510),
+while clause-11 tolerance range operators are tracked separately by
+[#462](https://github.com/dsellerbrock/iverilog-uvm/issues/462). Historical
 application counts are preserved in the [survey archive](session_logs/2026-09-14_edition_survey_history.md);
 [CURRENT_WORK](CURRENT_WORK.md) links later evidence.
 

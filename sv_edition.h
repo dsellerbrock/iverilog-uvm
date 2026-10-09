@@ -126,6 +126,8 @@
 		     "the final class specifier")			\
 	SV_FEATURE_ROW(SVF_CROSS_RETAIN_AUTO_BINS, GN_VER2023,		\
 		     "option.cross_retain_auto_bins")			\
+	SV_FEATURE_ROW(SVF_REAL_COVERPOINT_BINS, GN_VER2023,		\
+		     "real-valued coverpoint bins")			\
 	SV_FEATURE_ROW(SVF_TIMESCALE_RETRIEVAL_FUNCTIONS, GN_VER2023,\
 		     "the $timeunit and $timeprecision system functions")\
 	SV_FEATURE_ROW(SVF_REF_STATIC_TF_ARGUMENTS, GN_VER2023,\

@@ -2,6 +2,7 @@
 #define IVL_vvp_dpi_H
 
 # include  <cstdint>
+# include  <vector>
 # include  "ivl_dlfcn.h"
 
 extern void vvp_dpi_load_lib(const char*path);
@@ -27,6 +28,7 @@ extern void* vvp_dpi_find_symbol(const char*name);
  *   'g' svLogic scalar (unsigned char, 4-state encoding 0/1/2=Z/3=X)
  *   'B' svBit fixed scalar unpacked-array C pointer
  *   'G' svLogic fixed scalar unpacked-array C pointer
+ *   'q' shortreal open-array handle, 'Q' fixed shortreal-array C pointer
  *   'f' float (shortreal) 'r' double (real) 's' const char*
  * is_unsigned selects the unsigned variant of the integer letters.
  * is_output marks output/inout arguments: they are passed by pointer
@@ -45,6 +47,11 @@ extern void* vvp_dpi_find_symbol(const char*name);
  * standard canonical-copy accessors.
  */
 class vvp_darray;
+
+struct vvp_dpi_shortreal_buffer_t {
+	  vvp_darray* array;
+	  std::vector<float> values;
+};
 
 struct vvp_dpi_open_array_t {
 	// Whole-array direct C layout. This remains null for a queue and for
@@ -68,6 +75,10 @@ struct vvp_dpi_open_array_t {
       bool packed_scratch;
       unsigned packed_width;
       bool packed_four_state;
+	// shortreal arrays are stored internally as doubles, but Annex H
+	// exposes C float elements. These call-scoped buffers convert both ways.
+      bool shortreal_scratch;
+      std::vector<vvp_dpi_shortreal_buffer_t> shortreal_buffers;
 	// The live simulator container. Unlike data, this is also available
 	// for packed vector elements whose canonical DPI representation must
 	// be copied with svGet/Put{Bit,Logic}ArrElem*VecVal.

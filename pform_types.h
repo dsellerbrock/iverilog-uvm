@@ -749,6 +749,10 @@ struct class_type_t : public data_type_t {
       // existing coverpoint labels into bins that count when ALL
       // contributing coverpoint bins are hit on the same sample.
       struct pform_cross_t {
+	    struct matches_t {
+		  PExpr* expr = nullptr;
+		  bool all = false;
+	    };
 	    struct item_t {
 		  perm_string label;
 		  PExpr* expr = nullptr;
@@ -763,6 +767,8 @@ struct class_type_t : public data_type_t {
 		  std::vector<std::pair<PExpr*, PExpr*>> intersect_ranges;
 		  // SEL_WITH: predicate applied to child a's selected tuples.
 		  PExpr* with_expr = nullptr;
+		  PExpr* matches_expr = nullptr;
+		  bool matches_all = false;
 		  select_t* a = nullptr;
 		  select_t* b = nullptr;
 	    };
@@ -771,12 +777,16 @@ struct class_type_t : public data_type_t {
 		  perm_string name;
 		  kind_t kind = BIN_NORMAL;
 		  select_t* select = nullptr;
+		  PExpr* set_expr = nullptr;
 		  perm_string with_cross;
 		  PExpr* with_expr = nullptr;
+		  PExpr* matches_expr = nullptr;
+		  bool matches_all = false;
 	    };
 	    perm_string label;                 // cross label (or auto)
 	    std::vector<perm_string> cp_labels; // names of contributing coverpoints
 	    std::vector<PExpr*> cp_exprs;       // implicit variable expressions
+	    struct_type_t* value_type = nullptr; // implicit CrossValType, when needed
 	    PExpr* iff_expr = nullptr;         // IEEE 19.6: cross iff sample gate
 	    std::vector<cross_bin_t> bins;      // M11-3: named cross bins
 	      // M11: cross-level options (option.name = const_expr)

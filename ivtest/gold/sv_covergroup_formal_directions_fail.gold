@@ -1,0 +1,2 @@
+./ivltests/sv_covergroup_formal_directions_fail.v:4: error: Covergroup constructor formal 'value' cannot have output or inout direction (IEEE 1800 19.3).
+./ivltests/sv_covergroup_formal_directions_fail.v:8: error: Covergroup constructor formal 'value' cannot have output or inout direction (IEEE 1800 19.3).

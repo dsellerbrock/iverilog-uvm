@@ -1,0 +1,3 @@
+sv_ifdef_escaped_identifier_2017 normal,-g2017,-s,test ivltests gold=sv_ifdef_escaped_identifier.gold
+sv_ifdef_escaped_identifier_2023 normal,-g2023,-s,test ivltests gold=sv_ifdef_escaped_identifier.gold
+sv_ifdef_escaped_identifier_fail CE,-g2017,-s,test ivltests gold=sv_ifdef_escaped_identifier_fail.gold

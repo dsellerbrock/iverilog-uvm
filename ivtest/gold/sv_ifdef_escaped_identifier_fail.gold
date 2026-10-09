@@ -1,0 +1,3 @@
+./ivltests/sv_ifdef_escaped_identifier_fail.v:1: error: `ifdef without a macro name.
+./ivltests/sv_ifdef_escaped_identifier_fail.v:1: syntax error
+I give up.

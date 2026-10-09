@@ -27,6 +27,7 @@ static map<string,void*> dpi_sym_cache;
 static bool dpi_array_pointer_arg_(char type)
 {
       return type == 'o' || type == 'O'
+	  || type == 'q' || type == 'Q'
 	  || type == 'B' || type == 'G'
 	  || type == 'x' || type == 'X'
 	  || type == 'y' || type == 'Y';
@@ -43,8 +44,10 @@ static void*dpi_array_argument_(const vvp_dpi_arg_t&arg)
 	  case 'o':
 	  case 'x':
 	  case 'y':
+	  case 'q':
 	    return arg.aval;
 	  case 'O':
+	  case 'Q':
 	    return arg.aval->data;
 	  case 'B':
 	  case 'G':
@@ -197,6 +200,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  break;
 		case 'o': // generic dynamic/open svOpenArrayHandle
 		case 'O': // generic fixed unpacked-array C pointer
+		case 'q': // shortreal dynamic/open svOpenArrayHandle
+		case 'Q': // shortreal fixed unpacked-array C pointer
 		case 'B': // svBit fixed scalar unpacked-array C pointer
 		case 'G': // svLogic fixed scalar unpacked-array C pointer
 		case 'x': // packed bit dynamic/open svOpenArrayHandle
@@ -595,6 +600,16 @@ static vvp_darray* md_dimension_(const vvp_dpi_open_array_t*arr, int dim)
       return cur;
 }
 
+static void* dpi_shortreal_data_(const vvp_dpi_open_array_t*arr,
+				 vvp_darray*array)
+{
+      if (!arr || !arr->shortreal_scratch || !array) return 0;
+      for (const vvp_dpi_shortreal_buffer_t&buffer : arr->shortreal_buffers)
+	    if (buffer.array == array)
+		  return buffer.values.empty() ? 0 : (void*)&buffer.values[0];
+      return 0;
+}
+
 int svDimensions(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
@@ -721,7 +736,7 @@ int svSizeOfArray(const void*h)
 	    words *= (size_t)n;
       }
 
-	// Descend to the leaf, whose dpi_elem_bytes() is the atom size.
+	// Descend to the leaf, whose storage provides the atom size.
       vvp_darray*leaf = md_inner_(arr, 0);
       while (leaf && leaf->dpi_elem_bytes() == 0 && leaf->get_size() > 0) {
 	    vvp_object_t w;
@@ -730,7 +745,8 @@ int svSizeOfArray(const void*h)
 	    if (!next) break;
 	    leaf = next;
       }
-      unsigned ebytes = leaf ? leaf->dpi_elem_bytes() : 0;
+	unsigned ebytes = leaf ? (arr->shortreal_scratch
+				   ? sizeof(float) : leaf->dpi_elem_bytes()) : 0;
       if (ebytes == 0) return 0;
 
       return (int)(words * ebytes);
@@ -786,8 +802,10 @@ void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       vvp_darray*inner = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!inner) return 0;
-      unsigned eb = inner->dpi_elem_bytes();
-      void*base = inner->dpi_raw_data();
+	unsigned eb = arr && arr->shortreal_scratch
+	      ? sizeof(float) : inner->dpi_elem_bytes();
+	void*base = arr && arr->shortreal_scratch
+	      ? dpi_shortreal_data_(arr, inner) : inner->dpi_raw_data();
       if (eb == 0 || base == 0) return 0;
       int k2 = dpi_canon_darray_index_(inner, indx2);
       if (k2 < 0 || (size_t)k2 >= inner->get_size()) return 0;
@@ -807,8 +825,10 @@ void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
       mid->get_word((unsigned)k2, w);
       vvp_darray*inner = w.peek<vvp_darray>();
       if (!inner) return 0;
-      unsigned eb = inner->dpi_elem_bytes();
-      void*base = inner->dpi_raw_data();
+	unsigned eb = arr && arr->shortreal_scratch
+	      ? sizeof(float) : inner->dpi_elem_bytes();
+	void*base = arr && arr->shortreal_scratch
+	      ? dpi_shortreal_data_(arr, inner) : inner->dpi_raw_data();
       if (eb == 0 || base == 0) return 0;
       int k3 = dpi_canon_darray_index_(inner, indx3);
       if (k3 < 0 || (size_t)k3 >= inner->get_size()) return 0;

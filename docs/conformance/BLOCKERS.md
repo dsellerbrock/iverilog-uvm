@@ -1,77 +1,87 @@
 # Blockers registry (Level 3 — operational backlog)
 
-### IEEE-PACKED-MULTIDIM-SELECT-OOB — issue #414
+The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
-- **State:** Implemented and locally validated in main-based PR #464 together
-  with issue #469; exact-head CI qualification remains pending.
-- **Requirement:** IEEE 1800-2017 §§7.4.6 and 11.5.1; IEEE 1800-2023
-  §§7.4.5 and 11.5.1. The invalid packed-index rule is unchanged: §11.5.1
-  requires X for four-state results and 0 for two-state results.
-- **Failure recorded in the matrix:** A runtime inner packed index outside its
-  own declared dimension can carry into a neighboring outer dimension when
-  the computed base is flattened. Such an out-of-range four-state select must
-  produce X, not a neighboring bit. A non-integral packed index must be
-  rejected with a focused diagnostic.
-- **Reproducer:** On clean baseline, self-authored
-  `logic [1:0][3:0] value` with runtime `outer=0`, `inner=4` returned the
-  adjacent slice's `1` instead of X. A runtime real leading index triggered a
-  compiler assertion. Permanent regressions cover each dimension, X indices,
-  valid boundary mapping, once-only evaluation, and the illegal real index.
-- **Root cause and scope:** `collapse_packed_base()` flattened per-dimension
-  offsets without retaining each dimension's validity. Also,
-  `packed_base_needs_expr_()` left a runtime final bit index on the old path
-  when earlier indices were constants. The fix routes both through the
-  existing checked packed-prefix helper, which rejects non-integral indices
-  and evaluates each runtime index once. Scope is ordinary packed r-value
-  selects; unpacked indexing, parameters, class/VIF selects, lvalue writes,
-  synthesis, and constraints remain outside this change.
-- **Validation:** Serial ARM64 build/install succeeds. Focused legacy prefix
-  tests pass 4/4; JSON/VVP strict 2017/2023 prefix tests pass 8/8. Singleton
-  runtime-index neighbors pass legacy 2/2 and JSON 1/1; indexed-subpart
-  neighbors pass legacy 1/1 and JSON 2/2; class packed-property index
-  neighbors pass 16/16 in each runner. The two-state OOB behavior is covered by
-  issue #469 and its paired regression in PR #464.
-- **Delivery:** PR #464 targets `main`; investigate reported failures and merge
-  only when required checks are green on the exact PR head.
+### IEEE-1800-ESCAPED-IFDEF-IDENTIFIERS — issue #468 (reproduced)
 
-### IEEE-TWO-STATE-PACKED-SELECT — issue #469; added to PR #464
+- **State:** Focused implementation and permanent regressions are pushed to existing draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which targets `main` and also carries #460. The two issues stay separately tracked; no additional PR is opened.
+- **Requirement:** IEEE 1800-2017/2023 §22.5 Syntax 22-5 uses `text_macro_identifier`; §5.6.1 defines escaped identifiers as a leading backslash followed by printable ASCII and terminated by whitespace. The backslash and terminator are not part of the macro name.
+- **Failure:** A self-authored `\foo` macro definition and `` `ifdef \foo`` condition reports `` `ifdef without a macro name`` and selects no branch under strict `-g2017` and `-g2023`. Punctuation-bearing escaped names must remain one identifier through the terminator.
+- **Root cause:** The plain-name `IFDEF_NAME`, `IFNDEF_NAME`, `ELSIF_NAME`, and `ELSIF_SUPR` lexer states accept simple identifiers only. Their fallback treats `\` as a missing name, even though definitions and 2023 parenthesized expressions already process escaped names.
+- **Scope:** Add plain escaped-name handling for `ifdef`, `ifndef`, and `elsif`; paired edition tests for defined, undefined, punctuation, terminator, and malformed cases. Parenthesized-expression semantics remain #460.
+- **Validation:** Baseline reducer fails in both editions. After a forced ivlpp rebuild/install, the new legacy focus passes 3/3 and JSON focus 3/3; neighboring macro-definition tests pass 28/28 legacy and 8/8 JSON; #460 expression tests pass 3/3 in each runner. These are local results. Consult PR #467 for current exact-head CI status; no CI pass is claimed here.
 
-- **State:** Merged in PR #464 on 2026-10-08. Its run 37834845943 failed
-  Ubuntu 22.04 and 24.04 on ten legacy parameter-select tests, with a separate
-  negative-suite failure tracked as DD-115. A regression follow-up is being
-  prepared from the merged `main` commit.
-- **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid
-  bit-select from a two-state value and X for a four-state value. A partially
-  out-of-range part-select returns X in missing positions; §6.11.2 converts
-  those X bits to 0 when assigned to a two-state destination.
-- **Original failure:** The pre-#464 baseline returned X for two-state invalid
-  bit-selects and preserved X bits when a partial part-select was assigned to
-  a `bit` vector. PR #464 added the permanent paired reducer for
-  constant/dynamic invalid bit indices, constant/dynamic indexed part-selects
-  in both directions, a non-indexed partial select, and fully out-of-range
-  assignment.
-- **Cause and scope:** Packed-select elaboration inherited the two-state source
-  type, suppressing conversion of out-of-range X bits at two-state destinations;
-  constant invalid bit-selects also returned X without checking source state.
-  Scope remains packed read-select elaboration only.
-- **Validation:** The original paired reducer passed strict `-g2017` and
-  `-g2023` in PR #464. The merged head's full legacy sweep reports ten failures:
-  `pr2835632b`, `pr2913927`, `pr3054101a`–`f`, `sel_rval_bit_ob`, and
-  `sel_rval_part_ob`. The follow-up branch passes those focused legacy tests
-  10/10 and the paired 2017/2023 JSON/VVP packed-select test 2/2 on macOS
-  ARM64. These are local results; follow-up CI is pending.
-- **Regression cause and repair:** `NetScope::evaluate_parameter_logic_` read
-  the parse expression's type before `test_width()` populated it, then inferred
-  an untyped parameter's type from the folded constant. Fully defined values
-  therefore appeared BOOL and VVP converted invalid four-state reads to zero.
-  The follow-up preserves the source type after width testing and carries
-  parameter types through select nodes. Its paired fixture now also checks
-  invalid selects from explicit `bit` and `logic` parameters.
-- **Delivery:** PR #464 is merged. Draft PR #515 targets `main`; its first
-  exact-head status snapshot showed all six required platform jobs pending.
-  Do not merge until every required check is green on the latest head. The separate
-  Ubuntu negative-suite failure is the obsolete `m9b_intersect_unequal_len`
-  case tracked as DD-115 and remains outside this repair.
+### IEEE-1800-PARENTHESIZED-IFDEF-EXPRESSIONS — issue #460 (locally validated)
+
+- **State:** Implementation and focused tests pass on
+  `agent/ieee-ifdef-parenthesized-20261008`, based on clean `origin/main`
+  `af89cfc50be1084cc86c48865f3f6ba78d4512fa`. Draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467)
+  targets `main`; its stale negative-suite fixture is corrected locally and the
+  updated exact-head CI qualification remains pending.
+- **Requirement:** IEEE 1800-2017 §22.5 Syntax 22-5 allows only a
+  `text_macro_identifier` condition. IEEE 1800-2023 §22.5 Syntax 22-5 adds a
+  parenthesized `ifdef_macro_expression` with identifiers, logical operators,
+  and parentheses; §5.6 identifiers may be simple or escaped. Defined
+  identifiers evaluate to 1 and undefined identifiers to 0. `ifndef` negates
+  the expression. §22.5 requires no extra whitespace
+  when punctuation such as `(` already separates tokens.
+- **Failure:** A self-authored `ifdef (A && (!B || C))` and `ifndef (A && B)`
+  probe reports `` `ifdef without a macro name`` under both `-g2017` and
+  `-g2023`. The plain identifier control passes in both editions.
+- **Root cause:** `ivlpp/lexor.lex` initially accepted only simple identifiers
+  in parenthesized expressions, and the driver did not pass the selected
+  generation to `ivlpp`. The driver now forwards `-g2023` both for top-level
+  sources and lazy `-y` library sources; the expression lexer preserves
+  whitespace-terminated escaped identifiers, and the parser looks up their
+  normalized macro names. Expressions remain enabled only in 2023. The lexer
+  also hands off `ifdef(`/`ifndef(`/`elsif(` without requiring whitespace.
+- **Scope:** Boolean conditional-expression parsing/evaluation for `ifdef`,
+  `ifndef`, and `elsif`; strict 2017 behavior; paired regression coverage.
+- **Validation:** Permanent legacy and JSON fixtures pass 3/3 each, including
+  simple and operator-punctuated escaped identifiers, adjacent
+  directive/parenthesis tokens, and the 2017 rejection case. Neighboring macro
+  legacy tests pass 28/28; neighboring macro JSON tests pass 14/14. The focused
+  implementation uses the precedence in IEEE 1800-2023
+  §11.3.2 Table 11-2 and semantics in §11.4.7. The full root build passes with
+  Bison 3.8.2; system Bison 2.3 alone rejects the unchanged
+  `parse.y:2236` `%destructor`. Bison 3.8.2 reports 574 shift/reduce and 1,122
+  reduce/reduce conflicts on both `origin/main` and this branch. See the
+  [clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-2023-225-parenthesized-conditional-expressions).
+- **Next:** Issue #460 and the DD-107 repair remain in PR #467. Consult the
+  PR for the current exact-head CI status. Do not call CI qualified or merge
+  until every required platform passes.
+
+### IEEE-VPI-SOURCE-OBJECT-LOCATIONS — issue #501
+
+- **State:** Implemented and focused-tested locally; broad validation is in
+  progress. No CI qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §37.3.3 applies `vpiFile` and
+  `vpiLineNo` to VPI handles for source objects, including the signal, select,
+  and class-variable kinds covered here. Respect the `line` directive.
+- **Failure:** Before the fix, a scalar signal declared under
+  `` `line 100 "mapped_source.sv" 0`` returned no file and line 0.
+- **Fix and scope:** The VVP target emits the existing elaborated file-table
+  index and declaration line for scalar integral signals/nets and class
+  variables. The loader applies the metadata to the corresponding VPI handle;
+  bit and part-select handles delegate to their parent. Generated-scope
+  signals are covered. Other VPI object kinds are outside this fix.
+- **Validation:** The VPI plugin regression passes under `-g2017` and
+  `-g2023`, checking both properties for scalar variable, net, bit-select,
+  part-select, class variable, and generated-scope signal. Bison remains at
+  14 shift/reduce and 5 reduce/reduce conflicts. Full legacy/JSON and UVM
+  validation are still pending; these are local checks, not CI results.
+- **Delivery:** Add to the current main-based five-issue draft PR. This ticket
+  explicitly requires leaving that draft unmerged.
+
+### IEEE-TWO-STATE-PACKED-SELECT — issue #469 parameter-select follow-up
+
+- **State:** The original two-state packed-select behavior is merged in PR #464. The parameter-type regression fix and the obsolete unequal-length `intersect` negative removal are in PR #515, now merged with `origin/main` at `f39d0b5121d43461936858e380e79a873ff16abc`. Its pre-merge head had Ubuntu 22.04/24.04 and MINGW64/UCRT64/CLANG64 successful; macOS was queued. The merge commit requires fresh exact-head CI; no qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid bit-select from a two-state value and X for a four-state value. A partially out-of-range part-select returns X in missing positions; §6.11.2 converts those X bits to 0 when assigned to a two-state destination.
+- **Original failure:** Before PR #464, invalid bit-selects from two-state values returned X and partial part-select X fill was not converted for two-state destinations. PR #464 added the paired reducer for constant and dynamic bit-selects and part-selects.
+- **Regression cause and repair:** `NetScope::evaluate_parameter_logic_` read the parse expression type before `test_width()` populated it, then inferred an untyped parameter type from the folded constant. Fully-defined values appeared BOOL, changing invalid four-state parameter selects. The follow-up preserves source type after width testing and carries parameter type through select nodes; the paired fixture also checks explicit `bit` and `logic` parameters.
+- **Validation:** The follow-up passes the ten affected legacy parameter-select cases and the paired 2017/2023 JSON/VVP packed-select test locally. These are local results. Exact-head CI after the merge is pending.
+- **Related negative-suite correction:** The removed `m9b_intersect_unequal_len` fixture asserted that unequal fixed-length `intersect` operands must be rejected. IEEE 1800-2017/2023 §16.9.6 permits unequal sequence lengths; they simply have no match. The fixture was therefore obsolete, not a required compiler diagnostic.
+- **Delivery:** PR #515 targets `main`. Merge only after all required checks pass on the current exact head.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
@@ -206,6 +216,8 @@
 - **Boundary:** Pinned source and immutable historical **23 PASS / 49** corpus are unchanged. The unrelated DVSIM UVM metadata notice remains a description of the directed bench; it is not an actionable setup warning.
 
 ### OT-CSRNG-PACKED-CLASS-PROPERTY-INDEX — packed element becomes property slot
+- **IEEE issue:** [#495](https://github.com/dsellerbrock/iverilog-uvm/issues/495) tracks the verified generic partial-overlap clipping gap (DD-103).
+
 
 - **State:** DONE at local commit `c0abdfa48`; implementation and exact-image validation are complete. The old compiler used a packed element index as a class-property slot and asserted in `property_logic::get_vec4`; paired 2017/2023 reducers reproduce the read and write failure. Final installed `ivl` SHA-256 `7427219cfcf964d35119fb738f237596083f41aa3214219bf6a24071c37c5013` passes 28/28 focused JSON, 16/16 focused official legacy, full JSON 4,147/0, real-DPI UVM 362/362, full legacy 6,898 passed/0 failed (6,903 total; 2 not implemented, 3 expected failures), VPI 140/140, negatives 154/154, and `make check`. The selected pinned-copy CSRNG smoke **passes** in 92.528 seconds with zero hard errors, semantic notices, or runtime errors/debt; peak physical footprint was 4,076,064,032 bytes under a 6 GiB guard. The first final-image replay hit its 4 GiB guard, and earlier candidate gate failures remain archived. See [evidence](../../evidence/opentitan-csrng-packed-property-20260929/README.md). The frozen 23 PASS / 49 corpus row is historical and unchanged.
 - **Boundary:** Fully in-range bounded dynamic inner packed ranges are supported; unproven crossing ranges fail closed. IEEE partial-overlap clipping for an arbitrary dynamic range remains [DD-103](DISCOVERED_DEBT.md#dd-103--exact-clipping-for-a-dynamic-inner-packed-class-property-range), a separate implementation ticket.
@@ -255,6 +267,8 @@
 - **Boundary:** Strict 2017/2023 modes reject all possible same-member continuous/procedural overlaps under §6.5. Unsafe runtime-selected ordinary and simple-modport VIF writes compile; an actual alias fails with the exact VVP driver error, while a disjoint receiver preserves both interfaces' values. The named modport and virtual clocking-output forms remain conservative compile errors even if a particular runtime binding could be disjoint. This compatibility behavior is not an IEEE qualification claim. The historical `4097/32` full JSON result remains unchanged until an exact-head rerun.
 
 ### OT-FLASH-CONSTRAINT-NESTED-QUEUE-CONTENT — randomize queue elements below fixed property ranks
+- **IEEE issue:** [#419](https://github.com/dsellerbrock/iverilog-uvm/issues/419) includes the verified nested-container randomization evidence (DD-047, DD-068).
+
 
 - **State:** The prerequisite passes on the current compiler image. Three already-registered controls pass in strict 2017 and 2023 (**6/6 invocations**), including nonempty queue contents, nested `foreach`, packed fields, per-element `dist`, external 2-D state weights, rand-mode state, rollback, and invalid/X/Z reads. Exact commands, image hashes, and separate output-channel gold checks are in [the paired evidence](../../evidence/opentitan-census-20261002/flash-queue-content-current-image/README.md).
 - **Expected behavior and cause:** A selected queue element below fixed unpacked property ranks is represented distinctly by its property, fixed-array leaf, queue index, and packed value; constraints, state reads, size/bounds, `rand_mode`, rollback, and writeback use that same identity. The current-image controls now establish this behavior for the exercised shapes.
@@ -273,6 +287,8 @@
 - **Boundary:** Direct fixed class-property ordering is a separate silent-copyback defect [DD-084](DISCOVERED_DEBT.md#dd-084--fixed-class-property-ordering-method-silently-skips-its-receiver). Two whole-array `solve before` hard errors and ten nested queue-element warnings that say `randomize()` will fail remain separate. The compile exits 2 without a VVP image. Pinned sources, unsafe flags, broad suites, installation, and Flash DV runtime are unchanged.
 
 ### OT-FLASH-CONSTRAINT-INDEXED-QUEUE-SIZE — indexed queue leaf in a class constraint
+- **IEEE issue:** [#494](https://github.com/dsellerbrock/iverilog-uvm/issues/494) tracks the fixed queue-size leaf captured by a constraint function (DD-092).
+
 
 - **State:** Focused compiler repair passes strict 2017/2023 JSON and legacy tests 8/8 each, six adjacent JSON tests and one direct queue legacy control; independent review found no scoped blocker. One hash-guarded patched-copy Flash compile removes all ten indexed `rand_info[i][j].size()` and `mp_info_pages[i][j].size()` hard errors, **13 → 3**, with no new hard errors. Warnings rise **125 → 135** because ten separate nested queue-element constraint items now report that `randomize()` will fail. The compiler image SHA-256 is `923a9b4fd62760a8de1a4a977f92983da72bce64fedc5044b33b2c7bb9e3f308`; see the [focused session](session_logs/2026-09-28_ot_flash_indexed_queue_size_focus.json) and projectless `outputs/flash-indexed-queue-size-evidence-20260928.md`.
 - **Cause and correction:** Constraint capture rejected indexed fixed-array-to-queue size calls; direct size IR and VVP variables keyed only the class property, so a parser-only acceptance would alias every leaf to word zero. The repair carries a canonical flat leaf through size IR, solver identity, activity/state pinning, function priority, and queue writeback. Strict runtime tests distinguish 1D/2D lengths, bounds, packed elements, rand modes, non-rand state, function dependencies, contradiction rollback, and loud invalid/unsupported forms.
@@ -355,6 +371,8 @@
 
 ### OT-SPI-CLASS-EVENT-TRIGGERED — per-instance event state in expressions
 
+- **IEEE issue:** The explicit function-call forms remain tracked in [#439](https://github.com/dsellerbrock/iverilog-uvm/issues/439); this blocker’s parenthesis-free property-read fix is merged in PR #340.
+
 - **State:** Merged in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at `909e3f314` after exact-head Ubuntu 22.04 success. The [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) shows all three class-event errors removed from the pinned SPI compile. No SPI Device DV qualification is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps an event's triggered state true for the firing time step and lets `wait (obj.ev.triggered)` handle either same-time trigger order. Different class instances must remain independent.
 - **Cause and boundary:** Class-event reads fell into ordinary class-property lookup before per-object event lowering; `wait` also entered an unrelated direct-event fast path. The candidate reuses per-object VVP event opcodes and passes paired positive, negative, boundary, and instance-isolation checks. Explicit `triggered()` calls remain separate debt; the pinned SPI compile still fails on other mechanisms.
@@ -378,6 +396,8 @@
 - **Boundary:** Integral and string keys are tested; wildcard/object keys and other associative locators remain loud unsupported cases. The separate queue `std::randomize` rejection is cleared; the pinned SPI Device compile still reports later vector-context diagnostics.
 
 ### OT-CLASS-EVENT-MULTI-OBJECT-LIST — event controls lose object identity
+- **IEEE issue:** [#440](https://github.com/dsellerbrock/iverilog-uvm/issues/440) tracks the multi-object class-event identity gap (DD-051).
+
 
 - **State:** Merged in [PR341](https://github.com/dsellerbrock/iverilog-uvm/pull/341) at `7943dffd1` after exact-head Ubuntu 24.04 success. The [paired RED reducer](../../evidence/ot-class-event-multi-object-list-triage-20260923/README.md) now passes at runtime in both editions; see the shared [candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json).
 - **Requirement:** IEEE 1800-2017/2023 §15.5 `@(a.ev or b.ev)` wakes on either selected class object's event. The candidate gives each leaf its existing per-object waiter and joins them for a one-shot event control.
@@ -1320,33 +1340,32 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### V04 — Merged type coverage saturates wide bin totals before division
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.11.3.
-- **State:** LOCALLY VALIDATED — reviewed merged aggregate arithmetic; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** class_type::type_coverage narrows exact dynamic cardinality
   to UINT64_MAX and saturates per-item sums; instance coverage already uses
   unsaturated real aggregation. Multiple named wide families can exceed64 bits.
 - **Scope:** Preserve supported merged totals through percentage calculation,
   retaining bin identity, thresholds, weights and mode dispatch.
-- **Closure:** Paired relative-error reducer/controls, all required local gates
-  and independent review; remote CI before separately authorized merge.
-- **Residuals:** ParentV01, transition-family cardinality and cross-bin universe
-  obligations remain separate. No per-blocker PR under updated cadence.
+- **Closure:** Paired relative-error reducer/controls and independent review; the clean-main recheck confirms the V04 registered reducer in `-g2017` and `-g2023`. Parent V01 and cross-bin universe obligations remain separate; merged transition-family cardinality is a validation question in [#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513).
+- **Residuals:** Parent V01 and cross-bin universe obligations remain separate.
+  Merged transition-family cardinality is validation-only under [#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513).
+  No per-blocker PR under updated cadence.
 
 - **V04 candidate:** Local128-bit merged total/hit accumulation; individual
-  transition-family cardinality unchanged. Focus2/2+2/2, coverage neighbors75/65,
+  The reducer does not change individual transition-family cardinality. Focus2/2+2/2, coverage neighbors75/65,
   makecheck and independent review pass. Integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
   fullJSON1664/0,UVM355/0/0,NFA58/58 all pass.
 
 ### V05 — Constructed cross bins are omitted or misidentified in merged type coverage
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.6,19.11.3.
-- **State:** LOCALLY VALIDATED — exact supported constructed-cross union/count scope; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** campaign-20260908/v05/cross.sv: two dynamic cross instances,
   six-bin union and two hits; type coverage0 instead33.333333, instance25 correct.
 - **Scope:** Register supported automatic cross-bin names/counts for merged
   type coverage and union already-resolved active named properties, preserving
   per-instance topology and full product identity.
-- **Closure:** Paired canonical identity/union controls, required full gates
-  and independent review; remote CI before merge. ParentV01 remains open.
+- **Closure:** Paired canonical identity/union controls and independent review; the clean-main recheck confirms the V05 registered reducer in `-g2017` and `-g2023`. Parent V01 and unsupported topologies remain separate.
 
 - **V05 candidate evidence:** Ordered component-name tuples registered only
   after successful topology validation; local counts map to canonical type
@@ -1355,21 +1374,21 @@ qualification remain open. Evidence: campaign-20260908/s03.
   Includes named/arrayed transition identities and malformed-plan denominator
   assertions. Integrated4785total4780pass0fail2NI3EF,VPI105,negative149,
   runtime checks,fullJSON1677/0,real-DPIUVM355/0/0 and makecheck all pass.
-  ParentV01 remains open; unsupported topologies, transition cardinality and
-  unqualified options are not closed. No immediate PR under milestone cadence.
+  Parent V01 remains open; unsupported topologies and unqualified options are not closed. Merged transition-family cardinality is tracked as a validation question in [#513](https://github.com/dsellerbrock/iverilog-uvm/issues/513); no incorrect result has been reproduced. The clean-main census separately confirmed the CrossQueueType rejection in [#511](https://github.com/dsellerbrock/iverilog-uvm/issues/511) and the oversized-cross silent drop in [#512](https://github.com/dsellerbrock/iverilog-uvm/issues/512). No immediate PR under milestone cadence.
 
 
 ### V06 — Merged item coverage uses instance weights instead of type weights
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.7.1,19.11.3.
-- **State:** LOCALLY VALIDATED — exact declaration-time item type-weight scope; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** v06/type-weight.sv has coverpoint scores50/0,type weights3/1,
   instance weights1/3. Type returns12.5 rather than37.5; instance12.5 is correct.
 - **Scope:** Declared coverpoint/cross type-weight validation, metadata and merged
   aggregation. Preserve independent defaults, instance modes and old bytecode.
 - **Closure:** Paired semantic/invalid-value controls, scoped regression oracle
-  corrections for item isolation, all required local gates and independent review.
-  Procedural static assignment and other type-option obligations remain separate.
+  corrections for item isolation and independent review; the clean-main recheck
+  confirms the V06 registered reducer in `-g2017` and `-g2023`. Procedural
+  static assignment and other type-option obligations remain separate.
 
 - **V06 evidence:** Typed constant validator handles independent defaults,
   zero weights, group noninheritance, static/dynamic/implicit crosses and
@@ -1378,13 +1397,14 @@ qualification remain open. Evidence: campaign-20260908/s03.
   Old bytecode fallback and new tagged metadata bounds are controlled.
   Focus22/22+22/22,coverage75/65,V04 2/2,V05 13/13,integrated4807total4802pass
   zero unexpected2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,
-  NFA58/58,makecheck and independent final review all pass. DD010 remains open.
+  NFA58/58,makecheck and independent final review all pass. DD-010 is resolved
+  by V07's population guard; current-main recheck passes both strict editions.
 
 
 ### V07 — Never-instantiated covergroup types lower cumulative coverage
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.9,19.11,19.11.3.
-- **State:** LOCALLY VALIDATED — never-instantiated type eligibility only; remote CI before merge.
+- **State:** FIXED on clean current `main` (`af89cfc50be1084cc86c48865f3f6ba78d4512fa`); the registered reducer passes in both strict editions in the 2026-10-08 local recheck. This is not a CI result.
 - **Evidence:** v07/uninstantiated-type.sv reports0 before any instance and50
   after constructing one fully covered type; expected100 in both situations.
 - **Root:** Compilation registers types whose static metadata merge1 scores
@@ -1392,8 +1412,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
   and retired-options marker already preserve the required population state.
 - **Scope:** Shared type-coverage eligibility, preserving constructed/retired
   populations and independent type/instance weights; no new metadata or registry.
-- **Closure:** Paired lifecycle controls, full required local gates and review.
-  Broader parentV01 and other coverage obligations remain open.
+- **Closure:** Paired lifecycle controls and review; the clean-main recheck
+  confirms the V07 registered reducer in `-g2017` and `-g2023`. Broader parent
+  V01 and other coverage obligations remain open.
 
 - **V07 validation:** Six permanent lifecycle entries pass both harnesses,
   with paired baseline failures and zero-weight/retirement controls. V04/V05/V06
@@ -4065,9 +4086,14 @@ the [revision-scoped review record](session_logs/2026-09-20_pr_review_repairs.md
 The operational phases, pending gates and publication state remain in
 [ACTIVE_WORK](../../.ai/ACTIVE_WORK.yaml) and [CAMPAIGN](../../.ai/CAMPAIGN.yaml).
 The [restored baseline qualification](session_logs/2026-09-20_restored_baseline_qualification.json) records completed local gates.
-The [recursive cross-with implementation](session_logs/2026-09-20_recursive_cross_with.md) has focused validation pending its batch gate; explicit matches remains unsupported;
-DD-044 separately records constraint-body translation that drops a requested
-constraint and is not closed by selector validation.
+The positive recursive cross-`with` reducer in the [implementation record](session_logs/2026-09-20_recursive_cross_with.md) passes in both strict editions on clean current `main`. Remaining verified cases are tracked separately: cross-bin `matches` thresholds [#508](https://github.com/dsellerbrock/iverilog-uvm/issues/508) and wildcard-bin `with` value selection [#509](https://github.com/dsellerbrock/iverilog-uvm/issues/509). The 2026-10-08 checks are local, not CI. DD-044 separately records constraint-body translation that drops a requested constraint and is not closed by selector validation.
+
+### IEEE 1800 clause-19 census crosswalk — 2026-10-08
+
+- [#469](https://github.com/dsellerbrock/iverilog-uvm/issues/469) remains the existing issue for DD-087 and PR #464's DD-112 two-state packed bit-select behavior; the clean-main reproducer returns X in both strict editions.
+- [#507](https://github.com/dsellerbrock/iverilog-uvm/issues/507) tracks the §19.3 rule that covergroup constructor `output`/`inout` formals are illegal; paired clean-main probes accept both forms.
+- [#508](https://github.com/dsellerbrock/iverilog-uvm/issues/508) tracks unsupported cross-bin `matches` thresholds; [#509](https://github.com/dsellerbrock/iverilog-uvm/issues/509) tracks wildcard-bin values in cross `with` predicates. Each has an ordinary-bin passing control and a paired strict-edition failure.
+- [#510](https://github.com/dsellerbrock/iverilog-uvm/issues/510) tracks 2023 real-valued coverpoint bins and `type_option.real_interval`; the clean-main paired reducer drops the bin and reports the wrong denominator. Clause-11 tolerance range operators remain [#462](https://github.com/dsellerbrock/iverilog-uvm/issues/462).
 
 IBEX-ROW-ASYNC-RESET-SYNTHESIS has [focused and neighboring runtime evidence](session_logs/2026-09-21_row_async_reset.json); required batch gates remain pending. Ordinary blocking-index dataflow is separate recorded debt.
 
@@ -4339,7 +4365,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### ARRAY-MAP-2023 — standard array map method
 
-- **State:** The bounded implementation is qualified for the registered fixed, dynamic, queue, and associative cases, including tested unpacked-array-valued results. Strict `-g2017` rejects the method. Broader clause qualification remains partial.
+- **State:** Implemented and locally qualified in current main; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The registered fixed, dynamic, queue, and associative cases, including tested unpacked-array-valued results, pass; strict `-g2017` rejects the method. Broader clause qualification remains partial.
 - **Standard:** IEEE 1800-2023 §§7.12.4–7.12.5. The `with` expression is required, mapped elements use its self-determined type, and the returned array preserves the source range or associative index set. The optional custom index-method name is supported. Strict 2017 behavior must remain rejecting.
 - **Verified scope:** Paired map lists pass 4/4 in JSON and legacy harnesses. Cases cover default/custom iterator names, custom index alias, empty and populated inputs, descending fixed ranges, 2D row reduction, preserved associative keys, integral, bit, string, real, and unpacked-struct results, plus fixed-array-valued results for fixed, dynamic, queue, and associative receivers. The result tests check contents, ranges/keys, empty outputs, and nested maps over containers of rows. Adjacent min/max/reduction, unique/find-last, and OpenTitan array-of-containers checks pass; exact commands and image hashes are in the [qualification record](../../evidence/array-map-2023-20261007/README.md).
 - **Remaining boundary:** Further legal result types and interactions need broader qualification. The focused ticket closes the tested implementation gap; it does not claim full §7.12.5 or complete array-method-clause conformance.
@@ -4347,9 +4373,16 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Source:** The local IEEE 1800-2023 §7.12.4–7.12.5 and 2017 §7.12 text were reviewed directly. The original paired RED is preserved in the qualification record as baseline history.
 - **Scope:** `elab_expr.cc`, the required VVP lowering/runtime path, focused paired regression entries, `.ai/ACTIVE_WORK.yaml`, and bounded evidence. No OpenTitan or Caliptra source changes and no broad corpus run.
 
+### IEEE-DPI-ARRAY-RESIDUALS — open issue crosswalk
+
+- **State:** Two distinct actionable legal-argument gaps remain open: [#505](https://github.com/dsellerbrock/iverilog-uvm/issues/505) tracks imported fixed/open `shortreal` arrays; [#506](https://github.com/dsellerbrock/iverilog-uvm/issues/506) tracks fixed-size unpacked export formals.
+- **Standard:** IEEE 1800-2017/2023 §35.5.6 and Annex H §§H.7.4/H.7.8 define imported aggregate formals and `shortreal`→C `float`; H.7.8/H.8.2 permit fixed-size unpacked export formals while prohibiting exported open arrays.
+- **Evidence:** The retained reducers `tests/negative/m10_dpi_fixed_shortreal_array_argument.sv`, `tests/negative/m10_dpi_open_shortreal_array_argument.sv`, and `tests/negative/m10_dpi_export_fixed_array_argument.sv` each reproduce the current-main unsupported diagnostic. Issue bodies include self-contained examples and acceptance criteria.
+- **Boundary:** Scalar shortreal, scalar and packed-vector exports, and the recorded other DPI subsets are supported. The broader signature/runtime cross-product remains M14B-9 qualification work and is not a separate runtime-gap ticket.
+
 ### SV23-DIST-DEFAULT-WEIGHT — 2023 `dist default :/` item
 
-- **State:** Implemented and locally qualified as Fix 29; add to the existing draft PR #407. The larger IEEE 1800-2017/2023 objective remains active.
+- **State:** Implemented and locally qualified as Fix 29; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The larger IEEE 1800-2017/2023 objective remains active.
 - **Standard:** IEEE 1800-2023 §18.5.3 adds `default :/ expression`. The item is a single aggregate-weight bucket for the complement of all explicit bins. IEEE 1800-2017 §18.5.4 does not include this syntax.
 - **Implementation:** The parser tags the default item, elaboration edition-gates it and rejects duplicate defaults, and VVP computes the complement after collecting every explicit membership predicate. Explicit bins remain weighted items, including overlaps; zero-weight explicit bins still exclude their values from the default bucket. The default bucket uses the existing exact weighted sampler.
 - **Validation:** Strict JSON/VVP and legacy focused lists pass 5/5 each, including strict 2017 rejection, required `:/`, malformed and duplicate forms, weighted sampling, overlap, zero-weight exclusion, and hard-constraint failure. Existing large exact-dist neighbor lists pass 14/14 each. No broad corpus or OpenTitan run was needed. See [qualification evidence](../../evidence/dist-default-2023-20261007/README.md).
@@ -4357,7 +4390,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### ASSOC-FIND-FIRST-INDEX — associative `find_first_index()`
 
-- **State:** Implemented and locally qualified as Fix 30; add to the existing draft PR #407. This is a bounded §7.12.1 implementation increment, not full clause-7 closure.
+- **State:** Implemented and locally qualified as Fix 30; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). This is a bounded §7.12.1 implementation increment, not full clause-7 closure.
 - **Standard:** IEEE 1800-2017/2023 §7.12.1 applies locator methods to unpacked arrays. Index locators return the associative array's declared key type, and first/last on an associative array follow its key type's ordering. Wildcard-index associative arrays are excluded.
 - **Failure and fix:** The valid `find_first_index() with (...)` call on a non-wildcard associative array emitted a compile-time “not yet implemented” diagnostic in both editions. The frontend now routes it through the existing keyed locator payload; VVP appends the actual matching key and exits at the first match.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 6/6. Coverage includes signed integer and string keys, multiple matches, empty/no-match results, existing `find_index` checks, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-first-index-20261007/README.md).
@@ -4365,7 +4398,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### ASSOC-FIND-LAST-INDEX — associative `find_last_index()`
 
-- **State:** Implemented and locally qualified as Fix 31; add to the existing draft PR #407. This is a bounded §7.12.1 increment, not full clause-7 closure.
+- **State:** Implemented and locally qualified as Fix 31; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). This is a bounded §7.12.1 increment, not full clause-7 closure.
 - **Standard:** IEEE 1800-2017/2023 §7.12.1 requires the last matching associative key in the array's key ordering, with the declared index type in the result queue. Wildcard-index associative arrays are excluded.
 - **Failure and fix:** Before the change, valid calls were rejected in both editions. The frontend now uses the existing typed keyed-locator path; VVP begins at the last key, walks predecessors, and stops at the first predicate match in reverse order.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 8/8. Coverage includes multiple matches, signed integer and string keys, empty/no-match results, existing associative `find_index`/`find_first_index` controls, and wildcard-index rejection. No broad suite or OpenTitan corpus was run. See [qualification evidence](../../evidence/assoc-find-last-index-20261007/README.md).
@@ -4373,7 +4406,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### SV23-RAND-REAL — IEEE 1800-2023 scalar real randomization
 
-- **State:** Implemented and locally qualified as Fix 34. Add it to the existing draft PR #407; the broader IEEE 1800 goal remains active.
+- **State:** Implemented and locally qualified as Fix 34; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The broader IEEE 1800 goal remains active.
 - **Standard:** IEEE 1800-2023 §18.4 permits scalar class `rand real`; §18.5.9 permits real solve-before operands and requires uniform real selection. IEEE 1800-2017 retains the strict rejection.
 - **Implementation:** The frontend edition-gates scalar real properties. Constraint lowering preserves binary64 literals and property values; the Z3 path handles real arithmetic/comparisons and finite interval membership, samples feasible binary64 candidates against the full hard solver, stages real solve-before values, and writes back only successful solves.
 - **Validation:** Strict JSON/VVP and legacy focused lists each pass 3/3: 2023 positive, 2017 negative, and 2023 `randc real` negative. The positive test checks bounds, a relational bit, solve-before, 2,048-draw equal-half frequency (1,004 lower-half draws), and failed-call rollback. Image hashes and commands are in [qualification evidence](../../evidence/rand-real-scalar-20261007/README.md).
@@ -4381,7 +4414,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### SV23-ARRAY-INDEX-ARGUMENT — IEEE 1800-2023 array-method index argument
 
-- **State:** Implemented and locally qualified as Fix 35; add it to the existing draft PR #407. The broader IEEE 1800 goal remains active.
+- **State:** Implemented and locally qualified as Fix 35; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407). The broader IEEE 1800 goal remains active.
 - **Standard:** IEEE 1800-2023 §7.12 adds the optional `index_argument` name to array-method calls. It names the iterator's index-query alias; strict `-g2017` must reject it.
 - **Failure and fix:** The frontend accepted only the iterator argument for locator, reduction, min/max, and unique methods. The shared validator now accepts and edition-gates the second identifier, and iterator binding resolves it for ordinary and associative arrays. Class-element lookup preserves a real property such as `item.index` while resolving a distinct custom alias such as `item.position` to the array index.
 - **Validation:** Paired JSON/VVP and legacy focused lists pass 2/2, including class-member collision, associative string-key lookup, `sum`, `min`, `max`, and `unique_index`. Adjacent 2023 `map()` lists pass 4/4 in each harness. Build and install succeed. Exact commands and executable hashes are in [qualification evidence](../../evidence/array-index-argument-20261007/README.md); no broad suite or OpenTitan corpus was run.

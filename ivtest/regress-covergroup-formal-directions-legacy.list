@@ -1,0 +1,4 @@
+sv_covergroup_formal_directions normal,-g2017 ivltests gold=sv_covergroup_formal_directions.gold
+sv_covergroup_formal_directions_2023 normal,-g2023 ivltests gold=sv_covergroup_formal_directions.gold
+sv_covergroup_formal_directions_fail CE,-g2017 ivltests gold=sv_covergroup_formal_directions_fail.gold
+sv_covergroup_formal_directions_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_formal_directions_fail_2023.gold

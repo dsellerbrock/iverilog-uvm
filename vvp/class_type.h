@@ -295,6 +295,7 @@ class class_type : public __vpiHandle {
 	    uint64_t trans_base = 0;
 	    unsigned guard_idx = 0xFFFFFFFFu;
       };
+	static const unsigned COV_REAL_BIN = 0x100;
       struct cov_item_t {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
@@ -382,6 +383,8 @@ class class_type : public __vpiHandle {
 	return true; }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+	bool covgrp_cp_real(size_t cp) const
+	{ return cp < covgrp_real_cps_.size() && covgrp_real_cps_[cp]; }
       void add_covgrp_dyn_bin(unsigned cp, unsigned item, unsigned kind,
 			      unsigned family, uint64_t array_size,
 			      const std::string&name,
@@ -538,6 +541,7 @@ class class_type : public __vpiHandle {
 
     private:
       std::vector<cov_bin_t> covgrp_bins_;
+	std::vector<bool> covgrp_real_cps_;
       std::vector<cov_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<cov_cross_t> covgrp_crosses_;
       std::vector<cov_cross_term_t> covgrp_cross_terms_;
