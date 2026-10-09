@@ -2504,16 +2504,18 @@ a three-tuple constraint with unequal branch sizes produced bins `64,26,30`
 in 120 draws in both editions.
 
 The current branch keeps rejection sampling for dense components. After 64
-rejected proposals, it enumerates an eligible connected direct-scalar component
-when all variables are at most 64 bits and no soft constraints are pending.
-Complete sets up to 4,096 tuples are sampled uniformly with the existing
-property-owned RNG. Draft [PR #526](https://github.com/dsellerbrock/iverilog-uvm/pull/526)
-contains the local change. The paired sparse positive, UNSAT rollback, and 4,097-tuple
-boundary controls pass 2/2 in legacy and 2/2 in JSON/VVP; adjacent
-`sv_randomize_global_sampling_fail` controls pass 2/2 in each runner. The
-over-cap boundary checks legal output only, not uniformity. Larger solution
-sets and soft, wide, array, and member components remain outside this exact
-path. No full uniformity suite or CI run was performed for this increment.
+rejected proposals, it traverses every projected tuple in an eligible connected
+direct-scalar component (all variables at most 64 bits, no pending soft
+constraints) and reservoir-samples one tuple with the property-owned RNG. The
+finite bit-vector product bounds traversal; solver blocking state and work
+scale with the number of legal tuples. Draft [PR #526](https://github.com/dsellerbrock/iverilog-uvm/pull/526)
+contains the local change. The paired sparse positive, UNSAT rollback, and
+4,097-tuple boundary controls pass 2/2 in legacy and 2/2 in JSON/VVP; adjacent
+`sv_randomize_global_sampling_fail` controls pass 2/2 in each runner. A
+pre-patch 2017 run selected the singleton of the 4,097-tuple boundary 3/4
+times; the current exact traversal passes. Widths above 64 bits and soft,
+array, and member components remain outside this exact path. No full uniformity
+suite or CI run was performed for this increment.
 See the [revision-scoped evidence](../../../evidence/solve-before-array/sparse-coupled-uniform-sampling-20261009.md).
 
 ## 2026-10-08 IEEE 1800-2023 §22.5 parenthesized conditional expressions

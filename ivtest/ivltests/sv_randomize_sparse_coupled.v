@@ -14,11 +14,17 @@ class sparse_unsatisfiable;
 endclass
 
 class sparse_over_tuple_cap;
-  rand bit [31:0] left;
-  rand bit [31:0] right;
+  rand bit selector;
+  rand bit [31:0] value;
+  rand bit [31:0] copy;
   constraint legal {
-    left inside {[32'd0:32'd4096]};
-    right == left;
+    if (selector) {
+      value inside {[32'd1:32'd4096]};
+      copy == value;
+    } else {
+      value == 32'd0;
+      copy == 32'd0;
+    }
   }
 endclass
 
@@ -58,8 +64,12 @@ module main;
     boundary.srandom(417);
     if (!boundary.randomize())
       $fatal(1, "over-cap sparse randomize failed");
-    if (boundary.left > 32'd4096 || boundary.right != boundary.left)
-      $fatal(1, "over-cap sparse result is outside its legal set");
+    if (boundary.selector) begin
+      if (boundary.value < 32'd1 || boundary.value > 32'd4096
+          || boundary.copy != boundary.value)
+        $fatal(1, "over-cap sparse result is outside its legal set");
+    end else if (boundary.value != 32'd0 || boundary.copy != 32'd0)
+      $fatal(1, "over-cap singleton result is outside its legal set");
     $display("PASSED");
   end
 endmodule

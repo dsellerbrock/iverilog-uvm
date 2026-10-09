@@ -31,27 +31,37 @@ exceeded the registered 22–58 bound.
 
 ## Change and boundary
 
-After 64 rejected proposals, the existing joint sampler now exactly enumerates
-eligible connected direct-scalar components when every variable is at most 64
-bits and there are no pending soft constraints. If the complete set contains
-at most 4,096 tuples, one tuple is selected with unbiased `uniform_index()` on
-an existing property-owned RNG stream, and all component variables are pinned
-in both the hard solver and optimizer. Dense components retain rejection
-sampling. Unknown enumeration results fail explicitly.
+After 64 rejected proposals, the joint sampler now traverses the complete
+projection for eligible connected direct-scalar components when every
+variable is at most 64 bits and no pending soft constraints exist. Each solver
+model is blocked by its complete semantic tuple; reservoir sampling with the
+property-owned RNG selects uniformly without retaining the tuple vector. The
+loop is bounded by the finite Cartesian product `2^(sum(variable widths))` and
+ends early when the projected solver becomes UNSAT. Solver blocking state and
+work grow with the number of legal tuples, so very large finite sets can still
+be impractical. UNKNOWN and unsupported counter widths fail explicitly; the
+eligible direct-scalar path no longer falls through to the non-uniform solver
+fallback.
 
-More than 4,096 tuples, widths above 64 bits, soft constraints, and array or
-member components remain outside this exact enumeration path. An over-cap
-4,097-tuple boundary case confirms the existing fallback still returns a
-legal value; it does not qualify that fallback as uniform. Broader clause 18
-remains PARTIAL.
+Widths above 64 bits, pending soft constraints, and array or member components
+remain outside this exact path. Broader clause 18 remains PARTIAL.
+
+Before the change, the 4,097-tuple case with one singleton and 4,096 other
+tuples selected the singleton 3/4 times on a 2017 run, contradicting uniform
+sampling. A four-draw probe on the patched runtime passed; the permanent
+boundary regression performs one draw to keep the paired runner cost bounded.
+The separate three-tuple statistical reducer exercises the same reservoir
+algorithm over 120 draws in both editions.
 
 ## Local validation
 
 - `make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex` and
   `make install` passed on the refreshed branch.
-- Paired sparse positive, unsatisfiable rollback, and over-cap cases passed
-  2/2 in the legacy runner and 2/2 in JSON/VVP.
+- Paired sparse positive, unsatisfiable rollback, and 4,097-tuple boundary
+  cases passed 2/2 in the legacy runner and 2/2 in JSON/VVP.
 - Adjacent `sv_randomize_global_sampling_fail` controls passed 2/2 in each
   runner.
+- `git diff --check` passed. The incremental build emitted two existing
+  warnings in unrelated `vvp_z3.cc` locations.
 - No CI status was checked. This is local evidence only; it does not qualify
   the change on other platforms or close the broader uniformity requirement.
