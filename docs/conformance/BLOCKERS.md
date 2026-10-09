@@ -92,9 +92,10 @@
 
 ### SV-PACKAGE-CLASS-STATIC-CALL-EXPRESSION (#497)
 
-- **State:** Implemented locally on `agent/ieee-batch-499-495-20261009`;
-  full local legacy and JSON suites are running. This issue remains part of
-  the five-issue main-based campaign batch; no PR or CI result is claimed yet.
+- **State:** Implemented and committed locally on
+  `agent/ieee-batch-499-495-20261009`; full JSON is still running. This issue
+  remains part of the five-issue main-based campaign batch; no PR or CI result
+  is claimed yet.
 - **Failure:** `value = p::c::get();` reports a syntax error in strict 2017 and
   2023; the package-qualified statement call and `void'(p::c::get())` controls
   compile.
@@ -117,9 +118,11 @@
   fails without a crash. Full legacy finished with 7,260 total, 7,243 passed,
   12 failed, 2 not implemented, and 3 expected failures; ten failures are
   unrelated select gold mismatches and two are manually timeboxed uniform
-  tests (DD-110). Full JSON and `.github/uvm_test.sh` remain in progress. The
-  UVM run uses real DPI and has one unrelated `m10_dpi_export_small_abi_test`
-  failure so far. The external read-only axi-vip probe advances past the fixed
+  tests (DD-110). Full JSON remains in progress; both global-uniform variants
+  were manually timeboxed at 300 seconds (DD-110). The real-DPI
+  `.github/uvm_test.sh` finished 362 passed, 1 failed, 0 skipped; its unrelated
+  `m10_dpi_export_small_abi_test` C companion compile failure is recorded in
+  DD-117. The external read-only axi-vip probe advances past the fixed
   call and reaches DD-111's impure `get_width` constraint diagnostic. No CI
   qualification is claimed.
 

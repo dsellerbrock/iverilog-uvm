@@ -4163,3 +4163,20 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** Triage-pending and record-only. Do not select these cases
   as separate blockers from this evidence or widen #497 to change select
   behavior.
+
+### DD-117 — UVM small-DPI-ABI companion does not compile
+
+- **Discovered while working:** SV-PACKAGE-CLASS-STATIC-CALL-EXPRESSION
+  (#497), during the full real-DPI `.github/uvm_test.sh` run.
+- **Observation:** `m10_dpi_export_small_abi_test.c` redeclares `bit_out` and
+  `bit_inout` as `svBitVecVal[3]` after declaring them as `svBit`. The C
+  companion build fails with conflicting types and subsequent pointer
+  conversion errors. The script continues to VVP; a prior `/tmp` VPI object
+  remained from an earlier run, but produces no checked PASS marker, so the
+  suite correctly counts the case as failed.
+- **Evidence:** `/tmp/uvm_dpi_m10_dpi_export_small_abi_test.buildlog` and
+  `/tmp/issue497-uvm-full-corrected.log`; full real-DPI UVM summary is 362
+  passed, 1 failed, 0 skipped.
+- **Reproducer status:** Confirmed on the current ARM64 host.
+- **Triage status:** Triage-pending and unrelated to #497's parser/elaboration
+  change. Keep it out of this ticket's scope.
