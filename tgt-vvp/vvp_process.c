@@ -7296,16 +7296,27 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    }
 	    unsigned guard_flags = has_cp_guards | (ncross_guards << 1)
 		  | (nbin_guards << 16);
-	    for (unsigned ii = 1 ; ii < payload_end ; ii += 1) {
-		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii);
-		  if (cp_arg) draw_eval_vec4(cp_arg);
+	    unsigned nreal = 0;
+	    for (unsigned ii = 0; ii < ncp; ii++) {
+		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii + 1);
+		  if (cp_arg && ivl_expr_value(cp_arg) == IVL_VT_REAL) {
+			nreal += 1;
+			draw_eval_real(cp_arg);
+		  } else if (cp_arg) draw_eval_vec4(cp_arg);
+		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    }
+	    for (unsigned ii = 1 + ncp; ii < payload_end; ii += 1) {
+		  ivl_expr_t arg = ivl_stmt_parm(net, ii);
+		  if (arg) draw_eval_vec4(arg);
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
 	    if (obj_arg) draw_eval_object(obj_arg);
 	      /* Keep the established two-operand VVP encoding: bit 0 says
 	         coverpoint guards are present, bits 1.. carry the number of
 	         cross guards. Old streams that use 0/1 remain valid. */
-	    fprintf(vvp_out, "    %%covgrp/sample %u, %u;\n", ncp, guard_flags);
+	    fprintf(vvp_out, "    %%covgrp/sample %llu, %u;\n",
+		    (unsigned long long)(((uint64_t)nreal << 32) | ncp),
+		    guard_flags);
 	    return 0;
       }
 

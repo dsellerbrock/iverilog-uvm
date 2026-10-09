@@ -1287,6 +1287,42 @@ bool NetSTask::evaluate_function(const LineInfo&loc,
 	/* Elaboration lowers these receiver-updating language methods to internal
 	 * system tasks. During constant-function evaluation, apply that update to
 	 * the receiver's LocalVar slot. */
+      if (strcmp(name_, "$ivl_queue_method$push_back") == 0
+	  && parms_.size() == 2) {
+	    if (!parms_[0] || !parms_[1]) return false;
+	    const NetESignal*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
+	    if (!receiver) return false;
+	    NetExpr*invalid_slot = 0;
+	    bool discard_store = false;
+	    NetExpr**value_slot = eval_func_signal_slot_(
+		  loc, receiver, context_map, invalid_slot, discard_store);
+	    if (!value_slot) return false;
+	    NetExpr*arg = parms_[1]->evaluate_function(loc, context_map);
+	    if (!arg) { delete invalid_slot; return false; }
+	    if (discard_store) {
+		  delete arg;
+		  delete invalid_slot;
+		  return true;
+	    }
+	    std::vector<NetExpr*>items;
+	    if (const NetEArrayPattern*old =
+		      dynamic_cast<const NetEArrayPattern*>(*value_slot)) {
+		  items.reserve(old->item_size() + 1);
+		  for (size_t idx = 0; idx < old->item_size(); idx += 1)
+			items.push_back(old->item(idx)->dup_expr());
+	    } else if (*value_slot) {
+		  delete arg;
+		  delete invalid_slot;
+		  return false;
+	    }
+	    items.push_back(arg);
+	    delete *value_slot;
+	    *value_slot = new NetEArrayPattern(receiver->sig()->net_type(), items);
+	    (*value_slot)->set_line(*this);
+	    delete invalid_slot;
+	    return true;
+      }
+
       unsigned radix = 0;
       if (strcmp(name_, "$ivl_string_method$itoa") == 0) radix = 10;
       else if (strcmp(name_, "$ivl_string_method$hextoa") == 0) radix = 16;

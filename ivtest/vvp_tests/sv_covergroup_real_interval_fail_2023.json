@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_real_interval_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_covergroup_real_interval_fail_2023"],
+  "gold": "sv_covergroup_real_interval_fail_2023"
+}
