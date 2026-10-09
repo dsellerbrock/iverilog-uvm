@@ -1,9 +1,9 @@
 status: "in_progress"
-phase: "FOCUSED_TESTED"
+phase: "PR_OPEN"
 blocker: "IEEE-UNPACKED-ARRAY-OUTPUT-SLICE (#492)"
 github_issue: "#492 — connect unpacked-array output ports to array slices"
 branch: "agent/ieee-batch-499-495-20261009"
-baseline: "origin/main 4b3f3424c440aca6af92153b6860a7253b925234; prior batch checkpoint 9f895773a contains locally verified #499, #497, #495, and #493; b3fd9ec33 adds locally verified #492."
+baseline: "origin/main 4b3f3424c440aca6af92153b6860a7253b925234; batch head aeecd2eeb contains locally verified #499, #497, #495, #493, and #492. Draft PR #520 targets main."
 goal: "Connect compatible unpacked-array slices to output ports and propagate driven values without disturbing neighboring rows."
 standards: "IEEE 1800-2017/2023 §§7.6 and 23.3.3.5; unpacked-array elements correspond left-to-right, with matching dimension counts and sizes."
 failing_reproducer: "Before the patch, the paired DD-086 output-port reproducer printed X for selected row s[0] while the whole-array control printed 01 and 10; the new strict regression failed in both editions. The fixed reducer now passes in both."
@@ -13,10 +13,10 @@ allowed_scope: "Unpacked-array module output-port actual elaboration and dimensi
 forbidden_scope: "No unrelated input-port, interface-port, inout-port, dynamic-array, or general array-assignment redesign."
 acceptance: "Paired strict 2017/2023 runtime checks cover selected rows, whole-array outputs, left-to-right direction mapping and neighboring-row isolation; paired incompatible-shape tests emit a focused compile error. Focused legacy and JSON/VVP suites pass; run make check and a serial macOS build."
 discovery_policy: "Record unrelated discoveries in docs/conformance/DISCOVERED_DEBT.md; keep the patch within unpacked-array output actuals."
-current_validation: "The original DD-086 reducer now prints 01 00 10 zz | 01 10 in strict -g2017 and -g2023. Paired selected-row, opposite-direction, whole-array, and incompatible-shape tests pass 6/6 in legacy and 6/6 in JSON/VVP. Serial macOS make/install and make check pass. Local evidence only; CI has not run for this batch head."
-next_action: "Open one draft PR to main containing #499, #497, #495, #493, and #492. Continue with the next open IEEE issue while CI runs; do not repeatedly poll CI."
+current_validation: "The original DD-086 reducer prints 01 00 10 zz | 01 10 in strict -g2017 and -g2023. Paired tests pass 6/6 legacy and 6/6 JSON/VVP. Serial macOS make/install and make check pass. Draft PR #520 targets main; its six CI jobs are queued, so CI qualification is pending."
+next_action: "Address any failures reported by PR #520 on its exact head; do not merge until all required jobs are green. After this turn, implement the requested main-to-PR synchronization/conflict-resolution bot using the existing bot worktree."
 stop_after_completion: false
-after_completion: "After opening the five-fix draft PR to main, continue with the next open IEEE issue while CI runs; do not repeatedly poll CI."
+after_completion: "After PR #520 is CI-green and merged, continue with the next open IEEE issue; do not repeatedly poll CI."
 
 # Preserved pre-ticket campaign checkpoints and parallel-lane state.
 pre_ticket_latest_increment: "SVA-INTERSECT-UNEQUAL-LENGTHS is implemented and locally regression-tested. The permanent reducer passes the SVA NFA dual-run 64/64; strict legacy passes 1/1; paired strict 2017/2023 JSON/VVP passes 2/2; explicit legacy-engine rejection is preserved in both editions. PR #412 is merged but CI qualification is incomplete: Ubuntu 22.04 failed, two jobs remain in progress, and three are queued. See DD-107."

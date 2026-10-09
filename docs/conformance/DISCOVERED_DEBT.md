@@ -3856,7 +3856,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 ### DD-086 — unpacked-array output port connected to a slice of a 2-D unpacked array reads X
 
-- **Issue status:** [OPEN #492](https://github.com/dsellerbrock/iverilog-uvm/issues/492); implementation is locally focused-tested on the batch branch, awaiting a main-based PR and CI.
+- **Issue status:** [OPEN #492](https://github.com/dsellerbrock/iverilog-uvm/issues/492); locally focused-tested fix is in [draft PR #520](https://github.com/dsellerbrock/iverilog-uvm/pull/520), with CI pending.
 
 - **Discovered while working:** VVP-HOTPATH-PERF (Caliptra/Adams Bridge single-core performance assessment; no conformance ticket).
 - **Observation:** `m u0(.s(s[0]))`, where `s` is `logic [1:0] s [2][3:0]` and the port is `output logic [1:0] s [3:0]` driven by `always_comb`, leaves every `s[0][k]` at X. Connecting a whole one-dimensional array (`.s(s1)`) works. No diagnostic is issued. The first Adams Bridge A2B reducer hit this and reported an all-X output hash.
