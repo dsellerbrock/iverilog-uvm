@@ -26391,6 +26391,14 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 	    return res;
       }
 
+	// The parameter value may be fully defined even though its declared or
+	// inferred type is four-state. Preserve that type on the select so the VVP
+	// backend only converts invalid reads from actual two-state parameters.
+      ivl_type_t select_type = nullptr;
+      if (par_type && (par_type->base_type() == IVL_VT_LOGIC ||
+		       par_type->base_type() == IVL_VT_BOOL))
+	    select_type = new netvector_t(par_type->base_type(),
+					  (long)slice_wid - 1, 0, false);
       if (debug_elaborate)
 	    cerr << get_fileline() << ": debug: Calculate bit select "
 		 << name << "[" << *sel << "] from range "
@@ -26411,7 +26419,8 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 			        "Replacing select with a constant 1'bx."
 			     << endl;
 		  }
-		  NetEConst*res = make_const_x(1);
+		  NetEConst*res = par_type && par_type->base_type() == IVL_VT_BOOL
+			? make_const_0(1) : make_const_x(1);
 		  res->set_line(*this);
 		  return res;
 	    }
@@ -26458,6 +26467,8 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 	    } else if ((sel_v >= 0) && (! par_v.has_len())) {
 		  if (par_v.has_sign()) rtn = par_v[par_v.len()-1];
 		  else rtn = verinum::V0;
+	    } else if (par_type && par_type->base_type() == IVL_VT_BOOL) {
+		  rtn = verinum::V0;
 	    } else if (warn_ob_select) {
 		  cerr << get_fileline() << ": warning: "
 		          "Constant bit select [" << sel_c->value().as_long()
@@ -26488,7 +26499,9 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
       NetEConstParam*ptmp = new NetEConstParam(found_in, name, par_ex->value());
       ptmp->set_line(found_in->get_parameter_line_info(name));
 
-      NetExpr*tmp = new NetESelect(ptmp, sel, slice_wid);
+	    NetExpr*tmp = select_type
+		  ? new NetESelect(ptmp, sel, slice_wid, select_type)
+		  : new NetESelect(ptmp, sel, slice_wid);
       tmp->set_line(*this);
       return tmp;
 }
@@ -26700,7 +26713,15 @@ NetExpr* PEIdent::elaborate_expr_param_idx_up_(Design*des, NetScope*scope,
       NetEConstParam*ptmp = new NetEConstParam(found_in, name, par_ex->value());
       ptmp->set_line(found_in->get_parameter_line_info(name));
 
-      NetExpr*tmp = new NetESelect(ptmp, base, wid, IVL_SEL_IDX_UP);
+	// Preserve X fill from an out-of-range part; the destination conversion
+	// handles two-state lvalues.
+	ivl_type_t select_type = nullptr;
+	if (par_type && (par_type->base_type() == IVL_VT_LOGIC ||
+			  par_type->base_type() == IVL_VT_BOOL))
+	      select_type = new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false);
+	NetExpr*tmp = select_type
+	      ? new NetESelect(ptmp, base, wid, select_type, IVL_SEL_IDX_UP)
+	      : new NetESelect(ptmp, base, wid, IVL_SEL_IDX_UP);
       tmp->set_line(*this);
       return tmp;
 }
@@ -26789,7 +26810,15 @@ NetExpr* PEIdent::elaborate_expr_param_idx_do_(Design*des, NetScope*scope,
       NetEConstParam*ptmp = new NetEConstParam(found_in, name, par_ex->value());
       ptmp->set_line(found_in->get_parameter_line_info(name));
 
-      NetExpr*tmp = new NetESelect(ptmp, base, wid, IVL_SEL_IDX_DOWN);
+	// Preserve X fill from an out-of-range part; the destination conversion
+	// handles two-state lvalues.
+	ivl_type_t select_type = nullptr;
+	if (par_type && (par_type->base_type() == IVL_VT_LOGIC ||
+			  par_type->base_type() == IVL_VT_BOOL))
+	      select_type = new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false);
+	NetExpr*tmp = select_type
+	      ? new NetESelect(ptmp, base, wid, select_type, IVL_SEL_IDX_DOWN)
+	      : new NetESelect(ptmp, base, wid, IVL_SEL_IDX_DOWN);
       tmp->set_line(*this);
       return tmp;
 }
