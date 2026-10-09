@@ -4308,3 +4308,38 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   has not been checked.
 - **Triage status:** Triage-pending and outside #450 scope. No constraint
   solver changes are included.
+
+### DD-117 — `%disable/flow` name fallback compares one shared VPI buffer
+
+- **Discovered while working:** simulation-performance hotspot survey
+  (2026-10-09), while checking `vpi_get_str` calls on hot paths.
+- **Observation:** `of_DISABLE_FLOW` keeps `target_name`, `thr_name`, and each
+  `cur_name` from `vpi_get_str(vpiFullName, ...)`. Those calls return the same
+  static `RBUF_STR` buffer (`need_result_buf` in `vvp/vpi_signal.cc`), so the
+  later calls overwrite `target_name` and `strcmp(cur_name, target_name)` always
+  compares the buffer with itself. When no ancestor matches the target scope
+  pointer, the fallback selects the first ancestor that has a scope instead of
+  one with a matching name.
+- **File/function:** `vvp/vthread.cc`, `of_DISABLE_FLOW`.
+- **Possible clause:** IEEE 1800-2017/2023 §9.6.2 (`disable`), only if the
+  pointer match can fail for a legal disable target.
+- **Evidence:** Source read; `scope_get_str` returns `simple_set_rbuf_str(p)`.
+- **Reproducer status:** none (no case found where the pointer match fails).
+- **Triage status:** untriaged. The performance branch left this function
+  unchanged.
+
+### DD-118 — typed mailbox rejects a derived class handle
+
+- **Discovered while working:** simulation-performance hotspot survey
+  (2026-10-09), while writing a class/mailbox benchmark.
+- **Observation:** `mailbox #(txn) mb; btxn t = new(i); mb.put(t);` with
+  `class btxn extends txn` fails elaboration: "Typed mailbox method `put'
+  argument must have a type equivalent to the mailbox message type". The
+  benchmark was changed to assign the handle to a `txn` variable first.
+- **File/function:** `elaborate.cc` typed-mailbox method check
+  (`mailbox_message_type_equivalent`).
+- **Possible clause:** IEEE 1800-2017/2023 §15.4.9. Verify during triage whether
+  the clause requires type equivalence or assignment compatibility for `put`.
+- **Evidence:** `benchmarks/sim-hotspots/classq.sv` before the workaround.
+- **Reproducer status:** confirmed (three-line reducer above).
+- **Triage status:** untriaged.
