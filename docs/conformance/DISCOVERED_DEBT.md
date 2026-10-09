@@ -4308,3 +4308,27 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   has not been checked.
 - **Triage status:** Triage-pending and outside #450 scope. No constraint
   solver changes are included.
+
+### DD-117 — legacy/JSON expectations drift for real-valued coverpoint tests
+
+- **Discovered while working:** IEEE-UNPACKED-ARRAY-OUTPUT-SLICE (#492), while
+  reviewing CI failures reported after PR #466 merged.
+- **Observation:** The Ubuntu 22.04 and 24.04 jobs in run 37947939833 both fail
+  the hard ivtest gate on `sv_covergroup_bitwise_real_operand_unsupported` and
+  `sv_covergroup_bitwise_real_operand_unsupported_2023`. The focused two-test
+  legacy run and JSON/VVP run on the current local image each reproduce 2/2
+  failures.
+- **Details:** The 2017 case is registered as a normal pass, but `-g2017`
+  rejects real-valued coverpoint bins with the IEEE1800-2023 edition diagnostic.
+  The 2023 legacy gold combines a `sorry` diagnostic with runtime output, while
+  the default legacy command (`-D__ICARUS_UNSIZED__`) produces only
+  `UNSUPPORTED_DIAGNOSTIC`. The JSON stderr gold also expects that diagnostic
+  although the default JSON invocation produces empty compiler stderr. A direct
+  compile without the legacy define does emit the `sorry` line.
+- **Files:** `ivtest/regress-sv.list`, `ivtest/gold/sv_covergroup_bitwise_real_operand_unsupported.gold`,
+  the paired JSON configs, and their stream-specific golds. The edition gate is
+  covered by existing tests from #516; the older unsupported-operand fixtures
+  were introduced in #376.
+- **Triage status:** Tracked by [issue #522](https://github.com/dsellerbrock/iverilog-uvm/issues/522).
+  Out of scope for #492; keep this PR limited to unpacked-array output actuals.
+  Do not allowlist these failures to make CI green.
