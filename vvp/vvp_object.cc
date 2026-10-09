@@ -384,21 +384,48 @@ static bool remove_mutation_waiter_(vthread_t thread)
       return true;
 }
 
+/*
+ * Handle copies check liveness constantly, so keep a direct-mapped cache
+ * in front of live_vvp_objects_. A slot holds a pointer only while that
+ * pointer is registered: it is filled on registration or a successful
+ * lookup and cleared on unregistration, so a hit is always exact.
+ */
+static const vvp_object*live_ptr_cache_[1024];
+
+static inline unsigned live_ptr_slot_(const vvp_object*ptr)
+{
+      return (unsigned)((((uintptr_t)ptr >> 4) * 0x9E3779B97F4A7C15ULL) >> 54);
+}
+
 void vvp_object::register_live_ptr_(const vvp_object*ptr)
 {
-      if (ptr)
+      if (ptr) {
             live_vvp_objects_.insert(ptr);
+            live_ptr_cache_[live_ptr_slot_(ptr)] = ptr;
+      }
 }
 
 void vvp_object::unregister_live_ptr_(const vvp_object*ptr)
 {
-      if (ptr)
+      if (ptr) {
             live_vvp_objects_.erase(ptr);
+            const vvp_object*&slot = live_ptr_cache_[live_ptr_slot_(ptr)];
+            if (slot == ptr)
+                  slot = 0;
+      }
 }
 
 bool vvp_object::pointer_is_live(const vvp_object*ptr)
 {
-      return ptr && live_vvp_objects_.count(ptr);
+      if (!ptr)
+            return false;
+      const vvp_object*&slot = live_ptr_cache_[live_ptr_slot_(ptr)];
+      if (slot == ptr)
+            return true;
+      if (!live_vvp_objects_.count(ptr))
+            return false;
+      slot = ptr;
+      return true;
 }
 
 void vvp_object::cleanup(void)
