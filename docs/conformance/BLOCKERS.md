@@ -2,13 +2,13 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
-### IEEE-1800-NESTED-ARRAY-FUNCTION-RETURN — issue #415 (locally focused-tested)
+### IEEE-1800-NESTED-ARRAY-FUNCTION-RETURN — issue #415 (draft PR #524)
 
-- **State:** Implemented on `agent/ieee-nested-array-return-20261009`; no PR or CI qualification yet.
+- **State:** Draft [PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524) targets `main` from `agent/ieee-nested-array-return-20261009`; no CI qualification yet. The PR branch includes latest `origin/main` at `0d8815feb` (including the VVP performance changes in PR #521).
 - **Requirement:** IEEE 1800-2017/2023 §§10.9.1 and 13.4.1 allow array-pattern items to be evaluated in the corresponding element assignment context, including nonvoid function results.
 - **Failure and cause:** Nested fixed-array patterns rejected array-valued function calls although direct whole-array returns worked. Elaboration lacked a context-typed function-call path, and VVP pattern lowering handled only nested pattern nodes or scalar leaves.
-- **Validation:** On fresh `origin/main` 32c91a50, the nested reducer failed in both editions and direct whole-array control printed `got=11,12`. The fix passes paired focused legacy and JSON/VVP runs (12/12 each), including two automatic calls, descending indices, the direct-return boundary, neighboring real/string return tests, and a focused incompatible-shape diagnostic. Local macOS ARM64 build/install passed; Bison conflict counts remained 574 shift/reduce and 1,122 reduce/reduce. Full suites and CI have not run.
-- **Next:** Review and open one PR to `main`; report CI only from the exact PR head.
+- **Validation:** On the source-equivalent clean baseline, the nested reducer failed in both editions and direct whole-array control printed `got=11,12`. After merging `0d8815feb`, macOS ARM64 `make -j2 && make install` passed; focused array-return legacy and JSON/VVP runs pass 12/12 each, and the merged-main vec4-functor focus passes 2/2 in each runner. Bison conflict counts remain 574 shift/reduce and 1,122 reduce/reduce. The broad legacy gate passed its initial runtime/API checks, then was stopped with exit 143 after five minutes in `sv_randomize_global_uniform`, with no aggregate result; full JSON/VVP and UVM sweeps have not run. The remote PR currently has checks only for old head `95f1080f`; pushing the latest-main merge will trigger checks for the new head.
+- **Next:** Keep only the newest CI run on PR #524, then fix failures on that exact head. Do not merge before required jobs are green.
 
 ### IEEE-1800-UNPACKED-ARRAY-OUTPUT-SLICE — issue #492 (locally focused-tested)
 

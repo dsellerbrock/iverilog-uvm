@@ -1,9 +1,10 @@
 status: "in_progress"
-phase: "FOCUSED_TESTED"
+phase: "PR_OPEN"
 blocker: "IEEE-NESTED-ARRAY-FUNCTION-RETURN (#415)"
 github_issue: "#415 — accept array-return values in nested assignment patterns"
+pull_request: "#524 — draft PR to main: https://github.com/dsellerbrock/iverilog-uvm/pull/524"
 branch: "agent/ieee-nested-array-return-20261009"
-baseline: "Fresh origin/main at b452394f1, including merged PR #523 (#522) and PR #520."
+baseline: "Fresh origin/main at 0d8815feb, including merged PR #521 (VVP performance improvements), #523 (#522), and #520. Merged this main head into the PR branch."
 goal: "Allow an unpacked-array function result as an item of a nested unpacked-array assignment pattern, with correct per-element runtime copying."
 standards: "IEEE 1800-2017/2023 §10.9.1 requires array-pattern items to be evaluated in the corresponding element assignment context; §13.4.1 permits nonvoid function results in assignments and expressions. The checked 2023 text retains this wording."
 failing_reproducer: "The self-authored nested reducer fails on both -g2017 and -g2023 with two generic 'Expected array or array-like expression' errors. The direct whole-array control compiles and prints got=11,12 in both editions. The source-built baseline is 65fa8ce, an ancestor of origin/main; the affected elaboration and VVP source files are identical at both revisions."
@@ -13,11 +14,11 @@ allowed_scope: "Nested fixed unpacked-array assignment-pattern function-call ela
 forbidden_scope: "No parser redesign, general array-expression support, dynamic-array or queue result support, unrelated assignment-pattern changes, or changes to whole-array return lowering."
 acceptance: "Paired -g2017/-g2023 tests cover two automatic calls in one nested pattern, a direct whole-array-return control, and a focused shape-mismatch diagnostic; register each applicable case in legacy and JSON/VVP runners. Run focused legacy and JSON/VVP tests plus neighboring array-return and assignment-pattern cases."
 discovery_policy: "Record unrelated findings in docs/conformance/DISCOVERED_DEBT.md; keep the patch within nested fixed-array function-return pattern items."
-current_validation: "Before editing, the nested reducer failed in both editions and the direct whole-array control passed on source-equivalent origin/main. After merging current main, the paired 12-test legacy and 12-test JSON/VVP array-return focus passes again. A fresh macOS ARM64 build/install passed before the merge; the merge adds regression-fixture, debt, and work-record updates only. The full .github/ivtest_gate.sh legacy sweep is still running; its initial helper steps that use the worktree's absent local-install path failed before a local-install symlink was added. Bison reports the existing 574 shift/reduce and 1,122 reduce/reduce conflicts. No CI result yet."
-next_action: "Finish the in-progress local sweep or record its limit, then push and open one draft PR to main. Do not call it CI-qualified or merge until checks report on the exact head."
+current_validation: "Before editing, the nested reducer failed in both editions and the direct whole-array control passed on source-equivalent origin/main. After merging latest main 0d8815feb, a fresh macOS ARM64 `make -j2 && make install` passed. The nested array-return focus passes 12/12 legacy and 12/12 JSON/VVP; the #521 vector-functor focus passes 2/2 in each runner. The full .github/ivtest_gate.sh run passed its initial runtime/API checks, then was stopped with exit 143 after five minutes in sv_randomize_global_uniform; it has no aggregate result. Full JSON/VVP and UVM sweeps have not run. Bison counts remain 574 shift/reduce and 1,122 reduce/reduce. The current PR check run covers old head 95f1080f; pushing the latest-main merge will trigger a new run. No CI qualification is claimed."
+next_action: "Push the latest-main merge and this record to PR #524; cancel only superseded checks, keeping the newest run. Address failures reported on the newest exact head; do not merge until required checks are green."
 stop_after_completion: false
 after_completion: "Close this blocker, then select the next open IEEE issue from fresh origin/main under the continuous campaign. PR #519, the main-to-PR sync/conflict-resolution bot, is already merged and should not be reopened."
-suspended_blocker: "COVERGROUP-REAL-TEST-FIXTURE-CI (#522) was delivered in PR #523 and is included in current main at b452394f1."
+suspended_blocker: "COVERGROUP-REAL-TEST-FIXTURE-CI (#522) was delivered in PR #523 and is included in current main at 0d8815feb."
 
 # Preserved pre-ticket campaign checkpoints and parallel-lane state.
 pre_ticket_latest_increment: "SVA-INTERSECT-UNEQUAL-LENGTHS is implemented and locally regression-tested. The permanent reducer passes the SVA NFA dual-run 64/64; strict legacy passes 1/1; paired strict 2017/2023 JSON/VVP passes 2/2; explicit legacy-engine rejection is preserved in both editions. PR #412 is merged but CI qualification is incomplete: Ubuntu 22.04 failed, two jobs remain in progress, and three are queued. See DD-107."

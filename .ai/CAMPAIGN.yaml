@@ -2,22 +2,24 @@ campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-nested-array-return-20261009"
-checkpoint_head: "32c91a50ad18b1446ee218a998477a59628e3894"
+checkpoint_head: "0d8815feb"
 active_ieee_lane:
   blocker: "IEEE-NESTED-ARRAY-FUNCTION-RETURN (#415)"
-  issue: "#415 is open; nested array-return calls fail in both editions on fresh main."
-  phase: "FOCUSED_TESTED"
-  baseline_head: "32c91a50ad18b1446ee218a998477a59628e3894"
+  issue: "#415 is open in draft PR #524 to main; the branch includes latest origin/main 0d8815feb."
+  phase: "PR_OPEN"
+  baseline_head: "0d8815feb"
   reproducer: "Fork-built local-install fails the two nested make_pair calls with generic array-context errors under -g2017 and -g2023; direct whole-array controls print got=11,12. Its affected source files are identical to origin/main."
   standards: "IEEE 1800-2017/2023 §§10.9.1 and 13.4.1; the local 2023 PDF retains the corresponding wording."
   root_cause: "Elaboration rejects function calls in nested array-pattern items; VVP draw_array_pattern has no array-return leaf path, while whole-RHS returns use draw_ufunc_uarray."
   scope: "Nested fixed-array function-return pattern items, correct copy at each flat subarray offset, paired regressions, and related conformance records."
-  next: "Review the scoped diff, then commit and open one draft PR to main. Do not call it CI-qualified or merge until checks report on the exact head."
-  boundary: "Fresh macOS ARM64 build/install passed. Focused legacy and JSON/VVP array-return lists each pass 12/12 for both editions, including direct-return, two nested automatic calls, descending indices, real/string neighbors, and shape diagnostics. Bison conflict counts remain 574/1,122. Full suites and CI have not run. PR #520 is merged on this baseline."
+  next: "Push the latest-main merge and work-record update, then keep only the newest CI run on PR #524. Address exact-head failures; do not merge before required jobs are green."
+  boundary: "Latest main includes PR #521 VVP performance changes and is merged into the local PR branch. Fresh macOS ARM64 make/install passed; nested-return focus passes 12/12 in legacy and JSON/VVP, and #521 vector-functor focus passes 2/2 in both. The full legacy gate passed its initial runtime/API checks, then was stopped with exit 143 after five minutes in sv_randomize_global_uniform; it has no aggregate result. Full JSON/VVP and UVM sweeps remain unrun. Bison conflict counts remain 574/1,122. The remote PR still has only checks for old head 95f1080f; pushing this branch will trigger the replacement run, after which the old run can be canceled."
 pr_branch_sync_bot:
   status: "implemented on main via merged PR #519"
   behavior: "Syncs open in-repository PRs targeting main on main pushes, hourly, or manual dispatch; merges main rather than rebasing; deterministically resolves overlapping text hunks by documented file policy; dispatches test.yml on updated branch heads."
-  validation: "Focused unittest and py_compile pass locally. Latest main-push bot run 37967303962 is queued with other repository Actions work."
+  validation: "Focused unittest and py_compile pass locally. Main-push bot run 37967303962 completed successfully. The queue cleanup canceled and verified 35 test runs not owned by an open PR; sync-bot workflows were preserved."
+ci_cleanup:
+  status: "Completed 2026-10-09. Cancelled 35 active test runs without an open PR owner; verified all completed/cancelled. No unrelated active test runs remained at the final snapshot."
 pending_issue_494_ci: "#494 fixed/dynamic queue-size cases appear in mainline tests, but the latest main test workflow is queued. Leave the GitHub issue open until CI evidence is available; this does not block unrelated #493 work."
 previous_batch_pr464:
   head: "870442199088b468b681983a7cbbe9f653bebeb3 (pre-follow-up exact CI head)"

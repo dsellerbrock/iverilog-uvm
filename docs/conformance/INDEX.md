@@ -4,9 +4,9 @@
 
 ## Current selection
 
-The active campaign item is [issue #468](https://github.com/dsellerbrock/iverilog-uvm/issues/468), in [draft PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which also carries the parenthesized-expression fix for [issue #460](https://github.com/dsellerbrock/iverilog-uvm/issues/460). PR #467 targets `main`, branch `agent/ieee-ifdef-parenthesized-20261008`, exact head `6c4591a240ced72230a2b1e01d542eb2dcf4370b`. The exact-head run [37825207862](https://github.com/dsellerbrock/iverilog-uvm/actions/runs/37825207862) has all six platform jobs queued; **no green CI status is claimed**. Focused local #468, #460, and macro-neighbor results are recorded in the PR body; they are not CI results.
+The active campaign item is [issue #415](https://github.com/dsellerbrock/iverilog-uvm/issues/415), in [draft PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524) targeting `main`. Its branch is `agent/ieee-nested-array-return-20261009` and locally includes latest `origin/main` at `0d8815feb`, including the VVP performance changes merged in PR #521. Focused array-return legacy and JSON/VVP lists pass 12/12 each on the updated branch. The broad legacy gate was stopped after five minutes in `sv_randomize_global_uniform` and has no aggregate result. The only remote PR run currently covers old head `95f1080f`; pushing the updated branch will trigger checks for the new head. **No green CI status is claimed for the updated head**.
 
-The `ACTIVE_WORK.yaml`, `CAMPAIGN.yaml`, and handoff updates for #468 are on PR #467 and are not copied into this documentation-only branch. The [issue checkout map](../../.ai/ISSUE_CHECKOUT.csv) on `main` remains a historical checkout record until that PR merges.
+The `ACTIVE_WORK.yaml` and `CAMPAIGN.yaml` updates for #415 are on PR #524. The [issue checkout map](../../.ai/ISSUE_CHECKOUT.csv) on `main` remains a historical checkout record until that PR merges.
 
 ## Inventory
 
