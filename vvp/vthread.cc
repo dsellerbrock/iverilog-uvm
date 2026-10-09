@@ -52,6 +52,7 @@
 # include  "class_type.h"
 # include  "vvp_z3.h"
 # include  "compile.h"
+# include  "slab.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -215,11 +216,13 @@ class vvp_process : public vvp_object {
       unsigned final_status_;
       bool final_status_valid_;
       std::set<vthread_t> waiters_;
-      std::deque<deferred_assert_report_s> deferred_asserts_;
+	// Vectors, not deques: a process exists per call frame, and an empty
+	// std::deque still allocates.
+      std::vector<deferred_assert_report_s> deferred_asserts_;
       bool deferred_assert_observed_armed_;
       std::map<unsigned long, deferred_assert_report_s>
             final_deferred_asserts_;
-      std::deque<unsigned long> final_deferred_order_;
+      std::vector<unsigned long> final_deferred_order_;
       bool final_deferred_rosync_armed_;
 };
 
@@ -439,6 +442,12 @@ struct static_call_setup_s {
 struct vthread_s {
       vthread_s();
       ~vthread_s();
+
+	// Every task/function call creates and deletes a thread, and the
+	// object is too large for the C library's small-block caches, so
+	// recycle the storage through a slab free list.
+      static void* operator new(std::size_t size);
+      static void operator delete(void*ptr);
 
       void debug_dump(ostream&fd, const char*label_text);
 
@@ -1189,6 +1198,21 @@ static inline bool vthread_is_blocked_on_wait_(vthread_t thr)
       return thr && (thr->waiting_for_event || thr->waiting_for_resource);
 }
 
+static slab_t<sizeof(vthread_s), 16> vthread_heap_;
+
+void* vthread_s::operator new(std::size_t size)
+{
+      assert(size == sizeof(vthread_s));
+	// Recycled storage holds a dead thread's bytes; hand out zeroed
+	// storage, as fresh memory usually is.
+      return memset(vthread_heap_.alloc_slab(), 0, size);
+}
+
+void vthread_s::operator delete(void*ptr)
+{
+      vthread_heap_.free_slab(ptr);
+}
+
 inline vthread_s::vthread_s()
 {
       for (unsigned idx = 0; idx < WORDS_COUNT; idx += 1)
@@ -1285,8 +1309,14 @@ vvp_process::vvp_process(vthread_t owner)
 {
 }
 
+/* Reports queued in every process's deferred_asserts_. A wake-up flush
+   has nothing to discard while this is zero, so vthread_run skips the
+   process lookup for it. */
+static size_t pending_deferred_assert_reports_ = 0;
+
 vvp_process::~vvp_process()
 {
+      pending_deferred_assert_reports_ -= deferred_asserts_.size();
 }
 
 void vvp_process::shallow_copy(const vvp_object*that)
@@ -1694,6 +1724,7 @@ void vvp_process::enqueue_deferred_assert(vvp_code_t action_pc,
       report.action_scope = action_scope;
       report.action_args = action_args;
       deferred_asserts_.push_back(report);
+      pending_deferred_assert_reports_ += 1;
 
       if (deferred_assert_observed_armed_)
 	    return;
@@ -1704,6 +1735,7 @@ void vvp_process::enqueue_deferred_assert(vvp_code_t action_pc,
 
 void vvp_process::flush_deferred_asserts()
 {
+      pending_deferred_assert_reports_ -= deferred_asserts_.size();
       deferred_asserts_.clear();
       /* Leave the already-scheduled Observed pump armed. If this process
          executes another deferred assertion before that pass, the same
@@ -1714,12 +1746,12 @@ void vvp_process::mature_deferred_asserts()
 {
       deferred_assert_observed_armed_ = false;
 
-      std::deque<deferred_assert_report_s> reports;
+      std::vector<deferred_assert_report_s> reports;
       reports.swap(deferred_asserts_);
+      pending_deferred_assert_reports_ -= reports.size();
 
-      while (!reports.empty()) {
-	    deferred_assert_report_s report = reports.front();
-	    reports.pop_front();
+      for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
+	    deferred_assert_report_s report = reports[rdx];
 
 	    if (!report.action_pc || !report.action_scope)
 		  continue;
@@ -1786,13 +1818,12 @@ void vvp_process::mature_final_deferred_asserts()
       final_deferred_rosync_armed_ = false;
 
       std::map<unsigned long, deferred_assert_report_s> reports;
-      std::deque<unsigned long> order;
+      std::vector<unsigned long> order;
       reports.swap(final_deferred_asserts_);
       order.swap(final_deferred_order_);
 
-      while (!order.empty()) {
-	    unsigned long source_id = order.front();
-	    order.pop_front();
+      for (size_t odx = 0 ; odx < order.size() ; odx += 1) {
+	    unsigned long source_id = order[odx];
 
 	    std::map<unsigned long, deferred_assert_report_s>::iterator cur =
 		  reports.find(source_id);
@@ -7127,6 +7158,8 @@ static vthread_t logical_process_thread_(vthread_t thr)
 
 static void flush_deferred_asserts_for_thread_(vthread_t thr)
 {
+      if (pending_deferred_assert_reports_ == 0)
+	    return;
       vthread_t owner = logical_process_thread_(thr);
       if (!owner)
 	    return;
@@ -9967,30 +10000,84 @@ template vvp_vector4_t coerce_to_width(const vvp_vector4_t&that,
                                        unsigned width);
 
 /*
- * Keep best-effort owner/refcount registries for automatic contexts so we
+ * Keep a best-effort owner/refcount record for automatic contexts so we
  * can free through the allocating scope even if callers pass a mismatched
- * scope. Track live membership separately: checking the scope's linked list
+ * scope. Track live membership too: checking the scope's linked list
  * for every automatic signal access is O(number of live activations) and is
  * prohibitively expensive in UVM testbenches with detached worker frames.
+ *
+ * One record holds all of these so a liveness check is one lookup. The
+ * record outlives the activation (the owner is kept, as before), and
+ * contexts are recycled through the scope free list, so steady-state
+ * alloc/free does not allocate.
  */
-static unordered_map<vvp_context_t, __vpiScope*> automatic_context_owner;
-static unordered_map<vvp_context_t, unsigned> automatic_context_refcount;
-static unordered_set<vvp_context_t> live_automatic_contexts;
-static unordered_map<vvp_context_t, uint64_t> automatic_context_generation;
+struct automatic_context_record_s {
+      __vpiScope*owner = 0;      // Allocating scope; 0 if never allocated.
+      unsigned refcount = 0;     // 0 when no count is recorded.
+      bool live = false;
+      uint64_t generation = 0;   // Meaningful only while live.
+};
+static unordered_map<vvp_context_t, automatic_context_record_s> automatic_context_records;
 static uint64_t next_automatic_context_generation = 1;
+
+/* Records are never erased and unordered_map nodes do not move, so a
+   direct-mapped cache of found records stays exact. Absent contexts are
+   not cached; they may gain a record later. */
+struct automatic_context_record_cache_s {
+      vvp_context_t context;
+      automatic_context_record_s*rec;
+};
+static automatic_context_record_cache_s automatic_context_record_cache_[256];
+
+static inline automatic_context_record_cache_s&automatic_context_record_slot_(vvp_context_t context)
+{
+      uintptr_t key = (uintptr_t)context >> 4;
+      return automatic_context_record_cache_[(key ^ (key >> 8)) & 255];
+}
+
+static automatic_context_record_s&automatic_context_record_insert_(vvp_context_t context)
+{
+      automatic_context_record_cache_s&slot = automatic_context_record_slot_(context);
+      if (slot.context == context && slot.context)
+            return *slot.rec;
+      automatic_context_record_s&rec = automatic_context_records[context];
+      slot.context = context;
+      slot.rec = &rec;
+      return rec;
+}
+
+static automatic_context_record_s*automatic_context_record_(vvp_context_t context)
+{
+      automatic_context_record_cache_s&slot = automatic_context_record_slot_(context);
+      if (slot.context == context && slot.context)
+            return slot.rec;
+      unordered_map<vvp_context_t, automatic_context_record_s>::iterator cur =
+            automatic_context_records.find(context);
+      if (cur == automatic_context_records.end())
+            return 0;
+      slot.context = context;
+      slot.rec = &cur->second;
+      return slot.rec;
+}
+
+static __vpiScope*automatic_context_owner_(vvp_context_t context)
+{
+      const automatic_context_record_s*rec = automatic_context_record_(context);
+      return rec ? rec->owner : 0;
+}
+
+static unsigned automatic_context_refcount_(vvp_context_t context)
+{
+      const automatic_context_record_s*rec = automatic_context_record_(context);
+      return rec ? rec->refcount : 0;
+}
 
 static void retain_automatic_context_(vvp_context_t context)
 {
       if (!context)
             return;
 
-      unordered_map<vvp_context_t, unsigned>::iterator ref_it =
-            automatic_context_refcount.find(context);
-      if (ref_it == automatic_context_refcount.end()) {
-            automatic_context_refcount[context] = 1;
-      } else {
-            ref_it->second += 1;
-      }
+      automatic_context_record_insert_(context).refcount += 1;
 }
 
 static void retain_context_chain_(vvp_context_t context)
@@ -10049,10 +10136,11 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
 
       vvp_set_next_context(context, scope->live_contexts);
       scope->live_contexts = context;
-      automatic_context_owner[context] = scope;
-      automatic_context_refcount[context] = 1;
-      live_automatic_contexts.insert(context);
-      automatic_context_generation[context] = next_automatic_context_generation++;
+      automatic_context_record_s&rec = automatic_context_record_insert_(context);
+      rec.owner = scope;
+      rec.refcount = 1;
+      rec.live = true;
+      rec.generation = next_automatic_context_generation++;
       if (next_automatic_context_generation == 0)
             next_automatic_context_generation = 1;
 
@@ -10088,25 +10176,20 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
       if (!context)
             return;
 
-      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-            automatic_context_owner.find(context);
-      if (owner_it != automatic_context_owner.end()) {
-            __vpiScope*owner = owner_it->second;
+      if (automatic_context_record_s*rec_ptr = automatic_context_record_(context)) {
+            automatic_context_record_s&rec = *rec_ptr;
+            __vpiScope*owner = rec.owner;
             if (owner && owner != scope && owner->has_automatic_context())
                   scope = owner;
-      }
 
-      unordered_map<vvp_context_t, unsigned>::iterator ref_it =
-            automatic_context_refcount.find(context);
-      if (ref_it != automatic_context_refcount.end()) {
-            if (ref_it->second > 1) {
-                  ref_it->second -= 1;
+            if (rec.refcount > 1) {
+                  rec.refcount -= 1;
                   return;
             }
-            automatic_context_refcount.erase(ref_it);
+            rec.refcount = 0;
+            rec.live = false;
+            rec.generation = 0;
       }
-      live_automatic_contexts.erase(context);
-      automatic_context_generation.erase(context);
 
       auto context_in_list = [](vvp_context_t head, vvp_context_t needle) -> bool {
             for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
@@ -10147,14 +10230,8 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             }
       }
 
-      for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1) {
-            if (vvp_fun_signal_object_aa*obj =
-                    dynamic_cast<vvp_fun_signal_object_aa*>(scope->item[idx]))
-                  obj->clear_current_alias(context);
-            if (vvp_ref_signal_aa*ref =
-                    dynamic_cast<vvp_ref_signal_aa*>(scope->item[idx]))
-                  ref->release_binding(context);
-      }
+      for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1)
+            scope->item[idx]->release_instance(context);
 
       vvp_set_stacked_context(context, 0);
       vvp_set_next_context(context, scope->free_contexts);
@@ -11596,14 +11673,13 @@ static bool context_live_in_owner(vvp_context_t context)
 {
       if (!context)
             return false;
-      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-            automatic_context_owner.find(context);
-      if (owner_it == automatic_context_owner.end())
+      const automatic_context_record_s*rec = automatic_context_record_(context);
+      if (!rec)
             return false;
-      __vpiScope*owner = owner_it->second;
+      __vpiScope*owner = rec->owner;
       if (!(owner && owner->has_automatic_context()))
             return false;
-      return live_automatic_contexts.count(context) != 0;
+      return rec->live;
 }
 
 static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_scope)
@@ -11614,14 +11690,13 @@ static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_sc
       if (!(ctx_scope && ctx_scope->has_automatic_context()))
             return context_live_in_owner(context);
 
-      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-            automatic_context_owner.find(context);
-      if (owner_it == automatic_context_owner.end())
+      const automatic_context_record_s*rec = automatic_context_record_(context);
+      if (!rec)
             return false;
-      if (owner_it->second != ctx_scope)
+      if (rec->owner != ctx_scope)
             return false;
 
-      return live_automatic_contexts.count(context) != 0;
+      return rec->live;
 }
 
 static void warn_stacked_context_cycle_(const char*where, __vpiScope*ctx_scope,
@@ -11641,15 +11716,47 @@ static void warn_stacked_context_cycle_(const char*where, __vpiScope*ctx_scope,
       warned = true;
 }
 
+/*
+ * Visited set for the stacked-context walks below. Chains are normally a
+ * few frames deep, so keep the first entries in a small array (linear
+ * search, no allocation) and spill to a std::set only for long chains.
+ * insert() has std::set::insert(...).second semantics.
+ */
+class context_seen_set_s {
+    public:
+      context_seen_set_s() : count_(0) { }
+      bool insert(vvp_context_t cur)
+      {
+	    if (count_ < INLINE) {
+		  for (unsigned idx = 0 ; idx < count_ ; idx += 1)
+			if (inline_[idx] == cur)
+			      return false;
+		  inline_[count_++] = cur;
+		  return true;
+	    }
+	    if (count_ == INLINE) {
+		  for (unsigned idx = 0 ; idx < INLINE ; idx += 1)
+			spill_.insert(inline_[idx]);
+		  count_ += 1;
+	    }
+	    return spill_.insert(cur).second;
+      }
+    private:
+      enum { INLINE = 32 };
+      unsigned count_;
+      vvp_context_t inline_[INLINE];
+      std::set<vvp_context_t> spill_;
+};
+
 template <typename MatchFn>
 static vvp_context_t find_stacked_context_match_(vvp_context_t candidate,
                                                  __vpiScope*ctx_scope,
                                                  const char*where,
                                                  MatchFn match_fn)
 {
-      std::set<vvp_context_t> seen;
+      context_seen_set_s seen;
       for (vvp_context_t cur = candidate ; cur ; cur = vvp_get_stacked_context(cur)) {
-            if (!seen.insert(cur).second) {
+            if (!seen.insert(cur)) {
                   warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
                   return 0;
             }
@@ -11671,11 +11778,11 @@ static bool context_on_stacked_chain_(vvp_context_t head, vvp_context_t needle,
 
 static bool context_in_stacked_chain_(vvp_context_t head, vvp_context_t needle)
 {
-      std::set<vvp_context_t> seen;
+      context_seen_set_s seen;
       for (vvp_context_t cur = head ; cur ; cur = vvp_get_stacked_context(cur)) {
             if (cur == needle)
                   return true;
-            if (!seen.insert(cur).second)
+            if (!seen.insert(cur))
                   return false;
       }
       return false;
@@ -11687,13 +11794,13 @@ static vvp_context_t remove_context_from_stacked_chain_(vvp_context_t head,
       if (!(head && needle))
             return head;
 
-      std::set<vvp_context_t> seen;
+      context_seen_set_s seen;
       vvp_context_t new_head = head;
       vvp_context_t prev = 0;
       vvp_context_t cur = head;
 
       while (cur) {
-            if (!seen.insert(cur).second) {
+            if (!seen.insert(cur)) {
                   warn_stacked_context_cycle_("remove_context_from_stacked_chain_",
                                               0, head, cur);
                   if (prev)
@@ -11744,13 +11851,13 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
       return find_stacked_context_match_(candidate, ctx_scope,
                   "first_live_stacked_context(owner)",
                   [](vvp_context_t cur) {
-                        unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-                              automatic_context_owner.find(cur);
-                        if (owner_it == automatic_context_owner.end())
+                        const automatic_context_record_s*rec =
+                              automatic_context_record_(cur);
+                        if (!rec)
                               return false;
-                        __vpiScope*owner = owner_it->second;
+                        __vpiScope*owner = rec->owner;
                         return owner && owner->has_automatic_context()
-                            && live_automatic_contexts.count(cur) != 0;
+                            && rec->live;
                   });
 }
 
@@ -11762,13 +11869,13 @@ static vvp_context_t first_live_context_for_scope(vvp_context_t candidate, __vpi
       return find_stacked_context_match_(candidate, ctx_scope,
                   "first_live_context_for_scope",
                   [ctx_scope](vvp_context_t cur) {
-                        unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-                              automatic_context_owner.find(cur);
-                        if (owner_it == automatic_context_owner.end())
+                        const automatic_context_record_s*rec =
+                              automatic_context_record_(cur);
+                        if (!rec)
                               return false;
-                        if (owner_it->second != ctx_scope)
+                        if (rec->owner != ctx_scope)
                               return false;
-                        return live_automatic_contexts.count(cur) != 0;
+                        return rec->live;
                   });
 }
 
@@ -12191,9 +12298,7 @@ uint64_t vthread_context_generation(vvp_context_t context)
 {
       if (!context_live_in_owner(context))
             return 0;
-      unordered_map<vvp_context_t, uint64_t>::const_iterator found =
-            automatic_context_generation.find(context);
-      return found == automatic_context_generation.end() ? 0 : found->second;
+      return automatic_context_record_(context)->generation;
 }
 
 vvp_context_t vthread_recover_stacked_context_for_scope(
@@ -12223,12 +12328,7 @@ bool vthread_context_owner_is_within(vvp_context_t candidate,
       if (!(candidate && scope))
             return false;
 
-      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-            automatic_context_owner.find(candidate);
-      if (owner_it == automatic_context_owner.end())
-            return false;
-
-      for (__vpiScope*cur = owner_it->second ; cur ; cur = cur->scope) {
+      for (__vpiScope*cur = automatic_context_owner_(candidate) ; cur ; cur = cur->scope) {
             if (cur == scope)
                   return true;
       }
@@ -12302,15 +12402,11 @@ static void release_owned_context_(vthread_t thr)
             vvp_context_t saved_owned_next = vvp_get_stacked_context(owned);
             vvp_context_t next_owned = release_chain ? saved_owned_next : 0;
             bool retain_owned_link = false;
-            unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
-                  automatic_context_refcount.find(owned);
-            if (ref_it != automatic_context_refcount.end() && ref_it->second > 1)
+            if (automatic_context_refcount_(owned) > 1)
                   retain_owned_link = true;
             __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
-            unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-                  automatic_context_owner.find(owned);
-            if (owner_it != automatic_context_owner.end() && owner_it->second)
-                  ctx_scope = owner_it->second;
+            if (__vpiScope*owner = automatic_context_owner_(owned))
+                  ctx_scope = owner;
 
             thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, owned);
             thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, owned);
@@ -12412,10 +12508,7 @@ static void release_active_call_context_(vthread_t thr, const char*where)
             vvp_context_t saved_call_next =
                   vvp_get_stacked_context(record.context);
             bool retain_call_link = false;
-            unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
-                  automatic_context_refcount.find(record.context);
-            if (ref_it != automatic_context_refcount.end()
-                && ref_it->second > 1)
+            if (automatic_context_refcount_(record.context) > 1)
                   retain_call_link = true;
 
             thr->wt_context = remove_context_from_stacked_chain_(
@@ -13375,16 +13468,12 @@ static void trace_context_event_(const char*where, vthread_t thr,
             return;
 
       if (thr && thr->wt_context) {
-            unordered_map<vvp_context_t, __vpiScope*>::const_iterator wt_owner_it =
-                  automatic_context_owner.find(thr->wt_context);
-            if (wt_owner_it != automatic_context_owner.end())
-                  wt_owner_name = scope_name_or_unknown_(wt_owner_it->second);
+            if (__vpiScope*owner = automatic_context_owner_(thr->wt_context))
+                  wt_owner_name = scope_name_or_unknown_(owner);
       }
       if (thr && thr->rd_context) {
-            unordered_map<vvp_context_t, __vpiScope*>::const_iterator rd_owner_it =
-                  automatic_context_owner.find(thr->rd_context);
-            if (rd_owner_it != automatic_context_owner.end())
-                  rd_owner_name = scope_name_or_unknown_(rd_owner_it->second);
+            if (__vpiScope*owner = automatic_context_owner_(thr->rd_context))
+                  rd_owner_name = scope_name_or_unknown_(owner);
       }
 
       fprintf(stderr,
@@ -13883,6 +13972,10 @@ static void mirror_automatic_call_outputs_if_needed_(vthread_t thr, vthread_t ch
       child->rd_context = save_child_rd;
 }
 
+/* Override (code, scope) resolved for a dynamic class and base method scope. */
+static std::map<std::pair<const class_type*, __vpiScope*>,
+                std::pair<vvp_code_t, __vpiScope*> > virtual_dispatch_targets_;
+
 static bool maybe_dispatch_virtual_method_call_(vthread_t thr, vvp_code_t cp,
                                                 vthread_t child,
                                                 bool mirror_object_return)
@@ -13956,27 +14049,42 @@ static bool maybe_dispatch_virtual_method_call_(vthread_t thr, vvp_code_t cp,
       }
 
       string label;
-      const class_type*dispatch_type = defn;
-      if (!build_dynamic_method_label_(dispatch_type, method_name, label)) {
-            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
-            if (virtual_dispatch_trace_enabled_())
-                  fprintf(stderr, "vdispatch: failed to build label for class=%s method=%s\n",
-                          defn->class_name().c_str(), method_name);
-            return false;
-      }
-
       vvp_code_t override_pc = 0;
       __vpiScope*override_scope = 0;
-      while (dispatch_type) {
-            if (compile_lookup_code_scope(label.c_str(), &override_pc, &override_scope))
-                  break;
+        /* The label and class tables are fixed before simulation starts,
+           so the override found for this class and base method never
+           changes. Tracing bypasses the memo to report each step. */
+      const bool trace_dispatch = virtual_dispatch_trace_enabled_();
+      const std::pair<const class_type*, __vpiScope*> target_key(defn, base_scope);
+      std::map<std::pair<const class_type*, __vpiScope*>, std::pair<vvp_code_t, __vpiScope*> >::const_iterator
+            target_hit = trace_dispatch ? virtual_dispatch_targets_.end()
+                                        : virtual_dispatch_targets_.find(target_key);
+      if (target_hit != virtual_dispatch_targets_.end()) {
+            override_pc = target_hit->second.first;
+            override_scope = target_hit->second.second;
+      } else {
+            const class_type*dispatch_type = defn;
+            if (!build_dynamic_method_label_(dispatch_type, method_name, label)) {
+                  restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+                  if (trace_dispatch)
+                        fprintf(stderr, "vdispatch: failed to build label for class=%s method=%s\n",
+                                defn->class_name().c_str(), method_name);
+                  return false;
+            }
 
-            if (virtual_dispatch_trace_enabled_())
-                  fprintf(stderr, "vdispatch: no override label %s\n", label.c_str());
+            while (dispatch_type) {
+                  if (compile_lookup_code_scope(label.c_str(), &override_pc, &override_scope))
+                        break;
 
-            dispatch_type = dispatch_type->runtime_super();
-            if (!(dispatch_type && build_dynamic_method_label_(dispatch_type, method_name, label)))
-                  break;
+                  if (trace_dispatch)
+                        fprintf(stderr, "vdispatch: no override label %s\n", label.c_str());
+
+                  dispatch_type = dispatch_type->runtime_super();
+                  if (!(dispatch_type && build_dynamic_method_label_(dispatch_type, method_name, label)))
+                        break;
+            }
+            virtual_dispatch_targets_[target_key] =
+                  std::make_pair(override_pc, override_scope);
       }
 
       if (!override_pc || !override_scope) {
@@ -14139,6 +14247,30 @@ static void mirror_dynamic_dispatch_outputs_if_needed_(vthread_t thr, vthread_t 
       }
 }
 
+/* A scope's vpiFullName, copied on first use. */
+class lazy_scope_name_s {
+    public:
+      explicit lazy_scope_name_s(__vpiScope*scope)
+      : scope_(scope), done_(false), name_(0) { }
+      const char*get()
+      {
+	    if (!done_) {
+		  done_ = true;
+		  const char*tmp = scope_ ? vpi_get_str(vpiFullName, scope_) : 0;
+		  if (tmp) {
+			buf_ = tmp;
+			name_ = buf_.c_str();
+		  }
+	    }
+	    return name_;
+      }
+    private:
+      __vpiScope*scope_;
+      bool done_;
+      const char*name_;
+      string buf_;
+};
+
 static bool do_callf_void(vthread_t thr, vthread_t child)
 {
       callf_depth++;
@@ -14186,33 +14318,19 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
             thr->pending_alloc_scope = 0;
       }
       vvp_code_t callsite_pc = thr->pc ? (thr->pc - 1) : 0;
-      string caller_name_buf;
-      string child_name_buf;
-      const char*caller_name = 0;
-      const char*child_name = 0;
-      if (caller_scope) {
-            const char*tmp = vpi_get_str(vpiFullName, caller_scope);
-            if (tmp) {
-                  caller_name_buf = tmp;
-                  caller_name = caller_name_buf.c_str();
-            }
-      }
-      if (child_scope) {
-            const char*tmp = vpi_get_str(vpiFullName, child_scope);
-            if (tmp) {
-                  child_name_buf = tmp;
-                  child_name = child_name_buf.c_str();
-            }
-      }
+      // The full names are only for traces and warnings; build them
+      // on first use.
+      lazy_scope_name_s caller_name_(caller_scope);
+      lazy_scope_name_s child_name_(child_scope);
       if (callf_trace_enabled_()
           && callf_target_trace_count < callf_target_trace_limit
-          && (callf_trace_scope_match_(caller_name) || callf_trace_scope_match_(child_name))) {
+          && (callf_trace_scope_match_(caller_name_.get()) || callf_trace_scope_match_(child_name_.get()))) {
             fprintf(stderr,
                     "trace callf[%u] depth=%d caller=%s callee=%s pc=%p\n",
                     callf_target_trace_count + 1,
                     callf_depth,
-                    caller_name ? caller_name : "<unknown>",
-                    child_name ? child_name : "<unknown>",
+                    caller_name_.get() ? caller_name_.get() : "<unknown>",
+                    child_name_.get() ? child_name_.get() : "<unknown>",
                     (void*)callsite_pc);
             callf_target_trace_count += 1;
       }
@@ -14224,7 +14342,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
                   fprintf(stderr,
                           "Warning: callf entry synchronizing missing rd_context from wt_context"
                           " (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
-                          caller_name ? caller_name : "<unknown>",
+                          caller_name_.get() ? caller_name_.get() : "<unknown>",
                           thr->rd_context, thr->wt_context);
                   warned_callf_rd_sync = true;
             }
@@ -14360,8 +14478,8 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
                                       "Warning: callf child exceeded synchronous resume budget"
                                       " (caller=%s callee=%s); leaving child scheduled"
                                       " (further similar warnings suppressed)\n",
-                                      caller_name ? caller_name : "<unknown>",
-                                      child_name ? child_name : "<unknown>");
+                                      caller_name_.get() ? caller_name_.get() : "<unknown>",
+                                      child_name_.get() ? child_name_.get() : "<unknown>");
                               warned = true;
                         }
                         break;
@@ -14423,8 +14541,8 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 	                                      "Warning: callf child exceeded synchronous drain budget"
                                       " (caller=%s callee=%s); leaving nested child tree active"
                                       " (further similar warnings suppressed)\n",
-                                      caller_name ? caller_name : "<unknown>",
-                                      child_name ? child_name : "<unknown>");
+                                      caller_name_.get() ? caller_name_.get() : "<unknown>",
+                                      child_name_.get() ? child_name_.get() : "<unknown>");
                               warned = true;
                         }
                         break;
@@ -14451,7 +14569,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
                   sync_resume_count += 1;
             }
       }
-      if (callf_trace_enabled_() && callf_trace_scope_match_(child_name)) {
+      if (callf_trace_enabled_() && callf_trace_scope_match_(child_name_.get())) {
             static unsigned post_trace_count = 0;
             if (post_trace_count < callf_target_trace_limit) {
                   const char*post_scope = child->parent_scope
@@ -14460,7 +14578,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
                   fprintf(stderr,
                           "trace callf-post[%u]: callee=%s scope=%s parent_ok=%d ended=%d joining=%d children=%zu pc=%s\n",
                           post_trace_count + 1,
-                          child_name ? child_name : "<unknown>",
+                          child_name_.get() ? child_name_.get() : "<unknown>",
                           post_scope ? post_scope : "<unknown>",
                           child->parent == thr ? 1 : 0,
                           child->i_have_ended ? 1 : 0,
@@ -14538,8 +14656,8 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 			  }
 			  fprintf(stderr,
 			          "trace callf-wait: caller=%s callee=%s wait_scope=%s wait_op=%s pause_op=%s nested=%s nested_op=%s joining=%d children=%zu ended=%d disabled=%d waiting=%d scheduled=%d in_scope=%d pc_null=%d\n",
-			          caller_name ? caller_name : "<unknown>",
-			          child_name ? child_name : "<unknown>",
+			          caller_name_.get() ? caller_name_.get() : "<unknown>",
+			          child_name_.get() ? child_name_.get() : "<unknown>",
 			          wait_scope, wait_op, pause_op, nested_scope, nested_op,
 			          child->i_am_joining ? 1 : 0, child->children.size(),
 			          child->i_have_ended ? 1 : 0,
@@ -14553,7 +14671,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		       (e.g. UVM tasks with event-waits) enter join-wait
 		       correctly; the message is purely cosmetic. */
 		    (void)warned_callf_child_not_ended;
-			    if (callf_dump_tree_enabled_(caller_name, child_name))
+			    if (callf_dump_tree_enabled_(caller_name_.get(), child_name_.get()))
 			          dump_callf_tree_(child, 0);
 			    thr->i_am_joining = 1;
 			    callf_scope_stack.pop_back();
@@ -19213,9 +19331,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
                                   ? thr->skip_free_scope : ctx_scope;
             vvp_context_t saved_skip_next = vvp_get_stacked_context(skip_context);
             bool retain_skip_chain = false;
-            unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
-                  automatic_context_refcount.find(skip_context);
-            if (ref_it != automatic_context_refcount.end() && ref_it->second > 1)
+            if (automatic_context_refcount_(skip_context) > 1)
                   retain_skip_chain = true;
             thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
                                                                  skip_context);
@@ -19260,10 +19376,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
       }
       vvp_context_t saved_child_next = vvp_get_stacked_context(child_context);
       bool retain_child_link = false;
-      unordered_map<vvp_context_t, unsigned>::const_iterator child_ref_it =
-            automatic_context_refcount.find(child_context);
-      if (child_ref_it != automatic_context_refcount.end()
-          && child_ref_it->second > 1)
+      if (automatic_context_refcount_(child_context) > 1)
             retain_child_link = true;
       thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, child_context);
       thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, child_context);
@@ -20707,11 +20820,10 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		      // is OK if the child context is distinct (See %exec_ufunc.)
 		    if (child->wt_context && thr->wt_context == child->wt_context) {
 			  vvp_context_t child_context = child->wt_context;
-			  unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
-				automatic_context_owner.find(child_context);
 			  __vpiScope*child_context_scope =
-				(owner_it != automatic_context_owner.end())
-				      ? owner_it->second : resolve_context_scope(thr->parent_scope);
+				automatic_context_owner_(child_context);
+			  if (!child_context_scope)
+				child_context_scope = resolve_context_scope(thr->parent_scope);
                           /* Detached nested blocks keep sharing the same
                              activation frame as the parent task. Retain the
                              frame for the child and let the parent drop its

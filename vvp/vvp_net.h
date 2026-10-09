@@ -185,6 +185,8 @@ struct automatic_hooks_s {
       // Called after every item exists and the activation is live, with
       // its applicable stack linkage established.
       virtual void initialize_instance(vvp_context_t) {}
+      // Called when the activation is returned to the scope free list.
+      virtual void release_instance(vvp_context_t) {}
 #ifdef CHECK_WITH_VALGRIND
       virtual void free_instance(vvp_context_t context) = 0;
 #endif

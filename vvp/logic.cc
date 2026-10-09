@@ -217,6 +217,19 @@ void vvp_fun_boolean_::recv_real(vvp_net_ptr_t ptr, double real,
       recv_vec4(ptr, double_to_vector4_LSB(real), ctx);
 }
 
+/*
+ * When every input has the output width, the 4-state vvp_vector4_t word
+ * operators compute exactly the per-bit truth tables of the loops below
+ * (Z inputs act as X, inversion keeps X). Use them instead of walking the
+ * vector one bit at a time.
+ */
+static bool inputs_match_width_(const vvp_vector4_t input[4])
+{
+      unsigned wid = input[0].size();
+      return input[1].size() == wid && input[2].size() == wid
+	  && input[3].size() == wid;
+}
+
 vvp_fun_and::vvp_fun_and(unsigned wid, bool invert)
 : vvp_fun_boolean_(wid), invert_(invert)
 {
@@ -230,6 +243,14 @@ vvp_fun_and::~vvp_fun_and()
 vvp_vector4_t vvp_fun_and::calculate(const vvp_vector4_t input[4]) const
 {
       vvp_vector4_t result (input[0]);
+
+      if (inputs_match_width_(input)) {
+	    for (unsigned pdx = 1 ;  pdx < 4 ;  pdx += 1)
+		  result &= input[pdx];
+	    if (invert_)
+		  result.invert();
+	    return result;
+      }
 
       for (unsigned idx = 0 ;  idx < result.size() ;  idx += 1) {
 	    vvp_bit4_t bitbit = result.value(idx);
@@ -693,6 +714,14 @@ vvp_vector4_t vvp_fun_or::calculate(const vvp_vector4_t input[4]) const
 {
       vvp_vector4_t result (input[0]);
 
+      if (inputs_match_width_(input)) {
+	    for (unsigned pdx = 1 ;  pdx < 4 ;  pdx += 1)
+		  result |= input[pdx];
+	    if (invert_)
+		  result.invert();
+	    return result;
+      }
+
       for (unsigned idx = 0 ;  idx < result.size() ;  idx += 1) {
 	    vvp_bit4_t bitbit = result.value(idx);
 	    for (unsigned pdx = 1 ;  pdx < 4 ;  pdx += 1) {
@@ -725,6 +754,14 @@ vvp_fun_xor::~vvp_fun_xor()
 vvp_vector4_t vvp_fun_xor::calculate(const vvp_vector4_t input[4]) const
 {
       vvp_vector4_t result (input[0]);
+
+      if (inputs_match_width_(input)) {
+	    for (unsigned pdx = 1 ;  pdx < 4 ;  pdx += 1)
+		  result ^= input[pdx];
+	    if (invert_)
+		  result.invert();
+	    return result;
+      }
 
       for (unsigned idx = 0 ;  idx < result.size() ;  idx += 1) {
 	    vvp_bit4_t bitbit = result.value(idx);

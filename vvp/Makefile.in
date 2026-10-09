@@ -183,7 +183,7 @@ parse%cc parse%h: $(srcdir)/parse%y
 	$(YACC) --verbose -t --defines=parse.h -o parse.cc $<
 
 lexor.cc: $(srcdir)/lexor.lex
-	$(LEX) -s -o$@ $<
+	$(LEX) -s -Cf -o$@ $<
 
 vvp.man: $(srcdir)/vvp.man.in ../version.exe
 	../version.exe `head -1 $<`'\n' > $@
