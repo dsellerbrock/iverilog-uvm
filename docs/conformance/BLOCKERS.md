@@ -73,6 +73,16 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
 - **Delivery:** Add to the current main-based five-issue draft PR. This ticket
   explicitly requires leaving that draft unmerged.
 
+### IEEE-TWO-STATE-PACKED-SELECT — issue #469 parameter-select follow-up
+
+- **State:** The original two-state packed-select behavior is merged in PR #464. The parameter-type regression fix and the obsolete unequal-length `intersect` negative removal are in PR #515, now merged with `origin/main` at `f39d0b5121d43461936858e380e79a873ff16abc`. Its pre-merge head had Ubuntu 22.04/24.04 and MINGW64/UCRT64/CLANG64 successful; macOS was queued. The merge commit requires fresh exact-head CI; no qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid bit-select from a two-state value and X for a four-state value. A partially out-of-range part-select returns X in missing positions; §6.11.2 converts those X bits to 0 when assigned to a two-state destination.
+- **Original failure:** Before PR #464, invalid bit-selects from two-state values returned X and partial part-select X fill was not converted for two-state destinations. PR #464 added the paired reducer for constant and dynamic bit-selects and part-selects.
+- **Regression cause and repair:** `NetScope::evaluate_parameter_logic_` read the parse expression type before `test_width()` populated it, then inferred an untyped parameter type from the folded constant. Fully-defined values appeared BOOL, changing invalid four-state parameter selects. The follow-up preserves source type after width testing and carries parameter type through select nodes; the paired fixture also checks explicit `bit` and `logic` parameters.
+- **Validation:** The follow-up passes the ten affected legacy parameter-select cases and the paired 2017/2023 JSON/VVP packed-select test locally. These are local results. Exact-head CI after the merge is pending.
+- **Related negative-suite correction:** The removed `m9b_intersect_unequal_len` fixture asserted that unequal fixed-length `intersect` operands must be rejected. IEEE 1800-2017/2023 §16.9.6 permits unequal sequence lengths; they simply have no match. The fixture was therefore obsolete, not a required compiler diagnostic.
+- **Delivery:** PR #515 targets `main`. Merge only after all required checks pass on the current exact head.
+
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
 - **State:** Implemented and merged by the user in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413). At the latest CI snapshot, all six platform checks were pending; do not claim the merged head CI-green.
@@ -2339,9 +2349,11 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   carries a separate declared index for `item.index`/`*_index` results,
   computed generically for any base, so nothing else needed to change.
 - **Scope:** Fixed-array (direct-signal and class-property) locator
-  methods only. Multidimensional fixed arrays remain a genuine, still-loud
-  `sorry` (iterating subarrays is unimplemented) -- confirmed still correct
-  and unaffected. Also repaired two stale ivtest negative tests whose own
+  methods only. At L36 closure, multidimensional fixed arrays still produced
+  a genuine, loud `sorry` because subarray iteration was unimplemented. The
+  October 8 candidate for issues #422-#426 adds that support and related
+  aggregate-copy/result-typing cases; local focused tests pass, with exact-head
+  CI pending. Also repaired two stale ivtest negative tests whose own
   comments already admitted the rejected forms were legal SV.
 - **Reducers:** `evidence/campaign-20260908/l36/` (nonzero/descending base,
   string/real elements, paren-less syntax, multidim-still-rejected).

@@ -1,2 +1,0 @@
-ivltests/sv_array_find_last_fixed_shape_fail.v:13: sorry: find_last() on multidimensional arrays is not yet implemented.
-1 error(s) during elaboration.

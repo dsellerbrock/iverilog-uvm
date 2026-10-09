@@ -1401,6 +1401,12 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
       if (! expr)
             return;
 
+      if (!param_type && use_type == IVL_VT_NO_TYPE) {
+	    use_type = val_expr->expr_type();
+	    if (use_type == IVL_VT_NO_TYPE)
+		  use_type = expr->expr_type();
+      }
+
       if (NetEConst*unbounded = dynamic_cast<NetEConst*>(expr)) {
 	    if (unbounded->is_unbounded()) {
 		    /* Enum assignment still requires an enum member/cast, and
@@ -1491,7 +1497,7 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 	    // If the parameter has no type, then infer its type from the
 	    // r-value expression.
 	    if (param_type==0) {
-		  param_type = new netvector_t(expr->expr_type(), expr->expr_width()-1,
+		  param_type = new netvector_t(use_type, expr->expr_width()-1,
 					       0, expr->has_sign());
 		  cur->second.ivl_type = param_type;
 	    }
