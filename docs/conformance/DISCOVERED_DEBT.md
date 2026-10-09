@@ -3366,10 +3366,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 - **Discovered while working:** PR339 compiler CI repair and pinned Caliptra unit-census assessment.
 - **Observation:** Clean Adams Bridge v2.0.3 `masking_tb` uses `inputs.x_boolean[j][0]`, where the first index selects an unpacked struct-member element and the second its packed bit. Icarus reports two indices where it expects one; a whole-element control passes.
-- **File/function:** `elab_expr.cc` struct-member index elaboration; the read and lvalue paths both need assessment.
-- **Possible clauses:** IEEE 1800-2017/2023 §§7.4 and 11.5.
-- **Evidence:** [Paired RED and control](../../evidence/caliptra-masking-member-index-triage-20260923/README.md) against the clean pinned release. Other whole-array port errors would remain in that census row.
-- **Triage status:** reproduced, not selected for implementation; it overlaps the OpenTitan class-event `elab_expr.cc` candidate.
+- **File/function:** `elab_expr.cc::check_for_struct_members` read path. The lvalue path in `elab_lval.cc` already handled packed bit and part writes.
+- **Possible clauses:** IEEE 1800-2017/2023 §§7.4.2, 11.5.1, and 11.5.2.
+- **Evidence:** [Paired RED and control](../../evidence/caliptra-masking-member-index-triage-20260923/README.md) and GitHub issue #499. The paired regression covers direct and nested reads, whole-element controls, in-range and partially out-of-range reads/writes.
+- **Triage status:** implementation is on `agent/ieee-batch-499-495-20261009`; local macOS build passed, legacy 2/2, JSON/VVP 2/2, and neighboring legacy selectors 8/8. Exact-head CI has not run; keep issue #499 open until its batched PR is green and merged. Other whole-array port errors in the Caliptra census row remain separate.
 
 ### DD-049 — OpenTitan SPI class-event `.triggered` is rejected
 

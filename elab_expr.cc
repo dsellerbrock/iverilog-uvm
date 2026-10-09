@@ -13072,7 +13072,7 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		    // itself be another struct.
 		  if (const netenum_t*cur_enum =
 			dynamic_cast<const netenum_t*>(cur_type)) {
-			if (!member_comp.index.empty()) {
+		  if (!member_comp.index.empty()) {
 			      cerr << li->get_fileline() << ": error: enumeration "
 				      "method name cannot be indexed." << endl;
 			      des->errors += 1;
@@ -13171,11 +13171,11 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		    // dropped the whole assignment or passed a blank argument,
 		    // so every `s.arr[i]' read back as nothing at all while a
 		    // scalar member beside it was correct.
-		  if (!member_comp.index.empty()) {
+			if (!member_comp.index.empty()) {
 			if (const netuarray_t*member_ua =
 				  dynamic_cast<const netuarray_t*>(member_type)) {
 			      const auto&dims = member_ua->static_dimensions();
-			      if (dims.size() != member_comp.index.size()) {
+			      if (member_comp.index.size() < dims.size()) {
 				    cerr << li->get_fileline() << ": error: "
 					 << "Got " << member_comp.index.size()
 					 << " indices, expecting " << dims.size()
@@ -13185,8 +13185,14 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 				    delete base_expr;
 				    return 0;
 			      }
+			      auto packed_begin = member_comp.index.begin();
+			      std::advance(packed_begin, dims.size());
+			      std::list<index_component_t> array_indices(
+				    member_comp.index.begin(), packed_begin);
+			      std::list<index_component_t> packed_indices(
+				    packed_begin, member_comp.index.end());
 		      NetExpr*widx = make_canonical_property_index_(
-			    des, scope, li, member_comp.index,
+			    des, scope, li, array_indices,
 			    member_ua, false);
 			      if (!widx) {
 				    delete base_expr;
@@ -13197,6 +13203,34 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 			      iprop->set_line(*li);
 			      base_expr = iprop;
 			      cur_type = member_ua->element_type();
+			      // Leading indices select the unpacked element; any remainder
+			      // selects bits from that element's packed value.
+			      if (!packed_indices.empty()) {
+				    const netvector_t*mvec =
+					  dynamic_cast<const netvector_t*>(cur_type);
+				    if (!mvec) {
+					  cerr << li->get_fileline() << ": error: packed select after "
+					       << "unpacked struct member " << member_comp.name
+					       << " requires a packed vector element." << endl;
+					  des->errors += 1;
+					  delete base_expr;
+					  return 0;
+				    }
+				    ivl_type_t sel_type = nullptr;
+				    NetExpr*sel = make_vector_property_select_(
+					  des, scope, li, base_expr, mvec,
+					  packed_indices, sel_type);
+				    if (!sel) {
+					  cerr << li->get_fileline() << ": sorry: this form of select "
+					       << "on struct member " << member_comp.name
+					       << " is not yet supported." << endl;
+					  des->errors += 1;
+					  delete base_expr;
+					  return 0;
+				    }
+				    base_expr = sel;
+				    cur_type = sel_type;
+			      }
 			      continue;
 			}
 
