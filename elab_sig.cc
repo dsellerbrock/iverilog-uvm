@@ -2962,7 +2962,8 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 
       } else {
 	    ivl_type_t ret_type;
-	    NetScope*ret_scope = scope->parent() ? scope->parent() : scope;
+	    NetScope*ret_scope = return_type_scope_local_
+		  ? scope : (scope->parent() ? scope->parent() : scope);
 
 	    if (return_type_) {
 		  if (dynamic_cast<const struct void_type_t*> (return_type_)) {

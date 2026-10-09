@@ -18,6 +18,7 @@
  */
 
 # include  <cstdarg>
+# include  <algorithm>
 # include  <cstring>
 # include  <iostream>
 # include  <list>
@@ -611,6 +612,25 @@ void pform_class_covergroup(const struct vlltype&loc,
       cg->crosses = std::move(pending_crosses_);
       pending_crosses_.clear();
       pform_covergroup_implicit_cross_coverpoints_(loc, cg);
+      for (auto&cross : cg->crosses) {
+	    if (!cross.value_type || !cross.value_type->members) continue;
+	    auto member = cross.value_type->members->begin();
+	    for (perm_string label : cross.cp_labels) {
+		  auto cp = std::find_if(cg->coverpoints.begin(),
+					 cg->coverpoints.end(),
+					 [&](const class_type_t::pform_coverpoint_t&item) {
+					       return item.label == label;
+					 });
+		  if (member == cross.value_type->members->end()) break;
+		  if (cp != cg->coverpoints.end())
+			if (PEIdent*id = dynamic_cast<PEIdent*>(cp->expr)) {
+			      (*member)->type.reset(new type_reference_t(
+				    id->clone_for_reference()));
+			      FILE_NAME((*member)->type.get(), loc);
+			}
+		  ++member;
+	    }
+      }
       // M11: move accumulated covergroup-level options.
       cg->options = std::move(pending_cg_options_);
       pending_cg_options_.clear();

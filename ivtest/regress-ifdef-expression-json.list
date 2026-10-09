@@ -1,0 +1,3 @@
+sv_ifdef_expression_2023 vvp_tests/sv_ifdef_expression_2023.json
+sv_ifdef_expression_2017 vvp_tests/sv_ifdef_expression_2017.json
+sv_ifdef_expression_2017_fail vvp_tests/sv_ifdef_expression_2017_fail.json

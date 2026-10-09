@@ -7296,16 +7296,27 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    }
 	    unsigned guard_flags = has_cp_guards | (ncross_guards << 1)
 		  | (nbin_guards << 16);
-	    for (unsigned ii = 1 ; ii < payload_end ; ii += 1) {
-		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii);
-		  if (cp_arg) draw_eval_vec4(cp_arg);
+	    unsigned nreal = 0;
+	    for (unsigned ii = 0; ii < ncp; ii++) {
+		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii + 1);
+		  if (cp_arg && ivl_expr_value(cp_arg) == IVL_VT_REAL) {
+			nreal += 1;
+			draw_eval_real(cp_arg);
+		  } else if (cp_arg) draw_eval_vec4(cp_arg);
+		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    }
+	    for (unsigned ii = 1 + ncp; ii < payload_end; ii += 1) {
+		  ivl_expr_t arg = ivl_stmt_parm(net, ii);
+		  if (arg) draw_eval_vec4(arg);
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
 	    if (obj_arg) draw_eval_object(obj_arg);
 	      /* Keep the established two-operand VVP encoding: bit 0 says
 	         coverpoint guards are present, bits 1.. carry the number of
 	         cross guards. Old streams that use 0/1 remain valid. */
-	    fprintf(vvp_out, "    %%covgrp/sample %u, %u;\n", ncp, guard_flags);
+	    fprintf(vvp_out, "    %%covgrp/sample %llu, %u;\n",
+		    (unsigned long long)(((uint64_t)nreal << 32) | ncp),
+		    guard_flags);
 	    return 0;
       }
 
@@ -8197,8 +8208,9 @@ int draw_task_definition(ivl_scope_t scope)
  * atoms (byte/shortint/int/longint), 'p' chandle (void*), 'V'/'W'
  * canonical packed bit/logic vectors, 'g' 4-state scalar (svLogic),
  * 'f' shortreal, 'r' real, 's' string, 'x'/'y' dynamic/open arrays of packed bit/logic
- * vectors, 'X'/'Y' their fixed-array counterparts, and 'B'/'G' fixed arrays
- * of true scalar svBit/svLogic elements. The distinctions let the runtime
+ * vectors, 'X'/'Y' their fixed-array counterparts, 'B'/'G' fixed arrays
+ * of true scalar svBit/svLogic elements, and 'q'/'Q' shortreal open/fixed
+ * arrays. The distinctions let the runtime
  * expose the exact Annex H C representation, including canonical packed
  * element storage when the actual is a non-contiguous queue.
  *
@@ -8309,17 +8321,6 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	       Materialize the inline word array before the call and copy it
 	       back below for output/inout directions. */
 		  ivl_type_t nt = ivl_signal_net_type(port);
-		  if (ptype == IVL_VT_REAL && ivl_type_is_shortreal(nt)) {
-			fprintf(stderr, "%s:%u: sorry: DPI import '%s': fixed "
-				"shortreal array argument '%s' needs float-array "
-				"marshaling, which is not yet supported; the call is "
-				"skipped.\n", ivl_scope_def_file(scope),
-				ivl_scope_def_lineno(scope), c_name,
-				ivl_signal_basename(port));
-			unsupported = 1;
-			vvp_errors += 1;
-			break;
-		  }
 		  int elem_ok = (ptype == IVL_VT_REAL)
 			|| ((ptype == IVL_VT_BOOL || ptype == IVL_VT_LOGIC)
 			    && pwid > 0);
@@ -8336,6 +8337,9 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  }
 		  if (nt && ivl_type_is_packed_vector(nt)) {
 			letter = (ptype == IVL_VT_LOGIC) ? 'Y' : 'X';
+		  } else if (ptype == IVL_VT_REAL
+			     && ivl_type_is_shortreal(nt)) {
+			letter = 'Q';
 		  } else if (pwid == 1 && ptype == IVL_VT_BOOL) {
 			letter = 'B';
 		  } else if (pwid == 1 && ptype == IVL_VT_LOGIC) {
@@ -8368,17 +8372,6 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  int elem_ok = (ebase == IVL_VT_REAL)
 			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
 			    && ewid > 0);
-		  if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et)) {
-			fprintf(stderr, "%s:%u: sorry: DPI import '%s': open "
-				"shortreal array argument '%s' needs float-array "
-				"marshaling, which is not yet supported; the call is "
-				"skipped.\n", ivl_scope_def_file(scope),
-				ivl_scope_def_lineno(scope), c_name,
-				ivl_signal_basename(port));
-			unsupported = 1;
-			vvp_errors += 1;
-			break;
-		  }
 		  if (! elem_ok) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
 				"open array argument '%s' must have packed "
@@ -8390,7 +8383,9 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			unsupported = 1;
 			break;
 		  }
-		  if (et && ivl_type_is_packed_vector(et))
+		  if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et))
+			letter = 'q';
+		  else if (et && ivl_type_is_packed_vector(et))
 			letter = (ebase == IVL_VT_LOGIC) ? 'y' : 'x';
 		  else
 			letter = 'o';
@@ -8455,6 +8450,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    else if (letter == 's')
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
 	    else if (letter == 'o' || letter == 'O'
+		     || letter == 'q' || letter == 'Q'
 		     || letter == 'B' || letter == 'G'
 		     || letter == 'x' || letter == 'X'
 		     || letter == 'y' || letter == 'Y') {
@@ -8554,6 +8550,8 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 		case 'o':
 		case 'O':
+		case 'q':
+		case 'Q':
 		case 'B':
 		case 'G':
 		case 'x':

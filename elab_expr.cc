@@ -29487,7 +29487,7 @@ unsigned PENumber::test_width(Design*, NetScope*, width_mode_t&mode)
       return expr_width_;
 }
 
-NetExpr* PENumber::elaborate_expr(Design*, NetScope*, ivl_type_t ntype, unsigned) const
+NetExpr* PENumber::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype, unsigned) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PENumber::elaborate_expr: "
@@ -29508,6 +29508,13 @@ NetExpr* PENumber::elaborate_expr(Design*, NetScope*, ivl_type_t ntype, unsigned
 	    NetECReal*tmp = new NetECReal(val);
 	    tmp->set_line(*this);
 	    return tmp;
+      }
+
+      if (!ntype->packed() || ntype->packed_width() < 0) {
+	    cerr << get_fileline() << ": error: integer literal is not compatible "
+		 << "with an unpacked type in this context." << endl;
+	    des->errors += 1;
+	    return nullptr;
       }
 
       verinum use_val = value();

@@ -78,6 +78,10 @@ static struct {
    task/function that is currently in progress. */
 static PTask* current_task = 0;
 static PFunction* current_function = 0;
+static PFunction* pending_cross_outer_function_ = nullptr;
+static typedef_t* pending_cross_value_typedef_ = nullptr;
+static typedef_t* pending_cross_queue_typedef_ = nullptr;
+static bool pending_cross_scope_active_ = false;
 
 /* I1 (Phase 62g): accumulator for cross declarations seen during the
    current covergroup parse.  cross_item rules append here; the enclosing
@@ -91,10 +95,76 @@ std::map<perm_string, PExpr*> pending_cg_options_;
 static std::map<perm_string, PExpr*> pending_cp_options_;
 static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_;
 static uint64_t pending_cross_expr_serial_ = 0;
+static uint64_t pending_cross_scope_serial_ = 0;
+static struct_type_t* pending_cross_value_type_ = nullptr;
 static std::vector<perm_string>* pending_cg_ctor_names_ = nullptr;
 static std::vector<data_type_t*>* pending_cg_ctor_types_ = nullptr;
 static std::vector<bool>* pending_cg_ctor_is_ref_ = nullptr;
 static std::vector<PExpr*>* pending_cg_ctor_defaults_ = nullptr;
+
+/* IEEE 1800-2017 19.6.1 gives each cross body an implicit CrossValType
+ * (one field per cross item) and CrossQueueType. Keep their typedefs in a
+ * lexical scope local to this cross so helper functions can use the names. */
+static void pform_cross_scope_begin_(const struct vlltype&loc,
+				     const std::list<class_type_t::pform_cross_t::item_t>&items)
+{
+	  pending_cross_outer_function_ = current_function;
+	  pending_cross_scope_active_ = true;
+	  char scope_name[64];
+	  snprintf(scope_name, sizeof scope_name, "$__ivl_cross_scope_%llu",
+		   static_cast<unsigned long long>(pending_cross_scope_serial_++));
+	  pform_push_block_scope(loc, scope_name, PBlock::BL_SEQ);
+
+	  struct_type_t*value_type = new struct_type_t;
+	  FILE_NAME(value_type, loc);
+	  value_type->packed_flag = false;
+	  value_type->signed_flag = false;
+	  value_type->union_flag = false;
+	  value_type->members.reset(new std::list<struct_member_t*>);
+	  for (const auto&item : items) {
+		struct_member_t*member = new struct_member_t;
+		FILE_NAME(member, loc);
+		member->type.reset(new atom_type_t(atom_type_t::INT, true));
+		FILE_NAME(member->type.get(), loc);
+		member->names.reset(new std::list<decl_assignment_t*>);
+		decl_assignment_t*name = new decl_assignment_t;
+		name->name = pform_ident_t(item.label, loc.lexical_pos);
+		member->names->push_back(name);
+		value_type->members->push_back(member);
+	  }
+	  pending_cross_value_type_ = value_type;
+	  pform_set_typedef(loc, lex_strings.make("CrossValType"), value_type, nullptr);
+	  pending_cross_value_typedef_ = pform_test_type_identifier(loc, "CrossValType");
+	  std::list<pform_range_t>*dims = new std::list<pform_range_t>;
+	  PENull*queue_range = new PENull;
+	  FILE_NAME(queue_range, loc);
+	  dims->push_back(pform_range_t(queue_range, nullptr));
+	  uarray_type_t*queue_type = new uarray_type_t(
+		new typeref_t(pending_cross_value_typedef_), dims);
+	  FILE_NAME(queue_type, loc);
+	  pform_set_typedef(loc, lex_strings.make("CrossQueueType"),
+			    queue_type, nullptr);
+	  pending_cross_queue_typedef_ = pform_test_type_identifier(loc, "CrossQueueType");
+}
+
+static void pform_cross_bind_function_types_(PFunction*func)
+{
+	  if (!pending_cross_scope_active_ || !func)
+		return;
+	  func->typedefs[pending_cross_value_typedef_->name] = pending_cross_value_typedef_;
+	  func->typedefs[pending_cross_queue_typedef_->name] = pending_cross_queue_typedef_;
+	  func->set_return_type_scope_local();
+}
+
+static void pform_cross_scope_end_()
+{
+	  pform_pop_scope();
+	  current_function = pending_cross_outer_function_;
+	  pending_cross_outer_function_ = nullptr;
+	  pending_cross_value_typedef_ = nullptr;
+	  pending_cross_queue_typedef_ = nullptr;
+	  pending_cross_scope_active_ = false;
+}
 
 /* M13B: map a lexer edge-descriptor ("01", "0x", "z1", ...) to the
    PTimingCheck edge type. z transitions share the x codes (both are
@@ -174,6 +244,7 @@ static void cov_option_set_(std::map<perm_string, PExpr*>&dst,
    objects remain owned by the parse form; the covergroup keeps stable
    references just as `with function sample` already does. */
 static void cov_capture_ctor_ports_(
+      const struct vlltype&loc,
       const std::vector<pform_tf_port_t>*ports,
       std::vector<perm_string>*&names,
       std::vector<data_type_t*>*&types,
@@ -187,6 +258,11 @@ static void cov_capture_ctor_ports_(
       defaults = new std::vector<PExpr*>;
       for (const auto&port : *ports) {
 	    if (!port.port) continue;
+	    if (port.port->get_port_type() == NetNet::POUTPUT
+		|| port.port->get_port_type() == NetNet::PINOUT)
+		  yyerror(loc, "error: Covergroup constructor formal '%s' cannot "
+			  "have output or inout direction (IEEE 1800 19.3).",
+			  port.port->basename().operator const char*());
 	    names->push_back(port.port->basename());
 	    types->push_back(const_cast<data_type_t*>(port.port->data_type()));
 	    is_ref->push_back(port.port->get_port_type() == NetNet::PREF);
@@ -982,9 +1058,13 @@ static void recover_stale_function_scope(const YYLTYPE&loc)
 {
       if (current_function == 0)
 	    return;
+	  if (current_function == pending_cross_outer_function_) {
+	    current_function = 0;
+	    return;
+	  }
       cerr << loc << ": warning: recovering stale function parse state." << endl;
       warn_count += 1;
-      pform_pop_scope();
+	  pform_pop_scope();
       current_function = 0;
 }
 
@@ -2096,6 +2176,7 @@ static Module::port_t *module_declare_port_continuation(
       std::vector<class_type_t::pform_cov_trans_term_t>* cov_trans_seq;
       std::vector<std::vector<class_type_t::pform_cov_trans_term_t>>* cov_seqs;
       class_type_t::pform_cross_t::select_t* cross_sel;
+      class_type_t::pform_cross_t::matches_t* cross_matches;
       std::list<class_type_t::pform_cross_t::item_t>* cross_items;
       std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
       class_type_t::pform_cov_bins_t* cov_bins;
@@ -2426,6 +2507,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <cov_seqs>    transition_seq_list
 %type <cross_sel>   cross_bins_expr cross_bins_or cross_bins_and cross_bins_with
 %type <cross_sel>   cross_bins_unary cross_bins_primary
+%type <cross_matches> cross_matches_clause cross_matches_opt
+%destructor { if ($$) { delete $$->expr; delete $$; } } <cross_matches>
 
 %type <expr>  constraint_expression constraint_block_item constraint_set_item
 %type <expr>  constraint_dist_consequent
@@ -3084,7 +3167,7 @@ class_cg_port_prefix
             @2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
-	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+	cov_capture_ctor_ports_(@1, $4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
 				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
@@ -3104,7 +3187,7 @@ module_cg_port_prefix
             @2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
-	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+	cov_capture_ctor_ports_(@1, $4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
 				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
@@ -4595,8 +4678,13 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
+  | K_cross cross_item_list coverpoint_iff_opt '{'
+	  { pform_cross_scope_begin_(@4, *$2); }
+	cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
+	pform_cross_scope_end_();
+	cx.value_type = pending_cross_value_type_;
+	pending_cross_value_type_ = nullptr;
 	if ($2) for (auto& item : *$2) {
 	      cx.cp_labels.push_back(item.label);
 	      cx.cp_exprs.push_back(item.expr);
@@ -4642,8 +4730,13 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
+  | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{'
+	  { pform_cross_scope_begin_(@6, *$4); }
+	cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
+	pform_cross_scope_end_();
+	cx.value_type = pending_cross_value_type_;
+	pending_cross_value_type_ = nullptr;
 	cx.label = lex_strings.make($1);
 	if ($4) for (auto& item : *$4) {
 	      cx.cp_labels.push_back(item.label);
@@ -4658,8 +4751,13 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{'
+	  { pform_cross_scope_begin_(@6, *$4); }
+	cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
+	pform_cross_scope_end_();
+	cx.value_type = pending_cross_value_type_;
+	pending_cross_value_type_ = nullptr;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (auto& item : *$4) {
 	      cx.cp_labels.push_back(item.label);
@@ -4931,39 +5029,80 @@ cross_body_opt
 	cb.select = $5;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
+  | cross_body_opt K_bins bins_name '=' hierarchy_identifier attribute_list_opt argument_list_parens ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.set_expr = pform_make_call_function(@5, *$5, *$7);
+	delete $5;
+	pform_discard_call_attributes($6);
+	delete $7;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   /* IEEE 1800-2017 19.6.1: filter cross tuples with a predicate over the
      contributing coverpoint values. Keep the source cross name so a typo
      cannot silently select tuples from the surrounding declaration. */
-  | cross_body_opt K_illegal_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+  | cross_body_opt K_illegal_bins bins_name '=' bins_name K_with '(' expression ')' cross_matches_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
 	cb.with_cross = lex_strings.make($5);
 	cb.with_expr = $8;
+	if ($10) { cb.matches_expr = $10->expr; $10->expr = nullptr;
+	  cb.matches_all = $10->all; delete $10; }
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
-  | cross_body_opt K_ignore_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+  | cross_body_opt K_ignore_bins bins_name '=' bins_name K_with '(' expression ')' cross_matches_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
 	cb.with_cross = lex_strings.make($5);
 	cb.with_expr = $8;
+	if ($10) { cb.matches_expr = $10->expr; $10->expr = nullptr;
+	  cb.matches_all = $10->all; delete $10; }
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
-  | cross_body_opt K_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+  | cross_body_opt K_bins bins_name '=' bins_name K_with '(' expression ')' cross_matches_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
 	cb.with_cross = lex_strings.make($5);
 	cb.with_expr = $8;
+	if ($10) { cb.matches_expr = $10->expr; $10->expr = nullptr;
+	  cb.matches_all = $10->all; delete $10; }
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
   | cross_body_opt IDENTIFIER '.' IDENTIFIER '=' expression ';'
       { cov_option_set_(pending_cp_options_, @2, $2, $4, $6); }
+  | cross_body_opt function_declaration
+      { current_function = pending_cross_outer_function_; }
   | cross_body_opt error ';'
       { cerr << @2 << ": sorry: unsupported cross body item was "
 	     << "ignored." << endl;
 	yyerrok; }
+  ;
+
+/* The matches policy is evaluated against each candidate cross-bin tuple. */
+cross_matches_clause
+  : K_matches number
+      { $$ = new class_type_t::pform_cross_t::matches_t;
+	PENumber*value = new PENumber($2);
+	FILE_NAME(value, @2);
+	$$->expr = value; }
+  | K_matches hierarchy_identifier
+      { $$ = new class_type_t::pform_cross_t::matches_t;
+	PEIdent*value = pform_new_ident(@2, *$2);
+	FILE_NAME(value, @2);
+	$$->expr = value;
+	delete $2; }
+  | K_matches '$'
+      { $$ = new class_type_t::pform_cross_t::matches_t;
+	$$->all = true; }
+  ;
+
+cross_matches_opt
+  : %empty { $$ = nullptr; }
+  | cross_matches_clause { $$ = $1; }
   ;
 
 /* cross_bins_expr: binsof-based set expression for cross body items.
@@ -4990,10 +5129,13 @@ cross_bins_and
   ;
 
 cross_bins_with
-  : cross_bins_with K_with '(' expression ')'
+  : cross_bins_with K_with '(' expression ')' cross_matches_opt
       { auto*s = new class_type_t::pform_cross_t::select_t();
 	s->op = class_type_t::pform_cross_t::select_t::SEL_WITH;
-	s->a = $1; s->with_expr = $4; $$ = s; }
+	s->a = $1; s->with_expr = $4;
+	if ($6) { s->matches_expr = $6->expr; $6->expr = nullptr;
+	  s->matches_all = $6->all; delete $6; }
+	$$ = s; }
   | cross_bins_unary { $$ = $1; }
   ;
 
@@ -5865,6 +6007,7 @@ function_declaration /* IEEE1800-2005: A.2.6 */
   | K_function lifetime_opt data_type_or_implicit_or_void function_identifier ';'
       { recover_stale_function_scope(@1);
 	current_function = pform_push_function_scope(@1, $4, $2);
+	pform_cross_bind_function_types_(current_function);
       }
     tf_item_list_opt
     statement_or_null_list_opt
@@ -5885,6 +6028,7 @@ function_declaration /* IEEE1800-2005: A.2.6 */
   | K_function lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
 	current_function = pform_push_function_scope(@1, $4, $2);
+	pform_cross_bind_function_types_(current_function);
       }
     '(' tf_port_list_opt ')' ';'
     block_item_decls_opt
@@ -7566,7 +7710,7 @@ package_cg_port_prefix
         current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
-	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+	cov_capture_ctor_ports_(@1, $4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
 				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
