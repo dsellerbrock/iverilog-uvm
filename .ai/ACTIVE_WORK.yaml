@@ -3,7 +3,7 @@ phase: "FOCUSED_TESTED"
 blocker: "IEEE-PACKED-SUBFIELD-RELEASE (#493)"
 github_issue: "#493 — release selected packed subfields without a target assertion"
 branch: "agent/ieee-batch-499-495-20261009"
-baseline: "origin/main 4b3f3424c440aca6af92153b6860a7253b925234; active branch head 6fe0dbc8164e422e707c01d966022106f8a2f806 includes locally verified #499, #497, and #495."
+baseline: "origin/main 4b3f3424c440aca6af92153b6860a7253b925234; active branch head 5e4e8a2da includes locally verified #499, #497, #495, and #493."
 goal: "Generate correct release behavior for selected packed lvalues with runtime offsets, without aborting target generation."
 standards: "IEEE 1800-2017/2023 §10.6; selected packed variable_lvalues are released at the selected range."
 failing_reproducer: "DD-088 reducer evidence/opentitan-otp-force-rhs-20260928/packed_partial_release_repro.sv aborts in show_stmt_release because ivl_lval_part_off is non-immediate. A class property force/release at value[base +: 8] reproduces the same assertion."
@@ -14,7 +14,7 @@ forbidden_scope: "No general force redesign, unrelated packed-select lowering, U
 acceptance: "Paired 2017/2023 runtime regressions cover the DD-088 packed-struct member and constant packed release; neighboring force/release controls pass in legacy and JSON/VVP runners. Run make check and a serial macOS build. CI qualification waits for the five-fix main-based PR."
 discovery_policy: "Record unrelated discoveries in docs/conformance/DISCOVERED_DEBT.md; keep this blocker limited to packed release offsets."
 current_validation: "RED confirmed before the fix: the DD-088 packed-struct reducer aborts target generation with exit 134. After the patch, serial macOS build/install and make check pass; focused legacy passes 6/6 and JSON/VVP passes 7/7, including paired 2017/2023 regressions and neighboring controls. VVP parser reports 14 shift/reduce and 5 reduce/reduce conflicts. This is local evidence only; no full suite or CI qualification."
-next_action: "Commit and push #493 on the existing batch branch. This brings the batch to four locally verified fixes; do not open the main-based PR until a fifth fix is verified."
+next_action: "Select the next open IEEE issue on the existing batch branch. Keep #493 as one of four locally verified fixes; open the main-based PR only after a fifth fix is verified."
 stop_after_completion: false
 after_completion: "Continue the IEEE campaign with the next open issue after #493. Count only verified fixes toward the five-fix main-based PR batch. Avoid repeated CI polling."
 
