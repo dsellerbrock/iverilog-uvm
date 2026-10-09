@@ -463,6 +463,8 @@ class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_
       void set_root_provenance(vvp_net_t*root_net, const vvp_object_t&root_obj,
                                vvp_context_t context) override;
       void clear_current_alias(vvp_context_t context);
+      void release_instance(vvp_context_t context) override
+	    { clear_current_alias(context); }
 
       class_type* init_defn_;
 
@@ -611,6 +613,8 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       void write_binding(vvp_net_t*formal, vvp_context_t frame,
                          const binding_t&in);
       void release_binding(vvp_context_t frame);
+      void release_instance(vvp_context_t frame) override
+	    { release_binding(frame); }
 
     public: // These objects are only permallocated.
       static void* operator new(std::size_t size) { return vvp_net_fun_t::heap_.alloc(size); }

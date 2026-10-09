@@ -1,0 +1,2 @@
+vvp_vec4_functor_logic normal ivltests gold=vvp_vec4_functor_logic.gold
+vvp_vec4_functor_arith normal ivltests gold=vvp_vec4_functor_arith.gold

@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "vvp_vec4_functor_arith.v",
+    "gold": "vvp_vec4_functor_arith"
+}

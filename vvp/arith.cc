@@ -531,6 +531,16 @@ void vvp_arith_sum::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 
       vvp_net_t*net = ptr.ptr();
 
+	/* Same-width operands need no padding: the word-wise add gives
+	   the modulo sum, or all X when any operand bit is X or Z, just
+	   like the bit loop below. */
+      if (op_a_.size() == wid_ && op_b_.size() == wid_) {
+	    vvp_vector4_t value (op_a_);
+	    value.add(op_b_);
+	    net->send_vec4(value, 0);
+	    return;
+      }
+
       vvp_vector4_t value (wid_);
 
 	/* Pad input vectors with this value to widen to the desired
@@ -576,6 +586,16 @@ void vvp_arith_sub::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 
       vvp_net_t*net = ptr.ptr();
 
+	/* Same-width operands: the word-wise subtract gives the modulo
+	   difference, or all X when any operand bit is X or Z, just like
+	   the bit loop below. */
+      if (op_a_.size() == wid_ && op_b_.size() == wid_) {
+	    vvp_vector4_t value (op_a_);
+	    value.sub(op_b_);
+	    net->send_vec4(value, 0);
+	    return;
+      }
+
       vvp_vector4_t value (wid_);
 
 	/* Pad input vectors with this value to widen to the desired
@@ -610,14 +630,9 @@ void vvp_cmp_eeq::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       dispatch_operand_(ptr, bit);
 
       vvp_vector4_t eeq (1);
-      eeq.set_bit(0, BIT4_1);
 
       assert(op_a_.size() == op_b_.size());
-      for (unsigned idx = 0 ;  idx < op_a_.size() ;  idx += 1)
-	    if (op_a_.value(idx) != op_b_.value(idx)) {
-		  eeq.set_bit(0, BIT4_0);
-		  break;
-	    }
+      eeq.set_bit(0, op_a_.eeq(op_b_) ? BIT4_1 : BIT4_0);
 
 
       vvp_net_t*net = ptr.ptr();
@@ -635,14 +650,9 @@ void vvp_cmp_nee::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       dispatch_operand_(ptr, bit);
 
       vvp_vector4_t eeq (1);
-      eeq.set_bit(0, BIT4_0);
 
       assert(op_a_.size() == op_b_.size());
-      for (unsigned idx = 0 ;  idx < op_a_.size() ;  idx += 1)
-	    if (op_a_.value(idx) != op_b_.value(idx)) {
-		  eeq.set_bit(0, BIT4_1);
-		  break;
-	    }
+      eeq.set_bit(0, op_a_.eeq(op_b_) ? BIT4_0 : BIT4_1);
 
 
       vvp_net_t*net = ptr.ptr();
@@ -673,6 +683,14 @@ void vvp_cmp_eq::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 
       vvp_vector4_t res (1);
       res.set_bit(0, BIT4_1);
+
+	/* Without X or Z bits the result is just exact equality. */
+      if (!op_a_.has_xz() && !op_b_.has_xz()) {
+	    if (!op_a_.eeq(op_b_))
+		  res.set_bit(0, BIT4_0);
+	    ptr.ptr()->send_vec4(res, 0);
+	    return;
+      }
 
       for (unsigned idx = 0 ;  idx < op_a_.size() ;  idx += 1) {
 	    vvp_bit4_t a = op_a_.value(idx);
@@ -964,11 +982,10 @@ void vvp_shiftl::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       if (overflow_flag || shift > out.size())
 	    shift = out.size();
 
-      for (unsigned idx = 0 ;  idx < shift ;  idx += 1)
-	    out.set_bit(idx, BIT4_0);
-
-      for (unsigned idx = shift ;  idx < out.size() ;  idx += 1)
-	    out.set_bit(idx, op_a_.value(idx-shift));
+	/* Zero fill, then move the surviving low part of A up. */
+      out.fill_bits(BIT4_0);
+      if (shift < out.size())
+	    out.set_vec(shift, vvp_vector4_t(op_a_, 0, out.size()-shift));
 
       ptr.ptr()->send_vec4(out, 0);
 }
@@ -999,15 +1016,15 @@ void vvp_shiftr::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       if (overflow_flag || shift > out.size())
 	    shift = out.size();
 
-      for (unsigned idx = shift ;  idx < out.size() ;  idx += 1)
-	    out.set_bit(idx-shift, op_a_.value(idx));
-
       vvp_bit4_t pad = BIT4_0;
       if (signed_flag_ && op_a_.size() > 0)
 	    pad = op_a_.value(op_a_.size()-1);
 
-      for (unsigned idx = 0 ;  idx < shift ;  idx += 1)
-	    out.set_bit(idx+out.size()-shift, pad);
+	/* Fill with the pad bit, then move the surviving high part of A
+	   down. */
+      out.fill_bits(pad);
+      if (shift < out.size())
+	    out.set_vec(0, vvp_vector4_t(op_a_, shift, out.size()-shift));
 
       ptr.ptr()->send_vec4(out, 0);
 }
