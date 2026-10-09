@@ -2,6 +2,8 @@ module sv_two_state_packed_select_oob;
   bit [7:0] down = 8'ha5;
   bit [0:7] up = 8'ha5;
   logic [7:0] four_state = 8'ha5;
+  parameter bit [7:0] bit_param = 8'ha5;
+  parameter logic [7:0] logic_param = 8'ha5;
   bit [99:0] bits = '1;
   logic [99:0] logics = '1;
   integer index;
@@ -15,6 +17,8 @@ module sv_two_state_packed_select_oob;
   bit [7:0] part_bit, part_constant_bit;
   logic [7:0] part_indexed_up_logic, part_indexed_down_logic;
   bit [7:0] part_indexed_up_bit, part_indexed_down_bit;
+  logic [7:0] param_part_logic;
+  bit [7:0] param_part_bit;
   logic [7:0] part_constant_indexed_down_logic;
   bit [7:0] part_constant_indexed_down_bit;
   logic [7:0] four_state_part;
@@ -55,6 +59,13 @@ module sv_two_state_packed_select_oob;
     if (four_state_const_oob !== 1'bx || four_state_const_x !== 1'bx)
       begin $display("FAILED: four-state constant invalid bit select"); failed++; end
 
+    index = 8;
+    if (bit_param[index] !== 1'b0 || bit_param[8] !== 1'b0
+        || bit_param[1'bx] !== 1'b0
+        || logic_param[index] !== 1'bx || logic_param[8] !== 1'bx
+        || logic_param[1'bx] !== 1'bx)
+      begin $display("FAILED: parameter invalid bit select"); failed++; end
+
     base = 96;
     part_logic = bits[base +: 8];
     part_bit = bits[base +: 8];
@@ -83,6 +94,11 @@ module sv_two_state_packed_select_oob;
     check("fully out-of-range part to logic", part_full_oob_logic, 8'bxxxxxxxx);
     check("fully out-of-range part to bit", part_full_oob_bit, 8'b00000000);
     check("four-state part", four_state_part, 8'bxxxx1111);
+    base = 6;
+    param_part_logic = bit_param[base +: 8];
+    param_part_bit = bit_param[base +: 8];
+    check("parameter partial part to logic", param_part_logic, 8'bxxxxxx10);
+    check("parameter partial part to bit", param_part_bit, 8'b00000010);
     check("ascending in-range part", up[0 +: 4], 8'b00001010);
     check("descending in-range part", down[7 -: 4], 8'b00001010);
 

@@ -36,33 +36,41 @@
 
 ### IEEE-TWO-STATE-PACKED-SELECT — issue #469; added to PR #464
 
-- **State:** Implemented locally and integrated into PR #464. Run 37820062119
-  for code commit `85350903084628febd4d1d0bf1c0d390bad4f41d` had all six
-  platform checks pending at its latest snapshot; it predates the status-only
-  documentation update. No green result is claimed.
+- **State:** Merged in PR #464 on 2026-10-08. Its run 37834845943 failed
+  Ubuntu 22.04 and 24.04 on ten legacy parameter-select tests, with a separate
+  negative-suite failure tracked as DD-115. A regression follow-up is being
+  prepared from the merged `main` commit.
 - **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid
   bit-select from a two-state value and X for a four-state value. A partially
   out-of-range part-select returns X in missing positions; §6.11.2 converts
   those X bits to 0 when assigned to a two-state destination.
-- **Failure:** Clean `origin/main` returns X for two-state invalid bit-selects
-  and preserves X bits when a partial part-select is assigned to a `bit`
-  vector. The permanent paired reducer covers constant/dynamic invalid bit
-  indices, constant/dynamic indexed part-selects in both directions, a
-  non-indexed partial select, and fully out-of-range assignment.
+- **Original failure:** The pre-#464 baseline returned X for two-state invalid
+  bit-selects and preserved X bits when a partial part-select was assigned to
+  a `bit` vector. PR #464 added the permanent paired reducer for
+  constant/dynamic invalid bit indices, constant/dynamic indexed part-selects
+  in both directions, a non-indexed partial select, and fully out-of-range
+  assignment.
 - **Cause and scope:** Packed-select elaboration inherited the two-state source
   type, suppressing conversion of out-of-range X bits at two-state destinations;
   constant invalid bit-selects also returned X without checking source state.
   Scope remains packed read-select elaboration only.
-- **Validation:** Clean-main frozen compiler fails eight checks per edition;
-  the candidate passes strict `-g2017` and `-g2023`. Current local build/install
-  passes; focused legacy is 3/3 and JSON/VVP is 6/6. Bison counts remain 574
-  shift/reduce and 1,122 reduce/reduce. These are local results, not CI
-  qualification.
-- **Delivery:** PR #464 targets `main`. Pre-integration run 37806441317 failed
-  Ubuntu 22.04 and 24.04 in the negative suite (152/153) on the unrelated
-  obsolete `m9b_intersect_unequal_len` case, tracked as DD-115. The integrated
-  head's checks are pending; leave the draft open and do not merge until every
-  required job passes on the exact head.
+- **Validation:** The original paired reducer passed strict `-g2017` and
+  `-g2023` in PR #464. The merged head's full legacy sweep reports ten failures:
+  `pr2835632b`, `pr2913927`, `pr3054101a`–`f`, `sel_rval_bit_ob`, and
+  `sel_rval_part_ob`. The follow-up branch passes those focused legacy tests
+  10/10 and the paired 2017/2023 JSON/VVP packed-select test 2/2 on macOS
+  ARM64. These are local results; follow-up CI is pending.
+- **Regression cause and repair:** `NetScope::evaluate_parameter_logic_` read
+  the parse expression's type before `test_width()` populated it, then inferred
+  an untyped parameter's type from the folded constant. Fully defined values
+  therefore appeared BOOL and VVP converted invalid four-state reads to zero.
+  The follow-up preserves the source type after width testing and carries
+  parameter types through select nodes. Its paired fixture now also checks
+  invalid selects from explicit `bit` and `logic` parameters.
+- **Delivery:** PR #464 is merged. The follow-up must target `main`; do not
+  merge it until every required check is green on its exact head. The separate
+  Ubuntu negative-suite failure is the obsolete `m9b_intersect_unequal_len`
+  case tracked as DD-115 and remains outside this repair.
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
