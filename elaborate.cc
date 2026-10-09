@@ -41109,8 +41109,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  ivl_type_t cp_type = coverpoint_expr_type(cp.expr);
 			  ivl_variable_type_t cp_base = cp_type
 				? cp_type->base_type() : IVL_VT_NO_TYPE;
+			    // test_width() reports REAL for any operator with a real
+			    // operand, but only + - * / ** can yield a real value;
+			    // e.g. `r & m' is illegal, not a real coverpoint (11.4).
+			  const PEBinary*cp_binary = dynamic_cast<const PEBinary*>(cp.expr);
 			  bool cp_real_type = cp_base == IVL_VT_REAL
-				|| (cp.expr && cp.expr->expr_type() == IVL_VT_REAL);
+				|| (cp.expr && cp.expr->expr_type() == IVL_VT_REAL
+				    && (!cp_binary || strchr("+-*/p", cp_binary->get_op())));
 			  auto cp_interval_it = cp.options.find(
 				perm_string::literal("type_option.real_interval"));
 			  auto group_interval_it = cgdef->options.find(
