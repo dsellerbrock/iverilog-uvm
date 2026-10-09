@@ -12,7 +12,7 @@ active_ieee_lane:
   standards: "IEEE 1800-2017/2023 §7.12.1 and §10.9.1; local standards PDFs checked."
   root_cause: "Elaboration did not retain fixed multidimensional row and wrapper result types, VVP lacked object-backed row/aggregate handling, and associative min/max was routed to an unsupported diagnostic."
   scope: "Issues #422-#426, permanent dual-runner tests, and directly related conformance records."
-  next: "The prior exact head 38f08fe2ba2f0e17ef793a3471efc59d5dbe4e72 failed Linux hard ivtest/negative gates and four indexed fixed-array queue .size() cases in the MSYS2 focus. Local fix preserves the root indexed-receiver state; focused legacy and JSON/VVP now pass 68/68 each, with seven adjacent container/associative tests passing under -g2017. The full local hard gate is in progress; the only isolated negative-suite failure is unrelated m9b_intersect_unequal_len. Push this repair, then inspect exact-head checks once. Do not start the next batch until #514 merges."
+  next: "Repair c0138ef07520e7d2e807a79b411a07df1cffa007 is pushed to PR #514. The local hard gate is running and exact-head CI is underway. Inspect results after a meaningful status change; the ready-PR agent may merge only if all six platform checks pass on this exact head. Repair only failures caused by this batch; do not start the next batch until merge."
   boundary: "No broader associative locator support, untested associative value/key types, or unrelated array/NBA repair is claimed. The local full ivtest hard gate is still running; no local UVM/Linux/Windows suite was run."
 previous_batch_pr464:
   head: "870442199088b468b681983a7cbbe9f653bebeb3 (pre-follow-up exact CI head)"
