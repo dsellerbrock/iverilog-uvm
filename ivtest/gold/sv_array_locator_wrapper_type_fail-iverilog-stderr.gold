@@ -1,0 +1,4 @@
+ivltests/sv_array_locator_wrapper_type_fail.v:7: error: array locator result type is not assignment-compatible with the context.
+ivltests/sv_array_locator_wrapper_type_fail.v:7:      : result type=queue of netvector_t:bool signed[31:0]
+ivltests/sv_array_locator_wrapper_type_fail.v:7:      : context type=queue of string
+1 error(s) during elaboration.

@@ -777,9 +777,18 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
       if (net->parameters.empty())
             return;
 
+      size_t parameter_count = 0;
+      for (map<perm_string,NetScope::param_expr_t>::const_iterator cur =
+	       net->parameters.begin() ; cur != net->parameters.end() ; ++cur) {
+	    if (!cur->second.is_assoc_param)
+		  parameter_count += 1;
+      }
+      if (parameter_count == 0)
+	    return;
+
       ivl_scope_aux_s*aux = scop->ensure_aux_();
       assert(aux->param == 0);
-      aux->param = new vector<ivl_parameter_s>(net->parameters.size());
+      aux->param = new vector<ivl_parameter_s>(parameter_count);
       vector<ivl_parameter_s>&param = *aux->param;
 
       unsigned idx = 0;
@@ -787,6 +796,11 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 
       for (pit_t cur_pit = net->parameters.begin()
 		 ; cur_pit != net->parameters.end() ; ++ cur_pit ) {
+	    /* ponytail: ivl_parameter_t cannot represent associative maps. These
+	       values are compile-time only; add a map-aware target API if runtime
+	       parameter introspection is required. */
+	    if (cur_pit->second.is_assoc_param)
+		  continue;
 
             assert(idx < param.size());
             ivl_parameter_t cur_par = &param[idx];

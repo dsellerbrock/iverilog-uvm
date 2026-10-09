@@ -2,6 +2,35 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
+### IEEE-1800-ASSOC-ARRAY-TYPED-PARAMETERS — issue #450 (root-caused)
+
+- **State:** Implemented in open PR [#466](https://github.com/dsellerbrock/iverilog-uvm/pull/466), which targets `main`. The refreshed branch merges `origin/main` at `9443fffb69fa304cbc4e9604153ad4040583d419`. A macOS build/install and paired focused legacy/JSON tests pass (4/4 each) when using the checkout's `local-install/bin` first in `PATH`. Prior local evidence on the pre-merge branch includes neighboring checks 6/6 legacy and 8/8 JSON, full legacy 5,046/5,046, and UVM 363/363 with real DPI. The full JSON run had four failures: two optional FPGA target cases passed after target installation; the two constraint-state failures are triage-pending as DD-116. No CI-green claim applies to the refreshed head.
+- **Requirement:** IEEE 1800-2017 Annex A A.2.4 `param_assignment` uses
+  `{unpacked_dimension}`. IEEE 1800-2023 A.2.4 uses `{variable_dimension}`;
+  A.2.5 includes `associative_dimension` (`[data_type]` or `[*]`) in that
+  grammar. IEEE 1800-2023 §8.25(b) defines class value-parameter
+  specialization identity using matching value types and equal values. The
+  issue's §8 reference is relevant to specialization; the grammar change is in
+  Annex A. A typedef-based associative type parameter is already supported in
+  both editions.
+- **Baseline:** Exact-source Icarus fails a self-authored module parameter
+  `int Values[string]` under `-g2017` and `-g2023` during elaboration
+  (`Dimension size must be greater than zero` on `PEAssocType`). A class
+  parameter with the same associative dimension syntax-errors in Icarus under
+  both editions; Slang accepts the class form in 1800-2023. The typedef type
+  parameter control compiles and prints `PASS 23` under both editions.
+- **Cause:** Class parameter grammar omitted dimensions following the
+  parameter identifier. Module parameter elaboration sent associative
+  dimensions to finite unpacked-bound evaluation and element expansion. The
+  parameter model and specialization signature represented finite
+  bounds/elements, not associative keys/map values, and direct syntax lacked
+  the 2023 feature gate. The target API also exposes only scalar parameter
+  metadata; keyed-map patterns must stay out of that interface. Class map
+  identity then failed because the cache rejected keyed patterns based on
+  their legacy `parm_names`, and value selection was typed as a string
+  character/packed bit select instead of an associative key.
+- **Next:** Check the refreshed PR head's exact CI after it becomes actionable; the user will merge #466. Bison conflict counts on the merged local build are unchanged at 574 shift/reduce and 1,122 reduce/reduce. Keep scope to 2023 associative value-parameter forms, specialization/value uses, strict 2017 rejection, and paired tests. OpenTitan and Caliptra application work are outside this issue.
+
 ### IEEE-1800-ESCAPED-IFDEF-IDENTIFIERS — issue #468 (reproduced)
 
 - **State:** Focused implementation and permanent regressions are pushed to existing draft [PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467), which targets `main` and also carries #460. The two issues stay separately tracked; no additional PR is opened.
@@ -70,12 +99,12 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   part-select, class variable, and generated-scope signal. Bison remains at
   14 shift/reduce and 5 reduce/reduce conflicts. Full legacy/JSON and UVM
   validation are still pending; these are local checks, not CI results.
-- **Delivery:** Add to the current main-based five-issue draft PR. This ticket
-  explicitly requires leaving that draft unmerged.
+- **Delivery:** PR #466 targets `main`. The user will make the merge decision;
+  do not enable auto-merge or claim CI green until exact-head checks finish.
 
 ### IEEE-TWO-STATE-PACKED-SELECT — issue #469 parameter-select follow-up
 
-- **State:** The original two-state packed-select behavior is merged in PR #464. The parameter-type regression fix and the obsolete unequal-length `intersect` negative removal are in PR #515, now merged with `origin/main` at `f39d0b5121d43461936858e380e79a873ff16abc`. Its pre-merge head had Ubuntu 22.04/24.04 and MINGW64/UCRT64/CLANG64 successful; macOS was queued. The merge commit requires fresh exact-head CI; no qualification is claimed.
+- **State:** The original two-state packed-select behavior is merged in PR #464. The parameter-type regression fix and the obsolete unequal-length `intersect` negative removal are in PR #515, included in `origin/main` at `9443fffb69fa304cbc4e9604153ad4040583d419`. Its pre-merge head had Ubuntu 22.04/24.04 and MINGW64/UCRT64/CLANG64 successful; macOS was queued. No fresh qualification claim is made for the current main head.
 - **Requirement:** IEEE 1800-2017/2023 §11.5.1 returns 0 for an invalid bit-select from a two-state value and X for a four-state value. A partially out-of-range part-select returns X in missing positions; §6.11.2 converts those X bits to 0 when assigned to a two-state destination.
 - **Original failure:** Before PR #464, invalid bit-selects from two-state values returned X and partial part-select X fill was not converted for two-state destinations. PR #464 added the paired reducer for constant and dynamic bit-selects and part-selects.
 - **Regression cause and repair:** `NetScope::evaluate_parameter_logic_` read the parse expression type before `test_width()` populated it, then inferred an untyped parameter type from the folded constant. Fully-defined values appeared BOOL, changing invalid four-state parameter selects. The follow-up preserves source type after width testing and carries parameter type through select nodes; the paired fixture also checks explicit `bit` and `logic` parameters.
@@ -2349,9 +2378,11 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   carries a separate declared index for `item.index`/`*_index` results,
   computed generically for any base, so nothing else needed to change.
 - **Scope:** Fixed-array (direct-signal and class-property) locator
-  methods only. Multidimensional fixed arrays remain a genuine, still-loud
-  `sorry` (iterating subarrays is unimplemented) -- confirmed still correct
-  and unaffected. Also repaired two stale ivtest negative tests whose own
+  methods only. At L36 closure, multidimensional fixed arrays still produced
+  a genuine, loud `sorry` because subarray iteration was unimplemented. The
+  October 8 candidate for issues #422-#426 adds that support and related
+  aggregate-copy/result-typing cases; local focused tests pass, with exact-head
+  CI pending. Also repaired two stale ivtest negative tests whose own
   comments already admitted the rejected forms were legal SV.
 - **Reducers:** `evidence/campaign-20260908/l36/` (nonzero/descending base,
   string/real elements, paren-less syntax, multidim-still-rejected).

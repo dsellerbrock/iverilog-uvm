@@ -577,17 +577,20 @@ sv_constraint_fixed_array_reduction normal,-g2012	ivltests gold=sv_constraint_fi
 sv_class_fixed_array_reduction_fail CE,-g2012	ivltests gold=sv_class_fixed_array_reduction_fail.gold
 sv_array_find_last	normal,-g2012		ivltests gold=sv_array_find_last.gold
 sv_array_find_last_fixed_base normal,-g2012	ivltests gold=sv_array_find_last_fixed_base.gold
+sv_array_locator_multidim normal,-g2012 ivltests gold=sv_array_locator_multidim.gold
+sv_array_locator_aggregate normal,-g2012 ivltests gold=sv_array_locator_aggregate.gold
+sv_array_locator_wrapper_type_fail CE,-g2012 ivltests gold=sv_array_locator_wrapper_type_fail.gold
 sv_locator_fixed_nonintegral normal,-g2012	ivltests gold=sv_locator_fixed_nonintegral.gold
 sv_bitstream_cast_unpacked_struct_fail CE,-g2012	ivltests gold=sv_bitstream_cast_unpacked_struct_fail.gold
 sv_bitstream_cast_packed_struct normal,-g2012	ivltests gold=sv_bitstream_cast_packed_struct.gold
 sv_inside_queue_expr normal,-g2012	ivltests gold=sv_inside_queue_expr.gold
 sv_property_queue_string_charsel normal,-g2012	ivltests gold=sv_property_queue_string_charsel.gold
-sv_array_find_last_fixed_shape_fail CE,-g2012	ivltests gold=sv_array_find_last_fixed_shape_fail.gold
 sv_array_find_last_type_fail CE,-g2012		ivltests gold=sv_array_find_last_type_fail.gold
 sv_array_find_last_with_fail CE,-g2012		ivltests gold=sv_array_find_last_with_fail.gold
 sv_array_locator_fixed_property normal,-g2012	ivltests gold=sv_array_locator_fixed_property.gold
-sv_array_locator_fixed_property_fail CE,-g2012	ivltests gold=sv_array_locator_fixed_property_fail.gold
+sv_array_locator_fixed_property_multidim normal,-g2012	ivltests gold=sv_array_locator_fixed_property_multidim.gold
 sv_array_minmax_parenless normal,-g2012		ivltests gold=sv_array_minmax_parenless.gold
+sv_array_minmax_assoc normal,-g2012 ivltests gold=sv_array_minmax_assoc.gold
 sv_array_minmax_residual_fail CE,-g2012		ivltests gold=sv_array_minmax_residual_fail.gold
 sv_array_minmax_type_fail CE,-g2012		ivltests gold=sv_array_minmax_type_fail.gold
 sv_array_unique_argument_fail CE,-g2012		ivltests gold=sv_array_unique_argument_fail.gold
@@ -2688,6 +2691,10 @@ sv_foreach_package_scoped_target_2023 normal,-g2023,-s,main ivltests gold=sv_for
 sv_foreach_package_param_array normal,-g2017,-s,main ivltests gold=sv_foreach_package_param_array.gold
 sv_foreach_package_param_array_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_package_param_array.gold
 sv_array_parameter_typedef_pattern normal,-g2012,-s,main ivltests gold=sv_array_parameter_typedef_pattern.gold
+sv_param_assoc_value_2023 normal,-g2023,-s,sv_param_assoc_value_2023 ivltests
+sv_param_assoc_class_value_2023 normal,-g2023,-s,sv_param_assoc_class_value_2023 ivltests
+sv_param_assoc_value_2017_fail CE,-g2017,-s,sv_param_assoc_value_2017_fail ivltests
+sv_param_assoc_class_2017_fail CE,-g2017,-s,sv_param_assoc_class_2017_fail ivltests
 sv_foreach_package_param_missing CE,-g2017,-s,main ivltests gold=sv_foreach_package_param_missing.gold
 sv_foreach_package_param_missing_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_package_param_missing.gold
 sv_foreach_package_param_nonarray CE,-g2017,-s,main ivltests gold=sv_foreach_package_param_nonarray.gold
