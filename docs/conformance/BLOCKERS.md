@@ -51,6 +51,28 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   PR for the current exact-head CI status. Do not call CI qualified or merge
   until every required platform passes.
 
+### IEEE-VPI-SOURCE-OBJECT-LOCATIONS — issue #501
+
+- **State:** Implemented and focused-tested locally; broad validation is in
+  progress. No CI qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §37.3.3 applies `vpiFile` and
+  `vpiLineNo` to VPI handles for source objects, including the signal, select,
+  and class-variable kinds covered here. Respect the `line` directive.
+- **Failure:** Before the fix, a scalar signal declared under
+  `` `line 100 "mapped_source.sv" 0`` returned no file and line 0.
+- **Fix and scope:** The VVP target emits the existing elaborated file-table
+  index and declaration line for scalar integral signals/nets and class
+  variables. The loader applies the metadata to the corresponding VPI handle;
+  bit and part-select handles delegate to their parent. Generated-scope
+  signals are covered. Other VPI object kinds are outside this fix.
+- **Validation:** The VPI plugin regression passes under `-g2017` and
+  `-g2023`, checking both properties for scalar variable, net, bit-select,
+  part-select, class variable, and generated-scope signal. Bison remains at
+  14 shift/reduce and 5 reduce/reduce conflicts. Full legacy/JSON and UVM
+  validation are still pending; these are local checks, not CI results.
+- **Delivery:** Add to the current main-based five-issue draft PR. This ticket
+  explicitly requires leaving that draft unmerged.
+
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
 - **State:** Implemented and merged by the user in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413). At the latest CI snapshot, all six platform checks were pending; do not claim the merged head CI-green.

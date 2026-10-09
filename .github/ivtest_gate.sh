@@ -36,6 +36,26 @@ if ! python3 "$ROOT/tests/vvp_runtime/run_indexed_darray_slice.py"; then
     status=1
 fi
 
+if ! bash "$ROOT/tests/vvp_runtime/run_dpi_shortreal_array.sh"; then
+    status=1
+fi
+
+if ! bash "$ROOT/tests/vvp_runtime/run_dpi_export_fixed_array.sh"; then
+    status=1
+fi
+
+if ! bash "$ROOT/tests/vvp_runtime/run_cross_product_limit.sh"; then
+    status=1
+fi
+
+if ! bash "$ROOT/tests/vvp_runtime/run_merged_transition_cardinality.sh"; then
+    status=1
+fi
+
+if ! bash "$ROOT/tests/vvp_runtime/run_vpi_source_location.sh"; then
+    status=1
+fi
+
 echo "=== ivtest sweep (vendored suite) ==="
 cd "$ROOT/ivtest"
 if ! perl vvp_reg.pl > "$WORK/ivtest.log" 2>&1; then

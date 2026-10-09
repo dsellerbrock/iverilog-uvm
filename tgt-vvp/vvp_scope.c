@@ -625,6 +625,16 @@ static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
       fprintf(vvp_out, "\";\n");
 }
 
+static void emit_signal_source_location_(ivl_signal_t sig, const char*suffix)
+{
+      const char*file = ivl_signal_file(sig);
+      unsigned line = ivl_signal_lineno(sig);
+      if (!file || !*file)
+	    return;
+      fprintf(vvp_out, "v%p%s .vpi_source_location %u %u;\n", sig, suffix,
+	      ivl_file_table_index(file), line);
+}
+
 static const char *event_storage_flag_str(ivl_event_t event)
 {
       switch (ivl_event_lifetime(event)) {
@@ -1010,6 +1020,13 @@ static void draw_reg_in_scope(ivl_signal_t sig)
             emit_packed_dims_(sig,
                   ivl_signal_dimensions(sig) > 0 ? "" : "_0");
       }
+
+      if (ivl_signal_dimensions(sig) == 0
+	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
+	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC
+	      || ivl_signal_data_type(sig) == IVL_VT_CLASS
+	      || ivl_signal_data_type(sig) == IVL_VT_NO_TYPE))
+	    emit_signal_source_location_(sig, "_0");
 }
 
 
@@ -1196,6 +1213,11 @@ static void draw_net_in_scope(ivl_signal_t sig)
                       emit_packed_dims_(sig, "");
           }
       }
+
+      if (ivl_signal_dimensions(sig) == 0 && !ivl_signal_local(sig)
+	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
+	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC))
+	    emit_signal_source_location_(sig, "_0");
 }
 
 void emit_deferred_array_decls(void)
@@ -3503,11 +3525,10 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
  *      stub packs its C arguments into a generic argument buffer and calls
  *      the vvp-exported dispatcher __ivl_dpi_export_call_*.
  *
- * The current runtime supports zero-time functions (and void functions)
- * whose arguments and return are integer atoms (byte/shortint/int/longint,
- * signed or unsigned) or real. Anything else is a loud sorry: the export
- * is dropped (its C symbol is not generated) so a call from C fails to
- * link with a diagnostic, never a silent miscompile.
+ * The runtime supports scalar formals and fixed unpacked arrays of Annex H
+ * atom or packed bit/logic elements. Exported open arrays are prohibited by
+ * Annex H.8.2; unsupported shapes are diagnosed and their C symbol is not
+ * generated.
  */
 
 struct dpi_export_entry_s {
@@ -3535,7 +3556,8 @@ void note_dpi_export(ivl_scope_t scope)
    shape is supported. On success writes the runtime signature letter
    (*sig_letter) and the C type spelling (*c_type). Signature letters:
      'i' unsigned integer atom, 'I' signed integer atom,
-     'B' scalar bit, 'g' scalar logic, 'p' chandle, 'f' shortreal,
+     'B' scalar bit return/fixed bit array, 't' scalar bit argument,
+     'g' scalar logic, 'p' chandle, 'f' shortreal,
      'r' real (double), 's' string, 'V' packed bit vector,
      'W' packed logic vector, 'v' void (return only). */
 static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
@@ -3551,13 +3573,43 @@ static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
 		   && port == ivl_scope_port(scope, 0);
 
       if (ivl_signal_dimensions(port) > 0) {
+	    if (is_return)
+		  goto unsupported;
+	    if (ptype == IVL_VT_REAL) {
+		  int is_shortreal = ivl_type_is_shortreal(net_type);
+		  *sig_letter = is_shortreal ? 'Q' : 'R';
+		  *c_type = is_shortreal ? "float" : "double";
+		  return 1;
+	    }
+	    if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
+		  if (ivl_type_is_packed_vector(net_type)) {
+			*sig_letter = ptype == IVL_VT_BOOL ? 'X' : 'Y';
+			*c_type = ptype == IVL_VT_BOOL
+			      ? "svBitVecVal" : "svLogicVecVal";
+			return 1;
+		  }
+		  if (pwid == 1) {
+			*sig_letter = ptype == IVL_VT_BOOL ? 'B' : 'G';
+			*c_type = ptype == IVL_VT_BOOL ? "svBit" : "svLogic";
+			return 1;
+		  }
+		  if (pwid == 8 || pwid == 16 || pwid == 32 || pwid == 64) {
+			*sig_letter = 'O';
+			switch (pwid) {
+			    case 8:  *c_type = is_signed ? "char" : "unsigned char"; break;
+			    case 16: *c_type = is_signed ? "short int" : "unsigned short int"; break;
+			    case 32: *c_type = is_signed ? "int" : "unsigned int"; break;
+			    default: *c_type = is_signed ? "long long int" : "unsigned long long int"; break;
+			}
+			return 1;
+		  }
+	    }
 	    if (!quiet) {
-		  fprintf(stderr, "%s:%u: error: export \"DPI-C\" '%s': fixed "
-			  "unpacked array argument '%s' is not yet supported for "
-			  "DPI export; the export is dropped.\n",
+		  fprintf(stderr, "%s:%u: sorry: export \"DPI-C\" '%s': fixed "
+			  "unpacked array argument '%s' has an element type not "
+			  "supported for DPI export; the export is dropped.\n",
 			  ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
 			  c_name, ivl_signal_basename(port));
-		  vvp_errors += 1;
 	    }
 	    return 0;
       }
@@ -3589,7 +3641,8 @@ static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
 	    return 1;
       }
       if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) && pwid == 1) {
-	    *sig_letter = ptype == IVL_VT_BOOL ? 'B' : 'g';
+	    *sig_letter = ptype == IVL_VT_BOOL
+		  ? (is_return ? 'B' : 't') : 'g';
 	    *c_type = ptype == IVL_VT_BOOL ? "svBit" : "svLogic";
 	    return 1;
       }
@@ -3734,15 +3787,27 @@ static int dpi_export_abis_equal(ivl_scope_t a_scope,
                  vector. Their declared packed dimensions and bounds are
                  nevertheless part of the DPI type signature and control
                  how the selected SV instance interprets that storage. */
-            if (a->arg_sig[2*idx] != 'V' && a->arg_sig[2*idx] != 'W')
+            char letter = a->arg_sig[2*idx];
+            int array = letter == 'O' || letter == 'Q' || letter == 'R'
+		 || letter == 'B' || letter == 'G'
+		 || letter == 'X' || letter == 'Y';
+            if (!array && letter != 'V' && letter != 'W')
                   continue;
             a_port = ivl_scope_port(a_scope, a_first + idx);
             b_port = ivl_scope_port(b_scope, b_first + idx);
             if (ivl_signal_signed(a_port) != ivl_signal_signed(b_port)
                 || ivl_signal_width(a_port) != ivl_signal_width(b_port)
+                || ivl_signal_dimensions(a_port)
+                   != ivl_signal_dimensions(b_port)
                 || ivl_signal_packed_dimensions(a_port)
                    != ivl_signal_packed_dimensions(b_port))
                   return 0;
+            for (dim = 0 ; dim < ivl_signal_dimensions(a_port) ; dim += 1)
+                  if (ivl_signal_array_dim_msb(a_port, dim)
+                        != ivl_signal_array_dim_msb(b_port, dim)
+                      || ivl_signal_array_dim_lsb(a_port, dim)
+                        != ivl_signal_array_dim_lsb(b_port, dim))
+                        return 0;
             for (dim = 0 ; dim < ivl_signal_packed_dimensions(a_port) ;
                  dim += 1)
                   if (ivl_signal_packed_msb(a_port, dim)
@@ -3864,7 +3929,8 @@ void emit_dpi_export_directives(void)
 	    unsigned first = is_task ? 0 : 1;
 	    for (idx = 0 ; idx < nargs ; idx += 1) {
 		  ivl_signal_t port = ivl_scope_port(scope, first + idx);
-		  fprintf(vvp_out, "%sv%p_0", idx ? " " : "", (void*)port);
+		  fprintf(vvp_out, "%sv%p%s", idx ? " " : "", (void*)port,
+			  ivl_signal_dimensions(port) ? "" : "_0");
 	    }
 	    fprintf(vvp_out, "\";\n");
       }
@@ -3915,6 +3981,7 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 	      "      const char* s;\n"
 	      "      void*       p;\n"
 	      "      uint32_t*   v;\n"
+	      "      void*       a;\n"
 	      "} ivl_dpi_arg_t;\n\n"
 	      "extern int64_t     __ivl_dpi_export_call_i(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
 	      "extern double      __ivl_dpi_export_call_r(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
@@ -3967,13 +4034,15 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 		  fprintf(out, "void");
 	    } else {
 		  for (idx = 0 ; idx < nargs ; idx += 1) {
-			char typ = arg_sig[2*idx];
-			char dir = arg_sig[2*idx+1];
-			int packed = typ == 'V' || typ == 'W';
-			fprintf(out, "%s%s%s%s a%u", idx ? ", " : "",
-				(packed && dir == 'i') ? "const " : "",
-				arg_ctypes[idx],
-				(packed || dir != 'i') ? "*" : "", idx);
+		  char typ = arg_sig[2*idx];
+		  char dir = arg_sig[2*idx+1];
+		  int packed = typ == 'V' || typ == 'W';
+		  int array = typ == 'O' || typ == 'Q' || typ == 'R'
+			   || typ == 'B' || typ == 'G' || typ == 'X' || typ == 'Y';
+		  fprintf(out, "%s%s%s%s a%u", idx ? ", " : "",
+			  ((packed || array) && dir == 'i') ? "const " : "",
+			  arg_ctypes[idx],
+			  (packed || array || dir != 'i') ? "*" : "", idx);
 		  }
 	    }
 	    fprintf(out, ")\n{\n");
@@ -3987,6 +4056,9 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 		  if (typ == 'V' || typ == 'W')
 			fprintf(out, "      _a[%u].v = (uint32_t*)a%u;\n",
 				idx, idx);
+		  else if (typ == 'O' || typ == 'Q' || typ == 'R'
+			   || typ == 'B' || typ == 'G' || typ == 'X' || typ == 'Y')
+			fprintf(out, "      _a[%u].a = (void*)a%u;\n", idx, idx);
 		  else if (typ == 'f' || typ == 'r') {
 			if (dir == 'i')
 			      fprintf(out, "      _a[%u].r = (double)a%u;\n",
@@ -4057,9 +4129,11 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 		  break;
 	    }
 	    for (idx = 0 ; idx < nargs ; idx += 1) {
-		  char typ = arg_sig[2*idx];
-		  char dir = arg_sig[2*idx+1];
-		  if (dir == 'i' || typ == 'V' || typ == 'W') continue;
+	      char typ = arg_sig[2*idx];
+	      char dir = arg_sig[2*idx+1];
+	      int array = typ == 'O' || typ == 'Q' || typ == 'R'
+		   || typ == 'B' || typ == 'G' || typ == 'X' || typ == 'Y';
+	      if (dir == 'i' || array || typ == 'V' || typ == 'W') continue;
 		  if (typ == 'f' || typ == 'r')
 			fprintf(out, "      if (a%u) *a%u = (%s)_a[%u].r;\n",
 				idx, idx, arg_ctypes[idx], idx);
