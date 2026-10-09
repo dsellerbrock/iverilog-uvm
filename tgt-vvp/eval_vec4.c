@@ -1263,6 +1263,24 @@ static int select_loads_part_(ivl_expr_t subexpr, ivl_expr_t base)
       return expr_is_effect_free_(base);
 }
 
+static int select_needs_bool_cast_(ivl_expr_t expr, ivl_expr_t base)
+{
+      if (ivl_expr_value(expr) != IVL_VT_BOOL)
+	    return 0;
+      if (!test_immediate_vec4_ok(base))
+	    return 1;
+
+      unsigned long val0, valx;
+      unsigned base_wid;
+      make_immediate_vec4_words(base, &val0, &valx, &base_wid);
+      int negative = ivl_expr_signed(base) && base_wid > 0
+	    && base_wid <= 32 && (val0 & (1UL << (base_wid-1)));
+      unsigned source_wid = ivl_expr_width(ivl_expr_oper1(expr));
+      /* Only invalid or unknown indices can synthesize X for a 2-state select. */
+      return valx || negative || val0 > source_wid
+	    || ivl_expr_width(expr) > source_wid - val0;
+}
+
 static void draw_select_vec4(ivl_expr_t expr)
 {
 	// This is the sub-expression to part-select.
@@ -1441,12 +1459,16 @@ static void draw_select_vec4(ivl_expr_t expr)
 		  if (valx == 0 && !negative && val0 <= 0xffffffffUL) {
 			fprintf(vvp_out, "    %%load/vec4/parti v%p_0, %u, %lu;\n",
 				sig, wid, val0);
+			if (select_needs_bool_cast_(expr, base))
+			      fprintf(vvp_out, "    %%cast2;\n");
 			return;
 		  }
 	    }
 	    draw_eval_vec4(base);
 	    fprintf(vvp_out, "    %%load/vec4/part/%c v%p_0, %u;\n",
 		    sign_suff, sig, wid);
+	    if (select_needs_bool_cast_(expr, base))
+		  fprintf(vvp_out, "    %%cast2;\n");
 	    return;
       }
 
@@ -1469,6 +1491,9 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    draw_eval_vec4(base);
 	    fprintf(vvp_out, "    %%part/%c %u;\n", sign_suff, wid);
       }
+
+      if (select_needs_bool_cast_(expr, base))
+	    fprintf(vvp_out, "    %%cast2;\n");
 
 }
 

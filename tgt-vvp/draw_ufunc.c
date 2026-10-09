@@ -78,6 +78,17 @@ static int ref_actual_is_nameable_(ivl_expr_t expr)
       return 1;
 }
 
+static int ref_actual_is_static_array_word_(ivl_signal_t port,
+                                            ivl_expr_t expr)
+{
+      if (!port || !ivl_signal_ref_static(port) || !expr
+	  || ivl_expr_type(expr) != IVL_EX_SIGNAL)
+	    return 0;
+      ivl_signal_t sig = ivl_expr_signal(expr);
+      return sig && ivl_signal_dimensions(sig) > 0
+	  && ivl_expr_oper1(expr);
+}
+
 /* True when a `ref' actual is a whole class property of a type the runtime can
    bind as a true reference (%ref/bind/pr, IEEE 1800-2017/2023 13.5.2): the
    callee then sees and makes every write at once, so a write to the property
@@ -137,6 +148,12 @@ static int function_port_is_native_output_(ivl_signal_t port)
    copies it back through the same binding. */
 static void draw_bind_function_ref_argument(ivl_signal_t port, ivl_expr_t expr)
 {
+      if (ref_actual_is_static_array_word_(port, expr)) {
+	    draw_eval_vec4(ivl_expr_oper1(expr));
+	    fprintf(vvp_out, "    %%ref/bind/w v%p, v%p_0;\n",
+		    ivl_expr_signal(expr), port);
+	    return;
+      }
       if (ref_actual_is_nameable_(expr)) {
 	    fprintf(vvp_out, "    %%ref/bind v%p_0, v%p_0;\n",
 		    port, ivl_expr_signal(expr));
@@ -1711,11 +1728,13 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 		 companion does: reading the formal reads the companion,
 		 so the ordinary copy-out is what puts it back. */
 	    if (port_type == IVL_SIP_REF) {
-		  if (ivl_signal_const(port))
-			continue;
-		  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx))
-		      || ref_actual_is_bound_property_(port, ivl_expr_parm(expr, idx)))
-			continue;
+	  if (ivl_signal_const(port))
+		continue;
+	  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx))
+	      || ref_actual_is_bound_property_(port, ivl_expr_parm(expr, idx))
+	      || ref_actual_is_static_array_word_(port,
+						   ivl_expr_parm(expr, idx)))
+		continue;
 	    } else if ((port_type != IVL_SIP_OUTPUT) &&
 		       (port_type != IVL_SIP_INOUT)) {
 		  continue;

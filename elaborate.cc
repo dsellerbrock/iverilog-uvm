@@ -18456,6 +18456,12 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       if (NetAssign_*lv = actual->elaborate_lval(
 				des, scope, false, false, false,
 				port->get_const())) {
+	    if (port->get_ref_static()
+		&& !ref_static_actual_is_static_lifetime(lv)) {
+		  des->errors += 1;
+		  delete lv;
+		  return nullptr;
+	    }
 	    if (port->get_const()) {
 		ivl_type_t formal_type = port->net_type();
 		ivl_type_t actual_type = netassign_type_for_equivalence(lv);
@@ -18621,6 +18627,14 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       }
 
       if (sig == 0) {
+	    if (port->get_ref_static()) {
+		  cerr << actual->get_fileline() << ": error: ref static actual "
+		       << "cannot be copied through a temporary; it must be "
+		       << "bound directly to static storage (IEEE 1800-2023 13.5.2)."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	      /* Bind to a temporary of the formal's own type and let the
 		 caller copy the actual in and out through it. */
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),

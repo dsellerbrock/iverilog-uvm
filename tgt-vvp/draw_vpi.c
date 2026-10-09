@@ -523,6 +523,11 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	    if (ivl_expr_value(expr) == IVL_VT_NO_TYPE)
 	      return 0;
 
+	    /* A direct VPI signal select bypasses vec4 evaluation, so it cannot
+	     * apply the 2-state conversion required by a bit-valued result. */
+	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
+	      return 0;
+
 	    assert(vexpr);
 
 	      /* This code is only for signals or selects. */

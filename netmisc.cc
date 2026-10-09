@@ -1446,7 +1446,7 @@ static NetEConst* make_i64_index_constant_(int64_t value,
 static NetExpr* make_checked_canonical_index_(
       Design*des, const LineInfo*loc, list<NetExpr*>&indices_expr,
       const indices_flags&flags, const netranges_t&dims,
-      bool warn_undefined)
+      bool warn_undefined, bool property_index)
 {
       ivl_assert(*loc, !dims.empty());
 
@@ -1456,9 +1456,17 @@ static NetExpr* make_checked_canonical_index_(
       }
 
       for (NetExpr*raw : indices_expr) {
-	    if (raw->expr_type() == IVL_VT_REAL) {
+	    if (raw->expr_type() == IVL_VT_REAL && property_index) {
 		  cerr << loc->get_fileline() << ": error: "
 		       << "real expression cannot index a property." << endl;
+		  des->errors += 1;
+		  delete_index_expressions_(indices_expr);
+		  return 0;
+	    }
+	    if (raw->expr_type() != IVL_VT_BOOL
+		&& raw->expr_type() != IVL_VT_LOGIC) {
+		  cerr << loc->get_fileline() << ": error: "
+		       << "index expression must be integral." << endl;
 		  des->errors += 1;
 		  delete_index_expressions_(indices_expr);
 		  return 0;
@@ -1582,7 +1590,7 @@ static NetExpr* make_checked_canonical_index_(
 static NetExpr* make_checked_canonical_index_(
       Design*des, NetScope*scope, const LineInfo*loc,
       const list<index_component_t>&src, const netranges_t&dims,
-      bool need_const, bool warn_undefined)
+      bool need_const, bool warn_undefined, bool property_index)
 {
       ivl_assert(*loc, src.size() == dims.size());
       list<long> indices_const;
@@ -1591,7 +1599,7 @@ static NetExpr* make_checked_canonical_index_(
       indices_to_expressions(des, scope, loc, src, src.size(), need_const,
                             flags, indices_expr, indices_const);
       return make_checked_canonical_index_(des, loc, indices_expr, flags,
-					   dims, warn_undefined);
+					   dims, warn_undefined, property_index);
 }
 
 NetExpr* make_checked_canonical_property_index(
@@ -1600,7 +1608,8 @@ NetExpr* make_checked_canonical_property_index(
 {
       ivl_assert(*loc, indices_expr.size() == stype->static_dimensions().size());
       return make_checked_canonical_index_(des, loc, indices_expr, flags,
-                                           stype->static_dimensions(), true);
+                                           stype->static_dimensions(), true,
+                                           true);
 }
 
 NetExpr* make_checked_canonical_property_index(
@@ -1610,13 +1619,13 @@ NetExpr* make_checked_canonical_property_index(
 {
       return make_checked_canonical_index_(des, scope, loc, src,
 					   stype->static_dimensions(),
-					   need_const, true);
+					   need_const, true, true);
 }
 
 NetExpr* make_checked_canonical_packed_prefix(
       Design*des, NetScope*scope, const LineInfo*loc,
       const list<index_component_t>&src, const netranges_t&dims,
-      unsigned long carrier_width, bool warn_undefined)
+      unsigned long carrier_width, bool warn_undefined, bool property_index)
 {
       ivl_assert(*loc, src.size() == dims.size());
       NetExpr*base = 0;
@@ -1629,7 +1638,7 @@ NetExpr* make_checked_canonical_packed_prefix(
             netranges_t one_dim(1, dims[idx]);
             NetExpr*term = make_checked_canonical_index_(
                   des, scope, loc, one_index, one_dim, false,
-			  warn_undefined);
+			  warn_undefined, property_index);
             if (!term) {
                   delete base;
                   return 0;
@@ -3462,6 +3471,27 @@ NetExpr*collapse_packed_base(Design*des, NetScope*scope, const LineInfo*loc,
       if (indices.size() > ndims)
 	    return 0;
 
+      // Preserve per-dimension bounds checks on a runtime bit-select chain.
+      // The unchecked flattened offset can let an inner OOB index carry into
+      // a neighboring outer slice. The existing helper materializes each
+      // runtime index once.
+      if (!indices.empty()
+          && indices.back().sel == index_component_t::SEL_BIT) {
+            const netranges_t& packed_dims = net->packed_dims();
+            netranges_t prefix_dims(packed_dims.begin(),
+                                    packed_dims.begin() + indices.size());
+            sel_wid = net->slice_width(indices.size());
+            unsigned errors_before = des->errors;
+            NetExpr* off = make_checked_canonical_packed_prefix(
+                  des, scope, loc, indices, prefix_dims, sel_wid, false);
+            if (!off && des->errors > errors_before) {
+                  NetEConst* invalid = make_const_x(64);
+                  invalid->set_line(*loc);
+                  return invalid;
+            }
+            return off;
+      }
+
 	// A trailing part-select is legal on top of run-time element
 	// indices -- `d[i][31:0]', `d[i][b +: 8]' (IEEE 1800-2017
 	// 11.5.2 / 7.4.6). collapse_array_exprs() below cannot carry
@@ -4414,6 +4444,11 @@ bool ref_formal_is_bound(const NetNet*port)
       if (owner->type() != NetScope::TASK && owner->type() != NetScope::FUNC)
 	    return false;
 
+	/* ref static is always a true alias, including in a static-lifetime
+	   subroutine, where there is no automatic frame to bind lazily. */
+      if (port->get_ref_static())
+	    return true;
+
 	/* The binding lives in the frame, so there has to be one. A
 	   static-lifetime subroutine has no frame; its ref formals keep
 	   the copy pair, which is what they had. (A static subroutine
@@ -4459,6 +4494,67 @@ bool ref_formal_is_bound(const NetNet*port)
 	  default:
 	    return false;
       }
+}
+
+bool ref_static_actual_is_static_lifetime(const NetAssign_*actual)
+{
+      if (!actual)
+	    return false;
+
+      const NetNet*sig = actual->sig();
+      const char*reason = nullptr;
+      if (actual->more || actual->is_array_slice() || actual->get_base())
+	    reason = "must be a whole variable or one of its elements";
+      else if (actual->get_property_idx() >= 0 && sig
+	       && dynamic_cast<const netclass_t*>(sig->net_type()))
+	    reason = "cannot be a non-static class property";
+      else if (!sig)
+	    reason = "must denote a static-lifetime variable";
+      else if (sig->darray_type() && actual->word())
+	    reason = "cannot be an element of a dynamic array or queue";
+
+      if (reason) {
+	    cerr << actual->get_fileline() << ": error: A ref static actual "
+		 << reason << " (IEEE 1800-2023 13.5.2)." << endl;
+	    return false;
+      }
+
+	/* A ref static formal already carries the caller's storage identity, even
+	   though its own lexical scope is automatic. */
+      if (sig->get_ref_static())
+	    return true;
+
+      switch (sig->lifetime_override()) {
+	  case IVL_VLT_STATIC:
+	    return true;
+	  case IVL_VLT_AUTOMATIC:
+	    break;
+	  case IVL_VLT_INHERITED:
+	    if (sig->scope() && !sig->scope()->is_auto())
+		  return true;
+	    break;
+      }
+
+      cerr << actual->get_fileline() << ": error: A ref static actual "
+	      << "must have static lifetime (IEEE 1800-2023 13.5.2)." << endl;
+      return false;
+}
+
+bool check_ref_formal_detached_fork_use(Design*des, const NetNet*port,
+				       const Statement*body)
+{
+      if (!des || !port || port->port_type() != NetNet::PREF || !body
+	  || port->get_ref_static()
+	  || !body->detached_fork_refs_name(port->name()))
+	    return false;
+
+      cerr << port->get_fileline() << ": error: ref formal `"
+	   << port->name()
+	   << "' shall not be referenced within fork...join_any or "
+	      "fork...join_none except in a fork block-item initializer "
+	      "value expression (IEEE 1800-2017/2023 9.3.2)." << endl;
+      des->errors += 1;
+      return true;
 }
 
 bool pform_name_refs_name(const pform_name_t&path, perm_string name)

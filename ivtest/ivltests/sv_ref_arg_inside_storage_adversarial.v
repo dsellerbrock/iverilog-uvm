@@ -1,4 +1,4 @@
-// R25 addressed ref-binding: adversarial siblings.
+// Ordinary ref with blocking joins plus static ref in detached processes.
 class obj_c;
   int p = 0;
 endclass
@@ -11,7 +11,7 @@ module top;
   int fails = 0;
 
   task automatic w_delay(ref int x, input int val, input int del);
-    fork begin #(del) x = val; end join_none
+    fork begin #(del) x = val; end join
   endtask
 
   task automatic w_wait(ref int x, input int val);
@@ -20,11 +20,11 @@ module top;
     #1;
   endtask
 
-  task automatic w_killed(ref int x, input int val);
+  task automatic w_killed(ref static int x, input int val);
     fork begin #50 x = val; end join_none
   endtask
 
-  task automatic w_recurse(ref int x, input int depth);
+  task automatic w_recurse(ref static int x, input int depth);
     if (depth > 0) w_recurse(x, depth - 1);
     else fork #2 x = 77; join_none
   endtask
@@ -34,28 +34,32 @@ module top;
     da = new[4];
     o1 = new; o2 = new;
 
-    // 1. Queue element bound, queue GROWS before the detached write:
-    //    appending does not remove or shift that live element.
-    w_delay(q[1], 11, 2);
-    q.push_back(0);          // resize between bind and write
-    // 2. Two concurrent calls, different elements of one array.
-    w_delay(arr[3], 33, 1);
-    w_delay(arr[5], 55, 1);
-    // 3. Property binding survives the HANDLE VARIABLE being reassigned:
-    //    the ref names o1's storage, not the variable oref.
+    // Queue element remains bound while a sibling appends to the queue.
+    fork
+      w_delay(q[1], 11, 2);
+      begin #1 q.push_back(0); end
+    join
+    // Concurrent ordinary-ref writes target distinct fixed-array elements.
+    fork
+      w_delay(arr[3], 33, 1);
+      w_delay(arr[5], 55, 1);
+    join
+    // The pending write retains o1's property after the caller handle changes.
     oref = o1;
-    w_delay(oref.p, 99, 2);
-    oref = o2;               // must NOT retarget the pending write
-    // 4. In-call (waiting) write through addressed binding.
+    fork
+      w_delay(oref.p, 99, 2);
+      begin #1 oref = o2; end
+    join
+    // In-call write through an ordinary ref.
     w_wait(arr[7], 7);
-    // 5. Variable index.
+    // An automatic index can select a dynamic-array element for ordinary ref.
     begin
       automatic int i = 2;
       w_delay(da[i], 22, 1);
     end
-    // 6. Recursion chain ends in a detached write.
+    // A recursion chain ends in a detached write.
     w_recurse(arr[0], 3);
-    // 7. Killed child: write must NOT land.
+    // A killed child must not write through the static ref.
     fork : killer
       w_killed(arr[6], 66);
     join_none

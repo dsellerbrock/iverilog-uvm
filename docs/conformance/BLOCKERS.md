@@ -4,9 +4,7 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
 
 ### SV-PACKAGE-CLASS-STATIC-CALL — package-qualified class static subroutine call
 
-- **State:** Implemented on `agent/pkg-class-static-call-20261007`; exact reducer
-  fails on clean `origin/main` `7c4aa26e` and passes on this branch under strict
-  2017 and 2023. Draft PR and exact-head CI remain pending.
+- **State:** Implemented and merged by the user in [PR #413](https://github.com/dsellerbrock/iverilog-uvm/pull/413). At the latest CI snapshot, all six platform checks were pending; do not claim the merged head CI-green.
 - **Requirement:** IEEE 1800-2017 §8.23 allows access to static class methods
   and properties and says scoped expressions can be used in subroutine calls;
   §26.3 describes package-qualified references. IEEE 1800-2023 §8.23 rewords
@@ -30,6 +28,41 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
 - **Delivery:** Open one draft PR to `main`, follow exact-head CI, and do not
   merge this ticket's PR.
 
+### SV23-REF-STATIC-TF-ARGUMENTS — IEEE 1800-2023 `ref static` arguments
+
+- **State:** Implemented in PR batch #464, based on refreshed `origin/main`
+  `af89cfc50`. The paired seven-case legacy and JSON/VVP focus passes 7/7 in
+  each runner; the adjusted storage tests plus UVM package compile pass 3/3.
+  UVM passes 363/363 with real DPI. The full legacy snapshot had 5 failures:
+  the two storage fixtures were updated to use ordinary `ref` with blocking
+  joins and `ref static` only with static actuals, and the UVM-dependent
+  package test passes after initializing UVM. These three pass in focused
+  reruns; two unrelated VIF diagnostic gold mismatches remain (DD-113). The
+  full JSON runner stopped at the unrelated zero-time
+  `sv_always_comb_fixed_point` loop (DD-114) and has no aggregate result. The
+  Ubuntu hard-gate run on the superseded PR head also failed because the
+  negative suite still expects rejection of legal unequal-length `intersect`
+  (DD-115). Exact pre-integration run 37806441317 failed both Ubuntu jobs at
+  152/153 and left four platform jobs pending. Stop this ticket on the unrelated CI failures without editing
+  those cases; do not claim qualification. The uncapped census in draft PR #504
+  indexes 94 open IEEE issues; #449 is one issue in the existing #464 batch.
+- **Requirement:** IEEE 1800-2023 A.2.7 permits `[const] ref [static]`;
+  §13.5.2 restricts actuals to static-lifetime storage or another `ref static`
+  formal; §9.3.2 exempts `ref static` from the detached-fork reference ban.
+  2017 A.2.7, §13.5.2, and §9.3.2 have no corresponding qualifier/exception.
+  Checked against the local 2017 and 2023 IEEE PDFs.
+- **Pre-fix failure:** The image at PR-batch head `e22741743` rejected
+  `ref static` in both editions and accepted an ordinary `ref` formal
+  referenced from `fork...join_none`. The controls cover automatic actuals,
+  2017 rejection, a fork-local initializer, and blocking `join`.
+- **Scope:** Carry the 2023 qualifier through formal metadata, validate actual
+  lifetime, enforce the detached-fork rule, and bind fixed-array-word function
+  actuals directly so nested reads observe writes immediately. Preserve
+  ordinary ref behavior and fork scheduling.
+- **Next:** DD-113/115 are recorded in `DISCOVERED_DEBT.md`; update the existing
+  draft PR #464 with the CI evidence, then return to coordinator selection from
+  refreshed `origin/main`. Do not merge or claim this ticket CI-qualified.
+
 ### SVA-INTERSECT-UNEQUAL-LENGTHS — merged; CI qualification incomplete
 
 - **Requirement:** IEEE 1800-2017/2023 §16.9.6 permits unequal fixed-length
@@ -43,6 +76,25 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
   still running; macOS and UCRT64 are queued. Do not claim the merged head is
   green. Variable/ranged mismatches and broader nested combinator trees remain
   open.
+
+### SV-TIMEUNIT-TIMEPRECISION-SYSTEM-FUNCTIONS — locally focused-tested
+
+- **Requirement:** IEEE 1800-2023 §20.4.1 and Syntax 20-3 add integer
+  exponent results for the current design element or an optional hierarchical
+  module/package scope; `$unit` selects the compilation unit and `$root` returns
+  the simulation time unit for both functions. Strict IEEE 1800-2017 rejects
+  these functions.
+- **Failure and fix:** Bare and empty-parentheses calls previously compiled but
+  failed at VVP as undefined functions. Package scope arguments also need their
+  `PPackage` identity retained by the parser. The frontend now resolves immutable
+  design-scope time metadata during elaboration.
+- **Validation:** A macOS ARM64 build and install succeeded. The paired focus
+  passes 3/3 in both legacy and JSON/VVP runners: strict 2017 rejection, 2023
+  exact values for bare, `()`, selected module and nested module, package,
+  `$unit`, `$root`, and rejection of a non-scope argument. This is local
+  evidence; no CI result is claimed.
+- **Boundary:** No timescale declaration parsing, `$time` scaling, `$printtimescale`,
+  or `$timeformat` behavior changed. See [focused evidence](../../evidence/timeunit-functions-20261007/README.md).
 
 ### OpenTitan 49-target post-fix census — 2026-09-29
 

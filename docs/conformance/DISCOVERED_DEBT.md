@@ -3872,12 +3872,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Crosswalk:** #469 also covers PR #464's DD-112 two-state packed bit-select OOB limitation. A paired clean-main reducer still prints X for the bit select; this is not a CI result.
 
 - **Discovered while working:** VVP-HOTPATH-PERF.
-- **Observation:** `bit [7:0] br = bv[b +: 8]`, with `bit [99:0] bv` and `b = 96`, stores `xxxx1111` into the two-state `br`. A two-state variable cannot hold X or Z bits.
-- **File/function:** Two-state conversion of a dynamic part-select result on store (`tgt-vvp` select/assignment lowering). Not traced further.
-- **Possible clause:** IEEE 1800-2017/2023 §6.11.2 (two-state conversion of unknown bits) and §11.5.1 (out-of-bounds part-select reads); review exact wording before implementation.
-- **Evidence:** [Reducer](../../evidence/vvp-hotpath-perf-20260928/two_state_oob_part_select.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log), identical on the unmodified 7a04009f baseline and with the new part-load opcode.
-- **Reproducer status:** confirmed, paired 2017/2023.
-- **Triage status:** untriaged. `vvp_load_vec4_part_select.v` checks two-state selects only in range.
+- **Observation:** Invalid bit-selects from `bit` packed values returned X, and partially or fully out-of-range part-select reads retained X when assigned to `bit` destinations. IEEE 1800-2017/2023 §11.5.1 requires invalid two-state bit-selects to return 0 and partial part-select reads to return X in missing positions; §6.11.2 converts X/Z to zero at a two-state destination.
+- **File/function:** `elab_expr.cc`, `PEIdent::elaborate_expr_net_bit_()`, `elaborate_expr_net_part_()`, and indexed part-select elaborators.
+- **Evidence:** The original [reducer](../../evidence/vvp-hotpath-perf-20260928/two_state_oob_part_select.sv) and [log](../../evidence/vvp-hotpath-perf-20260928/discovered_debt_repro.log) establish the partial-select failure. The expanded permanent paired regression is `ivtest/ivltests/sv_two_state_packed_select_oob.v`. A clean-main frozen binary failed eight checks in each edition; the candidate passes direct `-g2017`/`-g2023`, focused legacy 3/3, and JSON/VVP 6/6, including `vvp_load_vec4_part_select` neighbors.
+- **Reproducer status:** Confirmed before the patch and locally passing after it under both editions.
+- **Triage status:** Tracked by [issue #469](https://github.com/dsellerbrock/iverilog-uvm/issues/469). Implemented locally; exact-head CI and merge remain pending. This is not a qualification claim.
 
 ### DD-088 — packed-subfield `release` asserts on non-immediate LHS offset
 
@@ -4185,3 +4184,87 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   subsequent output is intentionally not triaged here.
 - **Triage status:** Triage-pending, record-only. Do not continue the axi-vip
   compile chain from this observation.
+
+### DD-112 — two-state packed bit-select OOB returns X
+
+- **Discovered while working:** IEEE-PACKED-MULTIDIM-SELECT-OOB (#414), while
+  checking the result-type wording of IEEE 1800-2017/2023 §11.5.1.
+- **Observation:** `bit [7:0] value; integer index; value = '1; index = 8;`
+  followed by `$display("%b", value[index])` prints `x`; §11.5.1 requires an
+  invalid select to return 0 for a two-state value. The same one-dimensional
+  direct-select path remains unchanged by #414's checked multidimensional
+  prefix fix.
+- **Reproducer:** `/tmp/sv_one_dim_bit_oob.sv`; current local ARM64 image prints
+  `one_dim_oob=x`.
+- **Triage status:** Triage-pending, separate from #414's four-state alias
+  failure; do not expand the multidimensional fix to change one-dimensional
+  result typing.
+
+### DD-113 — selected VIF real-index diagnostic changed in packed-property lowering
+
+- **Discovered while working:** SV23-REF-STATIC-TF-ARGUMENTS (#449), during the
+  full legacy ivtest run.
+- **Observation:** `sv_selected_vif_edge_invalid_real_index_2017` and its 2023
+  counterpart fail only because their gold expects `real expression cannot
+  index a property`, while the compiler now reports `index expression must be
+  integral`. Both still emit the expected skipped-event warning and one
+  elaboration error.
+- **File/function:** `ivtest/ivltests/sv_selected_vif_edge_invalid_real_index_2017.v`,
+  `..._2023.v`, and their stderr golds.
+- **Possible clause:** N/A; diagnostic wording/gold maintenance.
+- **Evidence:** Full legacy report at `ivtest/regression_report.txt` lines
+  6295–6296 and output diffs in `ivtest/log/`.
+- **Reproducer status:** Confirmed in both editions; the full runner reports
+  only a gold mismatch.
+- **Follow-up:** The packed-property selector now carries property-index
+  context to the shared checker, preserving the historical property-specific
+  error while direct packed-signal indices retain the integral-type error.
+  Both VIF cases pass in legacy (2/2) and JSON/VVP (2/2) on the updated local
+  image; their gold files are unchanged.
+- **Triage status:** Locally resolved in PR #464; exact-head CI is pending.
+
+### DD-114 — `sv_always_comb_fixed_point` spins in zero time
+
+- **Discovered while working:** SV23-REF-STATIC-TF-ARGUMENTS (#449), during the
+  full JSON/VVP ivtest run.
+- **Observation:** The test's initial block waits one time unit, prints
+  `PASSED`, and calls `$finish`, but VVP remained CPU-active in the test for
+  more than five minutes with no output. The run was stopped; the full JSON
+  runner did not produce an aggregate result.
+- **File/function:** `ivtest/ivltests/sv_always_comb_fixed_point.v`; two
+  `always_comb` blocks assign and then restore each other's values.
+- **Possible clause:** Verify during triage; this is a zero-time convergence
+  failure.
+- **Evidence:** Full JSON run on 2026-10-08 reached this registered test at
+  `ivtest/regress-vvp.list` line 1607. `vvp work/a.out` stayed CPU-active with
+  under 3 MB RSS and an empty VVP output log until explicitly stopped; the
+  Python runner exited 143 after termination.
+- **Reproducer status:** Confirmed on the local macOS ARM64 image.
+- **Triage status:** Triage-pending, unrelated to `ref static`; do not expand
+  this ticket to change event scheduling or add runner timeouts.
+
+### DD-115 — obsolete negative expects unequal-length `intersect` rejection
+
+- **Discovered while working:** SV23-REF-STATIC-TF-ARGUMENTS (#449), while
+  investigating the Ubuntu hard-gate failures on PR #464's superseded head.
+- **Observation:** `tests/negative/m9b_intersect_unequal_len.sv` expects the
+  compiler to reject `(a ##1 b) intersect c`. IEEE 1800-2017 §16.9.6 permits
+  unequal fixed-length operands as a legal sequence expression; they simply
+  have no `intersect` matches. The current implementation accepts the source,
+  so this stale negative fails.
+- **File/function:** `tests/negative/m9b_intersect_unequal_len.sv` and
+  `tests/negative/run_negative.sh`.
+- **Possible clause:** IEEE 1800-2017 §16.9.6; see the October 7 unequal-length
+  `intersect` matrix entry and PR #412 evidence.
+- **Evidence:** On the current PR worktree image, `PATH="$PWD/local-install/bin:$PATH"
+  bash tests/negative/run_negative.sh` reports 152 passed and one failed,
+  `m9b_intersect_unequal_len`. Superseded PR #464 run 37725785483 also reports
+  this failure on Ubuntu 22.04/24.04, alongside the two DD-113 VIF gold
+  mismatches. Exact PR #464 head `870442199088b468b681983a7cbbe9f653bebeb3`
+  run 37740368288 also reports 152 passed and one failed in both Ubuntu jobs;
+  it additionally shows the VIF diagnostic mismatch and Windows link failure.
+- **Reproducer status:** Confirmed locally on the current PR worktree and in
+  the exact-head Ubuntu checks above.
+- **Triage status:** Triage-pending and unrelated to `ref static`. Do not edit
+  this negative test during #449; select it with the existing SVA/negative-gate
+  backlog when the coordinator returns to that work.

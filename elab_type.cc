@@ -498,6 +498,7 @@ static NetNet* elaborate_interface_declaration_signal_(
       signal->port_type(wire->get_port_type());
       signal->lexical_pos(wire->lexical_pos());
       signal->set_const(wire->get_const());
+      signal->set_ref_static(wire->get_ref_static());
       signal->lifetime_override(wire->lifetime_override());
       if (ivl_discipline_t discipline = wire->get_discipline())
 	    signal->set_discipline(discipline);

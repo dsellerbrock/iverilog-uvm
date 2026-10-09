@@ -1129,9 +1129,10 @@ extern void pform_make_pgassign_list(const struct vlltype&loc,
 extern std::vector<pform_tf_port_t>*pform_make_task_ports(const struct vlltype&loc,
 					     NetNet::PortType pt,
 					     data_type_t*vtype,
-					     std::list<pform_port_t>*ports,
-					     bool allow_implicit = false,
-					     bool is_const = false);
+				     std::list<pform_port_t>*ports,
+				     bool allow_implicit = false,
+				     bool is_const = false,
+				     bool is_ref_static = false);
 
 /*
  * The parser uses this function to convert a unary
