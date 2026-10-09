@@ -30,6 +30,7 @@
 # include  <functional>
 # include  <iterator>
 # include  <map>
+# include  <memory>
 # include  <set>
 # include  <sstream>
 # include  <vector>
@@ -21764,6 +21765,28 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 	    auto index = indices->cbegin();
 	    index_depth = indices->size();
 
+	    // An associative-array value parameter keeps its declared map type
+	    // separately from sr.type, which is the element type. Consume its map
+	    // key here so a string element is not mistaken for string character
+	    // indexing and a packed element is not mistaken for a bit select.
+	    if (first_component && sr.par_val && sr.scope && index_depth) {
+		  std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+			sr.scope->parameters.find(sr.path_head.back().name);
+		  if (pit != sr.scope->parameters.end()
+		      && pit->second.is_assoc_param) {
+			  const netqueue_t*assoc_type =
+				dynamic_cast<const netqueue_t*>(pit->second.array_type);
+			  if (!assoc_type || !assoc_type->assoc_compat())
+				return nullptr;
+			  if (final_index_type && cpath == sr.path_tail.cend()
+			      && index_depth == 1)
+				*final_index_type = assoc_type;
+			  type = assoc_type->element_type();
+			  ++index;
+			  --index_depth;
+		  }
+	    }
+
 	    // An unpacked array parameter is represented as one parameter per
 	    // element, while sr.type is already the declared ELEMENT type. The
 	    // leading indices therefore select the synthetic element parameters;
@@ -22515,6 +22538,19 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  min_width_   = expr_width_;
 		  signed_flag_ = type->get_signed();
 		  return expr_width_;
+	    }
+	    if (type && sr.scope && !sr.path_head.empty()
+		&& !path_.back().index.empty()) {
+		  std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+			sr.scope->parameters.find(sr.path_head.back().name);
+		  if (pit != sr.scope->parameters.end()
+		      && pit->second.is_assoc_param) {
+			expr_type_ = type->base_type();
+			expr_width_ = type->packed() ? type->packed_width() : 1;
+			min_width_ = expr_width_;
+			signed_flag_ = type->get_signed();
+			return expr_width_;
+		  }
 	    }
 	    return test_width_parameter_(sr.par_val, mode);
       }
@@ -25769,6 +25805,17 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
       const name_component_t&name_tail = path_.back();
       ivl_assert(*this, !name_tail.index.empty());
 
+	  bool associative_parameter = false;
+	  ivl_type_t associative_parameter_type = nullptr;
+	  {
+		std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+		      found_in->parameters.find(name);
+		if (pit != found_in->parameters.end()) {
+		      associative_parameter = pit->second.is_assoc_param;
+		      associative_parameter_type = pit->second.array_type;
+		}
+	  }
+
 	// The array parameter's declared type is its ELEMENT type; an
 	// out-of-range or undefined select answers x at that width.
       unsigned xwid = 1;
@@ -25884,8 +25931,79 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 	    return param_select_packed_(des, scope, this, name, elem_c,
 					elem_dims, tail_indices,
 					0 /* base is the element */,
-					need_const);
+			need_const);
       };
+
+	  std::unique_ptr<NetExpr>associative_default;
+	  auto associative_value_by_key = [&](const NetExpr*key) -> const NetExpr* {
+		const netqueue_t*assoc_type = dynamic_cast<const netqueue_t*>(
+		      associative_parameter_type);
+		if (!assoc_type || !assoc_type->assoc_compat())
+		      return nullptr;
+
+		const NetESFunc*pattern = dynamic_cast<const NetESFunc*>(par);
+		if (pattern && std::string(pattern->name()) == "$ivl_assoc_default"
+		    && pattern->nparms() == 1)
+		      return pattern->parm(0);
+
+		const NetExpr*default_value = nullptr;
+		if (pattern && std::string(pattern->name()) == "$ivl_assoc_pattern"
+		    && pattern->nparms() % 3 == 0) {
+		      const bool integral_index = !assoc_type->assoc_index_type()
+			    || assoc_type->assoc_index_type()->packed();
+		      std::string query_identity;
+		      assoc_pattern_key_result_t query_result =
+			    assoc_pattern_key_identity_(key, integral_index,
+						       query_identity);
+		      if (query_result == ASSOC_PATTERN_KEY_NOT_CONSTANT)
+			    return nullptr;
+
+		      for (unsigned idx = 0; idx < pattern->nparms(); idx += 3) {
+			    const NetEConst*kind = dynamic_cast<const NetEConst*>(
+				  pattern->parm(idx));
+			    if (!kind || !kind->value().is_defined())
+				  return nullptr;
+			    if (kind->value().as_ulong() != 0) {
+				  default_value = pattern->parm(idx + 2);
+				  continue;
+			    }
+			    std::string item_identity;
+			    if (assoc_pattern_key_identity_(pattern->parm(idx + 1),
+						    integral_index,
+						    item_identity)
+				    == ASSOC_PATTERN_KEY_OK
+				    && query_result == ASSOC_PATTERN_KEY_OK
+				    && item_identity == query_identity)
+				  return pattern->parm(idx + 2);
+		      }
+		      if (default_value)
+			    return default_value;
+		} else if (dynamic_cast<const NetENull*>(par)) {
+		      // An empty associative parameter has no explicit entries or default.
+		} else {
+		      return nullptr;
+		}
+
+		ivl_type_t element_type = assoc_type->element_type();
+		if (!element_type)
+		      return nullptr;
+		if (element_type->base_type() == IVL_VT_STRING)
+		      associative_default.reset(new NetECString(string()));
+		if (element_type->base_type() == IVL_VT_REAL)
+		      associative_default.reset(new NetECReal(verireal(0.0)));
+		if (element_type->base_type() == IVL_VT_CLASS)
+		      associative_default.reset(new NetENull(element_type));
+		if (element_type->base_type() == IVL_VT_DARRAY
+		    || element_type->base_type() == IVL_VT_QUEUE)
+		      associative_default.reset(new NetENull(element_type));
+		if (element_type->packed())
+		      associative_default.reset(new NetEConst(
+			    element_type,
+			    verinum(uint64_t(0), element_type->packed_width())));
+		if (associative_default)
+		      associative_default->set_line(*this);
+		return associative_default.get();
+	  };
 
 	// Elaborate the array indices. Constant ones fold; any run-time
 	// one forces the flat-table path.
@@ -25897,8 +26015,10 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 	    std::list<index_component_t>::const_iterator it =
 		  name_tail.index.begin();
 	    for (size_t k = 0 ; k < ndims ; k += 1, ++it) {
-		  NetExpr*sel = elab_and_eval(des, scope, it->msb, -1,
-					      need_const);
+		  NetExpr*sel = associative_parameter
+			? elab_assoc_index(des, scope, it->msb,
+					   associative_parameter_type, need_const)
+			: elab_and_eval(des, scope, it->msb, -1, need_const);
 		  if (!sel) return 0;
 		  sels[k] = sel;
 		  if (const NetEConst*sc = dynamic_cast<const NetEConst*>(sel)) {
@@ -25906,11 +26026,35 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 			      undef = true;
 			else
 			      cidx[k] = sc->value().as_long();
+		  } else if (associative_parameter
+			     && dynamic_cast<const NetENull*>(sel)) {
+			all_const = true;
 		  } else {
 			all_const = false;
 		  }
 	    }
       }
+
+	  if (associative_parameter) {
+		if (!all_const) {
+		      cerr << get_fileline() << ": sorry: A variable index into "
+			   << "associative-array parameter `" << name
+			   << "' is not supported yet." << endl;
+		      des->errors += 1;
+		      for (NetExpr*sel : sels) delete sel;
+		      return nullptr;
+		}
+		const NetExpr*selected = associative_value_by_key(sels[0]);
+		for (NetExpr*sel : sels) delete sel;
+		if (!selected) {
+		      cerr << get_fileline() << ": sorry: Unable to resolve index "
+			   << "into associative-array parameter `" << name << "'."
+			   << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+		return apply_tail(selected, par_type);
+	  }
 
       if (all_const && undef) {
 	    cerr << get_fileline() << ": warning: Undefined index for "
@@ -26118,6 +26262,18 @@ NetExpr* PEIdent::elaborate_expr_param_array_value_(
 {
       std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
 	    found_in->parameters.find(name);
+	  if (pit != found_in->parameters.end() && pit->second.is_assoc_param) {
+		ivl_type_t source_type = 0;
+		const NetExpr*value = const_cast<NetScope*>(found_in)->get_parameter(
+		      des, name, source_type);
+		if (!pit->second.array_type || !value) {
+		      cerr << get_fileline() << ": error: Cannot materialize associative "
+			   << "array parameter `" << name << "'." << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+		return value->dup_expr();
+	  }
       if (pit == found_in->parameters.end() || !pit->second.array_bounds_known
 	  || pit->second.array_dims.empty()) {
 	    cerr << get_fileline() << ": error: Cannot materialize array parameter `"

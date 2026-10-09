@@ -2546,3 +2546,28 @@ macro-definition neighbors pass 28/28 legacy and 8/8 JSON, and the separate
 #460 expression focus passes 3/3 in both runners. Exact-head CI and full-suite
 qualification remain pending. See [issue #468](https://github.com/dsellerbrock/iverilog-uvm/issues/468)
 and [draft PR #467](https://github.com/dsellerbrock/iverilog-uvm/pull/467).
+
+## October 8, 2026 — associative-array value parameters (IEEE 1800-2023)
+
+IEEE 1800-2017 Annex A A.2.4 `param_assignment` uses
+`{unpacked_dimension}`, so a direct associative dimension is rejected in
+strict `-g2017`. IEEE 1800-2023 A.2.4 uses `{variable_dimension}`, and A.2.5
+includes `associative_dimension` (`[data_type]` or `[*]`). Section 8.25(b)
+defines class value-parameter specialization identity by matching value types
+and equal values. The implementation adds the direct 2023 parameter form and
+keeps the 2017 edition gate.
+
+Paired reducers cover module parameters with string, integral, and wildcard
+keys, explicit entries and defaults, module overrides, class parameter values,
+constant-key reads, and class identity for reordered versus changed map values.
+The four focused legacy/JSON cases pass 4/4 in each runner; neighboring tests pass 6/6
+legacy and 8/8 JSON; full legacy passes 5,046/5,046; real-DPI UVM passes
+363/363. Bison counts are unchanged at 574 shift/reduce and 1,122
+reduce/reduce. Full JSON ran 4,503 cases and reported four failures: two
+optional-FPGA-target setup failures passed after installing that target and
+rerunning the two cases, while the two packed-struct constraint-state failures
+remain recorded as [DD-116](../DISCOVERED_DEBT.md#dd-116--constraint-state-packed-struct-select-fails-in-full-json-sweep).
+
+This is focused 2023 support, not full parameter closure. Dynamic-key reads
+from associative parameter values remain unsupported; broader value contexts
+and parameter forms are not qualified.

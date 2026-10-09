@@ -6404,6 +6404,23 @@ void pform_set_parameter(const struct vlltype&loc,
 	    if (!pform_requires_sv(loc, "unpacked array parameter")) {
 		  return;
 	    }
+	    bool associative_dimension = false;
+	    for (std::list<pform_range_t>::const_iterator cur = udims->begin()
+		       ; cur != udims->end() ; ++cur) {
+		  if (dynamic_cast<const PEAssocType*>(cur->first)) {
+			associative_dimension = true;
+			break;
+		  }
+	    }
+	    if (!is_type && associative_dimension) {
+		  LineInfo parameter_location;
+		  FILE_NAME(&parameter_location, loc);
+		  if (!sv_require_feature(&parameter_location,
+				  SVF_ASSOC_ARRAY_PARAMETER)) {
+			error_count += 1;
+			return;
+		  }
+	    }
 	    // In SV mode: allow 1D unpacked array params; elements expanded at elaboration
       }
 
