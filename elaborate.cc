@@ -35975,14 +35975,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
        * retain an explicit integral cast, including self-determined width and
        * signedness, rather than silently reusing the uncast operand. */
       auto cast_to_constraint_ir = [&](const PExpr*base) -> string {
+            const PENumber*fill_num = dynamic_cast<const PENumber*>(base);
+            bool defer_fill = fill_num && fill_num->value().is_single()
+                  && (dynamic_cast<const PECastType*>(expr)
+                      || dynamic_cast<const PECastSize*>(expr));
             size_t before = value_slots ? value_slots->size() : 0;
-            string ir = pexpr_to_constraint_ir(base, cls, value_slots,
-                                             scope, loop_env);
-            if (ir.empty()) return ir;
-            if (value_slots && ir.compare(0, 2, "v:") == 0
-                && value_slots->size() == before + 1) {
-                  value_slots->back() = expr;
-                  return ir;
+            string ir;
+            if (!defer_fill) {
+                  ir = pexpr_to_constraint_ir(base, cls, value_slots,
+                                              scope, loop_env);
+                  if (ir.empty()) return ir;
+                  if (value_slots && ir.compare(0, 2, "v:") == 0
+                      && value_slots->size() == before + 1) {
+                        value_slots->back() = expr;
+                        return ir;
+                  }
             }
             Design*des = constraint_ir_design_ctx_;
             NetScope*cast_scope = const_cast<NetScope*>(scope
@@ -36024,12 +36031,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
             }
             /* IEEE 1800-2017/2023 5.7.1 and 6.24.1: an unbased
              * unsized literal fills the cast destination, unlike a sized
-             * 1'b1, which is zero-extended. Materialize only a direct
-             * fill operand here, after the cast width is known. The IR's
-             * ordinary c:1:1 loses the fill identity irreversibly. */
+             * 1'b1, which is zero-extended. Defer X/Z until the cast target
+             * is known because a two-state target converts them to zero. */
             if (width) {
-                  if (const PENumber*num = dynamic_cast<const PENumber*>(base)) {
-                        const verinum&fill = num->value();
+                  if (fill_num) {
+                        const verinum&fill = fill_num->value();
                         if (fill.is_single()) {
                               if (width > 64) {
                                     cerr << expr->get_fileline()
