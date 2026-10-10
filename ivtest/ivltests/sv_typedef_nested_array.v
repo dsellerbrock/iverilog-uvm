@@ -23,15 +23,15 @@ module test;
 
   initial begin
     `check($unpacked_dimensions(x), 4)
-    `check($size(x, 1), A)
+    `check($size(x, 1), D)
     `check($size(x, 2), B)
     `check($size(x, 3), C)
-    `check($size(x, 4), D)
+    `check($size(x, 4), A)
 
     `check($unpacked_dimensions(y), 3)
-    `check($size(y, 1), A)
-    `check($size(y, 2), B)
-    `check($size(y, 3), C)
+    `check($size(y, 1), B)
+    `check($size(y, 2), C)
+    `check($size(y, 3), A)
 
     `check($bits(T2), $bits(integer) * A * B * C)
 
