@@ -11787,6 +11787,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  if (var != dependent) projection.push_back(var);
 				    if (!z3_joint_unique_projection_(ctx, base,
 					  projection, dependent)) continue;
+				    // Uniqueness makes accepted projections a bijection with legal tuples.
 				    // shortcut: stop at 64 proposals; use projected model counting
 				    // if sparse inputs still make this path slow.
 				    for (unsigned projected_attempt = 0;
