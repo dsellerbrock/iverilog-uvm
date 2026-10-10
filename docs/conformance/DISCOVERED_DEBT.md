@@ -3828,7 +3828,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017/2023 §18.3. The standard says constraints support only two-state values and X/Z values or four-state operators are illegal and shall result in an error.
 - **Evidence:** Projectless `work/flash-fixed-packed-member-20260928/{flash-scalar-x-rhs,flash-packed-member-x-rhs}.sv` on build-tree `ivl` SHA-256 `8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba` and VVP SHA-256 `0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3`; both report `WRONG-SUCCESS value=0`. The active repair adds paired source cases under `ivtest/ivltests/sv_constraint_xz_*` and strict manifests `ivtest/regress-constraint-xz-focus-{legacy,vvp}.list`.
 - **Reproducer status:** confirmed in both strict editions for scalar, array-member, and named-constant forms.
-- **Triage status:** selected as active issue #489 after current-origin/main reproduction on 2026-10-10. The local 2017/2023 standards PDFs confirm §18.3; the scalar reducer compiles and wrongly randomizes to zero in both editions. Keep the repair separate from the earlier packed-member fix.
+- **Triage status:** selected as active issue #489 after current-origin/main reproduction on 2026-10-10; the repair is in draft [PR #530](https://github.com/dsellerbrock/iverilog-uvm/pull/530). The local 2017/2023 standards PDFs confirm §18.3; the scalar reducer compiles and wrongly randomizes to zero in both editions. Local focused gates pass; CI qualification remains pending and will be inspected only if a failure is reported. Keep the repair separate from the earlier packed-member fix.
 
 ### DD-084 — fixed class-property ordering method silently skips its receiver
 
