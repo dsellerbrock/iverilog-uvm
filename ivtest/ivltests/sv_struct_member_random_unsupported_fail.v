@@ -1,8 +1,7 @@
-// These are legal IEEE random-variable shapes and compile in Slang. Icarus
-// preserves that declaration polarity. At the actual randomize() use, the
-// bounded VVP path must return failure for unsupported class-handle/dynamic-
-// array members instead of reporting success while leaving them unchanged.
-// Sparse enum members are supported and must stay inside their named domain.
+// These are legal IEEE random-variable shapes. Class-handle members of a
+// rand unpacked struct are exercised by the paired positive regression;
+// dynamic-array members remain fail-closed until their resize/writeback path
+// is supported. Sparse enum members stay inside their named domain.
 class random_member_child;
   rand bit [7:0] value;
 endclass
@@ -52,8 +51,8 @@ module test;
     if (handle_item.randomize() !== 1)
       $fatal(1, "disabled unsupported struct member blocked randomize");
     handle_item.rand_mode(1);
-    if (handle_item.randomize() !== 0)
-      $fatal(1, "unsupported struct class-handle randomization succeeded");
+    if (handle_item.randomize() !== 1)
+      $fatal(1, "rand struct class-handle randomization failed");
 
     dynamic_item = new;
     dynamic_item.record.dynamic_values = new[2];

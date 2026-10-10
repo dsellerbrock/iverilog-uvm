@@ -1,0 +1,2 @@
+sv_randomize_struct_class_handle_member normal,-g2017,-s,test ivltests gold=sv_randomize_struct_class_handle_member.gold
+sv_randomize_struct_class_handle_member_2023 normal,-g2023,-s,test ivltests gold=sv_randomize_struct_class_handle_member.gold

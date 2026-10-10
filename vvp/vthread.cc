@@ -5189,10 +5189,9 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
  * Structs cannot carry constraint blocks of their own, so each active
  * integral member is filled independently. Keep a nested value-struct in the
  * same graph transaction so randc history and value rollback remain atomic.
- * Legal member shapes that this bounded path cannot yet preserve (class
- * handles and unpacked containers) fail the actual randomize() call. Their
- * declarations remain accepted, but success is never reported after silently
- * leaving an enabled random variable unchanged.
+ * Joint class handles are solved through the containing object graph below.
+ * Other member shapes that this bounded path cannot preserve fail the actual
+ * randomize() call rather than leaving an enabled variable unchanged.
  */
 static bool randomize_struct_members_(randomize_graph_session_t&session,
 				      vvp_cobject*subcobj,
@@ -5238,6 +5237,10 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 		  }
 		  continue;
 	    }
+
+	    // The joint graph collector already visits active class-handle members.
+	    if (bt == "o" && session.joint())
+		  continue;
 
 	    const char*unsupported_shape = bt == "o" ? "class-handle"
 		  : (!bt.empty() && bt[0] == 'D') ? "dynamic-array"
@@ -14891,11 +14894,11 @@ static bool randomize_find_pre_(const vvp_object_t&obj,
       std::set<vvp_cobject*>&seen, vvp_object_t&next)
 {
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      // Unpacked structs are values, not callback receivers. Their unsupported
-      // active handle/container members still fail in the existing solver.
-      if (!cobj || cobj->get_defn()->is_struct_type()
-          || !seen.insert(cobj).second) return false;
-      if (!call.pre_called.count(cobj)) {
+      if (!cobj || !seen.insert(cobj).second) return false;
+      bool is_struct = cobj->get_defn()->is_struct_type();
+      // Struct values are not callback receivers, but active handle members
+      // still lead to objects whose callbacks belong to this call.
+      if (!is_struct && !call.pre_called.count(cobj)) {
             next = obj;
             return true;
       }
@@ -14918,38 +14921,39 @@ static void randomize_collect_state_calls_(const vvp_object_t&obj,
 		std::set<vvp_cobject*>&seen)
 {
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      if (!cobj || cobj->get_defn()->is_struct_type()
-	  || !seen.insert(cobj).second) return;
-      const auto&descs = cobj->get_defn()->constraint_state_calls();
-      call.state_values[cobj].resize(descs.size());
-      for (size_t idx = 0; idx < descs.size(); ++idx) {
-            if (descs[idx].constraint >= cobj->get_defn()->constraint_count()
-                || !cobj->constraint_mode(descs[idx].constraint)) continue;
-            bool random_arguments = false;
-            for (const auto&dependency : descs[idx].argument_dependencies) {
-                  bool active = false;
-                  if (dependency.kind
-                        == class_type::constraint_dependency_t::ELEM)
-                        active = rand_leaf_active_(cobj->get_defn(), cobj, sel,
-                              dependency.property, dependency.leaf);
-                  else if (dependency.kind
-                           == class_type::constraint_dependency_t::MEMBER) {
-                        vvp_object_t record;
-                        cobj->get_object(dependency.property, record, 0);
-                        if (rand_call_active_(cobj->get_defn(), cobj, sel,
-                                             dependency.property))
-                              if (vvp_cobject*member_owner =
-                                        record.peek<vvp_cobject>())
-                              active = rand_leaf_active_(
-                                    member_owner->get_defn(), member_owner,
-                                    nullptr, dependency.leaf, 0);
-                  } else
-                        active = rand_call_active_(cobj->get_defn(), cobj, sel,
-                                                   dependency.property);
-                  if (active) random_arguments = true;
+      if (!cobj || !seen.insert(cobj).second) return;
+      if (!cobj->get_defn()->is_struct_type()) {
+            const auto&descs = cobj->get_defn()->constraint_state_calls();
+            call.state_values[cobj].resize(descs.size());
+            for (size_t idx = 0; idx < descs.size(); ++idx) {
+                  if (descs[idx].constraint >= cobj->get_defn()->constraint_count()
+                      || !cobj->constraint_mode(descs[idx].constraint)) continue;
+                  bool random_arguments = false;
+                  for (const auto&dependency : descs[idx].argument_dependencies) {
+                        bool active = false;
+                        if (dependency.kind
+                              == class_type::constraint_dependency_t::ELEM)
+                              active = rand_leaf_active_(cobj->get_defn(), cobj, sel,
+                                    dependency.property, dependency.leaf);
+                        else if (dependency.kind
+                                 == class_type::constraint_dependency_t::MEMBER) {
+                              vvp_object_t record;
+                              cobj->get_object(dependency.property, record, 0);
+                              if (rand_call_active_(cobj->get_defn(), cobj, sel,
+                                                   dependency.property))
+                                    if (vvp_cobject*member_owner =
+                                              record.peek<vvp_cobject>())
+                                          active = rand_leaf_active_(
+                                                member_owner->get_defn(), member_owner,
+                                                nullptr, dependency.leaf, 0);
+                        } else
+                              active = rand_call_active_(cobj->get_defn(), cobj, sel,
+                                                         dependency.property);
+                        if (active) random_arguments = true;
+                  }
+                  if (random_arguments) call.needs_function_stages = true;
+                  else call.state_calls.push_back(std::make_pair(obj, idx));
             }
-            if (random_arguments) call.needs_function_stages = true;
-            else call.state_calls.push_back(std::make_pair(obj, idx));
       }
       for (size_t pid = 0; pid < cobj->get_defn()->property_count(); ++pid)
 	    randomize_visit_property_objects_(cobj, sel, pid,
