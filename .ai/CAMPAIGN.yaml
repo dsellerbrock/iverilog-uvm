@@ -14,7 +14,7 @@ active_ieee_lane:
   evidence: "ivtest/ivltests/sv_constraint_xz_* paired fixtures and strict focus lists; neighboring parameter-array and constraint-function focus lists."
   root_cause: "pexpr_to_constraint_ir's PENumber arm sends four-state verinum values to constraint_const_bits_ir_, which keeps only V1 bits; constraint_constant_ir_ also missed X/Z in named scalar constants. ===/!== already have an explicit §18.3 diagnostic."
   scope: "Reject X/Z literal and named scalar constant values in shared class-constraint lowering; paired scalar and packed-struct array-member X/Z failures, existing four-state operator rejection, and two-state/procedural controls."
-  pull_request: "Draft PR #530 https://github.com/dsellerbrock/iverilog-uvm/pull/530 at c84005b649550332bbf9c458f1d66bd4a227843b; exact-head CI qualification pending."
+  pull_request: "Draft PR #530 https://github.com/dsellerbrock/iverilog-uvm/pull/530 includes implementation commit c84005b649550332bbf9c458f1d66bd4a227843b; exact-head qualification pending."
   next: "Keep draft PR #530 open; inspect CI only if a failure is reported, then continue to the next open, unimplemented IEEE issue."
   boundary: "Do not reject logic declarations or alter procedural four-state operations. Strict paired focus passes 16/16 in legacy and JSON/VVP; parameter-array neighbors pass 16/16 and adjacent constraint-function suites pass 226/226 in both runners. No full project suite or CI status was checked."
 suspended_ieee_415:
