@@ -4,9 +4,9 @@
 
 ## Current selection
 
-The active campaign item is [issue #415](https://github.com/dsellerbrock/iverilog-uvm/issues/415), in [draft PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524) targeting `main`. Its branch is `agent/ieee-nested-array-return-20261009` and includes latest `origin/main` at `0d8815feb`, including the VVP performance changes merged in PR #521. Focused array-return legacy and JSON/VVP lists pass 12/12 each; the asymmetric typedef-composed 3-D reducer also passes in both editions. Neighboring const-local-array-pattern lists pass 10/10 each. The broad legacy gate has no aggregate result. The previous exact-head run is being superseded; **no green CI status is claimed**.
+The active campaign item is [issue #489](https://github.com/dsellerbrock/iverilog-uvm/issues/489), selected on `agent/ieee-xz-constraint-diagnostics-20261010` from fresh `origin/main` at `c339b9f`. Strict scalar X-literal constraints wrongly randomize to zero under both -g2017 and -g2023. The local repair and paired regressions reject literal and named scalar X/Z values while preserving valid two-state and procedural four-state controls; its active work record captures scope and validation.
 
-The `ACTIVE_WORK.yaml` and `CAMPAIGN.yaml` updates for #415 are on PR #524. The [issue checkout map](../../.ai/ISSUE_CHECKOUT.csv) on `main` remains a historical checkout record until that PR merges.
+Issue #415 remains open and suspended in untouched draft [PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524); its CI qualification is pending. Issue #420 remains open and suspended in draft [PR #529](https://github.com/dsellerbrock/iverilog-uvm/pull/529); its full-cycle Slurm job 12 is queued, not passed, and CI qualification is pending. Neither lane blocks the active #489 implementation.
 
 ## Inventory
 

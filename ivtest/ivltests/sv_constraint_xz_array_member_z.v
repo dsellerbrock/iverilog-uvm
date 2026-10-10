@@ -1,0 +1,16 @@
+typedef struct packed {
+  logic [3:0] en;
+} constraint_region_t;
+
+class array_member_z_constraint;
+  rand constraint_region_t regions[0:0];
+  constraint illegal_value { regions[0].en == 4'hz; }
+endclass
+
+module main;
+  array_member_z_constraint obj;
+  initial begin
+    obj = new;
+    if (obj.randomize()) $fatal(1, "illegal Z constraint accepted");
+  end
+endmodule

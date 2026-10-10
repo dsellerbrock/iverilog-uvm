@@ -28806,11 +28806,10 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    if (!val) return "";
 	    const verinum&v = val->value();
 	    if (!v.is_defined()) {
-		  if (v.len() > 64 && constraint_ir_design_ctx_) {
-			cerr << id->get_fileline() << ": error: wide constraint "
-			     << "constant contains X/Z bits." << endl;
-			constraint_ir_design_ctx_->errors += 1;
-		  }
+		  cerr << id->get_fileline()
+		       << ": error: X/Z-valued constant is illegal in a constraint "
+		       << "(IEEE 1800-2017/2023 18.3)." << endl;
+		  des->errors += 1;
 		  return "";
 	    }
 	    if (full_value) {
@@ -28818,6 +28817,11 @@ static string constraint_constant_ir_(const PEIdent*id,
 		  *full_value = v;
 	    }
 	    return constraint_const_bits_ir_(v, v.len(), v.has_sign());
+      };
+      auto selected_array_parameter = [&](NetScope*sc, perm_string name) {
+	    const name_component_t&root = id->path().name.back();
+	    return sc && sc->is_array_parameter(name)
+		  && root.name == name && !root.index.empty();
       };
       bool declared = false;
       auto in_scope = [&](NetScope*sc, perm_string name) -> string {
@@ -28828,11 +28832,14 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    if (value || sc->find_signal(name) || sc->child_byname(name)
 		|| sc->find_event(name)) {
 		  declared = true;
+		  // A selected unpacked parameter array is lowered by its typed table.
+		  if (selected_array_parameter(sc, name)) return "";
 		  return const_ir(value);
 	    }
 	    NetScope*imported = sc->find_import(des, name);
 	    if (imported) {
 		  declared = true;
+		  if (selected_array_parameter(imported, name)) return "";
 		  value = imported->get_parameter(des, name, type);
 		  return const_ir(value);
 	    }
@@ -34187,6 +34194,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    const verinum&v = num->value();
+	    if (!v.is_defined()) {
+		  cerr << expr->get_fileline()
+		       << ": error: X/Z-valued literal is illegal in a constraint "
+		       << "(IEEE 1800-2017/2023 18.3)." << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
 	    unsigned bits = v.len();
 	      // An unsized integer literal has at least the implementation's
 	      // integer width (IEEE 1800-2017 5.7.1).  Using only its trimmed

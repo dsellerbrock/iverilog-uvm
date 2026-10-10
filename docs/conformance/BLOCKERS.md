@@ -2,13 +2,27 @@
 
 The live IEEE issue inventory and selection/CI rules are in the [conformance index](INDEX.md). This registry preserves operational blocker details.
 
-### IEEE-1800-NESTED-ARRAY-FUNCTION-RETURN — issue #415 (draft PR #524)
+### IEEE-1800-NESTED-ARRAY-FUNCTION-RETURN — issue #415 (suspended)
 
-- **State:** Draft [PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524) targets `main` from `agent/ieee-nested-array-return-20261009`; no CI qualification yet. The PR branch includes latest `origin/main` at `0d8815feb` (including the VVP performance changes in PR #521).
+- **State:** Suspended at user direction. Preserve draft [PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524) and worktree `/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-ieee-nested-array-return`; do not close or alter it. Last known branch head is `7efc9ed10bde9476d69a31b25f676cf56c2223f1`. CI qualification is pending and must not be polled unless a failure is reported.
 - **Requirement:** IEEE 1800-2017/2023 §§10.9.1 and 13.4.1 allow array-pattern items to be evaluated in the corresponding element assignment context, including nonvoid function results.
 - **Failure and cause:** Nested fixed-array patterns rejected array-valued function calls although direct whole-array returns worked. Elaboration lacked a context-typed function-call path, and VVP pattern lowering handled only nested pattern nodes or scalar leaves. A deeper case showed that typedef-composed dimensions were flattened in reverse declaration order and function return signals retained only their outer dimension layer.
 - **Validation:** The original reducer failed in both editions and the direct 1-D whole-array control printed `got=11,12`. The asymmetric typedef-composed 3-D regression failed before the follow-up and now passes, along with its direct 2-D function-return control, under -g2017/-g2023. macOS ARM64 `make -j2 && make install` passes; the array-return focus is 12/12 in legacy and JSON/VVP, and the neighboring const-local-array-pattern focus is 10/10 in both. Independent typedef-order and 3-D probes pass in both editions. Earlier temporary probes also pass for parenthesized calls, opposite source/target ranges, and real, string, and packed-struct elements. Bison conflict counts remain 574 shift/reduce and 1,122 reduce/reduce. The broad legacy gate has no aggregate result; full JSON/VVP and UVM sweeps have not run. CI qualification is pending on the new exact PR head.
-- **Next:** Fix failures if the newest exact-head run reports any. Do not mark #415 done before all required CI jobs pass on that head.
+- **Next:** Resume only when directed; qualify the exact current PR head before closing the issue.
+
+### IEEE-1800-RANDC-CYCLE-DOMAIN-LIMIT — issue #420 (suspended, Slurm qualification pending)
+
+- **State:** Suspended while draft [PR #529](https://github.com/dsellerbrock/iverilog-uvm/pull/529) remains open. The branch-taking full-cycle runner is `scripts/slurm-randc-cycle.sh`; Slurm job 12 is pending priority on DAN-DESKTOP, not passed. Its isolated run directory is `/home/dsell/slurm-runs/iverilog-uvm/codex-420/20261010T001427Z-445c2ebf-91322`. CI qualification is also pending; do not poll it unless a failure is reported.
+- **Requirement and scope:** Extend exact `randc` cycle coverage beyond the current domain limit and verify the full cycle in both IEEE editions. Keep issue #420 open until the queued Slurm job and required qualification complete.
+
+### IEEE-1800-XZ-CONSTRAINT-DIAGNOSTICS — issue #489 (active)
+
+- **State:** Locally implemented and regression-tested on `agent/ieee-xz-constraint-diagnostics-20261010`, based on freshly fetched `origin/main` at `c339b9f2287a743aeb7ab6de6528e8d34a4dd602`. Issue #489 is open; draft PR publication is pending.
+- **Requirement:** IEEE 1800-2017/2023 §18.3 says constraints support only two-state values; X/Z values and four-state operators such as `===` and `!==` are illegal and shall result in an error.
+- **Failure and cause:** A strict paired reducer constraining `rand logic [3:0] en` to `4'hx` compiles and reports success with `en=0` in both editions. The `PENumber` arm of `pexpr_to_constraint_ir` sends four-state `verinum` values to `constraint_const_bits_ir_`, which silently serializes only V1 bits; `constraint_constant_ir_` also did not diagnose named scalar constants containing X/Z. Existing four-state operator checks are already present.
+- **Validation:** Fresh macOS ARM64 `make -j2 && make install` passes. The strict paired X/Z, named-constant, array-member, operator, and positive controls pass 16/16 in legacy and 16/16 in JSON/VVP. The adjacent parameter-array constraint focus passes 16/16 in both runners, including both editions of `sv_constraint_parameter_array_psel`; the constraint-function suites pass 226/226 in each runner. No full project suite or CI qualification is claimed.
+- **Closure:** Reject literal and named scalar X/Z values through shared lowering. Paired legacy and JSON/VVP tests reject scalar and packed-struct array-member X/Z cases in both editions, retain four-state operator diagnostics, and pass valid two-state constraints plus procedural four-state controls.
+- **Boundary:** Do not reject a `logic` declaration solely for its four-state type; do not change procedural X/Z semantics or unrelated solver behavior.
 
 ### IEEE-1800-UNPACKED-ARRAY-OUTPUT-SLICE — issue #492 (locally focused-tested)
 

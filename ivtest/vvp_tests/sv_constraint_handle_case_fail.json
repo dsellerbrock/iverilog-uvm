@@ -3,6 +3,7 @@
     "source": "sv_constraint_handle_case_fail.v",
     "iverilog-args": [
         "-g2017",
+        "-gstrict-expr-width",
         "-s",
         "main"
     ],
