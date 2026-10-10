@@ -45,7 +45,7 @@ record-only; they were not implemented in this ticket.
 
 - **Per-test timeout:** Add a timeout to ivtest/vvp_reg.pl so one hung test fails without stalling a full sweep for hours. Not implemented here.
 - **Bulky evidence storage:** Move checked-in evidence logs (about 125 MB in the current checkout) to CI artifacts or Git LFS; the packed Git history is about 87 MB. Not implemented here.
-- **Exact sparse uniform sampling:** Replace the 4,096-attempt rejection cap and non-uniform fallback for sparse coupled components with an exact counting/hash-based sampler. Not implemented here.
+- **Exact sparse uniform sampling:** Draft PR #526 now traverses every projected tuple for eligible connected direct-scalar components (widths up to 64 bits, no pending soft constraints) after 64 rejected proposals, with reservoir selection and no tuple-count cap. Traversal is finite over the bit-vector product, but solver blocking state and work grow with the legal tuple count. Widths above 64 bits, soft constraints, arrays, and member components remain outside this exact path; see [#416 local evidence](../../evidence/solve-before-array/sparse-coupled-uniform-sampling-20261009.md).
 
 ### DD-001 — joint active-randc prepass and enumeration-cap interaction
 
