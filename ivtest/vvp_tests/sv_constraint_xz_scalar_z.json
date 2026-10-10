@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sv_constraint_xz_scalar_z.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gstrict-expr-width",
+    "-s",
+    "main"
+  ],
+  "gold": "sv_constraint_xz_scalar_z"
+}

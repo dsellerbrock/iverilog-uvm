@@ -1,0 +1,2 @@
+ivltests/sv_constraint_xz_named_x.v:5: error: X/Z-valued constant is illegal in a constraint (IEEE 1800-2017/2023 18.3).
+1 error(s) during elaboration.

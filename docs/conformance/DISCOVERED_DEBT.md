@@ -3823,12 +3823,12 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Issue status:** [OPEN #489](https://github.com/dsellerbrock/iverilog-uvm/issues/489).
 
 - **Discovered while working:** OT-FLASH-CONSTRAINT-FIXED-ARRAY-PACKED-STRUCT-MEMBER.
-- **Observation:** Both `rand logic [3:0] en; en == 4'hx` and a packed-struct array member constrained to `4'hx` compile without a diagnostic and `randomize()` wrongly succeeds with value zero in strict 2017 and 2023. The plain scalar control shows this predates the selected member path.
-- **File/function:** `elaborate.cc` `PENumber` constraint IR lowering calls `constraint_const_bits_ir_`, which serializes only one-bits and loses X/Z information.
-- **Possible clause:** IEEE 1800-2017/2023 class-constraint four-state expression semantics; exact clause and legal failure behavior need separate triage.
-- **Evidence:** Projectless `work/flash-fixed-packed-member-20260928/{flash-scalar-x-rhs,flash-packed-member-x-rhs}.sv` on build-tree `ivl` SHA-256 `8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba` and VVP SHA-256 `0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3`; both report `WRONG-SUCCESS value=0`.
-- **Reproducer status:** confirmed in both strict editions for scalar and array-member forms.
-- **Triage status:** untriaged; selected Flash RHS uses known enum literals and a pure function, so do not broaden the packed-member fix or claim X/Z RHS support.
+- **Observation:** On freshly fetched `origin/main` at `c339b9f`, `rand logic [3:0] en; en == 4'hx` compiles without a diagnostic and `randomize()` wrongly succeeds with value zero in strict 2017 and 2023. Scalar and packed-struct array-member X/Z literal reducers also compile; a named scalar X/Z constant instead fails only at runtime.
+- **File/function:** `elaborate.cc`'s `PENumber` arm in `pexpr_to_constraint_ir` calls `constraint_const_bits_ir_`, which serializes only one-bits and loses X/Z information. `constraint_constant_ir_` also returned no diagnostic for scalar named constants containing X/Z.
+- **Possible clause:** IEEE 1800-2017/2023 §18.3. The standard says constraints support only two-state values and X/Z values or four-state operators are illegal and shall result in an error.
+- **Evidence:** Projectless `work/flash-fixed-packed-member-20260928/{flash-scalar-x-rhs,flash-packed-member-x-rhs}.sv` on build-tree `ivl` SHA-256 `8a0e27e0e8881f7b1db4b8ef4201ef820748b4673ca05009d773836113f0bdba` and VVP SHA-256 `0187b7f3078511e914c346d75c630bddee9cebe08a35232933a7c2fb5dd2b0c3`; both report `WRONG-SUCCESS value=0`. The active repair adds paired source cases under `ivtest/ivltests/sv_constraint_xz_*` and strict manifests `ivtest/regress-constraint-xz-focus-{legacy,vvp}.list`.
+- **Reproducer status:** confirmed in both strict editions for scalar, array-member, and named-constant forms.
+- **Triage status:** selected as active issue #489 after current-origin/main reproduction on 2026-10-10; the repair is in draft [PR #530](https://github.com/dsellerbrock/iverilog-uvm/pull/530). The local 2017/2023 standards PDFs confirm §18.3; the scalar reducer compiles and wrongly randomizes to zero in both editions. Local focused gates pass; CI qualification remains pending and will be inspected only if a failure is reported. Keep the repair separate from the earlier packed-member fix.
 
 ### DD-084 — fixed class-property ordering method silently skips its receiver
 

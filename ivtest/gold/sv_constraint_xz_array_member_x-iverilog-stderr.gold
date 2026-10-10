@@ -1,0 +1,2 @@
+ivltests/sv_constraint_xz_array_member_x.v:7: error: X/Z-valued literal is illegal in a constraint (IEEE 1800-2017/2023 18.3).
+1 error(s) during elaboration.
