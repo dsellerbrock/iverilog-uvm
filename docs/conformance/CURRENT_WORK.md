@@ -1,6 +1,35 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus — 2026-10-09: PR #466 refresh
+## Current IEEE 1800 focus — 2026-10-09: sparse coupled sampling (#416)
+
+Issue [#416](https://github.com/dsellerbrock/iverilog-uvm/issues/416) remains
+OPEN. Work is based on refreshed `origin/main` at
+`c339b9f2287a743aeb7ab6de6528e8d34a4dd602`. The local 2017 §18.5.10 text and
+2023 §18.5.9 PDF both require uniform value combinations; the local 2017
+errata has no correction to this rule.
+
+The minimal three-tuple reducer produced `64,26,30/120` on refreshed main in
+both editions. The branch now traverses every projected tuple for eligible
+connected direct-scalar components after 64 rejected proposals, using
+reservoir sampling instead of a cardinality cap. The finite bit-vector product
+bounds traversal; solver blocking state and work grow with the number of legal
+tuples. The supported shape remains limited to widths at most 64 bits with no
+pending soft constraints. Wider components, arrays, and members remain outside
+this exact path. The paired positive, UNSAT rollback, and 4,097-tuple boundary
+controls pass 2/2 in the legacy runner and 2/2 in JSON/VVP. Adjacent
+sampling-failure controls pass 2/2 in each runner; build and install passed.
+
+At the previous checkpoint, issue #415 was suspended with qualification
+pending. A fresh metadata read now shows [PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524)
+merged at its recorded head and issue #415 closed. Its retained worktree remains
+clean and untouched. CI was not checked, so qualification is unverified here.
+PR #525's sampler changes are included in the new baseline.
+
+Draft [PR #526](https://github.com/dsellerbrock/iverilog-uvm/pull/526) contains
+this direct-scalar increment. Keep #416 open while wider, soft, and container
+cases remain. CI has not been checked; inspect it only if a failure is reported.
+
+## Previous IEEE 1800 focus — 2026-10-09: PR #466 refresh
 
 **Associative-array value parameters — refreshed on latest main.**
 IEEE 1800-2023 Annex A A.2.4/A.2.5 admits associative dimensions for
