@@ -11,21 +11,7 @@ UVM="uvm-core/src"
 # smoke suite or a targeted subsystem subset instead of the full suite.
 TESTS="${UVM_TESTS_DIR:-tests}"
 
-# Per-test run timeout wrapper. GNU coreutils `timeout` is present on Linux
-# CI but NOT on the base macOS runner (it ships neither `timeout` nor
-# `gtimeout`, and the brew step installs only bison/z3/libffi). Without this
-# resolution, `timeout 60 vvp ...` failed with "command not found" for EVERY
-# test on macOS, so every vvp run produced no output and scored as a no-check
-# failure — the whole macOS UVM suite read as 0 passed while looking green
-# under continue-on-error. Fall back to running vvp directly (no wrapper) when
-# no timeout tool exists.
-if command -v timeout >/dev/null 2>&1 ; then
-    TIMEOUT="timeout 60"
-elif command -v gtimeout >/dev/null 2>&1 ; then
-    TIMEOUT="gtimeout 60"
-else
-    TIMEOUT=""
-fi
+RUN_LIMIT="$PWD/scripts/run_with_timeout.py"
 
 # Verify UVM sources are available
 if [ ! -f "$UVM/uvm_pkg.sv" ]; then
@@ -211,14 +197,16 @@ ivflags_for() {
 
 compile_test() {
     local name="$1"
+    local timeout=$(($2-SECONDS))
     local sv="$TESTS/${name}.sv"
     local xf; xf="$(ivflags_for "$name")"
-    $BIN -g2012 $xf -I "$UVM" $NO_DPI_FLAG -o "/tmp/uvm_test_${name}.vvp" \
+    python3 "$RUN_LIMIT" "$timeout" -- "$BIN" -g2012 $xf -I "$UVM" $NO_DPI_FLAG -o "/tmp/uvm_test_${name}.vvp" \
          "$UVM/uvm_pkg.sv" "$sv"
 }
 
 run_test() {
     local name="$1"
+    local timeout=$(($2-SECONDS))
     local cfile="$TESTS/${name}.c"
     local extra; extra="$(plusargs_for "$name")"
     # DPI export (35.5): iverilog emits a companion C stub next to the .vvp
@@ -281,7 +269,7 @@ run_test() {
     fi
     # Keep the process status: a crash that prints nothing is otherwise
     # indistinguishable from a silent loader or callback failure.
-    $TIMEOUT $VVP $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1
+    python3 "$RUN_LIMIT" "$timeout" -- "$VVP" $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1
     echo $? >"/tmp/uvm_rc_${name}"
 }
 
@@ -290,6 +278,7 @@ run_test() {
 # ran one at a time or in parallel.
 process_test() {
     local name="$1"
+    local deadline=$((SECONDS+120))
     local status="$RESULT_DIR/${name}.status"
     printf "  %-30s " "$name"
 
@@ -300,7 +289,7 @@ process_test() {
         return
     fi
 
-    if ! compile_test "$name" 2>"/tmp/uvm_compile_${name}.log"; then
+    if ! compile_test "$name" "$deadline" 2>"/tmp/uvm_compile_${name}.log"; then
         echo "COMPILE_FAIL"
         sed 's/^/      | /' "/tmp/uvm_compile_${name}.log" | head -6
         echo FAIL >"$status"
@@ -308,7 +297,7 @@ process_test() {
     fi
 
     local out
-    out=$(run_test "$name")
+    out=$(run_test "$name" "$deadline")
     # Failure evidence is checked BEFORE any PASS marker, so a test that
     # prints "PASS" for one sub-check cannot mask a real error emitted
     # elsewhere in the same run (this previously hid reg_basic_test, whose

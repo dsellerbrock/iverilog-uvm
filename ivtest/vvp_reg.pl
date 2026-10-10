@@ -27,6 +27,7 @@ use RegressionList;
 use Diff;
 use Reporting;
 use Environment;
+use Time::HiRes qw(time);
 
 
 #
@@ -103,6 +104,7 @@ sub execute_regression {
 
     foreach $tname (@testlist) {
         my ($pass_type);
+        my $deadline;
         next if ($tname eq "");  # Skip test that have been replaced.
 
         $total++;
@@ -137,8 +139,14 @@ sub execute_regression {
         $cmd .= " -s $testmod{$tname}" if ($testmod{$tname} ne "");
         $cmd .= " -t null" if ($testtype{$tname} eq "CN");
         $cmd .= " ./$srcpath{$tname}/$tname.v";
+        $deadline = time() + 120;
 #        print "$cmd\n";
-        if (run_program($cmd, '>', "log/$tname.log")) {
+        if (run_program($cmd, '>', "log/$tname.log", $deadline - time())) {
+            if (($? >> 8) == 124) {
+                &print_rpt("==> Failed - timed out running iverilog.\n");
+                $failed++;
+                next;
+            }
             if ($testtype{$tname} eq "CE") {
                 # Check if the system command core dumped!
                 if ($? >> 8 & 128) {
@@ -177,7 +185,13 @@ sub execute_regression {
                             "--show-reachable=yes " : "";
         $cmd .= "vvp$sfx vsim $vvp_args $plargs{$tname}";
 #        print "$cmd\n";
-        if ($pass_type == 0 and run_program($cmd, '>>', "log/$tname.log")) {
+        if ($pass_type == 0 and run_program($cmd, '>>', "log/$tname.log",
+                                           $deadline - time())) {
+            if (($? >> 8) == 124) {
+                &print_rpt("==> Failed - timed out running vvp.\n");
+                $failed++;
+                next;
+            }
             if ($testtype{$tname} eq "RE") {
                 # Check if the system command core dumped!
                 if ($? >> 8 & 128) {
