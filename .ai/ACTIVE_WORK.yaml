@@ -1,5 +1,5 @@
 status: "in_progress"
-phase: "LOCAL_VALIDATED"
+phase: "SLURM_QUEUED"
 blocker: "IEEE-RANDC-CYCLE-DOMAIN-LIMIT (#420 bounded 1,025-value scalar)"
 github_issue: "#420 — extend exact randc cycle coverage past current domain limits (OPEN; no active PR)"
 pull_request: null
@@ -14,8 +14,8 @@ allowed_scope: "A non-static integral scalar randc with a hard-constrained 1,025
 forbidden_scope: "Do not broaden into sparse coupled tuple sampling tracked by #416, soft/weighted constraints, dynamic/queue/associative containers, arrays, aggregates, static randc, or unrelated solver behavior."
 acceptance: "Add paired strict 2017/2023 positive, rollback, and boundary regressions; demonstrate complete cycle coverage for the selected scalar shape; keep resource and runtime bounds explicit; run focused legacy and JSON/VVP plus neighboring randc cases; update the matrix and evidence. No CI checks unless a failure is reported."
 discovery_policy: "Keep #420 separate from #416's sparse coupled tuple sampler and defer untested widths or aggregate forms."
-current_validation: "Fresh origin/main c339b9f was reproduced before editing. The bounded scalar exact randc cap is now 2,048; make install passed. Focused legacy and JSON/VVP suites each pass 4/4 in normal and strict expression-width modes, including the 2017/2023 1,025-value case, rollback and 2,049-value rejection. A standalone 1,025-draw full-cycle sweep passed both editions locally. The branch-snapshot Slurm replay is pending; CI has not been checked."
-next_action: "Commit this bounded change and the branch-based Slurm runner, submit the full-cycle replay from the clean feature branch, record its result, then publish a draft PR. Leave CI qualification pending and unchecked."
+current_validation: "Fresh origin/main c339b9f was reproduced before editing. The bounded scalar exact randc cap is now 2,048; make install passed. Focused legacy and JSON/VVP suites each pass 4/4 in normal and strict expression-width modes, including the 2017/2023 1,025-value case, rollback and 2,049-value rejection. A standalone 1,025-draw full-cycle sweep passed both editions locally. Slurm job 12 for commit 445c2ebf is queued; no remote result is available yet. CI has not been checked."
+next_action: "Collect Slurm job 12's result from its run log, update evidence, then publish the bounded change as a draft PR. Leave CI qualification pending and unchecked."
 stop_after_completion: false
 after_completion: "Keep #420 open for other randc widths/shapes outside the qualified subset; do not inspect CI unless a failure is reported."
 

@@ -43,8 +43,10 @@ the explicit failure path.
   starts a new cycle under both `-g2017` and `-g2023`.
 - `scripts/slurm-randc-cycle.sh <branch>` stages a clean branch commit and
   runs this full-cycle source on Slurm, with build products and extracted
-  tool dependencies isolated under the run directory. The submitted run ID
-  and result are recorded below when complete.
+  tool dependencies isolated under the run directory. Job 12 has been
+  submitted for commit `445c2ebff69c112c4a452f3115bca9a9c8cfec36`; it is
+  queued and has no result yet. Its log is at
+  `/home/dsell/slurm-runs/iverilog-uvm/codex-420/20261010T001427Z-445c2ebf-91322/logs/randc-cycle-20261010T001427Z-445c2ebf-91322-12.out`.
 - CI was not queried, per the campaign instruction. Exact-head CI
   qualification remains pending.
 

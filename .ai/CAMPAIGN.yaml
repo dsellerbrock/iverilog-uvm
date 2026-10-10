@@ -2,18 +2,18 @@ campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-randc-cycle-domain-limit-20261009"
-checkpoint_head: "c339b9f2287a743aeb7ab6de6528e8d34a4dd602"
+checkpoint_head: "445c2ebff69c112c4a452f3115bca9a9c8cfec36"
 active_ieee_lane:
   blocker: "IEEE-RANDC-CYCLE-DOMAIN-LIMIT (#420 bounded 1,025-value scalar)"
   issue: "#420 is OPEN with no active PR. The selected 21-bit non-static scalar randc reducer compiles but fails its first draw in both IEEE editions."
-  phase: "LOCAL_VALIDATED"
+  phase: "SLURM_QUEUED"
   baseline_head: "c339b9f2287a743aeb7ab6de6528e8d34a4dd602"
   reproducer: "/tmp/ieee420_randc_sparse_domain.sv: randc bit [20:0] value constrained to [0:1024]; both -g2017 and -g2023 compile and fail randomize() with 'wide randc feasible domain is not exactly enumerable'."
   standards: "IEEE 1800-2017/2023 §18.4.2 has materially identical cycle/no-repeat wording and permits implementation size limits of at least 8 bits; §18.6.3 preserves values on failed randomize(). Treat this as bounded support work, not a claim that all widths above 20 bits are mandatory."
   root_cause: "The scalar wide-randc sparse enumeration and history transaction gates both capped exact feasible sets at 1,024; a 1,025-value set reached the fail-closed path before cycle history could be committed."
   scope: "Non-static integral scalar randc with a hard-constrained 1,025-value domain, cycle completeness, rollback, focused paired tests, and related records."
-  next: "Run the full-cycle probe from the clean feature-branch snapshot on Slurm, record the result, then publish a draft PR with qualification pending. Keep #416 sparse coupled tuple sampling separate."
-  boundary: "The scalar exact randc feasible-domain and history gates now share a 2,048-value cap; the dense history-width limit and container cap are unchanged. Legacy and JSON/VVP paired focus pass 4/4 each in normal and strict modes; the standalone complete 1,025-value cycle passed both editions. IEEE 1800-2017/2023 §18.4.2 allows implementation size limits (minimum 8 bits), so no claim is made that all wider randc forms are required. No CI status checked."
+  next: "Collect the full-cycle probe result from Slurm job 12, then publish a draft PR with qualification pending. Keep #416 sparse coupled tuple sampling separate."
+  boundary: "The scalar exact randc feasible-domain and history gates now share a 2,048-value cap; the dense history-width limit and container cap are unchanged. Legacy and JSON/VVP paired focus pass 4/4 each in normal and strict modes; the standalone complete 1,025-value cycle passed both editions locally. Slurm job 12 for commit 445c2ebf is queued and not counted as a pass. IEEE 1800-2017/2023 §18.4.2 allows implementation size limits (minimum 8 bits), so no claim is made that all wider randc forms are required. No CI status checked."
 suspended_ieee_lanes:
   - blocker: "IEEE-NESTED-ARRAY-FUNCTION-RETURN (#415)"
     issue: "GitHub now reports #415 CLOSED; preserve draft PR #524 and its worktree unchanged as explicitly directed."
@@ -689,11 +689,11 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Commit and submit scripts/slurm-randc-cycle.sh agent/ieee-randc-cycle-domain-limit-20261009; record the result, then push and open a draft PR. Do not inspect CI unless a failure is reported."
+next_command: "Collect job 12 from /home/dsell/slurm-runs/iverilog-uvm/codex-420/20261010T001427Z-445c2ebf-91322/logs/randc-cycle-20261010T001427Z-445c2ebf-91322-12.out; then update evidence and publish a draft PR. Do not inspect CI unless a failure is reported."
 current_execution_checkpoint:
   active_work_item: "IEEE-RANDC-CYCLE-DOMAIN-LIMIT (#420 bounded 1,025-value scalar)"
-  source_head: "c339b9f2287a743aeb7ab6de6528e8d34a4dd602"
-  phase: "LOCAL_VALIDATED"
-  completed: "Fresh origin/main reproduced the first-draw failure. The scalar sparse enumeration and transaction-history caps now use 2,048; make install and paired legacy/JSON-VVP focus each pass 4/4 in normal and strict modes, and the standalone 1,025-value complete cycle passed in both editions."
-  next_action: "Commit the change and branch-based Slurm runner, run the full-cycle replay from its clean snapshot, record the result, then push and open a draft PR. Keep exact-head CI qualification pending and unchecked; do not overlap #416 sparse coupled tuple work."
-  next_command: "scripts/slurm-randc-cycle.sh agent/ieee-randc-cycle-domain-limit-20261009"
+  source_head: "445c2ebff69c112c4a452f3115bca9a9c8cfec36"
+  phase: "SLURM_QUEUED"
+  completed: "Fresh origin/main reproduced the first-draw failure. The scalar sparse enumeration and transaction-history caps now use 2,048; make install and paired legacy/JSON-VVP focus each pass 4/4 in normal and strict modes, and the standalone 1,025-value complete cycle passed locally in both editions. Branch runner submitted Slurm job 12 from the immutable source commit; scheduler has not started it yet."
+  next_action: "Read the result after job 12 completes, update evidence, then push and open a draft PR. Keep exact-head CI qualification pending and unchecked; do not overlap #416 sparse coupled tuple work."
+  next_command: "Check job 12 after scheduler start and inspect its output log for both PASSED lines; do not count a queued job as a test pass."

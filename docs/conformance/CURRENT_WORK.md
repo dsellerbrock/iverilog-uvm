@@ -14,6 +14,8 @@ standalone full-cycle probe also passed in both editions. IEEE 1800-2017/2023
 bounded support extension, not a claim that every wider randc shape is
 mandatory. CI is not checked. See [#420](https://github.com/dsellerbrock/iverilog-uvm/issues/420)
 and the [revision evidence](../../evidence/ieee-randc-domain-cap-20261009/README.md).
+The branch-snapshot replay is queued as Slurm job 12 for commit `445c2ebf`;
+its remote result is pending.
 
 PR [#528](https://github.com/dsellerbrock/iverilog-uvm/pull/528) is a draft
 for the prior bounded #421 packed-select slice. Its focused strict legacy
@@ -21,8 +23,8 @@ tests pass 2/2 and JSON/VVP tests pass 4/4. CI qualification remains pending
 and unchecked. The existing #524, #526, and #527 draft lanes are also
 suspended with qualification pending.
 
-**Next:** run the full-cycle probe from the clean feature-branch snapshot on
-Slurm, record the result, then publish a draft PR with qualification pending.
+**Next:** record job 12's result, then publish a draft PR with qualification
+pending.
 Keep #416's sparse coupled sampler work separate.
 
 ## Current IEEE 1800 focus — 2026-10-09: PR #466 refresh
