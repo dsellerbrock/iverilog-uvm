@@ -31250,8 +31250,9 @@ static bool constraint_fixed_index_offset_(
  * s[1] is the 16-bit element at bits [31:16], not bit 1, and a declared
  * range that does not end at 0 shifts every index. A single 0-based packed
  * dimension, including a scalar or packed struct, maps a symbolic index to
- * a bit. In std::randomize, a symbolic outer element index selects one of
- * the fixed-width slices; other unsupported selects still fail explicitly. */
+ * a bit. A packed-array index maps to its fixed-width slice in
+ * std::randomize; class constraints use this path only for one-dimensional
+ * arrays of packed structs. Other unsupported selects still fail explicitly. */
 static string packed_typed_select_ir_(
       const string&base, ivl_type_t type, const index_component_t&ic,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
@@ -31262,6 +31263,11 @@ static string packed_typed_select_ir_(
       const netvector_t*vec = dynamic_cast<const netvector_t*>(packed_type);
       const netstruct_t*record = dynamic_cast<const netstruct_t*>(packed_type);
       const netparray_t*array = dynamic_cast<const netparray_t*>(packed_type);
+      const netstruct_t*array_record = array
+	    ? dynamic_cast<const netstruct_t*>(array->element_type()) : nullptr;
+      bool class_packed_record_array = cls && array
+	    && array->static_dimensions().size() == 1
+	    && array_record && array_record->packed();
       if (!vec && !(record && record->packed()) && !array)
 	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
 					      scope, loop_env);
@@ -31374,7 +31380,7 @@ static string packed_typed_select_ir_(
 	    uint64_t off = 0;
 	    string index;
 	    if (!offset_of(ic.msb, off, &index)) {
-		  if (!scope_randomize_emit_ctx_ || !scope
+		  if ((!scope_randomize_emit_ctx_ && !class_packed_record_array) || !scope
 		      || !constraint_ir_design_ctx_) return "";
 		  /* part has constant bounds in the solver. Keep the selected
 		   * value's width by choosing among constant slices instead of
@@ -35292,11 +35298,38 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						: "(part " + base + " c:"
 						    + to_string(offset + mw - 1)
 						    + " c:" + to_string(offset) + ")";
-					  return packed_typed_select_ir_(
+					  string selected = packed_typed_select_ir_(
 						member_ir, cur, comp->index.front(), cls,
 						value_slots, scope, loop_env);
-				    }
-			      }
+					  if (selected.empty()) return "";
+					  pform_name_t::const_iterator tail = comp;
+					  ++tail;
+					  if (tail == id->path().name.end()) return selected;
+					  const netparray_t*array =
+						dynamic_cast<const netparray_t*>(cur);
+					  cur = array ? array->element_type() : nullptr;
+					  for (; cur && tail != id->path().name.end(); ++tail) {
+						const netstruct_t*selected_record =
+						      dynamic_cast<const netstruct_t*>(cur);
+						unsigned long field_offset = 0;
+						const netstruct_t::member_t*field =
+						      selected_record && !tail->local_scope
+						      ? selected_record->packed_member(
+							    tail->name, field_offset) : nullptr;
+						if (!field || !tail->index.empty()) return "";
+						cur = field->net_type;
+						unsigned field_width = cur ? cur->packed_width() : 0;
+						if (!field_width) return "";
+						selected = field_width == 1
+						      ? "(bit " + selected + " c:"
+							+ to_string(field_offset) + ")"
+						      : "(part " + selected + " c:"
+							+ to_string(field_offset + field_width - 1)
+							+ " c:" + to_string(field_offset) + ")";
+					  }
+					  return cur ? selected : string();
+			}
+		      }
 			      if (cur) {
 				    unsigned mw = cur->packed_width();
 				    if (mw == 1)
