@@ -10371,6 +10371,61 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       return result;
 }
 
+/* Find a wide projected block that can flip while every other bit stays fixed. */
+static bool z3_joint_has_free_block_(Z3_context ctx, Z3_solver base,
+      const vector<Z3_ast>&variables, unsigned block_width)
+{
+      if (block_width == 0 || block_width >= 64
+          || Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
+      vector<uint64_t> model_values(variables.size());
+      Z3_model model = Z3_solver_get_model(ctx, base);
+      Z3_model_inc_ref(ctx, model);
+      for (size_t i = 0; i < variables.size(); ++i) {
+            if (Z3_get_sort_kind(ctx, Z3_get_sort(ctx, variables[i])) != Z3_BV_SORT
+                || Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, variables[i])) > 64
+                || !z3_eval_uint64(ctx, model, variables[i], model_values[i])) {
+                  Z3_model_dec_ref(ctx, model);
+                  return false;
+            }
+      }
+      Z3_model_dec_ref(ctx, model);
+
+      for (size_t i = 0; i < variables.size(); ++i) {
+            Z3_ast var = variables[i];
+            Z3_sort sort = Z3_get_sort(ctx, var);
+            unsigned width = Z3_get_bv_sort_size(ctx, sort);
+            for (unsigned high = width; high >= block_width;
+                 high -= block_width) {
+                  unsigned low = high - block_width;
+                  uint64_t bit_mask = ((UINT64_C(1) << block_width) - 1) << low;
+                  uint64_t keep_mask = ~bit_mask;
+                  vector<Z3_ast> assumptions;
+                  assumptions.reserve(variables.size() + 2);
+                  for (size_t j = 0; j < variables.size(); ++j) {
+                        if (j != i) {
+                              assumptions.push_back(Z3_mk_eq(ctx, variables[j],
+                                    Z3_mk_unsigned_int64(ctx, model_values[j],
+                                          Z3_get_sort(ctx, variables[j]))));
+                        }
+                  }
+                  Z3_ast mask = Z3_mk_unsigned_int64(ctx, keep_mask, sort);
+                  Z3_ast other_bits = Z3_mk_bvand(ctx, var, mask);
+                  Z3_ast expected = Z3_mk_unsigned_int64(ctx,
+                        model_values[i] & keep_mask, sort);
+                  assumptions.push_back(Z3_mk_eq(ctx, other_bits, expected));
+                  Z3_ast block = Z3_mk_bvand(ctx, var,
+                        Z3_mk_unsigned_int64(ctx, bit_mask, sort));
+                  Z3_ast flipped = Z3_mk_unsigned_int64(ctx,
+                        model_values[i] ^ bit_mask, sort);
+                  assumptions.push_back(Z3_mk_eq(ctx, block, flipped));
+                  if (Z3_solver_check_assumptions(ctx, base,
+                        (unsigned)assumptions.size(), assumptions.data()) == Z3_L_TRUE)
+                        return true;
+            }
+      }
+      return false;
+}
+
 /* Prove that a one-variable factor admits exactly [0, 2^bits).  This
  * narrowly replaces complete tuple enumeration for bounded nested fields
  * whose entire legal set is a power-of-two prefix.  The proof is semantic:
@@ -11704,20 +11759,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (feasible == Z3_L_UNDEF)
 		  return fail_joint("the solver returned UNKNOWN before uniform joint sampling");
 	    for (const auto&component : uniform_joint_components) {
-		  // Keep rejection cheap for dense components. Once a direct-scalar
-		  // component exhausts 64 proposals, count its complete finite projection
-		  // and reservoir-sample one tuple exactly, regardless of cardinality.
+		  // Keep rejection cheap for dense components. Defer full enumeration when
+		  // a wide bit block can vary independently of the rest of the tuple.
 		  static const unsigned uniform_joint_attempt_cap = 4096;
 		  static const unsigned uniform_joint_enumerate_after = 64;
+		  static const unsigned uniform_joint_free_bit_threshold = 16;
+		  unsigned enumerate_after = uniform_joint_enumerate_after;
 		  bool enumerate_direct_scalars = builder.pending_soft.empty();
 		  for (Z3_ast var : component)
 			if (!uniform_joint_direct_scalars.count(var)
 			    || uniform_joint_width.at(var) > 64)
 			      enumerate_direct_scalars = false;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
-			if (enumerate_direct_scalars
-			    && attempt == uniform_joint_enumerate_after) {
-			      vector<uint64_t> tuple;
+		    if (enumerate_direct_scalars && attempt == enumerate_after) {
+			  if (enumerate_after == uniform_joint_enumerate_after
+			      && z3_joint_has_free_block_(ctx, base, component,
+				    uniform_joint_free_bit_threshold)) {
+				enumerate_after = uniform_joint_attempt_cap - 1;
+				continue;
+			  }
+			  vector<uint64_t> tuple;
 			      const char*reason = nullptr;
 			      z3_rng_stream_t&rng = property_rng(
 				    uniform_joint_property.at(component.front()));
