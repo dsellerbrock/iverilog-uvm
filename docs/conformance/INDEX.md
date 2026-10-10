@@ -4,9 +4,9 @@
 
 ## Current selection
 
-The active campaign item is [issue #415](https://github.com/dsellerbrock/iverilog-uvm/issues/415), in [draft PR #524](https://github.com/dsellerbrock/iverilog-uvm/pull/524) targeting `main`. Its branch is `agent/ieee-nested-array-return-20261009` and includes latest `origin/main` at `0d8815feb`, including the VVP performance changes merged in PR #521. Focused array-return legacy and JSON/VVP lists pass 12/12 each; the asymmetric typedef-composed 3-D reducer also passes in both editions. Neighboring const-local-array-pattern lists pass 10/10 each. The broad legacy gate has no aggregate result. The previous exact-head run is being superseded; **no green CI status is claimed**.
+The active campaign item is [issue #420](https://github.com/dsellerbrock/iverilog-uvm/issues/420), selected from fresh `origin/main` at `c339b9f2287a743aeb7ab6de6528e8d34a4dd602`. It is open and has no active PR yet. The bounded branch raises direct-scalar randc exact-domain/history tracking from 1,024 to 2,048 values; paired local legacy and JSON/VVP focus each pass 4/4 in normal and strict modes, and a standalone probe completes a full 1,025-value cycle in both editions. A branch-snapshot Slurm replay is pending through `scripts/slurm-randc-cycle.sh`. The 20-bit dense-history limit and container cap remain unchanged. IEEE 1800-2017/2023 §18.4.2 permits implementation-size limits, so this is a bounded support extension, not a claim that all widths above 20 bits are mandatory. CI qualification is pending and unchecked.
 
-The `ACTIVE_WORK.yaml` and `CAMPAIGN.yaml` updates for #415 are on PR #524. The [issue checkout map](../../.ai/ISSUE_CHECKOUT.csv) on `main` remains a historical checkout record until that PR merges.
+The prior bounded #421 packed-select slice is in [draft PR #528](https://github.com/dsellerbrock/iverilog-uvm/pull/528) targeting `main`, at `0e6584d61e90ff09effed45a1725ee3c8510590f`. Its focused strict legacy tests pass 2/2 and JSON/VVP plus the out-of-range neighbor pass 4/4. CI qualification remains pending and unchecked. PRs [#524](https://github.com/dsellerbrock/iverilog-uvm/pull/524), [#526](https://github.com/dsellerbrock/iverilog-uvm/pull/526), and [#527](https://github.com/dsellerbrock/iverilog-uvm/pull/527) remain suspended with exact-head qualification pending; no CI pass is claimed.
 
 ## Inventory
 

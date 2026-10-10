@@ -2402,7 +2402,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 			     << " has a " << pw << "-bit cyclic leaf, beyond the "
 			     << randc_cap_bits << "-bit dense history limit; non-static "
 			     << "constrained scalar leaves up to 64 bits cycle only when "
-			     << "their complete feasible set has at most 1024 values, "
+			     << "their complete feasible set has at most 2048 values, "
 			     << "and other wide forms cannot guarantee a full cycle."
 			     << endl;
 		  }

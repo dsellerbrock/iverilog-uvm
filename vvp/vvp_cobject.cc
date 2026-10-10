@@ -578,7 +578,7 @@ bool vvp_cobject::randc_transaction_commit()
 		  || val.size() <= 20 || val.size() > 64
 		  || !it->second.feasible_domain
 		  || it->second.feasible.empty()
-		  || it->second.feasible.size() > 1024)) {
+		  || it->second.feasible.size() > VVP_RANDC_FEASIBLE_DOMAIN_CAP)) {
 		  cerr << "warning: successful randomize has an unsupported wide "
 		       << "randc history transaction for property '"
 		       << defn_->property_name(it->first.pid) << "'" << endl;
@@ -794,7 +794,8 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
       if (sparse) {
 	    if (pid >= defn_->property_count() || defn_->property_is_static(pid)
 		|| !defn_->property_dimensions(pid).empty()
-		|| feasible.empty() || feasible.size() > 1024) return;
+		|| feasible.empty()
+		|| feasible.size() > VVP_RANDC_FEASIBLE_DOMAIN_CAP) return;
 	    vvp_vector4_t current;
 	    get_vec4(pid, current, leaf);
 	    if (current.size() <= 20 || current.size() > 64
