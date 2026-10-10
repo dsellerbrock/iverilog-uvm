@@ -4171,8 +4171,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   both edition logs show the line-37 fatal and omit the expected wide-state
   diagnostic.
 - **Reproducer status:** Confirmed in both editions by the registered fixture.
-- **Triage status:** Triage-pending, unrelated to the package-call parser
-  change. Do not expand the active ticket to fix it.
+- **Triage status:** Current-main recheck (2026-10-09) passes the paired JSON/VVP fixtures 2/2. The source intentionally checks a 65-bit selected packed-struct state bit succeeds when true and fails when constrained false; only the four-state invalid reads diagnose. This DD-109 report is stale and is not a current #421 reproducer. The separate in-range symbolic nested packed-array selection still fails and is tracked in the active #421 slice.
 
 ### DD-110 — registered global-uniform tests exceed the guarded run budget
 

@@ -1,0 +1,2 @@
+sv_constraint_packed_struct_array_symbolic_select normal,-g2017,-s,test ivltests gold=sv_constraint_packed_struct_array_symbolic_select.gold
+sv_constraint_packed_struct_array_symbolic_select_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_packed_struct_array_symbolic_select.gold
