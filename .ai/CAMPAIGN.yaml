@@ -684,12 +684,12 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Select and reproduce the next independent open IEEE blocker on a branch from freshly fetched origin/main; do not inspect CI."
+next_command: "After the 10–15 minute log interval, inspect the existing Slurm job 229 output only; do not query squeue or resubmit it."
 current_execution_checkpoint:
-  active_work_item: "IEEE-RAND-STRUCT-CLASS-HANDLE (#419 sub-slice)"
-  source_head: "67e2351ca5c6b3ed8977b972de495d768ebed5cf"
-  phase: "SUSPENDED_PR_QUALIFICATION_PENDING"
-  pull_request: "#527 OPEN+DRAFT; no CI status queried."
-  completed: "Fresh origin/main build/install passed. The paired active class-handle-in-rand-struct regression and nested-struct neighbor pass 2/2 in legacy and JSON/VVP. Class-declaration/member focus passes 15/15 legacy and 14/14 JSON/VVP after correcting its stale CE classification. Draft PR #527 is open; CI was not checked."
-  next_action: "Select the next blocker from the refreshed open IEEE issue list and verify its source/reproducer; no CI polling."
-  next_command: "git diff --check"
+  active_work_item: "CI-POST-MERGE-PIN2-RUNTIME-HANG (regression introduced by merged PR #526)"
+  source_head: "aa08d1cb951dd93147cb43911f47a0de069f9033"
+  phase: "LOCAL_FIX_VALIDATION; SLURM_JOB_229_RUNNING"
+  pull_request: "None; local fix branch agent/fix-pin2-main-20261010 is unpushed. Do not start a new CI run until the user approves."
+  completed: "First-parent bisect: #527 passes and #526 is first bad. Main pin2 exceeds the 120-second guard at 355.1 MiB; local fix passes in 27.1 seconds at 116.0 MiB. Sparse-coupled legacy passes 2/2. JSON/VVP passes 2/2 under a 300-second/4-GiB guard in 159.4 seconds at 168.9 MiB, including a functional-dependency 1:3 branch-weight regression. Job 229 was requeued from the start and is running; the last inspected log reached the ivtest sweep preamble."
+  next_action: "Leave job 229 running. Inspect only its output log every 10–15 minutes. Reproduce any additional reported gate failure locally and fix one root cause at a time. Propose, but do not add without approval, a per-test vvp_reg.pl/CI timeout."
+  next_command: "ssh DAN-DESKTOP 'tail -n 30 ~/slurm-runs/iverilog-uvm/root/ci1677-aa08d1c-20261010T150342Z/full/logs/ivl-1677-main-229.out'"

@@ -10371,6 +10371,63 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       return result;
 }
 
+/* Prove that `dependent` has one value for each assignment to `projection`.
+ * Clone every other free constant so auxiliary witnesses cannot mask a second
+ * legal dependent value. */
+static bool z3_joint_unique_projection_(Z3_context ctx, Z3_solver base,
+      const vector<Z3_ast>&projection, Z3_ast dependent)
+{
+      Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      vector<Z3_ast> clauses;
+      set<Z3_ast> constants;
+      for (unsigned i = 0; i < Z3_ast_vector_size(ctx, assertions); ++i) {
+            Z3_ast clause = Z3_ast_vector_get(ctx, assertions, i);
+            if (!z3_collect_constants_(ctx, clause, constants)) {
+                  Z3_ast_vector_dec_ref(ctx, assertions);
+                  return false;
+            }
+            clauses.push_back(clause);
+      }
+      Z3_ast_vector_dec_ref(ctx, assertions);
+
+      vector<Z3_ast> from;
+      vector<Z3_ast> to;
+      Z3_ast dependent_copy = nullptr;
+      for (Z3_ast constant : constants) {
+            if (find(projection.begin(), projection.end(), constant)
+                  != projection.end())
+                  continue;
+            Z3_ast copy = Z3_mk_fresh_const(ctx, "joint_copy",
+                                           Z3_get_sort(ctx, constant));
+            from.push_back(constant);
+            to.push_back(copy);
+            if (constant == dependent) dependent_copy = copy;
+      }
+      if (!dependent_copy) return false;
+
+      Z3_solver proof = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, proof);
+      static const unsigned unique_projection_timeout_ms = 1000;
+      Z3_params params = Z3_mk_params(ctx);
+      Z3_params_inc_ref(ctx, params);
+      Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "timeout"),
+                         unique_projection_timeout_ms);
+      Z3_solver_set_params(ctx, proof, params);
+      Z3_params_dec_ref(ctx, params);
+      for (Z3_ast clause : clauses) {
+            Z3_solver_assert(ctx, proof, clause);
+            Z3_solver_assert(ctx, proof, Z3_substitute(ctx, clause,
+                  (unsigned)from.size(), from.data(), to.data()));
+      }
+      Z3_ast distinct = Z3_mk_not(ctx,
+            Z3_mk_eq(ctx, dependent, dependent_copy));
+      Z3_solver_assert(ctx, proof, distinct);
+      Z3_lbool result = Z3_solver_check(ctx, proof);
+      Z3_solver_dec_ref(ctx, proof);
+      return result == Z3_L_FALSE;
+}
+
 /* Prove that a one-variable factor admits exactly [0, 2^bits).  This
  * narrowly replaces complete tuple enumeration for bounded nested fields
  * whose entire legal set is a power-of-two prefix.  The proof is semantic:
@@ -11717,6 +11774,67 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
 			if (enumerate_direct_scalars
 			    && attempt == uniform_joint_enumerate_after) {
+			      bool sampled_projection = false;
+			      vector<Z3_ast> dependents = component;
+			      stable_sort(dependents.begin(), dependents.end(),
+				    [&](Z3_ast left, Z3_ast right) {
+					  return uniform_joint_width.at(left)
+						> uniform_joint_width.at(right);
+				    });
+			      for (Z3_ast dependent : dependents) {
+				    vector<Z3_ast> projection;
+				    for (Z3_ast var : component)
+					  if (var != dependent) projection.push_back(var);
+				    if (!z3_joint_unique_projection_(ctx, base,
+					  projection, dependent)) continue;
+				    // shortcut: stop at 64 proposals; use projected model counting
+				    // if sparse inputs still make this path slow.
+				    for (unsigned projected_attempt = 0;
+					  projected_attempt < uniform_joint_enumerate_after;
+					  ++projected_attempt) {
+					  vector<Z3_ast> pins;
+					  pins.reserve(component.size());
+					  for (Z3_ast var : projection) {
+						unsigned width = uniform_joint_width.at(var);
+						z3_rng_stream_t&rng = property_rng(
+						      uniform_joint_property.at(var));
+						uint64_t value = width == 64
+						      ? ((uint64_t)rng.next() << 32) | rng.next()
+						      : rng.uniform_u64(UINT64_C(1) << width);
+						Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
+						      Z3_get_sort(ctx, var));
+						pins.push_back(Z3_mk_eq(ctx, var, constant));
+					  }
+					  feasible = Z3_solver_check_assumptions(ctx, base,
+						(unsigned)pins.size(), pins.data());
+					  if (feasible == Z3_L_UNDEF)
+						return fail_joint(
+						      "the solver returned UNKNOWN during functional joint sampling");
+					  if (feasible == Z3_L_FALSE) continue;
+					  Z3_model model = Z3_solver_get_model(ctx, base);
+					  Z3_model_inc_ref(ctx, model);
+					  uint64_t value = 0;
+					  bool extracted = z3_eval_uint64(ctx, model,
+						dependent, value);
+					  Z3_model_dec_ref(ctx, model);
+					  if (!extracted)
+						return fail_joint(
+						      "a functional joint model value could not be extracted");
+					  pins.push_back(Z3_mk_eq(ctx, dependent,
+						Z3_mk_unsigned_int64(ctx, value,
+						      Z3_get_sort(ctx, dependent))));
+					  for (Z3_ast pin : pins) {
+						Z3_solver_assert(ctx, base, pin);
+						Z3_optimize_assert(ctx, opt, pin);
+					  }
+					  for (Z3_ast var : component)
+						uniform_sampled_vars.insert(var);
+					  sampled_projection = true;
+					  break;
+				    }
+				    if (sampled_projection) break;
+			      }
+			      if (sampled_projection) break;
 			      vector<uint64_t> tuple;
 			      const char*reason = nullptr;
 			      z3_rng_stream_t&rng = property_rng(
