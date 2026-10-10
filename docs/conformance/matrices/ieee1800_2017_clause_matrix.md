@@ -5,26 +5,19 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
-### October 9, 2026 — bounded wide scalar `randc` cycle domain (#420)
+### October 9, 2026 — symbolic packed-array-of-struct constraint select
 
-IEEE 1800-2017/2023 §18.4.2 requires cyclic random variables to traverse a
-random permutation without repeats; both editions allow implementation size
-limits with an 8-bit minimum. Section 18.6.3 requires a failed `randomize()` to
-preserve random-variable values. On the bounded feature branch, exact sparse
-feasible-domain enumeration and the matching scalar history-transaction gate
-now accept at most 2,048 values for eligible non-static direct scalar `randc`
-properties wider than 20 bits. The existing dense history limit, container
-limit and other sampling caps are unchanged.
-
-The paired 21-bit `[0:1024]` regression checks no repeats across 64 draws,
-rollback after an infeasible call, and explicit rejection of a 2,049-value
-domain. A standalone sweep completed all 1,025 values and the next cycle reset
-under both language editions. Focused legacy and JSON/VVP lists pass 4/4 each
-in normal and strict expression-width modes. This is local branch evidence;
-CI qualification remains pending and unchecked. It does not claim that every
-wide, static, array or aggregate `randc` form is mandatory or supported. See
-[#420](https://github.com/dsellerbrock/iverilog-uvm/issues/420) and the
-[revision evidence](../../../evidence/ieee-randc-domain-cap-20261009/README.md).
+IEEE 1800-2017/2023 §§7.4.1 and 11.5.1 define packed-array elements and
+expression-addressed packed selects; §18.3 demonstrates selected packed bits
+in class constraints and requires a solution when one exists. The local copies
+have materially equivalent wording for these rules. A bounded class-constraint
+case now solves a symbolic index into a one-dimensional packed array of packed
+structs, then constrains an unindexed packed member of the selected element.
+Paired focused legacy tests pass 2/2 and JSON/VVP tests pass 4/4 in both
+ordinary and strict-expression-width modes. Index 2 of a `[1:0]` array retains
+the four-state invalid-read failure. Other nested packed-select shapes and
+broad §18 qualification remain open. See the [focused evidence](../../../evidence/ieee-packed-symbolic-nested-select-20261009/README.md)
+and [issue #421](https://github.com/dsellerbrock/iverilog-uvm/issues/421).
 
 ### October 8, 2026 — Chapter 7 array locators and associative min/max
 
