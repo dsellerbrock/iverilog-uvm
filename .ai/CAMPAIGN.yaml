@@ -2,12 +2,12 @@ campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 active_goal: "Continue toward full IEEE 1800-2017 and IEEE 1800-2023 support. OpenTitan and Caliptra application work are outside the active selection unless the user redirects the campaign."
 branch: "agent/ieee-randc-cycle-domain-limit-20261009"
-checkpoint_head: "5bc653c048ff3f52b639785b778d9d9973b8ee1d"
+checkpoint_head: "445c2ebff69c112c4a452f3115bca9a9c8cfec36"
 active_ieee_lane:
   blocker: "IEEE-RANDC-CYCLE-DOMAIN-LIMIT (#420 bounded 1,025-value scalar)"
   issue: "#420 is OPEN with no active PR. The selected 21-bit non-static scalar randc reducer compiles but fails its first draw in both IEEE editions."
   phase: "PR_OPEN_SLURM_QUEUED"
-  pull_request: "#529 OPEN+DRAFT to main at head 5bc653c048ff3f52b639785b778d9d9973b8ee1d; exact-head CI not checked."
+  pull_request: "#529 OPEN+DRAFT to main; exact-head CI not checked."
   baseline_head: "c339b9f2287a743aeb7ab6de6528e8d34a4dd602"
   reproducer: "/tmp/ieee420_randc_sparse_domain.sv: randc bit [20:0] value constrained to [0:1024]; both -g2017 and -g2023 compile and fail randomize() with 'wide randc feasible domain is not exactly enumerable'."
   standards: "IEEE 1800-2017/2023 §18.4.2 has materially identical cycle/no-repeat wording and permits implementation size limits of at least 8 bits; §18.6.3 preserves values on failed randomize(). Treat this as bounded support work, not a claim that all widths above 20 bits are mandatory."
@@ -695,6 +695,6 @@ current_execution_checkpoint:
   active_work_item: "IEEE-RANDC-CYCLE-DOMAIN-LIMIT (#420 bounded 1,025-value scalar)"
   source_head: "445c2ebff69c112c4a452f3115bca9a9c8cfec36"
   phase: "PR_OPEN_SLURM_QUEUED"
-  completed: "Fresh origin/main reproduced the first-draw failure. The scalar sparse enumeration and transaction-history caps now use 2,048; make install and paired legacy/JSON-VVP focus each pass 4/4 in normal and strict modes, and the standalone 1,025-value complete cycle passed locally in both editions. Draft PR #529 is open at head 5bc653c0. Slurm job 12 uses immutable source commit 445c2ebf and remains queued; that result is not counted as a pass."
+  completed: "Fresh origin/main reproduced the first-draw failure. The scalar sparse enumeration and transaction-history caps now use 2,048; make install and paired legacy/JSON-VVP focus each pass 4/4 in normal and strict modes, and the standalone 1,025-value complete cycle passed locally in both editions. Draft PR #529 is open and includes tested source commit 445c2ebf. Slurm job 12 uses that immutable source commit and remains queued; its result is not counted as a pass."
   next_action: "Verify the next open, unimplemented IEEE issue and preserve PR #529's pending qualification state. Collect job 12's log only when the scheduler starts it or reports completion."
   next_command: "Run the prescribed Graphify query, inspect current issue/work records, and then verify candidate source state on refreshed origin/main."

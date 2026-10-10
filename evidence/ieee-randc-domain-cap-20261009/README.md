@@ -44,8 +44,8 @@ the explicit failure path.
 - `scripts/slurm-randc-cycle.sh <branch>` stages a clean branch commit and
   runs this full-cycle source on Slurm, with build products and extracted
   tool dependencies isolated under the run directory. Draft PR
-  [#529](https://github.com/dsellerbrock/iverilog-uvm/pull/529) is open at
-  head `5bc653c048ff3f52b639785b778d9d9973b8ee1d`. Job 12 has been
+  [#529](https://github.com/dsellerbrock/iverilog-uvm/pull/529) includes
+  tested source commit `445c2ebff69c112c4a452f3115bca9a9c8cfec36`. Job 12 has been
   submitted for commit `445c2ebff69c112c4a452f3115bca9a9c8cfec36`; it is
   queued and has no result yet. Its log is at
   `/home/dsell/slurm-runs/iverilog-uvm/codex-420/20261010T001427Z-445c2ebf-91322/logs/randc-cycle-20261010T001427Z-445c2ebf-91322-12.out`.
