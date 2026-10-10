@@ -3417,7 +3417,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017 §18.5.8.1, 2023 §18.5.7.1, and both editions' §18.4 require size-before-iterative solving and resizing constrained rand dynamic arrays.
 - **Evidence:** `evidence/opentitan-next-independent-20260923/candidate-adc-compile.json` and `evidence/opentitan-adc-filter-debt-20260923/assessment.md` on installed ivlpp SHA-256 `35d983cb76b8df6ad118cfa7add3bb84d384eae38667ea0ffd9d6f54c42ccd21`.
 - **Reproducer status:** pinned-target warning and standalone runtime failure confirmed; one-dimensional size control passes.
-- **Triage status:** reproduced and design-blocked after the typed outer-resize slice in PR339. Indexed row size and element identities plus a third solve stage are needed; no partial inner-size source patch was retained. Do not classify ADC compile as a DV pass.
+- **Triage status:** the pinned ADC gap remains unresolved and its compile is not a DV pass. Current-main selection check (2026-10-09) passes a bounded nested dynamic-array reducer that asserts outer size 2 and inner sizes 3 in both strict editions; that size-only case does not reproduce the full ADC constraint interaction or qualify the pinned target.
 
 ### DD-048 — Caliptra masking struct member loses packed bit select
 
@@ -3655,7 +3655,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017/2023 §18.5; confirm subclauses during selection.
 - **Evidence:** `outputs/minimal-reproducers/ot-flash-nested-queue-size-red.sv`, `outputs/minimal-reproducers/ot-flash-nested-queue-element-red.sv`, and `work/flash-queue-triage-20260928/result.json` in the projectless campaign workspace.
 - **Reproducer status:** paired strict compile/runtime REDs; no compiler fix.
-- **Triage status:** separate solver-lowering blocker; no Flash core rerun.
+- **Triage status:** the original simple fixed-array queue-leaf candidate is superseded. Current-main direct probes (2026-10-09) assert queue sizes and constrained values and pass under strict 2017 and 2023. This does not qualify all nested queue/container forms or the Flash core; select only a stronger current reducer if reopening this debt.
 
 ### DD-069 — prim_flop_2sync setup omits its generated flop provider
 
