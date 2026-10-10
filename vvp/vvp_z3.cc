@@ -12223,7 +12223,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!fallback_managed && !enumerated)
 		  enumerated = z3_enumerate_domain(ctx, base, pv.var,
 						pv.width, feasible);
-	    size_t sparse_cap = property_randc ? (size_t)ENUM_DOMAIN_CAP
+	    size_t sparse_cap = property_randc
+		  ? (size_t)VVP_RANDC_FEASIBLE_DOMAIN_CAP
 	                                       : SPARSE_DOMAIN_CAP;
 	      // Skip a probe that would only collect sparse_cap+1 models and
 	      // fail; the outcome is the same, minus the solver calls.
@@ -12238,10 +12239,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			  builder.local_index(pv.idx))
 		    || !builder.type(pv.idx)->property_dimensions(
 			  builder.local_index(pv.idx)).empty()
-		    || feasible.size() > 1024)) {
+		    || feasible.size() > VVP_RANDC_FEASIBLE_DOMAIN_CAP)) {
 		  randc_sampling_failed = true;
 		  randc_sampling_error = "wide randc requires a non-static scalar "
-			"domain of at most 1024 exactly enumerated values";
+			"domain of at most 2048 exactly enumerated values";
 		  return;
 	    }
 	    if (enumerated) {

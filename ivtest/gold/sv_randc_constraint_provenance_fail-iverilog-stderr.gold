@@ -1,4 +1,4 @@
-ivltests/sv_randc_constraint_provenance_fail.v:15: warning: randc property 'cyc' of class randc_prov_bad_leaf has a 32-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 1024 values, and other wide forms cannot guarantee a full cycle.
+ivltests/sv_randc_constraint_provenance_fail.v:15: warning: randc property 'cyc' of class randc_prov_bad_leaf has a 32-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 2048 values, and other wide forms cannot guarantee a full cycle.
 ivltests/sv_randc_constraint_provenance_fail.v:38: error: 'randc' variables cannot be used in 'soft' constraints.
 ivltests/sv_randc_constraint_provenance_fail.v:40: error: 'randc' variables cannot be used in 'soft' constraints.
 ivltests/sv_randc_constraint_provenance_fail.v:41: error: 'randc' variables cannot be used in 'soft' constraints.
