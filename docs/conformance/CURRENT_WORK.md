@@ -1,18 +1,33 @@
 # Current evidence and work
 
-## Current IEEE 1800 focus — 2026-10-09: issue #421 packed constraint select
+## Current IEEE 1800 focus — 2026-10-09: issue #420 randc cycle limits
 
-**Locally qualified bounded subset:** class constraints now support an
-in-range symbolic index into a one-dimensional packed array of packed structs,
-followed by unindexed packed-member reads. The paired strict 2017/2023 tests
-cover both indices, exact selected values, and the four-state out-of-range
-failure. Legacy passes 2/2 and JSON/VVP passes 4/4, including the prior packed
-array neighbor, in ordinary and strict-expression-width modes. A fresh local
-build and install passed. No full suite or CI checks were run. Other nested
-packed-select forms remain open; see [focused evidence](../../evidence/ieee-packed-symbolic-nested-select-20261009/README.md).
+**Locally validated bounded extension:** a non-static `randc bit [20:0]`
+constrained to `[0:1024]` now samples an exact no-repeat cycle across all 1,025
+values in both `-g2017` and `-g2023`. The direct-scalar feasible-domain and
+history-transaction caps are 2,048 values; the 20-bit dense-history limit and
+container cap remain unchanged. A paired regression checks repeated draws,
+failed-call rollback and rejection at 2,049 values. Focused legacy and
+JSON/VVP suites pass 4/4 each in normal and strict expression-width modes. The
+standalone full-cycle probe also passed in both editions. IEEE 1800-2017/2023
+§18.4.2 permits implementation size limits (minimum 8 bits), so this is a
+bounded support extension, not a claim that every wider randc shape is
+mandatory. CI is not checked. See [#420](https://github.com/dsellerbrock/iverilog-uvm/issues/420)
+and the [revision evidence](../../evidence/ieee-randc-domain-cap-20261009/README.md).
+Draft [PR #529](https://github.com/dsellerbrock/iverilog-uvm/pull/529) is open
+against `main`. The branch-snapshot replay is queued as Slurm job 12 for
+commit `445c2ebf`; its remote result is pending. Exact-head CI has not been
+checked.
 
-**Next:** review and publish the bounded #421 change as a draft PR targeting
-`main`; leave CI unchecked unless a failure is reported.
+PR [#528](https://github.com/dsellerbrock/iverilog-uvm/pull/528) is a draft
+for the prior bounded #421 packed-select slice. Its focused strict legacy
+tests pass 2/2 and JSON/VVP tests pass 4/4. CI qualification remains pending
+and unchecked. The existing #524, #526, and #527 draft lanes are also
+suspended with qualification pending.
+
+**Next:** continue with the next verified open, unimplemented IEEE blocker.
+Keep #529's CI qualification pending and unchecked; do not let the queued
+Slurm replay block independent campaign work.
 
 ## Current IEEE 1800 focus — 2026-10-09: PR #466 refresh
 

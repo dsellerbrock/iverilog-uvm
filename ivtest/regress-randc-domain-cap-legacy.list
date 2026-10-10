@@ -1,0 +1,4 @@
+sv_randomize_global_randc normal,-g2017,-s,main ivltests gold=sv_randomize_global_randc.gold
+sv_randomize_global_randc_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_randc.gold
+sv_randc_sparse_cycle_domain normal,-g2017,-s,test ivltests gold=sv_randc_sparse_cycle_domain.gold
+sv_randc_sparse_cycle_domain_2023 normal,-g2023,-s,test ivltests gold=sv_randc_sparse_cycle_domain.gold
