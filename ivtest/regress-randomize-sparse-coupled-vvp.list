@@ -1,0 +1,2 @@
+sv_randomize_sparse_coupled vvp_tests/sv_randomize_sparse_coupled.json
+sv_randomize_sparse_coupled_2023 vvp_tests/sv_randomize_sparse_coupled_2023.json
