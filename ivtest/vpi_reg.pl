@@ -5,6 +5,7 @@
 use lib './perl-lib';
 
 use Environment;
+use Time::HiRes qw(time);
 
 $| = 1;  # This turns off buffered I/O
 
@@ -161,7 +162,7 @@ sub read_regression_list {
 #  the regression. It then checks that the output matched the gold file.
 #
 sub execute_regression {
-    my ($tname, $total, $passed, $failed, $not_impl, $len, $cmd);
+    my ($tname, $total, $passed, $failed, $not_impl, $len, $cmd, $deadline);
 
     $total = 0;
     $passed = 0;
@@ -195,9 +196,10 @@ sub execute_regression {
             next;
         }
 
+        $deadline = time() + 120;
         $cmd = "iverilog-vpi$sfx --name=$tname $cargs{$tname} " .
                "vpi/$ccode{$tname}";
-        if (run_program($cmd, '>', "vpi_log/$tname.log")) {
+        if (run_program($cmd, '>', "vpi_log/$tname.log", $deadline - time())) {
             print "==> Failed - running iverilog-vpi.\n";
             $failed++;
             next;
@@ -205,7 +207,7 @@ sub execute_regression {
 
         $cmd = $with_valg ? "valgrind --trace-children=yes " : "";
         $cmd .= "iverilog$sfx $args{$tname} -L . -m $tname -o vsim vpi/$tname.v";
-        if (run_program($cmd, '>>', "vpi_log/$tname.log")) {
+        if (run_program($cmd, '>>', "vpi_log/$tname.log", $deadline - time())) {
             print "==> Failed - running iverilog.\n";
             $failed++;
             next;
@@ -214,7 +216,7 @@ sub execute_regression {
         $cmd = $with_valg ? "valgrind --leak-check=full " .
                             "--show-reachable=yes " : "";
         $cmd .= "vvp$sfx vsim";
-        if (run_program($cmd, '>>', "vpi_log/$tname.log")) {
+        if (run_program($cmd, '>>', "vpi_log/$tname.log", $deadline - time())) {
             print "==> Failed - running vvp.\n";
             $failed++;
             next;
