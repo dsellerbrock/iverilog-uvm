@@ -15768,6 +15768,22 @@ module_item
 	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$3.text;
       }
+  | attribute_list_opt
+	package_scope TYPE_IDENTIFIER type_parameter_value dimensions_opt list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*tref = new typeref_t($3.type, $2, $4);
+	FILE_NAME(tref, @3);
+	data_type_t*type = tref;
+	if ($5) {
+	      type = new parray_type_t(tref, $5);
+	      FILE_NAME(type, @3);
+	}
+	attributes_in_context = $1;
+	pform_make_var(@3, $6, type, attributes_in_context, 0);
+	var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3.text;
+      }
 
   /* Continuous assignment can have an optional drive strength, then
      an optional delay3 that applies to all the assignments in the
