@@ -82,6 +82,14 @@ sub execute_regression {
     $not_impl = 0;
     $len = 0;
 
+    # These fixed-seed distribution tests deliberately perform thousands of solves.
+    my %test_timeout = map { $_ => 300 } qw(
+        sv_joint_concat_dist_owned_class
+        sv_joint_concat_dist_owned_class_2023
+        sv_randomize_global_uniform
+        sv_randomize_global_uniform_2023
+    );
+
     foreach $tname (@testlist) {
         $len = length($tname) if (length($tname) > $len);
     }
@@ -139,7 +147,7 @@ sub execute_regression {
         $cmd .= " -s $testmod{$tname}" if ($testmod{$tname} ne "");
         $cmd .= " -t null" if ($testtype{$tname} eq "CN");
         $cmd .= " ./$srcpath{$tname}/$tname.v";
-        $deadline = time() + 120;
+        $deadline = time() + ($test_timeout{$tname} // 120);
 #        print "$cmd\n";
         if (run_program($cmd, '>', "log/$tname.log", $deadline - time())) {
             if (($? >> 8) == 124) {
