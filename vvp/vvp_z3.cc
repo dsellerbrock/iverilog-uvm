@@ -10394,6 +10394,62 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       return result;
 }
 
+/* Find a wide projected block that can flip while every other bit stays fixed. */
+static bool z3_joint_has_free_block_(Z3_context ctx, Z3_solver base,
+      const vector<Z3_ast>&variables, unsigned block_width)
+{
+      if (block_width == 0 || block_width >= 64
+          || Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
+      vector<uint64_t> model_values(variables.size());
+      Z3_model model = Z3_solver_get_model(ctx, base);
+      Z3_model_inc_ref(ctx, model);
+      for (size_t i = 0; i < variables.size(); ++i) {
+            Z3_sort sort = Z3_get_sort(ctx, variables[i]);
+            if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT
+                || Z3_get_bv_sort_size(ctx, sort) > 64
+                || !z3_eval_uint64(ctx, model, variables[i], model_values[i])) {
+                  Z3_model_dec_ref(ctx, model);
+                  return false;
+            }
+      }
+      Z3_model_dec_ref(ctx, model);
+
+      for (size_t i = 0; i < variables.size(); ++i) {
+            Z3_ast var = variables[i];
+            Z3_sort sort = Z3_get_sort(ctx, var);
+            unsigned width = Z3_get_bv_sort_size(ctx, sort);
+            for (unsigned high = width; high >= block_width;
+                 high -= block_width) {
+                  unsigned low = high - block_width;
+                  uint64_t bit_mask = ((UINT64_C(1) << block_width) - 1) << low;
+                  uint64_t keep_mask = ~bit_mask;
+                  vector<Z3_ast> assumptions;
+                  assumptions.reserve(variables.size() + 2);
+                  for (size_t j = 0; j < variables.size(); ++j) {
+                        if (j != i) {
+                              assumptions.push_back(Z3_mk_eq(ctx, variables[j],
+                                    Z3_mk_unsigned_int64(ctx, model_values[j],
+                                          Z3_get_sort(ctx, variables[j]))));
+                        }
+                  }
+                  assumptions.push_back(Z3_mk_eq(ctx,
+                        Z3_mk_bvand(ctx, var,
+                              Z3_mk_unsigned_int64(ctx, keep_mask, sort)),
+                        Z3_mk_unsigned_int64(ctx, model_values[i] & keep_mask,
+                              sort)));
+                  assumptions.push_back(Z3_mk_eq(ctx,
+                        Z3_mk_bvand(ctx, var,
+                              Z3_mk_unsigned_int64(ctx, bit_mask, sort)),
+                        Z3_mk_unsigned_int64(ctx, model_values[i] ^ bit_mask,
+                              sort)));
+                  if (Z3_solver_check_assumptions(ctx, base,
+                        (unsigned)assumptions.size(), assumptions.data()) == Z3_L_TRUE)
+                        return true;
+            }
+      }
+      return false;
+}
+
 /* Prove that `dependent` has one value for each assignment to `projection`.
  * Clone every other free constant so auxiliary witnesses cannot mask a second
  * legal dependent value. */
@@ -11787,14 +11843,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	  // Let dense components use rejection first; exact projections follow 64 misses.
 		  static const unsigned uniform_joint_attempt_cap = 4096;
 		  static const unsigned uniform_joint_enumerate_after = 64;
+		  static const unsigned uniform_joint_free_bit_threshold = 16;
+		  unsigned enumerate_after = uniform_joint_enumerate_after;
 		  bool enumerate_direct_scalars = builder.pending_soft.empty();
 		  for (Z3_ast var : component)
 			if (!uniform_joint_direct_scalars.count(var)
 			    || uniform_joint_width.at(var) > 64)
 			      enumerate_direct_scalars = false;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
-			if (enumerate_direct_scalars
-			    && attempt == uniform_joint_enumerate_after) {
+			if (enumerate_direct_scalars && attempt == enumerate_after) {
 			      bool sampled_projection = false;
 			      vector<Z3_ast> dependents = component;
 			      stable_sort(dependents.begin(), dependents.end(),
@@ -11857,7 +11914,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    if (sampled_projection) break;
 			      }
 			      if (sampled_projection) break;
-			      // shortcut: count at most 64 legal tuples before rejection; raise
+			      if (enumerate_after == uniform_joint_enumerate_after
+			          && z3_joint_has_free_block_(ctx, base, component,
+			                uniform_joint_free_bit_threshold)) {
+			            enumerate_after = uniform_joint_attempt_cap - 1;
+			            continue;
+			      }
+		      // shortcut: count at most 64 legal tuples before rejection; raise
 			      // the limit only if larger sparse projections regress.
 			      vector<uint64_t> tuple;
 			      const char*reason = nullptr;
