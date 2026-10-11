@@ -13477,6 +13477,12 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       const bool coverage_db_task =
 	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
 
+      if (name == "$system" && parm_count > 1) {
+	    cerr << get_fileline() << ": error: The $system task takes zero or one argument; found "
+		 << parm_count << "." << endl;
+	    des->errors += 1;
+      }
+
         /* IEEE 1800-2017 19.9: these database tasks take exactly one
 	 * string argument. Their VPI compiletf repeats the check for raw VVP
 	 * and externally generated input, but source compilation must reject
