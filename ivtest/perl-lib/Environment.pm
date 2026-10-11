@@ -107,7 +107,7 @@ sub get_ivl_version {
 # is redirected to a log file.
 #
 sub run_program {
-    my ($cmd, $log_mode, $log_file) = @_;
+    my ($cmd, $log_mode, $log_file, $timeout) = @_;
 
     my $ret;
     if ($log_mode) {
@@ -115,11 +115,15 @@ sub run_program {
         open(OLDERR, '>&STDERR');
         open(STDOUT, $log_mode, $log_file) or die("couldn't open log file '$log_file'\n");
         open(STDERR, '>&STDOUT');
-        $ret = system($cmd);
+        $ret = defined($timeout) ? system("python3", "../scripts/run_with_timeout.py",
+                                          $timeout, "--", "sh", "-c", $cmd) :
+                                   system($cmd);
         open(STDOUT, '>&OLDOUT');
         open(STDERR, '>&OLDERR');
     } else {
-        $ret = system($cmd);
+        $ret = defined($timeout) ? system("python3", "../scripts/run_with_timeout.py",
+                                          $timeout, "--", "sh", "-c", $cmd) :
+                                   system($cmd);
     }
     $ret;
 }

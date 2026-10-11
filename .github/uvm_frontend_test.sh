@@ -25,10 +25,7 @@ WORK="$(mktemp -d 2>/dev/null || echo /tmp/ivl_fe_work.$$)"
 FAIL=0
 HIDDEN=""
 
-# Per-run timeout wrapper (absent on the base macOS runner; fall back to none).
-if command -v timeout >/dev/null 2>&1 ; then TO="timeout 120"
-elif command -v gtimeout >/dev/null 2>&1 ; then TO="gtimeout 120"
-else TO="" ; fi
+run_limited() { python3 "$SRCROOT/scripts/run_with_timeout.py" 120 -- "$@"; }
 
 say()  { printf '\n=== %s ===\n' "$1" ; }
 pass() { printf '  PASS: %s\n' "$1" ; }
@@ -113,13 +110,13 @@ cd "$WORK"
 
 # --------------------------------------------------------------------------
 say "S1: basic automatic UVM from an arbitrary directory (no manual paths)"
-if "$IVERILOG" -g2012 -uvm -o sim.vvp tb.sv >s1.log 2>&1 ; then
+if run_limited "$IVERILOG" -g2012 -uvm -o sim.vvp tb.sv >s1.log 2>&1 ; then
     if grep -q 'error:' s1.log ; then
         fail "compile emitted error: lines"; grep 'error:' s1.log | head -3
     else
         pass "compiled with only '-uvm' (no -I, no uvm_pkg.sv, no -M/-m/-d)"
     fi
-    out="$($TO "$VVP" sim.vvp 2>&1)"
+    out="$(run_limited "$VVP" sim.vvp 2>&1)"
     if echo "$out" | grep -q 'UVM_ERROR :    0' && echo "$out" | grep -q 'PASS'; then
         pass "vvp sim.vvp ran clean (UVM_ERROR : 0), no runtime flags"
     else
@@ -132,11 +129,11 @@ fi
 # --------------------------------------------------------------------------
 say "S2: real UVM DPI genuinely loaded (not a UVM_NO_DPI accident)"
 # The -uvm program must run with zero 'DPI error' lines...
-dpi_with="$($TO "$VVP" sim.vvp 2>&1 | grep -c 'DPI error')"
+dpi_with="$(run_limited "$VVP" sim.vvp 2>&1 | grep -c 'DPI error')"
 # ...while the SAME source compiled in real-DPI mode WITHOUT a provider must
 # report the missing native symbols, proving the program truly needs them.
-"$IVERILOG" -g2012 -I "$UVMSRC" -o nomod.vvp "$UVMSRC/uvm_pkg.sv" tb.sv >s2.log 2>&1
-dpi_without="$($TO "$VVP" nomod.vvp 2>&1 | grep -c 'DPI error')"
+run_limited "$IVERILOG" -g2012 -I "$UVMSRC" -o nomod.vvp "$UVMSRC/uvm_pkg.sv" tb.sv >s2.log 2>&1
+dpi_without="$(run_limited "$VVP" nomod.vvp 2>&1 | grep -c 'DPI error')"
 # And confirm the module is actually baked into the program.
 baked="$(grep -c ':vpi_module "[^"]*uvm_dpi' sim.vvp 2>/dev/null || echo 0)"
 if [ "$dpi_with" -eq 0 ] && [ "$dpi_without" -gt 0 ] && [ "$baked" -ge 1 ]; then
@@ -147,8 +144,8 @@ fi
 
 # --------------------------------------------------------------------------
 say "S3: manual low-level override still works (backward compatibility)"
-"$IVERILOG" -g2012 -I "$UVMSRC" -o man.vvp "$UVMSRC/uvm_pkg.sv" tb.sv >s3.log 2>&1
-out="$($TO "$VVP" -M"$PFX/lib/ivl" -m uvm_dpi man.vvp 2>&1)"
+run_limited "$IVERILOG" -g2012 -I "$UVMSRC" -o man.vvp "$UVMSRC/uvm_pkg.sv" tb.sv >s3.log 2>&1
+out="$(run_limited "$VVP" -M"$PFX/lib/ivl" -m uvm_dpi man.vvp 2>&1)"
 if echo "$out" | grep -q 'UVM_ERROR :    0' && echo "$out" | grep -q 'PASS'; then
     pass "raw -I/uvm_pkg.sv + vvp -M/-m flow unchanged"
 else
@@ -157,11 +154,11 @@ fi
 
 # --------------------------------------------------------------------------
 say "S4: --uvm-no-dpi compiles the pure-SystemVerilog fallbacks"
-if "$IVERILOG" -g2012 --uvm-no-dpi -o nodpi.vvp tb.sv >s4.log 2>&1 ; then
+if run_limited "$IVERILOG" -g2012 --uvm-no-dpi -o nodpi.vvp tb.sv >s4.log 2>&1 ; then
     if grep -q ':vpi_module "[^"]*uvm_dpi' nodpi.vvp ; then
         fail "--uvm-no-dpi should not bake the UVM DPI module"
     else
-        out="$($TO "$VVP" nodpi.vvp 2>&1)"
+        out="$(run_limited "$VVP" nodpi.vvp 2>&1)"
         echo "$out" | grep -q 'PASS' && pass "--uvm-no-dpi ran without the DPI module" \
             || fail "--uvm-no-dpi run did not pass"
     fi
@@ -171,9 +168,9 @@ fi
 
 # --------------------------------------------------------------------------
 say "S5: --uvm-home override selects an explicit UVM library"
-if "$IVERILOG" -g2012 --uvm-home="$UVMSRC" -o home.vvp tb.sv >s5.log 2>&1 \
+if run_limited "$IVERILOG" -g2012 --uvm-home="$UVMSRC" -o home.vvp tb.sv >s5.log 2>&1 \
        && ! grep -q 'error:' s5.log ; then
-    out="$($TO "$VVP" home.vvp 2>&1)"
+    out="$(run_limited "$VVP" home.vvp 2>&1)"
     echo "$out" | grep -q 'UVM_ERROR :    0' && pass "--uvm-home compiled and ran" \
         || fail "--uvm-home run did not pass"
 else
@@ -183,7 +180,7 @@ fi
 # --------------------------------------------------------------------------
 say "S6: controlled diagnostic when the UVM DPI runtime is missing"
 if mv "$DPIVPI" "$DPIVPI.hidden" 2>/dev/null ; then
-    diag="$("$IVERILOG" -g2012 -uvm -o miss.vvp tb.sv 2>&1)"
+    diag="$(run_limited "$IVERILOG" -g2012 -uvm -o miss.vvp tb.sv 2>&1)"
     mv "$DPIVPI.hidden" "$DPIVPI"
     if echo "$diag" | grep -qi 'UVM DPI runtime' && echo "$diag" | grep -qi 'UVM_NO_DPI'; then
         pass "missing DPI runtime produced a clear high-level diagnostic"
@@ -196,7 +193,7 @@ fi
 
 # --------------------------------------------------------------------------
 say "S7: controlled diagnostic when the UVM package is missing"
-"$IVERILOG" -g2012 --uvm-home=/nonexistent/uvm -o never.vvp tb.sv >s7.log 2>&1
+run_limited "$IVERILOG" -g2012 --uvm-home=/nonexistent/uvm -o never.vvp tb.sv >s7.log 2>&1
 rc=$?
 if [ $rc -ne 0 ] && grep -qi 'uvm_pkg.sv' s7.log ; then
     pass "missing UVM package failed with a clear message (exit $rc)"
@@ -206,7 +203,7 @@ fi
 
 # --------------------------------------------------------------------------
 say "S8: --uvm-version reports the bundled version"
-ver="$("$IVERILOG" --uvm-version 2>&1)"
+ver="$(run_limited "$IVERILOG" --uvm-version 2>&1)"
 if [ -n "$ver" ] && echo "$ver" | grep -qi 'uvm'; then
     pass "--uvm-version -> $ver"
 else
@@ -227,12 +224,12 @@ for edition in 2017 2023; do
     for fixture in report_bridge report_server legacy_regex legacy_cached_regex legacy_cached_regex_no_report legacy_10_dpi; do
         options=(-m "$DPIVPI")
         [[ "$fixture" != report_bridge && "$fixture" != legacy_cached_regex_no_report && "$fixture" != legacy_10_dpi ]] && options=(-uvm)
-        if "$IVERILOG" "-g$edition" "${options[@]}" -s main -o report.vvp \
+        if run_limited "$IVERILOG" "-g$edition" "${options[@]}" -s main -o report.vvp \
             "$SRCROOT/tests/uvm_releases/$fixture.sv" >report.log 2>&1; then
             if [ "$fixture" = legacy_10_dpi ]; then
-                out="$($TO "$VVP" -- report.vvp +legacy_dpi=alpha -f literal.txt +legacy_dpi=beta 2>&1)"
+                out="$(run_limited "$VVP" -- report.vvp +legacy_dpi=alpha -f literal.txt +legacy_dpi=beta 2>&1)"
             else
-                out="$($TO "$VVP" report.vvp 2>&1)"
+                out="$(run_limited "$VVP" report.vvp 2>&1)"
             fi
             rc=$?
             if [[ "$fixture" = legacy_cached_regex_no_report || "$fixture" = legacy_10_dpi ]] &&

@@ -28,13 +28,26 @@ class sparse_over_tuple_cap;
   }
 endclass
 
+class sparse_functional_unequal;
+  rand bit branch;
+  rand bit [6:0] projected;
+  rand bit [31:0] dependent;
+  constraint legal {
+    if (branch) projected inside {[7'd0:7'd31]};
+    else projected inside {[7'd0:7'd95]};
+    dependent == {25'd0, projected} + {31'd0, branch};
+  }
+endclass
+
 module main;
   sparse_coupled item;
   sparse_unsatisfiable impossible;
   sparse_over_tuple_cap boundary;
+  sparse_functional_unequal functional;
   integer count00 = 0;
   integer count10 = 0;
   integer count11 = 0;
+  integer branch_count = 0;
   initial begin
     item = new;
     item.srandom(416);
@@ -70,6 +83,25 @@ module main;
         $fatal(1, "over-cap sparse result is outside its legal set");
     end else if (boundary.value != 32'd0 || boundary.copy != 32'd0)
       $fatal(1, "over-cap singleton result is outside its legal set");
+
+    functional = new;
+    functional.srandom(418);
+    repeat (32) begin
+      if (!functional.randomize())
+        $fatal(1, "functional sparse randomize failed");
+      if (functional.branch) begin
+        if (functional.projected > 7'd31)
+          $fatal(1, "functional sparse branch tuple is illegal");
+        branch_count++;
+      end else if (functional.projected > 7'd95)
+        $fatal(1, "functional sparse branch tuple is illegal");
+      if (functional.dependent
+          != {25'd0, functional.projected} + {31'd0, functional.branch})
+        $fatal(1, "functional sparse dependent value is wrong");
+    end
+    if (branch_count < 2 || branch_count > 14)
+      $fatal(1, "functional sparse tuple distribution is biased: %0d/32",
+             branch_count);
     $display("PASSED");
   end
 endmodule

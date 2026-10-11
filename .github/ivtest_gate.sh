@@ -99,6 +99,11 @@ if [ -n "$new_fails" ]; then
     echo ""
     echo "GATE FAIL: unexplained new ivtest failures:"
     echo "$new_fails" | sed 's/^/  /'
+    while IFS= read -r test; do
+        grep -F "$test:" "$WORK/ivtest.log" | tail -1
+        echo "--- log/$test.log (last 80 lines) ---"
+        tail -n 80 "log/$test.log"
+    done <<< "$new_fails"
     echo "Each must be fixed, or added to $EXPECT with a documented reason."
     status=1
 fi

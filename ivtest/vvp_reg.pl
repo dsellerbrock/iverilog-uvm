@@ -27,6 +27,7 @@ use RegressionList;
 use Diff;
 use Reporting;
 use Environment;
+use Time::HiRes qw(time);
 
 
 #
@@ -81,6 +82,14 @@ sub execute_regression {
     $not_impl = 0;
     $len = 0;
 
+    # These fixed-seed distribution tests deliberately perform thousands of solves.
+    my %test_timeout = map { $_ => 300 } qw(
+        sv_joint_concat_dist_owned_class
+        sv_joint_concat_dist_owned_class_2023
+        sv_randomize_global_uniform
+        sv_randomize_global_uniform_2023
+    );
+
     foreach $tname (@testlist) {
         $len = length($tname) if (length($tname) > $len);
     }
@@ -103,6 +112,7 @@ sub execute_regression {
 
     foreach $tname (@testlist) {
         my ($pass_type);
+        my $deadline;
         next if ($tname eq "");  # Skip test that have been replaced.
 
         $total++;
@@ -137,8 +147,14 @@ sub execute_regression {
         $cmd .= " -s $testmod{$tname}" if ($testmod{$tname} ne "");
         $cmd .= " -t null" if ($testtype{$tname} eq "CN");
         $cmd .= " ./$srcpath{$tname}/$tname.v";
+        $deadline = time() + ($test_timeout{$tname} // 120);
 #        print "$cmd\n";
-        if (run_program($cmd, '>', "log/$tname.log")) {
+        if (run_program($cmd, '>', "log/$tname.log", $deadline - time())) {
+            if (($? >> 8) == 124) {
+                &print_rpt("==> Failed - timed out running iverilog.\n");
+                $failed++;
+                next;
+            }
             if ($testtype{$tname} eq "CE") {
                 # Check if the system command core dumped!
                 if ($? >> 8 & 128) {
@@ -177,7 +193,13 @@ sub execute_regression {
                             "--show-reachable=yes " : "";
         $cmd .= "vvp$sfx vsim $vvp_args $plargs{$tname}";
 #        print "$cmd\n";
-        if ($pass_type == 0 and run_program($cmd, '>>', "log/$tname.log")) {
+        if ($pass_type == 0 and run_program($cmd, '>>', "log/$tname.log",
+                                           $deadline - time())) {
+            if (($? >> 8) == 124) {
+                &print_rpt("==> Failed - timed out running vvp.\n");
+                $failed++;
+                next;
+            }
             if ($testtype{$tname} eq "RE") {
                 # Check if the system command core dumped!
                 if ($? >> 8 & 128) {

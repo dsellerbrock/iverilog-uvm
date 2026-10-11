@@ -8974,20 +8974,32 @@ struct z3_ground_eval_t {
  * every counted value is checked against that factor by ground evaluation
  * around one model value. False means "not shown", never "few". */
 static bool z3_isolated_count_exceeds_(Z3_context ctx, Z3_solver base,
-                                       Z3_ast var, unsigned width, size_t cap)
+                                       Z3_ast var, unsigned width, size_t cap,
+                                       Z3_ast*factor_out = nullptr)
 {
       typedef dist_wide_uint_t big;
+      if (factor_out) *factor_out = nullptr;
       if (width == 0) return false;
       Z3_ast formula = nullptr;
       if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
-      if (Z3_solver_check(ctx, base) != Z3_L_TRUE) return false;
-      Z3_model model = Z3_solver_get_model(ctx, base);
+      if (factor_out) *factor_out = formula;
+      /* Check the isolated factor itself; checking BASE first lets solver
+         preprocessing expose auxiliary guards to later assertion queries. */
+      Z3_solver isolated = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, isolated);
+      Z3_solver_assert(ctx, isolated, formula);
+      if (Z3_solver_check(ctx, isolated) != Z3_L_TRUE) {
+            Z3_solver_dec_ref(ctx, isolated);
+            return false;
+      }
+      Z3_model model = Z3_solver_get_model(ctx, isolated);
       Z3_model_inc_ref(ctx, model);
       Z3_ast value = nullptr;
       big anchor;
       bool have = Z3_model_eval(ctx, model, var, true, &value) && value
             && big::from_numeral(ctx, value, anchor);
       Z3_model_dec_ref(ctx, model);
+      Z3_solver_dec_ref(ctx, isolated);
       if (!have) return false;
 
       big maximum;
@@ -9030,15 +9042,16 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
                                                                       Z3_ast var,
                                                                       unsigned width,
                                                                       z3_rng_stream_t&rng,
-                                                                      Z3_ast&sample)
+                                                                      Z3_ast&sample,
+                                                                      Z3_ast isolated_factor = nullptr)
 {
       typedef dist_wide_uint_t big;
       sample = nullptr;
       if (width == 0 || width > WIDE_INTERVAL_MAX_WIDTH)
             return WIDE_INTERVAL_NOT_APPLICABLE;
 
-      Z3_ast formula = nullptr;
-      if (!z3_isolated_subject_factor_(ctx, base, var, formula))
+      Z3_ast formula = isolated_factor;
+      if (!formula && !z3_isolated_subject_factor_(ctx, base, var, formula))
             return WIDE_INTERVAL_NOT_APPLICABLE;
       if (Z3_get_bool_value(ctx, formula) == Z3_L_TRUE) {
             big domain;
@@ -10296,10 +10309,12 @@ static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
  * ranges bounds the loop. */
 static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       const vector<Z3_ast>&variables, z3_rng_stream_t&rng,
-      vector<uint64_t>&selected, const char*&reason)
+      vector<uint64_t>&selected, const char*&reason,
+      size_t max_tuples = 0, bool*limit_exceeded = nullptr)
 {
       selected.clear();
       reason = nullptr;
+      if (limit_exceeded) *limit_exceeded = false;
       if (variables.empty()) {
             reason = "joint sampling requires at least one projection variable";
             return Z3_L_UNDEF;
@@ -10329,6 +10344,14 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       Z3_lbool result = Z3_L_FALSE;
       while (dist_wide_uint_t::cmp(count, universe) < 0) {
             result = Z3_solver_check(ctx, base);
+            if (result == Z3_L_TRUE && max_tuples
+                  && dist_wide_uint_t::cmp(count,
+                        dist_wide_uint_t::from_u64((uint64_t)max_tuples)) >= 0) {
+                  if (limit_exceeded) *limit_exceeded = true;
+                  reason = "the complete joint solution set exceeds the preflight limit";
+                  result = Z3_L_UNDEF;
+                  break;
+            }
             if (result != Z3_L_TRUE) {
                   if (result == Z3_L_UNDEF)
                         reason = "the solver returned UNKNOWN during joint sampling";
@@ -10369,6 +10392,63 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       if (result == Z3_L_FALSE && !selected.empty()) return Z3_L_TRUE;
       if (result == Z3_L_TRUE && !selected.empty()) return Z3_L_TRUE;
       return result;
+}
+
+/* Prove that `dependent` has one value for each assignment to `projection`.
+ * Clone every other free constant so auxiliary witnesses cannot mask a second
+ * legal dependent value. */
+static bool z3_joint_unique_projection_(Z3_context ctx, Z3_solver base,
+      const vector<Z3_ast>&projection, Z3_ast dependent)
+{
+      Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      vector<Z3_ast> clauses;
+      set<Z3_ast> constants;
+      for (unsigned i = 0; i < Z3_ast_vector_size(ctx, assertions); ++i) {
+            Z3_ast clause = Z3_ast_vector_get(ctx, assertions, i);
+            if (!z3_collect_constants_(ctx, clause, constants)) {
+                  Z3_ast_vector_dec_ref(ctx, assertions);
+                  return false;
+            }
+            clauses.push_back(clause);
+      }
+      Z3_ast_vector_dec_ref(ctx, assertions);
+
+      vector<Z3_ast> from;
+      vector<Z3_ast> to;
+      Z3_ast dependent_copy = nullptr;
+      for (Z3_ast constant : constants) {
+            if (find(projection.begin(), projection.end(), constant)
+                  != projection.end())
+                  continue;
+            Z3_ast copy = Z3_mk_fresh_const(ctx, "joint_copy",
+                                           Z3_get_sort(ctx, constant));
+            from.push_back(constant);
+            to.push_back(copy);
+            if (constant == dependent) dependent_copy = copy;
+      }
+      if (!dependent_copy) return false;
+
+      Z3_solver proof = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, proof);
+      static const unsigned unique_projection_timeout_ms = 1000;
+      Z3_params params = Z3_mk_params(ctx);
+      Z3_params_inc_ref(ctx, params);
+      Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "timeout"),
+                         unique_projection_timeout_ms);
+      Z3_solver_set_params(ctx, proof, params);
+      Z3_params_dec_ref(ctx, params);
+      for (Z3_ast clause : clauses) {
+            Z3_solver_assert(ctx, proof, clause);
+            Z3_solver_assert(ctx, proof, Z3_substitute(ctx, clause,
+                  (unsigned)from.size(), from.data(), to.data()));
+      }
+      Z3_ast distinct = Z3_mk_not(ctx,
+            Z3_mk_eq(ctx, dependent, dependent_copy));
+      Z3_solver_assert(ctx, proof, distinct);
+      Z3_lbool result = Z3_solver_check(ctx, proof);
+      Z3_solver_dec_ref(ctx, proof);
+      return result == Z3_L_FALSE;
 }
 
 /* Prove that a one-variable factor admits exactly [0, 2^bits).  This
@@ -11704,9 +11784,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (feasible == Z3_L_UNDEF)
 		  return fail_joint("the solver returned UNKNOWN before uniform joint sampling");
 	    for (const auto&component : uniform_joint_components) {
-		  // Keep rejection cheap for dense components. Once a direct-scalar
-		  // component exhausts 64 proposals, count its complete finite projection
-		  // and reservoir-sample one tuple exactly, regardless of cardinality.
+	  // Let dense components use rejection first; exact projections follow 64 misses.
 		  static const unsigned uniform_joint_attempt_cap = 4096;
 		  static const unsigned uniform_joint_enumerate_after = 64;
 		  bool enumerate_direct_scalars = builder.pending_soft.empty();
@@ -11717,33 +11795,101 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
 			if (enumerate_direct_scalars
 			    && attempt == uniform_joint_enumerate_after) {
+			      bool sampled_projection = false;
+			      vector<Z3_ast> dependents = component;
+			      stable_sort(dependents.begin(), dependents.end(),
+				    [&](Z3_ast left, Z3_ast right) {
+					  return uniform_joint_width.at(left)
+						> uniform_joint_width.at(right);
+				    });
+			      for (Z3_ast dependent : dependents) {
+				    vector<Z3_ast> projection;
+				    for (Z3_ast var : component)
+					  if (var != dependent) projection.push_back(var);
+				    if (!z3_joint_unique_projection_(ctx, base,
+					  projection, dependent)) continue;
+				    // Uniqueness makes accepted projections a bijection with legal tuples.
+				    // shortcut: stop at 64 proposals; use projected model counting
+				    // if sparse inputs still make this path slow.
+				    for (unsigned projected_attempt = 0;
+					  projected_attempt < uniform_joint_enumerate_after;
+					  ++projected_attempt) {
+					  vector<Z3_ast> pins;
+					  pins.reserve(component.size());
+					  for (Z3_ast var : projection) {
+						unsigned width = uniform_joint_width.at(var);
+						z3_rng_stream_t&rng = property_rng(
+						      uniform_joint_property.at(var));
+						uint64_t value = width == 64
+						      ? ((uint64_t)rng.next() << 32) | rng.next()
+						      : rng.uniform_u64(UINT64_C(1) << width);
+						Z3_ast constant = Z3_mk_unsigned_int64(ctx, value,
+						      Z3_get_sort(ctx, var));
+						pins.push_back(Z3_mk_eq(ctx, var, constant));
+					  }
+					  feasible = Z3_solver_check_assumptions(ctx, base,
+						(unsigned)pins.size(), pins.data());
+					  if (feasible == Z3_L_UNDEF)
+						return fail_joint(
+						      "the solver returned UNKNOWN during functional joint sampling");
+					  if (feasible == Z3_L_FALSE) continue;
+					  Z3_model model = Z3_solver_get_model(ctx, base);
+					  Z3_model_inc_ref(ctx, model);
+					  uint64_t value = 0;
+					  bool extracted = z3_eval_uint64(ctx, model,
+						dependent, value);
+					  Z3_model_dec_ref(ctx, model);
+					  if (!extracted)
+						return fail_joint(
+						      "a functional joint model value could not be extracted");
+					  pins.push_back(Z3_mk_eq(ctx, dependent,
+						Z3_mk_unsigned_int64(ctx, value,
+						      Z3_get_sort(ctx, dependent))));
+					  for (Z3_ast pin : pins) {
+						Z3_solver_assert(ctx, base, pin);
+						Z3_optimize_assert(ctx, opt, pin);
+					  }
+					  for (Z3_ast var : component)
+						uniform_sampled_vars.insert(var);
+					  sampled_projection = true;
+					  break;
+				    }
+				    if (sampled_projection) break;
+			      }
+			      if (sampled_projection) break;
+			      // shortcut: count at most 64 legal tuples before rejection; raise
+			      // the limit only if larger sparse projections regress.
 			      vector<uint64_t> tuple;
 			      const char*reason = nullptr;
+			      bool limit_exceeded = false;
 			      z3_rng_stream_t&rng = property_rng(
 				    uniform_joint_property.at(component.front()));
 			      Z3_lbool sampled = z3_sample_joint_(ctx, base, component,
-				    rng, tuple, reason);
+				    rng, tuple, reason, 64, &limit_exceeded);
 			      if (sampled == Z3_L_TRUE) {
 				    vector<Z3_ast> pins;
 				    pins.reserve(component.size());
 				    for (size_t i = 0; i < component.size(); ++i) {
 					  Z3_ast var = component[i];
-					  Z3_ast value = Z3_mk_unsigned_int64(ctx, tuple[i],
-						Z3_get_sort(ctx, var));
-					  pins.push_back(Z3_mk_eq(ctx, var, value));
+					  pins.push_back(Z3_mk_eq(ctx, var,
+						Z3_mk_unsigned_int64(ctx, tuple[i],
+						      Z3_get_sort(ctx, var))));
 				    }
-				    for (size_t i = 0; i < component.size(); ++i) {
-					  Z3_solver_assert(ctx, base, pins[i]);
-					  Z3_optimize_assert(ctx, opt, pins[i]);
-					  uniform_sampled_vars.insert(component[i]);
+				    for (Z3_ast pin : pins) {
+					  Z3_solver_assert(ctx, base, pin);
+					  Z3_optimize_assert(ctx, opt, pin);
 				    }
-				    break;
-			      }
-			      if (sampled == Z3_L_FALSE)
+				    for (Z3_ast var : component)
+					  uniform_sampled_vars.insert(var);
+				    sampled_projection = true;
+			      } else if (sampled == Z3_L_FALSE) {
 				    return fail_joint(
-					  "the joint solution set became empty during exact sampling");
-			      return fail_joint(reason ? reason
-				    : "exact joint tuple sampling became indeterminate");
+					  "the joint solution set became empty during preflight sampling");
+			      } else if (!limit_exceeded) {
+				    return fail_joint(reason ? reason
+					  : "joint preflight sampling became indeterminate");
+			      }
+			      if (sampled_projection) break;
 			}
 			vector<Z3_ast> pins;
 			pins.reserve(component.size());
@@ -11811,8 +11957,33 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      Z3_optimize_assert(ctx, opt, pins[i]);
 			      uniform_sampled_vars.insert(component[i]);
 			}
-		      break;
-		}
+		    break;
+		  }
+		  if (enumerate_direct_scalars
+		      && !uniform_sampled_vars.count(component.front())) {
+			vector<uint64_t> tuple;
+			const char*reason = nullptr;
+			z3_rng_stream_t&rng = property_rng(
+			      uniform_joint_property.at(component.front()));
+			Z3_lbool sampled = z3_sample_joint_(ctx, base, component,
+			      rng, tuple, reason);
+			if (sampled != Z3_L_TRUE) {
+			      if (sampled == Z3_L_FALSE)
+				    return fail_joint(
+					  "the joint solution set became empty during exact sampling");
+			      return fail_joint(reason ? reason
+				    : "exact joint tuple sampling became indeterminate");
+			}
+			for (size_t i = 0; i < component.size(); ++i) {
+			      Z3_ast var = component[i];
+			      Z3_ast value = Z3_mk_unsigned_int64(ctx, tuple[i],
+				    Z3_get_sort(ctx, var));
+			      Z3_ast pin = Z3_mk_eq(ctx, var, value);
+			      Z3_solver_assert(ctx, base, pin);
+			      Z3_optimize_assert(ctx, opt, pin);
+			      uniform_sampled_vars.insert(var);
+			}
+		  }
 	    }
       }
 
@@ -12223,16 +12394,19 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!fallback_managed && !enumerated)
 		  enumerated = z3_enumerate_domain(ctx, base, pv.var,
 						pv.width, feasible);
+	    Z3_ast isolated_factor = nullptr;
 	    size_t sparse_cap = property_randc
 		  ? (size_t)VVP_RANDC_FEASIBLE_DOMAIN_CAP
 	                                       : SPARSE_DOMAIN_CAP;
 	      // Skip a probe that would only collect sparse_cap+1 models and
 	      // fail; the outcome is the same, minus the solver calls.
-	    if (!fallback_managed && !enumerated
-		&& !z3_isolated_count_exceeds_(ctx, base, pv.var, pv.width,
-		                               sparse_cap))
-		  enumerated = z3_enumerate_sparse_wide_domain_(
-			ctx, base, pv.var, pv.width, feasible, sparse_cap);
+	    if (!fallback_managed && !enumerated) {
+	      bool too_many = z3_isolated_count_exceeds_(ctx, base, pv.var,
+			pv.width, sparse_cap, &isolated_factor);
+	      if (!too_many)
+		    enumerated = z3_enumerate_sparse_wide_domain_(
+			  ctx, base, pv.var, pv.width, feasible, sparse_cap);
+	    }
 	    if (enumerated && property_randc && pv.width > 20
 		&& (pv.width > 64
 		    || builder.type(pv.idx)->property_is_static(
@@ -12276,7 +12450,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	  Z3_solver_assert(ctx, base, eq);
 	  continue;
 	    }
-
 	    if (!enumerated && property_randc && !fallback_managed
 		&& pv.width > 20) {
 		  Z3_lbool status = Z3_solver_check(ctx, base);
@@ -12352,7 +12525,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  wide_interval_sampling_t interval_result =
 		z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
 							   pv.width,
-							   property_rng(pv.idx), sampled);
+							   property_rng(pv.idx), sampled,
+							   isolated_factor);
 		  if (interval_result == WIDE_INTERVAL_SAMPLED) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var, sampled);
 			Z3_optimize_assert(ctx, opt, eq);

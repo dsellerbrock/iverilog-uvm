@@ -684,12 +684,12 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Select and reproduce the next independent open IEEE blocker on a branch from freshly fetched origin/main; do not inspect CI."
+next_command: "After the 10\u201315 minute interval, read only the existing job 229 output log; do not query scheduler state."
 current_execution_checkpoint:
-  active_work_item: "IEEE-RAND-STRUCT-CLASS-HANDLE (#419 sub-slice)"
-  source_head: "67e2351ca5c6b3ed8977b972de495d768ebed5cf"
-  phase: "SUSPENDED_PR_QUALIFICATION_PENDING"
-  pull_request: "#527 OPEN+DRAFT; no CI status queried."
-  completed: "Fresh origin/main build/install passed. The paired active class-handle-in-rand-struct regression and nested-struct neighbor pass 2/2 in legacy and JSON/VVP. Class-declaration/member focus passes 15/15 legacy and 14/14 JSON/VVP after correcting its stale CE classification. Draft PR #527 is open; CI was not checked."
-  next_action: "Select the next blocker from the refreshed open IEEE issue list and verify its source/reproducer; no CI polling."
-  next_command: "git diff --check"
+  active_work_item: "CI-POST-MERGE-PIN2-RUNTIME-HANG (regression introduced by merged PR #526)"
+  source_head: "aa08d1cb951dd93147cb43911f47a0de069f9033"
+  phase: "ROOT_CAUSES_LOCALLY_PATCHED; JOB_229_LOG_STALLED_AT_IMPORTED_CONSTANTS_TEST; CI_UNQUALIFIED"
+  pull_request: "None; local fix branch agent/fix-pin2-main-20261010 is unpushed. Do not start a new CI run until the user approves."
+  completed: "First-parent bisect identifies merged #526 as the first bad merge. Pin2 is 120-second/4-GiB guarded on baseline and passes the fix in 24.4 seconds/120.6 MiB. The 13 other originally reported ivtests pass on the final local build. Sparse-coupled 2017/2023 pass in 71.2/69.0 seconds at sampled 176.9/175.4 MiB after moving bounded exact/functional preflight ahead of rejection. Imported-constants UVM passes with real DPI in 7.0 seconds/259.6 MiB; its baseline run stalls beyond 120 seconds on the same sampler path. All reproductions used a hard per-test 120-second wall timeout and 4-GiB process-group RSS cap, escalating TERM to KILL after 2 seconds. Job 229 remains untouched; its 15:07 MDT log tail still ends at constraint_imported_constants_test, with mtime 14:09:49 MDT and size 2,984,508 bytes, consistent with the locally reproduced baseline stall. CI is not qualified."
+  next_action: "Leave job 229 untouched and inspect only its existing output log again after 10-15 minutes. The imported-constants baseline stall is locally reproduced and fixed. Keep the concrete per-test process-group timeout proposal pending user approval; do not alter timeout scripts or launch a new CI run without user approval."
+  next_command: "ssh DAN-DESKTOP 'tail -n 35 ~/slurm-runs/iverilog-uvm/root/ci1677-aa08d1c-20261010T150342Z/full/logs/ivl-1677-main-229.out'; ssh DAN-DESKTOP 'stat -c \"mtime=%y size=%s\" ~/slurm-runs/iverilog-uvm/root/ci1677-aa08d1c-20261010T150342Z/full/logs/ivl-1677-main-229.out'"
