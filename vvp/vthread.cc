@@ -22845,6 +22845,16 @@ bool of_AA_LOADK_V_V(vthread_t thr, vvp_code_t cp)
       return aa_load_keep_vec<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
 }
 
+bool of_AA_LOADK_OBJ_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_load_keep_str<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_LOADK_OBJ_V(vthread_t thr, vvp_code_t)
+{
+      return aa_load_keep_vec<vvp_object_t, vvp_assoc_object>(thr);
+}
+
 bool of_AA_LOAD_R_OBJ(vthread_t thr, vvp_code_t)
 {
       return aa_load_obj<double, vvp_assoc_real>(thr);

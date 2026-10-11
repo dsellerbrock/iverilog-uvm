@@ -165,6 +165,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%aa/loadk/v/obj", of_AA_LOADK_V_OBJ, 1, {OA_BIT1,   OA_NONE,     OA_NONE} },
       { "%aa/loadk/v/str", of_AA_LOADK_V_STR, 1, {OA_BIT1,   OA_NONE,     OA_NONE} },
       { "%aa/loadk/v/v", of_AA_LOADK_V_V, 1, {OA_BIT1,     OA_NONE,     OA_NONE} },
+      { "%aa/loadk/obj/str", of_AA_LOADK_OBJ_STR, 0, {OA_NONE, OA_NONE, OA_NONE} },
+      { "%aa/loadk/obj/v", of_AA_LOADK_OBJ_V, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%aa/loadlv/o/q/obj", of_AA_LOADLV_O_Q_OBJ, 1, {OA_STRING, OA_NONE, OA_NONE} },
       { "%aa/loadlv/o/q/str", of_AA_LOADLV_O_Q_STR, 1, {OA_STRING, OA_NONE, OA_NONE} },
       { "%aa/loadlv/o/q/v",   of_AA_LOADLV_O_Q_V,   1, {OA_STRING, OA_NONE, OA_NONE} },

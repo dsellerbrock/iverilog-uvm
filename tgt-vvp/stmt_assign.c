@@ -1241,12 +1241,14 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			      unsigned lab_ready = local_count++;
 			      const char*dup_key = strcmp(key_kind, "str") == 0
 				    ? "%dup/str" : "%dup/vec4";
+			      const char*load_keep = strcmp(key_kind, "str") == 0
+				    ? "%aa/loadk/obj/str" : "%aa/loadk/obj/v";
 			      const char*pop_keys = strcmp(key_kind, "str") == 0
 				    ? "%pop/str 2" : "%pop/vec4 2";
 
 			      fprintf(vvp_out, "    %s;\n", dup_key);
 			      fprintf(vvp_out, "    %s;\n", dup_key);
-			      fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+			      fprintf(vvp_out, "    %s; l-value probe\n", load_keep);
 			      fprintf(vvp_out, "    %%test_nul/obj;\n");
 			      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
 				      thread_count, lab_make);
