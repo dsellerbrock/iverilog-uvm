@@ -21851,6 +21851,24 @@ template <class KEY>
 static bool aa_index_has_xz_(const KEY&)
 { return false; }
 
+template <typename ELEM, class ASSOC, class KEY>
+static void aa_materialize_rmw_(vthread_t thr, ASSOC*assoc,
+				const KEY&key, ELEM&value,
+				unsigned receiver_depth=0)
+{
+      if (assoc)
+	    assoc->get(key, value);
+      if (assoc && !aa_index_has_xz_(key) && !assoc->exists_key(key)) {
+	    assoc->set(key, assoc_value_copy_element_(value));
+	    assoc->get(key, value);
+	    vvp_object_t recv = thr->peek_object(receiver_depth);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(receiver_depth),
+					thr->peek_object_root(receiver_depth),
+					"aa-rmw-insert");
+      }
+}
+
 static void aa_warn_invalid_write_(vthread_t thr)
 {
       cerr << thr->get_fileline()
@@ -21922,8 +21940,7 @@ static bool aa_load_keep_str(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-	  if (assoc)
-		assoc->get(key, value);
+      aa_materialize_rmw_(thr, assoc, key, value);
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -21938,8 +21955,7 @@ static bool aa_load_keep_obj(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 1);
-	  if (assoc)
-		assoc->get(key, value);
+	  aa_materialize_rmw_(thr, assoc, key, value, 1);
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -21953,8 +21969,7 @@ static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 0) /* vec4 key lives on the vec4 stack; the receiver is the TOP object (the str variant already peeks depth 0 — depth 1 asserted on the obj stack) */;
-	  if (assoc)
-		assoc->get(key, value);
+	  aa_materialize_rmw_(thr, assoc, key, value);
 
       push_loaded_qo_value_(thr, value, wid);
       return true;

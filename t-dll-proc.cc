@@ -296,6 +296,7 @@ bool dll_target::proc_assign(const NetAssign*net)
       flag &= make_assign_lvals_(net);
 
       stmt_cur_->u_.assign_.oper = net->assign_operator();
+      stmt_cur_->u_.assign_.assoc_rmw = net->assoc_rmw();
       assert(expr_ == 0);
       const NetExpr*rval = net->rval();
       if (rval == 0) {

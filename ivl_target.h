@@ -2581,6 +2581,8 @@ extern unsigned ivl_stmt_lwidth(ivl_statement_t net);
 extern const char* ivl_stmt_name(ivl_statement_t net);
   /* IVL_ST_ASSIGN */
 extern char ivl_stmt_opcode(ivl_statement_t net);
+  /* IVL_ST_ASSIGN: compiler-expanded associative read-modify-write. */
+extern int ivl_stmt_is_assoc_rmw(ivl_statement_t net);
   /* IVL_ST_STASK */
 extern ivl_expr_t ivl_stmt_parm(ivl_statement_t net, unsigned idx);
   /* IVL_ST_STASK */

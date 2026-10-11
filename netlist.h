@@ -3757,6 +3757,10 @@ class NetAssign : public NetAssignBase {
 
       inline char assign_operator(void) const { return op_; }
 
+      // The VVP target needs this after associative compound assignments expand.
+      void set_assoc_rmw(bool flag = true) { assoc_rmw_ = flag; }
+      bool assoc_rmw() const { return assoc_rmw_; }
+
       // Elaboration marks compiler-generated, immutable blocking snapshots
       // whose per-iteration value may be used while lowering the enclosing
       // synthesized block. User assignments never receive this marker.
@@ -3783,6 +3787,7 @@ class NetAssign : public NetAssignBase {
 			   const NetAssign_*lval, NetExpr*rval_result) const;
 
       char op_;
+      bool assoc_rmw_ = false;
       bool synth_generated_snapshot_ = false;
 };
 
