@@ -11784,8 +11784,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (feasible == Z3_L_UNDEF)
 		  return fail_joint("the solver returned UNKNOWN before uniform joint sampling");
 	    for (const auto&component : uniform_joint_components) {
-	  // Try exact small-set and functional projections before rejection; sparse
-	  // components can otherwise spend many proposals finding a tiny legal set.
+	  // Let dense components use rejection first; exact projections follow 64 misses.
 		  static const unsigned uniform_joint_attempt_cap = 4096;
 		  static const unsigned uniform_joint_enumerate_after = 64;
 		  bool enumerate_direct_scalars = builder.pending_soft.empty();
@@ -11794,7 +11793,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			    || uniform_joint_width.at(var) > 64)
 			      enumerate_direct_scalars = false;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
-			if (enumerate_direct_scalars && attempt == 0) {
+			if (enumerate_direct_scalars
+			    && attempt == uniform_joint_enumerate_after) {
 			      bool sampled_projection = false;
 			      vector<Z3_ast> dependents = component;
 			      stable_sort(dependents.begin(), dependents.end(),
