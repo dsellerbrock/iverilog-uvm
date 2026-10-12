@@ -36,6 +36,7 @@ sv_container_elem_queue_autoviv
 sv_inside_queue_expr
 sv_class_prop_darray_assign1
 sv_assoc_class_key_lifetime
+sv_assoc_signed_traversal
 sv_darray_new_default_runtime_size
 sv_typed_string_repeat_runtime_error
 
