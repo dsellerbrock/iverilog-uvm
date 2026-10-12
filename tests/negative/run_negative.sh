@@ -7,7 +7,8 @@
 # Usage: PATH=<install>/bin:$PATH bash tests/negative/run_negative.sh
 
 BIN=$(which iverilog)
-DIR=$(dirname "$0")
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+DIR="$ROOT/tests/negative"
 PASS=0
 FAIL=0
 
@@ -22,7 +23,8 @@ for sv in "$DIR"/*.sv; do
     # rejection (the automaton path is covered by a positive gold test).
     env_pfx=""
     if grep -q "NEG-LEGACY-ONLY" "$sv"; then env_pfx="IVL_SVA_LEGACY=1"; fi
-    out=$(env $env_pfx "$BIN" -g2012 -o /dev/null "$sv" 2>&1)
+    out=$(python3 "$ROOT/scripts/run_with_timeout.py" 120 -- \
+          env ${env_pfx:+$env_pfx} "$BIN" -g2012 -o /dev/null "$sv" 2>&1)
     status=$?
     # A rejection is valid if the compile fails (non-zero exit) with a
     # loud diagnostic. The fork uses both "error:" (illegal input) and
