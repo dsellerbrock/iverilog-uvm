@@ -1,3 +1,4 @@
-ivltests/sv_ref_argument_type_mismatch_fail.v:18: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
-ivltests/sv_ref_argument_type_mismatch_fail.v:19: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
-2 error(s) during elaboration.
+ivltests/sv_ref_argument_type_mismatch_fail.v:23: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+ivltests/sv_ref_argument_type_mismatch_fail.v:24: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+ivltests/sv_ref_argument_type_mismatch_fail.v:25: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+3 error(s) during elaboration.
