@@ -216,6 +216,14 @@ jobs:
           mingw-w64-${{ matrix.env }}-libffi
           mingw-w64-${{ matrix.env }}-libsystre
 
+    - name: Prefer primary MSYS2 mirror, retain fallbacks
+      run: |
+        for mirrorlist in /etc/pacman.d/mirrorlist.msys "/etc/pacman.d/mirrorlist.${MSYSTEM,,}"; do
+          awk -v primary='Server = https://repo.msys2.org/$repo/$arch' \
+            'BEGIN { print primary } $0 != primary' "$mirrorlist" > "$mirrorlist.tmp"
+          mv "$mirrorlist.tmp" "$mirrorlist"
+        done
+
     - name: Install Python dependencies
       run: pip3 install docopt
 
