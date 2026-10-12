@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_randomize_inline_this_missing_member_fail.v",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "sv_randomize_inline_this_missing_member_fail"
+}

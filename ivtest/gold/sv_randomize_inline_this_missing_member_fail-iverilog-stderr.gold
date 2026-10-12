@@ -1,0 +1,2 @@
+ivltests/sv_randomize_inline_this_missing_member_fail.v:15: error: Inline constraint member `no_such_member' is not a property of the randomize() receiver.
+1 error(s) during elaboration.
