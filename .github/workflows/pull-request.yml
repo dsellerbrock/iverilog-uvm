@@ -1,0 +1,41 @@
+name: Pull request checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  fast:
+    runs-on: ubuntu-24.04
+    name: Fast Linux
+    steps:
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+
+    - name: Install
+      run: |
+        sudo apt update -qq
+        sudo apt install -y make g++ git bison flex gperf libreadline-dev libbz2-dev autoconf libz3-dev libffi-dev
+
+    - name: Build
+      run: |
+        autoconf
+        ./configure --enable-libveriuser --prefix="$PWD/local-install"
+        make -j$(nproc)
+
+    - name: Self-check
+      run: make check
+
+    - name: Install binary
+      run: make install
+
+    - name: Smoke tests
+      run: PATH="$PWD/local-install/bin:$PATH" ./ci/run-smoke.sh
