@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_ref_argument_type_mismatch_fail.v","iverilog-args":["-g2023","-s","sv_ref_argument_type_mismatch_fail"],"gold":"sv_ref_argument_type_mismatch_fail"}
