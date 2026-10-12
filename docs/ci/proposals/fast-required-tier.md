@@ -22,4 +22,4 @@ This shortens the default PR feedback path but moves some macOS and Windows fail
 
 ## Status
 
-Proposal only. No workflow or repository setting is changed here.
+Approved implementation is tracked in PR #547. Pull requests run the `Fast Linux` build and smoke job; main pushes, the 10:17 UTC nightly schedule, and manual dispatch run the full platform matrix. macOS runs its SystemVerilog regressions, other regressions, UVM suite, and UVM front-end suite as separate jobs with a 240-minute timeout each.
