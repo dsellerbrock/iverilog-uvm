@@ -1010,6 +1010,7 @@ struct ivl_statement_s {
 		  ivl_statement_assign_aux_s*aux_;
 		  unsigned lvals_;
 		  char oper; // Operator if this is a compressed assignment.
+		  bool assoc_rmw;
 	    } assign_;
 
 	    struct { /* IVL_ST_BLOCK, IVL_ST_FORK */

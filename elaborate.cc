@@ -8477,6 +8477,7 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 							     op_width, sign) : 0;
 		  if (comb) {
 			NetAssign*asn = new NetAssign(lv, comb);
+			asn->set_assoc_rmw();
 			asn->set_line(*this);
 			return asn;
 		  }

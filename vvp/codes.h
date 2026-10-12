@@ -67,6 +67,8 @@ extern bool of_AA_LOADK_R_V(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOADK_V_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOADK_V_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOADK_V_V(vthread_t thr, vvp_code_t code);
+extern bool of_AA_LOADK_OBJ_STR(vthread_t thr, vvp_code_t code);
+extern bool of_AA_LOADK_OBJ_V(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOAD_R_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOAD_R_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOAD_R_V(vthread_t thr, vvp_code_t code);

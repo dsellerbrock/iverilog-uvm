@@ -160,6 +160,14 @@ else
 fi
 
 echo ""
+echo "=== associative-array invalid-index warning focus ==="
+if ! bash "$ROOT/.github/ivtest_focus_gate.sh" \
+    regress-assoc-missing-key-warning-legacy.list \
+    regress-assoc-missing-key-warning-vvp.list; then
+    status=1
+fi
+
+echo ""
 echo "=== VVP runtime invariants ==="
 runtime_vvp=$(command -v vvp 2>/dev/null || true)
 runtime_iverilog=$(command -v iverilog 2>/dev/null || true)

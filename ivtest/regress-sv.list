@@ -1976,6 +1976,9 @@ sv_queue_dollar_arithmetic normal,-g2012 ivltests
 sv_foreach_hierarchical_dual_dim normal,-g2012 ivltests
 concat_unsized_literal_reject CE,-g2012 ivltests
 sv_assoc_default_values normal,-g2012 ivltests gold=sv_assoc_default_values.gold
+sv_assoc_missing_key_warning normal,-g2017,-s,sv_assoc_missing_key_warning ivltests gold=sv_assoc_missing_key_warning.gold
+sv_assoc_missing_key_warning_2023 normal,-g2023,-s,sv_assoc_missing_key_warning ivltests gold=sv_assoc_missing_key_warning.gold
+sv_assert_multiclock_assoc_internal_read normal,-g2017 ivltests gold=sv_assert_multiclock_assoc_internal_read.gold
 sv_assoc_function_output normal,-g2012 ivltests gold=sv_assoc_function_output.gold
 sv_assoc_function_output_lvalue_fail CE,-g2012 ivltests gold=sv_assoc_function_output_lvalue_fail.gold
 sv_assoc_task_output_lvalue_fail CE,-g2012 ivltests gold=sv_assoc_task_output_lvalue_fail.gold

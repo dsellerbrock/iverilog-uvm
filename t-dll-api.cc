@@ -3951,6 +3951,12 @@ extern "C" char ivl_stmt_opcode(ivl_statement_t net)
       return 0;
 }
 
+extern "C" int ivl_stmt_is_assoc_rmw(ivl_statement_t net)
+{
+      assert(net);
+      return net->type_ == IVL_ST_ASSIGN && net->u_.assign_.assoc_rmw;
+}
+
 extern "C" ivl_expr_t ivl_stmt_parm(ivl_statement_t net, unsigned idx)
 {
       assert(net);
