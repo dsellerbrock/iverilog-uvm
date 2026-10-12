@@ -1,13 +1,15 @@
 name: test
 
 on:
-  # Every push onto the main branch triggers a retest.
+  # Pull requests get the short required Linux gate; full platform coverage
+  # runs after merge, nightly, or on demand.
   push:
     branches:
       - main
-  # All pull_requests trigger a retest.
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '17 10 * * *'
 
 permissions:
   contents: read
@@ -17,11 +19,50 @@ env:
 
 jobs:
 
+  fast:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    name: Fast Linux
+    steps:
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+
+    - name: Install
+      run: |
+        sudo apt update -qq
+        sudo apt install -y make g++ git bison flex gperf libreadline-dev libbz2-dev autoconf libz3-dev libffi-dev
+
+    - name: Build
+      run: |
+        autoconf
+        ./configure --enable-libveriuser --prefix="$PWD/local-install"
+        make -j$(nproc)
+
+    - name: Self-check
+      run: make check
+
+    - name: Install binary
+      run: make install
+
+    - name: Smoke tests
+      run: PATH="$PWD/local-install/bin:$PATH" ./ci/run-smoke.sh
+
   mac:
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
+      matrix:
+        include:
+          - { suite: sv, name: '🍏 macOS (SystemVerilog)' }
+          - { suite: other, name: '🍏 macOS (other regressions)' }
+          - { suite: uvm, name: '🍏 macOS (UVM)' }
+          - { suite: frontend, name: '🍏 macOS (UVM front-end)' }
     runs-on: macos-15-intel
-    name: '🍏 macOS'
+    name: ${{ matrix.name }}
+    timeout-minutes: 240
     steps:
 
     - uses: actions/checkout@v4
@@ -53,31 +94,53 @@ jobs:
     - name: Install binary
       run: sudo make install
 
-    - name: Regression tests
+    - name: SystemVerilog regressions
+      if: matrix.suite == 'sv'
       continue-on-error: true
-      run: ./.github/test.sh
+      run: cd ivtest && perl vvp_reg.pl regress-sv.list
+
+    - name: Other regressions
+      if: matrix.suite == 'other'
+      continue-on-error: true
+      run: |
+        set +e
+        cd ivtest
+        status=0
+        perl vvp_reg.pl regress-ivl1.list || status=1
+        perl vvp_reg.pl regress-vlg.list || status=1
+        perl vvp_reg.pl regress-vhdl.list || status=1
+        sed -E 's/^([^#[:space:]][^[:space:]]*[[:space:]]+[^[:space:]]+)/\1,-S/' regress-synth.list > "$RUNNER_TEMP/regress-synth.list"
+        perl vvp_reg.pl "$RUNNER_TEMP/regress-synth.list" || status=1
+        perl vpi_reg.pl --with-pli1 || status=1
+        python3 vvp_reg.py || status=1
+        exit "$status"
 
     # The broad lane above has historical soft failures. Keep newly merged
     # virtual-interface function semantics zero-tolerance on every host.
     - name: Virtual-interface function focus (hard)
+      if: matrix.suite == 'sv'
       run: bash .github/ivtest_focus_gate.sh regress-vif-function-focus-legacy.list regress-vif-function-focus-vvp.list
 
     - name: Parameterized virtual-interface specialization focus (hard)
+      if: matrix.suite == 'sv'
       run: bash .github/ivtest_focus_gate.sh regress-vif-parameter-specialization-focus-legacy.list regress-vif-parameter-specialization-focus-vvp.list
 
     # macOS UVM builds and loads the real DPI umbrella. Keep this hard-gated;
     # the authoritative test count comes from the current checkout rather than
     # a stale count embedded in this workflow comment.
     - name: UVM regression tests
+      if: matrix.suite == 'uvm'
       run: ./.github/uvm_test.sh
 
     # Validate the simplified `iverilog -uvm' front end end-to-end against a
     # freshly installed, relocated toolchain (real DPI, custom prefix).
     - name: UVM front-end regression
+      if: matrix.suite == 'frontend'
       run: ./.github/uvm_frontend_test.sh
 
 
   lin:
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -150,6 +213,7 @@ jobs:
 
 
   win:
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     strategy:
       fail-fast: false
