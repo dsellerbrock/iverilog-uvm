@@ -21894,12 +21894,10 @@ static void aa_warn_invalid_write_(vthread_t thr)
            << "ignored (IEEE 1800-2017/2023 7.8.6)." << endl;
 }
 
-template <class ASSOC, class KEY>
-static bool aa_invalid_write_(vthread_t thr, ASSOC*assoc, const KEY&key)
+template <class KEY>
+static bool aa_invalid_write_(vthread_t thr, const KEY&key)
 {
       if (!aa_index_has_xz_(key)) return false;
-      /* 7.4.5/7.8.7 allow a new associative entry; 7.8.6 rejects overwrites. */
-      if (assoc && !assoc->exists_key(key)) return false;
       aa_warn_invalid_write_(thr);
       return true;
 }
@@ -22126,7 +22124,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       vvp_vector4_t key = thr->pop_vec4();
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-	  if (aa_invalid_write_(thr, assoc, key)) return true;
+	  if (aa_invalid_write_(thr, key)) return true;
       if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
@@ -22539,7 +22537,7 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
-	  if (aa_invalid_write_(thr, assoc, key)) return true;
+	  if (aa_invalid_write_(thr, key)) return true;
       if (assoc && apply_declared_child_container_layout_(assoc, value)) {
             assoc->set(key, value);
 	    notify_mutated_object_signal_(thr, net, "aa-store-sig");
@@ -22597,7 +22595,7 @@ static vvp_object_t aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
       KEY key = pop_assoc_key_<KEY>(thr);
       vvp_object_t value;
       changed = false;
-	  if (aa_invalid_write_(thr, assoc, key)) return value;
+	  if (aa_invalid_write_(thr, key)) return value;
       if (assoc) {
 	    bool present = assoc->exists_key(key);
 	    bool have_value = assoc->get(key, value);
@@ -23340,7 +23338,7 @@ static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
 
       vvp_object_t value;
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
-      bool invalid_index = aa_invalid_write_(thr, assoc, key);
+      bool invalid_index = aa_invalid_write_(thr, key);
       bool have = !invalid_index && assoc && assoc->get(key, value);
       bool changed = false;
 
@@ -23386,7 +23384,7 @@ static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
       vvp_object_t recv = thr->peek_object();
       vvp_object_t value;
       vvp_assoc_object*assoc = peek_assoc_receiver_<vvp_assoc_object>(thr);
-	  bool invalid_index = aa_invalid_write_(thr, assoc, key);
+	  bool invalid_index = aa_invalid_write_(thr, key);
 	  bool have = !invalid_index && assoc && assoc->get(key, value);
       bool changed = false;
 
