@@ -1247,7 +1247,6 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 				    ? "%pop/str 2" : "%pop/vec4 2";
 
 			      fprintf(vvp_out, "    %s;\n", dup_key);
-			      fprintf(vvp_out, "    %s;\n", dup_key);
 			      fprintf(vvp_out, "    %s; l-value probe\n", load_keep);
 			      fprintf(vvp_out, "    %%test_nul/obj;\n");
 			      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",

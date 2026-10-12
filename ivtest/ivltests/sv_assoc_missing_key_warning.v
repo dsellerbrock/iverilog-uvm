@@ -52,8 +52,12 @@ module sv_assoc_missing_key_warning;
       $fatal(1, "invalid read changed the array or returned the wrong default");
 
     missing[bad_index] = 5;
-    if (missing.num() != 0)
-      $fatal(1, "invalid write allocated an associative-array entry");
+    if (missing.num() != 1 || !missing.exists(bad_index)
+        || missing[bad_index] !== 5)
+      $fatal(1, "write did not create an associative-array entry");
+    missing[bad_index] = 6;
+    if (missing[bad_index] !== 5)
+      $fatal(1, "invalid write changed an existing associative-array entry");
 
     missing[10]++;
     if (missing[10] !== 1 || !missing.exists(10))
