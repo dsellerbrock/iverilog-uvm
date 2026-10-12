@@ -12405,6 +12405,13 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
       unsigned nparms = parms_.size();
 
+      if (name == "$system" && nparms > 1) {
+	    cerr << get_fileline() << ": error: The $system function takes zero or one argument; found "
+		 << nparms << "." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       const bool coverage_control = name == "$coverage_control";
       const bool coverage_query = name == "$coverage_get_max"
 			       || name == "$coverage_get";
