@@ -1,2 +1,2 @@
-ivltests/sv_ref_open_array_function_actual_fail.v:12: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+./ivltests/sv_ref_open_array_function_actual_fail.v:12: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
 1 error(s) during elaboration.
