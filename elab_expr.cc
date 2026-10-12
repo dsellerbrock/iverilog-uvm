@@ -17890,15 +17890,15 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			      parm_errors += 1;
 			      continue;
 			}
-			if (formal->port_type() == NetNet::PREF
-			    && formal->get_const()) {
+			if (formal->port_type() == NetNet::PREF) {
 			      ivl_type_t actual_type =
 				netassign_type_for_equivalence(lval);
 			      if (!actual_type || !formal_type
 				  || !formal_type->type_equivalent(actual_type)
 				  || !actual_type->type_equivalent(formal_type)) {
-				cerr << tmp->get_fileline() << ": error: A const ref "
-				     << "actual must have a type equivalent to "
+				cerr << tmp->get_fileline() << ": error: A "
+				     << (formal->get_const() ? "const ref" : "ref")
+				     << " actual must have a type equivalent to "
 				     << "the formal (IEEE 1800-2017/2023 13.5.2)."
 				     << endl;
 				des->errors += 1;
