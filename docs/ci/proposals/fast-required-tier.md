@@ -14,7 +14,7 @@ Across the 12 failed main pushes from October 1–8, 10 had test/gate failures o
 
 Median completed job durations across those 12 pushes were 35.9 minutes on Ubuntu 24.04 (n=12), 39.2 minutes on Ubuntu 22.04 (n=12), 155.4 minutes on CLANG64 (n=10), 155.4 minutes on MINGW64 (n=10), 158.0 minutes on UCRT64 (n=10), and 265.8 minutes on macOS (n=10).
 
-On October 12, the main GitHub run for `9cfce137` was cancelled at the six-hour job limit during macOS UVM front-end regression; the other five lanes passed. This reproduces the risk the proposal addresses: a single required macOS job can consume the full hosted-runner limit before reaching a verdict.
+On October 12, the main GitHub run for `9cfce137` was cancelled at the six-hour job limit during macOS UVM front-end regression; the other five lanes passed. This shows that a single per-pull-request macOS job can consume the full hosted-runner limit before reaching a verdict.
 
 ## Tradeoff
 
