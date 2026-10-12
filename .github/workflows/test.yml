@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
   workflow_dispatch:
   schedule:
     - cron: '17 10 * * *'
@@ -19,39 +18,7 @@ env:
 
 jobs:
 
-  fast:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    name: Fast Linux
-    steps:
-
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-
-    - name: Install
-      run: |
-        sudo apt update -qq
-        sudo apt install -y make g++ git bison flex gperf libreadline-dev libbz2-dev autoconf libz3-dev libffi-dev
-
-    - name: Build
-      run: |
-        autoconf
-        ./configure --enable-libveriuser --prefix="$PWD/local-install"
-        make -j$(nproc)
-
-    - name: Self-check
-      run: make check
-
-    - name: Install binary
-      run: make install
-
-    - name: Smoke tests
-      run: PATH="$PWD/local-install/bin:$PATH" ./ci/run-smoke.sh
-
   mac:
-    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -140,7 +107,6 @@ jobs:
 
 
   lin:
-    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -213,7 +179,6 @@ jobs:
 
 
   win:
-    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     strategy:
       fail-fast: false
