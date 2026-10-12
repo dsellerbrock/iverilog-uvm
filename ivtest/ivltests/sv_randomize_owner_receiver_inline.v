@@ -5,6 +5,14 @@ class inline_item;
   constraint c_clen { clen inside {[0:12]}; }
 endclass
 
+class inline_alias_group;
+  inline_item req, alt;
+  function new();
+    req = new;
+    alt = req;
+  endfunction
+endclass
+
 class inline_child;
   bit [3:0] clen;
 endclass
@@ -16,12 +24,15 @@ class inline_shadow_item;
 endclass
 
 class inline_owner;
-  inline_item req;
+  inline_item req, alt;
   inline_item other;
+  inline_alias_group nested;
 
   function new();
     req = new;
+    alt = req;
     other = new;
+    nested = new;
   endfunction
 
   function void check();
@@ -29,6 +40,18 @@ class inline_owner;
     if (!req.randomize() with { req.clen == 4'd12; }
         || req.clen != 4'd12)
       $fatal(1, "owner receiver was captured instead of randomized");
+
+    req.clen = 0;
+    alt = req;
+    if (!alt.randomize() with { req.clen == 4'd12; }
+        || req.clen != 4'd12)
+      $fatal(1, "aliased caller handle was captured as state");
+
+    nested.req.clen = 0;
+    nested.alt = nested.req;
+    if (!nested.alt.randomize() with { nested.req.clen == 4'd12; }
+        || nested.req.clen != 4'd12)
+      $fatal(1, "nested aliased caller handle was captured as state");
 
     req.randomize() with { req.clen == 4'd8; };
     if (req.clen != 4'd8)
