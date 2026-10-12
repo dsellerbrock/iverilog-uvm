@@ -1662,6 +1662,7 @@ sv_ref_arg_inside_storage_adversarial normal,-g2023 ivltests
 sv_ref_arg_inside_storage_bind normal,-g2012 ivltests
 sv_ref_argument_is_a_reference normal,-g2012 ivltests
 sv_ref_argument_type_mismatch_fail CE,-g2017,-s,sv_ref_argument_type_mismatch_fail ivltests gold=sv_ref_argument_type_mismatch_fail.gold
+sv_ref_open_array_function_actual_fail CE,-g2017,-s,sv_ref_open_array_function_actual_fail ivltests gold=sv_ref_open_array_function_actual_fail.gold
 sv_ref_arg_object_fork_detach normal,-g2023 ivltests gold=sv_ref_arg_object_fork_detach.gold
 sv_assert_pass_action normal,-g2012 ivltests
 sv_fork_join_none_automatic_frame normal,-g2012 ivltests

@@ -1,2 +1,3 @@
 sv_ref_argument_type_mismatch_fail CE,-g2017,-s,sv_ref_argument_type_mismatch_fail ivltests gold=sv_ref_argument_type_mismatch_fail.gold
+sv_ref_open_array_function_actual_fail CE,-g2017,-s,sv_ref_open_array_function_actual_fail ivltests gold=sv_ref_open_array_function_actual_fail.gold
 sv_whole_aggregate_value_copy normal,-g2012 ivltests
