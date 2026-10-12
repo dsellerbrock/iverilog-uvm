@@ -29304,6 +29304,72 @@ static NetNet* scope_randomize_find_signal_(const NetScope*scope,
       return nullptr;
 }
 
+static bool constraint_state_member_visible_(const netclass_t*type,
+					     unsigned member,
+					     const NetScope*scope,
+					     const PExpr*site);
+
+/* Keep caller lookup, but let runtime object identity reuse an active target
+ * property when a caller handle aliases an object in the randomization graph.
+ * An empty IR means an earlier access check diagnosed the path.
+ * shortcut: index-free paths ending in non-static integral properties up to
+ * 64 bits; extend when alias coverage needs arrays or wider fields. */
+static bool constraint_inline_alias_field_ir_(const PEIdent*id,
+						       const NetScope*scope,
+						       string&ir)
+{
+      if (!id || !scope || !constraint_ir_design_ctx_
+          || !scope_randomize_object_slots_
+          || id->path().package || id->has_scoped_type_prefix()
+          || id->path().name.size() < 2)
+            return false;
+
+      for (pform_name_t::const_iterator comp = id->path().name.begin();
+           comp != id->path().name.end(); ++comp)
+            if (!comp->index.empty() || comp->local_scope)
+                  return false;
+
+      pform_name_t object_path = id->path().name;
+      object_path.pop_back();
+      PEIdent object_id(object_path, UINT_MAX);
+      object_id.set_line(*id);
+      unsigned errors_before = constraint_ir_design_ctx_->errors;
+      NetExpr*object = elab_and_eval(constraint_ir_design_ctx_,
+            const_cast<NetScope*>(scope), &object_id, -1, false);
+      if (!object) return constraint_ir_design_ctx_->errors != errors_before;
+
+      const netclass_t*owner = object->expr_type() == IVL_VT_CLASS
+            ? dynamic_cast<const netclass_t*>(object->net_type()) : nullptr;
+      int property = owner
+            ? owner->property_idx_from_name(id->path().name.back().name) : -1;
+      if (!owner || owner->is_interface() || property < 0) {
+            delete object;
+            return false;
+      }
+      if (!constraint_state_member_visible_(owner, (unsigned)property,
+                                            scope, id)) {
+            delete object;
+            return true;
+      }
+
+      const netvector_t*field = dynamic_cast<const netvector_t*>(
+            owner->get_prop_type((size_t)property));
+      unsigned width = field ? field->packed_width() : 0;
+      if (!field || width == 0 || width > 64
+          || owner->get_prop_qual((size_t)property).test_static()) {
+            delete object;
+            return false;
+      }
+
+      unsigned slot = (unsigned)scope_randomize_object_slots_->size();
+      scope_randomize_object_slots_->push_back(object);
+      string object_ir = "h:" + to_string(slot);
+      ir = "(hselectfield " + to_string(property) + ":" + to_string(width)
+            + (field->get_signed() ? ":s" : "") + " (heq " + object_ir
+            + " h:this) h:this " + object_ir + ")";
+      return true;
+}
+
 /* Follow one component of a class-valued constraint path without evaluating
  * it. A paren-less zero-argument function is a legal primary in SystemVerilog
  * (`child.id.cyclic'), and property lookup has precedence over that method
@@ -34596,6 +34662,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (constraint_ir_design_ctx_)
 			constraint_ir_design_ctx_->errors += 1;
 		  return "";
+	    }
+
+	    if (!target_path && !local_qualified && cls && value_slots) {
+	  string alias_ir;
+	  if (constraint_inline_alias_field_ir_(id, scope, alias_ir))
+		return alias_ir;
 	    }
 
 	      // A genuinely caller-qualified expression such as local::rw.addr

@@ -3545,11 +3545,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 - **Discovered while working:** OT-CSRNG-INLINE-RECEIVER-PROPERTY-CONSTRAINT.
 - **Observation:** With `owner.alt` and `owner.req` pointing to the same item, `alt.randomize() with { req.clen == 12; }` returns zero and leaves `clen=0` in both strict editions. The direct `req.randomize() with { req.clen == 12; }` now succeeds, while a distinct object reference remains fixed caller state. A spelling-only receiver-root mapping cannot distinguish the two aliases.
-- **File/function:** `elab_expr.cc` receiver-root extraction and `elaborate.cc` inline constraint caller-value capture; a general fix needs active-object identity at solve time rather than lexical root matching alone.
+- **File/function:** `elaborate.cc` `constraint_inline_alias_field_ir_()` and `pexpr_to_constraint_ir()` compare the caller handle with the randomize receiver before lowering the selected property as an active solver field or caller state.
 - **Clause:** IEEE 1800-2017 §18.5.9 and 2023 §18.5.8 select active random variables from the invoked object and treat other references as state; §18.7 governs inline name lookup.
 - **Evidence:** [Paired strict alias reducer and logs](../../evidence/opentitan-csrng-inline-receiver-20260925/alias_identity.sv) with `boundary_results.json` in the same directory.
 - **Reproducer status:** paired 2017/2023 compile exit zero; runtime exit one at the same-object alias after bare and direct-receiver controls pass.
-- **Triage status:** separate identity-aware blocker; the current PR qualifies only the stable direct receiver spelling and must not claim general inline alias conformance.
+- **Triage status:** implemented in the active #478 feature branch; T0/T1 covers direct and nested aliases plus a distinct-object control. Keep open until the T2 batch lands.
 
 ### DD-060 — explicit `this` inline target lookup accepts a caller-only member
 
