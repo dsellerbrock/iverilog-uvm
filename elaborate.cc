@@ -18501,14 +18501,15 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  delete lv;
 		  return nullptr;
 	    }
-	    if (port->get_const()) {
+	    if (port->port_type() == NetNet::PREF) {
 		ivl_type_t formal_type = port->net_type();
 		ivl_type_t actual_type = netassign_type_for_equivalence(lv);
 		if (!formal_type || !actual_type
 		    || !formal_type->type_equivalent(actual_type)
 		    || !actual_type->type_equivalent(formal_type)) {
-		    cerr << actual->get_fileline() << ": error: A const ref actual "
-			 << "must have a type equivalent to the formal "
+		    cerr << actual->get_fileline() << ": error: A "
+			 << (port->get_const() ? "const ref" : "ref")
+			 << " actual must have a type equivalent to the formal "
 			 << "(IEEE 1800-2017/2023 13.5.2)." << endl;
 		    des->errors += 1;
 		    delete lv;
