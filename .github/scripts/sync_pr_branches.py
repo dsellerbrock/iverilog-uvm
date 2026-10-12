@@ -236,8 +236,8 @@ def main():
             git("commit", "-m", f"Merge origin/main into PR #{number}")
             synced_sha = git("rev-parse", "HEAD").stdout.strip()
             git("push", "origin", f"HEAD:refs/heads/{branch}")
-            gh("workflow", "run", "test.yml", "--repo", repo, "--ref", branch)
-            result = f"updated; full CI dispatched at {synced_sha[:12]}"
+            gh("workflow", "run", "pull-request.yml", "--repo", repo, "--ref", branch)
+            result = f"updated; Fast Linux dispatched at {synced_sha[:12]}"
             if resolved:
                 result += f"; auto-resolved {resolved} conflict path(s)"
             record(rows, number, branch, result)
