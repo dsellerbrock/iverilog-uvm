@@ -12,16 +12,20 @@
 WARNING: ./ivltests/sv_class_fixed_array_container_packed_select_oob.v:122: fixed unpacked-array property index is undefined or out of range; write was ignored
          Time: 0  Scope: sv_class_fixed_array_container_packed_select_oob.$unm_blk_2
 Warning: queue operation on a null queue value was skipped.
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
 WARNING: ./ivltests/sv_class_fixed_array_container_packed_select_oob.v:146: fixed unpacked-array property index is undefined or out of range; write was ignored
          Time: 0  Scope: sv_class_fixed_array_container_packed_select_oob.$unm_blk_2
 WARNING: ./ivltests/sv_class_fixed_array_container_packed_select_oob.v:166: fixed unpacked-array property index is undefined or out of range; write was ignored
          Time: 0  Scope: sv_class_fixed_array_container_packed_select_oob.$unm_blk_2
 Warning: queue operation on a null queue value was skipped.
 Warning: queue operation on a null queue value was skipped.
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
 WARNING: ./ivltests/sv_class_fixed_array_container_packed_select_oob.v:204: fixed unpacked-array property index is undefined or out of range; write was ignored
          Time: 0  Scope: sv_class_fixed_array_container_packed_select_oob.$unm_blk_2
 WARNING: ./ivltests/sv_class_fixed_array_container_packed_select_oob.v:218: fixed unpacked-array property index is undefined or out of range; write was ignored
          Time: 0  Scope: sv_class_fixed_array_container_packed_select_oob.$unm_blk_2
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
 WARNING: ./ivltests/sv_class_fixed_array_container_packed_select_oob.v:236: fixed unpacked-array property index is undefined or out of range; write was ignored
          Time: 0  Scope: sv_class_fixed_array_container_packed_select_oob.$unm_blk_2
 WARNING: ./ivltests/sv_class_fixed_array_container_packed_select_oob.v:237: fixed unpacked-array property index is undefined or out of range; write was ignored

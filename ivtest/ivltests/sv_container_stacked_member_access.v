@@ -10,6 +10,7 @@ class k; int z; endclass
 
 module main;
   s_t sa[string][int];
+  s_t fresh[string];
   s_t qa[$][string];
   k   dq[][$];
   s_t aq[string][$];
@@ -28,6 +29,9 @@ module main;
     s_t l;
     k o;
     l.a = 1; l.v = 8'h0f; l.arr = new[2];
+
+    fresh["new"].a = 52;
+    expect_int("created fresh.a", fresh["new"].a, 52);
 
     sa["x"][3] = l;
     sa["x"][3].a = 7;

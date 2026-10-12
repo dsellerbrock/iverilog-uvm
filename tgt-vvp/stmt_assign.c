@@ -1241,12 +1241,13 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			      unsigned lab_ready = local_count++;
 			      const char*dup_key = strcmp(key_kind, "str") == 0
 				    ? "%dup/str" : "%dup/vec4";
+			      const char*load_keep = strcmp(key_kind, "str") == 0
+				    ? "%aa/loadk/obj/str" : "%aa/loadk/obj/v";
 			      const char*pop_keys = strcmp(key_kind, "str") == 0
 				    ? "%pop/str 2" : "%pop/vec4 2";
 
 			      fprintf(vvp_out, "    %s;\n", dup_key);
-			      fprintf(vvp_out, "    %s;\n", dup_key);
-			      fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+			      fprintf(vvp_out, "    %s; l-value probe\n", load_keep);
 			      fprintf(vvp_out, "    %%test_nul/obj;\n");
 			      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
 				      thread_count, lab_make);
@@ -4117,6 +4118,7 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
       int key_is_string;
       int use_signal_scalar_ops;
       int object_like_elem;
+      int assoc_rmw = ivl_stmt_is_assoc_rmw(net);
 
       if (!element_type || !ivl_type_queue_assoc_compat(var_type))
             return -1;
@@ -4147,6 +4149,9 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
       key_is_string = expr_is_string_assoc_key_(idx_expr);
       use_signal_scalar_ops = key_is_object;
 
+      if (use_signal_scalar_ops && assoc_rmw)
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+
       if (key_is_string) {
             key_kind = "str";
             draw_eval_string(idx_expr);
@@ -4170,6 +4175,10 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
 
       switch (ivl_type_base(element_type)) {
           case IVL_VT_REAL:
+            if (assoc_rmw) {
+                  fprintf(vvp_out, "    %%aa/loadk/r/%s;\n", key_kind);
+                  fprintf(vvp_out, "    %%pop/real 1; discard RMW value before RHS\n");
+            }
             if (use_signal_scalar_ops && ivl_stmt_opcode(net) != 0) {
                   fprintf(vvp_out, "    %%aa/load/sig/r/obj v%p_0;\n", var);
                   draw_eval_real(rval);
@@ -4209,6 +4218,12 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
                   fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
                   draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
             } else {
+                  if (assoc_rmw) {
+                        fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
+                        fprintf(vvp_out, "    %%pop/vec4 1; discard RMW value before RHS\n");
+                        if (use_signal_scalar_ops)
+                              fprintf(vvp_out, "    %%pop/obj 1, 1; discard temporary array receiver\n");
+                  }
                   draw_eval_vec4(rval);
                   resize_vec4_wid(rval, ivl_stmt_lwidth(net));
             }
@@ -4550,6 +4565,10 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
+	    if (ivl_stmt_is_assoc_rmw(net)) {
+		  fprintf(vvp_out, "    %%aa/loadk/r/%s;\n", key_kind);
+		  fprintf(vvp_out, "    %%pop/real 1; discard RMW value before RHS\n");
+	    }
 	    if (ivl_stmt_opcode(net) != 0) {
 		  fprintf(vvp_out, "    %%aa/loadk/r/%s;\n", key_kind);
 		  draw_eval_real(rval);
@@ -4574,6 +4593,10 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 		  fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
 		  draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
 	    } else {
+		  if (ivl_stmt_is_assoc_rmw(net)) {
+			fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
+			fprintf(vvp_out, "    %%pop/vec4 1; discard RMW value before RHS\n");
+		  }
 		  draw_eval_vec4(rval);
 		  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
 	    }
