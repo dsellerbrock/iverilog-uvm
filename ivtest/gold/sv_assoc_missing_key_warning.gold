@@ -1,0 +1,5 @@
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+: warning: associative-array read with X/Z index (IEEE 1800-2017/2023 7.8.6).
+: warning: associative-array write with X/Z index ignored (IEEE 1800-2017/2023 7.8.6).
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+PASSED

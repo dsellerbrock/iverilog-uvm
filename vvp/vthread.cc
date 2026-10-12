@@ -21828,6 +21828,80 @@ static ASSOC* pop_assoc_receiver_(vthread_t thr)
       return typed_assoc;
 }
 
+template <typename ELEM, class ASSOC, class KEY>
+static void aa_read_(vthread_t thr, ASSOC*assoc, const KEY&key,
+		     ELEM&value, bool invalid_index=false,
+		     bool warn=true)
+{
+      if (invalid_index) {
+            if (assoc && assoc->get(key, value)) return;
+            if (warn)
+                  cerr << thr->get_fileline()
+                       << ": warning: associative-array read with X/Z index "
+                       << "(IEEE 1800-2017/2023 7.8.6)." << endl;
+            return;
+      }
+      bool found = assoc && assoc->get(key, value);
+      if (warn && !found)
+            cerr << thr->get_fileline()
+                 << ": warning: read of a nonexistent associative-array "
+                 << "entry (IEEE 1800-2017/2023 7.8.6)." << endl;
+}
+
+static bool aa_read_warning_enabled_(vthread_t thr, vvp_net_t*net)
+{
+	  static std::unordered_map<vvp_net_t*, bool> cache;
+	  std::unordered_map<vvp_net_t*, bool>::const_iterator cached =
+		cache.find(net);
+	  if (cached != cache.end()) return cached->second;
+
+      vpiHandle item = lookup_scope_item_by_net_chain_(
+	    thr ? thr->parent_scope : 0, net, 0);
+      const char*name = item ? vpi_get_str(vpiName, item) : 0;
+      bool warn = !name || strncmp(name, "_ivl_sva", 8) != 0;
+	  cache[net] = warn;
+	  return warn;
+}
+
+static bool aa_index_has_xz_(const vvp_vector4_t&key)
+{ return key.has_xz(); }
+template <class KEY>
+static bool aa_index_has_xz_(const KEY&)
+{ return false; }
+
+template <typename ELEM, class ASSOC, class KEY>
+static void aa_materialize_rmw_(vthread_t thr, ASSOC*assoc,
+				const KEY&key, ELEM&value,
+				unsigned receiver_depth=0)
+{
+      if (assoc)
+	    assoc->get(key, value);
+      if (assoc && !aa_index_has_xz_(key) && !assoc->exists_key(key)) {
+	    assoc->set(key, assoc_value_copy_element_(value));
+	    assoc->get(key, value);
+	    vvp_object_t recv = thr->peek_object(receiver_depth);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(receiver_depth),
+					thr->peek_object_root(receiver_depth),
+					"aa-rmw-insert");
+      }
+}
+
+static void aa_warn_invalid_write_(vthread_t thr)
+{
+      cerr << thr->get_fileline()
+           << ": warning: associative-array write with X/Z index "
+           << "ignored (IEEE 1800-2017/2023 7.8.6)." << endl;
+}
+
+template <class KEY>
+static bool aa_invalid_write_(vthread_t thr, const KEY&key)
+{
+      if (!aa_index_has_xz_(key)) return false;
+      aa_warn_invalid_write_(thr);
+      return true;
+}
+
 template <typename ELEM, class ASSOC>
 static bool aa_load_str(vthread_t thr, unsigned wid=0)
 {
@@ -21836,8 +21910,8 @@ static bool aa_load_str(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
-	    assoc->get(key, value);
+      aa_read_(thr, assoc, key, value, false,
+	       aa_read_warning_enabled_(thr, thr->peek_object_source_net(0)));
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -21853,8 +21927,8 @@ static bool aa_load_obj(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
-	    assoc->get(key, value);
+      aa_read_(thr, assoc, key, value, false,
+	       aa_read_warning_enabled_(thr, thr->peek_object_source_net(0)));
 
       if (assoc_trace_scope_match_(thr)) {
             fprintf(stderr,
@@ -21879,13 +21953,14 @@ static bool aa_load_vec(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
-	    assoc->get(key, value);
+      aa_read_(thr, assoc, key, value, aa_index_has_xz_(key),
+	       aa_read_warning_enabled_(thr, thr->peek_object_source_net(0)));
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
 }
 
+/* These are l-value read-modify-write loads; §7.8.7 allocates before reading. */
 template <typename ELEM, class ASSOC>
 static bool aa_load_keep_str(vthread_t thr, unsigned wid=0)
 {
@@ -21894,8 +21969,7 @@ static bool aa_load_keep_str(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
-	    assoc->get(key, value);
+      aa_materialize_rmw_(thr, assoc, key, value);
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -21910,8 +21984,7 @@ static bool aa_load_keep_obj(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 1);
-      if (assoc)
-	    assoc->get(key, value);
+	  aa_materialize_rmw_(thr, assoc, key, value, 1);
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -21925,8 +21998,7 @@ static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 0) /* vec4 key lives on the vec4 stack; the receiver is the TOP object (the str variant already peeks depth 0 — depth 1 asserted on the obj stack) */;
-      if (assoc)
-	    assoc->get(key, value);
+	  aa_materialize_rmw_(thr, assoc, key, value);
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -22052,6 +22124,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       vvp_vector4_t key = thr->pop_vec4();
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+	  if (aa_invalid_write_(thr, key)) return true;
       if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
@@ -22446,8 +22519,8 @@ static bool aa_load_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
       dq_default(value, wid);
 
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
-      if (assoc)
-            assoc->get(key, value);
+      aa_read_(thr, assoc, key, value, aa_index_has_xz_(key),
+	       aa_read_warning_enabled_(thr, net));
 
       assoc_trace_signal_load_(thr, net, assoc, key, value);
 
@@ -22464,6 +22537,7 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
+	  if (aa_invalid_write_(thr, key)) return true;
       if (assoc && apply_declared_child_container_layout_(assoc, value)) {
             assoc->set(key, value);
 	    notify_mutated_object_signal_(thr, net, "aa-store-sig");
@@ -22521,6 +22595,7 @@ static vvp_object_t aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
       KEY key = pop_assoc_key_<KEY>(thr);
       vvp_object_t value;
       changed = false;
+	  if (aa_invalid_write_(thr, key)) return value;
       if (assoc) {
 	    bool present = assoc->exists_key(key);
 	    bool have_value = assoc->get(key, value);
@@ -22804,6 +22879,16 @@ bool of_AA_LOADK_V_STR(vthread_t thr, vvp_code_t cp)
 bool of_AA_LOADK_V_V(vthread_t thr, vvp_code_t cp)
 {
       return aa_load_keep_vec<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_LOADK_OBJ_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_load_keep_str<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_LOADK_OBJ_V(vthread_t thr, vvp_code_t)
+{
+      return aa_load_keep_vec<vvp_object_t, vvp_assoc_object>(thr);
 }
 
 bool of_AA_LOAD_R_OBJ(vthread_t thr, vvp_code_t)
@@ -23253,10 +23338,11 @@ static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
 
       vvp_object_t value;
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
-      bool have = assoc && assoc->get(key, value);
+      bool invalid_index = aa_invalid_write_(thr, key);
+      bool have = !invalid_index && assoc && assoc->get(key, value);
       bool changed = false;
 
-      if (assoc && (!have || value.test_nil())) {
+	  if (!invalid_index && assoc && (!have || value.test_nil())) {
 	    vvp_fun_signal_object*obj =
 		  vvp_fun_as_signal_object(net->fun);
 	    if (obj && obj->declared_type()) {
@@ -23298,10 +23384,11 @@ static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
       vvp_object_t recv = thr->peek_object();
       vvp_object_t value;
       vvp_assoc_object*assoc = peek_assoc_receiver_<vvp_assoc_object>(thr);
-      bool have = assoc && assoc->get(key, value);
+	  bool invalid_index = aa_invalid_write_(thr, key);
+	  bool have = !invalid_index && assoc && assoc->get(key, value);
       bool changed = false;
 
-      if (assoc && (!have || value.test_nil())) {
+	  if (!invalid_index && assoc && (!have || value.test_nil())) {
 	    value = make_queue_for_enc_(enc);
 	    apply_declared_child_container_layout_(assoc, value);
 	    if (!value.test_nil()) {

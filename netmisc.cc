@@ -2771,9 +2771,13 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 	    ivl_type_t index_type = queue->assoc_index_type();
 	    if (index_type && index_type->packed()) {
 		  unsigned width = index_type->packed_width();
+		  ivl_variable_type_t cast_type = index_type->base_type();
+		  /* Keep X/Z until the associative access can warn and ignore it. */
+		  if (cast_type == IVL_VT_BOOL)
+			cast_type = IVL_VT_LOGIC;
 		  NetExpr*tmp = elab_and_eval(des, scope, expr, width,
 					       need_const, false,
-					       index_type->base_type(),
+					       cast_type,
 					       !index_type->get_signed());
 		  /* The contextual elaborator may annotate a signal expression with
 		   * WIDTH without materializing a runtime truncation. Associative

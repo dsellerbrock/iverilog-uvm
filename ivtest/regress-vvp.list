@@ -531,6 +531,8 @@ warn_opt_sys_tf			vvp_tests/warn_opt_sys_tf.json
 wreal				vvp_tests/wreal.json
 writemem-invalid		vvp_tests/writemem-invalid.json
 sv_assoc_default_values	vvp_tests/sv_assoc_default_values.json
+sv_assoc_missing_key_warning vvp_tests/sv_assoc_missing_key_warning.json
+sv_assoc_missing_key_warning_2023 vvp_tests/sv_assoc_missing_key_warning_2023.json
 sv_assoc_function_output	vvp_tests/sv_assoc_function_output.json
 sv_assoc_function_output_lvalue_fail	vvp_tests/sv_assoc_function_output_lvalue_fail.json
 sv_assoc_task_output_lvalue_fail	vvp_tests/sv_assoc_task_output_lvalue_fail.json

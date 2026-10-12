@@ -14,4 +14,4 @@ Without the hourly run, a PR can remain behind `main` between main pushes. That 
 
 ## Status
 
-Proposal only. The workflow is unchanged by this document.
+Approved implementation is tracked in PR #546.
