@@ -18,14 +18,14 @@ for source in "$ROOT"/repros/*.sv; do
     name=${name%.sv}
     echo "=== reproducer: $name ==="
     if [[ "$name" == struct_array_member_open_array_io ]]; then
-        # shortcut: main rejects this multidimensional SV open-array call; remove once supported.
+        # shortcut: issue #544 tracks this known multidimensional SV open-array gap.
         if run "$IVL" -g2012 -s top -o "$WORK/$name.vvp" "$source" \
             > "$WORK/$name.compile.log" 2>&1; then
             echo "Unexpectedly compiled; update this known-failure check" >&2
             status=1
         elif grep -Fq 'fixed unpacked-array value and queue/dynamic-array context' \
             "$WORK/$name.compile.log"; then
-            echo "XFAIL: known multidimensional SV open-array compile gap"
+            echo "XFAIL #544: known multidimensional SV open-array compile gap"
             cat "$WORK/$name.compile.log"
         else
             echo "Unexpected compile failure: $name" >&2
