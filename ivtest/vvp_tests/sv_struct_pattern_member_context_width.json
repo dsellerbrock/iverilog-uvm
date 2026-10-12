@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_struct_pattern_member_context_width.v",
+    "iverilog-args" : [ "-g2017", "-s", "main" ],
+    "gold"          : "sv_struct_pattern_member_context_width"
+}
