@@ -1,4 +1,6 @@
 sv_default_assign_pattern normal,-g2012 ivltests
+sv_struct_pattern_member_context_width normal,-g2017,-s,main ivltests gold=sv_struct_pattern_member_context_width.gold
+sv_struct_pattern_member_context_width_2023 normal,-g2023,-s,main ivltests gold=sv_struct_pattern_member_context_width.gold
 sv_struct_array_flat_pattern_fail CE,-g2012 ivltests gold=sv_struct_array_flat_pattern_fail.gold
 sv_assignment_pattern_keys_replication normal,-g2012 ivltests gold=sv_assignment_pattern_keys_replication.gold
 sv_assignment_pattern_keys_fail CE,-g2012 ivltests gold=sv_assignment_pattern_keys_fail.gold
