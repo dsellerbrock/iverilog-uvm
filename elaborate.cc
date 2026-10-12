@@ -31977,9 +31977,11 @@ static bool constraint_state_member_visible_(const netclass_t*type, unsigned mem
       return false;
 }
 
-static bool constraint_target_declares_(const netclass_t*cls, perm_string name)
+/* Explicit this/super lookup is target-qualified even with identifier_list. */
+static bool constraint_target_declares_(const netclass_t*cls, perm_string name,
+					bool qualified = false)
 {
-      if (!cls || !constraint_inline_target_name_(name)) return false;
+      if (!cls || (!qualified && !constraint_inline_target_name_(name))) return false;
       if (cls->property_idx_from_name(name) >= 0) return true;
       for (const netclass_t*owner = cls; owner; owner = owner->get_super()) {
             NetScope*sc = const_cast<NetScope*>(owner->class_scope());
@@ -34578,12 +34580,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    bool target_path = constraint_target_path_begin_(
 		  id->path(), cls, target_owner, target_component);
 	    if (target_path && value_slots
-		&& !constraint_class_object_root_.nil()
-		&& id->path().name.front().name == constraint_class_object_root_
 		&& target_component != id->path().name.end()
 		&& target_owner
-		&& target_owner->property_idx_from_name(
-		     target_component->name) < 0) {
+		&& ((!constraint_class_object_root_.nil()
+		     && id->path().name.front().name == constraint_class_object_root_
+		     && target_owner->property_idx_from_name(
+			  target_component->name) < 0)
+		    || ((constraint_this_name_(id->path().name.front().name)
+			 || constraint_super_name_(id->path().name.front().name))
+			&& !constraint_target_declares_(
+			      target_owner, target_component->name, true)))) {
 		  cerr << id->get_fileline() << ": error: Inline constraint member `"
 		       << target_component->name
 		       << "' is not a property of the randomize() receiver."
