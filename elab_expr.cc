@@ -5411,6 +5411,17 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    return nullptr;
       }
 
+	// Packed patterns become self-determined concatenations; size members first.
+      if (struct_type->packed()) {
+	    for (size_t idx = 0; idx < items.size(); idx += 1) {
+		  long width = members[idx].net_type->packed_width();
+		  if (items[idx] && width > 0
+		      && items[idx]->expr_width() != (unsigned)width)
+			items[idx] = cast_to_width(items[idx], (unsigned)width,
+						  items[idx]->has_sign(), *this);
+	    }
+      }
+
       if (!struct_type->packed()) {
 	    NetEArrayPattern *res = new NetEArrayPattern(struct_type, items);
 	    if (struct_type->union_flag()
