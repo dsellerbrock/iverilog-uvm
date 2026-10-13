@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_virtual_interface_sample_2023.v",
+    "iverilog-args" : [ "-g2023", "-gstrict-expr-width" ],
+    "gold"          : "sv_covergroup_virtual_interface_sample"
+}
