@@ -1,5 +1,14 @@
 # Current evidence and work
 
+## SV-Tests gap baseline — 2026-10-13
+
+The pinned `c4229f3` replay completed all 1,027 applicable tests: 603 pass
+and 424 are nonpassing. The row-by-row feature/root-cause classification,
+manual source/log audit of 30 cases, ranked five candidate areas, and preserved
+run evidence are in the [SV-Tests gap report](sv_tests_gap_2026-10-13.md).
+This is a classification of one pinned run, not a claim that every candidate
+has already been verified against IEEE text.
+
 ## Current IEEE 1800 focus — 2026-10-09: issue #420 randc cycle limits
 
 **Locally validated bounded extension:** a non-static `randc bit [20:0]`
