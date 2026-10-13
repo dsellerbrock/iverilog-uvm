@@ -1,0 +1,16 @@
+Job 584 wrapper resolution audit
+
+run.sh created:
+  /home/dsell/slurm-runs/iverilog-uvm/a3/svtests-main-20261012-2/tool-bin/iverilog
+  /home/dsell/slurm-runs/iverilog-uvm/a3/svtests-main-20261012-2/tool-bin/vvp
+
+The Python launcher set OUT_DIR to:
+  /home/dsell/slurm-runs/iverilog-uvm/a3/svtests-main-20261012-2/evidence/current-main/out
+Its PATH used evidence/current-main/tool-bin, while runner-safe prepended OUT_DIR/runners/bin. Neither contained the created wrappers.
+
+Reconstructed PATH resolution:
+  selected=/usr/bin/iverilog
+  sha256=a6681e0b577dcfc4ea83d1591a5714710b0b3535ebb36491ee8177553bab9631
+  version=Icarus Verilog version 12.0 (stable)
+
+The corrected launcher must create wrappers in its `OUT/runners/bin` directory and fail unless both wrappers resolve there. The current baseline recheck uses that assertion.

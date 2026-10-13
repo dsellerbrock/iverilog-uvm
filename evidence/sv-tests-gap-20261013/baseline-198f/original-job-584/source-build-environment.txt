@@ -1,0 +1,5 @@
+host=DAN-DESKTOP
+gcc=gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+z3=4.13.3-1build1
+pre526=71b576fd6d9b343308ae3707bcf518321548e719
+main=198f0abec3154a916d13730cee24549e24e076b0
