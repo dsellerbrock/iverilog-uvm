@@ -218,7 +218,7 @@ jobs:
 
     - name: Prefer primary MSYS2 mirror, retain fallbacks
       run: |
-        for mirrorlist in /etc/pacman.d/mirrorlist.msys "/etc/pacman.d/mirrorlist.${MSYSTEM,,}"; do
+        for mirrorlist in /etc/pacman.d/mirrorlist.msys /etc/pacman.d/mirrorlist.mingw; do
           awk -v primary='Server = https://repo.msys2.org/$repo/$arch' \
             'BEGIN { print primary } $0 != primary' "$mirrorlist" > "$mirrorlist.tmp"
           mv "$mirrorlist.tmp" "$mirrorlist"
