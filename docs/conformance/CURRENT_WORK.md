@@ -1,5 +1,21 @@
 # Current evidence and work
 
+## SV-Tests gap baseline — 2026-10-13
+
+The initial replay of pinned corpus `c4229f3` returned 603/1,027 on the system
+Icarus 12.0 binary; path review found that it had not run the source build. The
+corrected Icarus 13.0 source-build replay on the same corpus returned
+1,022/1,027, with five runner nonpasses. The historical 424-row crosswalk and
+manual source/raw-log audit of 20 cases across all nine areas are in the
+[SV-Tests gap report](sv_tests_gap_2026-10-13.md). The corrected failures do not
+establish five simulator-fixable categories; the focused
+[UVM DPI follow-up](../../evidence/sv-tests-gap-20261013/uvm-dpi-followup/README.md)
+also found no confirmed simulator defect.
+
+The Milestone 3 start and latest batch-10 T2 ivtest results are both 7,341/7,346
+passed, 0 failed, 2 not implemented, and 3 expected failures. The gated staging
+tree matches current `main` at `2cb6260f`; the batch-10 gate passed.
+
 ## Current IEEE 1800 focus — 2026-10-09: issue #420 randc cycle limits
 
 **Locally validated bounded extension:** a non-static `randc bit [20:0]`

@@ -1,0 +1,6 @@
+DAN-DESKTOP
+Tue Oct 13 09:23:16 UTC 2026
+g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+bison (GNU Bison) 3.8.2
+flex 2.6.4
+Icarus Verilog version 13.0 (devel) (db458c43)

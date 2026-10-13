@@ -1,0 +1,21 @@
+host=MacBook-Air.local
+ProductName:		macOS
+ProductVersion:		27.0
+BuildVersion:		26A428
+Tue Oct 13 10:57:52 UTC 2026
+source_commit=db458c438eca253fb1b3110f671fe3800e33b7a0
+source_tree=2cb6260f02c1680196cca51d76e6e429e3b738d5
+libffi_prefix=/opt/homebrew/opt/libffi
+z3_prefix=/opt/homebrew/opt/z3
+ 39dfb0077ae25d69d1e66bf7d6a56861e244150f third_party/uvm/2020.2.0 (2020-2.0)
+ b5f8562d8bee8ea11b06fc2692ed2ba0b5b7eeb7 third_party/uvm/2020.3.0 (2020.3.0)
+ 78c06547a2a0a29b3dc9dcafae62b75b2ff61544 uvm-core (2020.3.0-7-g78c0654)
+Apple clang version 21.0.0 (clang-2100.3.34.2)
+GNU Make 3.81
+Icarus Verilog version 13.0 (devel) (db458c438)
+
+Icarus Verilog runtime version 13.0 (devel) (db458c438)
+
+0ccff669d97d634d8d82771a2d6c2ef2de133503cbb5f23b40c3ad38f6833f86  /tmp/a3-uvm-dpi-local-20261013-03/install/bin/iverilog
+98ade579ea252a9902d6db16669669522d4d77375ab9c689d9952b99c731d8e0  /tmp/a3-uvm-dpi-local-20261013-03/install/bin/vvp
+63cc2f12dd555017e01a9abcf37e1791ac58e7121107787c4f53ced81da42d07  /tmp/a3-uvm-dpi-local-20261013-03/dpi-module/uvm_dpi.vpi

@@ -1,0 +1,3 @@
+sha256sum: /home/dsell/slurm-runs/iverilog-uvm/a3/dpi-context-probe-20261013-01/input/16.10--property-local-var-uvm.sv: No such file or directory
+/home/dsell/slurm-runs/iverilog-uvm/a3/dpi-context-probe-20261013-01/input/16.10--property-local-var-uvm.sv: FAILED open or read
+sha256sum: WARNING: 1 listed file could not be read
