@@ -1,6 +1,10 @@
 Warning: queue operation on a null queue value was skipped.
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
 Warning: queue operation on a null queue value was skipped.
 Warning: queue operation on a null queue value was skipped.
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
 Warning: queue operation on a null queue value was skipped.
 Warning: queue operation on a null queue value was skipped.
 Warning: queue operation on a null queue value was skipped.
