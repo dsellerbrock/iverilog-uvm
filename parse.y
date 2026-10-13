@@ -5458,6 +5458,15 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  /* IEEE 1800-2023 6.23 permits type(this) as a class self type,
+     including in a function return type and a declaration without var. */
+  | K_type '(' K_this ')'
+      { PEIdent*ident = new PEIdent(perm_string::literal(THIS_TOKEN), UINT_MAX);
+	FILE_NAME(ident, @3);
+	type_reference_t*tmp = new type_reference_t(ident);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | K_virtual virtual_interface_type
       { FILE_NAME($2, @1);
 	$$ = $2;

@@ -50,9 +50,9 @@ times for one line.
 ## Implemented feature gates
 
 [`sv_edition.h`](../../sv_edition.h) is the source of truth for the feature
-table. It currently includes the 2023 `$stacktrace` task and the constant
-`option.cross_retain_auto_bins` subset. Iterator `index()` is metadata for
-SystemVerilog 2005, not a 2023-only feature. The
+table. It includes the 2023 `$stacktrace` task and `type(this)` self type, plus
+the constant `option.cross_retain_auto_bins` subset. Iterator `index()` is
+metadata for SystemVerilog 2005, not a 2023-only feature. The
 [2023 survey](ieee1800_2023_delta.md) owns the detailed edition dispositions.
 
 ## Edition boundaries
@@ -87,6 +87,11 @@ The `$stacktrace` gate carries four core arms, registered in
 `$stacktrace` carries a fifth arm, `CE,-g2017`, pinning that a 2023
 feature is refused under 2017 — the concrete check that 2017 is not
 silently treated as "newest".
+
+`type(this)` is gated by IEEE 1800-2023 6.23 and resolves to the class
+containing the declaration (8.11). Its cases cover generic and derived class
+return types, a static local, rejection under 2017, and rejection outside a
+class.
 
 Iterator index querying has a separate boundary matrix matching its
 actual history:
