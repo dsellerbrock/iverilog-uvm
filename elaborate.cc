@@ -18431,6 +18431,26 @@ static NetExpr*netassign_object_value_expr_(const NetAssign_*lv,
       return e;
 }
 
+static bool ref_actual_type_equivalent_(Design*des, const NetNet*port,
+					const PExpr*actual,
+					const NetAssign_*lv)
+{
+      ivl_type_t formal_type = port->unpacked_dimensions() > 0
+		? port->array_type() : port->net_type();
+      ivl_type_t actual_type = netassign_type_for_equivalence(lv);
+      if (formal_type && actual_type
+	  && formal_type->type_equivalent(actual_type)
+	  && actual_type->type_equivalent(formal_type))
+	    return true;
+
+      cerr << actual->get_fileline() << ": error: A "
+	   << (port->get_const() ? "const ref" : "ref")
+	   << " actual must have a type equivalent to the formal "
+	   << "(IEEE 1800-2017/2023 13.5.2)." << endl;
+      des->errors += 1;
+      return false;
+}
+
 /*
  * Bind a `ref' formal to its actual (IEEE 1800-2017 13.5.2).
  *
@@ -18501,19 +18521,10 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  delete lv;
 		  return nullptr;
 	    }
-	    if (port->get_const()) {
-		ivl_type_t formal_type = port->net_type();
-		ivl_type_t actual_type = netassign_type_for_equivalence(lv);
-		if (!formal_type || !actual_type
-		    || !formal_type->type_equivalent(actual_type)
-		    || !actual_type->type_equivalent(formal_type)) {
-		    cerr << actual->get_fileline() << ": error: A const ref actual "
-			 << "must have a type equivalent to the formal "
-			 << "(IEEE 1800-2017/2023 13.5.2)." << endl;
-		    des->errors += 1;
-		    delete lv;
-		    return nullptr;
-		}
+	    if (port->port_type() == NetNet::PREF
+		&& !ref_actual_type_equivalent_(des, port, actual, lv)) {
+		  delete lv;
+		  return nullptr;
 	    }
 	    const netclass_t*formal_vif =
 		  virtual_interface_type_(port->net_type());
@@ -19104,6 +19115,25 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
+
+	      /* Copy-bound ref formals bypass the bind helper below. Validate
+		 their actual before aggregate-slice and copy-in handling. */
+	    if (port->port_type() == NetNet::PREF
+		&& !ref_formal_is_bound(port) && args[parms_idx]) {
+		  unsigned errors_before = des->errors;
+		  NetAssign_*actual_lval = args[parms_idx]->elaborate_lval(
+			des, scope, false, false, false, port->get_const());
+		  if (!actual_lval) {
+			if (des->errors == errors_before)
+			      des->errors += 1;
+			continue;
+		  }
+		  bool equivalent = ref_actual_type_equivalent_(
+			des, port, args[parms_idx], actual_lval);
+		  delete actual_lval;
+		  if (!equivalent)
+			continue;
+	    }
 
 	      /* An unpacked-array slice is an aggregate actual, not an
 		 unpacked word followed by a packed part select. Materialize

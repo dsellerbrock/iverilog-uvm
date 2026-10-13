@@ -28,9 +28,7 @@
 ./ivltests/sv_queue_darray_state_compat_fail.v:52: error: the type of the variable 'logic64_q' doesn't match the context type.
 ./ivltests/sv_queue_darray_state_compat_fail.v:52:      : variable type=queue of netvector_t:logic unsigned[63:0]
 ./ivltests/sv_queue_darray_state_compat_fail.v:52:      : context type=dynamic array of netvector_t:bool unsigned[63:0]
-./ivltests/sv_queue_darray_state_compat_fail.v:55: error: the type of the variable 'logic_q' doesn't match the context type.
-./ivltests/sv_queue_darray_state_compat_fail.v:55:      : variable type=queue of netvector_t:logic unsigned[7:0]
-./ivltests/sv_queue_darray_state_compat_fail.v:55:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+./ivltests/sv_queue_darray_state_compat_fail.v:55: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
 ./ivltests/sv_queue_darray_state_compat_fail.v:56: error: the type of the variable 'logic_q' doesn't match the context type.
 ./ivltests/sv_queue_darray_state_compat_fail.v:56:      : variable type=queue of netvector_t:logic unsigned[7:0]
 ./ivltests/sv_queue_darray_state_compat_fail.v:56:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
