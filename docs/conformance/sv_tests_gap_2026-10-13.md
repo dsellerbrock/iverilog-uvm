@@ -22,7 +22,32 @@ This is a runner result, not a claim that every case received semantic verificat
 
 Slurm job 792 built the source tree above, but the suite did not run that build. Its batch script put wrappers in RUN_DIR/tool-bin while the runner searched OUT_DIR/tool-bin and OUT_DIR/runners/bin. Those locations were empty, so PATH selected /usr/bin/iverilog, Icarus 12.0, SHA-256 a6681e0b577dcfc4ea83d1591a5714710b0b3535ebb36491ee8177553bab9631.
 
-The exact pinned UVM source and test 16.10--property-local-var-uvm.sv reproduce the distinction: Icarus 12.0 rejects uvm_hdl.svh at line 77, while the source-built Icarus 13.0 compiles it and emits the imported DPI call. The source tree used by both runs is identical. Thus 603/1,027 and its 424 nonpassing rows describe the system Icarus 12.0 invocation, not the Icarus source build. Those raw artifacts are preserved for audit, but the 424-row feature ranking is withdrawn.
+The exact pinned UVM source and test 16.10--property-local-var-uvm.sv reproduce the distinction: Icarus 12.0 rejects uvm_hdl.svh at line 77, while the source-built Icarus 13.0 compiles it and emits the imported DPI call. The source tree used by both runs is identical. Thus 603/1,027 and its 424 nonpassing rows describe the system Icarus 12.0 invocation, not the Icarus source build. Those raw artifacts are preserved for audit; that ranking cannot select source-build feature work.
+
+## Historical 424-case classification and current-source crosswalk
+
+The 424 cases remain classified by feature area and observed root cause in [the historical crosswalk CSV](sv_tests_gap_2026-10-13_historical_424.csv). Each row preserves its Icarus 12.0 result and raw-log member, then adds the result and raw-log member from corrected source-build job 816. The crosswalk's `manual_crosswalk_log_check` marks 20 cases across all nine feature areas that I compared against both raw logs.
+
+The old failure counts and the corrected runner classes for those same test paths are:
+
+| Historical feature area | Icarus 12.0 nonpasses | Corrected `STATIC_ACCEPT` | `VERIFIED_RUNTIME` | `ACCEPTANCE_ONLY` | `EXPECTED_REJECT_UNVERIFIED` | `SEMANTIC_FAIL` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| UVM DPI import | 101 | 64 | 0 | 37 | 0 | 0 |
+| Arrays / aggregates / unions | 97 | 28 | 61 | 2 | 5 | 1 |
+| Constraints / randomization | 58 | 42 | 12 | 2 | 2 | 0 |
+| Class / OO / type resolution | 56 | 53 | 3 | 0 | 0 | 0 |
+| Procedural / events / timing | 35 | 28 | 5 | 0 | 1 | 1 |
+| Expressions / types / operators | 33 | 23 | 5 | 1 | 4 | 0 |
+| Assertions / SVA | 19 | 16 | 0 | 3 | 0 | 0 |
+| Directives / coverage / interface / system functions | 18 | 1 | 4 | 6 | 7 | 0 |
+| Other / testbench | 7 | 7 | 0 | 0 | 0 | 0 |
+| **Total** | **424** | **262** | **90** | **51** | **19** | **2** |
+
+These are runner classes, not equivalent levels of semantic verification. In particular, all 37 UVM rows classified `ACCEPTANCE_ONLY` in the corrected run log missing `uvm_dpi_*` symbols; 36 also report `UVM_FATAL`. The test command compiles raw UVM sources and runs the image without loading `uvm_dpi.vpi`, so these rows do not demonstrate successful UVM execution. The project's [UVM DPI instructions](../uvm_frontend.md) document the required module-loading paths. This is a runner setup gap, not evidence for a simulator feature PR.
+
+`ACCEPTANCE_ONLY` also does not mean that every source test lacks an oracle. The [positive SVA cases](https://github.com/chipsalliance/sv-tests/blob/c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7/tests/chapter-16/16.10--property-local-var.sv) use `$error` failure actions and finish without one; the [randsequence case](https://github.com/chipsalliance/sv-tests/blob/c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7/tests/chapter-18/18.17--random-sequence-generation-randsequence_2.sv) uses `$stop` for an out-of-range result and likewise completes without stopping. Other cases explicitly say they do not verify results, such as [inside-set membership](https://github.com/chipsalliance/sv-tests/blob/c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7/tests/chapter-11/simple/11.4.13--simple_set_member-sim.sv). The [coverage routine case](https://github.com/chipsalliance/sv-tests/blob/c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7/tests/chapter-20/20.14--coverage.sv) reports `SV_COV_NOCOV` when no coverage is instrumented; IEEE 1800-2017 and 1800-2023 §40.3.2 define that result when coverage is unavailable. The [file-read cases](https://github.com/chipsalliance/sv-tests/tree/c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7/tests/chapter-21) invoke routines without checking return values; `$fgets` and `$fread` even use write-only files. These raw outcomes do not supply five additional simulator-defect categories.
+
+The corrected source build includes the merged batch-10 code. The crosswalk records present-day outcomes for the historical paths; it does not attribute those outcomes to any individual change. Within this evidence, the two corrected-run failures are a tagged-union assertion-parser failure and a time-zero event race, while the large historical groups no longer provide five confirmed, source-build simulator-defect categories. Do not use the Icarus 12.0 ranking as a claim that five such source-build gaps remain.
 
 ## The five runner-failed cases
 

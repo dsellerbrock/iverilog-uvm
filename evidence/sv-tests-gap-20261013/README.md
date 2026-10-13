@@ -15,7 +15,7 @@
 - Result: 1,027 applicable, 1,022 runner-passed, 5 runner-failed. See corrected-run/summary.json.
 - Corrected per-test raw-log archive: corrected-run/raw-logs.tar.gz, SHA-256 3555d678a47caa892791d6587aaec2647c1db77c419ff31131becf68eaf5a954. It contains all 1,027 Icarus logs and an embedded per-file checksum manifest.
 
-The scripts and run log are in corrected-run/. The evidence is sufficient to reproduce how the suite was launched and to inspect each test result. The runner’s result classes do not imply that every accepted test received semantic checking.
+The scripts and run log are in corrected-run/. The evidence is sufficient to reproduce how the suite was launched and to inspect each test result. The runner’s result classes do not imply that every accepted test received semantic checking. The historical 424-row Icarus 12.0 classification and corrected-source crosswalk are in [the docs CSV](../../docs/conformance/sv_tests_gap_2026-10-13_historical_424.csv).
 
 ## Event-control follow-up
 
