@@ -1,0 +1,8 @@
+Host: MacBook-Air.local (macOS 27.0)
+Command: ~/codex-supervisor/localrun 10800 bash evidence/sv-tests-gap-20261013/uvm-dpi-followup/local-run.sh /tmp/a3-uvm-dpi-local-20261013-03
+Exit code: 0
+This is the collection command's exit status; per-case acceptance is recorded separately in summary.json (34/37 parser-pass).
+Elapsed: 358.47 s real
+Peak resident set: 1,359,806,464 bytes (about 1.27 GiB)
+
+The runner built Icarus commit db458c438eca253fb1b3110f671fe3800e33b7a0, built uvm_dpi.vpi from the pinned sv-tests UVM source, then compiled and ran the 37 manifest cases with a 300 s per-test timeout.

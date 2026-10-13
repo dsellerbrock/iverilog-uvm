@@ -17,6 +17,10 @@
 
 The scripts and run log are in corrected-run/. The evidence is sufficient to reproduce how the suite was launched and to inspect each test result. The runner’s result classes do not imply that every accepted test received semantic checking. The historical 424-row Icarus 12.0 classification and corrected-source crosswalk are in [the docs CSV](../../docs/conformance/sv_tests_gap_2026-10-13_historical_424.csv).
 
+## UVM DPI follow-up
+
+The 37 UVM cases initially lacked `uvm_dpi.vpi`. A focused local rerun loaded the module for every case; its per-case results, environment, runtime evidence, and raw logs are in [uvm-dpi-followup](uvm-dpi-followup/README.md). The rerun found no confirmed simulator defect in this group.
+
 ## Event-control follow-up
 
 Slurm job 822 compiled and ran event-trigger-after-waiter-ready.sv using the same Icarus install. The trigger was delayed until after the event waiter had started; the log records the expected assertion and vvp_rc=0. Its job output and simulator log are in corrected-run/event-trigger-control-822/. Slurm accounting is unavailable, so the terminal scheduler state is not independently recorded.

@@ -1,0 +1,137 @@
+Compiling /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc...
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:73:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   73 |     sprintf(buffer, "uvm_glob_to_re called with glob=NULL");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:97:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   97 |       sprintf(buffer, "uvm_glob_to_re() glob exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:119:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  119 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:129:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  129 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:146:13: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  146 |             sprintf(buffer, "uvm_glob_to_re() expansion exceeds max length(%0d)", UVM_REGEX_MAX_LENGTH);
+      |             ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:161:13: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  161 |             sprintf(buffer, "uvm_glob_to_re() expansion exceeds max length(%0d)", UVM_REGEX_MAX_LENGTH);
+      |             ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:188:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  188 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:198:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  198 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:206:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  206 |       sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:258:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  258 |       sprintf(buffer, "uvm_re_comp() re exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:285:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  285 |     sprintf(buffer, "uvm_re_comp: internal memory allocation error");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:310:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  310 |     sprintf(uvm_re_buffer(), "uvm_re_exec: NULL rexp");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_regex.cc:314:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  314 |     sprintf(uvm_re_buffer(), "uvm_re_exec: NULL str");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /tmp/a3-uvm-dpi-local-20261013-03/source/uvm_dpi/uvm_dpi_iverilog.cc:78:
+/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/sv-tests-c4229f3/third_party/tests/uvm/src/dpi/uvm_svcmd_dpi.c:47:20: warning: unused parameter 'lvl' [-Wunused-parameter]
+   47 | void push_data(int lvl,char *entry, int cmd) {
+      |                    ^
+14 warnings generated.
+Making uvm_dpi.vpi from  uvm_dpi_iverilog.o...
