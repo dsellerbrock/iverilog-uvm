@@ -1887,9 +1887,20 @@ pull request. L122's own regression test
 (`ivtest/ivltests/sv_assert_property_local_multi_ident_decl.v`)
 deliberately avoids mixing kinds to stay in scope.
 
-### DD-035 — Sequence match-item assignment LHS is a bare identifier only, no part-/bit-select (2026-09-16)
+### DD-035 — Sequence match-item assignment LHS selected-local subset (2026-09-16; partially implemented 2026-10-13)
 
-- **Issue status:** [OPEN #476](https://github.com/dsellerbrock/iverilog-uvm/issues/476).
+**2026-10-13 update (PR #573):** Direct bit-select and constant part-select
+assignments to declared assertion-local variables are now lowered as ordered
+full-value updates in fixed-delay sequences. The functional regression checks
+that successive part and bit writes preserve untouched bits. Paired 2017/2023
+tests cover legacy and NFA lowering. Dynamic selects, variable-delay chains,
+implications, unpacked or multidimensional locals remain unsupported. The
+typed property-formal syntax in the original Caliptra source is a pre-existing
+parser gap; the regression uses a module-scope source value and does not claim
+to close that separate gap.
+
+
+- **Issue status:** [OPEN #476](https://github.com/dsellerbrock/iverilog-uvm/issues/476); the selected-local subset is in PR #573, pending T2 and merge.
 
 Found compiling real, unmodified Caliptra source directly
 (`src/ecc/formal/properties/fv_montmultiplier_glue.sv`, line 113):
@@ -1924,8 +1935,7 @@ the `sva_match_call_list`-suffixed variant) hardcode the LHS as a bare
 `pform_sva_coerce_local_assignment(loc, name, rhs)` likewise only takes
 a plain name, with no notion of a selected sub-range.
 
-**Why this is not a quick grammar patch (do not attempt a naive
-fix):** unlike L118-L123 (each a pure grammar gap whose downstream
+**Original scope assessment (2026-09-16, historical):** unlike L118-L123 (each a pure grammar gap whose downstream
 semantic layer already accepted a general expression), this genuinely
 needs new semantics, not just a wider grammar production. The
 assertion-local variable model here is "the whole named local holds
@@ -1954,20 +1964,15 @@ pattern (checking a modular multiplier's output against pieces
 gathered from ecc_montgomerymultiplier's internal per-PE outputs), not
 a synthetic edge case.
 
-**Closure requirements:** design and implement the read-modify-write
-lowering described above; extend the `sva_seq_atom` match-item
-alternatives with a part-/bit-select LHS production (likely reusing
-whatever bit/part-select expression nonterminal ordinary lvalues use
-elsewhere in `parse.y`, checked for grammar conflicts the same way as
-every fix this session — `bison -y -d --report=state` totals compared
-before/after); verify against both a part-select and a bit-select
-reducer, plus the real originally-failing Caliptra file; add a
-functional (not just compile-success) permanent regression that
-actually checks the assembled value is correct, not merely that it
-parses. Status: recorded, not selected.
+**Current implementation and remaining scope:** PR #573 covers direct
+bit/constant-part writes to a declared local with one packed dimension and
+constant bounds in fixed-delay sequences. It includes functional paired-
+edition tests. Typed property formals, dynamic selects, variable delays,
+implications, and unpacked or multidimensional locals remain outside this
+change. Keep this issue open until the PR merges.
 
-**Follow-up investigation (2026-09-16, still not selected — scope is
-larger than first estimated):** traced how `lv_name`/`lv_rhs` (the
+**Follow-up investigation (2026-09-16; historical, still relevant to the
+excluded variable-delay and implication cases):** traced how `lv_name`/`lv_rhs` (the
 `sva_seq_step_t` fields a match-item assignment populates, per
 `parse_misc.h`) are actually consumed downstream. They are not read in
 one place; `lv_rhs` alone appears at 40+ sites across `pform.cc`,
