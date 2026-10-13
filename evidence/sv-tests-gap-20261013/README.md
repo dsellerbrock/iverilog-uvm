@@ -1,5 +1,19 @@
 # SV-Tests corpus run evidence — 2026-10-13
 
+## Verified source-build start run
+
+- Slurm job: 833 on DAN-DESKTOP; scheduler runtime 5:49; requested 1 CPU and 1 GiB.
+- Icarus source commit: 198f0abec3154a916d13730cee24549e24e076b0.
+- Icarus source tree: 5f18c01ab88bc385710e9734a5c41249e34cb875.
+- Icarus binary SHA-256: d728a3d5d05cb81375b367f76324dc7b19b2f2dec6041626c0dcf2aac9664c16.
+- VVP binary SHA-256: 3146652a6461678992534d98ebb453f32e5bcaeedb1eeba029f415c5f50b4526.
+- sv-tests commit: c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7; UVM commit: 656f20d087370a7c742e00188d20bbf30fa95339.
+- Result: 1,027 applicable, 1,022 runner-passed, 5 runner-failed (99.51%). The summary and raw logs are in `baseline-198f/evidence/start/`; `baseline-198f/logs/` records provenance and the success marker.
+- Raw-log archive SHA-256: `dcf866a19a1dd2ad09c56bf440d6a903f45150ba7a20dcf1d042efef09518573`.
+- The run asserts both tools resolve to its pinned wrappers. Its runner and `runner-safe` hashes match corrected job 816. Per-test outcome fields match across all 1,027 paths; the same five cases fail in both runs.
+
+The original 603/1,027 result selected system Icarus 12.0 and is not a valid source-build baseline. See [the corrected classification report](../../docs/conformance/sv_tests_gap_2026-10-13.md) and [the runner-path investigation](runner-path-investigation.md).
+
 ## Corrected source-build run
 
 - Slurm job: 816 on DAN-DESKTOP.

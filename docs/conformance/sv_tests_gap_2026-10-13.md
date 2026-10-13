@@ -18,6 +18,19 @@ The runner completed all 1,027 applicable cases: 1,022 runner-passed and 5 runne
 
 This is a runner result, not a claim that every case received semantic verification. For example, a UVM test classified ACCEPTANCE_ONLY completed with missing-DPI-symbol errors in its log. The runner’s pass count should therefore not be described as full IEEE conformance.
 
+## Verified source-build start/end comparison
+
+The corrected start run is Slurm job 833 on Icarus source commit `198f0abec3154a916d13730cee24549e24e076b0` (tree `5f18c01ab88bc385710e9734a5c41249e34cb875`), with compiler SHA-256 `d728a3d5d05cb81375b367f76324dc7b19b2f2dec6041626c0dcf2aac9664c16`. It used the same pinned corpus and UVM commits as job 816, and the same runner script and runner-safe hashes. Both jobs produced all 1,027 per-test records. An offline comparison of `applicable`, `test_passed`, `result_class`, and `simulator_rc` found identical values for every test path.
+
+| Run | Icarus source commit | Passed | Runner-failed | Pass rate |
+| --- | --- | ---: | ---: | ---: |
+| Verified start, Slurm job 833 | `198f0abec3154a916d13730cee24549e24e076b0` | 1,022/1,027 | 5 | 99.51% |
+| Current source, Slurm job 816 | `db458c438eca253fb1b3110f671fe3800e33b7a0` | 1,022/1,027 | 5 | 99.51% |
+
+The five failing paths and their result classes are identical in both runs. Thus the verified source-build comparison shows no net sv-tests change under this runner. The former 603/1,027 figure is not a valid source-build start result: its runner selected system Icarus 12.0. Keep that result only as historical evidence for the effective Icarus 12.0 invocation; do not use it to claim source-build progress.
+
+The corrected source-build run has no confirmed simulator-defect category among its five runner failures, so it does not support selecting five simulator-fixable feature categories. The required feature quota cannot be completed honestly from this corpus result. Batch-10 T2 Slurm job 788 separately recorded ivtest at 7,341/7,346 with zero failures.
+
 ## Why the earlier 424-row table is superseded
 
 Slurm job 792 built the source tree above, but the suite did not run that build. Its batch script put wrappers in RUN_DIR/tool-bin while the runner searched OUT_DIR/tool-bin and OUT_DIR/runners/bin. Those locations were empty, so PATH selected /usr/bin/iverilog, Icarus 12.0, SHA-256 a6681e0b577dcfc4ea83d1591a5714710b0b3535ebb36491ee8177553bab9631.
@@ -61,7 +74,7 @@ The corrected CSV has one row per runner-failed test, its raw-log member, and th
 | tests/chapter-7/unions/tagged/basic.sv | SEMANTIC_FAIL | VVP prints the same tagged-union value on both sides of the test’s %p comparison. The sv-tests log parser passes the :assert: text to Python eval, which cannot parse this SystemVerilog tagged-union representation. This is a test-harness parser failure. |
 | tests/chapter-9/9.4.2--event_control_sim_minimal.sv | SEMANTIC_FAIL | The initial process triggers e at time zero while an independent always @(e) process has not been synchronized as waiting; the observed i remains 0. IEEE 1800-2017 §15.5.1 says -> unblocks processes “currently waiting on that event.” A separate control delayed the trigger until after the waiter was armed and passed with i=1. This is a test race, not a confirmed simulator defect. |
 
-None of the five corrected-run nonpasses is a confirmed simulator defect. The corrected corpus evidence therefore does not support ranking five simulator-fixable categories or creating feature PRs to satisfy that quota. The previous 424-row ranking cannot be used for that purpose because it analyzed Icarus 12.0. The milestone’s feature target and its 603 starting baseline need to be re-scoped before selecting work.
+None of the five corrected-run nonpasses is a confirmed simulator defect. The corrected source-build evidence therefore does not support ranking five simulator-fixable categories or creating feature PRs to satisfy that quota. The historical 424-row ranking cannot be used for that purpose because it analyzed Icarus 12.0. The 603 starting baseline is invalid for the source-built compiler; the verified source-build start and current results are both 1,022/1,027.
 
 ## Manual source and raw-log audit
 
