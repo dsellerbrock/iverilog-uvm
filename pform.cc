@@ -9231,24 +9231,60 @@ static parmvalue_t* sva_clone_parmvalue_(
       return copy;
 }
 
+static PExpr* sva_clone_postselect_(
+	      PExpr*base, const index_component_t&source, PExpr*origin,
+	      const std::map<perm_string,PExpr*>*subst)
+{
+	    index_component_t index;
+	    index.sel = source.sel;
+	    index.msb = source.msb ? sva_clone_subst_(source.msb, subst) : nullptr;
+	    index.lsb = source.lsb ? sva_clone_subst_(source.lsb, subst) : nullptr;
+	    if ((source.msb && !index.msb) || (source.lsb && !index.lsb)) {
+		  delete base;
+		  delete index.msb;
+		  delete index.lsb;
+		  return nullptr;
+	    }
+	    PEPostSelect*copy = new PEPostSelect(base, index);
+	    copy->set_line(*origin);
+	    return copy;
+}
+
 /* Structural clone for the expression shapes that appear in disable
    iff conditions and reusable named-property bodies. Returns nil for
    shapes it cannot copy; callers fall back to consume-once.
 
-   When `subst` is non-null (M9D parameterized property/sequence
-   instantiation), a bare single-name identifier that matches a formal
-   is replaced with a fresh clone of the actual argument expression. */
+   When `subst` is non-null, a matching single-name reference is replaced
+   with a fresh clone of the actual argument, preserving part-selects. */
 static PExpr* sva_clone_subst_(PExpr*e,
 			       const std::map<perm_string,PExpr*>*subst)
 {
       if (!e) return nullptr;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
-	    if (subst && !id->path().package && id->path().name.size() == 1
-		&& id->path().name.front().index.empty()) {
+	    if (subst && !id->path().package && id->path().name.size() == 1) {
+		  const name_component_t&component = id->path().name.front();
 		  std::map<perm_string,PExpr*>::const_iterator it =
-			subst->find(id->path().name.front().name);
-		  if (it != subst->end())
-			return sva_clone_subst_(it->second, nullptr);
+			subst->find(component.name);
+		  /* shortcut: only SEL_PART selectors are rebuilt; add other selector
+		     kinds when a regression covers them. */
+		  bool can_postselect = true;
+		  for (std::list<index_component_t>::const_iterator idx =
+			 component.index.begin() ; idx != component.index.end() ; ++idx)
+			if (idx->sel != index_component_t::SEL_PART) {
+			      can_postselect = false;
+			      break;
+			}
+		  if (it != subst->end() && can_postselect) {
+			PExpr*value = sva_clone_subst_(it->second, nullptr);
+			if (!value) return nullptr;
+			for (std::list<index_component_t>::const_iterator idx =
+			       component.index.begin() ; idx != component.index.end()
+			     ; ++idx) {
+			      value = sva_clone_postselect_(value, *idx, e, subst);
+			      if (!value) return nullptr;
+			}
+			return value;
+		  }
 	    }
 	    /* A formal/local can occur in a select as well as as the whole
 	       identifier: `vec[idx]' is the important SVA-local case.  A
@@ -9295,6 +9331,11 @@ static PExpr* sva_clone_subst_(PExpr*e,
             cp->set_dotted_suffix(id->has_dotted_suffix());
 	    cp->set_line(*e);
 	    return cp;
+      }
+      if (PEPostSelect*post = dynamic_cast<PEPostSelect*>(e)) {
+	    PExpr*base = sva_clone_subst_(post->base(), subst);
+	    if (!base) return nullptr;
+	    return sva_clone_postselect_(base, post->index(), e, subst);
       }
       if (PENumber*num = dynamic_cast<PENumber*>(e)) {
 	    PENumber*cp = new PENumber(new verinum(num->value()));
@@ -10165,6 +10206,35 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    smp->set_line(*e);
 	    sampled[key] = base;
 	    return smp;
+      }
+	/* Local substitution can leave a part-select on a non-identifier base,
+	   for example `$past(value)[3:0]'. */
+      if (PEPostSelect*post = dynamic_cast<PEPostSelect*>(e)) {
+	    PExpr*base = sva_wrap_preponed_(post->base(), sampled,
+					    live_operands, unsampled_locals);
+	    if (!base) return nullptr;
+	    index_component_t index;
+	    index.sel = post->index().sel;
+	    index.msb = post->index().msb
+		  ? sva_wrap_preponed_(post->index().msb, sampled,
+					       live_operands, unsampled_locals)
+		  : nullptr;
+	    if (post->index().msb && !index.msb) {
+		  delete base;
+		  return nullptr;
+	    }
+	    index.lsb = post->index().lsb
+		  ? sva_wrap_preponed_(post->index().lsb, sampled,
+					       live_operands, unsampled_locals)
+		  : nullptr;
+	    if (post->index().lsb && !index.lsb) {
+		  delete base;
+		  delete index.msb;
+		  return nullptr;
+	    }
+	    PEPostSelect*copy = new PEPostSelect(base, index);
+	    copy->set_line(*e);
+	    return copy;
       }
 
       if (PENumber*num = dynamic_cast<PENumber*>(e)) {
@@ -18772,7 +18842,7 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
 	   EARLIER step i (i < j) is visible as $past(rhs_i, offs[j]-offs[i]);
 	   a later assignment of the same name overrides an earlier one. */
       for (size_t j = 0 ; j < steps.size() ; j += 1) {
-	    if (!steps[j].expr) continue;
+	    if (!steps[j].expr && !steps[j].lv_rhs) continue;
 	    std::map<perm_string,PExpr*> subst;
 	    for (size_t i = 0 ; i < j ; i += 1) {
 		  if (!steps[i].lv_rhs) continue;
@@ -18784,8 +18854,14 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
 			sva_past_(loc, sva_clone_expr_(steps[i].lv_rhs), d);
 	    }
 	    if (!subst.empty()) {
-		  PExpr*ne = sva_clone_subst_(steps[j].expr, &subst);
-		  if (ne) { delete steps[j].expr; steps[j].expr = ne; }
+		  if (steps[j].expr) {
+			PExpr*ne = sva_clone_subst_(steps[j].expr, &subst);
+			if (ne) { delete steps[j].expr; steps[j].expr = ne; }
+		  }
+		  if (steps[j].lv_rhs) {
+			PExpr*ne = sva_clone_subst_(steps[j].lv_rhs, &subst);
+			if (ne) { delete steps[j].lv_rhs; steps[j].lv_rhs = ne; }
+		  }
 		  for (std::map<perm_string,PExpr*>::iterator it = subst.begin();
 		       it != subst.end() ; ++it)
 			delete it->second;

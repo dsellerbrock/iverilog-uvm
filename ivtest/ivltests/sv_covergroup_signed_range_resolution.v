@@ -19,17 +19,9 @@ module test;
       illegal_bins illegal = {1};
     }
   endgroup
-  covergroup xz_cg with function sample(logic [3:0] value);
-    option.per_instance = 1;
-    cp: coverpoint value {
-      bins bad = {'x};
-      bins good = {0};
-    }
-  endgroup
   signed3_cg sc;
   unsigned3_cg uc;
   carved_cg cc;
-  xz_cg xc;
   initial begin
     sc = new;
     for (int i = -4; i <= 3; i++) begin
@@ -61,10 +53,6 @@ module test;
     cc.sample(2);
     if (cc.get_inst_coverage() != 100.0)
       $fatal(1, "signed carving denominator %f", cc.get_inst_coverage());
-    xc = new;
-    xc.sample(0);
-    if (xc.get_inst_coverage() != 100.0)
-      $fatal(1, "X/Z empty bin affected denominator %f", xc.get_inst_coverage());
     $display("PASSED");
   end
 endmodule

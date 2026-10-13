@@ -433,6 +433,7 @@ class netclass_t : public ivl_type_s {
 	    //           5 = illegal_bins default (complement of normal bins)
 	    //           6 = ignore_bins default (complement of normal bins)
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
+	    // kind & 128: exact 4-state value; lo packs 2-bit states, hi gives width/chunk.
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
