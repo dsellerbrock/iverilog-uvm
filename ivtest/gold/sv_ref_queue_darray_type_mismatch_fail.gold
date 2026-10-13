@@ -1,0 +1,2 @@
+./ivltests/sv_ref_queue_darray_type_mismatch_fail.v:5: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+1 error(s) during elaboration.

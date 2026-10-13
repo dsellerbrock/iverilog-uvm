@@ -18,10 +18,8 @@
 //                         //   the formal, because the copy-out is
 //                         //   generated from the port direction alone
 //
-//   function int f(ref int q[]);  ...  endfunction
-//   r = f(fa);            // "Skipping unsupported function copy-out
-//                         //  argument" once, then silence; the caller's
-//                         //  array never changed
+// A ref formal is tested below with a dynamic-array actual of the same
+// type; fixed-to-dynamic array association is not type-equivalent for ref.
 //
 // The assignment case is the worst of the three. `fa = da' is not
 // type_compatible -- one side is a container object, the other is inline
@@ -109,8 +107,8 @@ module main;
     return q[1];
   endfunction
 
-  // A fixed array actual is also legal as a plain input open array, and
-  // that direction must keep working unchanged.
+  // A fixed array actual is also legal for a plain input dynamic-array
+  // formal, and that direction must keep working unchanged.
   function automatic int sum_in(input int q[]);
     int t = 0;
     foreach (q[i]) t += q[i];
@@ -189,9 +187,9 @@ module main;
     chk("task inout, body writes nothing [0]", fa[0], 1);
     chk("task inout, body writes nothing [2]", fa[2], 3);
 
-    fa = '{1, 2, 3};
-    ref_t(fa);
-    chk("task ref",                       fa[1], 102);
+    da = '{1, 2, 3};
+    ref_t(da);
+    chk("task ref",                       da[1], 102);
 
     fa = '{1, 2, 3};
     whole_assign_t(fa);
@@ -210,12 +208,12 @@ module main;
     vec_t(la);
     chk("a packed-vector element type",   int'(la[2]), 13);
 
-    fa = '{1, 2, 3};
+    da = '{1, 2, 3};
     begin
       int r;
-      r = func_ref(fa);
+      r = func_ref(da);
       chk("function ref, return value",   r,      2);
-      chk("function ref, copy-back",      fa[0], 55);
+      chk("function ref, copy-back",      da[0], 55);
     end
 
     // a struct member as the actual
