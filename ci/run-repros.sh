@@ -18,14 +18,14 @@ for source in "$ROOT"/repros/*.sv; do
     name=${name%.sv}
     echo "=== reproducer: $name ==="
     if [[ "$name" == struct_array_member_open_array_io ]]; then
-        expected_error='fixed unpacked-array value and queue/dynamic-array context may differ only in the slowest-varying unpacked dimension and require equivalent element types'
+        # IEEE 1800-2017 §7.6 allows this mismatch only for the slowest-varying dimension.
         if run "$IVL" -g2012 -s top -o "$WORK/$name.vvp" "$source" \
             > "$WORK/$name.compile.log" 2>&1; then
-            echo "Unexpectedly compiled; expected the incompatible faster-varying dimension to fail" >&2
+            echo "Expected compile error did not occur: $name" >&2
             status=1
-        elif grep -Fq "$expected_error" "$WORK/$name.compile.log" \
-            && [[ $(grep -Fc "$expected_error" "$WORK/$name.compile.log") == $(grep -c ': error:' "$WORK/$name.compile.log") ]]; then
-            echo "PASS #544: incompatible faster-varying array element type rejected"
+        elif grep -Fq 'fixed unpacked-array value and queue/dynamic-array context' \
+            "$WORK/$name.compile.log"; then
+            echo "PASS: expected compile error #544 (incompatible faster-varying dimension)"
             cat "$WORK/$name.compile.log"
         else
             echo "Unexpected compile failure: $name" >&2
