@@ -1,0 +1,4 @@
+host=DAN-DESKTOP
+qd_bfm=8e34e0c6d20b6f84a5a975ba6e3de7ccd9b1dc2b
+caliptra_rtl=49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e
+icarus_source=c014c0a7975a4b0b645ea34609c802be60a10f4a+diff-sha256:e4beeb8f455eb479a31c16a7b5e5a1a6b4cef5c88fb5d40e0bec647e2f76f336

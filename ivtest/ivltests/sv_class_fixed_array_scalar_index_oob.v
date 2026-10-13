@@ -28,10 +28,14 @@ module sv_class_fixed_array_scalar_index_oob;
   int first_index_calls;
   int second_index_calls;
   int wide_index_calls;
+  int unsigned64_index_calls;
+  int signed64_index_calls;
   int rhs_calls;
   logic signed [31:0] first_index_value;
   logic signed [31:0] second_index_value;
   logic [95:0] wide_index_value;
+  logic [63:0] unsigned64_index_value;
+  logic signed [63:0] signed64_index_value;
   fixed_scalar_leaf rhs_handle_value;
   fixed_scalar_record_t rhs_record_value;
 
@@ -48,6 +52,16 @@ module sv_class_fixed_array_scalar_index_oob;
   function automatic logic [95:0] next_wide_index();
     wide_index_calls++;
     return wide_index_value;
+  endfunction
+
+  function automatic logic [63:0] next_unsigned64_index();
+    unsigned64_index_calls++;
+    return unsigned64_index_value;
+  endfunction
+
+  function automatic logic signed [63:0] next_signed64_index();
+    signed64_index_calls++;
+    return signed64_index_value;
   endfunction
 
   function automatic logic [15:0] next_word();
@@ -122,6 +136,7 @@ module sv_class_fixed_array_scalar_index_oob;
     live_record.name = "live-record";
 
     holder.words[0][0] = 16'h1234;
+    holder.words[1][0] = 16'hbeef;
     holder.flags[0][0] = 1'b1;
     holder.reals[0][0] = 3.25;
     holder.strings[0][0] = "live-string";
@@ -254,6 +269,27 @@ module sv_class_fixed_array_scalar_index_oob;
     check("wide unsigned OOB packed RMW",
           holder.words[0][0] == 16'h1234 && rhs_calls == 1 &&
           wide_index_calls == 1 && second_index_calls == 1);
+
+    // The single-word conversion fast path must retain the signed domain at
+    // the 64-bit boundary: unsigned bit 63 is OOB, while signed -1 stays
+    // negative and an unsigned in-range value remains valid.
+    unsigned64_index_value = 1;
+    unsigned64_index_calls = 0;
+    got_word = holder.words[next_unsigned64_index()][0];
+    check("unsigned 64-bit in-range read",
+          got_word == 16'hbeef && unsigned64_index_calls == 1);
+
+    unsigned64_index_value = 64'h8000_0000_0000_0000;
+    unsigned64_index_calls = 0;
+    got_word = holder.words[next_unsigned64_index()][0];
+    check("unsigned 64-bit high-bit OOB read",
+          $isunknown(got_word) && unsigned64_index_calls == 1);
+
+    signed64_index_value = -1;
+    signed64_index_calls = 0;
+    got_word = holder.words[next_signed64_index()][0];
+    check("signed 64-bit negative OOB read",
+          $isunknown(got_word) && signed64_index_calls == 1);
 
     // Direct constant invalid forms take the same sentinel path.
     holder.words[-1][2] = next_word();
