@@ -2428,29 +2428,32 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
  *
  * NOTE: the roadmap item that motivated this cites IEEE 1800-2017 20.3.3,
  * but that subclause is actually $realtime; $stacktrace does not appear
- * anywhere in clause 20 of the 2017 LRM. At implementation time this was
- * treated as the widely implemented vendor debug extension it then was
- * (Questa and others). IEEE 1800-2023 has since STANDARDIZED $stacktrace
- * as both a task and a string-returning function (2023 clause 20); the
- * task form implemented here conforms to the standardized contract (the
- * printed format is implementation-defined). The function form (string
- * return value) is 1800-2023 uplift work, tracked under M15. Contract: a
- * task taking no arguments that prints the current call stack to stdout
- * and does not itself affect simulation control flow.
+ * anywhere in clause 20 of the 2017 LRM. IEEE 1800-2023 20.17.2
+ * standardizes both a task and a string-returning function; the returned
+ * stack representation is implementation-defined.
  *
  * The actual stack walk needs access to vvp's vthread call-frame chain,
- * which is core-side state; vpip_print_stacktrace() (vvp/vthread.cc) does
- * that walk and prints it, the same way $urandom reaches back into
- * vthread.cc via vpip_object_urandom() for process RNG state.
+ * which is core-side state; vpip_get_stacktrace() (vvp/vthread.cc) does
+ * that walk, the same way $urandom reaches back into vthread.cc via
+ * vpip_object_urandom() for process RNG state.
  */
 static PLI_INT32 sys_stacktrace_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      s_vpi_value value;
+      const char*trace;
 
       (void)name; /* Parameter is not used. */
 
-      vpip_print_stacktrace(vpi_get_str(vpiFile, callh),
-                            (long)vpi_get(vpiLineNo, callh));
+      trace = vpip_get_stacktrace(vpi_get_str(vpiFile, callh),
+                                  (long)vpi_get(vpiLineNo, callh));
+      if (vpip_systf_call_returns_string()) {
+	    value.format = vpiStringVal;
+	    value.value.str = (PLI_BYTE8*)trace;
+	    vpi_put_value(callh, &value, 0, vpiNoDelay);
+      } else {
+	    vpi_printf("%s", trace);
+      }
 
       return 0;
 }
@@ -2924,7 +2927,8 @@ void sys_display_register(void)
       vpip_make_systf_system_defined(res);
 
       /* R21: $stacktrace -- see the note on sys_stacktrace_calltf. */
-      tf_data.type      = vpiSysTask;
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiStringFunc;
       tf_data.tfname    = "$stacktrace";
       tf_data.calltf    = sys_stacktrace_calltf;
       tf_data.compiletf = sys_no_arg_compiletf;

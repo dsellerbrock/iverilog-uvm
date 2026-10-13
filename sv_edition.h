@@ -123,7 +123,7 @@
       SV_FEATURE_ROW(SVF_DIST_DEFAULT, GN_VER2023,		\
 		     "the default item in a dist constraint")		\
       SV_FEATURE_ROW(SVF_STACKTRACE, GN_VER2023,			\
-		     "the $stacktrace system task")			\
+		     "the $stacktrace system task or function")		\
       SV_FEATURE_ROW(SVF_CLASS_FINAL, GN_VER2023,			\
 		     "the final class specifier")			\
 	SV_FEATURE_ROW(SVF_CROSS_RETAIN_AUTO_BINS, GN_VER2023,		\
