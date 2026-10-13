@@ -283,6 +283,7 @@ class class_type : public __vpiHandle {
 	    //           4=transition step (tuple = (seq<<8)|step),
 	    //           5=illegal default, 6=ignore default
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
+	    // kind & 128: exact 4-state value; lo packs 2-bit states, hi gives width/chunk.
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;

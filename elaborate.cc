@@ -40135,11 +40135,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 		      // Per-coverpoint expanded VALUE-bin descriptors,
 		      // feeding cross product generation.
-		    struct xbin_desc_t {
-			  perm_string name;
-			  std::vector<std::pair<uint64_t,uint64_t>> ranges;
-			  std::vector<std::vector<uint64_t>> wide_values;
-			  bool wildcard = false;
+	    struct xbin_desc_t {
+		  perm_string name;
+		  std::vector<std::pair<uint64_t,uint64_t>> ranges;
+		  std::vector<std::vector<uint64_t>> wide_values;
+		  std::vector<std::vector<uint64_t>> xz_values;
+		  bool wildcard = false;
 			    // Counter property for an ordinary fixed value bin. Dynamic
 			    // crosses use this stable identity instead of repeating the
 			    // bin's value ranges in a second metadata format.
@@ -40571,10 +40572,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  return std::make_pair(false, true);
 			    };
 
-		    auto eval_ranges = [&](std::vector<std::pair<PExpr*,PExpr*>>&ranges,
-					   std::vector<std::pair<uint64_t,uint64_t>>&rout,
-					   unsigned value_width, bool value_signed,
-					   const char*bin_name) -> bool {
+	    auto eval_ranges = [&](std::vector<std::pair<PExpr*,PExpr*>>&ranges,
+			   std::vector<std::pair<uint64_t,uint64_t>>&rout,
+			   unsigned value_width, bool value_signed,
+			   const char*bin_name,
+			   std::vector<std::vector<uint64_t>>*four_state_values) -> bool {
 			    // A constructor reference anywhere makes the complete bin
 			    // per-instance. Do not partially constant-elaborate earlier pairs
 			    // or try to bind a formal hidden in an unsupported later tree.
@@ -40727,6 +40729,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    }
 				      }
 				} else if (okc) {
+				      bool accepted_four_state = false;
+				      if (four_state_values && range.first && range.second
+					  && lo_c && hi_c) {
+					    auto pack_states = [&](const NetEConst*constant) {
+						  verinum source = constant->value();
+						  source.has_sign(constant->has_sign());
+						  verinum bits = cast_to_width(source, value_width);
+						  std::vector<uint64_t> words((value_width + 31) / 32, 0);
+						  for (unsigned bit = 0; bit < value_width; bit++)
+							words[bit / 32] |= (uint64_t)bits.get(bit)
+							      << ((bit % 32) * 2);
+						  return words;
+					    };
+					    std::vector<uint64_t> lo_states = pack_states(lo_c);
+					    std::vector<uint64_t> hi_states = pack_states(hi_c);
+					    verinum lo_value = cast_to_width(lo_c->value(), value_width);
+					    if (lo_states == hi_states && !lo_value.is_defined()) {
+						  four_state_values->push_back(std::move(lo_states));
+						  accepted_four_state = true;
+					    }
+				      }
+			      if (!accepted_four_state)
 				      cerr << (range.first ? range.first : range.second)->get_fileline()
 					   << ": warning: covergroup bin '" << bin_name
 					   << "' has an X/Z endpoint; the affected range "
@@ -41421,7 +41445,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // in the coverage denominator (it could never
 			    // be hit), and the cross product must not
 			    // generate tuples from it.
-			  std::vector<std::pair<uint64_t,uint64_t>> carve_ranges;
+		    std::vector<std::pair<uint64_t,uint64_t>> carve_ranges;
+		    std::vector<std::vector<uint64_t>> carve_xz_values;
 			  for (auto& xbin : cp.bins) {
 				if (cp_value_width > 64) break;
 				unsigned xk = ((unsigned)xbin.kind) & 7;
@@ -41429,14 +41454,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (xbin.wildcard || !xbin.trans_seqs.empty())
 				      continue;
 				std::vector<std::pair<uint64_t,uint64_t>> xr;
+				std::vector<std::vector<uint64_t>> xr_xz;
 				bool range_ok = cp_real_supported
 				      ? eval_real_ranges(xbin.ranges, xr,
 					    xbin.name.str(), real_interval, false)
 				      : eval_ranges(xbin.ranges, xr, cp_value_width,
-					    cp_value_signed, xbin.name.str());
-				if (range_ok)
+					    cp_value_signed, xbin.name.str(),
+					    !xbin.arrayed && !xbin.with_expr ? &xr_xz : nullptr);
+				if (range_ok) {
 				      carve_ranges.insert(carve_ranges.end(),
 							  xr.begin(), xr.end());
+				      carve_xz_values.insert(carve_xz_values.end(),
+							    xr_xz.begin(), xr_xz.end());
+				}
 			  }
 			  auto subtract_carved =
 			      [&](std::vector<std::pair<uint64_t,uint64_t>>&rr) {
@@ -41485,6 +41515,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							       0, guard_idx);
 					return source_prop;
 				  };
+		    auto add_xz_value_records = [&](unsigned prop,
+					    const std::vector<std::vector<uint64_t>>&values,
+					    unsigned kindval, unsigned tuple_base,
+					    unsigned item, unsigned width,
+					    unsigned guard) {
+			  for (unsigned value = 0; value < values.size(); value++)
+			  for (unsigned word = 0; word < values[value].size(); word++) {
+				unsigned bits = std::min(32u, width - word * 32);
+				uint64_t meta = ((uint64_t)width << 16)
+				      | ((uint64_t)word << 8) | bits;
+				cg_class->add_covgrp_bin(cp_idx, prop, values[value][word],
+				      meta, kindval | 128u, tuple_base + value, item);
+				cg_class->set_last_covgrp_bin_guard(guard);
+		  }
+	    };
 
 			    // IEEE 1800-2017 19.5.7 / 1800-2023 19.5.7: a transition sequence
 			    // listed in ignore_bins is removed from the sequences of the
@@ -41521,7 +41566,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    trans_ranges_t r;
 					    if (st.repeat_kind != class_type_t::pform_cov_trans_term_t::TRANS_ONCE
 						|| !eval_ranges(st.ranges, r, cp_value_width,
-								cp_value_signed, ib.name.str())
+									cp_value_signed, ib.name.str(), nullptr)
 						|| r.empty()) {
 						  all_ok = false;
 						  break;
@@ -41669,8 +41714,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (auto&source_term : source_terms) {
 						  trans_term_t term;
 						  if (!eval_ranges(source_term.ranges, term.ranges,
-					     cp_value_width, cp_value_signed,
-					     bin.name.str())) {
+						     cp_value_width, cp_value_signed,
+						     bin.name.str(), nullptr)) {
 							term.dynamic = true;
 							constructor_dependent = true;
 							for (auto&r : source_term.ranges) {
@@ -42288,6 +42333,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 
 				std::vector<std::pair<uint64_t,uint64_t>> rr;
+				std::vector<std::vector<uint64_t>> xz_values;
 				if (!bin.source_coverpoint.nil()) {
 				      const class_type_t::pform_coverpoint_t*source_cp = nullptr;
 				      for (auto&candidate : cgdef->coverpoints)
@@ -42381,7 +42427,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    continue;
 				      }
 				} else if (!eval_ranges(bin.ranges, rr, cp_value_width,
-						 cp_value_signed, bin.name.str())) {
+						 cp_value_signed, bin.name.str(),
+						 !bin.arrayed && !bin.with_expr && !bin.set_expr
+						 && bin.source_coverpoint.nil()
+						 ? &xz_values : nullptr)) {
 					// Constructor-dependent bounds are per-instance
 					  // constants (19.3), not failed declaration
 					  // constants. Preserve each endpoint as property IR.
@@ -42588,7 +42637,47 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      rr = std::move(keep);
 				      }
-				}
+			}
+		// shortcut: fixed scalar bins up to 64 bits; extend array/filter/transition metadata when those bins need X/Z support.
+		if (!xz_values.empty()) {
+		      if (base_kind == 0) {
+			    subtract_carved(rr);
+			    xz_values.erase(std::remove_if(xz_values.begin(), xz_values.end(),
+				  [&](const std::vector<uint64_t>&value) {
+					return std::find(carve_xz_values.begin(),
+						carve_xz_values.end(), value)
+					      != carve_xz_values.end();
+				  }), xz_values.end());
+		      }
+		      if (rr.empty() && xz_values.empty()) {
+			    if (base_kind == 0) has_value_bins = true;
+			    continue;
+		      }
+		      unsigned source_prop = netclass_t::COVGRP_NO_PROP;
+		      if (base_kind == 1) {
+			    unsigned tuple = 0;
+			    for (auto&range : rr)
+				  cg_class->add_covgrp_bin(cp_idx, source_prop,
+					range.first, range.second, kindval,
+					tuple++, cp_idx, 0, 1, 1, 0, 1,
+					netclass_t::COVGRP_NO_FAMILY, 0, bin_guard);
+		      } else {
+			    source_prop = add_value_prop(bstem, rr, kindval, bin_guard);
+		      }
+	      add_xz_value_records(source_prop, xz_values, kindval, rr.size(),
+				   cp_idx, cp_value_width, bin_guard);
+	      if (base_kind == 0) {
+		    xbin_desc_t desc;
+		    desc.name = bin.name;
+		    desc.ranges = std::move(rr);
+		    desc.xz_values = xz_values;
+		    desc.source_prop = (int)source_prop;
+		    desc.guard_idx = bin_guard;
+		    vbins.push_back(std::move(desc));
+		    has_value_bins = true;
+	      }
+	      continue;
+	}
 
 				  // A declared value bin whose complete resolved set is
 				  // unrepresentable is empty and excluded from coverage (19.5.7,
@@ -43183,7 +43272,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						    && !eval_ranges(s->intersect_ranges, irr,
 							 cp_value_widths[cp_indexes[dim]],
 							 cp_value_signedness[cp_indexes[dim]],
-							 s->bin_name.nil() ? "bins" : s->bin_name.str()))
+							 s->bin_name.nil() ? "bins" : s->bin_name.str(),
+							 nullptr))
 						      return false;
 						if (!s->intersect_ranges.empty() && irr.empty()) {
 						      append_select_token(out, "F");
@@ -43476,7 +43566,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						if (!eval_ranges(s->intersect_ranges, irr,
 						 cp_value_widths[cp_indexes[k]],
 						 cp_value_signedness[cp_indexes[k]],
-						 s->bin_name.nil() ? "bins" : s->bin_name.str()))
+						 s->bin_name.nil() ? "bins" : s->bin_name.str(),
+						 nullptr))
 						      return -1;
 						bool overlap = false;
 							for (auto&ra : d.ranges) {
@@ -43946,7 +44037,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  cp_value_bins[cp_indexes[k]][idx[k]];
 					    rsizes[k] = !d.wide_values.empty()
 						? d.wide_values.size()
-						: d.ranges.size() ? d.ranges.size() : 1;
+						: d.ranges.size() + d.xz_values.size();
+					    if (rsizes[k] == 0) rsizes[k] = 1;
 					    if (rsizes[k] > cross_range_tuple_limit
 						|| nrt > cross_range_tuple_limit / rsizes[k]) {
 						range_product_too_large = true;
@@ -44014,6 +44106,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								      }
 								      continue;
 								}
+								if (ridx[k] >= d.ranges.size()) {
+								      unsigned xi = ridx[k] - d.ranges.size();
+								      if (xi >= d.xz_values.size()) continue;
+								      const auto&states = d.xz_values[xi];
+								      unsigned width = cp_value_widths[cp_indexes[k]];
+								      for (unsigned word = 0; word < states.size(); word++) {
+									unsigned bits = std::min(32u, width - word * 32);
+									uint64_t meta = ((uint64_t)width << 16)
+									      | ((uint64_t)word << 8) | bits;
+									cg_class->add_covgrp_bin(cp_indexes[k],
+									      tgt.first, states[word], meta,
+									      tgt.second | 128u, tup, item_idx);
+									cg_class->set_last_covgrp_bin_guard(
+									      d.guard_idx);
+								      }
+								      continue;
+							}
 								if (d.ranges.empty()) continue;
 							auto&r = d.ranges[ridx[k]];
 							unsigned kv = tgt.second
