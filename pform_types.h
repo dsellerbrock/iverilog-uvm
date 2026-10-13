@@ -315,7 +315,9 @@ private:
 
 /*
  * type_reference_t is the pform representation of the IEEE 1800-2017
- * 6.23 `type()` operator: `type(expression)` or `type(data_type)`.
+ * 6.23 `type()` operator: `type(expression)` or `type(data_type)`. The
+ * 2023 `type(this)` form (6.23, 8.11) uses its expression slot and resolves
+ * directly to the enclosing class type without evaluating `this`.
  * Exactly one of "expr" or "named_type" is non-null.
  *
  *  - named_type set (the `type(data_type)` form, e.g. `type(int)`):

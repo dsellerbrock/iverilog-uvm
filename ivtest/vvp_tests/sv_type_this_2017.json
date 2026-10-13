@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_type_this_2017.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_type_this_2017"
+}

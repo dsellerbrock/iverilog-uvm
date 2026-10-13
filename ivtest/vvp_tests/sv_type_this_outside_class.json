@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_type_this_outside_class.v",
+  "iverilog-args": ["-g2023", "-s", "sv_type_this_outside_class"],
+  "gold": "sv_type_this_outside_class"
+}
