@@ -7415,6 +7415,27 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 				     uint64_t val,
 				     const vvp_vector4_t*wide_val = nullptr)
 {
+      if (bin.kind & 128) {
+	    unsigned width = bin.hi >> 16;
+	    unsigned word = (bin.hi >> 8) & 255;
+	    unsigned bits = bin.hi & 255;
+	    if (!wide_val || width == 0 || width > 256
+		|| wide_val->size() != width || bits == 0 || bits > 32
+		|| word * 32 + bits > width
+		|| (bits < 32 && (bin.lo >> (bits * 2)) != 0)) return false;
+	    for (unsigned bit = 0; bit < bits; bit++) {
+		  vvp_bit4_t expected;
+		  switch ((bin.lo >> (bit * 2)) & 3) {
+		      case 0: expected = BIT4_0; break;
+		      case 1: expected = BIT4_1; break;
+		      case 2: expected = BIT4_X; break;
+		      default: expected = BIT4_Z; break;
+		  }
+		  if (wide_val->value(word * 32 + bit) != expected) return false;
+	    }
+	    return true;
+      }
+      if (wide_val && wide_val->has_xz()) return false;
       if (bin.kind & 64) {
 	    unsigned width = bin.hi >> 16;
 	    unsigned word = (bin.hi >> 8) & 255;
@@ -7524,8 +7545,10 @@ static uint64_t covgrp_trans_term_rank_(const covgrp_trans_term_t&term,
 
 static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
       uint64_t key_prefix, const std::vector<const class_type::cov_bin_t*>&records,
-      uint64_t value)
+      uint64_t value, const vvp_vector4_t*sample)
 {
+	  // shortcut: skip X/Z transition samples until transition terms encode four-state endpoints.
+	  if (sample && sample->has_xz()) return std::set<uint64_t>();
       std::map<unsigned,std::map<unsigned,covgrp_trans_term_t>> programs;
       std::map<unsigned,uint64_t> seq_bases;
       for (const class_type::cov_bin_t*bin : records) {
@@ -8902,6 +8925,7 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
       const covgrp_cross_state_t&state,
       const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
       unsigned ncp, const vector<uint64_t>&cp_vals,
+      const vector<vvp_vector4_t>&wide_vals,
       const vector<bool>&cp_sampled, const vector<bool>&cp_suppressed,
       const vector<uint64_t>&bin_guards,
       const std::set<unsigned>&transition_hits,
@@ -8922,9 +8946,10 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
 		  bool hit = false;
 		  if (choice.kind == 0) {
 			for (const class_type::cov_bin_t*rec : choice.records) {
-			      if (rec && covgrp_cross_guard_enabled_(rec->guard_idx,
+			  if (rec && covgrp_cross_guard_enabled_(rec->guard_idx,
 								 bin_guards)
-				  && covgrp_rec_match_(*rec, cp_vals[choice.cp_idx])) {
+				  && covgrp_rec_match_(*rec, cp_vals[choice.cp_idx],
+						       &wide_vals[choice.cp_idx])) {
 				    hit = true;
 				    break;
 			      }
@@ -8933,6 +8958,7 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
 			if (dyn_computed.insert(choice.source_id).second) {
 			      auto found = dyn_states.find(choice.source_id);
 			      if (found != dyn_states.end() && found->second.valid
+				  && !wide_vals[choice.cp_idx].has_xz()
 				  && found->second.meta
 				  && covgrp_cross_guard_enabled_(
 					found->second.meta->guard_idx, bin_guards)) {
@@ -9075,7 +9101,6 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 
       vector<uint64_t> cp_vals(ncp, 0);
       vector<vvp_vector4_t> wide_vals(ncp);
-      vector<bool> cp_has_xz(ncp, false);
       for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
 	    if (cobj && cobj->get_defn()->covgrp_cp_real(ii)) {
 		  cp_vals[ii] = covgrp_real_key_(thr->pop_real());
@@ -9090,18 +9115,16 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 		  }
 	    }
 	    vvp_vector4_t v = thr->pop_vec4();
-	    if (v.size() > 64) wide_vals[ii] = v;
+	    if (v.size() > 64 || v.has_xz()) wide_vals[ii] = v;
 	    uint64_t val = 0;
-	    bool xz = false;
 	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1) {
 		  switch (v.value(b)) {
 		      case BIT4_1: val |= ((uint64_t)1 << b); break;
 		      case BIT4_0: break;
-		      default: xz = true; break;
+		      default: break;
 		  }
 	    }
 	    cp_vals[ii] = val;
-	    cp_has_xz[ii] = xz;
       }
 
 	 vvp_object_t obj;
@@ -9134,8 +9157,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    covgrp_cross_states_(defn, cobj);
 
 	// Pass 1: per-coverpoint sampled/suppressed state.
-	//   sampled: guard true.  X/Z values coerce to 0-bits (2-state
-	//   coverage values; recorded).
+	//   sampled: guard true. X/Z values keep their four-state vector for
+	//   exact bins; ordinary 2-state predicates do not match them.
       vector<bool> cp_sampled(ncp, false);
       for (unsigned ci = 0 ; ci < ncp ; ci += 1)
 	    cp_sampled[ci] = (guards[ci] != 0);
@@ -9218,7 +9241,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
-	    if (cp < ncp && cp_sampled[cp]
+	    if (cp < ncp && cp_sampled[cp] && !wide_vals[cp].has_xz()
 		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
 		  std::cerr << "ERROR: covergroup dynamic illegal_bin matched"
 			    << " (family=" << entry.first << ")" << std::endl;
@@ -9245,7 +9268,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    const std::set<std::pair<unsigned,uint64_t>> no_transition_families;
 	    std::vector<std::set<unsigned>> matched =
 		  covgrp_cross_matched_choices_(state, dyn_states, ncp, cp_vals,
-			cp_sampled, cp_suppressed, bin_guards,
+			wide_vals, cp_sampled, cp_suppressed, bin_guards,
 			no_transition_props, no_transition_families, false, false);
 	    std::set<unsigned> illegal_hits;
 	    for (const covgrp_cross_route_t&route : state.routes) {
@@ -9280,7 +9303,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
-	    if (cp < ncp && cp_sampled[cp]
+	    if (cp < ncp && cp_sampled[cp] && !wide_vals[cp].has_xz()
 		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count))
 		  cp_suppressed[cp] = true;
       }
@@ -9331,7 +9354,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  std::vector<const class_type::cov_bin_t*> records;
 		  for (size_t bi : recs) records.push_back(&defn->covgrp_bin(bi));
 		  std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
-			((uint64_t)kv.first << 32), records, cp_vals[cp]);
+			((uint64_t)kv.first << 32), records, cp_vals[cp],
+			&wide_vals[cp]);
 		  bool named_hit = false;
 		  for (uint64_t logical : completed) {
 			if (!count_enabled) continue;
@@ -9398,7 +9422,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    for (const auto&rec : state.records) records.push_back(&rec);
 	    std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
 		  (UINT64_C(1) << 63) | ((uint64_t)entry.first << 16),
-		  records, cp_vals[cp]);
+		  records, cp_vals[cp], &wide_vals[cp]);
 	    if (!bin_enabled(state.meta->guard_idx)) continue;
 	    bool named_hit = false;
 	    for (uint64_t logical : completed) {
@@ -9423,6 +9447,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
 	    if (cp < ncp && cp_sampled[cp] && !cp_suppressed[cp]
+		&& !wide_vals[cp].has_xz()
 		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
 		  for (uint64_t bin : logical)
 			cobj->cov_dyn_bump(entry.first, bin);
@@ -9441,7 +9466,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		|| !item_enabled(state.meta->item_idx)) continue;
 	    std::vector<std::set<unsigned>> matched =
 		  covgrp_cross_matched_choices_(state, dyn_states, ncp, cp_vals,
-			cp_sampled, cp_suppressed, bin_guards,
+			wide_vals, cp_sampled, cp_suppressed, bin_guards,
 			transition_hits, transition_family_hits, true, true);
 	    std::set<unsigned> named_hits;
 	    std::set<uint64_t> auto_hits;
@@ -9512,7 +9537,7 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 			 vvp_vector4_t*wide = nullptr) {
 	    vvp_vector4_t v;
 	    o->get_vec4(prop, v);
-	    if (wide && v.size() > 64) *wide = v;
+	    if (wide && (v.size() > 64 || v.has_xz())) *wide = v;
 	    val = 0;
 	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1)
 		  if (v.value(b) == BIT4_1)

@@ -1859,6 +1859,8 @@ bool vvp_vector4_t::eq_xz(const vvp_vector4_t&that) const
 
 bool vvp_vector4_t::has_xz() const
 {
+      if (size_ == 0) return false;
+
       if (size_ < BITS_PER_WORD) {
 	    unsigned long mask = -1UL >> (BITS_PER_WORD - size_);
 	    return bbits_val_&mask;
