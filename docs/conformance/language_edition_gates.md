@@ -74,19 +74,19 @@ because the command-line switch exists.
 
 ## Test matrix
 
-The `$stacktrace` gate carries four core arms, registered in
+The `$stacktrace` task gate carries four core arms, registered in
 `ivtest/regress-sv.list`:
 
 | arm | registration | asserts |
 |---|---|---|
 | older mode | `CE,-g2012` + `gold=` | fails, and the diagnostic names construct + edition + flag |
-| defining edition | `normal,-g2023` | works, and computes the right value |
+| defining edition | `normal,-g2023` | works and runs to completion |
 | later edition | `normal,-glatest` | still works |
 | neighbour syntax | `normal,-g2012` | closely-related older syntax is undisturbed |
 
-`$stacktrace` carries a fifth arm, `CE,-g2017`, pinning that a 2023
-feature is refused under 2017 — the concrete check that 2017 is not
-silently treated as "newest".
+`$stacktrace` carries a fifth arm, `CE,-g2017`, pinning that the task
+is refused under 2017. The string-function form has paired 2023-positive
+and 2017-compile-error cases in both regression runners.
 
 `type(this)` is gated by IEEE 1800-2023 6.23 and resolves to the class
 containing the declaration (8.11). Its cases cover generic and derived class
