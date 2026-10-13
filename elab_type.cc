@@ -715,6 +715,21 @@ static void finish_interface_declaration_scope_(Design*des, NetScope*scope,
 		  elaborate_interface_declaration_signal_(
 			des, scope, cur->second);
       scope->elaborate_nettypes(des);
+
+	/* A virtual-interface layout has no concrete instance whose covergroup
+	 * body can supply sample() metadata. Finish standalone covergroup types
+	 * here so the layout carries the same point and bin metadata as instances. */
+      for (PClass*pclass : mod->classes_lexical) {
+	    if (!pclass || !pclass->type
+		|| !pclass->type->is_covergroup_standalone)
+		  continue;
+	    NetScope*cg_scope = scope->child(hname_t(pclass->pscope_name()));
+	    if (!cg_scope || cg_scope->type() != NetScope::CLASS)
+		  continue;
+	    netclass_t*cg_type = const_cast<netclass_t*>(cg_scope->class_def());
+	    if (cg_type)
+		  cg_type->elaborate(des, pclass);
+      }
 }
 
 static void populate_interface_type_(Design*des, NetScope*member_scope,
