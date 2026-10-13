@@ -1,0 +1,2 @@
+:assert: (1 == 1)
+/home/dsell/slurm-runs/iverilog-uvm/a3/svtests-corrected-20261013-01/input/event-trigger-after-waiter-ready.sv:12: $finish called at 2 (1s)
