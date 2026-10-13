@@ -160,7 +160,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 2 | `ref static` tf arguments | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-08: A.2.7 grammar/2017 gate, §13.5.2 lifetime checks, §9.3.2 detached-fork exception; paired focus 7/7 in both runners and UVM 363/363. Full legacy has two unrelated VIF gold mismatches; JSON stops at the unrelated `sv_always_comb_fixed_point` zero-time loop; see DD-113/114 | M |
 | 3 | Associative-array-typed parameters | CERTAIN | FOCUSED IMPLEMENTATION in open PR #466; strict 2017 rejection and paired cases; refreshed exact-head CI pending | M |
 | 4 | Restricted type parameters (`type enum/struct/class`) | CERTAIN | UNSUPPORTED | S–M |
-| 5 | `type(this)` self-type | CERTAIN | UNSUPPORTED | M |
+| 5 | `type(this)` self-type | CERTAIN | IMPLEMENTED with 2023 gate; class return types, static locals, specialization, derived class, 2017 rejection, and out-of-class rejection covered (IEEE 1800-2023 §§6.23/8.11) | M |
 | 6 | Soft packed unions (`union soft`) | CERTAIN | UNSUPPORTED (hard packed unions work) | M |
 | 7 | Named `index_argument` for array methods | CERTAIN | RESOLVED 2026-10-07 for focused locator, reduction, min/max, unique, and associative-key cases; see [Fix 35](BLOCKERS.md#sv23-array-index-argument) | S |
 | 8 | Array `map()` method (7.12.5) | CERTAIN | IMPLEMENTED and locally qualified; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407), with strict 2017 rejection retained | S |
@@ -299,7 +299,7 @@ original survey ordering, not to postpone first-class 2023 work.
 5. Triple-quoted strings (pure lexer)
 6. `ref static` (scheduler-adjacent; fits the M6B NBA expertise)
 7. Class-declaration hardening cluster (items 9–12, shared territory)
-8. Restricted type parameters + `type(this)` (items 4–5)
+8. Restricted type parameters (item 4)
 9. Assoc parameters, soft unions, `ifdef` booleans (3, 6, 17)
 10. `rand real` (defer: solver-level)
 11. `weak_reference#(T)` (defer: GC infrastructure)
