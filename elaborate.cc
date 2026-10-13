@@ -17643,7 +17643,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      else if (this_net)
 				    parent_cls = dynamic_cast<const netclass_t*>
 					  (this_net->net_type());
+			      NetNet*interface_receiver = nullptr;
 			      auto make_parent_expr = [&]() -> NetExpr* {
+				    if (interface_receiver) {
+					  NetESignal*sig = new NetESignal(interface_receiver);
+					  sig->set_line(*this);
+					  return sig;
+				    }
 				    if (cg_prop && cg_prop->get_base())
 					  return cg_prop->get_base()->dup_expr();
 				    if (cg_prop && cg_prop->get_sig()) {
@@ -17670,9 +17676,70 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      unsigned nctor =
 				    static_cast<unsigned>(cgtype->covgrp_ctor_formal_count());
 			      unsigned nformals = cgtype->covgrp_sample_formal_count();
-			      NetBlock*sample_block = (nctor || nformals)
+			      vector<unsigned> interface_properties;
+			      vector<perm_string> interface_property_names;
+			      if (parent_cls && parent_cls->is_interface()) {
+				    for (unsigned pi = 0; pi < parent_cls->get_properties(); ++pi) {
+					  const char*raw_name = parent_cls->get_prop_name(pi);
+					  ivl_type_t property_type = parent_cls->get_prop_type(pi);
+					  if (!raw_name || !property_type) continue;
+					  perm_string name = lex_strings.make(raw_name);
+					  auto references = [name](PExpr*expr) {
+						return expr && expr->refs_name(name);
+					  };
+					  bool used = false;
+					  for (unsigned cpi = 0; cpi < cgtype->covgrp_ncoverpoints(); ++cpi)
+						if (references(cgtype->covgrp_cp_expr(cpi))
+						    || references(cgtype->covgrp_cp_guard(cpi))) {
+						      used = true;
+						      break;
+					    }
+					  for (size_t item = cgtype->covgrp_ncoverpoints();
+					       !used && item < cgtype->covgrp_item_count(); ++item)
+					    used = references(cgtype->covgrp_item_guard(item));
+					  for (unsigned gi = 0;
+					       !used && gi < cgtype->covgrp_bin_guard_count(); ++gi)
+					    used = references(cgtype->covgrp_bin_guard(gi));
+					  for (unsigned fi = 0;
+					       !used && fi < nformals; ++fi)
+					    used = references(cgtype->covgrp_sample_formal_default(fi));
+					  if (used) {
+						interface_properties.push_back(pi);
+						interface_property_names.push_back(name);
+					  }
+				    }
+			      }
+			      NetBlock*sample_block = (nctor || nformals
+						      || !interface_properties.empty())
 				    ? new NetBlock(NetBlock::SEQU, 0) : nullptr;
 			      if (sample_block) sample_block->set_line(*this);
+			      if (!interface_properties.empty()) {
+				    NetExpr*parent = make_parent_expr();
+				    if (parent) {
+					  /* Snapshot once so every source and the covergroup use the
+					     same interface when the receiver expression has effects. */
+					  interface_receiver = make_covergroup_formal_signal_(
+						scope, parent_cls);
+					  interface_receiver->set_line(*this);
+					  interface_receiver->local_flag(true);
+					  NetAssign*save_parent = new NetAssign(
+						new NetAssign_(interface_receiver), parent);
+					  save_parent->set_line(*this);
+					  sample_block->append(save_parent);
+					  if (cg_prop && (cg_prop->get_base() || cg_prop->get_sig())) {
+						size_t property = cg_prop->property_idx();
+						NetExpr*index = cg_prop->get_index()
+						      ? cg_prop->get_index()->dup_expr() : nullptr;
+						NetEProperty*receiver = new NetEProperty(
+						      new NetESignal(interface_receiver), property, index);
+						receiver->set_line(*this);
+						delete obj_expr;
+						obj_expr = receiver;
+					  }
+				    } else {
+					  delete parent;
+				    }
+			      }
 
 				// A receiver can itself be an expression. Evaluate it
 				// exactly once before reading any constructor-formal
@@ -17708,6 +17775,24 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					&& (def_scope->type() == NetScope::MODULE
 					    || def_scope->type() == NetScope::PACKAGE))
 					  cp_scope = def_scope;
+				  }
+			      vector<NetNet*> previous_interface_bindings;
+			      for (size_t k = 0; k < interface_properties.size(); ++k) {
+				    if (!interface_receiver) break;
+				    unsigned pi = interface_properties[k];
+				    NetNet*slot = make_covergroup_formal_signal_(
+					  scope, parent_cls->get_prop_type(pi));
+				    slot->set_line(*this);
+				    slot->local_flag(true);
+				    NetEProperty*value = new NetEProperty(
+					  make_parent_expr(), pi, nullptr);
+				    value->set_line(*this);
+				    NetAssign*copy = new NetAssign(new NetAssign_(slot), value);
+				    copy->set_line(*this);
+				    sample_block->append(copy);
+				    previous_interface_bindings.push_back(
+					  cp_scope->set_signal_alias(
+						interface_property_names[k], slot));
 			      }
 			      vector<NetNet*> previous_ctor_bindings(nctor, nullptr);
 			      for (unsigned k = 0; k < nctor; k += 1) {
@@ -17893,7 +17978,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					      continue;
 					  }
 					  NetExpr*sval = nullptr;
-					  if (PExpr*sexpr = cgtype->covgrp_cp_expr(cpi)) {
+					  PExpr*sexpr = cgtype->covgrp_cp_expr(cpi);
+					  if (sexpr) {
 						sval = elab_and_eval(des, cp_scope, sexpr, -1,
 								     false, false);
 					  }
@@ -18058,6 +18144,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    cp_scope->restore_signal_alias(
 					  cgtype->covgrp_ctor_formal_name(k),
 					  previous_ctor_bindings[k]);
+			      for (size_t k = previous_interface_bindings.size(); k > 0; --k)
+				    cp_scope->restore_signal_alias(
+					  interface_property_names[k - 1],
+					  previous_interface_bindings[k - 1]);
 			      NetSTask* sys = new NetSTask(
 				    "$ivl_class_method$covgrp_sample",
 				    IVL_SFUNC_AS_TASK_IGNORE, argv);
