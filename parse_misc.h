@@ -126,6 +126,9 @@ struct sva_seq_step_t {
       PExpr* expr = nullptr;
       perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
       PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none
+      // shortcut: selected writes use fixed-delay lowering; extend LV-2 when
+      // variable-delay and implication paths preserve ordered lvalue updates.
+      bool lv_selected = false;
       // IEEE 1800-2017 16.11: sequence match-item subroutine calls execute
       // in source order after the optional local-variable assignment above.
       // The bounded lowering diagnoses every unsupported placement/call
