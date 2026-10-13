@@ -1,0 +1,2 @@
+PASS sv_sva_match_item_selected_lhs
+./ivltests/sv_sva_match_item_selected_lhs.v:36: $finish called at 80 (1s)

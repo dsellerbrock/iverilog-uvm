@@ -3954,7 +3954,7 @@ sv_sequence_solo_ref_in_generate_block normal,-g2012 ivltests
 sv_elab_task_fatal_undef_arg_fail CE,-g2012 ivltests gold=sv_elab_task_fatal_undef_arg_fail.gold
 sv_static_qualifier_module_task_fail CE,-g2012 ivltests gold=sv_static_qualifier_module_task_fail.gold
 # DD-035: selected local assignments preserve ordered read-modify-write values.
-sv_sva_match_item_selected_lhs normal,-g2017 ivltests
+sv_sva_match_item_selected_lhs normal,-g2017 ivltests gold=sv_sva_match_item_selected_lhs.gold
 
 # DD-039 chained leading cycle delay fix
 sv_sva_chained_leading_cycle_delay normal,-g2012 ivltests
