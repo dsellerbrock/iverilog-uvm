@@ -6141,6 +6141,8 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
       bool reverse_right = left_ascending != right_ascending;
       unsigned count = static_cast<unsigned>(left.count);
       bool equal_op = op == 'e' || op == 'E' || op == 'w';
+      vector<NetExpr*> terms;
+      terms.reserve(count);
       for (unsigned k = 0 ; k < count ; k += 1) {
 	    long left_word = left.canonical_base + static_cast<long>(k);
 	    long right_off = reverse_right
@@ -6160,13 +6162,26 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
 	    r = pad_to_width(r, wid, false, *pexpr);
 	    NetEBComp*cmp = new NetEBComp(op, l, r);
 	    cmp->set_line(*pexpr);
-	    if (!result) result = cmp;
-	    else {
-		  NetEBLogic*join = new NetEBLogic(equal_op ? 'a' : 'o',
-						 result, cmp);
-		  join->set_line(*pexpr);
-		  result = join;
+	    terms.push_back(cmp);
+      }
+      /* Balance the reduction so VVP can reuse condition flags. */
+      std::size_t active = terms.size();
+      while (active > 1) {
+	    std::size_t next_count = (active + 1) / 2;
+	    for (std::size_t i = 0 ; i < next_count ; i += 1) {
+		  std::size_t left_idx = i * 2;
+		  if (left_idx + 1 < active) {
+			NetEBLogic*join = new NetEBLogic(equal_op ? 'a' : 'o',
+							 terms[left_idx],
+							 terms[left_idx + 1]);
+			join->set_line(*pexpr);
+			terms[i] = join;
+		  } else terms[i] = terms[left_idx];
 	    }
+	    active = next_count;
+      }
+      if (!terms.empty()) {
+	    result = terms.front();
       }
       (void)flags;
       return true;
