@@ -27859,10 +27859,27 @@ static bool checked_property_index_value_(const vvp_vector4_t&raw,
                                           bool is_signed, int64_t&value)
 {
       unsigned width = raw.size();
-      uint64_t bits = 0;
+      unsigned long word;
       unsigned idx;
 
-      if (width == 0 || raw.has_xz())
+      if (width == 0)
+            return false;
+
+      // Most property indices are small 2-state values; read their word once.
+      if (raw.small_2state_word(word)) {
+            uint64_t bits = word;
+            if (!is_signed && width >= 64
+                && (bits & (UINT64_C(1) << 63)))
+                  return false;
+            if (is_signed && width < 64
+                && (word & (1UL << (width - 1))))
+                  bits |= UINT64_MAX << width;
+            value = (int64_t)bits;
+            return true;
+      }
+
+      uint64_t bits = 0;
+      if (raw.has_xz())
             return false;
 
       for (idx = 0 ; idx < width && idx < 64 ; idx += 1)

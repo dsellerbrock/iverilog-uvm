@@ -1,3 +1,8 @@
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
 Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
 Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
+: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
 Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
