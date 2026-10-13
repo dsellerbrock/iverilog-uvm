@@ -415,6 +415,12 @@ extern void pform_sva_declare_logic_local(
 extern PExpr* pform_sva_coerce_local_assignment(
 					const struct vlltype&loc,
 					const char*name, PExpr*rhs);
+/* Turn a direct bit/constant part-select local assignment into a full-value
+   update expression. Takes ownership of both bounds and rhs. */
+extern PExpr* pform_sva_selected_local_assignment(
+					const struct vlltype&loc,
+					const char*name, PExpr*msb, PExpr*lsb,
+					PExpr*rhs, bool bit_select);
 extern void pform_sva_end_local_declarations(void);
 extern void pform_sva_declare_property(const struct vlltype&loc,
 				       const char*name, sva_property_t*prop);
