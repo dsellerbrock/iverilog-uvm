@@ -1,0 +1,13 @@
+# SV-Tests runner path correction
+
+The first pinned-corpus run, Slurm job 792, built Icarus from source tree 2cb6260f02c1680196cca51d76e6e429e3b738d5 and recorded binary SHA-256 b0b618fd7982b520347be3f78154fd5c146a92e72952b30659661a1ff911d1bd. It did not test that compiler. run.sbatch placed wrappers in RUN_DIR/tool-bin, while run_icarus_svtests.py constructed PATH from OUT_DIR/tool-bin. runner-safe also prepended OUT_DIR/runners/bin. These directories had no wrappers, so PATH fell through to /usr/bin/iverilog, Icarus 12.0, SHA-256 a6681e0b577dcfc4ea83d1591a5714710b0b3535ebb36491ee8177553bab9631.
+
+The mismatch was reproduced with the exact pinned UVM source and test 16.10--property-local-var-uvm.sv: system Icarus 12.0 exits 2 at uvm_hdl.svh:77; the source-built Icarus 13.0 from the same source tree exits 0 and emits the uvm_hdl_check_path DPI import. Thus the old 603/1,027 result and 424-row classification apply to the system Icarus 12.0 invocation, not the source build.
+
+Corrected Slurm job 816 used source commit db458c438eca253fb1b3110f671fe3800e33b7a0, the same source tree, and corpus c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7. The runner now places wrappers in OUT_DIR/runners/bin and checks the resolved iverilog and vvp paths before starting. It completed all 1,027 cases: 1,022 runner-passed and 5 runner-failed. The compiler and VVP hashes, class counts, all per-test logs, scripts, and environment are recorded in corrected-run/.
+
+The five flagged rows were manually compared against pinned test sources and raw logs. Three SVA negatives emit the expected $error runtime diagnostics but return status 0, which IEEE 1800-2017 §20.10 does not forbid. The tagged-union output prints matching values, but the corpus log parser evaluates the non-Python :assert: expression with eval. The named-event case triggers at time zero before its separate waiter is synchronized; a delayed-trigger control passed on the same build. The current evidence shows test-oracle, parser, or scheduling-race problems, not a confirmed simulator defect.
+
+A 15-row passing sample was also checked against source and raw logs. It includes acceptance-only, expected-reject, static-accept, and runtime-verified classes. One UVM acceptance-only log contains missing DPI-symbol messages despite the runner classifying it as passed; the reported 99.51% is therefore the runner’s result, not a full semantic-conformance rate.
+
+The delayed-trigger control is Slurm job 822. Its captured VVP output contains the expected :assert: (1 == 1) and vvp_rc=0; scheduler accounting is unavailable, so only the job output is retained as final evidence.

@@ -1,0 +1,13 @@
+Focused excerpts from successful generated VVP output; full generated dumps were omitted because each is about 32 MiB.
+
+property-local-var-uvm.out SHA-256: e2b2b30c5f78b01b6d00aabc403c5fc5463e5c5f358a5b058a192945b20787e7
+758719:S_0x70fd3e509590 .scope function.vec2.u32, "uvm_hdl_check_path" "uvm_hdl_check_path" 7 77, 7 77 0, S_0x642e63d60e10;
+758722:; Variable uvm_hdl_check_path is bool return value of scope S_0x70fd3e509590
+758723:TD_uvm_pkg.uvm_hdl_check_path ;
+758725:    %dpi/call/vec4 "uvm_hdl_check_path|^is", 1, 32;
+
+uvm_files.out SHA-256: 5b8ab3f6210d089ab94ceb7fc83339d1c64c5872dc830e971640e549636d1dac
+753420:S_0x73f02bd5eb70 .scope function.vec2.u32, "uvm_hdl_check_path" "uvm_hdl_check_path" 6 77, 6 77 0, S_0x60fd8fc0bc90;
+753423:; Variable uvm_hdl_check_path is bool return value of scope S_0x73f02bd5eb70
+753424:TD_uvm_pkg.uvm_hdl_check_path ;
+753426:    %dpi/call/vec4 "uvm_hdl_check_path|^is", 1, 32;
