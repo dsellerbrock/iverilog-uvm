@@ -81,6 +81,12 @@ for sv in "$DIR"/*.sv; do
         if [ $ok -ne 1 ]; then
             echo "FAIL (compile failed)"; FAIL=$((FAIL+1)); continue
         fi
+        if grep -Eq 'Unable to bind wire/reg/memory .*_ivl_sva[0-9]+_cnt[0-9]+' \
+                "$TMP/$name.off.cc" "$TMP/$name.on.cc"; then
+            echo "FAIL (assertion counter did not bind)"
+            head -3 "$TMP/$name.off.cc"; head -3 "$TMP/$name.on.cc"
+            FAIL=$((FAIL+1)); continue
+        fi
         # Engagement check: a parity PASS is only meaningful if the
         # flag-on build really used the automaton engine (its slot
         # state registers appear in the vvp assembly). A test whose

@@ -9265,12 +9265,12 @@ static PExpr* sva_clone_subst_(PExpr*e,
 		  const name_component_t&component = id->path().name.front();
 		  std::map<perm_string,PExpr*>::const_iterator it =
 			subst->find(component.name);
-		  /* shortcut: only SEL_PART selectors are rebuilt; add other selector
-		     kinds when a regression covers them. */
+		  /* shortcut: only bit and fixed part selects are rebuilt here. */
 		  bool can_postselect = true;
 		  for (std::list<index_component_t>::const_iterator idx =
 			 component.index.begin() ; idx != component.index.end() ; ++idx)
-			if (idx->sel != index_component_t::SEL_PART) {
+			if (idx->sel != index_component_t::SEL_PART
+			    && idx->sel != index_component_t::SEL_BIT) {
 			      can_postselect = false;
 			      break;
 			}
@@ -9611,6 +9611,9 @@ void pform_sva_single_delay(const struct vlltype&loc,
 struct sva_local_decl_type_t {
       PExpr*width = nullptr;
       bool signed_flag = false;
+      long packed_left = 0;
+      long packed_right = 0;
+      bool packed_range_known = true;
 };
 
 /* Named property/sequence local declarations are not ordinary module wires,
@@ -9682,7 +9685,10 @@ static PExpr* sva_local_dimension_width_(const struct vlltype&loc,
 
 static void sva_local_decl_insert_(const struct vlltype&loc,
 				    const char*name, PExpr*width,
-				    bool signed_flag)
+				    bool signed_flag,
+				    long packed_left = 0,
+				    long packed_right = 0,
+				    bool packed_range_known = true)
 {
       perm_string key = lex_strings.make(name);
       if (sva_local_decl_types_.count(key)) {
@@ -9695,6 +9701,9 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
       sva_local_decl_type_t rec;
       rec.width = width;
       rec.signed_flag = signed_flag;
+      rec.packed_left = packed_left;
+      rec.packed_right = packed_right;
+      rec.packed_range_known = packed_range_known;
       sva_local_decl_types_[key] = rec;
 }
 
@@ -9702,7 +9711,7 @@ void pform_sva_declare_int_local(const struct vlltype&loc, const char*name)
 {
       PENumber*width = new PENumber(new verinum((uint64_t)32, 32));
       FILE_NAME(width, loc);
-      sva_local_decl_insert_(loc, name, width, true);
+      sva_local_decl_insert_(loc, name, width, true, 31, 0);
 }
 
 void pform_sva_declare_logic_local(const struct vlltype&loc,
@@ -9712,6 +9721,14 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 {
       PExpr*width = nullptr;
       bool failed = false;
+      bool packed_range_known = !dimensions || dimensions->size() == 1;
+      long packed_left = 0, packed_right = 0;
+      if (dimensions && packed_range_known) {
+	    const pform_range_t&range = dimensions->front();
+	    packed_range_known = range.second
+		  && pform_sva_const_long(range.first, packed_left)
+		  && pform_sva_const_long(range.second, packed_right);
+      }
       if (dimensions) {
 	    for (std::list<pform_range_t>::iterator it = dimensions->begin();
 		 it != dimensions->end(); ++it) {
@@ -9748,7 +9765,8 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 	    error_count += 1;
 	    return;
       }
-      sva_local_decl_insert_(loc, name, width, false);
+      sva_local_decl_insert_(loc, name, width, false, packed_left,
+			     packed_right, packed_range_known);
 }
 
 PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
@@ -9770,6 +9788,118 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       PECastSign*sign = new PECastSign(it->second.signed_flag, size);
       FILE_NAME(sign, loc);
       return sign;
+}
+
+PExpr* pform_sva_selected_local_assignment(const struct vlltype&loc,
+					  const char*name, PExpr*msb,
+					  PExpr*lsb, PExpr*rhs,
+					  bool bit_select)
+{
+      std::map<perm_string,sva_local_decl_type_t>::const_iterator it =
+	    sva_local_decl_types_.find(lex_strings.make(name));
+      auto reject = [&](const char*why) -> PExpr* {
+	    cerr << loc << ": sorry: selected assertion local assignment to `"
+		 << name << "' " << why << endl;
+	    error_count += 1;
+	    delete msb;
+	    delete lsb;
+	    delete rhs;
+	    return nullptr;
+      };
+      if (it == sva_local_decl_types_.end())
+	    return reject("requires a declared local variable.");
+      if (!it->second.packed_range_known)
+	    return reject("requires one packed dimension with constant bounds.");
+
+      long low_bound = it->second.packed_left < it->second.packed_right
+	    ? it->second.packed_left : it->second.packed_right;
+      long high_bound = it->second.packed_left > it->second.packed_right
+	    ? it->second.packed_left : it->second.packed_right;
+	/* Compute the span unsigned: signed long subtraction can overflow for
+	   constant bounds at opposite ends of the host integer range. */
+      unsigned long long bound_delta =
+	    (unsigned long long)high_bound - (unsigned long long)low_bound;
+      if (bound_delta >= UINT_MAX)
+	    return reject("has an unsupported packed width.");
+      long long width = (long long)bound_delta + 1;
+
+      long select_msb = 0, select_lsb = 0;
+      if (bit_select) {
+	    if (!pform_sva_const_long(msb, select_msb))
+		  return reject("requires a constant bit-select index.");
+	    select_lsb = select_msb;
+      } else if (!lsb || !pform_sva_const_long(msb, select_msb)
+		 || !pform_sva_const_long(lsb, select_lsb))
+	    return reject("requires constant part-select bounds.");
+
+      bool descending = it->second.packed_left >= it->second.packed_right;
+      if ((descending && select_msb < select_lsb)
+	  || (!descending && select_msb > select_lsb)
+	  || select_msb < low_bound || select_msb > high_bound
+	  || select_lsb < low_bound || select_lsb > high_bound)
+	    return reject("has a select outside its declaration range or orientation.");
+
+      long long canonical_msb = descending
+	    ? (long long)select_msb - it->second.packed_right
+	    : (long long)it->second.packed_right - select_msb;
+      long long canonical_lsb = descending
+	    ? (long long)select_lsb - it->second.packed_right
+	    : (long long)it->second.packed_right - select_lsb;
+      long long selected_width = canonical_msb - canonical_lsb + 1;
+      if (canonical_lsb < 0 || canonical_msb >= width
+	  || selected_width <= 0 || selected_width > UINT_MAX)
+	    return reject("has an unsupported part-select orientation.");
+
+      PEIdent*old = new PEIdent(lex_strings.make(name), loc.lexical_pos);
+      FILE_NAME(old, loc);
+      /* Normalize the read value so generated selects use [width-1:0]. */
+      PECastSize*old_value = new PECastSize(
+	    new PENumber(new verinum((uint64_t)width, 32)), old);
+      FILE_NAME(old_value, loc);
+      PExpr*canonical_old = new PECastSign(false, old_value);
+      FILE_NAME(canonical_old, loc);
+      bool has_upper = canonical_msb + 1 < width;
+      bool has_lower = canonical_lsb > 0;
+      PExpr*upper_value = has_upper ? sva_clone_expr_(canonical_old) : nullptr;
+      PExpr*lower_value = has_lower ? sva_clone_expr_(canonical_old) : nullptr;
+      delete canonical_old;
+      if ((has_upper && !upper_value) || (has_lower && !lower_value)) {
+	    delete upper_value;
+	    delete lower_value;
+	    return reject("has a value that cannot be copied for selected update.");
+      }
+
+      std::list<PExpr*>parts;
+      if (has_upper) {
+	    index_component_t upper;
+	    upper.sel = index_component_t::SEL_PART;
+	    upper.msb = new PENumber(new verinum((int64_t)(width - 1)));
+	    upper.lsb = new PENumber(new verinum((int64_t)(canonical_msb + 1)));
+	    PEPostSelect*slice = new PEPostSelect(upper_value, upper);
+	    FILE_NAME(slice, loc);
+	    parts.push_back(slice);
+      }
+      PECastSize*part_rhs = new PECastSize(
+	    new PENumber(new verinum((uint64_t)selected_width, 32)), rhs);
+      FILE_NAME(part_rhs, loc);
+      PECastSign*unsigned_rhs = new PECastSign(false, part_rhs);
+      FILE_NAME(unsigned_rhs, loc);
+      parts.push_back(unsigned_rhs);
+      if (has_lower) {
+	    index_component_t lower;
+	    lower.sel = index_component_t::SEL_PART;
+	    lower.msb = new PENumber(new verinum((int64_t)(canonical_lsb - 1)));
+	    lower.lsb = new PENumber(new verinum((uint64_t)0, 32));
+	    PEPostSelect*slice = new PEPostSelect(lower_value, lower);
+	    FILE_NAME(slice, loc);
+	    parts.push_back(slice);
+      }
+      PExpr*updated = parts.size() == 1
+	    ? parts.front() : new PEConcat(parts);
+      FILE_NAME(updated, loc);
+      delete msb;
+      delete lsb;
+      return pform_sva_coerce_local_assignment(loc, name, updated);
 }
 
 /* Keep cloning and validation on the same direct-call subset. A user
@@ -18814,16 +18944,50 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
    (variable-delay: a window/$/range-rep makes D non-constant per
    attempt) cannot use $past; the assignments are LEFT on the steps and
    the NFA engine gives each slot its own copy (returns 2 here). */
+static PExpr* sva_local_default_value_(const struct vlltype&loc,
+				       PExpr*rhs)
+{
+      PECastSign*sign = dynamic_cast<PECastSign*>(rhs);
+      PECastSize*size = sign
+	    ? dynamic_cast<PECastSize*>(sign->cast_base()) : nullptr;
+      if (!size) return nullptr;
+      long width_value = 0;
+      if (!pform_sva_const_long(size->cast_size(), width_value)
+	  || width_value <= 0 || (unsigned long)width_value > UINT_MAX)
+	    return nullptr;
+      PExpr*width = sva_clone_expr_(size->cast_size());
+      if (!width) return nullptr;
+      PENumber*unknown = new PENumber(new verinum(
+	    verinum::Vx, (unsigned)width_value));
+      FILE_NAME(unknown, loc);
+      PECastSize*value = new PECastSize(width, unknown);
+      FILE_NAME(value, loc);
+      if (!sign) return value;
+      PECastSign*typed = new PECastSign(sign->has_sign(), value);
+      FILE_NAME(typed, loc);
+      return typed;
+}
+
 static int sva_lower_local_vars_(const struct vlltype&loc,
 				 std::vector<sva_seq_step_t>&steps)
 {
       bool has_lv = false;
+      bool has_selected = false;
       for (size_t k = 0 ; k < steps.size() ; k += 1)
-	    if (steps[k].lv_rhs) { has_lv = true; break; }
+	    if (steps[k].lv_rhs) {
+		  has_lv = true;
+		  has_selected = has_selected || steps[k].lv_selected;
+	    }
       if (!has_lv) return 0;
 
       long len = 0;
       if (!sva_chain_fixed_len_(steps, len)) {
+	    if (has_selected) {
+		  cerr << loc << ": sorry: selected local-variable match-item "
+		       << "assignments currently require a fixed-delay sequence." << endl;
+		  error_count += 1;
+		  return 1;
+	    }
 	      /* Variable delay: leave the assignments for LV-2 per-slot
 		 storage in the automaton engine. */
 	    (void)loc;
@@ -18836,6 +19000,77 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
       for (size_t k = 0 ; k < steps.size() ; k += 1) {
 	    acc += steps[k].delay_lo;
 	    offs[k] = acc;
+      }
+
+	/* Resolve each write against the local values established by earlier
+	   match items. Selected writes arrive as whole-value update expressions
+	   that read the previous value; this also preserves ordered repeated
+	   writes to the same local. */
+      if (has_selected) {
+      std::map<perm_string,PExpr*> current;
+      std::map<perm_string,long> current_offset;
+      for (size_t i = 0 ; i < steps.size() ; i += 1) {
+	    if (!steps[i].lv_rhs) continue;
+	    std::map<perm_string,PExpr*> subst;
+	    for (std::map<perm_string,PExpr*>::const_iterator it = current.begin()
+		 ; it != current.end() ; ++it) {
+		  PExpr*value = sva_clone_expr_(it->second);
+		  if (!value) {
+			for (std::map<perm_string,PExpr*>::iterator jt = subst.begin()
+			     ; jt != subst.end() ; ++jt) delete jt->second;
+			for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
+			     ; jt != current.end() ; ++jt) delete jt->second;
+			cerr << loc << ": sorry: assertion local-variable assignment "
+			     << "cannot be copied for ordered update lowering." << endl;
+			error_count += 1;
+			return 1;
+		  }
+		  subst[it->first] = sva_past_(
+			loc, value, offs[i] - current_offset[it->first]);
+	    }
+	    if (steps[i].lv_selected
+		&& !current.count(steps[i].lv_name)) {
+		  PExpr*initial = sva_local_default_value_(loc, steps[i].lv_rhs);
+		  if (!initial) {
+			for (std::map<perm_string,PExpr*>::iterator jt = subst.begin()
+			     ; jt != subst.end() ; ++jt) delete jt->second;
+			for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
+			     ; jt != current.end() ; ++jt) delete jt->second;
+			cerr << loc << ": sorry: assertion local-variable assignment "
+			     << "cannot preserve its initial value." << endl;
+			error_count += 1;
+			return 1;
+		  }
+		  subst[steps[i].lv_name] = initial;
+	    }
+	    PExpr*expanded = sva_clone_subst_(steps[i].lv_rhs, &subst);
+	    for (std::map<perm_string,PExpr*>::iterator jt = subst.begin()
+		 ; jt != subst.end() ; ++jt) delete jt->second;
+	    if (!expanded) {
+		  for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
+		       ; jt != current.end() ; ++jt) delete jt->second;
+		  cerr << loc << ": sorry: assertion local-variable update "
+		       << "expression cannot be copied." << endl;
+		  error_count += 1;
+		  return 1;
+	    }
+	    delete steps[i].lv_rhs;
+	    steps[i].lv_rhs = expanded;
+	    std::map<perm_string,PExpr*>::iterator old = current.find(steps[i].lv_name);
+	    if (old != current.end()) delete old->second;
+	    current[steps[i].lv_name] = sva_clone_expr_(expanded);
+	    current_offset[steps[i].lv_name] = offs[i];
+	    if (!current[steps[i].lv_name]) {
+		  for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
+		       ; jt != current.end() ; ++jt) delete jt->second;
+		  cerr << loc << ": sorry: assertion local-variable update "
+		       << "expression cannot be copied." << endl;
+		  error_count += 1;
+		  return 1;
+	    }
+      }
+	  for (std::map<perm_string,PExpr*>::iterator it = current.begin()
+	       ; it != current.end() ; ++it) delete it->second;
       }
 
 	/* Substitute reads. For step j, a local var assigned at an
@@ -18907,6 +19142,7 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
 		  delete steps[k].lv_rhs;
 		  steps[k].lv_rhs = nullptr;
 		  steps[k].lv_name = perm_string();
+		  steps[k].lv_selected = false;
 	    }
       }
       return 0;
@@ -26230,13 +26466,31 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   handles fixed delays ($past) and leaves variable delays for the
 	   slot path (code 2). */
       bool prop_has_lv = false;
+      bool prop_has_selected_lv = false;
       for (size_t si = 0 ; si < prop->seq->size() ; si += 1)
-	    if ((*prop->seq)[si].lv_rhs) prop_has_lv = true;
+	    if ((*prop->seq)[si].lv_rhs) {
+		  prop_has_lv = true;
+		  prop_has_selected_lv = prop_has_selected_lv
+			|| (*prop->seq)[si].lv_selected;
+	    }
       if (prop->antecedent)
 	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
-		  if ((*prop->antecedent)[si].lv_rhs) prop_has_lv = true;
+		  if ((*prop->antecedent)[si].lv_rhs) {
+			prop_has_lv = true;
+			prop_has_selected_lv = prop_has_selected_lv
+			      || (*prop->antecedent)[si].lv_selected;
+		  }
       bool impl_lv = prop_has_lv
 		     && (prop->op_type == 1 || prop->op_type == 2);
+      if (impl_lv && prop_has_selected_lv) {
+	    cerr << loc << ": sorry: selected local-variable match-item "
+		 << "assignments in implications are not yet supported." << endl;
+	    error_count += 1;
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
       bool slot_lv = impl_lv;
       if (!impl_lv) {
 	    int lv_s = sva_lower_local_vars_(loc, *prop->seq);
