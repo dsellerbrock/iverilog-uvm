@@ -1043,6 +1043,9 @@ sv_finish_event_rearm vvp_tests/sv_finish_event_rearm.json
 
 # IEEE 1800-2017 type() case matching and specparam constant-expression boundary
 sv_type_operator_case	vvp_tests/sv_type_operator_case.json
+sv_type_this	vvp_tests/sv_type_this.json
+sv_type_this_2017	vvp_tests/sv_type_this_2017.json
+sv_type_this_outside_class	vvp_tests/sv_type_this_outside_class.json
 sv_specparam_constant_expr_fail	vvp_tests/sv_specparam_constant_expr_fail.json
 
 # Bounded reclamation of completed zero-time named-block activations

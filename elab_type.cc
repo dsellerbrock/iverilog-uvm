@@ -3035,6 +3035,27 @@ ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	// anything -- not even the index expressions, which are only
 	// counted structurally by PEIdent::test_type_of_ident().
       if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    const pform_scoped_name_t&path = ident->path();
+	    if (path.name.size() == 1
+		&& path.name.front().name == perm_string::literal(THIS_TOKEN)) {
+		  // Keep rejected type(this) references non-null for error recovery.
+		  if (!sv_require_feature(this, SVF_TYPE_THIS)) {
+			des->errors += 1;
+			return new netvector_t(IVL_VT_LOGIC);
+		  }
+		  const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
+		  const netclass_t*current_class =
+			class_scope ? class_scope->class_def() : 0;
+		  if (!current_class) {
+			cerr << get_fileline()
+			     << ": error: type(this) requires an enclosing class scope."
+			     << endl;
+			des->errors += 1;
+			return new netvector_t(IVL_VT_LOGIC);
+		  }
+		  return const_cast<netclass_t*>(current_class);
+	    }
+
 	    ivl_type_t use_type = ident->test_type_of_ident(des, scope);
 	    if (!use_type) {
 		  cerr << get_fileline() << ": sorry: type() could not resolve "
