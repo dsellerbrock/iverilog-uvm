@@ -1846,7 +1846,7 @@ Status: recorded, not selected.
 
 ### DD-034 — Mixing `int` and `logic` assertion-local variable declarations in one property breaks binding (2026-09-16)
 
-- **Issue status:** [OPEN #475](https://github.com/dsellerbrock/iverilog-uvm/issues/475).
+- **Issue status:** [OPEN #475](https://github.com/dsellerbrock/iverilog-uvm/issues/475); fix in progress.
 
 Found while building a permanent regression for the L122 comma-
 separated multi-identifier local-declaration fix. **Not caused by that
@@ -1862,28 +1862,30 @@ property p1;
 endproperty
 ```
 Rejected at elaboration with `error: Unable to bind wire/reg/memory
-'a[...]'` — `a` is declared (no parse error) but never actually
-materialized as a usable local variable once a `logic`-kind declaration
-also appears in the same property. Confirmed independently: slang
-accepts the identical construct, 0 errors, 0 warnings.
+'a[...]'`. The failure is in fixed-delay local-variable lowering: it
+substituted earlier locals into each step's Boolean expression, but not
+into that step's later local-assignment RHS. Substitution also needs to
+rebuild a packed part-select when replacing a single-name local reference.
+The Preponed-sampling copier must also preserve the resulting select on an
+expression base; otherwise it reports that value as an unsampled live
+operand.
+In this example, `a[3:0]` in the assignment to `z` was left unresolved and
+then carried into the later comparison. This is a lowering/substitution
+defect exposed by the mixed declarations, not evidence of a collision in
+the local-declaration type map. Confirmed independently: slang accepts the
+identical construct, 0 errors, 0 warnings.
 
 Two same-kind declarations chained together (`int a; int b;`, or
-`logic [5:0] x; logic [2:0] y;`) work fine — the break is specifically
-mixing `int`-kind and `logic`-kind declarations within one property's
-local-variable section, not chaining itself. Not yet root-caused inside
-`pform.cc`'s `sva_local_decl_insert_`/`sva_local_decl_types_`
-machinery or whatever downstream step materializes each map entry as a
-real wire — the two candidate insertion functions
-(`pform_sva_declare_int_local`, `pform_sva_declare_logic_local`) both
-write into the same `sva_local_decl_types_` map via the same
-`sva_local_decl_insert_` helper, so the divergence is likely in a
-later, kind-sensitive consumer of that map, not in insertion itself —
-not traced further.
+`logic [5:0] x; logic [2:0] y;`) with whole-value assignments work. The
+permanent regression keeps those controls alongside the mixed-type case.
+IEEE 1800-2017/2023 §§16.10 and 16.12 cover sequence local variables and
+their declarations.
 
-L122's own regression test
+Regression: `ivtest/ivltests/sv_assert_property_local_mixed_type.v`, run
+under `-g2017` and `-g2023`; the T0/T1 gate result is recorded in the
+pull request. L122's own regression test
 (`ivtest/ivltests/sv_assert_property_local_multi_ident_decl.v`)
-deliberately avoids mixing kinds to stay in scope. Status: recorded,
-not selected.
+deliberately avoids mixing kinds to stay in scope.
 
 ### DD-035 — Sequence match-item assignment LHS is a bare identifier only, no part-/bit-select (2026-09-16)
 

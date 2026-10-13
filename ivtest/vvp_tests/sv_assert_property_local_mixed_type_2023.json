@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assert_property_local_mixed_type.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_assert_property_local_mixed_type"
+}
