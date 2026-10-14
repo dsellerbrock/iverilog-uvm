@@ -16,7 +16,9 @@ module main;
     bus_txn t = new;
     int nr = 0, nw = 0, ni = 0;
     longint sum = 0;
-    for (int i = 0; i < 1000; i++) begin
+    int runs = 1000;
+    void'($value$plusargs("runs=%d", runs));
+    for (int i = 0; i < runs; i++) begin
       if (!t.randomize()) $display("FAIL");
       case (t.kind) bus_txn::READ: nr++; bus_txn::WRITE: nw++; default: ni++; endcase
       sum += t.addr + t.len + t.be;

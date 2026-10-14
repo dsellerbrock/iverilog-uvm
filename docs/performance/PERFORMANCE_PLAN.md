@@ -495,7 +495,8 @@ the reference semantics throughout.
 
 | WP | Status | PR | Measured result |
 | --- | --- | --- | --- |
-| WP0-WP15 | NOT STARTED | - | - |
+| WP0 | IN PROGRESS | - | Main baseline built; corpus screening and opt-in counter validation underway |
+| WP1-WP15 | NOT STARTED | - | - |
 
 ## References
 

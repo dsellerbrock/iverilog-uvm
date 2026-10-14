@@ -30,6 +30,7 @@
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
 # include  "vvp_z3.h"
+# include  "vvp_perf_stats.h"
 
 # include  <z3.h>
 # include  <z3_optimization.h>
@@ -54,6 +55,21 @@
 # include  <limits>
 
 using namespace std;
+
+#ifdef VVP_PERF_STATS
+#define Z3_mk_context(config) \
+      (vvp_perf_stats_z3_context(), Z3_mk_context(config))
+#define Z3_mk_context_rc(config) \
+      (vvp_perf_stats_z3_context(), Z3_mk_context_rc(config))
+#define Z3_solver_check(context, solver) \
+      (vvp_perf_stats_z3_check(), Z3_solver_check(context, solver))
+#define Z3_solver_check_assumptions(context, solver, count, assumptions) \
+      (vvp_perf_stats_z3_check(), \
+       Z3_solver_check_assumptions(context, solver, count, assumptions))
+#define Z3_model_eval(context, model, term, completion, result) \
+      (vvp_perf_stats_z3_model_eval(), \
+       Z3_model_eval(context, model, term, completion, result))
+#endif
 
 static uint64_t z3_real_bits_(double value)
 {

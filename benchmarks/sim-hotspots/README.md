@@ -27,8 +27,36 @@ byte-identical; it removes interpretation overhead, not semantics.
    behavior, then compared full simulation output against the reference
    runtime.
 
-`run.sh <reference-vvp> <candidate-vvp> [runs]` rebuilds the workloads with
-the `iverilog` on `PATH`, times both runtimes, and fails if any output differs.
+`run.sh <reference-vvp> <candidate-vvp> [runs]` keeps the original text report.
+Use `run.sh --json <reference-vvp> <candidate-vvp> [runs]` for campaign
+measurements. JSON mode defaults to five interleaved pairs, alternates which
+runtime runs first, and pins the process to one allowed CPU where the host
+supports affinity. It records wall time, `perf stat` instructions and task-clock
+when available, max RSS, per-run SHA-256 hashes, generated-file hashes, medians,
+and spread. It compares stdout/stderr and generated files byte-for-byte in
+every pair. Wave workloads disable VCD/FST timestamps so the artifact
+comparison is stable.
+
+JSON mode runs `randomize_dv_txn` for 400 draws to keep it under 10 seconds on
+the baseline; the source default remains 1,000. Both runtimes receive the same
+`+runs=400` argument. This preserves the first 400 seeded draws.
+
+The WP0 additions cover 128-1024-bit vectors, strength and UDP gates, 32
+independent delayed clocks, a 16K-word `$readmemh` memory, `$display`/`$fwrite`,
+VCD and FST dumping, VPI `cbValueChange`, strings/associative arrays/queues,
+UVM config DB/factory/reporting, and 511 forked task frames. JSON mode requires
+strict output equality for every row.
+
+Build counters with `./configure --enable-perf-stats` and set
+`IVL_PERF_STATS=1` for a run. The build option defaults off; a normal binary
+has no counter call sites and ignores that environment variable. The opt-in
+stderr JSON includes event counts by region, thread creations and subsequent
+thread resumes, automatic-context allocations, `recv_vec4` dispatches by
+functor type, `%callf`/`%fork` totals, opcode and adjacent-opcode-pair
+histograms, time-list walk lengths, and Z3 context/check/model-evaluation
+counts. Opcode pairs count uninterrupted dispatches within one thread run.
+`test_perf_stats.sh` checks default-output identity with counters absent and
+checks that the opt-in dump contains the expected counter groups.
 
 ## Hot spots found and changes
 
@@ -126,6 +154,7 @@ pins the distribution; the unmodified runtime fails it.
 
 | Idea | Measured | Verdict |
 | --- | --- | --- |
+| Keep all 1,000 `randomize_dv_txn` draws in the JSON baseline | 13.328 s on the 47bc main baseline | resized JSON mode to 400 draws (under 10 s; preserves the first 400 draws); source default and legacy mode remain at 1,000 |
 | Range queries as `check_assumptions` instead of push/assert/pop | 10.79 s → 10.75 s (bias case) | reverted, noise |
 | Keep freed memory (mallopt) around `Z3_mk_context` | 2.97 → 2.75 ms per context | not adopted, 7% |
 | Build the next fresh Z3 context on a background thread | 3.0 → 3.6–4.8 ms per iteration | rejected, slower (lock contention) |
