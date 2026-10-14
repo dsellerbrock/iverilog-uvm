@@ -1,0 +1,5 @@
+{
+    "type": "CE",
+    "source": "sv_restricted_type_parameters_reject_2017.v",
+    "iverilog-args": ["-g2017", "-stest"]
+}
