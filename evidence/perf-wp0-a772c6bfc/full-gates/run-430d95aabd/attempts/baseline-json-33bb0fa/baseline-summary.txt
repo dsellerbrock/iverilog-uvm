@@ -1,0 +1,13 @@
+head=33bb0fa640d8862198ea88ef86dd3e4674f791ee
+resources=2 CPUs, 4 GiB RAM, 2 hours; per-test timeout=300 seconds
+BEGIN extract 2026-10-14T20:04:27Z
+END extract exit_code=0 2026-10-14T20:04:27Z
+BEGIN autoconf 2026-10-14T20:04:27Z
+END autoconf exit_code=0 2026-10-14T20:04:27Z
+BEGIN configure 2026-10-14T20:04:27Z
+END configure exit_code=0 2026-10-14T20:04:29Z
+BEGIN build 2026-10-14T20:04:29Z
+END build exit_code=0 2026-10-14T20:06:46Z
+BEGIN install 2026-10-14T20:06:46Z
+END install exit_code=0 2026-10-14T20:06:46Z
+comparison=REPRODUCED; all 16 full-suite failures are present on origin/main baseline

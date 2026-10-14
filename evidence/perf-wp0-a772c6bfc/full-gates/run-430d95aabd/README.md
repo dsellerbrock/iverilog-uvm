@@ -11,4 +11,4 @@ baseline and current main.
 | Job | Outcome |
 | --- | --- |
 | 1011 | Setup failure before source extraction: the archive checksum list was checked from the wrong working directory. No build or test ran. Details are in `attempts/job1011/`. |
-| 1012 | Full gates are running from a fresh directory with checksum verification and in-tree configure fixes. Results will be added after completion. |
+| 1012 | From 430d95aabd on base 3335fe7, both builds and the stats symbol/smoke checks passed; make check, the legacy/negative/VPI gate, and FPGA install passed. Full JSON ivtest ran 4,630 tests and returned 16 gold/compile mismatches. All 16 selectors are preserved in the current-main baseline comparison (attempts/baseline-json-33bb0fa/attempt-status.txt) and reproduce on origin/main 33bb0fa. The UVM stage was not reached. Because #581 advanced main during this run, WP0 must be rebased and the full gates rerun before delivery. |
