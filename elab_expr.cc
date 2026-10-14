@@ -11938,14 +11938,6 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 {
       perm_string name = peek_tail_name(path_);
 
-	/* IEEE 1800-2023 20.17.2 adds the string-function form of
-	   $stacktrace alongside its task form. */
-      if (name == "$stacktrace"
-	  && !sv_require_feature(this, SVF_STACKTRACE)) {
-	    des->errors += 1;
-	    return nullptr;
-      }
-
       // System functions don't have named parameters
       for (const auto &parm : parms_) {
 	    if (!parm.name.nil()) {
