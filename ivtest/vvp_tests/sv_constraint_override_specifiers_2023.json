@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_constraint_override_specifiers_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "test" ]
+}

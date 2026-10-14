@@ -625,39 +625,86 @@ void pform_bind_extern_task(PTask*task)
       }
 }
 
+static void pform_check_constraint_override_specifiers_(
+	      const LineInfo*loc, bool is_static, bool is_pure, unsigned specifiers)
+{
+      if (!specifiers)
+	    return;
+      if (!sv_require_feature(loc, SVF_CONSTRAINT_OVERRIDE_SPECIFIERS))
+	    error_count += 1;
+      if (is_static) {
+	    cerr << loc->get_fileline()
+		 << ": error: Constraint override specifiers are illegal on static "
+		    "constraints (IEEE 1800-2023 18.5.10)." << endl;
+	    error_count += 1;
+      }
+      if (is_pure
+	  && (specifiers & class_type_t::CONSTRAINT_OVERRIDE_FINAL)) {
+	    cerr << loc->get_fileline()
+		 << ": error: The final specifier is illegal on a pure constraint "
+		    "(IEEE 1800-2023 18.5.2)." << endl;
+	    error_count += 1;
+      }
+}
+
 void pform_class_constraint(const struct vlltype&loc,
-			     bool is_static,
-			     const char*name,
-			     std::list<PExpr*>*items)
+			     bool is_static, unsigned override_specifiers,
+			     const char*name, std::list<PExpr*>*items)
 {
       if (!pform_cur_class || !name)
 	    return;
 
       perm_string pname = lex_strings.make(name);
+	  class_type_t*type = pform_cur_class->type;
+	  bool had_decl = type->constraint_declarations.count(pname) != 0;
       class_type_t::constraint_decl_info_t&decl =
-	    pform_cur_class->type->constraint_declarations[pname];
+	    type->constraint_declarations[pname];
       FILE_NAME(&decl, loc);
+	  pform_check_constraint_override_specifiers_(&decl, is_static, false,
+					      override_specifiers);
+	  if (had_decl && decl.is_prototype) {
+	    if (decl.is_static != is_static) {
+		  cerr << loc << ": error: Out-of-body definition of constraint `"
+		       << pname << "' does not match the prototype's static "
+			  "qualifier." << endl;
+		  error_count += 1;
+	    }
+	    if (decl.override_specifiers != override_specifiers) {
+		  cerr << loc << ": error: Out-of-body definition of constraint `"
+		       << pname << "' does not match the prototype's override "
+			  "specifiers (IEEE 1800-2023 18.5.2)." << endl;
+		  error_count += 1;
+	    }
+	    decl.is_prototype = false;
+	  }
       decl.is_static = is_static;
-      auto pure = pform_cur_class->type->pure_constraints.find(pname);
-      if (pure != pform_cur_class->type->pure_constraints.end()) {
+	  decl.override_specifiers = override_specifiers;
+      auto pure = type->pure_constraints.find(pname);
+      if (pure != type->pure_constraints.end()) {
 	    cerr << loc << ": error: Constraint `" << pname
 		 << "' is already declared pure in this class." << endl;
 	    error_count += 1;
       }
-      auto proto = pform_cur_class->type->extern_constraints.find(pname);
-      if (proto == pform_cur_class->type->extern_constraints.end()
-          && pform_cur_class->type->constraints.count(pname) == 0)
-            pform_cur_class->type->constraint_order.push_back(pname);
-      if (proto != pform_cur_class->type->extern_constraints.end()) {
+	  auto proto = type->extern_constraints.find(pname);
+	  if (proto == type->extern_constraints.end()
+	      && type->constraints.count(pname) == 0)
+	    type->constraint_order.push_back(pname);
+	  if (proto != type->extern_constraints.end()) {
 	    if (proto->second.is_static != is_static) {
 		  cerr << loc << ": error: Out-of-body definition of constraint `"
 		       << pname << "' does not match the prototype's static "
 			  "qualifier." << endl;
 		  error_count += 1;
 	    }
-	    pform_cur_class->type->extern_constraints.erase(proto);
+	    if (proto->second.override_specifiers != override_specifiers) {
+		  cerr << loc << ": error: Out-of-body definition of constraint `"
+		       << pname << "' does not match the prototype's override "
+			  "specifiers (IEEE 1800-2023 18.5.2)." << endl;
+		  error_count += 1;
+	    }
+	    type->extern_constraints.erase(proto);
       }
-      vector<PExpr*>& slot = pform_cur_class->type->constraints[pname];
+	  vector<PExpr*>& slot = type->constraints[pname];
       if (items) {
 	    slot.assign(items->begin(), items->end());
 	    delete items;
@@ -666,6 +713,7 @@ void pform_class_constraint(const struct vlltype&loc,
 
 void pform_class_constraint_prototype(const struct vlltype&loc,
 				      bool is_static,
+				      unsigned override_specifiers,
 				      const char*name, bool is_extern)
 {
       if (!pform_cur_class || !name)
@@ -690,18 +738,25 @@ void pform_class_constraint_prototype(const struct vlltype&loc,
             type->constraints[pname];
             class_type_t::constraint_decl_info_t&decl = type->constraint_declarations[pname];
             FILE_NAME(&decl, loc);
+		  pform_check_constraint_override_specifiers_(&decl, is_static,
+						      false, override_specifiers);
             decl.is_static = is_static;
+		  decl.is_prototype = true;
+		  decl.override_specifiers = override_specifiers;
             return;
       }
       class_type_t::extern_constraint_info_t&info =
-	    type->extern_constraints[pname];
+	type->extern_constraints[pname];
       FILE_NAME(&info, loc);
+	  pform_check_constraint_override_specifiers_(&info, is_static, false,
+					      override_specifiers);
       info.is_static = is_static;
+	  info.override_specifiers = override_specifiers;
       info.reported = false;
 }
 
 void pform_class_pure_constraint(const struct vlltype&loc,
-				  const char*name)
+				  unsigned override_specifiers, const char*name)
 {
       if (!pform_cur_class || !name)
 	    return;
@@ -724,8 +779,11 @@ void pform_class_pure_constraint(const struct vlltype&loc,
       }
 
       class_type_t::pure_constraint_info_t&info =
-	    type->pure_constraints[pname];
+	type->pure_constraints[pname];
       FILE_NAME(&info, loc);
+	  pform_check_constraint_override_specifiers_(&info, false, true,
+					      override_specifiers);
+	  info.override_specifiers = override_specifiers;
 }
 
 // I1 (Phase 62g): forward-declared accumulator from parse.y.

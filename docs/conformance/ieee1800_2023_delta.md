@@ -171,7 +171,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 9 | Class `:final` specifier | CERTAIN | IMPLEMENTED in current main by [commit 32cfc8dc](https://github.com/dsellerbrock/iverilog-uvm/commit/32cfc8dcc); paired focused tests cover 2023 acceptance and 2017 rejection | S |
 | 10 | Constructor `default` argument keyword | CERTAIN | UNSUPPORTED | M |
 | 11 | Method `:extends`/`:initial`/`:final` override specifiers | CERTAIN | Implemented under the 2023 gate; paired tests cover inherited virtual checks, final boundaries, extern prototypes, and strict 2017 rejection; Slurm T0/T1 passed on `6a6635553` (56/56 compiler/VVP, 131/131 VPI, 152/152 negatives, 15/15 legacy focus, 13/13 JSON focus); batch T2 pending | M |
-| 12 | Constraint `:extends`/`:initial`/`:final` | CERTAIN | UNSUPPORTED | S–M |
+| 12 | Constraint `:extends`/`:initial`/`:final` | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-14; 2023 gate, strict 2017 rejection, solver and invalid-override boundaries; see dated record below | S–M |
 | 13 | `dist` catch-all `default :/ expr` | CERTAIN | UNSUPPORTED (isolated cleanly: base dist fine, `default:/` errors) | S |
 | 14 | Covergroup `extends` in a subclass | CERTAIN | UNSUPPORTED by grammar inspection | M |
 | 15 | `$timeunit`/`$timeprecision` system functions | CERTAIN | FOCUSED IMPLEMENTATION 2026-10-07: 2023 scope values and strict 2017 rejection covered; see [focused blocker record](BLOCKERS.md#sv-timeunit-timeprecision-system-functions) | S |
@@ -621,3 +621,22 @@ registered in both runners. Slurm job 931 passed T0/T1 on
 131 VPI, and 152 negative tests); the method focus passed 15 legacy and 13
 JSON/VVP cases. Batch T2 is pending, so this entry does not claim full
 clause-8 qualification.
+
+## 2026-10-14 — §18.5.2 constraint override specifiers
+
+IEEE 1800-2023 §18.5.2 defines `:initial` for a non-override, `:extends` for
+an override, and `:final` to forbid later replacements. The clause makes
+`:initial` and `:extends` mutually exclusive, permits `:final` with either,
+and requires matching specifiers on an extern prototype and its definition.
+Annex A.1.10 note 8 forbids `:final` on a pure constraint; §18.5.10 and
+Annex A.1.10 note 11 forbid override specifiers on static constraints. IEEE
+1800-2017 §18.5.2 has the base inheritance rules but not these specifiers;
+strict `-g2017` therefore rejects them.
+
+Both the legacy and JSON/VVP runners cover successful `:initial`, `:extends`,
+and `:final` behavior (including pure and extern constraints), initial/extends
+mutual exclusion, invalid initial/extends use, final replacement, static and
+pure-final rejection, matching/mismatched extern declarations, and the 2017
+edition boundary. T0/T1 evidence is recorded with the issue branch; batch T2
+is pending, so this is a focused implementation record, not full §18.5
+qualification.
