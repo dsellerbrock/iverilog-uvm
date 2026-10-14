@@ -495,8 +495,39 @@ the reference semantics throughout.
 
 | WP | Status | PR | Measured result |
 | --- | --- | --- | --- |
-| WP0 | IN PROGRESS | - | Calibrated corpus: 18/18 outputs identical, every sample under 10 s, and reference task-clock spread at most 5%; instructions unavailable. Full regression and CI gates pending. Evidence: [WP0 calibration](../../evidence/perf-wp0-a772c6bfc/README.md). |
+| WP0 | IN PROGRESS | - | Pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; candidate `a5aad31659540d6a4c67bbaeffbeaa484b31f442`. All 18 outputs matched, every sample stayed under 10 s, and all reference task-clock spreads were at most 5%. Full local correctness gates passed (JSON baseline delta 0; UVM 367/0/0 with real DPI); PR and exact-head CI are pending. Evidence: [WP0 pinned-base results](../../evidence/perf-wp0-a5aad316/README.md). |
 | WP1-WP15 | NOT STARTED | - | - |
+
+### WP0 pinned-base before/after table
+
+Five interleaved pairs; one CPU; task-clock is primary because the host did not
+support the instruction counter. Ratios are reference divided by candidate.
+The exact pinned base is `f9f8e0a79f230f38da6cbb4445994ad1075ad531`.
+
+| Benchmark | Reference wall median (s) | Candidate wall median (s) | Reference task-clock (ms) | Candidate task-clock (ms) | Reference spread | Ref/candidate task-clock |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| behav | 4.470 | 4.473 | 4437.89 | 4444.63 | 0.25% | 0.9985x |
+| classq | 5.723 | 5.673 | 5679.72 | 5636.79 | 1.45% | 1.0076x |
+| fork_heavy | 0.514 | 0.516 | 465.18 | 465.38 | 1.37% | 0.9996x |
+| gate_strength | 1.466 | 1.467 | 1452.46 | 1456.05 | 0.54% | 0.9975x |
+| io_text | 0.114 | 0.114 | 65.62 | 65.82 | 1.17% | 0.9970x |
+| large_memory | 0.114 | 0.114 | 94.41 | 94.79 | 0.58% | 0.9960x |
+| multi_clock | 0.315 | 0.316 | 286.24 | 286.79 | 0.56% | 0.9981x |
+| randomize_dv_txn | 4.980 | 4.977 | 4923.92 | 4927.52 | 0.81% | 0.9993x |
+| randomize_z3 | 1.320 | 1.318 | 1301.32 | 1291.79 | 2.87% | 1.0074x |
+| rtl_alu | 3.822 | 3.822 | 3807.65 | 3809.53 | 0.49% | 0.9995x |
+| rtl_pipe | 7.178 | 7.177 | 7145.56 | 7141.26 | 2.49% | 1.0006x |
+| strings_aa_queue | 3.118 | 3.120 | 3088.20 | 3095.19 | 0.92% | 0.9977x |
+| uvm_config_factory | 0.616 | 0.616 | 593.91 | 596.08 | 1.34% | 0.9964x |
+| uvm_traffic | 3.523 | 3.523 | 3497.44 | 3495.48 | 2.92% | 1.0006x |
+| vpi_callbacks | 5.123 | 5.124 | 5091.08 | 5082.60 | 0.66% | 1.0017x |
+| waveform_fst | 0.715 | 0.715 | 660.04 | 659.91 | 0.73% | 1.0002x |
+| waveform_vcd | 0.615 | 0.615 | 586.29 | 587.80 | 1.43% | 0.9974x |
+| wide_vectors | 0.264 | 0.264 | 232.19 | 231.84 | 0.61% | 1.0015x |
+
+Job 1058 supplied `+ntb_random_seed=73014` to both runtimes and used
+`/dev/shm` for temporary outputs. The complete five-pair JSON and CSV are in
+the [WP0 evidence directory](../../evidence/perf-wp0-a5aad316/measurements/f9f8e0a/job1058-stable/).
 
 ## References
 

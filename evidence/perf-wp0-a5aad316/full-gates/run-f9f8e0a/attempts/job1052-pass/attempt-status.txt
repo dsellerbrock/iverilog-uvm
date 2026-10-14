@@ -1,0 +1,12 @@
+job=1052
+run_directory=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-uvm-a5aad316-f9f8-20261014-r2
+candidate=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+resources=2 CPUs, 8 GiB RAM, 2 hours
+scheduler_state=COMPLETED
+elapsed=00:13:57
+exit_code=0:0
+uvm_gate=367 passed, 0 failed, 0 skipped
+dpi_mode=REAL DPI umbrella loaded
+all_required_gates=PASS
+remote_evidence_sha256=81c7e44154205ea6c6e3787170d13273faf69b682a4363a87346c776953da913
