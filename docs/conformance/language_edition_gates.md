@@ -89,6 +89,13 @@ The `$stacktrace` task gate carries four core arms, registered in
 is refused under 2017. The string-function form has paired 2023-positive
 and 2017-compile-error cases in both regression runners.
 
+## Method override specifiers
+
+The `:extends`, `:initial`, and `:final` method specifiers are gated to
+`-g2023`; the paired `sv_method_override_specifiers_2017` tests expect a
+compile error in `-g2017`. Slurm T0/T1 qualification passed on
+`6a66355530fbb87fe6999f3b60db1f326660ca9b`; batch T2 is pending.
+
 `type(this)` is gated by IEEE 1800-2023 6.23 and resolves to the class
 containing the declaration (8.11). Its cases cover generic and derived class
 return types, a static local, rejection under 2017, and rejection outside a

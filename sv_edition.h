@@ -126,8 +126,12 @@
 		     "the $stacktrace system task or function")			\
       SV_FEATURE_ROW(SVF_TYPE_THIS, GN_VER2023,			\
 		     "the type(this) self type")			\
+	  SV_FEATURE_ROW(SVF_TOLERANCE_RANGE, GN_VER2023,		\
+		     "inside tolerance ranges")		\
       SV_FEATURE_ROW(SVF_CLASS_FINAL, GN_VER2023,			\
 		     "the final class specifier")			\
+      SV_FEATURE_ROW(SVF_METHOD_OVERRIDE_SPECIFIERS, GN_VER2023,\
+		     "method override specifiers")			\
 	SV_FEATURE_ROW(SVF_CROSS_RETAIN_AUTO_BINS, GN_VER2023,		\
 		     "option.cross_retain_auto_bins")			\
 	SV_FEATURE_ROW(SVF_REAL_COVERPOINT_BINS, GN_VER2023,		\

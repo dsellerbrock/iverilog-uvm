@@ -329,6 +329,8 @@ TU [munpf]
 ">>=" { return K_RS_EQ; }
 "<<<=" { return K_LS_EQ; }
 ">>>=" { return K_RSS_EQ; }
+"+/-" { return K_PLUS_MINUS; }
+"+%-" { return K_PLUS_PERCENT_MINUS; }
 "++" { return K_INCR; }
 "--" {return K_DECR; }
 "'{" { return K_LP; }
