@@ -4329,6 +4329,84 @@ static void set_class_super_(Design*des, const PClass*pclass,
       use_class->set_super(use_base_class);
 }
 
+static const char* type_parameter_restriction_name_(
+	type_parameter_restriction_t restriction)
+{
+      switch (restriction) {
+	  case type_parameter_restriction_t::ENUM: return "enum";
+	  case type_parameter_restriction_t::STRUCT: return "struct";
+	  case type_parameter_restriction_t::UNION: return "union";
+	  case type_parameter_restriction_t::CLASS: return "class";
+	  case type_parameter_restriction_t::INTERFACE_CLASS: return "interface class";
+	  case type_parameter_restriction_t::NONE: break;
+      }
+      return "type";
+}
+
+static bool type_parameter_matches_restriction_(
+	ivl_type_t type, type_parameter_restriction_t restriction)
+{
+      switch (restriction) {
+	  case type_parameter_restriction_t::ENUM:
+	    return dynamic_cast<const netenum_t*>(type) != 0;
+	  case type_parameter_restriction_t::STRUCT: {
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+	    return record && !record->union_flag();
+	  }
+	  case type_parameter_restriction_t::UNION: {
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+	    return record && record->union_flag();
+	  }
+	  case type_parameter_restriction_t::CLASS: {
+	    const netclass_t*class_type = dynamic_cast<const netclass_t*>(type);
+	    return class_type && !class_type->is_interface_class();
+	  }
+	  case type_parameter_restriction_t::INTERFACE_CLASS: {
+	    const netclass_t*class_type = dynamic_cast<const netclass_t*>(type);
+	    return class_type && class_type->is_interface_class();
+	  }
+	  case type_parameter_restriction_t::NONE:
+	    return true;
+      }
+      return false;
+}
+
+static void validate_class_type_parameter_restrictions_(
+	Design*des, const PClass*pclass, NetScope*class_scope)
+{
+      for (std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator param =
+		   pclass->parameters.begin()
+	   ; param != pclass->parameters.end(); ++param) {
+	    if (!param->second || !param->second->type_flag)
+		  continue;
+
+	    PScope::typedef_map_t::const_iterator declared =
+		  pclass->typedefs.find(param->first);
+	    if (declared == pclass->typedefs.end() || !declared->second)
+		  continue;
+	    const type_parameter_t*type_parameter = dynamic_cast<const type_parameter_t*>(
+		  declared->second->get_data_type());
+	    if (!type_parameter
+		|| type_parameter->restriction == type_parameter_restriction_t::NONE
+		|| class_type_parameter_is_deferred(des, class_scope, param->first))
+		  continue;
+
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator actual =
+		  class_scope->parameters.find(param->first);
+	    if (actual == class_scope->parameters.end() || !actual->second.ivl_type)
+		  continue;
+	    if (type_parameter_matches_restriction_(
+		  actual->second.ivl_type, type_parameter->restriction))
+		  continue;
+
+	    cerr << actual->second.get_fileline() << ": error: Type argument for class type parameter `"
+		 << param->first << "' does not satisfy the `type "
+		 << type_parameter_restriction_name_(type_parameter->restriction)
+		 << "' restriction." << endl;
+	    des->errors += 1;
+      }
+}
+
 const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
 						   const netclass_t*base_class,
 						   const parmvalue_t*overrides,
@@ -4548,6 +4626,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 					 call_scope ? call_scope : definition_scope,
 					 &pclass->parameter_order);
       class_scope->evaluate_parameters(des);
+      validate_class_type_parameter_restrictions_(des, pclass, class_scope);
       if (const char*trace = getenv("IVL_UVM_CB_SPEC_TRACE")) {
 	    if (pclass->type
 	        && (pclass->type->name == perm_string::literal("uvm_callbacks")

@@ -821,6 +821,7 @@ struct pending_class_param_t {
       data_type_t* data_type;
       PExpr* expr;
       std::list<pform_range_t>* udims;
+      type_parameter_restriction_t restriction;
 };
 
 static std::vector<pending_class_param_t> pending_class_params;
@@ -2163,6 +2164,7 @@ static Module::port_t *module_declare_port_continuation(
 
       data_type_t*data_type;
       std::list<data_type_t*>*data_types;
+      type_parameter_restriction_t type_parameter_restriction;
       class_type_t*class_type;
       real_type_t::type_t real_type;
       property_qualifier_t property_qualifier;
@@ -2395,6 +2397,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <event_idents> event_variable_list
 %type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
 %type <identifiers> class_type_parameter_port_item
+%type <type_parameter_restriction> class_type_parameter_restriction
 %type <identifiers> list_of_identifiers
 %type <perm_strings> loop_variables foreach_selector_prefixes
 %type <perm_strings> randomize_with_identifier_tail
@@ -2921,7 +2924,8 @@ class_declaration_start
 	      for (std::vector<pending_class_param_t>::iterator cur = pending_class_params.begin()
 			 ; cur != pending_class_params.end() ; ++cur) {
 		    pform_set_parameter(@5, cur->name, false, cur->is_type,
-					cur->data_type, cur->udims, cur->expr, 0);
+					cur->data_type, cur->udims, cur->expr, 0,
+					cur->restriction);
 		    cur->data_type = 0;
 		    cur->expr = 0;
 		    cur->udims = 0;
@@ -2950,7 +2954,8 @@ class_declaration_start
 	      for (std::vector<pending_class_param_t>::iterator cur = pending_class_params.begin()
 			 ; cur != pending_class_params.end() ; ++cur) {
 		    pform_set_parameter(@4, cur->name, false, cur->is_type,
-					cur->data_type, cur->udims, cur->expr, 0);
+					cur->data_type, cur->udims, cur->expr, 0,
+					cur->restriction);
 		    cur->data_type = 0;
 		    cur->expr = 0;
 		    cur->udims = 0;
@@ -2995,9 +3000,22 @@ class_type_parameter_port_list
 class_type_parameter_port_item
   : K_type IDENTIFIER initializer_opt
       { mark_lazy_virtual_interface_default_($3);
-	pending_class_param_t tmp = { lex_strings.make($2), true, 0, $3, 0 };
+	pending_class_param_t tmp = { lex_strings.make($2), true, 0, $3, 0,
+				      type_parameter_restriction_t::NONE };
 	pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($2, @2.lexical_pos);
+      }
+  | K_type class_type_parameter_restriction IDENTIFIER initializer_opt
+      { mark_lazy_virtual_interface_default_($4);
+	pending_class_param_t tmp = { lex_strings.make($3), true, 0, $4, 0, $2 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($3, @3.lexical_pos);
+      }
+  | K_parameter K_type class_type_parameter_restriction IDENTIFIER initializer_opt
+      { mark_lazy_virtual_interface_default_($5);
+	pending_class_param_t tmp = { lex_strings.make($4), true, 0, $5, 0, $3 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($4, @4.lexical_pos);
       }
   /* Support shorthand continuation after a type parameter, e.g.
      #(type KEY=int, T=uvm_void) */
@@ -3012,7 +3030,8 @@ class_type_parameter_port_item
 		    delete $2;
 	      }
 	      mark_lazy_virtual_interface_default_($3);
-	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $3, 0 };
+	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $3, 0,
+					     type_parameter_restriction_t::NONE };
 	      pending_class_params.push_back(tmp);
 	      $$ = list_from_identifier($1, @1.lexical_pos);
 	} else if (!pending_class_params.empty()) {
@@ -3023,32 +3042,50 @@ class_type_parameter_port_item
 	       * formals; clear_pending_class_params deletes shared types once on
 	       * an aborted declaration. */
 	      pending_class_param_t tmp = { lex_strings.make($1), false,
-		    pending_class_params.back().data_type, $3, $2 };
+		    pending_class_params.back().data_type, $3, $2,
+		    type_parameter_restriction_t::NONE };
 	      pending_class_params.push_back(tmp);
 	      $$ = list_from_identifier($1, @1.lexical_pos);
 	} else {
 	      yyerror(@1, "error: Class parameter %s is missing an explicit type/parameter qualifier.", $1);
-	      pending_class_param_t tmp = { lex_strings.make($1), false, 0, $3, $2 };
+	      pending_class_param_t tmp = { lex_strings.make($1), false, 0, $3, $2,
+					     type_parameter_restriction_t::NONE };
 	      pending_class_params.push_back(tmp);
 	      $$ = list_from_identifier($1, @1.lexical_pos);
 	}
       }
   | K_parameter K_type IDENTIFIER initializer_opt
       { mark_lazy_virtual_interface_default_($4);
-	pending_class_param_t tmp = { lex_strings.make($3), true, 0, $4, 0 };
+	pending_class_param_t tmp = { lex_strings.make($3), true, 0, $4, 0,
+				      type_parameter_restriction_t::NONE };
 	 pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($3, @3.lexical_pos);
       }
   | data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
-	      { pending_class_param_t tmp = { lex_strings.make($2), false, $1, $4, $3 };
+	      { pending_class_param_t tmp = { lex_strings.make($2), false, $1, $4, $3,
+					      type_parameter_restriction_t::NONE };
 	 pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($2, @2.lexical_pos);
       }
   | K_parameter data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
-	      { pending_class_param_t tmp = { lex_strings.make($3), false, $2, $5, $4 };
+	      { pending_class_param_t tmp = { lex_strings.make($3), false, $2, $5, $4,
+					      type_parameter_restriction_t::NONE };
 	 pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($3, @3.lexical_pos);
       }
+  ;
+
+class_type_parameter_restriction
+  : K_enum
+	{ $$ = type_parameter_restriction_t::ENUM; }
+  | K_struct
+	{ $$ = type_parameter_restriction_t::STRUCT; }
+  | K_union
+	{ $$ = type_parameter_restriction_t::UNION; }
+  | K_class
+	{ $$ = type_parameter_restriction_t::CLASS; }
+  | K_interface_class K_class
+	{ $$ = type_parameter_restriction_t::INTERFACE_CLASS; }
   ;
 
 class_constraint /* IEEE1800-2005: A.1.8 */
