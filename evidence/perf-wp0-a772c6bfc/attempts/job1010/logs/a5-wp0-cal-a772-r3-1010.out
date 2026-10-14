@@ -1,0 +1,234 @@
+./benchmarks/sim-hotspots/README.md: OK
+./benchmarks/sim-hotspots/__pycache__/run_json.cpython-314.pyc: OK
+./benchmarks/sim-hotspots/__pycache__/test_run_json.cpython-314.pyc: OK
+./benchmarks/sim-hotspots/behav.sv: OK
+./benchmarks/sim-hotspots/classq.sv: OK
+./benchmarks/sim-hotspots/fork_heavy.sv: OK
+./benchmarks/sim-hotspots/gate_strength.sv: OK
+./benchmarks/sim-hotspots/io_text.sv: OK
+./benchmarks/sim-hotspots/large_memory.sv: OK
+./benchmarks/sim-hotspots/multi_clock.sv: OK
+./benchmarks/sim-hotspots/perf_stats_smoke.v: OK
+./benchmarks/sim-hotspots/randomize_dv_txn.sv: OK
+./benchmarks/sim-hotspots/randomize_z3.sv: OK
+./benchmarks/sim-hotspots/rtl_alu.sv: OK
+./benchmarks/sim-hotspots/rtl_pipe.sv: OK
+./benchmarks/sim-hotspots/run.sh: OK
+./benchmarks/sim-hotspots/run_json.py: OK
+./benchmarks/sim-hotspots/strings_aa_queue.sv: OK
+./benchmarks/sim-hotspots/test_perf_stats.sh: OK
+./benchmarks/sim-hotspots/test_run_json.py: OK
+./benchmarks/sim-hotspots/uvm_config_factory.sv: OK
+./benchmarks/sim-hotspots/uvm_traffic.sv: OK
+./benchmarks/sim-hotspots/vpi_callbacks.c: OK
+./benchmarks/sim-hotspots/vpi_callbacks.sv: OK
+./benchmarks/sim-hotspots/waveform.sv: OK
+./benchmarks/sim-hotspots/wide_vectors.sv: OK
+./uvm-core/src/base/uvm_barrier.svh: OK
+./uvm-core/src/base/uvm_base.svh: OK
+./uvm-core/src/base/uvm_bottomup_phase.svh: OK
+./uvm-core/src/base/uvm_cache.svh: OK
+./uvm-core/src/base/uvm_callback.svh: OK
+./uvm-core/src/base/uvm_cmdline_processor.svh: OK
+./uvm-core/src/base/uvm_cmdline_report.svh: OK
+./uvm-core/src/base/uvm_common_phases.svh: OK
+./uvm-core/src/base/uvm_comparer.svh: OK
+./uvm-core/src/base/uvm_component.svh: OK
+./uvm-core/src/base/uvm_config_db.svh: OK
+./uvm-core/src/base/uvm_config_db_implementation.svh: OK
+./uvm-core/src/base/uvm_copier.svh: OK
+./uvm-core/src/base/uvm_coreservice.svh: OK
+./uvm-core/src/base/uvm_domain.svh: OK
+./uvm-core/src/base/uvm_event.svh: OK
+./uvm-core/src/base/uvm_event_callback.svh: OK
+./uvm-core/src/base/uvm_factory.svh: OK
+./uvm-core/src/base/uvm_field_op.svh: OK
+./uvm-core/src/base/uvm_globals.svh: OK
+./uvm-core/src/base/uvm_hdl_polling.svh: OK
+./uvm-core/src/base/uvm_heartbeat.svh: OK
+./uvm-core/src/base/uvm_links.svh: OK
+./uvm-core/src/base/uvm_lru_cache.svh: OK
+./uvm-core/src/base/uvm_misc.svh: OK
+./uvm-core/src/base/uvm_object.svh: OK
+./uvm-core/src/base/uvm_object_globals.svh: OK
+./uvm-core/src/base/uvm_objection.svh: OK
+./uvm-core/src/base/uvm_packer.svh: OK
+./uvm-core/src/base/uvm_packer_array_extension.svh: OK
+./uvm-core/src/base/uvm_phase.svh: OK
+./uvm-core/src/base/uvm_phase_hopper.svh: OK
+./uvm-core/src/base/uvm_policy.svh: OK
+./uvm-core/src/base/uvm_pool.svh: OK
+./uvm-core/src/base/uvm_port_base.svh: OK
+./uvm-core/src/base/uvm_printer.svh: OK
+./uvm-core/src/base/uvm_process_guard.svh: OK
+./uvm-core/src/base/uvm_process_guard_base.svh: OK
+./uvm-core/src/base/uvm_queue.svh: OK
+./uvm-core/src/base/uvm_recorder.svh: OK
+./uvm-core/src/base/uvm_regex_cache.svh: OK
+./uvm-core/src/base/uvm_registry.svh: OK
+./uvm-core/src/base/uvm_report_catcher.svh: OK
+./uvm-core/src/base/uvm_report_handler.svh: OK
+./uvm-core/src/base/uvm_report_message.svh: OK
+./uvm-core/src/base/uvm_report_object.svh: OK
+./uvm-core/src/base/uvm_report_server.svh: OK
+./uvm-core/src/base/uvm_resource.svh: OK
+./uvm-core/src/base/uvm_resource_base.svh: OK
+./uvm-core/src/base/uvm_resource_db.svh: OK
+./uvm-core/src/base/uvm_resource_db_implementation.svh: OK
+./uvm-core/src/base/uvm_resource_db_options.svh: OK
+./uvm-core/src/base/uvm_resource_pool.svh: OK
+./uvm-core/src/base/uvm_resource_specializations.svh: OK
+./uvm-core/src/base/uvm_root.svh: OK
+./uvm-core/src/base/uvm_run_test_callback.svh: OK
+./uvm-core/src/base/uvm_runtime_phases.svh: OK
+./uvm-core/src/base/uvm_spell_chkr.svh: OK
+./uvm-core/src/base/uvm_task_phase.svh: OK
+./uvm-core/src/base/uvm_text_tr_database.svh: OK
+./uvm-core/src/base/uvm_text_tr_stream.svh: OK
+./uvm-core/src/base/uvm_topdown_phase.svh: OK
+./uvm-core/src/base/uvm_tr_database.svh: OK
+./uvm-core/src/base/uvm_tr_stream.svh: OK
+./uvm-core/src/base/uvm_transaction.svh: OK
+./uvm-core/src/base/uvm_traversal.svh: OK
+./uvm-core/src/base/uvm_version.svh: OK
+./uvm-core/src/comps/uvm_agent.svh: OK
+./uvm-core/src/comps/uvm_algorithmic_comparator.svh: OK
+./uvm-core/src/comps/uvm_comps.svh: OK
+./uvm-core/src/comps/uvm_driver.svh: OK
+./uvm-core/src/comps/uvm_env.svh: OK
+./uvm-core/src/comps/uvm_in_order_comparator.svh: OK
+./uvm-core/src/comps/uvm_monitor.svh: OK
+./uvm-core/src/comps/uvm_pair.svh: OK
+./uvm-core/src/comps/uvm_policies.svh: OK
+./uvm-core/src/comps/uvm_push_driver.svh: OK
+./uvm-core/src/comps/uvm_random_stimulus.svh: OK
+./uvm-core/src/comps/uvm_scoreboard.svh: OK
+./uvm-core/src/comps/uvm_subscriber.svh: OK
+./uvm-core/src/comps/uvm_test.svh: OK
+./uvm-core/src/dap/uvm_dap.svh: OK
+./uvm-core/src/dap/uvm_get_to_lock_dap.svh: OK
+./uvm-core/src/dap/uvm_set_before_get_dap.svh: OK
+./uvm-core/src/dap/uvm_set_get_dap_base.svh: OK
+./uvm-core/src/dap/uvm_simple_lock_dap.svh: OK
+./uvm-core/src/deprecated/macros/uvm_sequence_defines.svh: OK
+./uvm-core/src/deprecated/readme.important: OK
+./uvm-core/src/dpi/uvm_common.c: OK
+./uvm-core/src/dpi/uvm_dpi.cc: OK
+./uvm-core/src/dpi/uvm_dpi.h: OK
+./uvm-core/src/dpi/uvm_dpi.svh: OK
+./uvm-core/src/dpi/uvm_hdl.c: OK
+./uvm-core/src/dpi/uvm_hdl.svh: OK
+./uvm-core/src/dpi/uvm_hdl_polling.c: OK
+./uvm-core/src/dpi/uvm_hdl_questa.c: OK
+./uvm-core/src/dpi/uvm_hdl_vcs.c: OK
+./uvm-core/src/dpi/uvm_hdl_xcelium.c: OK
+./uvm-core/src/dpi/uvm_polling_dpi.svh: OK
+./uvm-core/src/dpi/uvm_regex.cc: OK
+./uvm-core/src/dpi/uvm_regex.svh: OK
+./uvm-core/src/dpi/uvm_svcmd_dpi.c: OK
+./uvm-core/src/dpi/uvm_svcmd_dpi.svh: OK
+./uvm-core/src/macros/uvm_callback_defines.svh: OK
+./uvm-core/src/macros/uvm_comparer_defines.svh: OK
+./uvm-core/src/macros/uvm_copier_defines.svh: OK
+./uvm-core/src/macros/uvm_global_defines.svh: OK
+./uvm-core/src/macros/uvm_message_defines.svh: OK
+./uvm-core/src/macros/uvm_object_defines.svh: OK
+./uvm-core/src/macros/uvm_packer_defines.svh: OK
+./uvm-core/src/macros/uvm_phase_defines.svh: OK
+./uvm-core/src/macros/uvm_printer_defines.svh: OK
+./uvm-core/src/macros/uvm_recorder_defines.svh: OK
+./uvm-core/src/macros/uvm_reg_defines.svh: OK
+./uvm-core/src/macros/uvm_resource_defines.svh: OK
+./uvm-core/src/macros/uvm_sequence_defines.svh: OK
+./uvm-core/src/macros/uvm_tlm_defines.svh: OK
+./uvm-core/src/macros/uvm_undefineall.svh: OK
+./uvm-core/src/macros/uvm_version_defines.svh: OK
+./uvm-core/src/reg/sequences/uvm_mem_access_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_mem_walk_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_reg_access_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_reg_bit_bash_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_reg_hw_reset_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_reg_mem_built_in_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_reg_mem_hdl_paths_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_reg_mem_shared_access_seq.svh: OK
+./uvm-core/src/reg/sequences/uvm_reg_randval.svh: OK
+./uvm-core/src/reg/uvm_mem.svh: OK
+./uvm-core/src/reg/uvm_mem_mam.svh: OK
+./uvm-core/src/reg/uvm_reg.svh: OK
+./uvm-core/src/reg/uvm_reg_adapter.svh: OK
+./uvm-core/src/reg/uvm_reg_backdoor.svh: OK
+./uvm-core/src/reg/uvm_reg_block.svh: OK
+./uvm-core/src/reg/uvm_reg_cbs.svh: OK
+./uvm-core/src/reg/uvm_reg_field.svh: OK
+./uvm-core/src/reg/uvm_reg_fifo.svh: OK
+./uvm-core/src/reg/uvm_reg_file.svh: OK
+./uvm-core/src/reg/uvm_reg_indirect.svh: OK
+./uvm-core/src/reg/uvm_reg_item.svh: OK
+./uvm-core/src/reg/uvm_reg_map.svh: OK
+./uvm-core/src/reg/uvm_reg_model.svh: OK
+./uvm-core/src/reg/uvm_reg_predictor.svh: OK
+./uvm-core/src/reg/uvm_reg_sequence.svh: OK
+./uvm-core/src/reg/uvm_vreg.svh: OK
+./uvm-core/src/reg/uvm_vreg_field.svh: OK
+./uvm-core/src/seq/uvm_push_sequencer.svh: OK
+./uvm-core/src/seq/uvm_seq.svh: OK
+./uvm-core/src/seq/uvm_sequence.svh: OK
+./uvm-core/src/seq/uvm_sequence_base.svh: OK
+./uvm-core/src/seq/uvm_sequence_item.svh: OK
+./uvm-core/src/seq/uvm_sequence_library.svh: OK
+./uvm-core/src/seq/uvm_sequencer.svh: OK
+./uvm-core/src/seq/uvm_sequencer_analysis_fifo.svh: OK
+./uvm-core/src/seq/uvm_sequencer_base.svh: OK
+./uvm-core/src/seq/uvm_sequencer_param_base.svh: OK
+./uvm-core/src/tlm1/uvm_analysis_port.svh: OK
+./uvm-core/src/tlm1/uvm_exports.svh: OK
+./uvm-core/src/tlm1/uvm_imps.svh: OK
+./uvm-core/src/tlm1/uvm_ports.svh: OK
+./uvm-core/src/tlm1/uvm_sqr_connections.svh: OK
+./uvm-core/src/tlm1/uvm_sqr_ifs.svh: OK
+./uvm-core/src/tlm1/uvm_tlm.svh: OK
+./uvm-core/src/tlm1/uvm_tlm_fifo_base.svh: OK
+./uvm-core/src/tlm1/uvm_tlm_fifos.svh: OK
+./uvm-core/src/tlm1/uvm_tlm_ifs.svh: OK
+./uvm-core/src/tlm1/uvm_tlm_imps.svh: OK
+./uvm-core/src/tlm1/uvm_tlm_req_rsp.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_defines.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_exports.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_generic_payload.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_ifs.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_imps.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_ports.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_sockets.svh: OK
+./uvm-core/src/tlm2/uvm_tlm2_sockets_base.svh: OK
+./uvm-core/src/tlm2/uvm_tlm_time.svh: OK
+./uvm-core/src/uvm.sv: OK
+./uvm-core/src/uvm_macros.svh: OK
+./uvm-core/src/uvm_pkg.sv: OK
+screen_exit_code=0
+benchmarks=18
+outputs_identical_all=True
+primary_metric=task_clock_ms
+benchmark,ref_wall_median_s,ref_wall_spread_pct,ref_primary_median,ref_primary_spread_pct,candidate_wall_median_s,candidate_wall_spread_pct,candidate_primary_median,candidate_primary_spread_pct,ref_instructions,candidate_instructions
+behav,4.268701,1.175557,4251.640000,1.050183,4.269247,0.085203,4230.580000,0.390017,,
+classq,5.469898,1.885574,5447.170000,2.038673,5.423014,0.923632,5406.320000,1.489553,,
+fork_heavy,0.464142,0.153319,424.960000,0.781250,0.464141,0.216230,423.420000,1.771291,,
+gate_strength,1.415849,0.065230,1385.220000,0.465630,1.415953,0.059100,1381.500000,0.378574,,
+io_text,0.113621,0.809883,60.560000,2.295244,0.114188,0.792781,61.020000,2.146837,,
+large_memory,0.114433,2.001721,88.110000,0.828510,0.114340,0.787207,87.650000,1.232173,,
+multi_clock,0.314588,1.237587,270.410000,0.613883,0.313875,0.320808,270.320000,1.098698,,
+randomize_dv_txn,4.124368,0.061931,4100.740000,0.223374,4.170997,1.295334,4116.900000,1.012412,,
+randomize_z3,1.165746,0.114610,1142.640000,0.505846,1.165658,0.014723,1138.920000,1.092263,,
+rtl_alu,3.620288,2.846674,3609.430000,2.710954,3.667970,1.369710,3630.500000,1.242529,,
+rtl_pipe,6.871768,1.416616,6829.590000,0.855835,6.871480,0.771194,6818.280000,0.908440,,
+strings_aa_queue,2.966945,0.002407,2946.600000,0.677052,3.017015,6.692109,2972.090000,5.430185,,
+uvm_config_factory,0.564431,0.246965,529.720000,0.943895,0.565256,0.598618,528.140000,2.016511,,
+uvm_traffic,3.222295,1.557370,3195.780000,1.255718,3.218504,1.565663,3185.690000,1.392791,,
+vpi_callbacks,4.869227,0.102782,4836.920000,0.409765,4.869173,0.016134,4846.240000,0.722209,,
+waveform_fst,0.664452,0.147413,624.720000,0.827571,0.664447,0.142738,626.010000,1.282727,,
+waveform_vcd,0.565315,8.848568,558.550000,1.391102,0.614297,8.316777,559.290000,2.728459,,
+wide_vectors,0.263793,0.288440,218.510000,0.237975,0.263840,0.369349,219.470000,0.601449,,
+perf_stat_available=True
+instruction_count_available=False
+outputs_identical_all_18=True
+reference_primary_spread_at_most_5_percent=True

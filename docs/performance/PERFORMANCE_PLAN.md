@@ -1,6 +1,6 @@
 # VVP performance plan
 
-Status: research and plan only. Nothing here has been implemented.
+Status: implementation campaign in progress; see section 9.
 Revision studied: `5c7b3319` (2026-10-14). Measurements: [evidence/perf-research-20261014](../../evidence/perf-research-20261014/README.md).
 Related earlier work, which this plan extends and does not replace:
 - [sim-hotspots survey](../../benchmarks/sim-hotspots/README.md): functor word ops, call-frame slab, dispatch memo, Z3 sampler work.
@@ -495,7 +495,7 @@ the reference semantics throughout.
 
 | WP | Status | PR | Measured result |
 | --- | --- | --- | --- |
-| WP0 | IN PROGRESS | - | Main baseline built; corpus screening and opt-in counter validation underway |
+| WP0 | IN PROGRESS | - | Calibrated corpus: 18/18 outputs identical, every sample under 10 s, and reference task-clock spread at most 5%; instructions unavailable. Full regression and CI gates pending. Evidence: [WP0 calibration](../../evidence/perf-wp0-a772c6bfc/README.md). |
 | WP1-WP15 | NOT STARTED | - | - |
 
 ## References

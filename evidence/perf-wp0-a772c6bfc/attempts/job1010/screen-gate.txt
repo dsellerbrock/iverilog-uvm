@@ -1,0 +1,3 @@
+screen_exit_code=0
+benchmarks=18
+outputs_identical_all=True
