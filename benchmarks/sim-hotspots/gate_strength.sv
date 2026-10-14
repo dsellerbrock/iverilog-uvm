@@ -21,7 +21,7 @@ module top;
   integer i;
   initial begin
     a = 0; b = 32'hffffffff; en = 0;
-    for (i = 0; i < 2000; i = i + 1) begin
+    for (i = 0; i < 64000; i = i + 1) begin
       #1 a = a + 32'h01010101;
       b = {b[30:0], b[31]};
       en = i;

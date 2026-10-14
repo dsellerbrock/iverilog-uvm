@@ -44,8 +44,10 @@ the baseline; the source default remains 1,000. Both runtimes receive the same
 The WP0 additions cover 128-1024-bit vectors, strength and UDP gates, 32
 independent delayed clocks, a 16K-word `$readmemh` memory, `$display`/`$fwrite`,
 VCD and FST dumping, VPI `cbValueChange`, strings/associative arrays/queues,
-UVM config DB/factory/reporting, and 511 forked task frames. JSON mode requires
-strict output equality for every row.
+UVM config DB/factory/reporting, and a depth-12 fork tree with 4,096 leaves.
+The short cases repeat enough work to make five-run timing useful; final
+evidence checks the baseline time cap and spread. JSON mode requires strict
+output equality for every row.
 
 Build counters with `./configure --enable-perf-stats` and set
 `IVL_PERF_STATS=1` for a run. The build option defaults off; a normal binary

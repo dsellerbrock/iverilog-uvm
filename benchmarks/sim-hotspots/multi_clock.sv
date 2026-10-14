@@ -9,7 +9,7 @@ module top;
     always @(posedge clk) ticks = ticks + 1;
   end endgenerate
   initial begin
-    #1000;
+    #32000;
     $display("ticks=%0d,%0d,%0d,%0d", clocks[0].ticks, clocks[7].ticks,
              clocks[15].ticks, clocks[31].ticks);
     $finish;

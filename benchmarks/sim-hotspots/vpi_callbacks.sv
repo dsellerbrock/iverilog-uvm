@@ -5,7 +5,7 @@ module top;
   initial begin
     signal = 0;
     $watch_value_changes(signal);
-    for (i = 0; i < 10000; i = i + 1) begin
+    for (i = 0; i < 320000; i = i + 1) begin
       #1 signal = ~signal;
     end
     $report_value_changes;
