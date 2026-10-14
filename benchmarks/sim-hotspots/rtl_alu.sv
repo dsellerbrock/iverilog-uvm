@@ -36,7 +36,7 @@ module top;
   end endgenerate
   initial begin
     #20 rst = 0;
-    #200000;
+    #1000000;
     $display("ra0=%h rb0=%h ra63=%h cnt5=%h", g[0].l.ra, g[0].l.rb, g[63].l.ra, g[5].l.cnt);
     $finish;
   end

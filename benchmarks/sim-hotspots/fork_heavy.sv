@@ -13,7 +13,7 @@ module top;
   endtask
   initial begin
     leaves = 0;
-    fork_tree(13);
+    fork_tree(15);
     $display("forked_leaves=%0d", leaves);
     $finish;
   end
