@@ -1716,6 +1716,8 @@ sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
 sv_type_this normal,-g2023 ivltests gold=sv_type_this.gold
 sv_type_this_2017 CE,-g2017 ivltests gold=sv_type_this_2017.gold
 sv_type_this_outside_class CE,-g2023 ivltests gold=sv_type_this_outside_class.gold
+sv_tolerance_range_2023 normal,-g2023 ivltests gold=sv_tolerance_range_2023.gold
+sv_tolerance_range_2017 CE,-g2017 ivltests gold=sv_tolerance_range_2017.gold
 sv_specparam_constant_expr_fail CE,-g2012 ivltests gold=sv_specparam_constant_expr_fail.gold
 sv_param_type_identity1 normal,-g2012 ivltests gold=sv_param_type_identity1.gold
 sv_assert_paren_property normal,-g2012 ivltests
@@ -5526,3 +5528,16 @@ sv_randomize_isolated_wide_uniform_2023 normal,-g2023,-s,main,-I./ivltests ivlte
 sv_typed_mailbox_put_assignable_unsafe normal,-g2017,-gcommercial-unsafe,-s,main ivltests
 sv_typed_mailbox_put_assignable_unsafe_2023 normal,-g2023,-gcommercial-unsafe,-s,main,-I./ivltests ivltests
 sv_typed_mailbox_put_assignable_unsafe_fail CE,-g2017,-gcommercial-unsafe,-s,main ivltests gold=sv_typed_mailbox_put_assignable_unsafe_fail.gold
+# IEEE 1800-2023 8.20 method override specifiers
+sv_method_override_specifiers_2023 normal,-g2023 ivltests gold=sv_method_override_specifiers_2023.gold
+sv_method_override_extends_without_virtual_2023 CE,-g2023 ivltests
+sv_method_override_extends_without_base_2023 CE,-g2023 ivltests
+sv_method_override_initial_virtual_2023 CE,-g2023 ivltests
+sv_method_override_final_2023 CE,-g2023 ivltests
+sv_method_override_final_extends_2023 CE,-g2023 ivltests
+sv_method_override_final_pure_2023 CE,-g2023 ivltests
+sv_method_override_interface_class_2023 CE,-g2023 ivltests
+sv_method_override_outside_class_2023 CE,-g2023 ivltests
+sv_method_override_mutually_exclusive_2023 CE,-g2023 ivltests
+sv_method_override_extern_definition_specifier_2023 CE,-g2023 ivltests
+sv_method_override_specifiers_2017 CE,-g2017 ivltests

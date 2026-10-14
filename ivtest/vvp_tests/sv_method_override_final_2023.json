@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_method_override_final_2023.v",
+    "iverilog-args" : [ "-g2023" ]
+}
