@@ -1147,12 +1147,12 @@ PCAssign::~PCAssign()
 }
 
 PChainConstructor::PChainConstructor(const list<named_pexpr_t> &parms)
-: parms_(parms.begin(), parms.end())
+: parms_(parms.begin(), parms.end()), synthesized_(false)
 {
 }
 
 PChainConstructor::PChainConstructor(const vector<named_pexpr_t> &parms)
-: parms_(parms)
+: parms_(parms), synthesized_(false)
 {
 }
 
