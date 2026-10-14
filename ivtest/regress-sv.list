@@ -5116,6 +5116,10 @@ sv_foreach_mixed_fixed_excess_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-
 sv_foreach_mixed_fixed_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_runtime.gold
 sv_foreach_mixed_fixed_excess_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_mixed_fixed_excess_fail.gold
 
+# Packed rank after a queue element.
+sv_foreach_queue_packed_tail_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_queue_packed_tail.gold
+sv_foreach_queue_packed_tail_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_queue_packed_tail.gold
+
 # Flash two-dimensional packed struct fields through a virtual interface.
 sv_vif_packed_struct_field_runtime_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_runtime.gold
 sv_vif_packed_struct_field_missing_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_missing_fail.gold
@@ -5132,13 +5136,15 @@ sv_vif_packed_struct_field_string_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gn
 sv_vif_packed_struct_field_real_index_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_real_index_fail.gold
 sv_vif_packed_struct_field_enum_method_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_vif_packed_struct_field_enum_method_fail.gold
 
-# Skipped associative rank with a fixed bank child.
+# Omitted associative key with fixed and packed child ranks.
 sv_foreach_omitted_assoc_fixed_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_fixed.gold
 sv_foreach_omitted_assoc_excess_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_excess_fail.gold
-sv_foreach_omitted_assoc_indexed_prefix_fail_2017 CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix_fail.gold
+sv_foreach_omitted_assoc_packed_tail_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_packed_tail.gold
+sv_foreach_omitted_assoc_indexed_prefix_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix.gold
 sv_foreach_omitted_assoc_fixed_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_fixed.gold
 sv_foreach_omitted_assoc_excess_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_excess_fail.gold
-sv_foreach_omitted_assoc_indexed_prefix_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix_fail.gold
+sv_foreach_omitted_assoc_packed_tail_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_packed_tail.gold
+sv_foreach_omitted_assoc_indexed_prefix_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_foreach_omitted_assoc_indexed_prefix.gold
 
 # Constant indexed part-selects in randomize constraints.
 sv_constraint_indexed_part_inline_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_constraint_indexed_part_inline.gold
