@@ -208,6 +208,21 @@ class PFunction : public PTaskFunc {
       void set_return(data_type_t*t);
       void set_return_type_scope_local() { return_type_scope_local_ = true; }
 
+      void set_constructor_default(bool value) { constructor_default_ = value; }
+      bool has_constructor_default() const { return constructor_default_; }
+      void set_constructor_default_lexical_pos(unsigned pos) {
+	    constructor_default_lexical_pos_ = pos;
+      }
+      unsigned constructor_default_lexical_pos() const {
+	    return constructor_default_lexical_pos_;
+      }
+      void add_constructor_default_port(perm_string name) {
+	    constructor_default_ports_.push_back(name);
+      }
+      const std::vector<perm_string>& constructor_default_ports() const {
+	    return constructor_default_ports_;
+      }
+
       inline Statement* get_statement() { return statement_; }
       inline const Statement* get_statement() const { return statement_; }
 
@@ -240,6 +255,9 @@ class PFunction : public PTaskFunc {
       Statement *statement_;
       bool is_auto_;
       bool return_type_scope_local_ = false;
+      bool constructor_default_ = false;
+      unsigned constructor_default_lexical_pos_ = 0;
+      std::vector<perm_string> constructor_default_ports_;
 };
 
 // A let is like a simple function that is expanded in the compiler
