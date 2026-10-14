@@ -79,21 +79,28 @@ module test;
   constructor_default_pkg_derived package_obj;
 
   initial begin
+    id = -1;
     obj = new(.id(id), .name("base"));
     if (obj.name != "base" || id != 0)
       $fatal(1, "constructor defaults failed: name=%s id=%0d", obj.name, id);
 
+    id = -1;
     implicit_obj = new(.id(id), .name("implicit"));
-    if (implicit_obj.name != "implicit" || id != 1)
-      $fatal(1, "extends default implicit constructor failed");
+    if (implicit_obj.name != "implicit" || id != 0)
+      $fatal(1, "extends default implicit constructor failed: name=%s id=%0d",
+             implicit_obj.name, id);
 
+    id = -1;
     explicit_extends_obj = new(.id(id), .name("explicit extends"));
-    if (explicit_extends_obj.name != "explicit extends" || id != 2)
-      $fatal(1, "extends default explicit constructor failed");
+    if (explicit_extends_obj.name != "explicit extends" || id != 0)
+      $fatal(1, "extends default explicit constructor failed: name=%s id=%0d",
+             explicit_extends_obj.name, id);
 
+    id = -1;
     explicit_obj = new("explicit", id, 1'b1);
-    if (explicit_obj.name != "explicit" || id != 3 || !explicit_obj.enabled)
-      $fatal(1, "explicit super.new(default) failed");
+    if (explicit_obj.name != "explicit" || id != 0 || !explicit_obj.enabled)
+      $fatal(1, "explicit super.new(default) failed: name=%s id=%0d enabled=%0b",
+             explicit_obj.name, id, explicit_obj.enabled);
 
     value_obj = new();
     if (value_obj.value != 5)
