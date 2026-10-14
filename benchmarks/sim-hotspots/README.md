@@ -44,12 +44,12 @@ the baseline; the source default remains 1,000. Both runtimes receive the same
 The WP0 additions cover 128-1024-bit vectors, strength and UDP gates, 32
 independent delayed clocks, a 16K-word `$readmemh` memory, `$display`/`$fwrite`,
 VCD and FST dumping, VPI `cbValueChange`, strings/associative arrays/queues,
-UVM config DB/factory/reporting, and a depth-15 fork tree with 32,768 leaves.
+UVM config DB/factory/reporting, and a depth-12 fork tree with 4,096 leaves.
 Deterministic cases use enough work to make five-run timing useful: the pipeline
 runs for 2.4 million time units, the ALU for one million, the behavioral loop
 for 1,200 rounds, the class/queue case for 800,000 transactions, VPI callbacks
-for 32 million signal changes, and the fork tree has 32,768 leaves. Strings and
-queues process 1.28 million entries, and waveforms emit one million updates.
+for 32 million signal changes, and the fork tree has 4,096 leaves. Strings and
+queues process 2.56 million entries, and waveforms emit one million updates.
 Randomization draw counts remain fixed. Final evidence checks the reference
 time cap and spread. JSON mode requires strict output equality for every row.
 

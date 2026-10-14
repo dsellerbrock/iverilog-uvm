@@ -6,7 +6,7 @@ module top;
   integer i, sum, old_value;
   initial begin
     sum = 0;
-    for (i = 0; i < 1280000; i = i + 1) begin
+    for (i = 0; i < 2560000; i = i + 1) begin
       key = $sformatf("item_%0d", i & 255);
       values[key] = i ^ (i << 3);
       queue.push_back(values[key]);
