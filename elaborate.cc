@@ -28129,6 +28129,7 @@ static unsigned constraint_dist_ir_leaf_width_(const string&tok)
 	    return end && *end == 0 && value ? (unsigned)value : 1;
       };
       if (fields.empty()) return 1;
+	if (fields[0] == "f") return 64;
 	if (fields[0] == "c" || fields[0] == "p" || fields[0] == "pp"
 	  || fields[0] == "r"
 	  || fields[0] == "v" || fields[0] == "fv")
@@ -28159,6 +28160,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  pos += 1;
 	    string tok = ir.substr(begin, pos - begin);
 	    bool typed_terminal = tok.compare(0, 2, "c:") == 0
+		  || tok.compare(0, 2, "f:") == 0
 		  || tok.compare(0, 2, "p:") == 0
 		  || tok.compare(0, 3, "pp:") == 0
 		  || tok.compare(0, 2, "m:") == 0
@@ -28267,6 +28269,26 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.is_signed = end && *end == ':' && end[1] == 's';
 	    out.self_safe = args_self_safe();
 	    out.terminal = out.args.size() == 1 && out.args[0].terminal;
+	    return out;
+      }
+      if (out.op == "trunc-real" || out.op == "tolerance-range") {
+	    if (out.args.size() == 3 && out.args[0].is_constant
+		&& out.args[1].is_constant
+		&& out.args[0].constant_value > 0
+		&& out.args[0].constant_value <= UINT_MAX
+		&& out.args[1].constant_value <= 1) {
+		  out.width = (unsigned)out.args[0].constant_value;
+		  out.is_signed = out.args[1].constant_value == 1;
+		  /* These operators are emitted only for compiler-built type boundaries. */
+		  out.self_safe = true;
+		  out.terminal = true;
+	    }
+	    return out;
+      }
+      if (out.op == "tolerance-range-real" || out.op == "realcast") {
+	    out.width = 64;
+	    out.self_safe = out.args.size() == 1 && out.args[0].parsed;
+	    out.terminal = out.self_safe;
 	    return out;
       }
       if (out.op == "countones") {
@@ -36206,6 +36228,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
             if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
                   ivl_type_t type = cast->resolve_target_type(des, cast_scope);
                   if (!type) return "";
+                  if (type->base_type() == IVL_VT_REAL) {
+                        if (cast->tolerance_range())
+                              return "(tolerance-range-real " + ir + ")";
+                        if (cast->truncate_real_to_integral())
+                              return "(realcast " + ir + ")";
+                  }
                   if (!type->packed() || !type_is_vectorable(type->base_type())) {
                         cerr << expr->get_fileline()
                              << ": error: Non-integral solver casts are not supported in constraints."
@@ -36216,6 +36244,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   width = type->packed_width();
                   sign = type->get_signed() ? 1 : 0;
                   two_state_target = type->base_type() == IVL_VT_BOOL;
+                  if (cast->tolerance_range())
+                        return "(tolerance-range c:" + to_string(width)
+                              + " c:" + to_string(sign) + " " + ir + ")";
+                  if (cast->truncate_real_to_integral())
+                        return "(trunc-real c:" + to_string(width)
+                              + " c:" + to_string(sign) + " " + ir + ")";
             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
                   unique_ptr<NetExpr>size(elab_and_eval(
                         des, cast_scope, cast->cast_size(), -1, true));

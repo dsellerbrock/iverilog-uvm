@@ -293,8 +293,9 @@ bool PECastSize::has_aa_term(Design *des, NetScope *scope) const
 	return base_->has_aa_term(des, scope);
 }
 
-PECastType::PECastType(data_type_t*t, PExpr*b)
-: target_(t), base_(b)
+PECastType::PECastType(data_type_t*t, PExpr*b, bool truncate_real_to_integral)
+: target_(t), base_(b),
+  truncate_real_to_integral_(truncate_real_to_integral)
 {
       target_type_ = nullptr;
 }

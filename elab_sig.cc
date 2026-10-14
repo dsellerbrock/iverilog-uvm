@@ -2210,6 +2210,49 @@ static void report_constructor_order_violations_(
       }
 }
 
+static const PTaskFunc* class_method_pform_(const NetScope*method)
+{
+      if (!method)
+	    return nullptr;
+      if (method->type() == NetScope::FUNC)
+	    return method->func_pform();
+      if (method->type() == NetScope::TASK)
+	    return method->task_pform();
+      return nullptr;
+}
+
+static const NetScope* inherited_class_method_(const netclass_t*base,
+					       perm_string name)
+{
+      while (base) {
+	    const NetScope*class_scope = base->class_scope();
+	    const NetScope*method = class_scope
+		  ? class_scope->child(hname_t(name)) : nullptr;
+	    if (method && (method->type() == NetScope::FUNC
+			   || method->type() == NetScope::TASK))
+		  return method;
+	    base = base->get_super();
+      }
+      return nullptr;
+}
+
+static void collect_interface_methods_(const netclass_t*base,
+					       perm_string name,
+					       vector<const NetScope*>&methods,
+					       set<const netclass_t*>&seen)
+{
+      if (!base || !seen.insert(base).second)
+	    return;
+      const NetScope*class_scope = base->class_scope();
+      const NetScope*method = class_scope
+	    ? class_scope->child(hname_t(name)) : nullptr;
+      if (method && (method->type() == NetScope::FUNC
+		     || method->type() == NetScope::TASK))
+	    methods.push_back(method);
+      for (const netclass_t*parent : base->interface_types())
+	    collect_interface_methods_(parent, name, methods, seen);
+}
+
 void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 {
       if (sig_elaborated_ || sig_elaborating_)
@@ -2261,7 +2304,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	// runtime-schedule task-phase hook without the keyword sent uvm_root
 	// through the override; the first property access then read a
 	// wrong-width value and aborted vvp (vvp_vector4_t::add).
-      if (super_ && class_scope_) {
+      if (class_scope_) {
 	    for (auto&kv : class_scope_->children()) {
 		  NetScope*method = kv.second;
 		  if (!method)
@@ -2269,10 +2312,64 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		  if (method->type() != NetScope::TASK
 		      && method->type() != NetScope::FUNC)
 			continue;
-		  if (method->is_virtual_method())
+		  const PTaskFunc*decl = class_method_pform_(method);
+		  unsigned specifiers = decl
+			? decl->method_override_specifiers() : 0;
+		  if (!super_ && !is_interface_class() && !specifiers)
 			continue;
-		  NetScope*sup = super_->method_from_name(kv.first.peek_name());
-		  if (sup && sup->type() == method->type()
+		  const NetScope*inherited = inherited_class_method_(
+			super_, kv.first.peek_name());
+		  const NetScope*sup = super_
+			? super_->method_from_name(kv.first.peek_name()) : nullptr;
+		  const PTaskFunc*base_decl = class_method_pform_(inherited);
+		  bool same_kind = inherited
+			&& inherited->type() == method->type();
+		  bool inherited_virtual = same_kind
+			&& inherited->is_virtual_method();
+		  bool extends_target = inherited_virtual;
+		  vector<const NetScope*> interface_methods;
+		  if (is_interface_class()) {
+			set<const netclass_t*>seen;
+			for (const netclass_t*parent : interface_types_)
+			      collect_interface_methods_(parent, kv.first.peek_name(),
+							interface_methods, seen);
+			for (const NetScope*interface_method : interface_methods)
+			      if (interface_method->type() == method->type()
+				  && interface_method->is_virtual_method()) {
+				    inherited_virtual = true;
+				    extends_target = true;
+			      }
+		  }
+		  if (base_decl
+		      && (base_decl->method_override_specifiers()
+			  & METHOD_OVERRIDE_FINAL)) {
+			cerr << method->get_fileline() << ": error: Method `"
+			     << kv.first.peek_name()
+			     << "' overrides an inherited final method "
+				"(IEEE 1800-2023 8.20)." << endl;
+			des->errors += 1;
+		  }
+		  if ((specifiers & METHOD_OVERRIDE_INITIAL) && inherited_virtual) {
+			cerr << method->get_fileline() << ": error: Method `"
+			     << kv.first.peek_name()
+			     << "' uses :initial while overriding an inherited virtual "
+				"method (IEEE 1800-2023 8.20)." << endl;
+			des->errors += 1;
+		  }
+		  if (specifiers & METHOD_OVERRIDE_EXTENDS) {
+			if (!extends_target) {
+			      cerr << method->get_fileline() << ": error: Method `"
+				   << kv.first.peek_name()
+				   << "' uses :extends without overriding an inherited "
+				      "virtual method of the same kind (IEEE 1800-2023 "
+				      "8.20)." << endl;
+			      des->errors += 1;
+			} else {
+			      method->is_virtual_method(true);
+			}
+		  }
+		  if (!method->is_virtual_method() && sup
+		      && sup->type() == method->type()
 		      && sup->is_virtual_method())
 			method->is_virtual_method(true);
 	    }
