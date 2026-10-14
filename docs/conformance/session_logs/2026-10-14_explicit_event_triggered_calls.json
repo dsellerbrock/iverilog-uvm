@@ -1,0 +1,34 @@
+{
+  "blocker": "IEEE-439-EXPLICIT-EVENT-TRIGGERED-CALL",
+  "issue": 439,
+  "source_commit": "317bbeb6121779bb287798593e9347f603df71f1",
+  "baseline_main": "3335fe7ec1495956c8adc5788e9a53b0f1756ecf",
+  "standards": [
+    "IEEE 1800-2017 15.5.3",
+    "IEEE 1800-2023 15.5.3"
+  ],
+  "scope": "Explicit triggered() calls on module named events, indexed event-array elements, static class events, and per-instance class events. Existing VVP event-test operations are reused.",
+  "validation": {
+    "host": "DAN-DESKTOP",
+    "slurm_job": 1031,
+    "source_archive_sha256": "23dd8ec513df3733b7c1cfb9eb80aaf1678c7494540f9d04df6a8c3c980ecae3",
+    "t0_build_install": "passed",
+    "t0_issue_reproducer": "passed under -g2017 and -g2023; each run printed PASS",
+    "t0_smoke": "56/56 compiler/VVP, 131/131 VPI, 152/152 negative, and all runtime/reproducer checks passed",
+    "t1_class_event_legacy": "28/28 passed",
+    "t1_class_event_json": "28/28 passed",
+    "t1_named_event_neighbor_legacy": "6/6 passed",
+    "t1_named_event_neighbor_json": "6/6 passed"
+  },
+  "boundaries": [
+    "one-bit return width",
+    "false result before a trigger and for null named/class events",
+    "indexed event-array selection",
+    "same-time-step trigger and wait behavior",
+    "static class-event behavior and per-instance isolation",
+    "triggered state clears after time advances",
+    "extra arguments and non-event receivers are compile errors"
+  ],
+  "raw_replay": "/Users/danielellerbrock/codex-supervisor/evidence/a3-issue439-20261014/t0t1-pass-job1031/",
+  "limits": "This is a focused explicit-call subset, not full qualification of clause 15, merged events, wait_order, or OpenTitan DV. PR review and the T2 batch gate remain pending."
+}
