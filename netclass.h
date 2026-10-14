@@ -86,7 +86,7 @@ class netclass_t : public ivl_type_s {
 
 	// Resolve the class's pure-constraint obligations after its superclass
 	// is known. Concrete classes must implement every inherited prototype.
-      void configure_pure_constraints(Design*des, const PClass*pclass);
+      void configure_constraint_declarations(Design*des, const PClass*pclass);
 
 	// Interface-class inheritance is orthogonal to the single concrete
 	// superclass chain. These relationships contribute type compatibility
@@ -394,7 +394,7 @@ class netclass_t : public ivl_type_s {
 	// The source location is the original pure declaration, used by the
 	// concrete-class diagnostic.
       std::map<perm_string,LineInfo> unimplemented_pure_constraints_;
-      bool pure_constraints_configured_ = false;
+      bool constraint_declarations_configured_ = false;
 	// Constraint inheritance (IEEE 1800-2017 18.5.2): derived classes
 	// inherit base-class constraints unless overridden by a local
 	// constraint of the same name. The merge runs lazily on the first

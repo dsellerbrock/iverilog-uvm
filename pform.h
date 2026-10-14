@@ -240,12 +240,15 @@ extern std::vector<named_pexpr_t> pform_class_constructor_default_args(
 
 extern void pform_class_constraint(const struct vlltype&loc,
 				    bool is_static,
+				    unsigned override_specifiers,
 				    const char*name,
 				    std::list<PExpr*>*items);
 extern void pform_class_constraint_prototype(const struct vlltype&loc,
 					      bool is_static,
+                                              unsigned override_specifiers,
 					      const char*name, bool is_extern = true);
 extern void pform_class_pure_constraint(const struct vlltype&loc,
+					 unsigned override_specifiers,
 					 const char*name);
 
 // covergroup declaration inside a class body.

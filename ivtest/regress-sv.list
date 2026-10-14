@@ -5556,3 +5556,13 @@ sv_method_override_outside_class_2023 CE,-g2023 ivltests
 sv_method_override_mutually_exclusive_2023 CE,-g2023 ivltests
 sv_method_override_extern_definition_specifier_2023 CE,-g2023 ivltests
 sv_method_override_specifiers_2017 CE,-g2017 ivltests
+# IEEE 1800-2023 18.5.2 constraint override specifiers
+sv_constraint_override_specifiers_2023 normal,-g2023 ivltests gold=sv_constraint_override_specifiers_2023.gold
+sv_constraint_override_initial_fail_2023 CE,-g2023 ivltests
+sv_constraint_override_extends_fail_2023 CE,-g2023 ivltests
+sv_constraint_override_mutually_exclusive_fail_2023 CE,-g2023 ivltests
+sv_constraint_override_final_fail_2023 CE,-g2023 ivltests
+sv_constraint_override_extern_mismatch_fail_2023 CE,-g2023 ivltests
+sv_constraint_override_static_fail_2023 CE,-g2023 ivltests
+sv_constraint_override_pure_final_fail_2023 CE,-g2023 ivltests
+sv_constraint_override_specifiers_2017 CE,-g2017 ivltests
