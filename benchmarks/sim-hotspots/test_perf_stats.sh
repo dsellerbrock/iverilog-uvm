@@ -47,3 +47,20 @@ assert set(stats["scheduler_time_list"]) == {
 }
 assert "z3" in stats
 PY
+"${TIMEOUT[@]}" "$IVERILOG" -g2017 -s main -o "$WORK/z3.vvp" "$HERE/randomize_z3.sv"
+"${TIMEOUT[@]}" "$DEFAULT_VVP" -n "$WORK/z3.vvp" \
+      >"$WORK/z3-default.out" 2>"$WORK/z3-default.err"
+IVL_PERF_STATS=1 "${TIMEOUT[@]}" "$STATS_VVP" -n "$WORK/z3.vvp" \
+      >"$WORK/z3-enabled.out" 2>"$WORK/z3-enabled.err"
+cmp "$WORK/z3-default.out" "$WORK/z3-enabled.out"
+grep -q '^VVP_PERF_STATS ' "$WORK/z3-enabled.err"
+sed 's/^VVP_PERF_STATS //' "$WORK/z3-enabled.err" >"$WORK/z3-stats.json"
+python3 - "$WORK/z3-stats.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    stats = json.load(stream)
+assert stats["z3"]["contexts"] > 0
+assert stats["z3"]["checks"] > 0
+assert stats["z3"]["model_evaluations"] > 0
+PY
