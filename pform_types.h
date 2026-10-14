@@ -589,7 +589,7 @@ perm_string pform_interface_modport(Design*des, NetScope*scope,
 
 struct class_type_t : public data_type_t {
 
-      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; final_class = false; interface_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; }
+      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; final_class = false; interface_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; base_default = false; }
 
       void pform_dump(std::ostream&out, unsigned indent) const override;
       void pform_dump_init(std::ostream&out, unsigned indent) const;
@@ -600,6 +600,7 @@ struct class_type_t : public data_type_t {
 	// put them in the base_args vector.
       std::unique_ptr<data_type_t> base_type;
       std::vector<named_pexpr_t> base_args;
+      bool base_default;
 
 	// IEEE 1800-2017 8.26: interface classes form a separate,
 	// potentially multiple-inheritance graph. A concrete class may have

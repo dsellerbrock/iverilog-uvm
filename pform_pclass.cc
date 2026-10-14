@@ -22,12 +22,15 @@
 # include  <cstring>
 # include  <iostream>
 # include  <list>
+# include  <set>
 # include  <vector>
 # include  "pform.h"
 # include  "PClass.h"
 # include  "PExpr.h"
+# include  "PPackage.h"
 # include  "parse_misc.h"
 # include  "ivl_assert.h"
+# include  "sv_edition.h"
 
 using namespace std;
 
@@ -46,6 +49,153 @@ static vector<PClass*> pform_enclosing_classes_;
 static LexicalScope* pform_class_reentry_caller_ = 0;
 static PTaskFunc* pform_recent_class_method_ = 0;
 
+static PClass* pform_class_base_scope_(PClass*class_scope)
+{
+      if (!class_scope || !class_scope->type || !class_scope->type->base_type)
+	    return nullptr;
+
+      const typeref_t*base_ref = dynamic_cast<const typeref_t*>(
+	    class_scope->type->base_type.get());
+      if (!base_ref || !base_ref->typedef_ref())
+	    return nullptr;
+
+	// A package-qualified base names that package's class directly.
+      if (PPackage*pkg = dynamic_cast<PPackage*>(base_ref->scope_ref())) {
+	    map<perm_string,PClass*>::const_iterator found =
+		  pkg->classes.find(base_ref->typedef_ref()->name);
+	    if (found != pkg->classes.end())
+		  return found->second;
+      }
+
+      return pform_find_visible_class_scope(
+	    class_scope, base_ref->typedef_ref()->name);
+}
+
+static PFunction* pform_class_constructor_(PClass*class_scope)
+{
+      if (!class_scope)
+	    return nullptr;
+
+      map<perm_string,PFunction*>::iterator found =
+	    class_scope->funcs.find(perm_string::literal("new"));
+      if (found == class_scope->funcs.end())
+	    found = class_scope->funcs.find(perm_string::literal("new@"));
+      return found == class_scope->funcs.end() ? nullptr : found->second;
+}
+
+static bool pform_class_default_uses_local_member_(PClass*class_scope,
+							  const PExpr*expr)
+{
+      set<PClass*>seen;
+      for (PClass*cur = class_scope ; cur && seen.insert(cur).second ;
+	   cur = pform_class_base_scope_(cur)) {
+	    if (!cur->type) continue;
+	    for (const auto&property : cur->type->properties)
+		  if (property.second.qual.test_local()
+		      && expr->refs_name(property.first))
+			return true;
+      }
+
+      return false;
+}
+
+std::vector<pform_tf_port_t>* pform_class_constructor_default_ports(
+					const struct vlltype&loc, PFunction*constructor)
+{
+      vector<pform_tf_port_t>*ports = new vector<pform_tf_port_t>;
+      if (!constructor || !pform_cur_class
+	  || pform_cur_class->type->interface_class
+	  || (constructor->pscope_name() != perm_string::literal("new")
+	      && constructor->pscope_name() != perm_string::literal("new@"))) {
+	    cerr << loc << ": error: The default constructor argument is only valid "
+		 << "in a class constructor." << endl;
+	    error_count += 1;
+	    return ports;
+      }
+
+      if (constructor->has_constructor_default()) {
+	    cerr << loc << ": error: The default constructor argument may appear "
+		 << "only once." << endl;
+	    error_count += 1;
+	    return ports;
+      }
+      constructor->set_constructor_default(true);
+      constructor->set_constructor_default_lexical_pos(loc.lexical_pos);
+
+	  if (!pform_cur_class->type->base_default
+	      && !sv_require_feature(constructor, SVF_CLASS_CONSTRUCTOR_DEFAULT))
+	    error_count += 1;
+
+      PClass*base_class = pform_class_base_scope_(pform_cur_class);
+      if (!base_class) {
+	    cerr << loc << ": error: The default constructor argument requires a "
+		 << "base class." << endl;
+	    error_count += 1;
+	    return ports;
+      }
+
+      PFunction*base_constructor = pform_class_constructor_(base_class);
+      const vector<pform_tf_port_t>*base_ports = base_constructor
+	    ? base_constructor->peek_ports() : nullptr;
+      if (!base_ports)
+	    return ports;
+
+      for (const pform_tf_port_t&base_port : *base_ports) {
+	    PWire*wire = base_port.port;
+	    if (!wire || wire->basename() == perm_string::literal(THIS_TOKEN))
+		  continue;
+	    if (base_port.defe && pform_class_default_uses_local_member_(
+		      base_class, base_port.defe)) {
+		  cerr << base_port.defe->get_fileline() << ": error: Default value of "
+		       << "superclass constructor argument '" << wire->basename()
+		       << "' refers to a local member." << endl;
+		  error_count += 1;
+	    }
+
+	    perm_string name = wire->basename();
+	    if (constructor->wires.count(name)
+		|| constructor->local_symbols.count(name)) {
+		  cerr << loc << ": error: Constructor default argument duplicates "
+		       << "formal '" << name << "'." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+
+	    // PWire descriptors are borrowed by scopes. Reusing the base formal
+	    // preserves its direction, type, unpacked dimensions, and default.
+	    constructor->wires[name] = wire;
+	    constructor->local_symbols[name] = wire;
+	    ports->push_back(base_port);
+	    constructor->add_constructor_default_port(name);
+      }
+
+      return ports;
+}
+
+vector<named_pexpr_t> pform_class_constructor_default_args(
+					PFunction*constructor)
+{
+      vector<named_pexpr_t> args;
+      if (!constructor || !constructor->has_constructor_default()) {
+	    if (constructor)
+		  cerr << constructor->get_fileline();
+	    cerr << ": error: super.new(default) requires the default "
+		 << "argument in this constructor's formal list." << endl;
+	    error_count += 1;
+	    return args;
+      }
+
+      for (perm_string name : constructor->constructor_default_ports()) {
+	  named_pexpr_t arg;
+	  arg.name = name;
+	  arg.parm = new PEIdent(name, constructor->constructor_default_lexical_pos());
+	  arg.parm->reloc_lexical_pos_bind();
+	  arg.parm->set_line(*constructor);
+	    args.push_back(arg);
+      }
+      return args;
+}
+
 void pform_blend_class_constructors(PClass*pclass)
 {
       perm_string new1 = perm_string::literal("new");
@@ -56,6 +206,15 @@ void pform_blend_class_constructors(PClass*pclass)
 
       map<perm_string,PFunction*>::iterator iter_new2 = pclass->funcs.find(new2);
       PFunction*use_new2 = (iter_new2 == pclass->funcs.end()) ? 0 : iter_new2->second;
+
+      if (pclass->type->base_default && use_new
+	  && !use_new->has_constructor_default()) {
+	    cerr << use_new->get_fileline()
+		 << ": error: A constructor for an extends-default class must "
+		 << "include the default argument."
+		 << endl;
+	    error_count += 1;
+      }
 
       const bool explicit_body_ready = use_new && use_new->get_statement();
 
@@ -70,9 +229,29 @@ void pform_blend_class_constructors(PClass*pclass)
             chain_new = use_new->extract_chain_constructor();
       else if (use_new2 && use_new == 0)
             chain_new = use_new2->extract_chain_constructor();
+
+      if (pclass->type->base_default && chain_new
+          && !chain_new->is_synthesized()) {
+	    cerr << pclass->get_fileline()
+		 << ": error: A class with arguments in its extends specifier "
+		 << "cannot call super.new()."
+		 << endl;
+	    error_count += 1;
+	    delete chain_new;
+	    chain_new = nullptr;
+      }
+
       if (chain_new == 0 && pclass->type->base_type) {
-            chain_new = new PChainConstructor(pclass->type->base_args);
-            chain_new->set_line(*pclass);
+	    PFunction*constructor = use_new ? use_new : use_new2;
+	    if (constructor && constructor->has_constructor_default()) {
+		  vector<named_pexpr_t> args =
+				pform_class_constructor_default_args(constructor);
+		  chain_new = new PChainConstructor(args);
+	    } else {
+		  chain_new = new PChainConstructor(pclass->type->base_args);
+	    }
+	    chain_new->set_synthesized();
+	    chain_new->set_line(*pclass);
       }
 
       if (use_new && use_new2) {
@@ -119,9 +298,9 @@ void pform_blend_class_constructors(PClass*pclass)
  *
  *    class foo extends bar (exprs) ...
  *
- * the base_type is the type of the class "bar", and the base_exprs,
- * if present, are the "exprs" that would be passed to a chained
- * constructor.
+ * the base_type is the type of the class "bar", and the base_args,
+ * if present, are passed to a chained constructor. The default form
+ * inherits its superclass constructor ports.
  */
 void pform_start_class_declaration(const struct vlltype&loc,
 				   class_type_t*type,
@@ -129,7 +308,8 @@ void pform_start_class_declaration(const struct vlltype&loc,
 				   list<named_pexpr_t> *base_args,
 				   bool virtual_class,
 				   bool interface_class,
-				   list<data_type_t*>*interface_types)
+				   list<data_type_t*>*interface_types,
+				   bool base_default)
 {
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
@@ -138,6 +318,10 @@ void pform_start_class_declaration(const struct vlltype&loc,
 
       ivl_assert(loc, type->base_type == 0);
       type->base_type.reset(base_type);
+      type->base_default = base_default;
+      if (base_default
+	  && !sv_require_feature(type, SVF_CLASS_CONSTRUCTOR_DEFAULT))
+	    error_count += 1;
       type->virtual_class = virtual_class;
       type->interface_class = interface_class;
 
@@ -328,9 +512,14 @@ void pform_end_class_declaration(const struct vlltype&loc)
 	// explicit constructor exists if base class constructor arguments are
 	// specified, so that the base class constructor will be called.
       if (!pform_cur_class->type->initialize.empty() ||
-          !pform_cur_class->type->base_args.empty()) {
+	  !pform_cur_class->type->base_args.empty() ||
+	  pform_cur_class->type->base_default) {
 	    PFunction*func = pform_push_function_scope(loc, "new@", LexicalScope::AUTOMATIC);
-	    func->set_ports(0);
+	    if (pform_cur_class->type->base_default) {
+		  func->set_ports(pform_class_constructor_default_ports(loc, func));
+	    } else {
+		  func->set_ports(0);
+	    }
 	    pform_set_constructor_return(func);
 	    pform_set_this_class(loc, func);
 

@@ -5,6 +5,18 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 14, 2026 — class-constructor default arguments
+
+IEEE 1800-2023 §8.17 defines the constructor `default` formal, the matching
+`super.new(default)` chain, and `extends Base(default)`. The 2017 §8.17 does
+not define these `default` forms. Focused tests cover inherited implicit and
+explicit constructors, automatic and explicit forwarding, inherited
+directions and default values, specialized base-class argument types, 2017
+rejection, duplicate inherited formals, a missing subclass formal, forbidden
+explicit `super.new` with an `extends` argument, and local-member references
+in a superclass argument default. Full class-constructor qualification remains
+open. See [issue #454](https://github.com/dsellerbrock/iverilog-uvm/issues/454).
+
 ### October 9, 2026 — symbolic packed-array-of-struct constraint select
 
 IEEE 1800-2017/2023 §§7.4.1 and 11.5.1 define packed-array elements and

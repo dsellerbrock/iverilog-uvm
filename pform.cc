@@ -587,7 +587,7 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       scope->local_symbols[name] = item;
 }
 
-static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
+PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
 
 /* A property inherited from a base class (IEEE 1800-2017 8.15, 8.18): a local
  * property is not inherited, a protected or public one is. An inherited
@@ -1456,7 +1456,7 @@ void pform_set_nettype_referenced(const struct vlltype&loc, const char*name)
       check_potential_imports(loc, lex_strings.make(name), false);
 }
 
-static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
+PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
 {
       for (LexicalScope*cur = start ; cur ; cur = cur->parent_scope()) {
 	    if (PGenerate*generate = dynamic_cast<PGenerate*>(cur)) {
@@ -6189,6 +6189,21 @@ vector<pform_tf_port_t>*pform_make_task_ports(const struct vlltype&loc,
 
       for (list<pform_port_t>::iterator cur = ports->begin();
 	   cur != ports->end(); ++cur) {
+	    if (PFunction*func = dynamic_cast<PFunction*>(lexical_scope)) {
+		  if (func->has_constructor_default()
+		      && std::find(func->constructor_default_ports().begin(),
+				   func->constructor_default_ports().end(),
+				   cur->name.first)
+			      != func->constructor_default_ports().end()) {
+			cerr << loc << ": error: Constructor argument '"
+			     << cur->name.first
+			     << "' duplicates a superclass constructor argument."
+			     << endl;
+			error_count += 1;
+			continue;
+		  }
+	    }
+
 	    /* A full modport import/export prototype introduces a private
 	     * prototype formal scope (25.7). Do not register those formals in
 	     * the containing interface, where a second prototype with the same

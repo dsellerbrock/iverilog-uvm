@@ -128,6 +128,8 @@
 		     "the type(this) self type")			\
       SV_FEATURE_ROW(SVF_CLASS_FINAL, GN_VER2023,			\
 		     "the final class specifier")			\
+      SV_FEATURE_ROW(SVF_CLASS_CONSTRUCTOR_DEFAULT, GN_VER2023,			\
+		     "the class constructor default argument/extends default")			\
 	SV_FEATURE_ROW(SVF_CROSS_RETAIN_AUTO_BINS, GN_VER2023,		\
 		     "option.cross_retain_auto_bins")			\
 	SV_FEATURE_ROW(SVF_REAL_COVERPOINT_BINS, GN_VER2023,		\

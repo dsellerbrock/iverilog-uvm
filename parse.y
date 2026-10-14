@@ -2144,6 +2144,7 @@ static Module::port_t *module_declare_port_continuation(
       struct {
 	    data_type_t*type;
 	    std::list<named_pexpr_t> *args;
+	    bool default_args;
       } class_declaration_extends;
 
       struct {
@@ -2551,7 +2552,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <struct_type>    struct_data_type
 %type <packed_signing> packed_signing
 
-%type <class_declaration_extends> class_declaration_extends_opt
+%type <class_declaration_extends> class_declaration_extends_opt class_extends_arguments_opt
 %type <class_declaration_start> class_declaration_start
 %destructor { delete[] $$.text; } class_declaration_start
 %type <flag> class_final_specifier_opt
@@ -2859,7 +2860,7 @@ class_declaration_start
 	      error_count += 1;
 	pform_set_typedef(@5, name, class_type, nullptr);
 	pform_start_class_declaration(@2, class_type, $7.type, $7.args, $1,
-				      false, $8);
+				      false, $8, $7.default_args);
 
 	/* Register class parameters in class scope so they can be
 	 * referenced inside the class body. */
@@ -3068,7 +3069,7 @@ class_declaration_endlabel_opt
      a data_type. */
 
 class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
-  : K_extends ps_type_identifier class_extends_type_params_opt argument_list_parens_opt
+  : K_extends ps_type_identifier class_extends_type_params_opt class_extends_arguments_opt
       { if (typeref_t*tmp = dynamic_cast<typeref_t*>($2)) {
 	      /* A package-qualified ps_type_identifier consumes its own
 	       * #(...) before this outer optional production.  Preserve those
@@ -3085,19 +3086,34 @@ class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
 	} else
 	      delete_parmvalue_t($3);
 	$$.type = $2;
-	$$.args = $4;
+	$$.args = $4.args;
+	$$.default_args = $4.default_args;
       }
-  | K_extends IDENTIFIER class_extends_type_params_opt argument_list_parens_opt
+  | K_extends IDENTIFIER class_extends_type_params_opt class_extends_arguments_opt
       { type_parameter_t*tmp = new type_parameter_t(lex_strings.make($2));
 	FILE_NAME(tmp, @2);
 	delete_parmvalue_t($3);
 	$$.type = tmp;
-	$$.args = $4;
+	$$.args = $4.args;
+	$$.default_args = $4.default_args;
 	delete[]$2;
       }
   |
-      { $$ = {nullptr, nullptr};
+	  { $$ = {nullptr, nullptr, false};
       }
+  ;
+
+class_extends_arguments_opt
+  : argument_list_parens_opt
+	  { $$.type = nullptr;
+	    $$.args = $1;
+	    $$.default_args = false;
+	  }
+  | '(' K_default ')'
+	  { $$.type = nullptr;
+	    $$.args = new std::list<named_pexpr_t>;
+	    $$.default_args = true;
+	  }
   ;
 
 class_declaration_implements_opt /* IEEE1800-2017: A.1.2 */
@@ -9698,6 +9714,18 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      assert(tmp->size()==1);
 	      tmp->front().defe = $6;
 	}
+      }
+
+  | K_default
+      { $$ = pform_class_constructor_default_ports(@1, current_function);
+	port_declaration_context.port_type = NetNet::PINPUT;
+	port_declaration_context.port_net_type = NetNet::IMPLICIT;
+	port_declaration_context.data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	FILE_NAME(port_declaration_context.data_type, @1);
+	port_declaration_context.user_nettype = nullptr;
+	port_declaration_context.interconnect = false;
+	port_declaration_context.is_const = false;
+	port_declaration_context.is_ref_static = false;
       }
 
   /* Rules to match error cases... */
@@ -19662,6 +19690,17 @@ statement_item /* This is roughly statement_item in the LRM */
 
   | implicit_class_handle K_new argument_list_parens_opt ';'
       { PChainConstructor*tmp = new PChainConstructor(*$3);
+	FILE_NAME(tmp, @3);
+	if (peek_head_name(*$1) == THIS_TOKEN) {
+	      yyerror(@1, "error: this.new is invalid syntax. Did you mean super.new?");
+	}
+	delete $1;
+	$$ = tmp;
+      }
+  | implicit_class_handle K_new '(' K_default ')' ';'
+      { vector<named_pexpr_t> args =
+	    pform_class_constructor_default_args(current_function);
+	PChainConstructor*tmp = new PChainConstructor(args);
 	FILE_NAME(tmp, @3);
 	if (peek_head_name(*$1) == THIS_TOKEN) {
 	      yyerror(@1, "error: this.new is invalid syntax. Did you mean super.new?");
