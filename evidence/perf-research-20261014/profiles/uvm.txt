@@ -1,0 +1,84 @@
+# perf report --no-children --sort symbol (self time), workload: uvm
+# HEAD 5c7b3319, Linux x86-64, -O2 -g -fno-omit-frame-pointer, perf record -F 2000 -g
+     3.29%  [.] __strcmp_evex
+     3.06%  [.] vvp_object::unregister_signal_alias(vvp_net_t*, void*)
+     2.93%  [.] copy_method_ports_to_context_(__vpiScope*, vthread_s*, __vpiScope*, void**, bool) [clone .part.0] [clone .isra.0]
+     2.50%  [.] malloc
+     2.37%  [.] _int_malloc
+     2.02%  [.] __dynamic_cast
+     2.01%  [.] vvp_object::~vvp_object()
+     1.99%  [.] _int_free
+     1.72%  [.] yylex()
+     1.72%  [.] resolve_context_scope(__vpiScope*)
+     1.70%  [.] automatic_context_record_(void**)
+     1.63%  [.] vvp_object::pointer_is_live(vvp_object const*)
+     1.61%  [.] vvp_object_t::reset(vvp_object*)
+     1.57%  [.] maybe_dispatch_virtual_method_call_(vthread_s*, vvp_code_s*, vthread_s*, bool) [clone .isra.0]
+     1.43%  [.] cfree@GLIBC_2.2.5
+     1.43%  [.] std::_Rb_tree<vthread_s*, vthread_s*, std::_Identity<vthread_s*>, std::less<vthread_s*>, std::allocator<vthread_s*> >::erase(vthread_s* const&) [clone .isra.0]
+     1.41%  [.] std::_Rb_tree<object_mutation_key_t, std::pair<object_mutation_key_t const, std::set<vthread_s*, std::less<vthread_s*>, std::allocator<vthread_s*> > >, std::_Select1st<std::pair<object
+     1.41%  [.] remove_context_from_stacked_chain_(void**, void**)
+     1.35%  [.] vthread_new_(vvp_code_s*, __vpiScope*, bool)
+     1.24%  [.] unlink_chunk.isra.0
+     1.22%  [.] (anonymous namespace)::signal_object_aa_get_or_make_slot(void**, unsigned int)
+     1.17%  [.] vvp_object::notify_signal_aliases() const
+     1.10%  [.] vthread_run(vthread_s*)
+     1.07%  [.] vvp_object_t::vvp_object_t(vvp_object_t const&)
+     1.03%  [.] vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)
+     0.98%  [.] vvp_object::register_signal_alias(vvp_net_t*, void*)
+     0.96%  [.] vthread_alloc_context(__vpiScope*)
+     0.91%  [.] __cxxabiv1::__si_class_type_info::__do_dyncast(long, __cxxabiv1::__class_type_info::__sub_kind, __cxxabiv1::__class_type_info const*, void const*, __cxxabiv1::__class_type_info const*,
+     0.89%  [.] void** find_stacked_context_match_<first_live_context_for_scope(void**, __vpiScope*)::{lambda(void**)#1}>(void**, __vpiScope*, char const*, first_live_context_for_scope(void**, __vpiSc
+     0.88%  [.] getenv
+     0.88%  [.] yyparse()
+     0.88%  [.] symbol_table_s::sym_get_value(char const*)
+     0.86%  [.] vvp_object::register_live_ptr_(vvp_object const*)
+     0.82%  [.] vvp_send_object(vvp_sub_pointer_t<vvp_net_t>, vvp_object_t, void**)
+     0.82%  [.] std::_Rb_tree<std::pair<vvp_net_t*, void*>, std::pair<vvp_net_t*, void*>, std::_Identity<std::pair<vvp_net_t*, void*> >, std::less<std::pair<vvp_net_t*, void*> >, std::allocator<std::p
+     0.78%  [.] of_LOAD_OBJ(vthread_s*, vvp_code_s*)
+     0.75%  [.] vvp_object::unregister_live_ptr_(vvp_object const*)
+     0.68%  [.] std::__detail::_Map_base<void**, std::pair<void** const, automatic_context_record_s>, std::allocator<std::pair<void** const, automatic_context_record_s> >, std::__detail::_Select1st, s
+     0.68%  [.] vthread_s::~vthread_s()
+     0.65%  [.] context_live_matches_scope_(void**, __vpiScope*)
+
+# inclusive (children) top 40
+    99.96%     0.00%  [.] __libc_start_call_main
+    99.96%     0.00%  [.] __libc_start_main@@GLIBC_2.34
+    99.96%     0.00%  [.] _start
+    99.75%     0.00%  [.] main
+    99.75%     0.00%  [.] vvp_run
+    91.37%     0.06%  [.] schedule_simulate()
+    87.99%     1.10%  [.] vthread_run(vthread_s*)
+    12.60%     0.10%  [.] do_fork_(vthread_s*, vvp_code_s*, bool)
+    10.09%     0.48%  [.] of_ALLOC(vthread_s*, vvp_code_s*)
+     8.70%     0.45%  [.] of_STORE_OBJ(vthread_s*, vvp_code_s*)
+     8.09%     0.27%  [.] do_join(vthread_s*, vthread_s*)
+     8.07%     0.02%  [.] vthread_delete(vthread_s*)
+     7.50%     0.00%  [.] compile_design(char const*)
+     7.41%     0.88%  [.] yyparse()
+     7.31%     0.96%  [.] vthread_alloc_context(__vpiScope*)
+     6.45%     1.35%  [.] vthread_new_(vvp_code_s*, __vpiScope*, bool)
+     6.42%     0.51%  [.] operator new(unsigned long)
+     6.29%     2.50%  [.] malloc
+     6.16%     0.47%  [.] vvp_fun_signal_object_aa::recv_object(vvp_sub_pointer_t<vvp_net_t>, vvp_object_t, void**)
+     5.93%     0.82%  [.] vvp_send_object(vvp_sub_pointer_t<vvp_net_t>, vvp_object_t, void**)
+     5.63%     0.04%  [.] of_STORE_PROP_V(vthread_s*, vvp_code_s*)
+     5.29%     0.78%  [.] of_LOAD_OBJ(vthread_s*, vvp_code_s*)
+     4.96%     2.02%  [.] __dynamic_cast
+     4.20%     0.25%  [.] of_FREE(vthread_s*, vvp_code_s*)
+     4.13%     1.43%  [.] cfree@GLIBC_2.2.5
+     3.96%     2.93%  [.] copy_method_ports_to_context_(__vpiScope*, vthread_s*, __vpiScope*, void**, bool) [clone .part.0] [clone .isra.0]
+     3.94%     2.37%  [.] _int_malloc
+     3.93%     0.22%  [.] vvp_fun_signal_object_aa::reset_instance(void**)
+     3.88%     1.57%  [.] maybe_dispatch_virtual_method_call_(vthread_s*, vvp_code_s*, vthread_s*, bool) [clone .isra.0]
+     3.79%     0.06%  [.] notify_mutated_object_root_(vthread_s*, vvp_object_t const&, vvp_net_t*, vvp_object_t const&, char const*)
+     3.59%     0.24%  [.] vthread_s::cleanup()
+     3.44%     3.06%  [.] vvp_object::unregister_signal_alias(vvp_net_t*, void*)
+     3.29%     3.29%  [.] __strcmp_evex
+     3.23%     0.37%  [.] vthread_free_context(void**, __vpiScope*) [clone .part.0]
+     3.07%     0.44%  [.] vvp_cobject::set_vec4(unsigned long, vvp_vector4_t const&, unsigned long)
+     2.98%     0.35%  [.] vthread_s::vthread_s()
+     2.94%     2.01%  [.] vvp_object::~vvp_object()
+     2.79%     1.03%  [.] vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)
+     2.72%     0.68%  [.] vthread_s::~vthread_s()
+     2.61%     1.17%  [.] vvp_object::notify_signal_aliases() const

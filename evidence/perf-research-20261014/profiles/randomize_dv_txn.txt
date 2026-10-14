@@ -1,0 +1,84 @@
+# perf report --no-children --sort symbol (self time), workload: randomize_dv_txn
+# HEAD 5c7b3319, Linux x86-64, -O2 -g -fno-omit-frame-pointer, perf record -F 2000 -g
+     3.67%  [.] _int_malloc
+     2.57%  [.] __strcmp_evex
+     2.21%  [.] malloc
+     2.05%  [.] _int_free
+     1.02%  [.] __tls_get_addr
+     0.90%  [.] malloc_consolidate
+     0.82%  [.] pthread_mutex_lock@@GLIBC_2.2.5
+     0.65%  [.] unlink_chunk.isra.0
+     0.65%  [.] cfree@GLIBC_2.2.5
+     0.53%  [.] __memmove_avx512_unaligned_erms
+     0.53%  [.] _int_free_merge_chunk
+     0.48%  [.] pthread_mutex_unlock@@GLIBC_2.2.5
+     0.46%  [.] Z3_mk_bv_numeral
+     0.45%  [.] _int_realloc
+     0.36%  [.] __strlen_evex
+     0.35%  [.] __memset_avx512_unaligned_erms
+     0.35%  [.] __tls_get_addr@plt
+     0.33%  [.] realloc
+     0.30%  [.] strcmp@plt
+     0.22%  [.] malloc@plt
+     0.16%  [.] z3_isolated_count_exceeds_(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, unsigned long, _Z3_ast**)
+     0.16%  [.] pthread_mutex_unlock@plt
+     0.14%  [.] pthread_mutex_lock@plt
+     0.11%  [.] __printf_fp_buffer_1.isra.0
+     0.10%  [k] do_syscall_64
+     0.09%  [.] _int_free_maybe_consolidate
+     0.09%  [.] free@plt
+     0.09%  [.] __libc_sigaction
+     0.08%  [.] z3_sample_wide_single_var_intervals_(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, z3_rng_stream_t&, _Z3_ast*&, _Z3_ast*)::{lambda(_Z3_solver*, dist_wide_uint_t const&, dist_wide_
+     0.07%  [.] std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)
+     0.07%  [.] std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long)
+     0.06%  [.] operator new(unsigned long)
+     0.05%  [.] Z3_model_eval
+     0.05%  [k] _raw_spin_unlock_irq
+     0.05%  [k] handle_softirqs
+     0.05%  [.] operator delete(void*)
+     0.04%  [.] strlen@plt
+     0.04%  [.] std::ostream::sentry::sentry(std::ostream&)
+     0.04%  [.] build_z3_expr(IRParser&, Z3Builder&, Z3_lbool*)
+     0.04%  [.] clock_gettime@@GLIBC_2.17
+
+# inclusive (children) top 40
+    99.99%     0.00%  [.] __libc_start_main@@GLIBC_2.34
+    99.99%     0.00%  [.] _start
+    99.99%     0.00%  [.] __libc_start_call_main
+    99.99%     0.00%  [.] main
+    99.99%     0.00%  [.] vvp_run
+    99.97%     0.00%  [.] schedule_simulate()
+    99.95%     0.00%  [.] vthread_run(vthread_s*)
+    99.76%     0.01%  [.] of_RANDOMIZE(vthread_s*, vvp_code_s*)
+    99.63%     0.01%  [.] vvp_z3_randomize_graph(std::vector<vvp_z3_object_s, std::allocator<vvp_z3_object_s> > const&)
+    99.57%     0.02%  [.] z3_solve_pass_(class_type const*, vvp_cobject*, z3_rng_stream_t&, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<
+    71.38%     0.02%  [.] z3_solve_pass_(class_type const*, vvp_cobject*, z3_rng_stream_t&, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<
+    28.67%     0.03%  [.] z3_sample_wide_single_var_intervals_(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, z3_rng_stream_t&, _Z3_ast*&, _Z3_ast*)::{lambda(bool, dist_wide_uint_t&)#1}::operator(
+    28.55%     0.08%  [.] z3_sample_wide_single_var_intervals_(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, z3_rng_stream_t&, _Z3_ast*&, _Z3_ast*)::{lambda(_Z3_solver*, dist_wide_uint_t const&,
+    26.65%     0.02%  [.] Z3_solver_check
+    23.38%     0.16%  [.] z3_isolated_count_exceeds_(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, unsigned long, _Z3_ast**)
+    17.96%     0.05%  [.] Z3_model_eval
+    13.77%     0.00%  [.] z3_enumerate_domain(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, std::vector<unsigned long, std::allocator<unsigned long> >&)
+    12.73%     0.00%  [.] Z3_mk_context
+    11.24%     0.01%  [.] z3_walk_feasible_(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, unsigned long, unsigned long, std::vector<unsigned long, std::allocator<unsigned long> >&)
+     6.78%     0.01%  [.] Z3_solver_check_assumptions
+     6.69%     0.01%  [.] Z3_solver_assert
+     6.08%     0.00%  [.] Z3_solver_get_model
+     5.71%     0.00%  [.] z3_solve_pass_(class_type const*, vvp_cobject*, z3_rng_stream_t&, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<
+     5.69%     0.00%  [.] z3_resolve_dist_exact_core(_Z3_context*, _Z3_solver*, _Z3_optimize*, Z3Builder::DistSpec const&, z3_rng_stream_t&, unsigned long&, bool, bool, bool*)
+     5.67%     0.01%  [.] Z3_solver_push
+     5.47%     2.21%  [.] malloc
+     4.76%     3.67%  [.] _int_malloc
+     3.59%     0.02%  [.] z3_sample_wide_single_var_intervals_(_Z3_context*, _Z3_solver*, _Z3_ast*, unsigned int, z3_rng_stream_t&, _Z3_ast*&, _Z3_ast*)::{lambda(unsigned long, dist_wide_uint_t const&
+     3.44%     0.46%  [.] Z3_mk_bv_numeral
+     3.13%     0.00%  [.] z3_solve_pass_(class_type const*, vvp_cobject*, z3_rng_stream_t&, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<
+     3.12%     0.00%  [.] z3_solve_pass_(class_type const*, vvp_cobject*, z3_rng_stream_t&, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<
+     3.08%     0.33%  [.] realloc
+     2.94%     0.65%  [.] cfree@GLIBC_2.2.5
+     2.57%     2.57%  [.] __strcmp_evex
+     2.41%     0.01%  [.] Z3_optimize_check
+     2.40%     0.45%  [.] _int_realloc
+     2.36%     0.01%  [.] z3_isolated_subject_factor_(_Z3_context*, _Z3_solver*, _Z3_ast*, _Z3_ast*&)
+     2.17%     0.01%  [.] Z3_simplify
+     2.05%     2.05%  [.] _int_free
+     1.62%     0.00%  [.] Z3_solver_pop
