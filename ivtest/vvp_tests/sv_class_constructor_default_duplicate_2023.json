@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_class_constructor_default_duplicate_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"]
+}

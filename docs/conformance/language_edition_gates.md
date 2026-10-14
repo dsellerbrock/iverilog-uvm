@@ -96,6 +96,15 @@ The `:extends`, `:initial`, and `:final` method specifiers are gated to
 compile error in `-g2017`. Slurm T0/T1 qualification passed on
 `6a66355530fbb87fe6999f3b60db1f326660ca9b`; batch T2 is pending.
 
+## Class-constructor default arguments
+
+The class-constructor `default` formal, `super.new(default)` chain, and
+`extends Base(default)` form are covered by 2023 positives, 2017 edition
+rejections, a duplicate inherited-formal rejection, a missing-formal
+rejection, an explicit-super-call rejection, and a superclass default that
+illegally refers to a local member. See the constructor focus lists and the
+[clause record](matrices/ieee1800_2017_clause_matrix.md#october-14-2026--class-constructor-default-arguments).
+
 `type(this)` is gated by IEEE 1800-2023 6.23 and resolves to the class
 containing the declaration (8.11). Its cases cover generic and derived class
 return types, a static local, rejection under 2017, and rejection outside a

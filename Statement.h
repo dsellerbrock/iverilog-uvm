@@ -579,8 +579,12 @@ class PChainConstructor : public Statement {
       inline const std::vector<named_pexpr_t>& chain_args(void) const
       { return parms_; }
 
+      void set_synthesized(void) { synthesized_ = true; }
+      bool is_synthesized(void) const { return synthesized_; }
+
     private:
       std::vector<named_pexpr_t> parms_;
+      bool synthesized_;
 };
 
 class PCondit  : public Statement {
