@@ -227,6 +227,16 @@ while clause-11 tolerance range operators are tracked separately by
 application counts are preserved in the [survey archive](session_logs/2026-09-14_edition_survey_history.md);
 [CURRENT_WORK](CURRENT_WORK.md) links later evidence.
 
+### Clause 11.4.13 tolerance ranges
+
+IEEE 1800-2023 §11.4.13 adds absolute `+/-` and relative `+%-` ranges to
+`inside` value ranges. Their tolerance is cast to the type of the first
+expression, the bounds are ordered low-to-high, and real-to-integral tolerance
+conversion truncates. The 2017 §11.4.13 syntax has no tolerance-range forms.
+The parser gates these forms to 2023. Regressions cover `inside`, case-inside
+(§12.5.4), distribution sets (§18.5.3), and covergroup bins (§19.5.1), with
+signed, truncation, real, boundary, and older-edition rejection cases.
+
 ## Shared rules with paired evidence
 
 These records cover shared rules in bounded 2017/2023 subsets. The 2017 matrix

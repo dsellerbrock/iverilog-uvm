@@ -1718,6 +1718,8 @@ sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
 sv_type_this normal,-g2023 ivltests gold=sv_type_this.gold
 sv_type_this_2017 CE,-g2017 ivltests gold=sv_type_this_2017.gold
 sv_type_this_outside_class CE,-g2023 ivltests gold=sv_type_this_outside_class.gold
+sv_tolerance_range_2023 normal,-g2023 ivltests gold=sv_tolerance_range_2023.gold
+sv_tolerance_range_2017 CE,-g2017 ivltests gold=sv_tolerance_range_2017.gold
 sv_specparam_constant_expr_fail CE,-g2012 ivltests gold=sv_specparam_constant_expr_fail.gold
 sv_param_type_identity1 normal,-g2012 ivltests gold=sv_param_type_identity1.gold
 sv_assert_paren_property normal,-g2012 ivltests
