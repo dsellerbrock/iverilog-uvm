@@ -9,6 +9,10 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The 2023-only class-constructor `default` argument, `super.new(default)`
+chaining, and `extends Base(default)` form are tracked in the
+[paired constructor clause record](matrices/ieee1800_2017_clause_matrix.md#october-14-2026--class-constructor-default-arguments).
+
 The 2023 §11.5.1 two-state packed-select read correction shares the paired
 [2017 implementation record](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--two-state-packed-select-read-results).
 Strict `-g2023` direct and JSON/VVP cases pass locally. No edition-specific
@@ -166,7 +170,7 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 8 | Array `map()` method (7.12.5) | CERTAIN | IMPLEMENTED and locally qualified; merged in [PR #407](https://github.com/dsellerbrock/iverilog-uvm/pull/407), with strict 2017 rejection retained | S |
 | 9 | Class `:final` specifier | CERTAIN | IMPLEMENTED in current main by [commit 32cfc8dc](https://github.com/dsellerbrock/iverilog-uvm/commit/32cfc8dcc); paired focused tests cover 2023 acceptance and 2017 rejection | S |
 | 10 | Constructor `default` argument keyword | CERTAIN | UNSUPPORTED | M |
-| 11 | Method `:extends`/`:initial`/`:final` override specifiers | CERTAIN | UNSUPPORTED (no grammar) | M |
+| 11 | Method `:extends`/`:initial`/`:final` override specifiers | CERTAIN | Implemented under the 2023 gate; paired tests cover inherited virtual checks, final boundaries, extern prototypes, and strict 2017 rejection; Slurm T0/T1 passed on `6a6635553` (56/56 compiler/VVP, 131/131 VPI, 152/152 negatives, 15/15 legacy focus, 13/13 JSON focus); batch T2 pending | M |
 | 12 | Constraint `:extends`/`:initial`/`:final` | CERTAIN | UNSUPPORTED | S–M |
 | 13 | `dist` catch-all `default :/ expr` | CERTAIN | UNSUPPORTED (isolated cleanly: base dist fine, `default:/` errors) | S |
 | 14 | Covergroup `extends` in a subclass | CERTAIN | UNSUPPORTED by grammar inspection | M |
@@ -601,3 +605,19 @@ error in strict 2017 mode. A final class may still extend an ordinary parent.
 The paired focused tests pass locally; cross-platform CI remains pending, so
 this entry does not claim full clause-8 qualification. See the
 [focused evidence](../../evidence/class-final-2023-20261007/README.md).
+
+## 2026-10-14 — §8.20 method override specifiers
+
+IEEE 1800-2023 §8.20 adds the method `:initial`, `:extends`, and `:final`
+specifiers. `:initial` rejects a virtual override, `:extends` requires an
+inherited virtual method of the same kind and implies `virtual`, and `:final`
+prevents later overrides without making a method virtual. `:final` is illegal
+on a pure virtual method and may combine with either other specifier. The
+implementation gates these forms to 2023 and preserves
+specifiers on extern prototypes; an out-of-class definition does not repeat
+them. Focused positive, negative, boundary, and 2017-rejection cases are
+registered in both runners. Slurm job 931 passed T0/T1 on
+`6a66355530fbb87fe6999f3b60db1f326660ca9b`: smoke passed (56 compiler/VVP,
+131 VPI, and 152 negative tests); the method focus passed 15 legacy and 13
+JSON/VVP cases. Batch T2 is pending, so this entry does not claim full
+clause-8 qualification.

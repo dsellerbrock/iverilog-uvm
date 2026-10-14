@@ -34,6 +34,11 @@ class PWire;
 class Statement;
 class PExpr;
 
+enum method_override_specifier_t {
+      METHOD_OVERRIDE_INITIAL = 1,
+      METHOD_OVERRIDE_EXTENDS = 2,
+      METHOD_OVERRIDE_FINAL = 4
+};
 
 class PTaskFunc : public PScope, public PNamedItem {
 
@@ -66,6 +71,13 @@ class PTaskFunc : public PScope, public PNamedItem {
 
       inline bool is_virtual_method() const { return is_virtual_; }
       inline void set_virtual_method(bool v) { is_virtual_ = v; }
+
+      inline unsigned method_override_specifiers() const {
+	    return method_override_specifiers_;
+      }
+      inline void set_method_override_specifiers(unsigned v) {
+	    method_override_specifiers_ = v;
+      }
 
       inline bool is_pure_method() const { return is_pure_; }
       inline void set_pure_method(bool v) {
@@ -127,6 +139,7 @@ class PTaskFunc : public PScope, public PNamedItem {
       property_qualifier_t method_qualifiers_ = property_qualifier_t::make_none();
       bool is_virtual_ = false;
       bool is_pure_ = false;
+      unsigned method_override_specifiers_ = 0;
       bool interface_qualifier_valid_ = true;
       bool procedural_body_scope_ = true;
       bool is_dpi_import_ = false;
@@ -195,6 +208,21 @@ class PFunction : public PTaskFunc {
       void set_return(data_type_t*t);
       void set_return_type_scope_local() { return_type_scope_local_ = true; }
 
+      void set_constructor_default(bool value) { constructor_default_ = value; }
+      bool has_constructor_default() const { return constructor_default_; }
+      void set_constructor_default_lexical_pos(unsigned pos) {
+	    constructor_default_lexical_pos_ = pos;
+      }
+      unsigned constructor_default_lexical_pos() const {
+	    return constructor_default_lexical_pos_;
+      }
+      void add_constructor_default_port(perm_string name) {
+	    constructor_default_ports_.push_back(name);
+      }
+      const std::vector<perm_string>& constructor_default_ports() const {
+	    return constructor_default_ports_;
+      }
+
       inline Statement* get_statement() { return statement_; }
       inline const Statement* get_statement() const { return statement_; }
 
@@ -227,6 +255,9 @@ class PFunction : public PTaskFunc {
       Statement *statement_;
       bool is_auto_;
       bool return_type_scope_local_ = false;
+      bool constructor_default_ = false;
+      unsigned constructor_default_lexical_pos_ = 0;
+      std::vector<perm_string> constructor_default_ports_;
 };
 
 // A let is like a simple function that is expanded in the compiler

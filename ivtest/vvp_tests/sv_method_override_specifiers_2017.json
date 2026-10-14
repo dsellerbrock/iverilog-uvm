@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_method_override_specifiers_2017.v",
+    "iverilog-args" : [ "-g2017" ]
+}

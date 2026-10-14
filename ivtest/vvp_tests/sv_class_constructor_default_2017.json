@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_class_constructor_default_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"]
+}
