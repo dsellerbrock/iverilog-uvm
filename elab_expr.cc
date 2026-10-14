@@ -10044,6 +10044,29 @@ static const data_type_t* method_receiver_property_declared_type_(
       return 0;
 }
 
+/* Class events are not class properties, so a call-form method needs the
+ * same event-slot lookup used by the property form in PEIdent. */
+static NetExpr* resolve_class_event_method_target_(
+		const LineInfo&loc, Design*des, NetScope*scope,
+		const pform_scoped_name_t&path, unsigned lexical_pos,
+		unsigned*slot_out)
+{
+      if (!gn_system_verilog() || path.package || path.name.size() < 2
+	  || path.name.back().name != perm_string::literal("triggered")
+	  || !path.name.back().index.empty())
+	    return nullptr;
+
+      pform_name_t event_path = path.name;
+      event_path.pop_back();
+
+      PEIdent event_id(event_path, lexical_pos);
+      event_id.set_line(loc);
+      unsigned unused_slot = 0;
+      return elaborate_class_event_target(
+	    des, scope, &event_id, event_path,
+	    slot_out ? *slot_out : unused_slot);
+}
+
 unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 					    const symbol_search_results&search_results,
 					    width_mode_t&)
@@ -10063,6 +10086,18 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  cerr << get_fileline() << ": PECallFunction::test_width_method_: "
 		       << "search_results.net->net_type: " << *search_results.net->net_type() << endl;
       }
+
+      if (search_results.eve
+	  && search_results.path_tail.size() == 1
+	  && search_results.path_tail.front().name
+	       == perm_string::literal("triggered")
+	  && search_results.path_tail.front().index.empty()) {
+	    expr_type_ = IVL_VT_BOOL;
+	    expr_width_ = 1;
+	    min_width_ = 1;
+	    signed_flag_ = false;
+	    return expr_width_;
+	  }
 
       pform_name_t method_path = search_results.path_tail;
       pform_name_t orig_method_path = method_path;
@@ -11281,6 +11316,16 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    expr_type_ = sampled_subst_->expr_type();
 	    min_width_ = expr_width_;
 	    signed_flag_ = sampled_subst_->has_sign();
+	    return expr_width_;
+      }
+
+      if (NetExpr*class_event_object = resolve_class_event_method_target_(
+	    *this, des, scope, path_, UINT_MAX, nullptr)) {
+	    delete class_event_object;
+	    expr_type_ = IVL_VT_BOOL;
+	    expr_width_ = 1;
+	    min_width_ = 1;
+	    signed_flag_ = false;
 	    return expr_width_;
       }
 
@@ -16464,6 +16509,30 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       if (receiver_)
 	    return elaborate_receiver_method_(des, scope, flags);
 
+	  // IEEE 1800-2017/2023 15.5.3 defines triggered() on class events,
+	  // which are not represented as ordinary class properties.
+      unsigned class_event_slot = 0;
+      if (NetExpr*class_event_object = resolve_class_event_method_target_(
+		*this, des, scope, path_, UINT_MAX, &class_event_slot)) {
+	    if (!parms_.empty()) {
+		  cerr << get_fileline() << ": error: triggered() takes no arguments."
+	       << endl;
+		  des->errors += 1;
+		  delete class_event_object;
+		  return nullptr;
+	    }
+	    NetESFunc*tmp = new NetESFunc(
+		  "$ivl_class_event_method$triggered", IVL_VT_BOOL, 1, 2);
+	    NetEConst*slot_expr = new NetEConst(
+		  verinum(static_cast<uint64_t>(class_event_slot), 32));
+	    class_event_object->set_line(*this);
+	    slot_expr->set_line(*this);
+	    tmp->parm(0, class_event_object);
+	    tmp->parm(1, slot_expr);
+	    tmp->set_line(*this);
+	    return tmp;
+      }
+
       if (path_.size() == 2
 	  && peek_head_name(path_) == perm_string::literal("process")
 	  && peek_tail_name(path_) == perm_string::literal("self")) {
@@ -18252,6 +18321,67 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
       if (search_results.par_val && search_results.type) {
 	    return elaborate_expr_method_par_(des, scope, search_results);
+      }
+
+	  // Named events are event symbols rather than NetNet receivers; lower
+	  // their built-in triggered() call before generic method dispatch.
+      if (search_results.eve) {
+	    if (search_results.path_tail.size() != 1
+		|| search_results.path_tail.front().name
+		     != perm_string::literal("triggered")
+		|| !search_results.path_tail.front().index.empty()) {
+		  cerr << get_fileline() << ": error: A named event supports only "
+	       << "the triggered() method." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (!parms_.empty()) {
+		  cerr << get_fileline() << ": error: triggered() takes no arguments."
+	       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    if (search_results.eve->is_event_array()) {
+		  if (search_results.path_head.empty()
+		      || search_results.path_head.back().index.size() != 1) {
+			cerr << get_fileline() << ": error: named-event array `"
+		     << search_results.eve->name()
+		     << "' triggered() requires one element index." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  const index_component_t&sel =
+			search_results.path_head.back().index.front();
+		  if (sel.sel != index_component_t::SEL_BIT || !sel.msb || sel.lsb) {
+			cerr << get_fileline() << ": error: named-event array triggered() "
+			        "requires one simple element index." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  NetExpr*idx = elab_and_eval(des, scope, sel.msb, -1);
+		  if (!idx) {
+			des->errors += 1;
+			return nullptr;
+		  }
+		  NetESFunc*tmp = new NetESFunc(
+			"$ivl_event_method$triggered_arr", IVL_VT_BOOL, 1, 2);
+		  NetEEvent*ev = new NetEEvent(search_results.eve);
+		  ev->set_line(*this);
+		  idx->set_line(*this);
+		  tmp->parm(0, ev);
+		  tmp->parm(1, idx);
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+
+	    NetESFunc*tmp = new NetESFunc(
+		  "$ivl_event_method$triggered", IVL_VT_BOOL, 1, 1);
+	    NetEEvent*ev = new NetEEvent(search_results.eve);
+	    ev->set_line(*this);
+	    tmp->parm(0, ev);
+	    tmp->set_line(*this);
+	    return tmp;
       }
 
       pform_name_t method_path = search_results.path_tail;
