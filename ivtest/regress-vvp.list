@@ -1046,6 +1046,8 @@ sv_type_operator_case	vvp_tests/sv_type_operator_case.json
 sv_type_this	vvp_tests/sv_type_this.json
 sv_type_this_2017	vvp_tests/sv_type_this_2017.json
 sv_type_this_outside_class	vvp_tests/sv_type_this_outside_class.json
+sv_tolerance_range_2023	vvp_tests/sv_tolerance_range_2023.json
+sv_tolerance_range_2017	vvp_tests/sv_tolerance_range_2017.json
 sv_specparam_constant_expr_fail	vvp_tests/sv_specparam_constant_expr_fail.json
 
 # Bounded reclamation of completed zero-time named-block activations
