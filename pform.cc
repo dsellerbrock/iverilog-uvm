@@ -6366,22 +6366,27 @@ LexicalScope::range_t* pform_parameter_value_range(bool exclude_flag,
 }
 
 static void pform_set_type_parameter(const struct vlltype&loc, perm_string name,
-				     const LexicalScope::range_t*value_range)
+				     const LexicalScope::range_t*value_range,
+				     type_parameter_restriction_t restriction)
 {
       pform_requires_sv(loc, "Type parameter");
 
       if (value_range)
 	    VLerror(loc, "error: Type parameter must not have value range.");
 
-      type_parameter_t *type = new type_parameter_t(name);
+      type_parameter_t *type = new type_parameter_t(name, restriction);
       FILE_NAME(type, loc);
+      if (restriction != type_parameter_restriction_t::NONE
+	  && !sv_require_feature(type, SVF_RESTRICTED_TYPE_PARAMETERS))
+	    error_count += 1;
       pform_set_typedef(loc, name, type, 0);
 }
 
 void pform_set_parameter(const struct vlltype&loc,
 			 perm_string name, bool is_local, bool is_type,
 			 data_type_t*data_type, const list<pform_range_t>*udims,
-			 PExpr*expr, LexicalScope::range_t*value_range)
+			 PExpr*expr, LexicalScope::range_t*value_range,
+			 type_parameter_restriction_t restriction)
 {
       LexicalScope*scope = lexical_scope;
       if (is_compilation_unit(scope) && !gn_system_verilog()) {
@@ -6465,7 +6470,7 @@ void pform_set_parameter(const struct vlltype&loc,
       FILE_NAME(parm, loc);
 
       if (is_type)
-	    pform_set_type_parameter(loc, name, value_range);
+	    pform_set_type_parameter(loc, name, value_range, restriction);
       else
 	    add_local_symbol(scope, name, parm);
 
