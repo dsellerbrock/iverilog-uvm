@@ -13,8 +13,8 @@ sv_dynamic_array_slice_rvalue normal,-g2012 ivltests gold=sv_dynamic_array_slice
 sv_dynamic_array_slice_variable_bound_fail CE,-g2012 ivltests gold=sv_dynamic_array_slice_variable_bound_fail.gold
 sv_associative_array_slice_fail CE,-g2012 ivltests gold=sv_associative_array_slice_fail.gold
 sv_queue_ref_persistence normal,-g2012 ivltests gold=sv_queue_ref_persistence.gold
-sv_ref_arg_object_fork_detach normal,-g2012 ivltests gold=sv_ref_arg_object_fork_detach.gold
-sv_ref_arg_inside_storage_adversarial normal,-g2012 ivltests
+sv_ref_arg_object_fork_detach normal,-g2023 ivltests gold=sv_ref_arg_object_fork_detach.gold
+sv_ref_arg_inside_storage_adversarial normal,-g2023 ivltests
 sv_ref_arg_inside_storage_bind normal,-g2012 ivltests
 sv_ref_argument_is_a_reference normal,-g2012 ivltests
 sv_queue_slice_to_last normal,-g2012 ivltests
