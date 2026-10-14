@@ -601,6 +601,12 @@ perm_string pform_interface_modport(Design*des, NetScope*scope,
 
 struct class_type_t : public data_type_t {
 
+      enum constraint_override_specifier_t {
+	    CONSTRAINT_OVERRIDE_INITIAL = 1,
+	    CONSTRAINT_OVERRIDE_EXTENDS = 2,
+	    CONSTRAINT_OVERRIDE_FINAL = 4
+      };
+
       inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; final_class = false; interface_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; base_default = false; }
 
       void pform_dump(std::ostream&out, unsigned indent) const override;
@@ -680,13 +686,17 @@ struct class_type_t : public data_type_t {
 	// qualifier and diagnostic location.
       struct constraint_decl_info_t : public LineInfo {
 	    bool is_static = false;
+	    bool is_prototype = false;
+	    unsigned override_specifiers = 0;
       };
       std::map<perm_string, constraint_decl_info_t> constraint_declarations;
 
 	// IEEE 1800-2017 18.5.2 pure constraint prototypes. A concrete
 	// descendant must replace every inherited entry with a constraint
 	// declaration of the same name before it can be instantiated.
-      struct pure_constraint_info_t : public LineInfo { };
+      struct pure_constraint_info_t : public LineInfo {
+	    unsigned override_specifiers = 0;
+      };
       std::map<perm_string, pure_constraint_info_t> pure_constraints;
 
 	// IEEE 1800-2017 18.5.1 explicit external constraint prototypes.
@@ -695,6 +705,7 @@ struct class_type_t : public data_type_t {
 	// elaboration, including when the class has multiple specializations.
       struct extern_constraint_info_t : public LineInfo {
 	    bool is_static = false;
+	    unsigned override_specifiers = 0;
 	    bool reported = false;
       };
       std::map<perm_string, extern_constraint_info_t> extern_constraints;
