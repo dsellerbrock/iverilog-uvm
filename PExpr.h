@@ -1619,7 +1619,8 @@ class PECastSize  : public PExpr {
 class PECastType  : public PExpr {
 
     public:
-      explicit PECastType(data_type_t*target, PExpr*base);
+      explicit PECastType(data_type_t*target, PExpr*base,
+			  bool truncate_real_to_integral = false);
       ~PECastType() override;
 
       void dump(std::ostream &out) const override;
@@ -1641,12 +1642,18 @@ class PECastType  : public PExpr {
       ivl_type_t resolve_target_type(Design*des, NetScope*scope) const;
       data_type_t* cast_target() const { return target_; }
       PExpr* cast_base() const { return base_; }
+      bool tolerance_range() const { return tolerance_range_; }
+      void set_tolerance_range() { tolerance_range_ = true; }
+      bool truncate_real_to_integral() const
+            { return truncate_real_to_integral_; }
 
     private:
       data_type_t* target_;
       mutable ivl_type_t target_type_;
       mutable const NetScope* positional_cast_error_scope_ = nullptr;
       PExpr* base_;
+      bool truncate_real_to_integral_;
+      bool tolerance_range_ = false;
 };
 
 /*

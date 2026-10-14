@@ -20424,6 +20424,32 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       if (sub == 0)
 	    return 0;
 
+	/* IEEE 1800-2023 11.4.13 requires truncation when a real tolerance is
+	 * converted to an integral range type. The ordinary type-cast path rounds
+	 * real values, so select floor/ceil by sign first; the existing cast below
+	 * then only converts an integral-valued real to the target width. */
+      if (truncate_real_to_integral_ && target_type_ && target_type_->packed()
+	  && (target_type_->base_type() == IVL_VT_BOOL
+	      || target_type_->base_type() == IVL_VT_LOGIC)
+	  && sub->expr_type() == IVL_VT_REAL) {
+	    NetESFunc*floor_value = new NetESFunc(
+		"$floor", &netreal_t::type_real, 1);
+	    floor_value->parm(0, sub->dup_expr());
+	    floor_value->set_line(*this);
+	    NetESFunc*ceil_value = new NetESFunc(
+		"$ceil", &netreal_t::type_real, 1);
+	    ceil_value->parm(0, sub->dup_expr());
+	    ceil_value->set_line(*this);
+	    NetExpr*positive = new NetEBComp(
+		'G', sub->dup_expr(), new NetECReal(verireal(0.0)));
+	    positive->set_line(*this);
+	    NetETernary*truncated = new NetETernary(
+		positive, floor_value, ceil_value, 0, false);
+	    truncated->set_line(*this);
+	    delete sub;
+	    sub = truncated;
+      }
+
 	/* The typed assignment-pattern elaborator already constructs the
 	   aggregate expression with the requested non-packed type. There is no
 	   scalar cast left to perform, and routing it through the generic cast
