@@ -5,17 +5,15 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
-### October 14, 2026 — class-constructor default arguments
+### October 14, 2026 — §8.20 method override specifiers
 
-IEEE 1800-2023 §8.17 defines the constructor `default` formal, the matching
-`super.new(default)` chain, and `extends Base(default)`. The 2017 §8.17 does
-not define these `default` forms. Focused tests cover inherited implicit and
-explicit constructors, automatic and explicit forwarding, inherited
-directions and default values, specialized base-class argument types, 2017
-rejection, duplicate inherited formals, a missing subclass formal, forbidden
-explicit `super.new` with an `extends` argument, and local-member references
-in a superclass argument default. Full class-constructor qualification remains
-open. See [issue #454](https://github.com/dsellerbrock/iverilog-uvm/issues/454).
+IEEE 1800-2017 §8.20 covers virtual method overrides but does not include the
+2023 `:extends`, `:initial`, or `:final` method specifiers. The paired
+`sv_method_override_specifiers_2017` fixture expects a compile error in strict
+`-g2017`, while the 2023 fixtures exercise the new forms. Slurm job 931 passed
+T0/T1 on `6a66355530fbb87fe6999f3b60db1f326660ca9b`: 15/15 legacy and 13/13
+JSON/VVP focus cases, alongside the smoke set. Batch T2 remains pending; this
+records the edition boundary, not full §8.20 qualification.
 
 ### October 9, 2026 — symbolic packed-array-of-struct constraint select
 
@@ -2246,6 +2244,15 @@ no edition-specific difference was observed. Constraint-context array
 membership remains unsupported at one pinned SPI Device site. The queue
 unpacked-array concatenation compile errors are a distinct §10.10 backlog item,
 not covered by this inside-set implementation.
+
+### October 13 tolerance-range edition boundary
+
+IEEE 1800-2017 §11.4.13 has no `[A +/- B]` or `[A +%- B]` forms; they are
+introduced by IEEE 1800-2023 §11.4.13. The paired
+`sv_tolerance_range_2017`/`sv_tolerance_range_2023` fixtures pin the older
+edition's compile rejection and the 2023 absolute/relative bounds, signed and
+unsigned behavior, real values, truncation, and a covergroup-bin range. This
+is a focused syntax and range-semantics result, not full §11.4.13 qualification.
 
 ### September 23 associative find_index and multi-object class-event lists
 

@@ -406,6 +406,25 @@ void pform_class_property(const struct vlltype&loc,
 
 void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
 {
+      unsigned specifiers = net->method_override_specifiers();
+      if (specifiers) {
+	    if (!sv_require_feature(net, SVF_METHOD_OVERRIDE_SPECIFIERS))
+		  error_count += 1;
+	    if (pform_cur_class == 0) {
+		  cerr << loc << ": error: Method override specifiers are only "
+		       << "legal on class methods "
+		       << "(IEEE 1800-2023 8.20)." << endl;
+		  error_count += 1;
+	    }
+	    if ((specifiers & METHOD_OVERRIDE_FINAL) && net->is_pure_method()) {
+		  cerr << loc << ": error: The final specifier is illegal on a pure "
+		       << "virtual method (IEEE 1800-2023 8.20)." << endl;
+		  error_count += 1;
+	    }
+	    if (specifiers & METHOD_OVERRIDE_EXTENDS)
+		  net->set_virtual_method(true);
+      }
+
       if (pform_cur_class == 0)
 	    return;
 
@@ -568,6 +587,8 @@ void pform_bind_extern_func(PFunction*func)
 		  func->set_method_type_only(proto->method_of());
 	    if (!func->is_virtual_method() && proto->is_virtual_method())
 		  func->set_virtual_method(true);
+	    func->set_method_override_specifiers(
+		  proto->method_override_specifiers());
 	    func->set_method_qualifiers(proto->method_qualifiers());
 	    it->second = func;
       } else {
@@ -594,6 +615,8 @@ void pform_bind_extern_task(PTask*task)
 		  task->set_method_type_only(proto->method_of());
 	    if (!task->is_virtual_method() && proto->is_virtual_method())
 		  task->set_virtual_method(true);
+	    task->set_method_override_specifiers(
+		  proto->method_override_specifiers());
 	    task->set_method_qualifiers(proto->method_qualifiers());
 	    it->second = task;
       } else {
