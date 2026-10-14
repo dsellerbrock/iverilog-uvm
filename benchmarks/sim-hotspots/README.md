@@ -156,6 +156,8 @@ pins the distribution; the unmodified runtime fails it.
 
 | Idea | Measured | Verdict |
 | --- | --- | --- |
+| A2's [#536 c339 VVP profile](https://github.com/dsellerbrock/iverilog-uvm/issues/536#issuecomment-6113062376) | In a 600 s partial `rand_test_dma` profile, `vthread_run` held 87.56% of CPU samples; `of_PROP_INDEX_CHECK` was 14.42%, `of_LOAD_VEC4` 12.62%, and `of_PART_U` 11.13% | inherited baseline; no code change | The timed run stopped before its testcase completion marker; this profile is not a firmware pass or whole-suite throughput result |
+| A3's [merged #571 property-index optimization](https://github.com/dsellerbrock/iverilog-uvm/pull/571) | `cptra_ss_test_rom`, mcycle 100–600: 7.775 → 8.422 cycles/s (+8.31%); `of_PROP_INDEX_CHECK` share 8.33% → 5.87% | merged; below the 10% campaign screening threshold | Same bounded mcycle window; not a full firmware result |
 | Keep all 1,000 `randomize_dv_txn` draws in the JSON baseline | 13.328 s on the 47bc main baseline | resized JSON mode to 400 draws (under 10 s; preserves the first 400 draws); source default and legacy mode remain at 1,000 |
 | Range queries as `check_assumptions` instead of push/assert/pop | 10.79 s → 10.75 s (bias case) | reverted, noise |
 | Keep freed memory (mallopt) around `Z3_mk_context` | 2.97 → 2.75 ms per context | not adopted, 7% |
