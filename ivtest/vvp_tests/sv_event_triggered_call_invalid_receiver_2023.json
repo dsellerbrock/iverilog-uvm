@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_event_triggered_call_invalid_receiver.v",
+  "iverilog-args": ["-g2023", "-s", "sv_event_triggered_call_invalid_receiver"]
+}
