@@ -720,11 +720,9 @@ static bool suppress_func_as_task_warn(const char*name)
 {
       /* UVM frequently uses $cast in task form to test conversion
        * success while intentionally discarding the return value.
-       * IEEE 1800 also explicitly permits $system and (in 2023)
-       * $stacktrace as tasks. */
+       * IEEE 1800 also explicitly permits $system as a task. */
       return (name && (strcmp(name, "$cast") == 0 ||
-                       strcmp(name, "$system") == 0 ||
-                       strcmp(name, "$stacktrace") == 0));
+                       strcmp(name, "$system") == 0));
 }
 
 void print_vpi_call_errors()
@@ -964,12 +962,6 @@ void vpi_call_delete(vpiHandle item)
  */
 
 vthread_t vpip_current_vthread;
-
-extern "C" int vpip_systf_call_returns_string(void)
-{
-      return vpip_cur_task
-	&& dynamic_cast<sysfunc_str*>(vpip_cur_task) != 0;
-}
 
 void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)
 {
