@@ -353,13 +353,25 @@ struct type_reference_t : public data_type_t {
       data_type_t*named_type;
 };
 
+enum class type_parameter_restriction_t {
+      NONE,
+      ENUM,
+      STRUCT,
+      UNION,
+      CLASS,
+      INTERFACE_CLASS
+};
+
 struct type_parameter_t : data_type_t {
-      explicit type_parameter_t(perm_string n)
-      : unresolved_interface_reported(false), name(n) { }
+      explicit type_parameter_t(perm_string n,
+			        type_parameter_restriction_t r =
+					    type_parameter_restriction_t::NONE)
+      : unresolved_interface_reported(false), name(n), restriction(r) { }
       ivl_type_t elaborate_type_raw(Design *des, NetScope *scope) const override;
 
       mutable bool unresolved_interface_reported;
       perm_string name;
+      type_parameter_restriction_t restriction;
 };
 
 struct void_type_t : public data_type_t {
