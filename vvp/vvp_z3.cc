@@ -443,6 +443,18 @@ struct IRParser {
 	    if (*p == c) { ++p; return true; }
 	    return false;
       }
+
+      bool skip_expr() {
+	    skip_ws();
+	    if (*p != '(') return !read_token().empty();
+	    unsigned depth = 0;
+	    do {
+		  char c = *p++;
+		  if (c == '(') ++depth;
+		  else if (c == ')') --depth;
+	    } while (*p && depth);
+	    return depth == 0;
+      }
 };
 
 struct constraint_integral_type_t {
@@ -582,7 +594,7 @@ static bool infer_constraint_integral_type_(IRParser&par,
       }
       par.consume();
       string op = par.read_token();
-      if (op == "cast") {
+      if (op == "cast" || op == "tolerance-range") {
             uint64_t width = 0, sign = 0;
             if (!constraint_ir_uint_token_(par.read_token(), width)
                 || !constraint_ir_uint_token_(par.read_token(), sign)
@@ -592,6 +604,16 @@ static bool infer_constraint_integral_type_(IRParser&par,
             if (width) out.width = (unsigned)width;
             if (sign != 2) out.sign = sign == 1;
             return out.width != 0;
+      }
+      if (op == "trunc-real") {
+	    uint64_t width = 0, sign = 0;
+	    if (!constraint_ir_uint_token_(par.read_token(), width)
+		|| !constraint_ir_uint_token_(par.read_token(), sign)
+		|| !width || width > UINT_MAX || sign > 1
+		|| !par.skip_expr() || !par.expect(')')) return false;
+	    out.width = (unsigned)width;
+	    out.sign = sign == 1;
+	    return true;
       }
       if (op.compare(0, 6, "trunc:") == 0) {
             const char*spec = op.c_str() + 6;
@@ -4571,7 +4593,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	 * operand under its propagated type before final narrowing. Extension follows the
 	 * operand's signedness; the requested signedness applies to the resulting
 	 * occurrence and to its later consumers. */
-      if (op == "cast") {
+      if (op == "cast" || op == "tolerance-range") {
 	    uint64_t width_value = 0, sign_value = 0;
 	    bool width_ok = eval_const_ir(par, width_value);
 	    bool sign_ok = eval_const_ir(par, sign_value);
@@ -4604,6 +4626,56 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  : sign_value == 1;
 	    Z3_ast value = b.coerce(arg, width);
 	    return b.tag_integral_cast(value, width, is_signed);
+      }
+
+      if (op == "trunc-real") {
+	    uint64_t width_value = 0, sign_value = 0;
+	    bool width_ok = constraint_ir_uint_token_(
+		  par.read_token(), width_value);
+	    bool sign_ok = constraint_ir_uint_token_(
+		  par.read_token(), sign_value);
+	    unsigned saved_context = b.integral_context_width;
+	    int saved_context_sign = b.integral_context_sign;
+	    bool saved_typed_mode = b.integral_typed_mode;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
+	    b.integral_typed_mode = false;
+	    Z3_ast arg = build_z3_atom(par, b);
+	    b.integral_context_width = saved_context;
+	    b.integral_context_sign = saved_context_sign;
+	    b.integral_typed_mode = saved_typed_mode;
+	    par.skip_ws(); par.expect(')');
+	    arg = bool_to_bv1(b.ctx, arg);
+	    bool real_arg = b.is_real(arg);
+	    if (!width_ok || !sign_ok || !width_value
+		|| width_value > UINT_MAX || sign_value > 1
+		|| (!real_arg && Z3_get_sort_kind(b.ctx, Z3_get_sort(b.ctx, arg))
+		    != Z3_BV_SORT)) {
+		  b.state_errors.push_back(
+			"unsupported real-to-integral tolerance conversion");
+		  return mk_free_bv(b, 1);
+	    }
+	    Z3_ast value = real_arg
+		  ? Z3_mk_fpa_to_sbv(b.ctx, Z3_mk_fpa_rtz(b.ctx),
+				     z3_to_real_(b, arg), (unsigned)width_value)
+		  : b.coerce(arg, (unsigned)width_value);
+	    return b.tag_integral_cast(value, (unsigned)width_value,
+				       sign_value == 1);
+      }
+
+      if (op == "realcast" || op == "tolerance-range-real") {
+	    unsigned saved_context = b.integral_context_width;
+	    int saved_context_sign = b.integral_context_sign;
+	    bool saved_typed_mode = b.integral_typed_mode;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
+	    b.integral_typed_mode = false;
+	    Z3_ast arg = build_z3_atom(par, b);
+	    b.integral_context_width = saved_context;
+	    b.integral_context_sign = saved_context_sign;
+	    b.integral_typed_mode = saved_typed_mode;
+	    par.skip_ws(); par.expect(')');
+	    return b.is_real(arg) ? arg : z3_from_real_(b, z3_to_real_(b, arg));
       }
 
       /* A method/operator with an explicitly self-determined result width
@@ -5802,6 +5874,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             dspec.state_weights = true;
 	    dspec.disableable = b.soft_keyword_depth != 0;
 	    bool exact_supported = true;
+	    bool real_subject = b.is_real(subject);
 	    auto warn_exact_item_boundary = []() {
 		  static bool warned = false;
 		  if (!warned) {
@@ -5812,6 +5885,12 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			warned = true;
 		  }
 	    };
+	    if (real_subject) {
+		  /* shortcut: real dist uses weighted-soft fallback, not exact interval
+		   * sampling; upgrade when the sampler supports FPA intervals. */
+		  exact_supported = false;
+		  warn_exact_item_boundary();
+	    }
 	    auto width_mask = [](unsigned width) -> uint64_t {
 		  return width >= 64 ? UINT64_MAX
 			: ((uint64_t)1 << width) - 1;
@@ -5868,6 +5947,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  const char* start = par.p;
 		  bool recognized = *start == '('
 			|| strncmp(start, "c:", 2) == 0
+			|| strncmp(start, "f:", 2) == 0
 			|| strncmp(start, "p:", 2) == 0
 			|| strncmp(start, "u:", 2) == 0
 			|| strncmp(start, "m:", 2) == 0
@@ -6085,17 +6165,23 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			unsigned rw = sw;
 			if (lo_raw && b.sv_of(lo_raw) > rw) rw = b.sv_of(lo_raw);
 			if (hi_raw && b.sv_of(hi_raw) > rw) rw = b.sv_of(hi_raw);
-			Z3_ast c1 = lo_raw
-			      ? (lo_order_signed
-				    ? Z3_mk_bvsge(b.ctx,
-					  coerce_for_compare(subject, rw, true),
-					  coerce_for_compare(lo_raw, rw, true))
+		    Z3_ast c1 = lo_raw
+			  ? (real_subject || b.is_real(lo_raw)
+				? Z3_mk_fpa_geq(b.ctx,
+				      z3_to_real_(b, subject), z3_to_real_(b, lo_raw))
+				: lo_order_signed
+			    ? Z3_mk_bvsge(b.ctx,
+				  coerce_for_compare(subject, rw, true),
+				  coerce_for_compare(lo_raw, rw, true))
 				    : Z3_mk_bvuge(b.ctx,
 					  coerce_for_compare(subject, rw, false),
 					  coerce_for_compare(lo_raw, rw, false)))
 			      : 0;
-			Z3_ast c2 = hi_raw
-			      ? (hi_order_signed
+		    Z3_ast c2 = hi_raw
+			  ? (real_subject || b.is_real(hi_raw)
+				? Z3_mk_fpa_leq(b.ctx,
+				      z3_to_real_(b, subject), z3_to_real_(b, hi_raw))
+				: hi_order_signed
 				    ? Z3_mk_bvsle(b.ctx,
 					  coerce_for_compare(subject, rw, true),
 					  coerce_for_compare(hi_raw, rw, true))
@@ -6145,7 +6231,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      }
 			} else {
 			uint64_t lo_bits = 0, hi_bits = 0;
-			bool bounds_ok = lo_valid && hi_valid && (lo_open
+		    bool real_range = real_subject
+			  || (lo_raw && b.is_real(lo_raw))
+			  || (hi_raw && b.is_real(hi_raw));
+		    bool bounds_ok = !real_range && lo_valid && hi_valid && (lo_open
 			      ? subject_domain_endpoint(rw, false, lo_bits)
 			      : ground_at_width(lo_raw, rw, lo_order_signed,
 						lo_bits, &lo_source_ir));
@@ -6208,18 +6297,22 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			unsigned vw = sw;
 			if (value_valid && b.sv_of(value_raw) > vw)
 			      vw = b.sv_of(value_raw);
-			bool value_compare_signed = subject_signed && value_valid
-			      && b.is_signed(value_raw);
-			Z3_ast value = value_valid
-			      ? coerce_for_compare(value_raw, vw,
-						   value_compare_signed) : 0;
-			if (value)
-			      clause = Z3_mk_eq(b.ctx,
+		    bool value_compare_signed = subject_signed && value_valid
+			  && b.is_signed(value_raw);
+		    Z3_ast value = value_valid
+			  ? coerce_for_compare(value_raw, vw,
+					       value_compare_signed) : 0;
+		    if (value && (real_subject || b.is_real(value_raw)))
+			  clause = Z3_mk_fpa_eq(b.ctx,
+				z3_to_real_(b, subject), z3_to_real_(b, value_raw));
+		    else if (value)
+			  clause = Z3_mk_eq(b.ctx,
 				    coerce_for_compare(subject, vw,
 						       value_compare_signed), value);
 			uint64_t value_bits = 0;
 			Z3_ast value_wide = 0;
-			bool value_ok = value_valid && (vw > 64
+		    bool value_ok = value_valid && !real_subject
+			  && !b.is_real(value_raw) && (vw > 64
 			      ? ground_wide(value_raw, vw, value_compare_signed,
 					    value_wide)
 			      : ground_at_width(value_raw, vw,
