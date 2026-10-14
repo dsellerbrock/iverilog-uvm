@@ -1,0 +1,5 @@
+{
+    "type": "CE",
+    "source": "sv_restricted_type_parameter_interface_class_mismatch_2023.v",
+    "iverilog-args": ["-g2023", "-stest"]
+}

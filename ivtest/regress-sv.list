@@ -3676,6 +3676,14 @@ sv_class_final_2023 normal,-g2023,-s,test ivltests
 sv_class_final_subclass_fail_2023 CE,-g2023,-s,test ivltests gold=sv_class_final_subclass_fail_2023.gold
 sv_class_final_parameterized_subclass_fail_2023 CE,-g2023,-s,test ivltests gold=sv_class_final_parameterized_subclass_fail_2023.gold
 sv_class_final_reject_2017 CE,-g2017,-s,test ivltests gold=sv_class_final_reject_2017.gold
+sv_restricted_type_parameters_2023 normal,-g2023,-s,test ivltests
+sv_restricted_type_parameter_enum_mismatch_2023 CE,-g2023,-s,test ivltests
+sv_restricted_type_parameter_struct_mismatch_2023 CE,-g2023,-s,test ivltests
+sv_restricted_type_parameter_union_mismatch_2023 CE,-g2023,-s,test ivltests
+sv_restricted_type_parameter_class_mismatch_2023 CE,-g2023,-s,test ivltests
+sv_restricted_type_parameter_interface_class_mismatch_2023 CE,-g2023,-s,test ivltests
+sv_restricted_type_parameter_enum_default_mismatch_2023 CE,-g2023,-s,test ivltests
+sv_restricted_type_parameters_reject_2017 CE,-g2017,-s,test ivltests
 sv_class_packed_select_incdec_fail CE,-g2017,-s,sv_class_packed_select_incdec_fail ivltests gold=sv_class_packed_select_incdec_fail.gold
 sv_class_packed_select_incdec_fail_2023 CE,-g2023,-s,sv_class_packed_select_incdec_fail ivltests gold=sv_class_packed_select_incdec_fail.gold
 
