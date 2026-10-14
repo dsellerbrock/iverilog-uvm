@@ -4773,6 +4773,8 @@ sv_class_event_list_invalid_member_2017 CE,-g2017,-ssv_class_event_list_invalid_
 sv_class_event_list_invalid_member_2023 CE,-g2023,-ssv_class_event_list_invalid_member ivltests gold=sv_class_event_list_invalid_member_2023.gold
 sv_class_event_triggered_2017 normal,-g2017,-I./ivltests,-ssv_class_event_triggered ivltests gold=sv_class_event_triggered.gold
 sv_class_event_triggered_2023 normal,-g2023,-I./ivltests,-ssv_class_event_triggered ivltests gold=sv_class_event_triggered.gold
+sv_event_triggered_call_2017 normal,-g2017,-ssv_event_triggered_call ivltests gold=sv_event_triggered_call.gold
+sv_event_triggered_call_2023 normal,-g2023,-ssv_event_triggered_call ivltests gold=sv_event_triggered_call.gold
 
 # Selected virtual-interface edge expressions (IEEE 1800 9.4.2/25.9)
 sv_selected_vif_edge_automatic_cancel_2017 normal,-g2017,-sautomatic_cancel ivltests gold=sv_selected_vif_edge_automatic_cancel_2017.gold
@@ -4909,6 +4911,10 @@ sv_named_event_triggered_sensitivity normal,-g2017,-I.,-ssv_named_event_triggere
 sv_named_event_triggered_sensitivity_2023 normal,-g2023,-I.,-ssv_named_event_triggered_sensitivity ivltests gold=sv_named_event_triggered_sensitivity.gold
 sv_named_event_triggered_automatic normal,-g2017,-I.,-ssv_named_event_triggered_automatic ivltests gold=sv_named_event_triggered_automatic.gold
 sv_named_event_triggered_automatic_2023 normal,-g2023,-I.,-ssv_named_event_triggered_automatic ivltests gold=sv_named_event_triggered_automatic.gold
+sv_event_triggered_call_args_2017 CE,-g2017,-ssv_event_triggered_call_args ivltests
+sv_event_triggered_call_args_2023 CE,-g2023,-ssv_event_triggered_call_args ivltests
+sv_event_triggered_call_invalid_receiver_2017 CE,-g2017,-ssv_event_triggered_call_invalid_receiver ivltests
+sv_event_triggered_call_invalid_receiver_2023 CE,-g2023,-ssv_event_triggered_call_invalid_receiver ivltests
 sv_named_event_triggered_mixed_unsupported CE,-g2017,-ssv_named_event_triggered_mixed_unsupported ivltests gold=sv_named_event_triggered_mixed_unsupported.gold
 sv_named_event_triggered_mixed_unsupported_2023 CE,-g2023,-I.,-ssv_named_event_triggered_mixed_unsupported ivltests gold=sv_named_event_triggered_mixed_unsupported_2023.gold
 sv_packed_net_array_forward_concat normal,-g2017,-ssv_packed_net_array_forward_concat ivltests gold=sv_packed_net_array_forward_concat.gold
