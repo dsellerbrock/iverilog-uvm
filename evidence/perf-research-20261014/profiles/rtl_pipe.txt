@@ -1,0 +1,84 @@
+# perf report --no-children --sort symbol (self time), workload: rtl_pipe
+# HEAD 5c7b3319, Linux x86-64, -O2 -g -fno-omit-frame-pointer, perf record -F 2000 -g
+    12.76%  [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+     5.11%  [.] vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)
+     4.72%  [.] schedule_simulate()
+     3.80%  [.] vvp_event_source_end()
+     3.33%  [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+     3.29%  [.] (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&) [clone .isra.0]
+     2.85%  [.] schedule_event_(event_s*, unsigned long, event_queue_e)
+     2.85%  [.] vvp_event_callback_begin()
+     2.62%  [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+     2.34%  [.] vthread_run_unpin_(vthread_s*)
+     2.30%  [.] vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)
+     2.26%  [.] vthread_run(vthread_s*)
+     2.18%  [.] generic_event_s::run_run()
+     2.14%  [.] vthread_schedule_list(vthread_s*)
+     1.94%  [.] vthread_s::push_vec4(vvp_vector4_t const&)
+     1.90%  [.] vvp_vector4_t::eeq(vvp_vector4_t const&) const
+     1.86%  [.] (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()
+     1.86%  [.] vvp_vector4_t::set_vec(unsigned int, vvp_vector4_t const&)
+     1.78%  [.] vvp_event_callback_end()
+     1.70%  [.] (anonymous namespace)::flush_event_source_transaction_()
+     1.70%  [.] vvp_vector4_t::operator^=(vvp_vector4_t const&)
+     1.55%  [.] schedule_functor(vvp_gen_event_s*)
+     1.55%  [.] vvp_vpi_callback::run_vpi_callbacks_in_boundary()
+     1.43%  [.] vvp_event_source_begin()
+     1.11%  [.] malloc
+     1.11%  [.] schedule_assign_vector(vvp_sub_pointer_t<vvp_net_t>, unsigned int, unsigned int, vvp_vector4_t const&, unsigned long, bool)
+     0.91%  [.] vvp_fun_boolean_::run_run()
+     0.83%  [.] _int_free
+     0.83%  [.] vvp_fun_boolean_::receive(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**, unsigned int, bool)
+     0.83%  [.] vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)
+     0.75%  [.] std::_Rb_tree<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()> >, std::_Select1st<std::pair<std::pair<void*, void**> const, std::function<void
+     0.71%  [.] vvp_arith_sum::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     0.63%  [.] of_SHIFTR(vthread_s*, vvp_code_s*)
+     0.63%  [.] vvp_arith_::dispatch_operand_(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&)
+     0.63%  [.] vvp_wire_vec4::vec4_value(vvp_vector4_t&) const
+     0.59%  [.] __vpiArray::word_change(unsigned long)
+     0.59%  [.] cfree@GLIBC_2.2.5
+     0.59%  [.] of_WAIT(vthread_s*, vvp_code_s*)
+     0.59%  [.] vvp_fun_xor::calculate(vvp_vector4_t const*) const
+     0.59%  [.] vvp_vector4_t::add(vvp_vector4_t const&)
+
+# inclusive (children) top 40
+    99.72%     0.00%  [.] __libc_start_main@@GLIBC_2.34
+    99.72%     0.00%  [.] _start
+    99.68%     0.00%  [.] __libc_start_call_main
+    99.68%     0.00%  [.] main
+    99.68%     0.00%  [.] vvp_run
+    96.79%     4.72%  [.] schedule_simulate()
+    61.32%    12.76%  [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+    37.85%     2.26%  [.] vthread_run(vthread_s*)
+    27.90%     2.18%  [.] generic_event_s::run_run()
+    24.38%     0.55%  [.] assign_vector4_event_s::run_run()
+    20.02%     0.04%  [.] vvp_send_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+    20.02%     0.00%  [.] of_STORE_VEC4(vthread_s*, vvp_code_s*)
+    16.57%     0.91%  [.] vvp_fun_boolean_::run_run()
+    15.77%     2.30%  [.] vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)
+    13.83%     1.55%  [.] vvp_vpi_callback::run_vpi_callbacks_in_boundary()
+    10.78%     0.52%  [.] vvp_fun_edge_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     9.39%     0.20%  [.] vvp_fun_edge::recv_vec4_(vvp_vector4_t const&, vvp_bit4_t&, vthread_s*&)
+     7.77%     2.14%  [.] vthread_schedule_list(vthread_s*)
+     6.38%     5.11%  [.] vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)
+     6.06%     2.85%  [.] vvp_event_callback_begin()
+     5.83%     0.71%  [.] vvp_arith_sum::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     4.76%     3.33%  [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+     3.88%     1.78%  [.] vvp_event_callback_end()
+     3.80%     3.80%  [.] vvp_event_source_end()
+     3.29%     3.29%  [.] (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&) [clone .isra.0]
+     3.01%     0.63%  [.] of_SHIFTR(vthread_s*, vvp_code_s*)
+     2.85%     2.85%  [.] schedule_event_(event_s*, unsigned long, event_queue_e)
+     2.62%     2.62%  [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+     2.34%     2.34%  [.] vthread_run_unpin_(vthread_s*)
+     2.06%     0.55%  [.] vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     1.94%     1.94%  [.] vthread_s::push_vec4(vvp_vector4_t const&)
+     1.94%     0.48%  [.] of_ASSIGN_VEC4(vthread_s*, vvp_code_s*)
+     1.90%     1.90%  [.] vvp_vector4_t::eeq(vvp_vector4_t const&) const
+     1.86%     1.86%  [.] (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()
+     1.86%     1.86%  [.] vvp_vector4_t::set_vec(unsigned int, vvp_vector4_t const&)
+     1.70%     1.70%  [.] (anonymous namespace)::flush_event_source_transaction_()
+     1.70%     1.70%  [.] vvp_vector4_t::operator^=(vvp_vector4_t const&)
+     1.55%     1.55%  [.] schedule_functor(vvp_gen_event_s*)
+     1.51%     0.52%  [.] void std::vector<vthread_s*, std::allocator<vthread_s*> >::_M_realloc_insert<vthread_s* const&>(__gnu_cxx::__normal_iterator<vthread_s**, std::vector<vthread_s*, std::allocat
+     1.47%     0.48%  [.] operator new(unsigned long)
