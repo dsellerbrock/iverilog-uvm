@@ -42,7 +42,6 @@ struct perf_stats_s {
       std::map<vvp_perf_opcode_t, uint64_t, std::less<vvp_perf_opcode_t> > opcode_histogram;
       std::map<std::pair<vvp_perf_opcode_t, vvp_perf_opcode_t>, uint64_t,
                opcode_pair_less_s> opcode_pairs;
-      std::map<unsigned, uint64_t> time_list_lengths;
 };
 
 static perf_stats_s stats;
@@ -147,17 +146,7 @@ static void dump_stats(void)
                 << stats.time_list_insertions
                 << ",\"total_steps\":" << stats.time_list_steps
                 << ",\"max_steps\":" << stats.time_list_max
-                << ",\"walk_length_histogram\":{";
-      comma = false;
-      for (std::map<unsigned, uint64_t>::const_iterator it =
-                    stats.time_list_lengths.begin();
-           it != stats.time_list_lengths.end(); ++it) {
-            if (comma) std::cerr << ',';
-            json_string(std::cerr, std::to_string(it->first));
-            std::cerr << ':' << it->second;
-            comma = true;
-      }
-      std::cerr << "}},\"z3\":{\"contexts\":" << stats.z3_contexts
+                << "},\"z3\":{\"contexts\":" << stats.z3_contexts
                 << ",\"checks\":" << stats.z3_checks
                 << ",\"model_evaluations\":" << stats.z3_model_evaluations
                 << "}}" << std::endl;
@@ -217,7 +206,6 @@ void vvp_perf_stats_time_list_walk(unsigned length)
       stats.time_list_steps += length;
       if (length > stats.time_list_max)
             stats.time_list_max = length;
-      stats.time_list_lengths[length] += 1;
 }
 
 void vvp_perf_stats_z3_context(void)

@@ -42,5 +42,8 @@ assert stats["opcode_histogram"]
 assert stats["opcode_pairs"]
 assert stats["functor_recv_vec4"]
 assert "scheduler_time_list" in stats
+assert set(stats["scheduler_time_list"]) == {
+    "insertions", "total_steps", "max_steps"
+}
 assert "z3" in stats
 PY
