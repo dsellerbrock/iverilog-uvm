@@ -9,6 +9,10 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The 2023-only class-constructor `default` argument, `super.new(default)`
+chaining, and `extends Base(default)` form are tracked in the
+[paired constructor clause record](matrices/ieee1800_2017_clause_matrix.md#october-14-2026--class-constructor-default-arguments).
+
 The 2023 §11.5.1 two-state packed-select read correction shares the paired
 [2017 implementation record](matrices/ieee1800_2017_clause_matrix.md#october-8-2026--two-state-packed-select-read-results).
 Strict `-g2023` direct and JSON/VVP cases pass locally. No edition-specific

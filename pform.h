@@ -214,7 +214,8 @@ extern void pform_start_class_declaration(const struct vlltype&loc,
 					  std::list<named_pexpr_t> *base_args,
 					  bool virtual_class,
 					  bool interface_class = false,
-					  std::list<data_type_t*>*interface_types = 0);
+					  std::list<data_type_t*>*interface_types = 0,
+					  bool base_default = false);
 extern void pform_class_property(const struct vlltype&loc,
 				 property_qualifier_t pq,
 				 data_type_t*data_type,
@@ -231,6 +232,11 @@ extern bool pform_in_class();
 extern void pform_bind_extern_func(PFunction*func);
 extern void pform_bind_extern_task(PTask*task);
 extern void pform_blend_class_constructors(PClass*pclass);
+extern PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
+extern std::vector<pform_tf_port_t>* pform_class_constructor_default_ports(
+					const struct vlltype&loc, PFunction*constructor);
+extern std::vector<named_pexpr_t> pform_class_constructor_default_args(
+					PFunction*constructor);
 
 extern void pform_class_constraint(const struct vlltype&loc,
 				    bool is_static,

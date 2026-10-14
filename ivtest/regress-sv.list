@@ -661,6 +661,13 @@ sv_class_compat_fail2	CE,-g2009		ivltests
 sv_class_compat_fail3	CE,-g2009		ivltests
 sv_class_constructor1	normal,-g2009		ivltests
 sv_class_constructor_fail   CE,-g2009		ivltests
+sv_class_constructor_default normal,-g2023,-s,test ivltests gold=sv_class_constructor_default.gold
+sv_class_constructor_default_2017 CE,-g2017,-s,test ivltests
+sv_class_constructor_default_duplicate_2023 CE,-g2023,-s,test ivltests
+sv_class_constructor_default_extends_missing_2023 CE,-g2023,-s,test ivltests
+sv_class_constructor_default_extends_super_call_2023 CE,-g2023,-s,test ivltests
+sv_class_constructor_default_extends_2017 CE,-g2017,-s,test ivltests
+sv_class_constructor_default_local_ref_2023 CE,-g2023,-s,test ivltests
 sv_class_empty_item	normal,-g2009		ivltests
 sv_class_extends_scoped	normal,-g2009		ivltests
 sv_class_localparam	normal,-g2009		ivltests
