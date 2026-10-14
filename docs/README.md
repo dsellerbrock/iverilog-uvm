@@ -32,6 +32,7 @@ one owner. Documentation reviewed against `5c0f5588e` on 2026-09-14.
 | What is selected now, and how should it resume? | [ACTIVE_WORK](../.ai/ACTIVE_WORK.yaml), [CAMPAIGN](../.ai/CAMPAIGN.yaml) |
 | Where do untriaged observations go? | [DISCOVERED_DEBT](conformance/DISCOVERED_DEBT.md) |
 | Which regression scope is appropriate? | [Regression policy](conformance/REGRESSION_POLICY.md) |
+| How should simulator performance work be planned and measured? | [Performance plan](performance/PERFORMANCE_PLAN.md) |
 | What belongs in a PR? | [PR template](../.github/pull_request_template.md) |
 
 The matrices retain dated refinements and initial audit tables. Read the
