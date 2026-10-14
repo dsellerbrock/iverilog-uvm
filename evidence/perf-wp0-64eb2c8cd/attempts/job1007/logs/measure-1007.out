@@ -1,0 +1,13 @@
+source-baseline.tar.gz: OK
+source-candidate.tar.gz: OK
+uvm-core.tar.gz: OK
+host=DAN-DESKTOP
+date_utc=2026-10-14T18:36:11Z
+kernel=Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+gcc=gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+candidate_benchmark_source_revision=64eb2c8cd
+candidate_runtime_source_revision=281d1bca8 (vvp/configure unchanged through 64eb2c8cd)
+source_archive_sha256:
+7ad2c9ca2afe5aa87c712d66c272ad5072399217a4b5100955a7924bbf49de3f  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-calibrated-64eb2c8cd/source-baseline.tar.gz
+410501ae6593f01083c816e59aaa16e8d47024107df545b573b548400176be9c  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-calibrated-64eb2c8cd/source-candidate.tar.gz
+47edabcda41a463532346d45b5479a7e3101202e620af762fc203467526e3845  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-calibrated-64eb2c8cd/uvm-core.tar.gz

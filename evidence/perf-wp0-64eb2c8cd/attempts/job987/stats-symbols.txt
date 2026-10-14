@@ -1,0 +1,12 @@
+00000000000fb310 t _GLOBAL__sub_I__Z19vvp_perf_stats_initv
+00000000002800b0 T vvp_perf_stats_init()
+0000000000280680 T vvp_perf_stats_opcode(bool (*)(vthread_s*, vvp_code_s*), bool (*)(vthread_s*, vvp_code_s*))
+0000000000280b70 T vvp_perf_stats_z3_check()
+00000000002802e0 T vvp_perf_stats_recv_vec4(std::type_info const&)
+0000000000280b50 T vvp_perf_stats_z3_context()
+00000000002802a0 T vvp_perf_stats_thread_wake()
+0000000000280250 T vvp_perf_stats_event_region(unsigned int, char const*)
+00000000002802c0 T vvp_perf_stats_context_alloc()
+0000000000280b90 T vvp_perf_stats_z3_model_eval()
+0000000000280280 T vvp_perf_stats_thread_created()
+0000000000280b10 T vvp_perf_stats_time_list_walk(unsigned int)

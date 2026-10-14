@@ -1,0 +1,12 @@
+source-baseline.tar.gz: OK
+source-candidate.tar.gz: OK
+uvm-core.tar.gz: OK
+host=DAN-DESKTOP
+date_utc=2026-10-14T17:39:59Z
+kernel=Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+gcc=gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+z3=unavailable
+source_archive_hashes:
+7ad2c9ca2afe5aa87c712d66c272ad5072399217a4b5100955a7924bbf49de3f  source-baseline.tar.gz
+89b4cc589eb4d8c6e2443a6eae07e942186ef9ef05d08a73cb7fcfcc2943e545  source-candidate.tar.gz
+47edabcda41a463532346d45b5479a7e3101202e620af762fc203467526e3845  uvm-core.tar.gz

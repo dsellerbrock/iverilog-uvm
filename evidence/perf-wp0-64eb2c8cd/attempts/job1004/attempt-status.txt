@@ -1,0 +1,4 @@
+Slurm diagnostic 1004 could not inspect Z3 counters.
+The probe used the perf stat wrapper, but its VVP path resolved to the older verification install with SHA-256 c974cdea21410dc52937918f56a4dc698ae58d9d077e3fdd2c922e113fab7d0e; this binary has no vvp_perf_stats_ symbols.
+The intended stats-enabled VVP is the separate job-987 toolchain binary with SHA-256 a4b5697a96054be9cb32a3f1bbae53a2466fc4e64ae5a9b2066b6dc334854b41. The corrected probe is job1006.
+No conclusion about counter stability is drawn from this attempt.

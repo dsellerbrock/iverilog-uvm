@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-z3-direct-64eb2c8cd/randomize_z3.sv:12: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-z3-direct-64eb2c8cd/randomize_z3.sv:13: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-z3-direct-64eb2c8cd/randomize_z3.sv:14: warning: Static variable initialization requires explicit lifetime in this context.
+Traceback (most recent call last):
+  File "<stdin>", line 13, in <module>
+AssertionError: (1, '')

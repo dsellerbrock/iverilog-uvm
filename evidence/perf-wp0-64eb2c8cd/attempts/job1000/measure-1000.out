@@ -1,0 +1,16 @@
+source-baseline.tar.gz: OK
+source-candidate.tar.gz: OK
+uvm-core.tar.gz: OK
+host=DAN-DESKTOP
+date_utc=2026-10-14T18:19:58Z
+kernel=Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+gcc=gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+candidate_runtime_source_revision=281d1bca8 (vvp/configure files byte-identical through 64eb2c8cd)
+perf_config:
+55:/* # undef VVP_PERF_STATS */
+/home/dsell/toolchains/iverilog-a5-wp0-47bc28987caa/bin/vvp: OK
+/home/dsell/toolchains/iverilog-a5-wp0-47bc28987caa/bin/iverilog: OK
+/home/dsell/toolchains/iverilog-a5-wp0-281d1bca-off/bin/vvp: OK
+/home/dsell/toolchains/iverilog-a5-wp0-281d1bca-off/bin/iverilog: OK
+/home/dsell/toolchains/iverilog-a5-wp0-281d1bca-off/bin/iverilog-vpi: OK
+/home/dsell/toolchains/iverilog-a5-wp0-281d1bca-off/lib/ivl/uvm_dpi.vpi: OK

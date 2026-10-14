@@ -48,8 +48,10 @@ UVM config DB/factory/reporting, and a depth-12 fork tree with 4,096 leaves.
 Deterministic cases use enough work to make five-run timing useful: the pipeline
 runs for 2.4 million time units, the ALU for one million, the behavioral loop
 for 1,200 rounds, the class/queue case for 800,000 transactions, VPI callbacks
-for 32 million signal changes, and the fork tree has 4,096 leaves. Strings and
-queues process 2.56 million entries, and waveforms emit one million updates.
+for 32 million signal changes, and the fork tree has 4,096 leaves. Strength/UDP
+gates perform 640,000 updates, the 32-clock workload runs for 320,000 time
+units, strings and queues process 2.56 million entries, and waveforms emit one
+million updates.
 Randomization draw counts remain fixed. Final evidence checks the reference
 time cap and spread. JSON mode requires strict output equality for every row.
 
