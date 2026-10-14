@@ -34,6 +34,11 @@ class PWire;
 class Statement;
 class PExpr;
 
+enum method_override_specifier_t {
+      METHOD_OVERRIDE_INITIAL = 1,
+      METHOD_OVERRIDE_EXTENDS = 2,
+      METHOD_OVERRIDE_FINAL = 4
+};
 
 class PTaskFunc : public PScope, public PNamedItem {
 
@@ -66,6 +71,13 @@ class PTaskFunc : public PScope, public PNamedItem {
 
       inline bool is_virtual_method() const { return is_virtual_; }
       inline void set_virtual_method(bool v) { is_virtual_ = v; }
+
+      inline unsigned method_override_specifiers() const {
+	    return method_override_specifiers_;
+      }
+      inline void set_method_override_specifiers(unsigned v) {
+	    method_override_specifiers_ = v;
+      }
 
       inline bool is_pure_method() const { return is_pure_; }
       inline void set_pure_method(bool v) {
@@ -127,6 +139,7 @@ class PTaskFunc : public PScope, public PNamedItem {
       property_qualifier_t method_qualifiers_ = property_qualifier_t::make_none();
       bool is_virtual_ = false;
       bool is_pure_ = false;
+      unsigned method_override_specifiers_ = 0;
       bool interface_qualifier_valid_ = true;
       bool procedural_body_scope_ = true;
       bool is_dpi_import_ = false;
