@@ -2245,6 +2245,15 @@ membership remains unsupported at one pinned SPI Device site. The queue
 unpacked-array concatenation compile errors are a distinct §10.10 backlog item,
 not covered by this inside-set implementation.
 
+### October 13 tolerance-range edition boundary
+
+IEEE 1800-2017 §11.4.13 has no `[A +/- B]` or `[A +%- B]` forms; they are
+introduced by IEEE 1800-2023 §11.4.13. The paired
+`sv_tolerance_range_2017`/`sv_tolerance_range_2023` fixtures pin the older
+edition's compile rejection and the 2023 absolute/relative bounds, signed and
+unsigned behavior, real values, truncation, and a covergroup-bin range. This
+is a focused syntax and range-semantics result, not full §11.4.13 qualification.
+
 ### September 23 associative find_index and multi-object class-event lists
 
 The focused §7.12.1 candidate traverses an associative array's actual ordered

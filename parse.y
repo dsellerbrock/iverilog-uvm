@@ -304,6 +304,51 @@ static PExpr* pform_one_step_delay_(const struct vlltype&loc)
       return delay;
 }
 
+static PExpr* pform_tolerance_bound_(const struct vlltype&loc, PExpr*center,
+				     PExpr*amount, bool relative,
+				     bool high)
+{
+      PExpr*tolerance = amount;
+      if (relative) {
+	    PExpr*product = new PEBinary('*', center, amount);
+	    FILE_NAME(product, loc);
+	    tolerance = new PEBinary('/', product,
+				      new PEFNumber(new verireal(100.0)));
+	    FILE_NAME(tolerance, loc);
+      }
+
+      PECastType*cast = new PECastType(new type_reference_t(center),
+					       tolerance, true);
+      FILE_NAME(cast, loc);
+      PExpr*low = new PEBinary('-', center, cast);
+      PExpr*high_value = new PEBinary('+', center, cast);
+      FILE_NAME(low, loc);
+      FILE_NAME(high_value, loc);
+
+      PExpr*ordered = new PETernary(
+	    new PEBComp('L', low, high_value),
+	    high ? high_value : low, high ? low : high_value);
+      FILE_NAME(ordered, loc);
+      /* IEEE 1800-2023 11.4.13 fixes the resulting range type to type(A). */
+      PExpr*result = new PECastType(new type_reference_t(center), ordered);
+      static_cast<PECastType*>(result)->set_tolerance_range();
+      FILE_NAME(result, loc);
+      return result;
+}
+
+static inside_range_t* pform_tolerance_range_(const struct vlltype&loc,
+					      PExpr*center, PExpr*amount,
+					      bool relative)
+{
+      inside_range_t*range = new inside_range_t;
+      range->lo = pform_tolerance_bound_(loc, center, amount, relative, false);
+      range->hi = pform_tolerance_bound_(loc, center, amount, relative, true);
+      range->is_range = true;
+      if (!sv_require_feature(range->lo, SVF_TOLERANCE_RANGE))
+	    error_count += 1;
+      return range;
+}
+
 /* The variable declaration rules need to know if a lifetime has been
    specified. */
 static LexicalScope::lifetime_t var_lifetime;
@@ -2205,6 +2250,7 @@ static Module::port_t *module_declare_port_continuation(
 %token <number> BASED_NUMBER DEC_NUMBER UNBASED_NUMBER
 %token <realtime> REALTIME
 %token K_PLUS_EQ K_MINUS_EQ K_INCR K_DECR
+%token K_PLUS_MINUS K_PLUS_PERCENT_MINUS
 %token K_SOURCE_FILE_BOUNDARY
 %token K_LE K_GE K_EG K_EQ K_NE K_CEQ K_CNE K_WEQ K_WNE K_LP K_LS K_RS K_RSS K_SG
  /* K_CONTRIBUTE is <+, the contribution assign. */
@@ -6266,6 +6312,12 @@ inside_value_range
       { inside_range_t*r = new inside_range_t;
 	r->lo = nullptr;  r->hi = $4;  r->is_range = true;
 	$$ = r;
+      }
+  | '[' expression K_PLUS_MINUS expression ']'
+      { $$ = pform_tolerance_range_(@1, $2, $4, false);
+      }
+  | '[' expression K_PLUS_PERCENT_MINUS expression ']'
+      { $$ = pform_tolerance_range_(@1, $2, $4, true);
       }
   ;
 
