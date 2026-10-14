@@ -65,6 +65,32 @@ bool vpip_vec4_to_int64_saturated(const vvp_vector4_t&vec, bool is_signed,
 	    return true;
       }
 
+      if (vec.size() > 64) {
+	    bool negative = false;
+	    bool overflow = false;
+	    uint64_t bits = 0;
+	    unsigned width = vec.size();
+	    for (unsigned idx = width; idx > 0; idx -= 1) {
+		  unsigned bit_idx = idx - 1;
+		  vvp_bit4_t bit = vec.value(bit_idx);
+		  if (bit != BIT4_0 && bit != BIT4_1)
+			return false;
+		  bool one = bit == BIT4_1;
+		  if (bit_idx == width - 1)
+			negative = is_signed && one;
+		  if (bit_idx < 64 && one)
+			bits |= uint64_t(1) << bit_idx;
+		  if (bit_idx >= 63 && (is_signed ? one != negative : one))
+			overflow = true;
+	    }
+	    // Keep checking after overflow so a lower bit can still reject X/Z.
+	    if (overflow)
+		  value = negative ? LLONG_MIN : LLONG_MAX;
+	    else
+		  value = static_cast<int64_t>(bits);
+	    return true;
+      }
+
       for (unsigned idx = 0; idx < vec.size(); idx += 1) {
             vvp_bit4_t bit = vec.value(idx);
             if (bit != BIT4_0 && bit != BIT4_1)

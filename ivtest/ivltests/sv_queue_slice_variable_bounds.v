@@ -36,6 +36,7 @@ module top;
   bit signed minus_one_bit;
   int unsigned huge_unsigned;
   bit [127:0] huge_wide;
+  logic [127:0] huge_wide_with_unknown;
   bit signed [127:0] negative_wide;
   bit signed [64:0] below_int64;
   queue_box box;
@@ -312,6 +313,13 @@ module top;
     r = q[0:huge_wide];
     if (r.size() != 5 || r[4] != 50)
       $fatal(1, "wide upper bound did not clamp: r=%p", r);
+    huge_wide_with_unknown = '0;
+    huge_wide_with_unknown[100] = 1'b1;
+    huge_wide_with_unknown[50] = 1'bx;
+    huge_wide_with_unknown[51] = 1'bz;
+    r = q[0:huge_wide_with_unknown];
+    if (r.size() != 0)
+      $fatal(1, "wide unknown upper bound was not empty: r=%p", r);
     r = q[huge_wide:$];
     if (r.size() != 0)
       $fatal(1, "wide lower bound was not empty: r=%p", r);
