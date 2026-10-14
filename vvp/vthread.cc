@@ -7274,9 +7274,18 @@ extern "C" int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val)
 }
 
 /*
- * R21 / IEEE 1800-2023 20.17.2: $stacktrace can be called as either a
- * task or string function. The returned string contents are implementation
- * dependent; the task prints the same representation to stdout.
+ * R21: $stacktrace, called from vpi/sys_display.c's calltf.
+ *
+ * NOTE ON THE LRM CITATION: the task description that motivated this
+ * points at IEEE 1800-2017 20.3.3, but that subclause is actually
+ * $realtime -- clause 20's own table of contents (20.10/20.11) lists only
+ * $fatal/$error/$warning/$info as severity/elaboration tasks, and
+ * $stacktrace does not appear anywhere in clause 20 of the 2017 LRM. It is
+ * a widely implemented vendor debug extension (e.g. Questa), not a
+ * standard SystemVerilog system task. Since there is no LRM text to
+ * conform to, this implements the common contract: a task (not usable as
+ * a function/in an expression), no arguments, that prints the current
+ * call stack to stdout and does not affect simulation control flow.
  *
  * A synchronous task or function call in vvp runs on a CHILD vthread whose
  * ->parent points back at the calling thread (see do_callf_void and the
@@ -7298,7 +7307,7 @@ extern "C" int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val)
  * locations are only available when the design was built that way. Rather
  * than silently omitting or guessing, say so explicitly per frame.
  */
-static string format_stacktrace_(const char*call_file, long call_line)
+extern "C" void vpip_print_stacktrace(const char*call_file, long call_line)
 {
 	/* As with vpip_object_urandom, use the thread the VPI call was
 	   actually made on -- `running_thread' is not reliable during a
@@ -7316,11 +7325,11 @@ static string format_stacktrace_(const char*call_file, long call_line)
 	   name lookup. */
       string call_file_str = (call_file && call_file[0]) ? call_file : string();
 
-	  string result = "$stacktrace: call stack (innermost frame first):\n";
+      vpi_printf("$stacktrace: call stack (innermost frame first):\n");
 
       if (!thr) {
-	    result += "  <no active thread context available>\n";
-	    return result;
+	    vpi_printf("  <no active thread context available>\n");
+	    return;
       }
 
       unsigned depth = 0;
@@ -7337,10 +7346,8 @@ static string format_stacktrace_(const char*call_file, long call_line)
 		 always has an exact, always-available location: the
 		 systf call site itself. */
 	    if (depth == 0 && !call_file_str.empty()) {
-		  result += "  #0 ";
-		  result += scope_name;
-		  result += " (" + call_file_str + ":";
-		  result += std::to_string(call_line) + ")\n";
+		  vpi_printf("  #0 %s (%s:%ld)\n", scope_name.c_str(),
+			     call_file_str.c_str(), call_line);
 		  continue;
 	    }
 
@@ -7352,30 +7359,13 @@ static string format_stacktrace_(const char*call_file, long call_line)
 		  fl.erase(fl.size()-1);
 
 	    if (fl.empty()) {
-		  result += "  #" + std::to_string(depth) + " ";
-		  result += scope_name;
-		  result += " (location unavailable -- recompile with "
-			    "-pfileline=1 to see call-site lines for "
-			    "enclosing frames)\n";
+		  vpi_printf("  #%u %s (location unavailable -- recompile with "
+			     "-pfileline=1 to see call-site lines for "
+			     "enclosing frames)\n", depth, scope_name.c_str());
 	    } else {
-		  result += "  #" + std::to_string(depth) + " ";
-		  result += scope_name + " (" + fl + ")\n";
+		  vpi_printf("  #%u %s (%s)\n", depth, scope_name.c_str(), fl.c_str());
 	    }
       }
-
-	  return result;
-}
-
-extern "C" const char* vpip_get_stacktrace(const char*call_file, long call_line)
-{
-	  static string result;
-	  result = format_stacktrace_(call_file, call_line);
-	  return result.c_str();
-}
-
-extern "C" void vpip_print_stacktrace(const char*call_file, long call_line)
-{
-	  vpi_printf("%s", vpip_get_stacktrace(call_file, call_line));
 }
 
 bool of_GET_RANDSTATE(vthread_t thr, vvp_code_t)
