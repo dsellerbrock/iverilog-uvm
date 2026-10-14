@@ -24526,6 +24526,28 @@ static NetProc* prepend_foreach_selector_evaluation_(Design*des,
       return block;
 }
 
+/* An associative foreach target can have a selected parent before the
+ * associative member, e.g. `boxes[next_idx()].m[,bank]'. The selected
+ * parent does not affect the remaining fixed bounds, but its index expression
+ * still has to be evaluated once when the foreach is entered. */
+static NetProc* prepend_foreach_path_selector_evaluation_(Design*des,
+                                                          NetScope*scope,
+                                                          const LineInfo&loc,
+                                                          const pform_name_t&path,
+                                                          NetProc*loop)
+{
+      for (pform_name_t::const_reverse_iterator cur = path.rbegin();
+           cur != path.rend(); ++cur) {
+            if (cur->index.empty()) continue;
+            pform_name_t component_path;
+            component_path.push_back(*cur);
+            loop = prepend_foreach_selector_evaluation_(des, scope, loc,
+                                                        component_path, loop);
+            if (!loop) return nullptr;
+      }
+      return loop;
+}
+
 /*
  * The foreach statement can be written as a for statement like so:
  *
@@ -25160,9 +25182,10 @@ NetProc* PForeach::elaborate_mixed_fixed_array_(Design*des,
 	if (!array) {
 	  const netvector_t*packed = dynamic_cast<const netvector_t*>(rank_type);
 	  if (packed && index_vars_.size() - idx <= packed->packed_dims().size()) {
-	    cerr << get_fileline() << ": sorry: foreach over packed "
-	         << "dimensions after mixed fixed/runtime arrays is not "
-	         << "supported." << endl;
+	    // The runtime array at the current rank is followed by a packed
+	    // vector leaf. elaborate_runtime_array_() descends through that
+	    // container and then uses the vector's declared packed bounds.
+	    break;
 	  } else {
 	    cerr << get_fileline() << ": error: foreach target " << array_path_
 	         << " has too few dimensions for foreach dimension list."
@@ -25220,6 +25243,27 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 		  return elaborate_assoc_array_(des, scope, array_expr,
 						index_var_start);
       }
+
+	// A queue or dynamic-array element can itself be a packed vector. Once
+	// the runtime dimension has selected that element, the remaining
+	// foreach variables walk its declared packed bounds as static ranks.
+	if (const netvector_t*vector =
+		dynamic_cast<const netvector_t*>(array_expr->net_type())) {
+	    const netranges_t&dims = vector->packed_dims();
+	    const size_t count = index_vars_.size() - index_var_start;
+	    if (count > dims.size()) {
+		  delete array_expr;
+		  cerr << get_fileline() << ": error: foreach target " << array_path_
+		       << " has too few dimensions for foreach dimension list." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    delete array_expr;
+	    NetProc*sub = statement_ ? statement_->elaborate(des, scope)
+				     : new NetBlock(NetBlock::SEQU, 0);
+	    return elaborate_static_array_prefix_(des, scope, dims, count, sub,
+						   index_var_start);
+	}
 
       if (index_vars_.size() != index_var_start + 1) {
 	    if (gn_system_verilog()) {
@@ -25353,20 +25397,13 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 
       if (index_vars_.size() > index_var_start
 	  && index_vars_[index_var_start].nil()) {
-	for (const name_component_t&part : array_path_) {
-	  if (part.index.empty()) continue;
-	  delete array_expr;
-	  cerr << get_fileline() << ": sorry: omitted associative foreach"
-	       << " with an indexed target prefix is not supported." << endl;
-	  des->errors += 1;
-	  return nullptr;
-	}
 	const netqueue_t*assoc =
 	    dynamic_cast<const netqueue_t*>(array_expr->net_type());
 	ivl_assert(*this, assoc && assoc->assoc_compat());
 	const netuarray_t*fixed =
 	    dynamic_cast<const netuarray_t*>(assoc->element_type());
 	const size_t count = index_vars_.size() - index_var_start - 1;
+	netranges_t dims;
 	if (count && !fixed) {
 	  delete array_expr;
 	  cerr << get_fileline() << ": sorry: omitted associative foreach"
@@ -25374,17 +25411,18 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 	  des->errors += 1;
 	  return nullptr;
 	}
-	if (count && count > fixed->static_dimensions().size()) {
+	if (fixed) {
+	  dims = fixed->static_dimensions();
 	  const netvector_t*leaf =
 	      dynamic_cast<const netvector_t*>(fixed->element_type());
-	  size_t packed_count = leaf ? leaf->packed_dims().size() : 0;
+	  if (leaf)
+	    dims.insert(dims.end(), leaf->packed_dims().begin(),
+			leaf->packed_dims().end());
+	}
+	if (count > dims.size()) {
 	  delete array_expr;
-	  if (count <= fixed->static_dimensions().size() + packed_count)
-	    cerr << get_fileline() << ": sorry: foreach over packed dimensions"
-	         << " after omitted associative index is not supported." << endl;
-	  else
-	    cerr << get_fileline() << ": error: foreach target " << array_path_
-	         << " has too few dimensions for foreach dimension list." << endl;
+	  cerr << get_fileline() << ": error: foreach target " << array_path_
+	       << " has too few dimensions for foreach dimension list." << endl;
 	  des->errors += 1;
 	  return nullptr;
 	}
@@ -25395,9 +25433,10 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 	  delete sub;
 	  return new NetBlock(NetBlock::SEQU, 0);
 	}
-	return elaborate_static_array_prefix_(
-	    des, scope, fixed->static_dimensions(), count, sub,
-	    index_var_start + 1);
+	NetProc*loop = elaborate_static_array_prefix_(
+	    des, scope, dims, count, sub, index_var_start + 1);
+	return prepend_foreach_path_selector_evaluation_(
+	    des, scope, *this, array_path_, loop);
       }
 
       if (index_vars_.size() <= index_var_start) {

@@ -150,11 +150,69 @@ void netclass_t::set_super(const netclass_t*super)
 	    const_cast<netclass_t*>(super_)->add_derived_type_(this);
 }
 
-void netclass_t::configure_pure_constraints(Design*des, const PClass*pclass)
+void netclass_t::configure_constraint_declarations(Design*des, const PClass*pclass)
 {
-      if (pure_constraints_configured_ || !pclass || !pclass->type)
+	  if (constraint_declarations_configured_ || !pclass || !pclass->type)
 	    return;
-      pure_constraints_configured_ = true;
+	  constraint_declarations_configured_ = true;
+
+	  auto validate_override = [&](perm_string name, unsigned specifiers,
+				       const LineInfo*source) {
+	    bool inherited = false;
+	    bool replaces_final = false;
+	    for (const netclass_t*base = super_; base; base = base->super_) {
+		  const PClass*base_pform = base->class_scope_
+			? base->class_scope_->class_pform() : nullptr;
+		  if (!base_pform || !base_pform->type)
+			continue;
+		  const class_type_t*base_type = base_pform->type;
+		  auto decl = base_type->constraint_declarations.find(name);
+		  if (decl != base_type->constraint_declarations.end()) {
+			inherited = true;
+			if (decl->second.override_specifiers
+			    & class_type_t::CONSTRAINT_OVERRIDE_FINAL)
+			      replaces_final = true;
+		  }
+		  if (base_type->pure_constraints.count(name))
+			inherited = true;
+		  auto proto = base_type->extern_constraints.find(name);
+		  if (proto != base_type->extern_constraints.end()) {
+			inherited = true;
+			if (proto->second.override_specifiers
+			    & class_type_t::CONSTRAINT_OVERRIDE_FINAL)
+			      replaces_final = true;
+		  }
+	    }
+	    if ((specifiers & class_type_t::CONSTRAINT_OVERRIDE_INITIAL)
+		&& inherited) {
+		  cerr << source->get_fileline() << ": error: Constraint `" << name
+		       << "' uses :initial but replaces an inherited constraint "
+			  "(IEEE 1800-2023 18.5.2)." << endl;
+		  des->errors += 1;
+	    }
+	    if ((specifiers & class_type_t::CONSTRAINT_OVERRIDE_EXTENDS)
+		&& !inherited) {
+		  cerr << source->get_fileline() << ": error: Constraint `" << name
+		       << "' uses :extends without replacing an inherited constraint "
+			  "(IEEE 1800-2023 18.5.2)." << endl;
+		  des->errors += 1;
+	    }
+	    if (replaces_final) {
+		  cerr << source->get_fileline() << ": error: Constraint `" << name
+		       << "' replaces an inherited :final constraint "
+			  "(IEEE 1800-2023 18.5.2)." << endl;
+		  des->errors += 1;
+	    }
+	  };
+	  for (const auto&decl : pclass->type->constraint_declarations)
+	    validate_override(decl.first, decl.second.override_specifiers,
+			      &decl.second);
+	  for (const auto&pure : pclass->type->pure_constraints)
+	    validate_override(pure.first, pure.second.override_specifiers,
+			      &pure.second);
+	  for (const auto&proto : pclass->type->extern_constraints)
+	    validate_override(proto.first, proto.second.override_specifiers,
+			      &proto.second);
 
       if (super_)
 	    unimplemented_pure_constraints_ =

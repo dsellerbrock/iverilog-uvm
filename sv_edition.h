@@ -132,6 +132,8 @@
 		     "the final class specifier")			\
       SV_FEATURE_ROW(SVF_METHOD_OVERRIDE_SPECIFIERS, GN_VER2023,\
 		     "method override specifiers")			\
+      SV_FEATURE_ROW(SVF_CONSTRAINT_OVERRIDE_SPECIFIERS, GN_VER2023,\
+		     "constraint override specifiers")		\
       SV_FEATURE_ROW(SVF_CLASS_CONSTRUCTOR_DEFAULT, GN_VER2023,			\
 		     "the class constructor default argument/extends default")			\
 	  SV_FEATURE_ROW(SVF_RESTRICTED_TYPE_PARAMETERS, GN_VER2023,\

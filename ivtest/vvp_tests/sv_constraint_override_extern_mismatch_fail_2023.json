@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_constraint_override_extern_mismatch_fail_2023.v",
+    "iverilog-args" : [ "-g2023" ]
+}
