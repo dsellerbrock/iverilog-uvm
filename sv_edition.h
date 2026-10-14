@@ -130,6 +130,10 @@
 		     "inside tolerance ranges")		\
       SV_FEATURE_ROW(SVF_CLASS_FINAL, GN_VER2023,			\
 		     "the final class specifier")			\
+      SV_FEATURE_ROW(SVF_METHOD_OVERRIDE_SPECIFIERS, GN_VER2023,\
+		     "method override specifiers")			\
+      SV_FEATURE_ROW(SVF_CLASS_CONSTRUCTOR_DEFAULT, GN_VER2023,			\
+		     "the class constructor default argument/extends default")			\
 	  SV_FEATURE_ROW(SVF_RESTRICTED_TYPE_PARAMETERS, GN_VER2023,\
 		     "restricted type parameters")			\
 	SV_FEATURE_ROW(SVF_CROSS_RETAIN_AUTO_BINS, GN_VER2023,		\
