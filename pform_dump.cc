@@ -376,7 +376,9 @@ void class_type_t::pform_dump(ostream&out, unsigned indent) const
       out << setw(indent) << "" << "class " << name;
 
       if (base_type) out << " extends <type>";
-      if (! base_args.empty()) {
+      if (base_default) {
+	    out << " (default)";
+	  } else if (! base_args.empty()) {
 	    out << " (" << base_args << ")";
       }
 
