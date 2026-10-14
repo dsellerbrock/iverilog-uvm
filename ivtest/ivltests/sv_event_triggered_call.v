@@ -35,7 +35,6 @@ module sv_event_triggered_call;
         || $bits(event_array[1].triggered()) != 1 || named.triggered())
       $fatal(1, "initial named-event triggered() result or width");
 
-    null_named = null;
     if (null_named.triggered())
       $fatal(1, "triggered() on a null named event was not false");
 
