@@ -27,6 +27,7 @@
 # include  "pform.h"
 # include  "PClass.h"
 # include  "PExpr.h"
+# include  "compiler.h"
 # include  "PPackage.h"
 # include  "parse_misc.h"
 # include  "ivl_assert.h"
