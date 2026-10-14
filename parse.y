@@ -2362,6 +2362,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
 %type <flag>    udp_reg_opt edge_operator
 %type <int_val> dynamic_override_specifiers
+%type <int_val> constraint_override_specifiers constraint_override_specifiers_opt
 %type <int_val> method_function_keyword method_task_keyword
 %type <int_val> class_item_method_function_keyword class_item_method_task_keyword
 %type <text> function_declaration_header task_declaration_header
@@ -4414,15 +4415,17 @@ randomize_constraint_block_opt
   ;
 
 constraint_declaration /* IEEE1800-2005: A.1.9 */
-  : K_static_opt K_constraint IDENTIFIER '{' constraint_block_item_list_opt '}'
-      { pform_class_constraint(@2, $1, $3, $5);
-	delete[] $3;
+  : K_static_opt K_constraint constraint_override_specifiers_opt IDENTIFIER
+	'{' constraint_block_item_list_opt '}'
+      { pform_class_constraint(@2, $1, $3, $4, $6);
+	delete[] $4;
       }
 
   /* Error handling rules... */
 
-  | K_static_opt K_constraint IDENTIFIER '{' error '}'
-      { yyerror(@4, "error: Errors in the constraint block item list."); }
+  | K_static_opt K_constraint constraint_override_specifiers_opt IDENTIFIER
+	'{' error '}'
+	  { yyerror(@5, "error: Errors in the constraint block item list."); }
   ;
 
 /* A constraint foreach source may be an arbitrarily deep member path.
@@ -4718,20 +4721,20 @@ constraint_expression_list /* */
   ;
 
 constraint_prototype /* IEEE1800-2005: A.1.9 */
-  : K_static_opt K_constraint IDENTIFIER ';'
+  : K_static_opt K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
       { /* An implicit prototype can remain empty, but its declaration
            position supplies soft priority if a later body is provided
            (IEEE 1800-2017 18.5.1/18.5.14.1; 2023 18.5.1/18.5.13.1). */
-        pform_class_constraint_prototype(@2, $1, $3, false); delete[] $3;
+        pform_class_constraint_prototype(@2, $1, $3, $4, false); delete[] $4;
       }
-  | K_pure K_constraint IDENTIFIER ';'
-      { pform_class_pure_constraint(@1, $3); delete[] $3; }
+  | K_pure K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
+      { pform_class_pure_constraint(@1, $3, $4); delete[] $4; }
   /* An explicit external prototype requires a matching out-of-body
      definition (IEEE 1800-2017 18.5.1). */
-  | K_extern K_constraint IDENTIFIER ';'
-      { pform_class_constraint_prototype(@2, false, $3); delete[] $3; }
-  | K_extern K_static K_constraint IDENTIFIER ';'
-      { pform_class_constraint_prototype(@3, true, $4); delete[] $4; }
+  | K_extern K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
+      { pform_class_constraint_prototype(@2, false, $3, $4); delete[] $4; }
+  | K_extern K_static K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
+      { pform_class_constraint_prototype(@3, true, $4, $5); delete[] $5; }
   ;
 
 constraint_set /* IEEE1800-2005 A.1.9 */
@@ -6512,6 +6515,23 @@ dynamic_override_specifiers
       }
   ;
 
+constraint_override_specifiers_opt
+  : { $$ = 0; }
+  | constraint_override_specifiers { $$ = $1; }
+  ;
+
+constraint_override_specifiers
+  : ':' K_initial { $$ = class_type_t::CONSTRAINT_OVERRIDE_INITIAL; }
+  | ':' K_extends { $$ = class_type_t::CONSTRAINT_OVERRIDE_EXTENDS; }
+  | ':' K_final { $$ = class_type_t::CONSTRAINT_OVERRIDE_FINAL; }
+  | ':' K_initial ':' K_final
+      { $$ = class_type_t::CONSTRAINT_OVERRIDE_INITIAL
+	     | class_type_t::CONSTRAINT_OVERRIDE_FINAL; }
+  | ':' K_extends ':' K_final
+      { $$ = class_type_t::CONSTRAINT_OVERRIDE_EXTENDS
+	     | class_type_t::CONSTRAINT_OVERRIDE_FINAL; }
+  ;
+
 /* Open the provisional loop scope immediately after `for ('. Anonymous enum
    literals and other data-type side effects must be registered in the same
    implicit scope as the declared variable, not in the enclosing block. The
@@ -8012,31 +8032,33 @@ package_covergroup_declaration
 
 /* Out-of-class constraint body: constraint ClassName::name { ... } */
 package_constraint_declaration
-  : K_static_opt K_constraint TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+  : K_static_opt K_constraint constraint_override_specifiers_opt
+	TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
       '{' constraint_block_item_list_opt '}'
-      { if (!pform_reenter_class_scope(@3, $3.text))
-	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3.text);
-	pform_class_constraint(@2, $1, $5, $7);
-	pform_leave_class_scope(@3);
-	delete[] $3.text; delete[] $5;
+      { if (!pform_reenter_class_scope(@4, $4.text))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4.text);
+	pform_class_constraint(@2, $1, $3, $6, $8);
+	pform_leave_class_scope(@4);
+	delete[] $4.text; delete[] $6;
       }
-  | K_static_opt K_constraint IDENTIFIER K_SCOPE_RES IDENTIFIER
+  | K_static_opt K_constraint constraint_override_specifiers_opt
+	IDENTIFIER K_SCOPE_RES IDENTIFIER
       '{' constraint_block_item_list_opt '}'
-      { if (!pform_reenter_class_scope(@3, $3))
-	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3);
-	pform_class_constraint(@2, $1, $5, $7);
-	pform_leave_class_scope(@3);
-	delete[] $3; delete[] $5;
+      { if (!pform_reenter_class_scope(@4, $4))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4);
+	pform_class_constraint(@2, $1, $3, $6, $8);
+	pform_leave_class_scope(@4);
+	delete[] $4; delete[] $6;
       }
-  | K_static_opt K_constraint TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
-      '{' error '}'
-      { yyerror(@6, "error: Errors in the constraint block item list.");
-	delete[] $3.text; delete[] $5;
+  | K_static_opt K_constraint constraint_override_specifiers_opt
+	TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '{' error '}'
+      { yyerror(@8, "error: Errors in the constraint block item list.");
+	delete[] $4.text; delete[] $6;
       }
-  | K_static_opt K_constraint IDENTIFIER K_SCOPE_RES IDENTIFIER
-      '{' error '}'
-      { yyerror(@6, "error: Errors in the constraint block item list.");
-	delete[] $3; delete[] $5;
+  | K_static_opt K_constraint constraint_override_specifiers_opt
+	IDENTIFIER K_SCOPE_RES IDENTIFIER '{' error '}'
+      { yyerror(@8, "error: Errors in the constraint block item list.");
+	delete[] $4; delete[] $6;
       }
   ;
 
