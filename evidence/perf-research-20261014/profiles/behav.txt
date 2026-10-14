@@ -1,0 +1,84 @@
+# perf report --no-children --sort symbol (self time), workload: behav
+# HEAD 5c7b3319, Linux x86-64, -O2 -g -fno-omit-frame-pointer, perf record -F 2000 -g
+    12.93%  [.] of_CAST2(vthread_s*, vvp_code_s*)
+     5.00%  [.] automatic_context_record_(void**)
+     4.32%  [.] vvp_darray_atom<int>::get_word(unsigned int, vvp_vector4_t&)
+     3.34%  [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+     3.20%  [.] vthread_run(vthread_s*)
+     2.79%  [.] bool vector4_to_value<long>(vvp_vector4_t const&, long&, bool, bool)
+     2.57%  [.] bool vector4_to_value<int>(vvp_vector4_t const&, int&, bool, bool)
+     2.51%  [.] resolve_context_scope(__vpiScope*)
+     2.43%  [.] getenv
+     2.22%  [.] void** find_stacked_context_match_<first_live_context_for_scope(void**, __vpiScope*)::{lambda(void**)#1}>(void**, __vpiScope*, char const*, first_live_context_for_scope(void**, __vpiSc
+     2.00%  [.] context_live_matches_scope_(void**, __vpiScope*)
+     1.95%  [.] vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)
+     1.70%  [.] vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&) const
+     1.64%  [.] vthread_s::push_vec4(vvp_vector4_t const&)
+     1.46%  [.] of_STORE_VEC4(vthread_s*, vvp_code_s*)
+     1.46%  [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+     1.37%  [.] _int_free
+     1.33%  [.] malloc
+     1.23%  [.] vthread_s::pop_vec4(unsigned int)
+     1.23%  [.] vvp_vector4_t::set_vec(unsigned int, vvp_vector4_t const&)
+     1.17%  [.] ctx_stats_bump(char const*)
+     1.16%  [.] vvp_fun_signal4_aa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     1.12%  [.] load_str_trace_scope_match_(__vpiScope*)
+     0.99%  [.] cfree@GLIBC_2.2.5
+     0.94%  [.] (anonymous namespace)::signal4_aa_get_or_make_slot(void**, unsigned int, unsigned int, vvp_bit4_t)
+     0.86%  [.] context_live_in_owner(void**)
+     0.86%  [.] remove_context_from_stacked_chain_(void**, void**)
+     0.81%  [.] (anonymous namespace)::flush_event_source_transaction_()
+     0.79%  [.] of_CMPIS(vthread_s*, vvp_code_s*)
+     0.79%  [.] of_SHIFTR_S(vthread_s*, vvp_code_s*)
+     0.79%  [.] vvp_event_source_end()
+     0.75%  [.] of_PUSHI_VEC4(vthread_s*, vvp_code_s*)
+     0.75%  [.] vthread_s::~vthread_s()
+     0.75%  [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+     0.73%  [.] __strcmp_evex
+     0.73%  [.] vvp_vector4_t::setarray(unsigned int, unsigned int, unsigned long const*)
+     0.72%  [.] resize_rval_vec(vvp_vector4_t&, long&, unsigned int)
+     0.69%  [.] vthread_s::operator new(unsigned long)
+     0.69%  [.] vvp_send_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     0.66%  [.] non-virtual thunk to automatic_signal_base::as_signal_value()
+
+# inclusive (children) top 40
+    99.92%     0.00%  [.] __libc_start_main@@GLIBC_2.34
+    99.92%     0.00%  [.] _start
+    99.90%     0.00%  [.] __libc_start_call_main
+    99.90%     0.00%  [.] main
+    99.90%     0.00%  [.] vvp_run
+    99.85%     0.01%  [.] schedule_simulate()
+    99.16%     3.20%  [.] vthread_run(vthread_s*)
+    54.70%     0.28%  [.] do_fork_(vthread_s*, vvp_code_s*, bool)
+    18.18%     3.34%  [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+    15.83%     1.46%  [.] of_STORE_VEC4(vthread_s*, vvp_code_s*)
+    12.94%    12.93%  [.] of_CAST2(vthread_s*, vvp_code_s*)
+    12.43%     1.70%  [.] vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&) const
+    10.14%     0.69%  [.] vvp_send_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     9.46%     1.95%  [.] vthread_get_rd_context_item_scoped(unsigned int, __vpiScope*)
+     6.59%     0.12%  [.] of_STORE_VEC4A(vthread_s*, vvp_code_s*)
+     6.31%     0.11%  [.] __vpiArray::set_word(unsigned int, unsigned int, vvp_vector4_t const&)
+     5.99%     1.16%  [.] vvp_fun_signal4_aa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     5.73%     0.10%  [.] vthread_delete(vthread_s*)
+     5.01%     5.00%  [.] automatic_context_record_(void**)
+     4.89%     0.07%  [.] __vpiArray::get_word(unsigned int)
+     4.60%     0.35%  [.] __vpiArray::get_word_raw_(unsigned int)
+     4.35%     4.32%  [.] vvp_darray_atom<int>::get_word(unsigned int, vvp_vector4_t&)
+     4.03%     0.01%  [.] of_JOIN(vthread_s*, vvp_code_s*)
+     3.62%     0.33%  [.] do_join(vthread_s*, vthread_s*)
+     3.51%     0.39%  [.] recover_automatic_recv_context_(void**, __vpiScope*, char const*)
+     3.49%     0.61%  [.] vthread_new_(vvp_code_s*, __vpiScope*, bool)
+     3.26%     0.19%  [.] of_IX_GETV_S(vthread_s*, vvp_code_s*)
+     2.79%     2.79%  [.] bool vector4_to_value<long>(vvp_vector4_t const&, long&, bool, bool)
+     2.71%     0.06%  [.] vvp_darray_atom<int>::set_word(unsigned int, vvp_vector4_t const&)
+     2.61%     0.65%  [.] ensure_write_context_(vthread_s*, char const*)
+     2.57%     2.57%  [.] bool vector4_to_value<int>(vvp_vector4_t const&, int&, bool, bool)
+     2.56%     0.79%  [.] of_SHIFTR_S(vthread_s*, vvp_code_s*)
+     2.51%     2.51%  [.] resolve_context_scope(__vpiScope*)
+     2.47%     0.47%  [.] vthread_recover_context_for_scope(void**, __vpiScope*)
+     2.44%     2.43%  [.] getenv
+     2.43%     0.75%  [.] vthread_s::~vthread_s()
+     2.43%     0.75%  [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+     2.40%     0.30%  [.] of_ALLOC(vthread_s*, vvp_code_s*)
+     2.36%     0.15%  [.] lookup_scope_item_(__vpiScope*, char const*)
+     2.22%     2.22%  [.] void** find_stacked_context_match_<first_live_context_for_scope(void**, __vpiScope*)::{lambda(void**)#1}>(void**, __vpiScope*, char const*, first_live_context_for_scope(void*

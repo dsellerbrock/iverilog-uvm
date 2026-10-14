@@ -1,0 +1,84 @@
+# perf report --no-children --sort symbol (self time), workload: rtl_alu
+# HEAD 5c7b3319, Linux x86-64, -O2 -g -fno-omit-frame-pointer, perf record -F 2000 -g
+    15.33%  [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+     7.12%  [.] vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)
+     5.05%  [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+     4.22%  [.] schedule_simulate()
+     3.30%  [.] vvp_event_source_end()
+     3.20%  [.] vvp_vector4_t::eeq(vvp_vector4_t const&) const
+     2.63%  [.] assign_vector4_event_s::run_run()
+     2.56%  [.] vvp_fun_muxz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     2.44%  [.] schedule_event_(event_s*, unsigned long, event_queue_e)
+     2.35%  [.] vvp_cmp_eq::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     2.21%  [.] vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)
+     2.05%  [.] vthread_run(vthread_s*)
+     1.96%  [.] generic_event_s::run_run()
+     1.57%  [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+     1.48%  [.] malloc
+     1.48%  [.] of_PUSHI_VEC4(vthread_s*, vvp_code_s*)
+     1.34%  [.] (anonymous namespace)::flush_event_source_transaction_()
+     1.24%  [.] vvp_arith_::dispatch_operand_(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&)
+     1.22%  [.] vthread_schedule_list(vthread_s*)
+     1.20%  [.] _int_free
+     1.18%  [.] compare_gtge(vvp_vector4_t const&, vvp_vector4_t const&, vvp_bit4_t)
+     1.17%  [.] bool vector4_to_value<unsigned long>(vvp_vector4_t const&, bool&, unsigned long&)
+     1.17%  [.] schedule_functor(vvp_gen_event_s*)
+     1.06%  [.] schedule_assign_vector(vvp_sub_pointer_t<vvp_net_t>, unsigned int, unsigned int, vvp_vector4_t const&, unsigned long, bool)
+     1.01%  [.] vvp_event_source_begin()
+     0.99%  [.] vvp_vector4_t::has_xz() const
+     0.99%  [.] vvp_vpi_callback::run_vpi_callbacks_in_boundary()
+     0.97%  [.] vvp_fun_signal4_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     0.95%  [.] vthread_s::push_vec4(vvp_vector4_t const&)
+     0.94%  [.] vvp_wire_vec4::vec4_value(vvp_vector4_t&) const
+     0.92%  [.] cfree@GLIBC_2.2.5
+     0.79%  [.] vthread_run_unpin_(vthread_s*)
+     0.72%  [.] vvp_wire_base::as_signal_value()
+     0.65%  [.] vvp_vector4_t::subarray(unsigned int, unsigned int, bool) const
+     0.64%  [.] assign_vector4_event_s::~assign_vector4_event_s()
+     0.64%  [.] get_immediate_rval(vvp_code_s*, vvp_vector4_t&) [clone .isra.0]
+     0.64%  [.] of_ASSIGN_VEC4_A_D(vthread_s*, vvp_code_s*)
+     0.64%  [.] vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)
+     0.62%  [.] of_ASSIGN_VEC4(vthread_s*, vvp_code_s*)
+     0.60%  [.] vvp_fun_boolean_::receive(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**, unsigned int, bool)
+
+# inclusive (children) top 40
+    99.89%     0.00%  [.] __libc_start_main@@GLIBC_2.34
+    99.89%     0.00%  [.] _start
+    99.88%     0.00%  [.] __libc_start_call_main
+    99.86%     0.00%  [.] main
+    99.86%     0.00%  [.] vvp_run
+    97.19%     4.22%  [.] schedule_simulate()
+    53.31%    15.33%  [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+    33.67%     2.63%  [.] assign_vector4_event_s::run_run()
+    33.11%     2.05%  [.] vthread_run(vthread_s*)
+    21.24%     1.96%  [.] generic_event_s::run_run()
+     9.99%     2.35%  [.] vvp_cmp_eq::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     8.56%     0.05%  [.] of_STORE_VEC4(vthread_s*, vvp_code_s*)
+     8.48%     0.00%  [.] vvp_send_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     7.84%     7.12%  [.] vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)
+     6.62%     5.05%  [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+     5.12%     0.37%  [.] of_CMPU(vthread_s*, vvp_code_s*)
+     4.49%     0.26%  [.] vvp_fun_edge_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     4.40%     0.28%  [.] vvp_fun_boolean_::run_run()
+     4.31%     0.58%  [.] do_CMPU(vthread_s*, vvp_vector4_t const&, vvp_vector4_t const&)
+     4.03%     0.16%  [.] vvp_fun_edge::recv_vec4_(vvp_vector4_t const&, vvp_bit4_t&, vthread_s*&)
+     3.30%     3.30%  [.] vvp_event_source_end()
+     3.27%     1.22%  [.] vthread_schedule_list(vthread_s*)
+     3.20%     3.20%  [.] vvp_vector4_t::eeq(vvp_vector4_t const&) const
+     2.97%     0.16%  [.] vvp_shiftr::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     2.83%     2.21%  [.] vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)
+     2.56%     2.56%  [.] vvp_fun_muxz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     2.44%     2.44%  [.] schedule_event_(event_s*, unsigned long, event_queue_e)
+     2.21%     0.21%  [.] vvp_shiftl::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     2.19%     1.48%  [.] of_PUSHI_VEC4(vthread_s*, vvp_code_s*)
+     2.12%     0.62%  [.] of_ASSIGN_VEC4(vthread_s*, vvp_code_s*)
+     2.07%     0.19%  [.] vvp_cmp_gtge_base_::recv_vec4_base_(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, vvp_bit4_t)
+     1.92%     0.92%  [.] cfree@GLIBC_2.2.5
+     1.84%     0.65%  [.] vvp_vector4_t::subarray(unsigned int, unsigned int, bool) const
+     1.78%     0.35%  [.] operator new(unsigned long)
+     1.57%     1.57%  [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+     1.52%     1.48%  [.] malloc
+     1.50%     0.23%  [.] vvp_arith_sub::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     1.47%     0.44%  [.] __vpiArray::set_word(unsigned int, unsigned int, vvp_vector4_t const&)
+     1.36%     1.34%  [.] (anonymous namespace)::flush_event_source_transaction_()
+     1.24%     1.24%  [.] vvp_arith_::dispatch_operand_(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&)
