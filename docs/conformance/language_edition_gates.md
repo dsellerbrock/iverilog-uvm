@@ -51,7 +51,8 @@ times for one line.
 
 [`sv_edition.h`](../../sv_edition.h) is the source of truth for the feature
 table. It includes the 2023 `$stacktrace` task, `type(this)` self type,
-and the constant `option.cross_retain_auto_bins` subset. Iterator `index()` is
+method override specifiers, and the constant `option.cross_retain_auto_bins`
+subset. Iterator `index()` is
 metadata for SystemVerilog 2005, not a 2023-only feature. The
 [2023 survey](ieee1800_2023_delta.md) owns the detailed edition dispositions.
 
@@ -87,6 +88,13 @@ The `$stacktrace` gate carries four core arms, registered in
 `$stacktrace` carries a fifth arm, `CE,-g2017`, pinning that a 2023
 feature is refused under 2017 — the concrete check that 2017 is not
 silently treated as "newest".
+
+## Method override specifiers
+
+The `:extends`, `:initial`, and `:final` method specifiers are gated to
+`-g2023`; the paired `sv_method_override_specifiers_2017` tests expect a
+compile error in `-g2017`. Slurm T0/T1 qualification passed on
+`6a66355530fbb87fe6999f3b60db1f326660ca9b`; batch T2 is pending.
 
 `type(this)` is gated by IEEE 1800-2023 6.23 and resolves to the class
 containing the declaration (8.11). Its cases cover generic and derived class

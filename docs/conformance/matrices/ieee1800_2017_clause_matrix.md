@@ -5,6 +5,16 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 14, 2026 — §8.20 method override specifiers
+
+IEEE 1800-2017 §8.20 covers virtual method overrides but does not include the
+2023 `:extends`, `:initial`, or `:final` method specifiers. The paired
+`sv_method_override_specifiers_2017` fixture expects a compile error in strict
+`-g2017`, while the 2023 fixtures exercise the new forms. Slurm job 931 passed
+T0/T1 on `6a66355530fbb87fe6999f3b60db1f326660ca9b`: 15/15 legacy and 13/13
+JSON/VVP focus cases, alongside the smoke set. Batch T2 remains pending; this
+records the edition boundary, not full §8.20 qualification.
+
 ### October 9, 2026 — symbolic packed-array-of-struct constraint select
 
 IEEE 1800-2017/2023 §§7.4.1 and 11.5.1 define packed-array elements and
