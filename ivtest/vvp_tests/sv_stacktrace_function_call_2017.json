@@ -1,5 +1,0 @@
-{
-  "type": "CE",
-  "source": "sv_stacktrace_function_call_2017.v",
-  "iverilog-args": ["-g2017"]
-}

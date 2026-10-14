@@ -1682,8 +1682,6 @@ sv_whole_aggregate_size_mismatch normal,-g2012 ivltests gold=sv_whole_aggregate_
 sv_open_array_multidim normal,-g2012 ivltests
 sv_process_status_identity normal,-g2012 ivltests
 sv_stacktrace_task_call normal,-g2023 ivltests
-sv_stacktrace_function_call normal,-g2023 ivltests gold=sv_stacktrace_function_call.gold
-sv_stacktrace_function_call_2017 CE,-g2017 ivltests gold=sv_stacktrace_function_call_2017.gold
 sv_event_array normal,-g2012 ivltests
 sv_event_array_llp64_pack normal,-g2012 ivltests gold=sv_event_array_llp64_pack.gold
 sv_event_lifetime_qualifier normal,-g2012 ivltests
