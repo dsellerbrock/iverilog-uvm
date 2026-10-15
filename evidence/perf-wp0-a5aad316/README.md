@@ -4,13 +4,17 @@
 
 | Role | Revision |
 | --- | --- |
-| Measurement and correctness base | `f9f8e0a79f230f38da6cbb4445994ad1075ad531` |
-| WP0 candidate | `a5aad31659540d6a4c67bbaeffbeaa484b31f442` |
+| Original campaign measurement base | `f9f8e0a79f230f38da6cbb4445994ad1075ad531` |
+| Original WP0 candidate | `a5aad31659540d6a4c67bbaeffbeaa484b31f442` |
+| One-time remeasurement base | `7f35ca38c86723ab40e6ebfe9fd77259827e23f9` |
+| Rebased final candidate | `1174ea06ac5e3a926b1fa1c1bd3449a396507272` |
 | UVM core submodule | `78c06547a2a0a29b3dc9dcafae62b75b2ff61544` |
 
-The reference and candidate toolchains were built from these revisions on the
-pinned base. No rebase occurred during correctness or performance
-measurement.
+The original reference and candidate toolchains were built from their
+revisions on the campaign-pinned base. No rebase occurred during those
+measurements. The branch was then rebased once before merge; the required path
+diff found changes under `vpi/` and `vvp/`. The resulting follow-up is recorded
+separately in [`post-rebase-7f35`](post-rebase-7f35/).
 
 ## Correctness gates
 
@@ -77,5 +81,18 @@ Earlier attempts 1053, 1055, 1056, and 1057 are retained under `attempts/`;
 each passed output equality and the 10-second cap but failed the stability
 gate. Job 1058 is the accepted measurement. The ratios are effectively neutral;
 WP0 adds measurement infrastructure and does not claim a runtime speedup.
+
+## One-time post-rebase follow-up
+
+The original wall-time table and Callgrind evidence remain pinned to
+`f9f8e0a79f230f38da6cbb4445994ad1075ad531`. The final rebase was onto
+`7f35ca38c86723ab40e6ebfe9fd77259827e23f9`; the required path filter touched
+`vpi/` and `vvp/`, so correctness and disabled-build instruction identity are
+checked once on the new base. Per the revised milestone, no more wall-time
+calibration is being run; the existing table remains the campaign result.
+Full correctness gates passed across Slurm jobs 1150 and 1181. Callgrind job
+1182 completed with byte-identical output, identical selected hot-path counts,
+and a +274 (+0.000000290%) whole-process instruction delta. Exact-head Linux
+and Windows CI must be green before merge.
 
 This WP adds measurement infrastructure and does not claim a runtime speedup.

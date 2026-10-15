@@ -1,0 +1,10 @@
+campaign_pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+origin_main_after_final_rebase=7f35ca38c86723ab40e6ebfe9fd77259827e23f9
+candidate_after_final_rebase=1174ea06ac5e3a926b1fa1c1bd3449a396507272
+command=git diff --stat f9f8e0a79f230f38da6cbb4445994ad1075ad531..origin/main -- vvp/ libvpi/ vpi/ benchmarks/ configure.ac Makefile.in
+ vpi/Makefile.in   | 14 +++++++++++++-
+ vpi/sys_display.c | 34 +++++++++++++++++++---------------
+ vvp/vpi_tasks.cc  | 12 ++++++++++--
+ vvp/vthread.cc    | 54 ++++++++++++++++++++++++++++++++----------------------
+ vvp/vvp.def       |  2 ++
+ 5 files changed, 76 insertions(+), 40 deletions(-)

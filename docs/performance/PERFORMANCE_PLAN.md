@@ -495,7 +495,7 @@ the reference semantics throughout.
 
 | WP | Status | PR | Measured result |
 | --- | --- | --- | --- |
-| WP0 | IN PROGRESS | #584 (draft) | Pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; candidate `a5aad31659540d6a4c67bbaeffbeaa484b31f442`. All 18 outputs matched, every sample stayed under 10 s, and all reference task-clock spreads were at most 5%. Full local correctness gates passed (JSON baseline delta 0; UVM 367/0/0 with real DPI); final-head CI remains pending after the once-only pre-merge rebase. Evidence: [WP0 pinned-base results](../../evidence/perf-wp0-a5aad316/README.md). |
+| WP0 | FINAL CI CHECKS IN PROGRESS | #584 (draft) | Campaign-pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; final candidate `1174ea06ac5e3a926b1fa1c1bd3449a396507272`, rebased once onto `7f35ca38c86723ab40e6ebfe9fd77259827e23f9`. Original five-pair result: 18/18 outputs matched, every sample under 10 s, reference task-clock spread <=5%; new-base correctness passed: 4,651 JSON/VVP tests with 16 baseline failures and zero delta, UVM 367/0/0 with real DPI. Callgrind job 1182: +274 whole-process instructions (+0.000000290%), selected hot-path counts identical, outputs byte-identical; exact-head Linux/Windows CI remains pending. No more wall-time calibration. Evidence: [WP0 results and base history](../../evidence/perf-wp0-a5aad316/README.md). |
 | WP1-WP15 | NOT STARTED | - | - |
 
 ### WP0 pinned-base before/after table
@@ -536,6 +536,34 @@ and 94,558,243,596 (+70 outside those selected functions). The stats-off
 configuration leaves `VVP_PERF_STATS` undefined and the candidate has no
 `vvp_perf_stats_*` symbols. Raw profiles and the attempt note are in
 [`instruction-ab`](../../evidence/perf-wp0-a5aad316/instruction-ab/README.md).
+
+### Revised A5 speedup campaign
+
+After WP0, work one candidate and one PR at a time: WP1 (`IVL_*` startup
+snapshot and trace/context-stat hot paths), WP3 (word-wide `of_CAST2`), then
+each #536 Caliptra hotspot separately: `vpip_vec4_to_int64_saturated`,
+`of_LOAD_VEC4`, `copy_from_big_`, allocation, and `__dynamic_cast`.
+Screen each change with one deterministic instruction-count run per side on
+the same pinned binaries across the benchmark corpus, plus `caliptra_top`
+cycles/s. Keep it only if the target improves by at least 10% and every other
+benchmark's instruction count regresses by no more than 2%; otherwise revert
+and record the result below. Run wall time only for a kept candidate's final
+PR table, as the median of three runs. The Caliptra reference is 7.775
+cycles/s.
+
+| Candidate | Measurement base | Target before → after | Worst other count change | Verdict | PR |
+| --- | --- | --- | --- | --- | --- |
+| WP1 trace/context stats | - | - | - | NOT RUN | - |
+| WP3 word-wide `of_CAST2` | - | - | - | NOT RUN | - |
+| #536 `vpip_vec4_to_int64_saturated` | - | - | - | NOT RUN | - |
+| #536 `of_LOAD_VEC4` | - | - | - | NOT RUN | - |
+| #536 `copy_from_big_` | - | - | - | NOT RUN | - |
+| #536 allocation | - | - | - | NOT RUN | - |
+| #536 `__dynamic_cast` | - | - | - | NOT RUN | - |
+
+Completion requires WP0 merged, at least three merged speedup PRs with
+before/after instruction counts and final wall-time medians, and a cumulative
+`caliptra_top` cycles/s result against the 7.775 baseline.
 
 ## References
 
