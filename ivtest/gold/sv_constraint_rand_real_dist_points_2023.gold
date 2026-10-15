@@ -1,0 +1,5 @@
+ERROR: exact real dist sampling failed: no feasible finite point item.
+Warning: dist item is outside the ground <=64-bit common-order exact-sampling subset; using the weighted-soft fallback (further similar warnings suppressed).
+ERROR: global constraint sampling failed: real-valued dist sampling is not supported.
+ERROR: additional real-valued dist sampling is not supported for this property.
+PASSED: finite real dist points and failure boundaries
