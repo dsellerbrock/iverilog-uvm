@@ -1,0 +1,2 @@
+ivltests/sv_type_this_outside_class.v:2: error: type(this) requires an enclosing class scope.
+1 error(s) during elaboration.
