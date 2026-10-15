@@ -58,7 +58,7 @@ def read_lists(paths: list) -> list:
 
     tests_list = []
     for path in paths:
-        with open(path, "rt", encoding='ascii') as fd:
+        with open(path, "rt", encoding='utf-8') as fd:
             tests_list += read_list(fd)
 
     # The loop above creates a tests_list to list all of the tests in the
