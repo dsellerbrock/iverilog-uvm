@@ -200,14 +200,17 @@ singular random variables to integral types, and §18.5.4 limits distribution
 expressions to integral expressions.
 
 The focused increment samples direct scalar real properties from finite
-constant point items with static weights. The registered test exercises both
-weight operators on points, mixed integral and real point items, a zero-weight
-point, the 1:3 weighting, an infeasible point set, and failure rollback. A
-valid weighted real range using `:/` remains outside the implemented subset
+constant point items with explicit static weights. The registered test
+exercises both weight operators on points, mixed integral and real point items,
+a zero-weight point, the 1:3 weighting, an infeasible point set, and failure
+rollback. A valid weighted real range using `:/` remains outside the implemented subset
 and is checked for deterministic failure and rollback. The test also verifies
 that an unsupported range is not ignored after a point distribution pins the
 same property. Real ranges, defaults, dynamic weights, and arrays or aggregates
-containing real leaves remain open.
+containing real leaves remain open. Section 18.5.3 gives an implicit weight of
+1 for integral items but does not specify one for a bare real point; the
+current shared lowering assigns 1 in that case, an Icarus interpretation
+outside this qualified subset.
 The red baseline on `c7ebca768` reported that real-valued `dist` sampling was
 unsupported; the focused legacy and JSON suites pass on the implementation.
 
