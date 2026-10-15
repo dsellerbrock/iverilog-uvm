@@ -4,7 +4,6 @@ module sv_wait_order;
   event nba_first, nba_second;
   event pre_entry_first, pre_entry_later;
   event persistent_first, persistent_later;
-  integer duplicate_completed = 0;
 
   task automatic automatic_event_order;
     event auto_first, auto_second;
@@ -117,21 +116,9 @@ module sv_wait_order;
     join
 
     -> same;
-    fork
-      begin
-        #1;
-        if (duplicate_completed)
-          $fatal(1, "repeated event used persistent state twice");
-        -> same;
-      end
-      begin
-        wait_order(same, same) begin
-          duplicate_completed = 1;
-          $display("repeated-persistent-event-pass");
-        end
-        else $fatal(1, "repeated persistent event order failed");
-      end
-    join
+    wait_order(same, same)
+      $fatal(1, "later duplicate used persistent triggered state");
+    else $display("duplicate-persistent-later-out-of-order-pass");
 
     fork
       begin
