@@ -2698,13 +2698,17 @@ evaluation edge. Their no-disable controls fail at both edges. This exercises
 before Observed-region evaluation. Paired compile-error cases keep an
 unsupported `and` antecedent tree explicit.
 
-The refreshed local T0 passes all eight issue cases in each legacy and
-JSON/VVP runner, plus compiler/VVP smoke 56/56, VPI 131/131, negative checks
-152/152, and the remaining smoke reproducers/runtime checks. The refreshed
-graph-selected T1 passes fixed multiclock control 30/30 in each runner,
-implication-tree neighbors 1/1 legacy and 2/2 JSON/VVP, and SVA NFA parity
-65/65. [Local boundary-follow-up evidence](../../../evidence/sva-multiclock-disable-iff-or-antecedent-20261015/local-edge-20261015/README.md)
-records the exact tested source commit and logs.
+The exact-head T0/T1 Slurm job 1410 passed on
+`14a0326d21248842044b64a9633cf78a75bf03c2`: issue cases 8/8 in each legacy
+and strict JSON/VVP runner; smoke compiler/VVP 56/56, VPI 131/131, and
+negative checks 152/152; fixed multiclock-control T1 30/30 in each runner;
+and implication-tree neighbors 1/1 legacy and 2/2 JSON/VVP. The start-boundary
+stimulus asserts disable by NBA at the first antecedent edge and releases it
+before the next clock; the end-boundary stimulus asserts disable by NBA on the
+final consequent edge. Both matching no-disable controls fail. The earlier
+local start-boundary run used an unisolated reset pulse and is superseded.
+[Exact Slurm logs, lists and build metadata](../../../evidence/sva-multiclock-disable-iff-or-antecedent-20261015/slurm-exact-14a0326/README.md)
+record the verified head and limits.
 
 This does not qualify variable-length branches, non-OR trees, `first_match`,
 local variables, match-item calls, branch pass actions, two-domain OR

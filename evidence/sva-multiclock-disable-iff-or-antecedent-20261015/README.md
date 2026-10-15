@@ -97,22 +97,43 @@ value. The first run's OOM at 2 GiB and the retry's successful 4 GiB build
 show that 4 GiB was sufficient for this build; they do not indicate a code
 test failure.
 
-## Inclusive attempt-boundary follow-up — Mac
+## Inclusive attempt-boundary follow-up — preliminary Mac run
 
-Commit `faf93ff5540c77b8c96d1caf2dffb2e286639785` adds paired 2017/2023
-fixtures that assert asynchronous reset on the first antecedent sample and
-the final consequent evaluation edge. A matching no-disable control fails
-at each edge, confirming the property would otherwise fail.
+Commit `faf93ff5540c77b8c96d1caf2dffb2e286639785` added the paired
+2017/2023 fixtures. That first version did not isolate the start boundary:
+it held reset low through later clock boundaries, so its passing local run
+does not independently establish start-edge behavior. The stimulus was
+corrected in `04ba922a0` and verified at the exact PR head below.
 
-`~/codex-supervisor/localrun 5400` ran the build, focused T0, smoke, and
-graph-selected T1 script on the Mac (clang 21.0.0, Bison 3.8.2, Autoconf
-2.73; `make -j2`). It exited 0 in 487.67 seconds with peak RSS
-1,269,596,160 bytes. Both focused T0 runners passed 8/8; smoke passed with
-compiler/VVP 56/56, VPI 131/131, and negative checks 152/152. T1 passed
-fixed multiclock control 30/30 in both runners, implication-tree neighbors
-1/1 legacy and 2/2 JSON/VVP, and SVA NFA parity 65/65. The run command,
-environment and compressed logs are in
-[local-edge-20261015](local-edge-20261015/).
+The preliminary `~/codex-supervisor/localrun 5400` build and focused runs
+exited 0 in 487.67 seconds with peak RSS 1,269,596,160 bytes. Its output is
+retained in [local-edge-20261015](local-edge-20261015/); treat the start-edge
+result as superseded by the exact Slurm run.
+
+## Exact-head T0/T1 — Slurm job 1410
+
+Job 1410 built commit `14a0326d21248842044b64a9633cf78a75bf03c2` on
+DAN-DESKTOP (3 CPUs, 4 GiB). The boundary fixture drives `start_rst_n` low
+by NBA on the first antecedent edge at t=10, releases it at t=12 before the
+next clocks, and drives `end_rst_n` low by NBA at the final consequent edge
+at t=20. Thus each disable interval is isolated; the paired controls fail
+without `disable iff`, as §16.12 requires for the covered attempts.
+
+| Tier | Result |
+|---|---:|
+| T0 issue cases, legacy | 8/8 |
+| T0 issue cases, strict JSON/VVP | 8/8 |
+| Smoke compiler/VVP | 56/56 |
+| Smoke VPI / negative | 131/131 / 152/152 |
+| T1 fixed-control legacy / strict JSON/VVP | 30/30 / 30/30 |
+| T1 implication-tree legacy / strict JSON/VVP | 1/1 / 2/2 |
+
+Smoke also passed its remaining reproducer and runtime checks. The script
+wrote `T0_REPRO_RESULT=PASS`, `SMOKE_RESULT=PASS`, and `T1_RESULT=PASS`.
+Scheduler accounting was unavailable after completion, so no Slurm exit code
+or MaxRSS is claimed. The captured build record reports 2m12s and
+1,755,388 KiB maximum RSS. Lists, script, hashes, versions and compressed
+logs are in [slurm-exact-14a0326](slurm-exact-14a0326/).
 
 ## T2
 
