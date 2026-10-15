@@ -15308,19 +15308,7 @@ bool of_CASSIGN_WR(vthread_t thr, vvp_code_t cp)
 bool of_CAST2(vthread_t thr, vvp_code_t)
 {
       vvp_vector4_t&val = thr->peek_vec4();
-      unsigned wid = val.size();
-
-      for (unsigned idx = 0 ; idx < wid ; idx += 1) {
-	    switch (val.value(idx)) {
-		case BIT4_0:
-		case BIT4_1:
-		  break;
-		default:
-		  val.set_bit(idx, BIT4_0);
-		  break;
-	    }
-      }
-
+      val.cast2();
       return true;
 }
 

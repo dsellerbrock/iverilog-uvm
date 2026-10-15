@@ -1,0 +1,3 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+reference_source_sha256=2007cdb93e058d9f838088842f48b633ddbf9350b858da8960f01545a7ccbd43
+candidate_source=WP3 CAST2 candidate built from the same pinned base

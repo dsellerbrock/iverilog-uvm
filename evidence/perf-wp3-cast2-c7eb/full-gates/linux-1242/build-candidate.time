@@ -1,0 +1,34 @@
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-gates1/source/scripts/run_with_timeout.py 5400 -- bash -c 
+  set -euo pipefail
+  src=$1
+  prefix=$2
+  cd "$src"
+  sh autoconf.sh
+  ./configure --prefix="$prefix" --enable-libveriuser CFLAGS="-g0 -O2" CXXFLAGS="-g0 -O2"
+  make -j4
+  make install
+  export PATH="$prefix/bin:$PATH" IVERILOG="$prefix/bin/iverilog" VVP="$prefix/bin/vvp"
+  make installuvm
+ _ /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-gates1/source /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-gates1/build/install"
+	User time (seconds): 273.60
+	System time (seconds): 17.11
+	Percent of CPU this job got: 353%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:22.32
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1228196
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 12534822
+	Voluntary context switches: 13922
+	Involuntary context switches: 6165
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 197784
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

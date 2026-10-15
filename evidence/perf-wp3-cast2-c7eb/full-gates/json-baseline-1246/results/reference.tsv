@@ -1,0 +1,16 @@
+sv_assoc_default_expression_contexts	Failed - Gold output doesn't match actual output.
+sv_assoc_explicit_pattern_opentitan	Failed - Gold output doesn't match actual output.
+sv_assoc_explicit_pattern_opentitan_2023	Failed - Gold output doesn't match actual output.
+sv_assoc_fixed_prefix_pattern	Failed - Gold output doesn't match actual output.
+sv_assoc_fixed_prefix_pattern_2023	Failed - Gold output doesn't match actual output.
+sv_commercial_unsafe_fail	Failed - CE (Gold file doesn't match output).
+sv_commercial_unsafe_fail_2023	Failed - CE (Gold file doesn't match output).
+sv_constraint_clog2_unsupported	Failed - CE (Gold file doesn't match output).
+sv_constraint_clog2_unsupported_2023	Failed - CE (Gold file doesn't match output).
+sv_queue_darray_state_compat_fail	Failed - CE (Gold file doesn't match output).
+sv_queue_darray_state_compat_fail_2023	Failed - CE (Gold file doesn't match output).
+sv_ref_event_relay	Failed - Compile failed.
+sv_ref_event_relay_2023	Failed - Compile failed.
+sv_type_this	Failed - Gold output doesn't match actual output.
+sv_type_this_2017	Failed - CE (Gold file doesn't match output).
+sv_type_this_outside_class	Failed - CE (Gold file doesn't match output).

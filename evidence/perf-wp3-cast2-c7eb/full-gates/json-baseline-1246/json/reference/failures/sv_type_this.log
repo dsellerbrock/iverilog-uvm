@@ -1,0 +1,11 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-json-baseline-c7eb-20261015-r2/json/reference/lists/sv_type_this.list
+----------------------------------------------------------------------------
+gold/sv_type_this-vvp-stdout.gold and log/sv_type_this-vvp-stdout.log differ:
+--- gold/sv_type_this-vvp-stdout.gold
++++ log/sv_type_this-vvp-stdout.log
+@@ -0,0 +1 @@
++PASS sv_type_this
+sv_type_this: Failed - Gold output doesn't match actual output.
+============================================================================
+Test results: Ran 1, Failed 1.
