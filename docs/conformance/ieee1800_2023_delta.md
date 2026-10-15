@@ -648,6 +648,8 @@ semantics. The 2017 syntax requires a statement after `else`; 2023 permits a
 null statement. With no `else`, 2017 specifies a run-time error while 2023
 specifies the default `$error` action. Paired `-g2017`/`-g2023` fixtures cover
 the supported named-event subset and reject `else ;` only in 2017. The
+duplicate-identifier behavior is in a separate implementation-interpretation
+fixture because §15.5.4 does not define it. The
 refreshed exact-head T0/T1 run passed in Slurm job 1265 on
 `15ca10f07500caae118ddd998d8b9351f7c1e8de`: T0 passed 4/4 legacy and 4/4
 JSON/VVP cases, smoke passed, and graph-selected T1 passed 10/10 legacy and

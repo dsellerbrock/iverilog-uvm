@@ -2265,13 +2265,12 @@ IEEE 1800-2017 and 1800-2023 §15.5.4 share the ordered-trigger, out-of-order
 failure, repeatable preceding-event, and persistent-first-event rules. Paired
 `sv_wait_order_2017`/`sv_wait_order_2023` tests cover same-slot order, repeated
 preceding triggers, out-of-order `else`, first-event persistent state,
-single-event persistent state, duplicate identifiers, nonblocking triggers,
-automatic event contexts, and cancellation. Neither edition explicitly
-resolves duplicate identifiers. Icarus interprets them as distinct sequence
-positions, so each position requires its own trigger activation and a later
-duplicate cannot use the first event's persistent trigger state; the duplicate
-tests pin that implementation choice, not a conformance requirement. The
-pre-entry fixtures apply §15.5.4's requirement that
+single-event persistent state, nonblocking triggers, automatic event contexts,
+and cancellation. A separate paired
+`sv_wait_order_duplicate_interpretation_{2017,2023}` test pins Icarus's current
+handling of duplicate identifiers; §15.5.4 does not define that behavior, so
+the fixture is explicitly an implementation interpretation. The pre-entry
+fixtures apply §15.5.4's requirement that
 subsequent events be untriggered: a later event whose trigger remains
 persistent when `wait_order` begins causes failure, while the first event may
 use its persistent state.

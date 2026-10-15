@@ -1,5 +1,5 @@
 module sv_wait_order;
-  event first, second, unrelated, expected, later, same, single;
+  event first, second, unrelated, expected, later, single;
   event continuation_first, continuation_second, continuation_next;
   event cancel_first, cancel_second;
   event nba_first, nba_second;
@@ -120,24 +120,6 @@ module sv_wait_order;
         else $fatal(1, "persistent first event failed");
       end
     join
-
-    fork
-      begin
-        #1;
-        -> same;
-        -> same;
-      end
-      begin
-        wait_order(same, same)
-          $display("duplicate-event-pass");
-        else $fatal(1, "duplicate event sequence failed");
-      end
-    join
-
-    -> same;
-    wait_order(same, same)
-      $fatal(1, "later duplicate used persistent triggered state");
-    else $display("duplicate-persistent-later-out-of-order-pass");
 
     fork
       begin
