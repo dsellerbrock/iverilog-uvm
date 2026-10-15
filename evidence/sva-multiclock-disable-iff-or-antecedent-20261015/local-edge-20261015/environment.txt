@@ -1,0 +1,16 @@
+date=2026-10-15T21:41:07Z
+MacBook-Air.local
+Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+a50552d47dcf259f95c5b69fb079c96e0c09cd0f
+ M ivtest/regress-sv.list
+ M ivtest/regress-sv_assert_multiclock_fixed_control-focus-legacy.list
+ M ivtest/regress-sv_assert_multiclock_fixed_control-focus-vvp.list
+?? ivtest/gold/sv_assert_multiclock_disable_edge_boundaries-vvp-stdout.gold
+?? ivtest/gold/sv_assert_multiclock_disable_edge_boundaries_2023-vvp-stdout.gold
+?? ivtest/ivltests/sv_assert_multiclock_disable_edge_boundaries.v
+?? ivtest/ivltests/sv_assert_multiclock_disable_edge_boundaries_2023.v
+?? ivtest/vvp_tests/sv_assert_multiclock_disable_edge_boundaries.json
+?? ivtest/vvp_tests/sv_assert_multiclock_disable_edge_boundaries_2023.json
+Apple clang version 21.0.0 (clang-2100.3.34.2)
+bison (GNU Bison) 3.8.2
+autoconf (GNU Autoconf) 2.73

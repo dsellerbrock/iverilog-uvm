@@ -2711,3 +2711,40 @@ check` pass. The VVP parser conflict count is 14 shift/reduce and 5
 reduce/reduce. Full-suite and CI qualification remain pending; see the
 [session record](../session_logs/2026-10-09_ieee_packed_subfield_release.json)
 and [issue #493](https://github.com/dsellerbrock/iverilog-uvm/issues/493).
+
+## October 15, 2026 — multiclock `disable iff` with fixed OR antecedents
+
+PARTIAL §§16.9.7, 16.12, 16.12.7, 16.13.1 and 16.13.3: explicit asynchronous
+`disable iff` now applies to a same-clock, fixed-length OR antecedent feeding
+a consequent across at least two clock-flow boundaries. Each OR branch has
+independent pipeline state, and every match creates its own consequent
+obligation, including multiple branches matching at one endpoint. A disable
+transition clears branch state and pending cross-domain obligations.
+
+The 2017/2023 clause wording is materially unchanged for these semantics.
+Paired positive cases check simultaneous branch matches and reset coincident
+with a later clock handoff; boundary cases check reset at the handoff edge and
+pending work near end-of-simulation. The paired
+`sv_assert_multiclock_disable_edge_boundaries` tests also drive asynchronous
+reset low by NBA at the first antecedent sample and at the final consequent
+evaluation edge. Their no-disable controls fail at both edges. This exercises
+§16.12's inclusive attempt interval; §§4.4.2.4 and 4.4.2.5 place NBA updates
+before Observed-region evaluation. Paired compile-error cases keep an
+unsupported `and` antecedent tree explicit.
+
+The exact-head T0/T1 Slurm job 1410 passed on
+`14a0326d21248842044b64a9633cf78a75bf03c2`: issue cases 8/8 in each legacy
+and strict JSON/VVP runner; smoke compiler/VVP 56/56, VPI 131/131, and
+negative checks 152/152; fixed multiclock-control T1 30/30 in each runner;
+and implication-tree neighbors 1/1 legacy and 2/2 JSON/VVP. The start-boundary
+stimulus asserts disable by NBA at the first antecedent edge and releases it
+before the next clock; the end-boundary stimulus asserts disable by NBA on the
+final consequent edge. Both matching no-disable controls fail. The earlier
+local start-boundary run used an unisolated reset pulse and is superseded.
+[Exact Slurm logs, lists and build metadata](../../../evidence/sva-multiclock-disable-iff-or-antecedent-20261015/slurm-exact-14a0326/README.md)
+record the verified head and limits.
+
+This does not qualify variable-length branches, non-OR trees, `first_match`,
+local variables, match-item calls, branch pass actions, two-domain OR
+antecedents, or general clause-16 behavior. Issue #447 remains open for the
+broader shapes; see the [evidence record](../../../evidence/sva-multiclock-disable-iff-or-antecedent-20261015/README.md).
