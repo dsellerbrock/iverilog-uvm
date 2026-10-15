@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_m5_issue434_detached_vif.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gstrict-expr-width",
+    "-s",
+    "issue434_interface"
+  ]
+}
