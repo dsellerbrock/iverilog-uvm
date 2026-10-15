@@ -1,5 +1,5 @@
 module sv_covergroup_ref_packed_struct_member_limit;
-  // Pin the bounded whole-variable subset; packed-member legality is unqualified.
+  // IEEE 1800-2017/2023 13.5.2 permits unpacked, not packed, structure members.
   typedef struct packed {
     logic [3:0] field;
   } packed_value_t;

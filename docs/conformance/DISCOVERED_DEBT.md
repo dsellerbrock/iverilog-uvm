@@ -4433,3 +4433,18 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   by source read.
 - **Triage status:** isolated case fixed on agent/sim-perf-hotspots-20261009;
   coupled case needs exact joint sampling and is open.
+
+### DD-122 — side-effecting covergroup iff guard is treated as enabled
+
+- **Discovered while working:** #448 / PR #594 (2026-10-15).
+- **Observation:** Sampling a coverpoint with `iff (value++)` on a covergroup
+  `ref` formal emits `coverpoint iff guard cannot be evaluated at this
+  sample() site; the guard is treated as enabled.` The guard therefore does
+  not control sampling. Whether this expression is permitted by the LRM's
+  coverage-expression rules has not been fully checked.
+- **File/function:** generated coverpoint `iff` evaluation; source location
+  not yet identified.
+- **Possible clause:** IEEE 1800-2017/2023 §19.5.
+- **Evidence:** `evidence/a3-m5-issue448-followup/job1376/logs/ref2017.log`.
+- **Reproducer status:** confirmed for the 2017 mode.
+- **Triage status:** untriaged; outside #594.

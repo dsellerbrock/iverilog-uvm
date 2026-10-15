@@ -1,0 +1,1 @@
+`include "ivltests/sv_covergroup_ref_automatic_actual_unsupported.v"

@@ -1,2 +1,2 @@
-./ivltests/sv_covergroup_ref_packed_struct_member_limit.v:15: sorry: covergroup ref constructor arguments currently require a whole packed variable.
+./ivltests/sv_covergroup_ref_packed_struct_member_limit.v:15: error: A const ref actual must be a variable, class property, or unpacked member or element.
 1 error(s) during elaboration.
