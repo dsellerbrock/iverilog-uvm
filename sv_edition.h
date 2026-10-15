@@ -122,6 +122,8 @@
 		     "the array method index argument")		\
       SV_FEATURE_ROW(SVF_DIST_DEFAULT, GN_VER2023,		\
 		     "the default item in a dist constraint")		\
+      SV_FEATURE_ROW(SVF_SOFT_PACKED_UNION, GN_VER2023,\
+                     "soft packed unions")\
       SV_FEATURE_ROW(SVF_STACKTRACE, GN_VER2023,			\
 		     "the $stacktrace system task or function")			\
       SV_FEATURE_ROW(SVF_TYPE_THIS, GN_VER2023,			\

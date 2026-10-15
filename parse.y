@@ -10731,6 +10731,18 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->members .reset($4);
 	$$ = tmp;
       }
+  /* IEEE 1800-2023 7.3.1: soft packed unions allow different member
+     widths, and `packed` is optional when `soft` is present. */
+  | K_union K_soft packed_signing '{' struct_union_member_list '}'
+      { struct_type_t*tmp = new struct_type_t;
+	FILE_NAME(tmp, @1);
+	tmp->packed_flag = true;
+	tmp->signed_flag = $3.signed_flag;
+	tmp->union_flag = true;
+	tmp->soft_flag = true;
+	tmp->members .reset($5);
+	$$ = tmp;
+      }
   /* Tagged union — IEEE 1800-2017 §7.3.2.  Currently parses and lowers to
      a regular union; tag values and pattern-matching are not enforced.
      Without this rule, real testbenches that use `union tagged { ... }`
