@@ -9,6 +9,14 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+Soft packed unions are supported for the tested subset of IEEE 1800-2023
+§7.3.1 and Syntax 7-2. `soft` permits different packed member widths; the
+union width is the widest member, each view is right-justified, and a narrow
+member write preserves the remaining union bits. Both `union soft packed` and
+`union soft` are covered. The paired regressions accept this syntax in
+`-g2023`, reject it in `-g2017`, and reject a non-packed member. This is a
+focused feature record, not full §7.3.1 qualification.
+
 The 2023-only class-constructor `default` argument, `super.new(default)`
 chaining, and `extends Base(default)` form are tracked in the
 [paired constructor clause record](matrices/ieee1800_2017_clause_matrix.md#october-14-2026--class-constructor-default-arguments).

@@ -418,6 +418,7 @@ struct struct_type_t : public data_type_t {
       bool packed_flag;
       bool union_flag;
       bool signed_flag;
+      bool soft_flag = false;
       // Phase 63b/B7: marks a `union tagged` (vs plain union).  Tag
       // semantics are not yet enforced — this flag exists so the
       // declaration site can emit a one-time warning and so future
