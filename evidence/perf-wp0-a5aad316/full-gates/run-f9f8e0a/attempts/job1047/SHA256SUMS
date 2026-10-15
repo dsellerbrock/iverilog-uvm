@@ -1,0 +1,7 @@
+d7ea306abbbe6abba20ec4dec6a59eecf22e355b729e1d01e2af985e0580883f  ./archives/SHA256SUMS.gz
+db4ac2b0fc797f615a8e55abd9c6c99d5ec7c084d9f8a3c32fa17817534cc546  ./attempt-status.txt
+2666eb40a65ddfde725cb8ab40f65dc8ba087469deae2a1dea1e8707699c9659  ./full-gates.sh
+6df47e695deeba577ac52f90e10e8be049415b385e1e038133cd997dff153763  ./logs/a5-wp0-f9f8-gates-1047.err.gz
+99ea4d17affa2366896f0a2a35d7990b9105de70ce87d696d772b5d5e0adf403  ./logs/a5-wp0-f9f8-gates-1047.out.gz
+77f7b684bce24d43c0014e99ccaea0904c7c72f18cc9cc098ef445fa6f0a687c  ./run-json-isolated.py
+b4d09453ecae1a82d12f704caf7a39b491c98362273c167b8a2adafd69b66111  ./source-manifest.txt

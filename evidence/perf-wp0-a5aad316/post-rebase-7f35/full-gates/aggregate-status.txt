@@ -1,0 +1,17 @@
+campaign_pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+measurement_base=7f35ca38c86723ab40e6ebfe9fd77259827e23f9
+candidate_commit=1174ea06ac5e3a926b1fa1c1bd3449a396507272
+initial_gate_job=1150
+initial_job_result=failed_only_at_uvm_working_directory_harness
+initial_job_other_stages=PASS
+json_candidate_tests=4651
+json_candidate_failures=16
+json_baseline_failures=16
+json_baseline_delta=0
+uvm_followup_job=1181
+uvm_followup_result=PASS
+uvm_passed=367
+uvm_failed=0
+uvm_skipped=0
+uvm_dpi=real
+aggregate_final_base_correctness=PASS

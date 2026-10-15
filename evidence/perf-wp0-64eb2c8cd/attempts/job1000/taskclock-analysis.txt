@@ -1,0 +1,11 @@
+Post-run analysis for Slurm job 1000.
+Candidate benchmark source: 64eb2c8cd; reference: 47bc28987caaece4b176f610212f170290b3039c.
+perf_stat_available=True; CPU affinity=[4]; instructions available=False.
+All 18 reference/candidate outputs matched: True.
+Every sample stayed below 10 seconds. The gate failed only because reference task-clock spread exceeded 5% on the following rows:
+randomize_dv_txn: spread 6.816%; task-clock samples ms [4593.05, 4821.38, 4583.71, 4803.50, 4911.10].
+randomize_z3: spread 15.090%; task-clock samples ms [1341.46, 1367.93, 1498.37, 1509.73, 1567.57].
+strings_aa_queue: spread 6.223%; task-clock samples ms [3132.16, 3137.14, 3131.26, 3135.31, 3326.36].
+uvm_traffic: spread 6.417%; task-clock samples ms [3415.05, 3486.41, 3495.22, 3633.47, 3639.33].
+wide_vectors: spread 5.800%; task-clock samples ms [233.51, 244.43, 231.13, 230.97, 232.08].
+The randomize_z3 outputs had one identical hash across all five reference samples; task-clock increased across pairs from 1341.46 to 1567.57 ms. The monotonic timing increase is consistent with host/runtime timing drift, but task-clock alone cannot distinguish that from output-invisible solver/work variability; no instruction-count evidence was available.

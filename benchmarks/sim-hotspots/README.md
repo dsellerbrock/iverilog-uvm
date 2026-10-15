@@ -27,8 +27,44 @@ byte-identical; it removes interpretation overhead, not semantics.
    behavior, then compared full simulation output against the reference
    runtime.
 
-`run.sh <reference-vvp> <candidate-vvp> [runs]` rebuilds the workloads with
-the `iverilog` on `PATH`, times both runtimes, and fails if any output differs.
+`run.sh <reference-vvp> <candidate-vvp> [runs]` keeps the original text report.
+Use `run.sh --json <reference-vvp> <candidate-vvp> [runs]` for campaign
+measurements. JSON mode defaults to five interleaved pairs, alternates which
+runtime runs first, and pins the process to one allowed CPU where the host
+supports affinity. It records wall time, `perf stat` instructions and task-clock
+when available, max RSS, per-run SHA-256 hashes, generated-file hashes, medians,
+and spread. It compares stdout/stderr and generated files byte-for-byte in
+every pair. Wave workloads disable VCD/FST timestamps so the artifact
+comparison is stable.
+
+JSON mode runs `randomize_dv_txn` for 400 draws to keep it under 10 seconds on
+the baseline; the source default remains 1,000. Both runtimes receive the same
+`+runs=400` argument. This preserves the first 400 seeded draws.
+
+The WP0 additions cover 128-1024-bit vectors, strength and UDP gates, 32
+independent delayed clocks, a 16K-word `$readmemh` memory, `$display`/`$fwrite`,
+VCD and FST dumping, VPI `cbValueChange`, strings/associative arrays/queues,
+UVM config DB/factory/reporting, and a depth-12 fork tree with 4,096 leaves.
+Deterministic cases use enough work to make five-run timing useful: the pipeline
+runs for 2.4 million time units, the ALU for one million, the behavioral loop
+for 1,200 rounds, the class/queue case for 800,000 transactions, VPI callbacks
+for 32 million signal changes, and the fork tree has 4,096 leaves. Strength/UDP
+gates perform 640,000 updates, the 32-clock workload runs for 320,000 time
+units, strings and queues process 2.56 million entries, and waveforms emit one
+million updates.
+Randomization draw counts remain fixed. Final evidence checks the reference
+time cap and spread. JSON mode requires strict output equality for every row.
+
+Build counters with `./configure --enable-perf-stats` and set
+`IVL_PERF_STATS=1` for a run. The build option defaults off; a normal binary
+has no counter call sites and ignores that environment variable. The opt-in
+stderr JSON includes event counts by region, thread creations and subsequent
+thread resumes, automatic-context allocations, `recv_vec4` dispatches by
+functor type, `%callf`/`%fork` totals, opcode and adjacent-opcode-pair
+histograms, time-list walk lengths, and Z3 context/check/model-evaluation
+counts. Opcode pairs count uninterrupted dispatches within one thread run.
+`test_perf_stats.sh` checks default-output identity with counters absent and
+checks that the opt-in dump contains the expected counter groups.
 
 ## Hot spots found and changes
 
@@ -124,14 +160,17 @@ pins the distribution; the unmodified runtime fails it.
 
 ### Attempt ledger
 
-| Idea | Measured | Verdict |
-| --- | --- | --- |
-| Range queries as `check_assumptions` instead of push/assert/pop | 10.79 s → 10.75 s (bias case) | reverted, noise |
-| Keep freed memory (mallopt) around `Z3_mk_context` | 2.97 → 2.75 ms per context | not adopted, 7% |
-| Build the next fresh Z3 context on a background thread | 3.0 → 3.6–4.8 ms per iteration | rejected, slower (lock contention) |
-| Reuse one Z3 context across calls | not built | rejected: values picked from model-ordered lists would depend on unrelated earlier randomizations, breaking random stability (18.14) |
-| Delete each Z3 context on a background thread | 3.0 → 3.5 ms per call | rejected, slower (allocator contention) |
-| `auto_config=false` context parameter | 2.9 → 2.5 ms per context | not adopted: it changes Z3's solver configuration, so models and hard-problem behavior can change |
+| Idea | Measured | Verdict | Caveat |
+| --- | --- | --- | --- |
+| A2's [#536 c339 VVP profile](https://github.com/dsellerbrock/iverilog-uvm/issues/536#issuecomment-6113062376) | In a 600 s partial `rand_test_dma` profile, `vthread_run` held 87.56% of CPU samples; `of_PROP_INDEX_CHECK` was 14.42%, `of_LOAD_VEC4` 12.62%, and `of_PART_U` 11.13% | inherited baseline; no code change | The timed run stopped before its testcase completion marker; this profile is not a firmware pass or whole-suite throughput result |
+| A3's [merged #571 property-index optimization](https://github.com/dsellerbrock/iverilog-uvm/pull/571) | `cptra_ss_test_rom`, mcycle 100–600: 7.775 → 8.422 cycles/s (+8.31%); `of_PROP_INDEX_CHECK` share 8.33% → 5.87% | merged; below the 10% campaign screening threshold | Same bounded mcycle window; not a full firmware result |
+| Keep all 1,000 `randomize_dv_txn` draws in the JSON baseline | 13.328 s on the 47bc main baseline | Resized JSON mode to 400 draws; source default and legacy mode remain at 1,000 | Under 10 s; preserves the first 400 draws |
+| Range queries as `check_assumptions` instead of push/assert/pop | 10.79 s → 10.75 s (bias case) | reverted, noise | - |
+| Keep freed memory (mallopt) around `Z3_mk_context` | 2.97 → 2.75 ms per context | not adopted, 7% | - |
+| Build the next fresh Z3 context on a background thread | 3.0 → 3.6–4.8 ms per iteration | rejected, slower (lock contention) | - |
+| Reuse one Z3 context across calls | not built | rejected: values picked from model-ordered lists would depend on unrelated earlier randomizations, breaking random stability (18.14) | - |
+| Delete each Z3 context on a background thread | 3.0 → 3.5 ms per call | rejected, slower (allocator contention) | - |
+| `auto_config=false` context parameter | 2.9 → 2.5 ms per context | not adopted: it changes Z3's solver configuration, so models and hard-problem behavior can change | - |
 
 `Z3_mk_context` remains about 2.7 ms per `randomize()` that reaches Z3 (one
 fresh context per call keeps calls independent). It dominates the

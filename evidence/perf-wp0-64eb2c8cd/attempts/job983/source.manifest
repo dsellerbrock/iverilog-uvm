@@ -1,0 +1,10 @@
+source_base_revision=47bc28987caaece4b176f610212f170290b3039c
+source_mode=complete current WP0 worktree snapshot without git metadata or evidence
+source_worktree_dirty=true
+source_archive=source.tar.gz
+source_archive_sha256=281ac495a870c77b421a7d80cd3731009df0181cb45fea0b3debc0d7d8c48959
+uvm_core_commit=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+build_options=--enable-libveriuser --enable-perf-stats
+reference_install=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-baseline-47bc-20261014-r1/install
+reference_vvp_sha256=c4220f3416a6c72b401067979270442d8c066fea118630f86ab7436e4d0a7a32
+supersedes=job-981 (validation stopped because VVP config macro template entry was missing)

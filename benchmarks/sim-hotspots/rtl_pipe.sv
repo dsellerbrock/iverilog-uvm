@@ -19,7 +19,7 @@ module top;
   always @(posedge clk) if (rst) acc <= 0; else acc <= acc + d[N];
   initial begin
     #20 rst = 0;
-    #100000;
+    #2400000;
     $display("acc=%h lfsr=%h", acc, lfsr);
     $finish;
   end

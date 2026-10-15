@@ -42,6 +42,7 @@ const char COPYRIGHT[] =
 #include "libvvp.h"
 #include "vvp_dpi.h"
 #include "vthread.h"
+#include "vvp_perf_stats.h"
 
 using namespace std;
 
@@ -95,6 +96,9 @@ static void sigusr1_dump(int)
 
 int main(int argc, char*argv[])
 {
+#ifdef VVP_PERF_STATS
+      vvp_perf_stats_init();
+#endif
       int opt;
       unsigned flag_errors = 0;
       const char *logfile_name = 0x0;

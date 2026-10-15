@@ -8,7 +8,7 @@ module top;
   int mem [0:1023];
   int sum = 0;
   initial begin
-    for (int it=0; it<300; it++) begin
+    for (int it=0; it<1200; it++) begin
       for (int j=0;j<1024;j++) mem[j] = hash(j + it);
       for (int j=0;j<1024;j++) sum += mem[j] & 255;
       #1;

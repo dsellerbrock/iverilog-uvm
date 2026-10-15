@@ -1,0 +1,199 @@
+#! /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/install-off/bin/vvp
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/install-off/lib/ivl/system.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/install-off/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/install-off/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/install-off/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/install-off/lib/ivl/va_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/install-off/lib/ivl/v2009.vpi";
+S_0x71215104b010 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x71215104b070 .scope module, "top" "top" 3 2;
+ .timescale 0 0;
+v0x71215102a0f0 .array/2s "mem", 1023 0, 31 0;
+v0x71215102a110_0 .var/2s "sum", 31 0;
+v0x71215102a110_0 .vpi_source_location 3 9;
+S_0x71215104b0d0 .scope begin.ctx, "$unm_blk_3" "$unm_blk_3" 3 11, 3 11 0, S_0x71215104b070;
+ .timescale 0 0;
+v0x71215102a050_0 .var/2s ^"it", 31 0;
+v0x71215102a050_0 .vpi_source_location 3 11;
+S_0x71215104b130 .scope begin.ctx, "$unm_blk_5" "$unm_blk_5" 3 12, 3 12 0, S_0x71215104b0d0;
+ .timescale 0 0;
+v0x71215102a010_0 .var/2s ^"j", 31 0;
+v0x71215102a010_0 .vpi_source_location 3 12;
+S_0x71215104b190 .scope begin.ctx, "$unm_blk_6" "$unm_blk_6" 3 13, 3 13 0, S_0x71215104b0d0;
+ .timescale 0 0;
+v0x71215102a030_0 .var/2s ^"j", 31 0;
+v0x71215102a030_0 .vpi_source_location 3 13;
+S_0x71215104b1f0 .scope autofunction.vec2.u32, "hash" "hash" 3 3, 3 3 0, S_0x71215104b070;
+ .timescale 0 0;
+v0x71215102a090_0 .var/2s "h", 31 0;
+v0x71215102a090_0 .vpi_source_location 3 4;
+; Variable hash is bool return value of scope S_0x71215104b1f0
+v0x71215102a0d0_0 .var/2s "x", 31 0;
+v0x71215102a0d0_0 .vpi_source_location 3 3;
+TD_top.hash ;
+    %load/vec4 v0x71215102a0d0_0;
+    %store/vec4 v0x71215102a090_0, 0, 32;
+    %alloc S_0x71215104b250;
+    %fork t_1, S_0x71215104b250;
+    %jmp t_0;
+    .scope S_0x71215104b250;
+t_1 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x71215102a070_0, 0, 32;
+T_0.0 ; Top of for-loop
+    %load/vec4 v0x71215102a070_0;
+    %cmpi/s 8, 0, 32;
+	  %jmp/0xz T_0.1, 5;
+    %load/vec4 v0x71215102a090_0;
+    %muli 31, 0, 32;
+    %load/vec4 v0x71215102a090_0;
+    %ix/load 4, 7, 0;
+    %flag_set/imm 4, 0;
+    %shiftr/s 4;
+    %load/vec4 v0x71215102a070_0;
+    %add;
+    %xor;
+    %store/vec4 v0x71215102a090_0, 0, 32;
+T_0.2 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x71215102a070_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x71215102a070_0, 0, 32;
+    %jmp T_0.0;
+T_0.1 ; for-loop exit label
+    %end;
+    .scope S_0x71215104b1f0;
+t_0 %join;
+    %free S_0x71215104b250;
+    %load/vec4 v0x71215102a090_0;
+    %ret/vec4 0, 0, 32;  Assign to hash (store_vec4_to_lval)
+    %disable/flow S_0x71215104b1f0;
+    %end;
+S_0x71215104b250 .scope autobegin, "$unm_blk_1" "$unm_blk_1" 3 5, 3 5 0, S_0x71215104b1f0;
+ .timescale 0 0;
+v0x71215102a070_0 .var/2s ^"k", 31 0;
+v0x71215102a070_0 .vpi_source_location 3 5;
+    .scope S_0x71215104b070;
+T_1 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x71215102a110_0, 0, 32;
+    %end;
+    .thread T_1, $init;
+    .scope S_0x71215104b070;
+T_2 ;
+    %alloc S_0x71215104b0d0;
+    %fork t_3, S_0x71215104b0d0;
+    %jmp t_2;
+    .scope S_0x71215104b0d0;
+t_3 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x71215102a050_0, 0, 32;
+T_2.0 ; Top of for-loop
+    %load/vec4 v0x71215102a050_0;
+    %cmpi/s 1200, 0, 32;
+	  %jmp/0xz T_2.1, 5;
+    %alloc S_0x71215104b130;
+    .scope S_0x71215104b130;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x71215102a010_0, 0, 32;
+T_2.3 ; Top of for-loop
+    %load/vec4 v0x71215102a010_0;
+    %cmpi/s 1024, 0, 32;
+	  %jmp/0xz T_2.4, 5;
+    %alloc S_0x71215104b1f0;
+    %load/vec4 v0x71215102a010_0;
+    %load/vec4 v0x71215102a050_0;
+    %add;
+    %store/vec4 v0x71215102a0d0_0, 0, 32;
+    %callf/vec4 TD_top.hash, S_0x71215104b1f0;
+    %free S_0x71215104b1f0;
+    %ix/getv/s 4, v0x71215102a010_0;
+    %store/vec4a v0x71215102a0f0, 4, 0;
+T_2.5 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x71215102a010_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x71215102a010_0, 0, 32;
+    %jmp T_2.3;
+T_2.4 ; for-loop exit label
+    .scope S_0x71215104b0d0;
+    %free S_0x71215104b130;
+    %jmp/flowbrk T_2.1;
+    %jmp/flowcont T_2.2;
+    %alloc S_0x71215104b190;
+    .scope S_0x71215104b190;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x71215102a030_0, 0, 32;
+T_2.6 ; Top of for-loop
+    %load/vec4 v0x71215102a030_0;
+    %cmpi/s 1024, 0, 32;
+	  %jmp/0xz T_2.7, 5;
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x71215102a110_0;
+    %cast2; compound l-value read
+    %pad/s 32;
+    %ix/getv/s 4, v0x71215102a030_0;
+    %load/vec4a v0x71215102a0f0, 4;
+    %cast2; fixed array element read
+    %pushi/vec4 255, 0, 32;
+    %and;
+    %pad/s 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x71215102a110_0, 0, 32;
+T_2.8 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x71215102a030_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x71215102a030_0, 0, 32;
+    %jmp T_2.6;
+T_2.7 ; for-loop exit label
+    .scope S_0x71215104b0d0;
+    %free S_0x71215104b190;
+    %jmp/flowbrk T_2.1;
+    %jmp/flowcont T_2.2;
+    %delay 1, 0;
+T_2.2 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x71215102a050_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x71215102a050_0, 0, 32;
+    %jmp T_2.0;
+T_2.1 ; for-loop exit label
+    %end;
+    .scope S_0x71215104b070;
+t_2 %join;
+    %free S_0x71215104b0d0;
+    %vpi_call/w 3 16 "$display", "sum=%0d", v0x71215102a110_0 {0 0 0 0};
+    %end;
+    .thread T_2;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-1174ea06-7f35-20261014-r1/source-off/benchmarks/sim-hotspots/behav.sv";

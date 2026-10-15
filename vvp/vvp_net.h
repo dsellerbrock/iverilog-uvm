@@ -31,6 +31,10 @@
 # include  <vector>
 # include  <new>
 # include  <cassert>
+#ifdef VVP_PERF_STATS
+# include  <typeinfo>
+extern void vvp_perf_stats_recv_vec4(const std::type_info& kind);
+#endif
 /* Portable wrapper for malloc usable size (bounds checking only). */
 # if defined(__linux__) || defined(__GLIBC__)
 #  include  <malloc.h>
@@ -1695,8 +1699,12 @@ inline void vvp_send_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&val, vvp_contex
       while (class vvp_net_t*cur = ptr.ptr()) {
 	    vvp_net_ptr_t next_val = cur->port[ptr.port()];
 
-	    if (cur->fun)
+	    if (cur->fun) {
+#ifdef VVP_PERF_STATS
+		  vvp_perf_stats_recv_vec4(typeid(*cur->fun));
+#endif
 		  cur->fun->recv_vec4(ptr, val, context);
+            }
 
 	    ptr = next_val;
       }

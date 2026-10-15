@@ -1,0 +1,5 @@
+reference source: 47bc28987caaece4b176f610212f170290b3039c (merged WP0 baseline)
+candidate benchmark/campaign source: 64eb2c8cd (A5 WP0)
+candidate VVP/config build source: 281d1bca8, built with --enable-libveriuser and counters disabled
+The configure.ac and vvp/ trees are identical between candidate runtime source 281d1bca8 and measurement source 64eb2c8cd; later commits changed tests, benchmark sizes, and documentation only.
+UVM core is pinned by the archive checksum in source.sha256.

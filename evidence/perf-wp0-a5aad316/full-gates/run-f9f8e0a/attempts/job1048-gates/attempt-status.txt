@@ -1,0 +1,12 @@
+job=1048
+run_directory=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-full-a5aad316-f9f8-20261014-r2
+candidate=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+resources=4 CPUs, 8 GiB RAM, 4 hours
+scheduler_state=FAILED
+elapsed=00:50:07
+exit_code=1:0
+passed=base and candidate builds; stats-off symbol check; stats regression; make check; vendored ivtest; FPGA install; JSON comparison
+json=4643 tests; 16 candidate failures reproduced by 16 targeted baseline tests; 0 new failures
+uvm_gate=wrapper working-directory error; corrected run passed as job 1052
+remote_evidence_sha256=5b60b1c0625dc72e249e59116318611c240de331bfcdfa47cdc3d90d07c068c5

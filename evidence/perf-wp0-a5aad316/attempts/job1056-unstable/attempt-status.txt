@@ -1,0 +1,14 @@
+job=1056
+run_directory=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-measure-a5aad316-f9f8-20261014-r3
+pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+candidate=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+resources=1 CPU, 1 GiB RAM, 1 hour
+scheduler_state=FAILED (measurement stability gate)
+elapsed=00:09:05
+fixed_random_seed=73014
+screen=18 benchmarks, outputs identical, every sample under 10 seconds
+five_pair_run=18 benchmarks, outputs identical and stable across samples, every sample under 10 seconds
+primary_metric=task_clock_ms; perf was available but instructions were unsupported
+unstable_baselines=behav spread 5.936%; io_text spread 25.960%; strings_aa_queue spread 8.125%
+accepted_performance_evidence=no; same-base rerun with isolated temporary output path planned
+remote_evidence_sha256=ce277146191554727e29ba3635e9cf876ea8f66127cda4efceb86915b8c9efea

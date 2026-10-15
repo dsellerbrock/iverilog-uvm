@@ -1,0 +1,8 @@
+stage=result
+benchmarks=18
+perf_stat_available=True
+outputs_identical_all=True
+every_runtime_sample_under_10s=True
+primary_metric=task_clock_ms
+reference_primary_spread_at_most_5_percent=True
+measurement=PASS

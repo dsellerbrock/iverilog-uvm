@@ -1,0 +1,13 @@
+role=reference
+source_commit=47bc28987caaece4b176f610212f170290b3039c
+uvm_core_commit=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+source_tree_clean=true
+configure=--enable-libveriuser
+perf_stats=disabled
+
+role=candidate
+source_commit=dbc0c9bac69887d28e30b362ab0105e7e9b1b5a3
+uvm_core_commit=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+source_tree_clean=true
+configure=--enable-libveriuser
+perf_stats=disabled

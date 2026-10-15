@@ -1,0 +1,14 @@
+job_id=1012
+status=FAILED_GATE
+tested_head=430d95aabd93b9922f5987b108bf27de894aed1d
+base_at_run=3335fe7ec1495956c8adc5788e9a53b0f1756ecf
+resources=4 CPUs, 8 GiB RAM, 4 hours
+runtime=00:45:59
+slurm_exit_code=16
+passed=stats-off-and-on-builds;counter-symbol-check;perf-stats-regression;make-check;legacy-negative-vpi-gate;fpga-install
+failed_gate=full-json-ivtest
+full_json_result=4630 ran, 16 failed, exit 16
+failure_selectors=see ../baseline-json-33bb0fa/failing-test-names.txt
+baseline_comparison=all 16 failed selectors reproduced against origin/main 33bb0fa in job 1044, one at a time, with 300-second per-test timeouts
+not_run=UVM real-DPI regression; gate script stopped after full-json-ivtest failed
+qualification=not final; origin/main advanced to 33bb0fa (#581) after this snapshot, so rebase and rerun full gates
