@@ -5580,3 +5580,8 @@ sv_constraint_override_extern_mismatch_fail_2023 CE,-g2023 ivltests
 sv_constraint_override_static_fail_2023 CE,-g2023 ivltests
 sv_constraint_override_pure_final_fail_2023 CE,-g2023 ivltests
 sv_constraint_override_specifiers_2017 CE,-g2017 ivltests
+
+# M5 fixed-issue regressions; paired JSON tests cover both IEEE editions.
+sv_nba_concat_index_snapshot normal,-g2017,-gstrict-expr-width,-s,sv_nba_concat_index_snapshot ivltests
+sv_detached_aggregate_handles normal,-g2017,-gstrict-expr-width,-s,sv_detached_aggregate_handles ivltests
+sv_interconnect_concat_operands normal,-g2017,-gstrict-expr-width,-s,sv_interconnect_concat_operands ivltests

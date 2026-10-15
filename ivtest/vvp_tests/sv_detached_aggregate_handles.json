@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_detached_aggregate_handles.v",
+  "iverilog-args": ["-g2017", "-gstrict-expr-width", "-s", "sv_detached_aggregate_handles"]
+}
