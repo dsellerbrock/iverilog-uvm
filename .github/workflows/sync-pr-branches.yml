@@ -1,8 +1,6 @@
 name: Sync open PRs with main
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       pull_request:
