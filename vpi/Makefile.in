@@ -91,7 +91,7 @@ check: all
 
 clean:
 	rm -rf *.o sys_readmem_lex.c dep libvpi.a system.vpi
-	rm -f sdf_lexor.c sdf_parse.c sdf_parse.output sdf_parse.h
+	rm -f libvvpimp.a sdf_lexor.c sdf_parse.c sdf_parse.output sdf_parse.h
 	rm -f table_mod_parse.c table_mod_parse.h table_mod_parse.output
 	rm -f table_mod_lexor.c
 	rm -f va_math.vpi v2005_math.vpi v2009.vpi vhdl_sys.vpi vhdl_textio.vpi vpi_debug.vpi
@@ -151,8 +151,20 @@ ifeq (@MINGW32@,yes)
     VA_MATH_LDFLAGS += @EXTRALIBS@
 endif
 
+ifeq (@WIN32@,yes)
+VVP_DEF = $(srcdir)/../vvp/vvp.def
+VVP_IMPLIB = libvvpimp.a
+
+# Windows requires the executable's exports in an import library at link time.
+system.vpi: $O $(OPP) libvpi.a $(VVP_IMPLIB)
+	$(CXX) @shared@ -o $@ $O $(OPP) -L. $(LDFLAGS) -lvpi $(VVP_IMPLIB) $(SYSTEM_VPI_LDFLAGS)
+
+$(VVP_IMPLIB): $(VVP_DEF)
+	dlltool -d $(VVP_DEF) -D vvp.exe -l $@
+else
 system.vpi: $O $(OPP) libvpi.a
 	$(CXX) @shared@ -o $@ $O $(OPP) -L. $(LDFLAGS) -lvpi $(SYSTEM_VPI_LDFLAGS)
+endif
 
 sys_readmem_lex.c: $(srcdir)/sys_readmem_lex.lex
 	$(LEX) -t $< > $@

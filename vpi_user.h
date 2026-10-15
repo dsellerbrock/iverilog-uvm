@@ -663,14 +663,16 @@ extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 /* Draw from the caller's process RNG, optionally reseeding it first.
    Return 0 only when no thread is running. */
 extern int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val);
-/* R21: print, to stdout, the call stack (scope + call-site file:line for
-   each enclosing task/function call, innermost first) of the thread that
-   is currently executing a VPI call. Used to implement $stacktrace.
-   call_file/call_line are the file/line of the $stacktrace call itself
-   (from the systf call handle), used for the innermost frame since that
-   location is always available, unlike the best-effort tracking used for
-   outer frames. */
+/* R21 / IEEE 1800-2023 20.17.2: retrieve the call stack (scope + call-site
+   file:line for each enclosing task/function call, innermost first) of the
+   thread currently executing a VPI call. The string is implementation-
+   defined. call_file/call_line are the location of the $stacktrace call
+   itself, used for the innermost frame since that location is always
+   available, unlike best-effort tracking for outer frames. */
+extern const char* vpip_get_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_stacktrace(const char*call_file, long call_line);
+/* True while a VPI string function call is executing with a result slot. */
+extern int vpip_systf_call_returns_string(void);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
 /* M12B: register a concurrent assertion for VPI enumeration
    (vpi_iterate(vpiAssertion, ...)). name/file are copied. idx is the

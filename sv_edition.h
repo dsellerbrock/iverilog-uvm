@@ -123,7 +123,7 @@
       SV_FEATURE_ROW(SVF_DIST_DEFAULT, GN_VER2023,		\
 		     "the default item in a dist constraint")		\
       SV_FEATURE_ROW(SVF_STACKTRACE, GN_VER2023,			\
-		     "the $stacktrace system task")			\
+		     "the $stacktrace system task or function")			\
       SV_FEATURE_ROW(SVF_TYPE_THIS, GN_VER2023,			\
 		     "the type(this) self type")			\
 	  SV_FEATURE_ROW(SVF_TOLERANCE_RANGE, GN_VER2023,		\

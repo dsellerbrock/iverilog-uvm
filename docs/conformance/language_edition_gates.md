@@ -50,11 +50,10 @@ times for one line.
 ## Implemented feature gates
 
 [`sv_edition.h`](../../sv_edition.h) is the source of truth for the feature
-table. It includes the 2023 `$stacktrace` task, `type(this)` self type,
-tolerance ranges, method override specifiers, class-constructor `default`
-arguments, `extends Base(default)`, and the constant
-`option.cross_retain_auto_bins` subset. Iterator `index()` is metadata for
-SystemVerilog 2005, not a 2023-only feature. The
+table. It includes the 2023 `$stacktrace` task and string-function forms,
+`type(this)` self type, plus the constant
+`option.cross_retain_auto_bins` subset. Iterator `index()` is
+metadata for SystemVerilog 2005, not a 2023-only feature. The
 [2023 survey](ieee1800_2023_delta.md) owns the detailed edition dispositions.
 
 ## Edition boundaries
@@ -76,19 +75,19 @@ because the command-line switch exists.
 
 ## Test matrix
 
-The `$stacktrace` gate carries four core arms, registered in
+The `$stacktrace` task gate carries four core arms, registered in
 `ivtest/regress-sv.list`:
 
 | arm | registration | asserts |
 |---|---|---|
 | older mode | `CE,-g2012` + `gold=` | fails, and the diagnostic names construct + edition + flag |
-| defining edition | `normal,-g2023` | works, and computes the right value |
+| defining edition | `normal,-g2023` | works and runs to completion |
 | later edition | `normal,-glatest` | still works |
 | neighbour syntax | `normal,-g2012` | closely-related older syntax is undisturbed |
 
-`$stacktrace` carries a fifth arm, `CE,-g2017`, pinning that a 2023
-feature is refused under 2017 — the concrete check that 2017 is not
-silently treated as "newest".
+`$stacktrace` carries a fifth arm, `CE,-g2017`, pinning that the task
+is refused under 2017. The string-function form has paired 2023-positive
+and 2017-compile-error cases in both regression runners.
 
 ## Method override specifiers
 
