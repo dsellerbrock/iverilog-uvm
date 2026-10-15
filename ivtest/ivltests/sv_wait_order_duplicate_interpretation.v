@@ -21,6 +21,5 @@ module sv_wait_order_duplicate_interpretation;
     wait_order(same, same)
       $fatal(1, "later duplicate used persistent triggered state");
     else $display("duplicate-persistent-interpretation-pass");
-    $finish;
   end
 endmodule
