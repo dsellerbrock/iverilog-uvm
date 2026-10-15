@@ -1,5 +1,6 @@
 module sv_wait_order;
   event first, second, unrelated, expected, later, same, single;
+  event continuation_first, continuation_second, continuation_next;
   event cancel_first, cancel_second;
   event nba_first, nba_second;
   event pre_entry_first, pre_entry_later;
@@ -34,6 +35,24 @@ module sv_wait_order;
         wait_order(first, second)
           $display("same-slot-repeat-pass");
         else $fatal(1, "same-slot order failed");
+      end
+    join
+
+    fork
+      begin
+        wait_order(continuation_first, continuation_second)
+          -> continuation_next;
+        else $fatal(1, "first parallel wait_order failed");
+      end
+      begin
+        wait_order(continuation_first, continuation_second, continuation_next)
+          $display("parallel-waiter-state-before-resume-pass");
+        else $fatal(1, "second parallel wait_order failed");
+      end
+      begin
+        #1;
+        -> continuation_first;
+        -> continuation_second;
       end
     join
 
