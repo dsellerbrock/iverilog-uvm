@@ -1119,6 +1119,10 @@ struct Z3Builder {
 	    bool is_default;
 	    Z3_ast default_condition;
       };
+      struct RealDistPoint {
+	    Z3_ast value;
+	    unsigned weight;
+      };
       struct DistSpec {
             vvp_cobject*rng_owner = nullptr;
             size_t priority = 0;
@@ -1134,6 +1138,9 @@ struct Z3Builder {
             bool requires_large_exact;
             bool state_weights;
 	    bool disableable;
+	    bool real_subject = false;
+	    bool real_points_supported = false;
+	    std::vector<RealDistPoint> real_points;
       };
       std::vector<DistSpec> dist_specs;
 
@@ -5891,6 +5898,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    dspec.disableable = b.soft_keyword_depth != 0;
 	    bool exact_supported = true;
 	    bool real_subject = b.is_real(subject);
+	    bool real_points_supported = real_subject
+		  && b.real_property(subject) != UINT_MAX;
+	    dspec.real_subject = real_subject;
 	    auto warn_exact_item_boundary = []() {
 		  static bool warned = false;
 		  if (!warned) {
@@ -5902,10 +5912,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  }
 	    };
 	    if (real_subject) {
-		  /* shortcut: real dist uses weighted-soft fallback, not exact interval
-		   * sampling; upgrade when the sampler supports FPA intervals. */
+		  /* shortcut: finite static point items only; upgrade for exact real-range sampling. */
 		  exact_supported = false;
-		  warn_exact_item_boundary();
 	    }
 	    auto width_mask = [](unsigned width) -> uint64_t {
 		  return width >= 64 ? UINT64_MAX
@@ -6052,6 +6060,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  string br_op = par.read_token();
 		  bool is_default = br_op == "d";
 		  if (br_op != "b" && !is_default) {
+			if (real_subject) real_points_supported = false;
 			// Unknown branch shape; skip to matching ')'.
 			int depth = 1;
 			while (!par.at_end() && depth > 0) {
@@ -6118,6 +6127,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      warned_weight_overflow = true;
 			}
 			exact_supported = false;
+			if (real_subject) real_points_supported = false;
 		  } else if (!dynamic_weight && weight64 > UINT_MAX) {
 			static bool warned_weight_width = false;
 			if (!warned_weight_width) {
@@ -6128,6 +6138,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      warned_weight_width = true;
 			}
 			exact_supported = false;
+			if (real_subject) real_points_supported = false;
 		  }
 		  unsigned weight = dynamic_weight ? 1
 			: weight_overflow || weight64 > UINT_MAX
@@ -6135,6 +6146,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  unsigned soft_weight = dynamic_weight ? 1 : weight;
 		  Z3_ast clause = b.mk_false();
 		  if (is_default) {
+			if (real_subject) real_points_supported = false;
 			string marker = par.read_token();
 			par.expect(')');
 			if (marker != "default" || have_default_item) {
@@ -6153,6 +6165,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  }
 		  par.skip_ws();
 		  if (par.peek() == '[') {
+			if (real_subject) real_points_supported = false;
 			par.consume();
 			par.skip_ws();
 			bool lo_open = par.peek() == '*';
@@ -6325,15 +6338,43 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			  clause = Z3_mk_eq(b.ctx,
 				    coerce_for_compare(subject, vw,
 						       value_compare_signed), value);
+		    if (real_subject) {
+			  if (!value_valid || dynamic_weight) {
+				real_points_supported = false;
+			  } else {
+				Z3_ast point = value_raw;
+				if (!b.is_real(value_raw)) {
+				      Z3_ast integral_value =
+					    b.resolve_signed_constants(value_raw);
+				      Z3_ast real_value = b.is_signed(value_raw)
+					    ? Z3_mk_fpa_to_fp_signed(b.ctx,
+						  Z3_mk_fpa_rne(b.ctx), integral_value,
+						  z3_real_sort_(b.ctx))
+					    : Z3_mk_fpa_to_fp_unsigned(b.ctx,
+						  Z3_mk_fpa_rne(b.ctx), integral_value,
+						  z3_real_sort_(b.ctx));
+				      point = z3_from_real_(b, real_value);
+				}
+				point = Z3_simplify(b.ctx, point);
+				uint64_t point_bits = 0;
+				if (!Z3_is_numeral_ast(b.ctx, point)
+				    || !z3_ground_uint64(b.ctx, point, point_bits)
+				    || !isfinite(z3_bits_real_(point_bits))) {
+				      real_points_supported = false;
+				} else if (weight != 0) {
+				      dspec.real_points.push_back({point, weight});
+				}
+			  }
+		    } else {
 			uint64_t value_bits = 0;
 			Z3_ast value_wide = 0;
-		    bool value_ok = value_valid && !real_subject
-			  && !b.is_real(value_raw) && (vw > 64
-			      ? ground_wide(value_raw, vw, value_compare_signed,
-					    value_wide)
-			      : ground_at_width(value_raw, vw,
-					 value_compare_signed, value_bits,
-					 &value_source_ir));
+			bool value_ok = value_valid && !b.is_real(value_raw)
+			      && (vw > 64
+				  ? ground_wide(value_raw, vw, value_compare_signed,
+						value_wide)
+				  : ground_at_width(value_raw, vw,
+						value_compare_signed, value_bits,
+						&value_source_ir));
 			if (!value_ok) {
 			      exact_supported = false;
 			      warn_exact_item_boundary();
@@ -6341,15 +6382,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			if (weight != 0 && value_ok && vw > 64) {
 			      dspec.requires_large_exact = true;
 			      Z3_ast coord = ordered_wide(value_wide, vw,
-							  value_compare_signed);
-		      Z3Builder::DistBranch db = {
+						  value_compare_signed);
+			      Z3Builder::DistBranch db = {
 				    weight, true, false, vw,
 				    value_compare_signed, 0, 0, coord, coord,
 				    weight_expression, false, nullptr
 			      };
 			      dspec.branches.push_back(db);
 			} else if (weight != 0 && value_ok) {
-		      Z3Builder::DistBranch db = {
+			      Z3Builder::DistBranch db = {
 				    weight, false, false, vw,
 				    value_compare_signed,
 				    value_bits, value_bits, nullptr, nullptr,
@@ -6357,6 +6398,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      };
 			      dspec.branches.push_back(db);
 			}
+		    }
 		  }
 		  par.skip_ws();
 		  par.expect(')'); // close (b ...)
@@ -6442,12 +6484,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			dspec.requires_large_exact = true;
 		  }
 	    }
+	    if (real_subject) {
+		  exact_supported = real_points_supported;
+		  dspec.real_points_supported = real_points_supported;
+		  if (!real_points_supported) warn_exact_item_boundary();
+	    }
 	    // Keep the structural eligibility independent of an enclosing
 	    // constraint guard. The resolver may use exact sampling for a large
 	    // guarded dist only after proving every guard active in the current
 	    // solve context; inactive and unresolved guards must not be sampled.
 	    dspec.exact_supported_without_guard = exact_supported
-		  && !dspec.branches.empty();
+		  && (!dspec.branches.empty()
+		      || (real_subject && !dspec.real_points.empty()));
 	    dspec.exact_supported = dspec.exact_supported_without_guard
 		  && b.soft_guards.empty();
 	      // Scope std::randomize keeps its weighted soft group as the
@@ -10349,6 +10397,51 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 					false, indeterminate);
 }
 
+static bool z3_resolve_real_dist_points(Z3_context ctx, Z3_solver base,
+					 Z3_optimize opt,
+					 const Z3Builder::DistSpec&spec,
+					 z3_rng_stream_t&rng)
+{
+      if (!spec.real_subject || !spec.real_points_supported
+	  || spec.real_points.empty()) return false;
+
+      struct candidate_t {
+	    const Z3Builder::RealDistPoint*point;
+	    Z3_ast pin;
+      };
+      vector<candidate_t> feasible;
+      uint64_t total_weight = 0;
+      Z3_sort real_sort = Z3_mk_fpa_sort_double(ctx);
+      Z3_ast subject = Z3_mk_fpa_to_fp_bv(ctx, spec.subject, real_sort);
+      for (const auto&point : spec.real_points) {
+	    if (!point.weight) continue;
+	    // Real equality treats +0 and -0 as equal, unlike their bit patterns.
+	    Z3_ast point_value = Z3_mk_fpa_to_fp_bv(ctx, point.value, real_sort);
+	    Z3_ast pin = Z3_mk_fpa_eq(ctx, subject, point_value);
+	    Z3_solver_push(ctx, base);
+	    Z3_solver_assert(ctx, base, pin);
+	    Z3_lbool result = Z3_solver_check(ctx, base);
+	    Z3_solver_pop(ctx, base, 1);
+	    if (result == Z3_L_UNDEF
+		|| UINT64_MAX - total_weight < point.weight) return false;
+	    if (result != Z3_L_TRUE) continue;
+	    feasible.push_back({&point, pin});
+	    total_weight += point.weight;
+      }
+      if (feasible.empty() || !total_weight) return false;
+
+      uint64_t ticket = rng.uniform_u64(total_weight);
+      for (const auto&candidate : feasible) {
+	    if (ticket < candidate.point->weight) {
+		  Z3_solver_assert(ctx, base, candidate.pin);
+		  Z3_optimize_assert(ctx, opt, candidate.pin);
+		  return true;
+	    }
+	    ticket -= candidate.point->weight;
+      }
+      return false;
+}
+
 /* IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: sample complete legal
  * combinations, not independently uniform conditional projections. Block
  * only semantic variables, so auxiliary model assignments are not counted.
@@ -12454,6 +12547,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    exact_spec.exact_supported = exact_supported;
+	    if (spec.real_subject && !exact_supported
+		&& dist_resolved_vars.count(spec.subject)) {
+		  fprintf(stderr, "ERROR: additional real-valued dist sampling "
+			  "is not supported for this property.\n");
+		  return false;
+	    }
+	    if (spec.real_subject && exact_supported
+		&& !dist_resolved_vars.count(spec.subject)) {
+		  resolved = z3_resolve_real_dist_points(ctx, base, opt, spec,
+						 owner_rng(spec.rng_owner));
+		  if (!resolved) {
+			  fprintf(stderr, "ERROR: exact real dist sampling failed: "
+				  "no feasible finite point item.\n");
+			  return false;
+		  }
+		  dist_resolved_vars.insert(spec.subject);
+		  return true;
+	    }
 	    if (dynamic_weights
 		&& !materialize_dist_weights(spec, exact_spec)) {
 		  fprintf(stderr, "ERROR: exact dist sampling failed: a random-dependent "
@@ -12525,10 +12636,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!rand_scalar_active_(builder, prop_active, pv.idx)) continue;
 	    if (sampled_real_vars.count(pv.var)) continue;
 	    if (pv.is_real) {
+		  if (dist_resolved_vars.count(pv.var)) continue;
 		  auto bounds = builder.real_bounds.find(pv.idx);
 		  uint64_t bits = 0;
-		  if (dist_resolved_vars.count(pv.var)
-		      || dist_fallback_vars.count(pv.var)
+		  if (dist_fallback_vars.count(pv.var)
 		      || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0)) {
 			real_sampling_failed = true;
 			real_sampling_error =
@@ -14320,6 +14431,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					return pv.idx == ref.idx && pv.is_real;
 				  });
 		      if (real_ordered) {
+			    if (dist_resolved_vars.count(var)) continue;
 			    auto bounds = builder.real_bounds.find(ref.idx);
 			    uint64_t bits = 0;
 			    if (bounds == builder.real_bounds.end()
