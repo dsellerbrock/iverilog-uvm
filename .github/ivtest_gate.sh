@@ -284,4 +284,24 @@ else
     tail -1 "$WORK/vvp-runtime.log"
 fi
 
+echo "=== JSON ivtest sweep (vvp_reg.py) ==="
+# The default install omits tgt-fpga, but JSON synthesis rejects need fpga.conf.
+if ! make -C "$ROOT/tgt-fpga" install && \
+   { ! command -v sudo >/dev/null 2>&1 || ! sudo -n make -C "$ROOT/tgt-fpga" install; }; then
+    echo "GATE FAIL: could not install the FPGA target needed by JSON ivtest."
+    status=1
+fi
+
+cd "$ROOT/ivtest"
+json_start=$(date +%s)
+if ! python3 ./vvp_reg.py > "$WORK/json-ivtest.log" 2>&1; then
+    echo "GATE FAIL: JSON ivtest runner exited nonzero."
+    awk '/: Failed|^Test results:/ { print }' "$WORK/json-ivtest.log"
+    status=1
+else
+    grep '^Test results:' "$WORK/json-ivtest.log" | tail -1
+fi
+json_elapsed=$(($(date +%s) - json_start))
+echo "JSON ivtest wall time: ${json_elapsed}s"
+
 exit $status
