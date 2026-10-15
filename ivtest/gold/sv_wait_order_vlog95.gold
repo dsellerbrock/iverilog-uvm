@@ -1,0 +1,2 @@
+./ivltests/sv_wait_order_target.v:5: vlog95 sorry: wait_order cannot be translated to Verilog-95.
+error: Code generation had 1 error(s).

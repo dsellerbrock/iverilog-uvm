@@ -1,4 +1,5 @@
 same-slot-repeat-pass
+pre-entry-later-ignored-interpretation-pass
 out-of-order-else-pass
 single-event-triggered-pass
 first-trigger-persistent-pass
