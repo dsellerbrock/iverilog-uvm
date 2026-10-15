@@ -8702,6 +8702,23 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	p->mc_boundary = 0;
 	p->mc_more = $5;
 	$$ = p; }
+  /* IEEE 1800-2017/2023 16.9.7 and 16.12.7: a same-clock OR antecedent
+     may produce multiple matches, each with its own consequent. Clause
+     16.13.3 permits the later clock-flow chain. Keep this bounded to
+     chains with at least two clock changes; the lowering preserves each
+     fixed OR-branch match as a separate obligation. */
+  | sva_seq_comb K_PIPE_IMPL_NOV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 2, $1, $3, $4, $5); }
+  | sva_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 1, $1, $3, $4, $5); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_NOV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 2, $1, $3, $4, $5); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 1, $1, $3, $4, $5); }
   /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
   | K_not '(' property_expr ')'
