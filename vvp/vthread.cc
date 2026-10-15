@@ -30958,7 +30958,7 @@ bool of_AA_STORE_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
  */
 bool of_STORE_PROP_REF(vthread_t thr, vvp_code_t cp)
 {
-      size_t pid = cp->number;
+      size_t pid = cp->bit_idx[0];
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
       vvp_ref_signal_aa*formal = cp->net
