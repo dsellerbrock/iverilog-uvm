@@ -1259,6 +1259,13 @@ static stmt_named_type_t get_named_type(ivl_statement_t stmt, unsigned is_top)
 	case IVL_ST_WHILE:
             rtn = get_named_type(ivl_stmt_sub_stmt(stmt), 0);
 	    break;
+	case IVL_ST_WAIT_ORDER: {
+	    stmt_named_type_t fail_rtn;
+	    rtn = get_named_type(ivl_stmt_sub_stmt(stmt), 0);
+	    fail_rtn = get_named_type(ivl_stmt_wait_order_fail_stmt(stmt), 0);
+	    if (fail_rtn > rtn) rtn = fail_rtn;
+	    break;
+	}
 	default:
 	      /* The rest of the statement types do not have sub-statements. */
 	    break;
@@ -1681,6 +1688,11 @@ void emit_stmt(ivl_scope_t scope, ivl_statement_t stmt)
 	case IVL_ST_WAIT:
 	    if (is_wait_fork(scope, stmt)) break;
 	    emit_stmt_wait(scope, stmt);
+	    break;
+	case IVL_ST_WAIT_ORDER:
+	    fprintf(stderr, "%s:%u: vlog95 sorry: wait_order cannot be translated to Verilog-95.\n",
+		    ivl_stmt_file(stmt), ivl_stmt_lineno(stmt));
+	    vlog_errors += 1;
 	    break;
 	case IVL_ST_WHILE:
 	    emit_stmt_while(scope, stmt);

@@ -860,6 +860,7 @@ NetEvWait::~NetEvWait()
 	    events_.clear();
       }
       delete statement_;
+      delete failure_statement_;
 }
 
 void NetEvWait::add_event(NetEvent*tgt)

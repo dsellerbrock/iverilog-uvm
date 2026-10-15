@@ -610,6 +610,12 @@ void show_statement(ivl_statement_t net, unsigned ind)
 	    show_stmt_wait(net, ind);
 	    break;
 
+	  case IVL_ST_WAIT_ORDER:
+	    fprintf(out, "%*swait_order\n", ind, "");
+	    show_statement(ivl_stmt_sub_stmt(net), ind+2);
+	    show_statement(ivl_stmt_wait_order_fail_stmt(net), ind+2);
+	    break;
+
 	  case IVL_ST_WHILE:
 	    fprintf(out, "%*swhile\n", ind, "");
 	    show_expression(ivl_stmt_cond_expr(net), ind+4);

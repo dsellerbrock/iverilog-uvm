@@ -4102,6 +4102,8 @@ bool NetEvWait::check_synth(ivl_process_type_t pr_type,
 {
       bool result = false;
       if (statement_) result |= statement_->check_synth(pr_type, scope);
+      if (failure_statement_)
+	    result |= failure_statement_->check_synth(pr_type, scope);
       return result;
 }
 

@@ -698,6 +698,11 @@ static int has_named_block(ivl_scope_t scope, ivl_statement_t stmt)
 	case IVL_ST_WAIT:
 	    rtn = has_named_block(scope, ivl_stmt_sub_stmt(stmt));
 	    break;
+	case IVL_ST_WAIT_ORDER:
+	    rtn = has_named_block(scope, ivl_stmt_sub_stmt(stmt));
+	    if (!rtn)
+		  rtn = has_named_block(scope, ivl_stmt_wait_order_fail_stmt(stmt));
+	    break;
 	default: /* The rest cannot have a named block. */ ;
       }
       return rtn;
@@ -943,6 +948,7 @@ static unsigned has_func_disable(ivl_scope_t scope, ivl_statement_t stmt)
 	case IVL_ST_FORK_JOIN_ANY:
 	case IVL_ST_FORK_JOIN_NONE:
 	case IVL_ST_WAIT:
+	case IVL_ST_WAIT_ORDER:
 	    assert(0);
 	    break;
 	  /* These are allowed in a function and cannot have a disable. */

@@ -1168,8 +1168,10 @@ bool dll_target::proc_wait(const NetEvWait*net)
       assert(stmt_cur_->type_ == IVL_ST_NONE);
       FILE_NAME(stmt_cur_, net);
 
-      stmt_cur_->type_ = IVL_ST_WAIT;
+      stmt_cur_->type_ = net->is_wait_order() ? IVL_ST_WAIT_ORDER : IVL_ST_WAIT;
       stmt_cur_->u_.wait_.stmt_ = new struct ivl_statement_s();
+      if (net->is_wait_order())
+	    stmt_cur_->u_.wait_.failure_stmt_ = new struct ivl_statement_s();
 
       stmt_cur_->u_.wait_.nevent = net->nevents();
 
@@ -1267,6 +1269,15 @@ bool dll_target::proc_wait(const NetEvWait*net)
       bool flag = net->emit_recurse(this);
       if (flag && (stmt_cur_->type_ == IVL_ST_NONE))
 	    stmt_cur_->type_ = IVL_ST_NOOP;
+
+      if (net->is_wait_order()) {
+	    stmt_cur_ = save_cur_->u_.wait_.failure_stmt_;
+	    const NetProc*failure = net->failure_statement();
+	    bool failure_flag = failure ? failure->emit_proc(this) : true;
+	    if (failure_flag && (stmt_cur_->type_ == IVL_ST_NONE))
+		  stmt_cur_->type_ = IVL_ST_NOOP;
+	    flag = flag && failure_flag;
+      }
 
       stmt_cur_ = save_cur_;
 

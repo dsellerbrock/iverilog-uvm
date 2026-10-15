@@ -2635,7 +2635,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <parmvalue> parameter_value_opt
 %type <parmvalue> type_parameter_value
 
-%type <event_exprs> event_expression_list
+%type <event_exprs> event_expression_list wait_order_event_list
 %type <event_expr> event_expression
 %type <event_statement> event_control
 %type <statement> statement statement_item statement_or_null
@@ -11482,6 +11482,26 @@ event_expression_list
       }
   ;
 
+wait_order_event_list
+  : hierarchy_identifier
+      { PEIdent*id = new PEIdent(*$1, @1.lexical_pos);
+	FILE_NAME(id, @1);
+	PEEvent*event = new PEEvent(PEEvent::ANYEDGE, id);
+	FILE_NAME(event, @1);
+	$$ = new std::vector<PEEvent*>(1, event);
+	delete $1;
+      }
+  | wait_order_event_list ',' hierarchy_identifier
+      { PEIdent*id = new PEIdent(*$3, @3.lexical_pos);
+	FILE_NAME(id, @3);
+	PEEvent*event = new PEEvent(PEEvent::ANYEDGE, id);
+	FILE_NAME(event, @3);
+	$1->push_back(event);
+	$$ = $1;
+	delete $3;
+      }
+  ;
+
 event_expression
   : K_posedge expression K_iff expression
       { PEEvent*tmp = new PEEvent(PEEvent::POSEDGE, $2, $4);
@@ -19314,6 +19334,28 @@ statement_item /* This is roughly statement_item in the LRM */
 	tmp = new PEventStatement(etmp);
 	FILE_NAME(tmp,@1);
 	tmp->set_statement($5);
+	$$ = tmp;
+      }
+  | K_wait_order '(' wait_order_event_list ')' statement_or_null
+    K_else statement_or_null
+      { PEventStatement*tmp = new PEventStatement(*$3);
+	FILE_NAME(tmp,@1);
+	tmp->set_statement($5);
+	tmp->set_wait_order_else($7);
+	if (generation_flag < GN_VER2023 && dynamic_cast<PNoop*>($7))
+	      yyerror(@6, "error: empty wait_order else action requires IEEE 1800-2023.");
+	pform_requires_sv(@1, "wait_order statement");
+	delete $3;
+	$$ = tmp;
+      }
+  | K_wait_order '(' wait_order_event_list ')' statement_or_null
+    %prec less_than_K_else
+      { PEventStatement*tmp = new PEventStatement(*$3);
+	FILE_NAME(tmp,@1);
+	tmp->set_statement($5);
+	tmp->set_wait_order();
+	pform_requires_sv(@1, "wait_order statement");
+	delete $3;
 	$$ = tmp;
       }
   | K_wait K_fork ';'
