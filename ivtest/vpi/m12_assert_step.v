@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // M12-1: cbAssertionStepSuccess / cbAssertionStepFailure delivery.
 // The automaton checker now reports, once per clock tick, whether any
 // live attempt advanced one step of the sequence (StepSuccess) or died

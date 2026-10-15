@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // M12B: concurrent-assertion VPI object model. Three concurrent
 // assertions are enumerated through vpi_iterate(vpiAssertion, ...).
 module top;

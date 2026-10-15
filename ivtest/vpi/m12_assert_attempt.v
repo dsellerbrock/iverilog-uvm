@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // M12-2: s_vpi_attempt_info.attemptStartTime recovers a completing
 // attempt's REAL launch time. For a fixed-latency assertion every
 // attempt takes the same number of clock ticks, so the runtime keeps a

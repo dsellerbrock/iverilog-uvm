@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // Two distinct parents fail together; successful parents wait until their
 // antecedent windows close. Count nonvacuous callbacks separately from
 // user actions, which also run on vacuous success.

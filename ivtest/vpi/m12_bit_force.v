@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // M12-3: VPI force/release of a single bit-select (sig[i]) plus
 // cbForce/cbRelease callbacks registered on the containing variable.
 module top;

@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // M12B-rest: cbAssertionStart fires once per sampled attempt tick;
 // $assertoff/$asserton transitions fire Disable/Enable; $assertkill
 // fires Reset (plus Disable when it also turns reporting off).

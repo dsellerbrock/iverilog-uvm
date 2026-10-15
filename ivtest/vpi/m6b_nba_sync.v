@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // M6B-2: cbNBASynch (IEEE 1800-2017 clause 38) -- the post-NBA callback
 // point. Before this existed, cbNBASynch was not even defined in
 // vpi_user.h, so a VPI application that registered it failed to compile.

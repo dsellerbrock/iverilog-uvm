@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // A nonoverlapped endpoint is itself a successful sequence step even though
 // its consequence record is allocated after consequence advancement. At t=25
 // that endpoint step coexists with failure of the older consequence; both

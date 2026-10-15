@@ -1,3 +1,5 @@
+`timescale 1s/1s
+
 // M12B-cb: a plain boolean assertion reports cbAssertionSuccess when the
 // sampled value is true and cbAssertionFailure when false. Drive a known
 // pattern (1 1 0 1 0) -> 3 successes, 2 failures.
