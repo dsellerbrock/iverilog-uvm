@@ -23974,6 +23974,11 @@ NetProc* PEventStatement::elaborate_wait_fork(Design*des, const NetScope*scope) 
 
 NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 {
+	/* wait_order uses named-event identifiers and has two continuations, so
+	   it must not pass through the ordinary event-or lowering below. */
+      if (wait_order_)
+	    return elaborate_wait_order_(des, scope);
+
 	/* Check to see if this is a wait fork statement. */
       if ((expr_.size() == 1) && (expr_[0] == 0))
 		  return elaborate_wait_fork(des, scope);
@@ -24060,6 +24065,70 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    return elaborate_wait(des, scope, enet);
 
       return elaborate_st(des, scope, enet);
+}
+
+NetProc* PEventStatement::elaborate_wait_order_(Design*des,
+						NetScope*scope) const
+{
+      ivl_assert(*this, scope);
+
+      if (scope->in_func() || scope->in_final()) {
+	    cerr << get_fileline() << ": error: wait_order is not allowed in "
+	            "functions or final procedures." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      std::vector<NetEvent*>events;
+      for (PEEvent*event : expr_) {
+	    const PEIdent*id = event && event->expr()
+		  ? dynamic_cast<const PEIdent*>(event->expr()) : nullptr;
+	    prepared_event_leaf_t prepared;
+	    unsigned errors_before = des->errors;
+	    if (id)
+		  prepare_event_leaf_(des, scope, *event, event, prepared);
+	    if (des->errors != errors_before)
+		  return nullptr;
+	    if (!id || event->type() != PEEvent::ANYEDGE
+		|| !prepared.named_event || prepared.class_event) {
+		  cerr << get_fileline() << ": error: wait_order currently requires "
+		          "scalar named-event identifiers." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    events.push_back(prepared.named_event);
+      }
+
+      NetProc*success = statement_
+	    ? statement_->elaborate(des, scope)
+	    : new NetBlock(NetBlock::SEQU, nullptr);
+      if (!success)
+	    return nullptr;
+
+      NetProc*failure = nullptr;
+      if (wait_order_else_) {
+	    failure = else_statement_
+		  ? else_statement_->elaborate(des, scope)
+		  : new NetBlock(NetBlock::SEQU, nullptr);
+	    if (!failure) {
+		  delete success;
+		  return nullptr;
+	    }
+      } else {
+	    std::vector<NetExpr*>args;
+	    args.push_back(new NetECString("wait_order events triggered out of order"));
+	    NetSTask*default_error = new NetSTask("$error", IVL_SFUNC_AS_TASK_IGNORE, args);
+	    default_error->set_line(*this);
+	    failure = default_error;
+      }
+
+      NetEvWait*wait = new NetEvWait(success);
+      wait->set_line(*this);
+      wait->set_wait_order();
+      wait->set_failure_statement(failure);
+      for (NetEvent*event : events)
+	    wait->add_event(event);
+      return wait;
 }
 
 /*

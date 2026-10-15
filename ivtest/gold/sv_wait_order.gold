@@ -1,0 +1,9 @@
+same-slot-repeat-pass
+out-of-order-else-pass
+single-event-triggered-pass
+first-trigger-persistent-pass
+duplicate-event-pass
+repeated-persistent-event-pass
+nonblocking-trigger-pass
+automatic-event-pass
+automatic-event-pass

@@ -801,6 +801,12 @@ NexusSet* NetEvWait::nex_input(bool rem_out, bool always_sens, bool nested_func)
 	    delete tmp;
       }
 
+      if (failure_statement_) {
+	    NexusSet*tmp = failure_statement_->nex_input(rem_out, always_sens, nested_func);
+	    result->add(*tmp);
+	    delete tmp;
+      }
+
       return result;
 }
 

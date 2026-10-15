@@ -103,7 +103,11 @@ enum operand_e {
 	/* Fields of the descriptor used only by object splice /proto opcodes. */
       OA_CONTAINER_DATA_STRING,
       OA_CONTAINER_DATA_MAX,
-      OA_CONTAINER_DATA_PROTO
+      OA_CONTAINER_DATA_PROTO,
+	/* The wait_order opcode needs a functor and two code pointers. */
+	  OA_WAIT_ORDER_NET,
+	  OA_WAIT_ORDER_CODE,
+	  OA_WAIT_ORDER_CODE2
 };
 
 struct opcode_table_s {
@@ -823,6 +827,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/obj/mutation/filtered/multi",of_WAIT_OBJ_MUTATION_FILTERED_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/obj/mutation/multi",of_WAIT_OBJ_MUTATION_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/observed",of_WAIT_OBSERVED,0,{OA_NONE,OA_NONE, OA_NONE} },
+      { "%wait/order",of_WAIT_ORDER,3,{OA_WAIT_ORDER_NET,OA_WAIT_ORDER_CODE,OA_WAIT_ORDER_CODE2} },
       { "%wait/reactive",of_WAIT_REACTIVE,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/triggered",of_WAIT_TRIGGERED,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%wait/vif/anyedge",of_WAIT_VIF_ANYEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
@@ -2920,6 +2925,14 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
       vvp_code_t code = codespace_allocate();
       code->opcode = op->opcode;
 
+      if (op->opcode == of_WAIT_ORDER) {
+	    code->wait_order_data = new vvp_wait_order_opcode_data_s;
+	    code->wait_order_data->observer = 0;
+	    code->wait_order_data->branches.opcode = 0;
+	    code->wait_order_data->branches.cptr = 0;
+	    code->wait_order_data->branches.cptr2 = 0;
+      }
+
       if (op->argc != (opa? opa->argc : 0)) {
 	    yyerror("operand count");
 	    compile_errors += 1;
@@ -3005,6 +3018,27 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 
 		  functor_ref_lookup(&code->net2, opa->argv[idx].symb.text);
 		  break;
+
+	case OA_WAIT_ORDER_NET:
+	  if (opa->argv[idx].ltype != L_SYMB) {
+		yyerror("operand format");
+		break;
+	  }
+	  functor_ref_lookup(&code->wait_order_data->observer,
+			     opa->argv[idx].symb.text);
+	  break;
+
+	case OA_WAIT_ORDER_CODE:
+	case OA_WAIT_ORDER_CODE2:
+	  if (opa->argv[idx].ltype != L_SYMB) {
+		yyerror("operand format");
+		break;
+	  }
+	  assert(opa->argv[idx].symb.idx == 0);
+	  code_label_lookup(&code->wait_order_data->branches,
+			    opa->argv[idx].symb.text,
+			    op->argt[idx] == OA_WAIT_ORDER_CODE2);
+	  break;
 
 		case OA_NUMBER:
 		  if (opa->argv[idx].ltype != L_NUMB) {

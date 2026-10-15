@@ -640,3 +640,16 @@ pure-final rejection, matching/mismatched extern declarations, and the 2017
 edition boundary. T0/T1 evidence is recorded with the issue branch; batch T2
 is pending, so this is a focused implementation record, not full §18.5
 qualification.
+
+## 2026-10-15 — §15.5.4 `wait_order` edition boundary
+
+IEEE 1800-2017 and 1800-2023 §15.5.4 use the same ordered-trigger and failure
+semantics. The 2017 syntax requires a statement after `else`; 2023 permits a
+null statement. With no `else`, 2017 specifies a run-time error while 2023
+specifies the default `$error` action. Paired `-g2017`/`-g2023` fixtures cover
+the supported named-event subset and reject `else ;` only in 2017. Slurm T0/T1
+passed in job 1233 using the build/install from job 1231: 9/9 T0 legacy cases,
+6 JSON rows, the smoke set, and 12/12 T1 cases in both legacy and JSON runners.
+See the [2017 clause matrix](matrices/ieee1800_2017_clause_matrix.md#october-15-bounded-wait_order-subset)
+for the tested boundary; merged event assignment remains a separate
+§15.5.5.1 limitation.

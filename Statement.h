@@ -780,6 +780,10 @@ class PEventStatement  : public Statement {
       ~PEventStatement() override;
 
       void set_statement(Statement*st);
+	// Preserve an explicit, possibly empty, wait_order else clause.
+      void set_wait_order() { wait_order_ = true; }
+      void set_wait_order_else(Statement*st)
+      { wait_order_ = true; wait_order_else_ = true; else_statement_ = st; }
 	// The statement the event control guards, so a caller that
 	// synthesizes extra work around it (M9-SV sampled value
 	// capture) can wrap what is already there.
@@ -808,10 +812,14 @@ class PEventStatement  : public Statement {
     private:
       NetProc* elaborate_conditional_(Design*des, NetScope*scope,
 				      NetProc*st) const;
+      NetProc* elaborate_wait_order_(Design*des, NetScope*scope) const;
       bool has_conditional_event_() const;
 
       std::vector<PEEvent*>expr_;
       Statement*statement_;
+      Statement*else_statement_ = nullptr;
+      bool wait_order_ = false;
+      bool wait_order_else_ = false;
       bool always_sens_;
 };
 

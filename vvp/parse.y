@@ -111,7 +111,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_DFF_N K_DFF_N_ACLR
 %token K_DFF_N_ACLR_ASET K_DFF_N_ASET K_DFF_N_ASET_ACLR
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
-%token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR
+%token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR K_EVENT_ORDER
 %token K_EXPORT K_EXTEND_S K_SAMPLE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH
 %token K_VIF_PROXY K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
@@ -786,6 +786,9 @@ statement
 
 	| T_LABEL K_EVENT_OR symbols ';'
                 { compile_event($1, 0, $3.cnt, $3.vect); }
+
+	| T_LABEL K_EVENT_ORDER symbols ';'
+		{ compile_event_order($1, $3.cnt, $3.vect); }
 
 
   /* Instructions may have a label, and have zero or more

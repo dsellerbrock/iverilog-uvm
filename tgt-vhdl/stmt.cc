@@ -1689,6 +1689,9 @@ int draw_stmt(vhdl_procedural *proc, stmt_container *container,
       return draw_delay(proc, container, stmt);
    case IVL_ST_WAIT:
       return draw_wait(proc, container, stmt);
+   case IVL_ST_WAIT_ORDER:
+      error("wait_order statements cannot be translated to VHDL");
+      return 1;
    case IVL_ST_CONDIT:
       return draw_if(proc, container, stmt, is_last);
    case IVL_ST_CASE:

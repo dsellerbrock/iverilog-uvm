@@ -1945,6 +1945,164 @@ void vvp_fun_event_or_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       }
 }
 
+vvp_fun_wait_order::vvp_fun_wait_order(unsigned nevents)
+: events_(nevents, 0)
+{
+}
+
+vvp_fun_wait_order::~vvp_fun_wait_order()
+{
+      unregister_observers_();
+}
+
+bool vvp_fun_wait_order::bind_sources_()
+{
+      if (sources_bound_)
+	    return true;
+
+      for (vvp_net_t*net : events_) {
+	    vvp_named_event*event = net && net->fun
+		  ? dynamic_cast<vvp_named_event*>(net->fun) : 0;
+	    if (!event)
+		  return false;
+	    sources_.insert(event);
+      }
+      sources_bound_ = true;
+      return true;
+}
+
+void vvp_fun_wait_order::register_observers_()
+{
+      if (registered_)
+	    return;
+      for (vvp_named_event*event : sources_)
+	    event->add_wait_order_observer(this);
+      registered_ = true;
+}
+
+void vvp_fun_wait_order::unregister_observers_()
+{
+      if (!registered_)
+	    return;
+      for (vvp_named_event*event : sources_)
+	    event->remove_wait_order_observer(this);
+      registered_ = false;
+}
+
+bool vvp_fun_wait_order::arm(vthread_t thread, vvp_code_t success,
+			     vvp_code_t failure, vvp_code_t&immediate)
+{
+	  assert(!events_.empty());
+	  if (!bind_sources_()) {
+	    fprintf(stderr,
+		    "runtime error: wait_order operand is not a named event\n");
+	    immediate = failure;
+	    return true;
+	  }
+	  vvp_context_t context = vthread_get_wt_context();
+	  uint64_t context_generation = vthread_context_generation(context);
+	  vvp_named_event*first = dynamic_cast<vvp_named_event*>(events_[0]->fun);
+	  bool first_seen = first->triggered_now();
+	  if (first_seen && events_.size() == 1) {
+	    immediate = success;
+	    return true;
+      }
+
+      waiter_s waiter;
+      waiter.thread = thread;
+      waiter.next = first_seen ? 1 : 0;
+      waiter.context = context;
+	  waiter.context_generation = context_generation;
+      waiter.success = success;
+      waiter.failure = failure;
+      waiters_.push_back(waiter);
+	  register_observers_();
+      vthread_mark_resource_wait(thread, this, vvp_object_t(),
+				 &vvp_fun_wait_order::cancel_waiter_);
+      return false;
+}
+
+void vvp_fun_wait_order::cancel_waiter_(void*owner, vthread_t thread)
+{
+      vvp_fun_wait_order*self = static_cast<vvp_fun_wait_order*>(owner);
+      for (std::vector<waiter_s>::iterator cur = self->waiters_.begin();
+	   cur != self->waiters_.end(); ++cur) {
+	    if (cur->thread == thread) {
+		  self->waiters_.erase(cur);
+		  if (self->waiters_.empty())
+			self->unregister_observers_();
+		  return;
+	    }
+      }
+}
+
+void vvp_fun_wait_order::cancel_context(vvp_context_t context)
+{
+	  std::vector<vthread_t>threads;
+	  for (const waiter_s&waiter : waiters_)
+	    if (waiter.context == context)
+		  threads.push_back(waiter.thread);
+	  for (vthread_t thread : threads)
+	    vthread_cancel_resource_wait(thread);
+}
+
+void vvp_fun_wait_order::trigger(vvp_named_event*source,
+				 vvp_context_t context)
+{
+	  uint64_t generation = vthread_context_generation(context);
+      struct ready_s { vthread_t thread; vvp_code_t pc; };
+      std::vector<ready_s>ready;
+      for (std::vector<waiter_s>::iterator cur = waiters_.begin();
+	   cur != waiters_.end();) {
+	    if (context && (cur->context != context
+			    || cur->context_generation != generation)) {
+		  ++cur;
+		  continue;
+	    }
+
+	    bool complete = false;
+	    vvp_code_t pc = 0;
+	    vvp_named_event*expected =
+		  dynamic_cast<vvp_named_event*>(events_[cur->next]->fun);
+	    if (expected == source) {
+		  cur->next += 1;
+		  if (cur->next == events_.size()) {
+			pc = cur->success;
+			complete = true;
+		  }
+	    } else {
+		  bool repeated = false;
+		  for (size_t idx = 0; idx < cur->next; idx += 1) {
+			if (events_[idx]->fun == source) {
+			      repeated = true;
+			      break;
+			}
+		  }
+		  for (size_t idx = cur->next + 1;
+		       !repeated && idx < events_.size(); idx += 1) {
+			if (events_[idx]->fun == source) {
+			      pc = cur->failure;
+			      complete = true;
+			      break;
+			}
+		  }
+	    }
+	    if (complete) {
+		  ready.push_back({cur->thread, pc});
+		  cur = waiters_.erase(cur);
+	    } else {
+		  ++cur;
+	    }
+      }
+
+	  if (waiters_.empty())
+	    unregister_observers_();
+
+	  /* Record every waiter's result before scheduling any continuation. */
+      for (const ready_s&item : ready)
+	    vthread_resume_resource_wait(item.thread, this, item.pc);
+}
+
 vvp_named_event::vvp_named_event(__vpiHandle*h)
 {
       handle_ = h;
@@ -2005,6 +2163,32 @@ void vvp_named_event::note_triggered(void)
       ever_triggered_ = true;
 }
 
+void vvp_named_event::add_wait_order_observer(vvp_fun_wait_order*observer)
+{
+      wait_order_observers_.insert(observer);
+}
+
+void vvp_named_event::remove_wait_order_observer(vvp_fun_wait_order*observer)
+{
+      wait_order_observers_.erase(observer);
+}
+
+void vvp_named_event::notify_wait_order_observers(vvp_context_t context)
+{
+      std::vector<vvp_fun_wait_order*>observers(wait_order_observers_.begin(),
+						 wait_order_observers_.end());
+      for (vvp_fun_wait_order*observer : observers)
+	    observer->trigger(this, context);
+}
+
+void vvp_named_event::cancel_wait_order_context(vvp_context_t context)
+{
+      std::vector<vvp_fun_wait_order*>observers(wait_order_observers_.begin(),
+						 wait_order_observers_.end());
+      for (vvp_fun_wait_order*observer : observers)
+	    observer->cancel_context(context);
+}
+
 bool vvp_named_event::triggered_now(void) const
 {
       return ever_triggered_ && last_trigger_time_ == schedule_simtime();
@@ -2015,6 +2199,7 @@ void vvp_named_event_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 {
       bool first_trigger = !triggered_now();
       note_triggered();
+      notify_wait_order_observers(0);
       if (first_trigger) {
             triggered_in_slot.insert(this);
             vthread_schedule_event_waiters(triggered_change_threads_);
@@ -2038,6 +2223,7 @@ vvp_named_event_aa::vvp_named_event_aa(__vpiHandle*h)
 vvp_named_event_aa::~vvp_named_event_aa()
 {
       for (named_event_aa_state_s*state : active_states_) {
+	    cancel_wait_order_context(state->context);
             triggered_aa_in_slot.erase(state);
             while (state->triggered_change_threads)
                   vthread_cancel_event_wait(state->triggered_change_threads);
@@ -2047,12 +2233,14 @@ vvp_named_event_aa::~vvp_named_event_aa()
 void vvp_named_event_aa::alloc_instance(vvp_context_t context)
 {
       named_event_aa_state_s*state = new named_event_aa_state_s;
+      state->context = context;
       active_states_.insert(state);
       vvp_set_context_item(context, context_idx_, state);
 }
 
 void vvp_named_event_aa::reset_instance(vvp_context_t context)
 {
+      cancel_wait_order_context(context);
       named_event_aa_state_s*state = static_cast<named_event_aa_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
@@ -2068,6 +2256,7 @@ void vvp_named_event_aa::reset_instance(vvp_context_t context)
 #ifdef CHECK_WITH_VALGRIND
 void vvp_named_event_aa::free_instance(vvp_context_t context)
 {
+      cancel_wait_order_context(context);
       named_event_aa_state_s*state = static_cast<named_event_aa_state_s*>
             (vvp_get_context_item(context, context_idx_));
       triggered_aa_in_slot.erase(state);
@@ -2116,9 +2305,10 @@ vthread_t vvp_named_event_dyn::add_waiting_thread(vthread_t thread)
 }
 
 void vvp_named_event_dyn::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
-                                    vvp_context_t)
+                                    vvp_context_t context)
 {
       note_triggered();
+      notify_wait_order_observers(context);
       run_waiting_threads_(threads_);
 	/* A per-instance dynamic event has no fanout net graph and no
 	   VPI __vpiNamedEvent handle, so unlike vvp_named_event_sa there
@@ -2167,6 +2357,7 @@ void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
             || state->last_trigger_time != schedule_simtime();
       state->last_trigger_time = schedule_simtime();
       state->ever_triggered = true;
+      notify_wait_order_observers(context);
       if (first_trigger) {
             triggered_aa_in_slot.insert(state);
             vthread_schedule_event_waiters(state->triggered_change_threads);
@@ -2666,6 +2857,20 @@ static void compile_event_or(char*label, unsigned argc, struct symb_s*argv)
 	    }
 	    input_connect(curr_net, idx % 4, argv[idx].text);
       }
+      free(argv);
+}
+
+void compile_event_order(char*label, unsigned argc, struct symb_s*argv)
+{
+      assert(argc > 0);
+      vvp_net_t*net = new vvp_net_t;
+      vvp_fun_wait_order*fun = new vvp_fun_wait_order(argc);
+      net->fun = fun;
+      define_functor_symbol(label, net);
+      free(label);
+
+      for (unsigned idx = 0; idx < argc; idx += 1)
+	    functor_ref_lookup(&fun->event_ref(idx), argv[idx].text);
       free(argv);
 }
 

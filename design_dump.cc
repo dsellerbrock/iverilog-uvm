@@ -1404,13 +1404,13 @@ void NetEvWait::dump(ostream&o, unsigned ind) const
 	    return;
       }
 
-      o << "@(";
+      o << (is_wait_order() ? "wait_order(" : "@(");
 
       if (nevents() > 0)
 	    o << event(0)->name();
 
       for (unsigned idx = 1 ;  idx < nevents() ;  idx += 1)
-	    o << " or " << event(idx)->name();
+	    o << (is_wait_order() ? ", " : " or ") << event(idx)->name();
 
       o << ")  // " << get_fileline() << endl;
 
@@ -1418,6 +1418,10 @@ void NetEvWait::dump(ostream&o, unsigned ind) const
 	    statement_->dump(o, ind+2);
       else
 	    o << setw(ind+2) << "" << "/* noop */ ;" << endl;
+      if (failure_statement_) {
+	    o << setw(ind) << "" << "else" << endl;
+	    failure_statement_->dump(o, ind+2);
+      }
 }
 
 ostream& operator << (ostream&out, const NetEvWait&obj)
@@ -1434,13 +1438,13 @@ void NetEvWait::dump_inline(ostream&o) const
 	    return;
       }
 
-      o << "@(";
+      o << (is_wait_order() ? "wait_order(" : "@(");
 
       if (nevents() > 0)
 	    o << event(0)->name();
 
       for (unsigned idx = 1 ;  idx < nevents() ;  idx += 1)
-	    o << " or " << event(idx)->name();
+	    o << (is_wait_order() ? ", " : " or ") << event(idx)->name();
 
       o << ") ";
 }
