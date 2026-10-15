@@ -6,5 +6,7 @@ out-of-order-else-pass
 single-event-triggered-pass
 first-trigger-persistent-pass
 nonblocking-trigger-pass
+automatic-event-out-of-order-pass
 automatic-event-pass
-automatic-event-pass
+shared-trigger-mixed-outcomes-pass
+cancel-after-first-restart-pass
