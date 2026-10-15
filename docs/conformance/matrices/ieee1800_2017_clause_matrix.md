@@ -7,17 +7,21 @@ linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries
 
 ### October 15, 2026 — §19.3 covergroup `ref` arguments
 
-IEEE 1800-2017 §19.3 says each `ref` argument lets a covergroup instance
-sample a different variable and that `input` arguments keep the value passed
-to `new`; §19.3 of 1800-2023 says a `ref` argument tracks its actual as it
-changes. Both editions make covergroup `ref` formals read-only, with the same
-behavior as a `const ref` formal. The 2017 text explicitly leaves automatic
-actual behavior undefined; this implementation is bounded to direct static
-packed integral variables.
-The paired `sv_covergroup_ref_tracking` fixtures cover two independent `ref`
-instances, a const actual, an input snapshot, and rejection of a non-variable
-actual. T0/T1 results are pending. This does not close issue #448:
-per-instance option expressions and other §19 behavior remain open.
+IEEE 1800-2017/2023 §19.3 says each covergroup `ref` argument tracks a
+different actual as it changes, `input` arguments keep the constructor-time
+value, and `ref` formals are read-only like `const ref`. IEEE 1800-2017/2023
+§13.5.2 excludes nets and selects into nets from ref actuals. This is a
+PARTIAL implementation: whole direct static packed integral variables are
+supported; automatic and aggregate-member actuals are outside the qualified
+subset and receive implementation-limit diagnostics. Read-only `ref` formals
+are checked in both editions. IEEE
+1800-2017 §19.3 leaves automatic actual behavior undefined, while 2023
+automatic-lifetime behavior is not qualified here. Paired regressions cover
+independent live bindings, X/Z and signed samples, input snapshots, type
+equivalence, read-only rejection, net rejection, and both implementation
+limits. T0/T1 results are pending. Per-instance option expressions and other
+§19 behavior remain open,
+so this does not close issue #448.
 
 ### October 14, 2026 — §8.20 method override specifiers
 

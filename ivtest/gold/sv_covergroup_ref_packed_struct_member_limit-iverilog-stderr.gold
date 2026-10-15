@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_ref_packed_struct_member_limit.v:15: sorry: covergroup ref constructor arguments currently require a whole packed variable.
+1 error(s) during elaboration.

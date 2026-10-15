@@ -29498,6 +29498,15 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 					    "13.5.2)." << endl;
 				    bad_args = true;
 				    ref_arg_ok = false;
+		      } else if (ref_lval->sig()
+				 && ref_lval->sig()->type() != NetNet::REG
+				 && ref_lval->sig()->type() != NetNet::IMPLICIT_REG) {
+			    cerr << value->get_fileline()
+				 << ": error: A covergroup ref actual must be a variable; "
+				    "nets and selects into nets are illegal ref actuals "
+				    "(IEEE 1800-2017/2023 13.5.2)." << endl;
+			    bad_args = true;
+			    ref_arg_ok = false;
 			      } else if (ref_lval->more || ref_lval->is_array_slice()
 				 || ref_lval->get_base()
 				 || ref_lval->get_property_idx() >= 0
@@ -29510,7 +29519,11 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 					 << endl;
 				    bad_args = true;
 				    ref_arg_ok = false;
-			      } else if (!ref_static_actual_is_static_lifetime(ref_lval)) {
+		      } else if (!ref_static_actual_is_static_lifetime(ref_lval, false)) {
+			    cerr << value->get_fileline()
+				 << ": sorry: covergroup ref actuals with automatic lifetime "
+				    "are unsupported by this bounded implementation."
+				 << endl;
 				    bad_args = true;
 				    ref_arg_ok = false;
 			      }
@@ -29571,6 +29584,7 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 				ctype->covgrp_ctor_formal_type(k));
 			  if (ctype->covgrp_ctor_formal_is_ref(k)) {
 				formal->port_type(NetNet::PREF);
+				formal->set_const(true);
 				/* shortcut: direct static packed actuals only, extend after
 				   binding chains and automatic lifetimes can be retained. */
 				formal->set_ref_static(true);

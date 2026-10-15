@@ -17801,6 +17801,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    if (!slot_type) slot_type = &netvector_t::atom2s32;
 				    NetNet*slot = new NetNet(scope, scope->local_symbol(),
 						      NetNet::REG, slot_type);
+				    if (cgtype->covgrp_ctor_formal_is_ref(k))
+					  slot->set_const(true);
 				    slot->set_line(*this);
 				    slot->local_flag(true);
 				    NetEProperty*value = new NetEProperty(
@@ -41231,19 +41233,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   // before/after the coverpoint expression binding interval.
                   struct alias_t { perm_string name; NetNet*net; NetNet*previous; };
                   std::vector<alias_t> aliases;
-                  auto bind_formal = [&](perm_string name, ivl_type_t type) {
+                  auto bind_formal = [&](perm_string name, ivl_type_t type,
+                                         bool read_only) {
                         NetNet*net = new NetNet(class_scope_, class_scope_->local_symbol(),
                                                NetNet::REG, type);
+                        if (read_only) net->set_const(true);
                         net->local_flag(true);
                         aliases.push_back({name, net,
                               class_scope_->set_signal_alias(name, net)});
                   };
                   for (size_t fi = 0; fi < cgdef->ctor_formals.size(); ++fi)
                         bind_formal(cgdef->ctor_formals[fi],
-                                    cg_class->covgrp_ctor_formal_type(fi));
+                                    cg_class->covgrp_ctor_formal_type(fi),
+                                    cg_class->covgrp_ctor_formal_is_ref(fi));
                   for (size_t fi = 0; fi < cgdef->sample_formals.size(); ++fi)
                         bind_formal(cgdef->sample_formals[fi],
-                                    cg_class->covgrp_sample_formal_type(fi));
+                                    cg_class->covgrp_sample_formal_type(fi),
+                                    false);
                   // 19.10 declares an int member; use ordinary assignment
                   // conversion before enforcing table 19-3's domain.
                   NetExpr*value = is_direct_ctor_formal(it->second) ? nullptr
@@ -41290,7 +41296,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // therefore retain their lexical shadowing precedence.
 		    std::vector<NetNet*> ctor_formal_placeholders;
 		    std::vector<NetNet*> ctor_formal_previous;
-		    for (perm_string formal : cgdef->ctor_formals) {
+		    for (size_t fi = 0; fi < cgdef->ctor_formals.size(); ++fi) {
+			  perm_string formal = cgdef->ctor_formals[fi];
 			  int pidx = cg_class->property_idx_from_name(formal);
 			  ivl_type_t formal_type = pidx >= 0
 				? cg_class->get_prop_type((size_t)pidx)
@@ -41298,6 +41305,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  NetNet*placeholder = new NetNet(
 				class_scope_, class_scope_->local_symbol(),
 				NetNet::REG, formal_type);
+			  if (cg_class->covgrp_ctor_formal_is_ref(fi))
+				placeholder->set_const(true);
 			  placeholder->local_flag(true);
 			  ctor_formal_placeholders.push_back(placeholder);
 			  ctor_formal_previous.push_back(class_scope_->set_signal_alias(

@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_ref_write_fail.v:9: error: Assignment to const signal `value` is not allowed.
+1 error(s) during elaboration.
