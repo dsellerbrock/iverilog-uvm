@@ -420,6 +420,9 @@ class vvp_vector4_t {
       vvp_vector4_t& operator += (int64_t);
 
     private:
+	// Let VPI's saturating integer conversion inspect the planes word-wise.
+      friend bool vpip_vec4_to_int64_saturated(const vvp_vector4_t&, bool,
+						 int64_t&);
 	// Number of vvp_bit4_t bits that can be shoved into a word.
       enum { BITS_PER_WORD = 8*sizeof(unsigned long) };
 	// The double value constructor requires that WORD_0_BBITS
