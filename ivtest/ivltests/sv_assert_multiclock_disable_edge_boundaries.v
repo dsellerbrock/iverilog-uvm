@@ -32,7 +32,8 @@ module sv_assert_multiclock_disable_edge_boundaries;
   initial begin
     #1 a = 1;
     #10 a = 0;
-    #15;
+    #1 start_rst_n = 1; // Release before c2/c3 so only the attempt start is disabled.
+    #14;
     if (start_disabled != 0 || end_disabled != 0 ||
         start_control != 1 || end_control != 1)
       $fatal(1, "start=%0d/%0d end=%0d/%0d",
