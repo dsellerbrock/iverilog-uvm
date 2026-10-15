@@ -30950,6 +30950,44 @@ bool of_AA_STORE_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
 
 
 /*
+ * %store/prop/ref <formal>, <pid>
+ *
+ * Retain a covergroup constructor ref binding on its newly-created object.
+ * The wrapper frame is about to return, so copying only the property's
+ * current value would lose the live actual required by IEEE 1800 19.3.
+ */
+bool of_STORE_PROP_REF(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_ref_signal_aa*formal = cp->net
+	    ? dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil) : 0;
+      if (!cobj || !formal || pid >= cobj->get_defn()->property_count()) {
+	    cerr << thr->get_fileline()
+		 << "runtime error: invalid covergroup ref constructor binding."
+		 << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(0);
+	    return true;
+      }
+      vvp_object_t binding = formal->capture_binding();
+      if (binding.test_nil()) {
+	    cerr << thr->get_fileline()
+		 << "runtime error: unsupported or unbound covergroup ref constructor argument."
+		 << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(0);
+	    return true;
+      }
+      prop_trace_log_(thr, "%store/prop/ref", pid, 0, obj, true);
+      cobj->set_ref_binding(pid, binding);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+				  thr->peek_object_root(0), "store-prop-ref");
+      return true;
+}
+
+/*
  * %store/prop/obj <pid>, <idx>
  *
  * Pop an object value from the object stack, and store the value into

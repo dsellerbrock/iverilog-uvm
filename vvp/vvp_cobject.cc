@@ -20,6 +20,7 @@
 # include  "vvp_cobject.h"
 # include  "class_type.h"
 # include  "vvp_net.h"
+# include  "vvp_net_sig.h"
 # include  "event.h"
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
@@ -984,6 +985,11 @@ void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 	          touch();
 	    return;
       }
+      std::map<size_t, vvp_object_t>::iterator ref = ref_props_.find(pid);
+      if (ref != ref_props_.end()) {
+	    // Covergroup ref formals are read-only const ref arguments.
+	    return;
+      }
       vvp_vector4_t old;
       defn_->get_vec4(properties_, pid, old, idx);
       int old_active = union_active_member_;
@@ -1019,6 +1025,14 @@ void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
 	    val = vvp_vector4_t(width ? width : 1, BIT4_X);
 	    return;
       }
+      std::map<size_t, vvp_object_t>::const_iterator ref = ref_props_.find(pid);
+      if (ref != ref_props_.end()) {
+	    unsigned width = defn_->property_vec4_width(pid);
+	    vvp_lvalue_ref*actual = ref->second.peek<vvp_lvalue_ref>();
+	    if (!actual || !actual->read_vec4(val))
+		  val = vvp_vector4_t(width ? width : 1, BIT4_X);
+	    return;
+      }
       if (defn_->is_union_type() && union_vec4_ && idx == 0
 	  && defn_->property_array_size(pid) == 1
 	  && defn_->property_vec4_width(pid)) {
@@ -1040,6 +1054,12 @@ void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
 	    return;
       }
       defn_->get_vec4(properties_, pid, val, idx);
+}
+
+void vvp_cobject::set_ref_binding(size_t pid, const vvp_object_t&binding)
+{
+      assert(pid < defn_->property_count());
+      ref_props_[pid] = binding;
 }
 
 void vvp_cobject::set_real(size_t pid, double val, size_t idx)
@@ -1174,6 +1194,7 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
 		  continue;
 	    defn_->copy_property(properties_, idx, that->properties_);
       }
+      ref_props_ = that->ref_props_;
 	// IEEE 1800-2023 8.11 copies all class properties and internal object
 	// state without running the constructor. Preserve which source instance
 	// constants already received their one constructor assignment, while a

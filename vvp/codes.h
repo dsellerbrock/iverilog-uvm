@@ -588,6 +588,7 @@ extern bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_OBJA(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_PROP_REF(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_ARR_DAR(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_R(vthread_t thr, vvp_code_t code);

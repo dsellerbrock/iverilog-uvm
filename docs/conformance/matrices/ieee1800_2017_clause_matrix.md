@@ -5,6 +5,20 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 15, 2026 — §19.3 covergroup `ref` arguments
+
+IEEE 1800-2017 §19.3 says each `ref` argument lets a covergroup instance
+sample a different variable and that `input` arguments keep the value passed
+to `new`; §19.3 of 1800-2023 says a `ref` argument tracks its actual as it
+changes. Both editions make covergroup `ref` formals read-only, with the same
+behavior as a `const ref` formal. The 2017 text explicitly leaves automatic
+actual behavior undefined; this implementation is bounded to direct static
+packed integral variables.
+The paired `sv_covergroup_ref_tracking` fixtures cover two independent `ref`
+instances, a const actual, an input snapshot, and rejection of a non-variable
+actual. T0/T1 results are pending. This does not close issue #448:
+per-instance option expressions and other §19 behavior remain open.
+
 ### October 14, 2026 — §8.20 method override specifiers
 
 IEEE 1800-2017 §8.20 covers virtual method overrides but does not include the

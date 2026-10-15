@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_covergroup_ref_tracking_bad_actual.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_covergroup_ref_tracking_bad_actual"
+}

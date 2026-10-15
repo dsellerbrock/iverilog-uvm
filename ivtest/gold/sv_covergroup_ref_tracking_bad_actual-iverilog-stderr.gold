@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_ref_tracking_bad_actual.v:10: error: A const ref actual must be a variable.
+1 error(s) during elaboration.
