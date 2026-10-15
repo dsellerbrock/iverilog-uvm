@@ -2690,13 +2690,21 @@ transition clears branch state and pending cross-domain obligations.
 The 2017/2023 clause wording is materially unchanged for these semantics.
 Paired positive cases check simultaneous branch matches and reset coincident
 with a later clock handoff; boundary cases check reset at the handoff edge and
-pending work near end-of-simulation. Paired compile-error cases keep an
-unsupported `and` antecedent tree explicit. These six cases pass in both
-editions in the legacy and JSON runners. T0 also passes the 56-case
-compiler/VVP smoke, 131-case VPI smoke, 152 negative checks, and the remaining
-smoke reproducers/runtime checks. Slurm T1 passes: fixed multiclock control
-28/28 legacy and 28/28 JSON/VVP; implication-tree neighbors 1/1 legacy and
-2/2 JSON/VVP; SVA NFA parity 65/65.
+pending work near end-of-simulation. The paired
+`sv_assert_multiclock_disable_edge_boundaries` tests also drive asynchronous
+reset low by NBA at the first antecedent sample and at the final consequent
+evaluation edge. Their no-disable controls fail at both edges. This exercises
+§16.12's inclusive attempt interval; §§4.4.2.4 and 4.4.2.5 place NBA updates
+before Observed-region evaluation. Paired compile-error cases keep an
+unsupported `and` antecedent tree explicit.
+
+The refreshed local T0 passes all eight issue cases in each legacy and
+JSON/VVP runner, plus compiler/VVP smoke 56/56, VPI 131/131, negative checks
+152/152, and the remaining smoke reproducers/runtime checks. The refreshed
+graph-selected T1 passes fixed multiclock control 30/30 in each runner,
+implication-tree neighbors 1/1 legacy and 2/2 JSON/VVP, and SVA NFA parity
+65/65. [Local boundary-follow-up evidence](../../../evidence/sva-multiclock-disable-iff-or-antecedent-20261015/local-edge-20261015/README.md)
+records the exact tested source commit and logs.
 
 This does not qualify variable-length branches, non-OR trees, `first_match`,
 local variables, match-item calls, branch pass actions, two-domain OR

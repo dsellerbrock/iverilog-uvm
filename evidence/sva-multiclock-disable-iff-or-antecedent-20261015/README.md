@@ -97,6 +97,23 @@ value. The first run's OOM at 2 GiB and the retry's successful 4 GiB build
 show that 4 GiB was sufficient for this build; they do not indicate a code
 test failure.
 
+## Inclusive attempt-boundary follow-up — Mac
+
+Commit `faf93ff5540c77b8c96d1caf2dffb2e286639785` adds paired 2017/2023
+fixtures that assert asynchronous reset on the first antecedent sample and
+the final consequent evaluation edge. A matching no-disable control fails
+at each edge, confirming the property would otherwise fail.
+
+`~/codex-supervisor/localrun 5400` ran the build, focused T0, smoke, and
+graph-selected T1 script on the Mac (clang 21.0.0, Bison 3.8.2, Autoconf
+2.73; `make -j2`). It exited 0 in 487.67 seconds with peak RSS
+1,269,596,160 bytes. Both focused T0 runners passed 8/8; smoke passed with
+compiler/VVP 56/56, VPI 131/131, and negative checks 152/152. T1 passed
+fixed multiclock control 30/30 in both runners, implication-tree neighbors
+1/1 legacy and 2/2 JSON/VVP, and SVA NFA parity 65/65. The run command,
+environment and compressed logs are in
+[local-edge-20261015](local-edge-20261015/).
+
 ## T2
 
 Not run. This PR must join the next batch gate before merge.

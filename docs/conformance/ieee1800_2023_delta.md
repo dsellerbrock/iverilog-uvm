@@ -382,7 +382,7 @@ The 2023 enum, increment/decrement and packed-select clauses share the implement
 
 ## L92 shared assertion-control evidence
 
-The 2023 assertion-control semantics share the implementation in the [2017 matrix L92 entry](matrices/ieee1800_2017_clause_matrix.md#l92--fixed-multiclock-assertion-control), with separate edition regressions.
+The 2023 assertion-control semantics share the implementation in the [2017 matrix L92 entry](matrices/ieee1800_2017_clause_matrix.md#l92--fixed-multiclock-assertion-control), with separate edition regressions. The paired §16.12 boundary fixtures also check asynchronous disable at the attempt's first antecedent sample and final consequent evaluation edge; §§4.4.2.4 and 4.4.2.5 establish that NBA updates precede Observed-region evaluation.
 
 L93 uses the same 6.16.11–6.16.15 and 13.4.3 requirements in 2023; [paired evidence](session_logs/2026-09-15_constant_string_formatting_validation.json) records edition-specific tests.
 
