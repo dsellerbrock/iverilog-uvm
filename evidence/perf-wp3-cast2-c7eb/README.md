@@ -50,30 +50,27 @@ separate successful FST pair completes that missing row.
   install, legacy ivtest gate, and real-DPI UVM regression. Its full JSON run
   reported 16 failures and returned 16. Job 1246 rebuilt the pinned reference
   and reran exactly those cases on both runtimes; all 16 results matched byte
-  for byte. However, A3's gate reports zero failures, so this Slurm-environment
-  discrepancy remains open and must be reconciled before merge. See
+  for byte. A4 is investigating why A3's gate reports zero failures. The
+  discrepancy remains open pending A4's verdict. See
   [`full-gates/linux-1242/`](full-gates/linux-1242/) and
   [`full-gates/json-baseline-1246/`](full-gates/json-baseline-1246/).
 - macOS ARM64 build, install, UVM install, and FPGA target install completed.
   Logs and tool hashes are in [`macos-gates/`](macos-gates/).
 
-The source and correctness evidence remain pinned to
-`c7ebca768c21c251d9c165c9aff0e363768030b1`. Do not rebase before final wall
-medians. If it qualifies, rebase exactly once immediately before merge and
-follow the pre-merge path-diff rule in `docs/performance/PERFORMANCE_PLAN.md`.
-
-Final wall job 1261 failed before any benchmark ran: the wrapper invoked the
-Bash `run.sh` through Python. Its empty result and Slurm log are preserved in
-[`final-wall/attempt-1261/`](final-wall/attempt-1261/). Corrected job 1263 uses
-[`final-wall/run-final-wall-r2.sbatch`](final-wall/run-final-wall-r2.sbatch)
-with the same paired installs built from this pin. It compiles each benchmark
-once with the reference compiler, runs three interleaved pairs, and records
-wall time, instructions where available, RSS, and output hashes. It is running
-alongside exact-head CI within the three-job A5 limit.
+Source, correctness, and performance evidence remain pinned to
+`c7ebca768c21c251d9c165c9aff0e363768030b1`. Final isolated wall job 1277 used
+two warm-ups and three measured interleaved pairs per workload, with no other
+A5 Slurm job active. All 18 outputs matched. The `behav` median fell 36.39%;
+the full table reports both sides' spread, including rows above 5%, in
+[`final-wall/attempt-1277/wall-summary.md`](final-wall/attempt-1277/wall-summary.md).
+The wall table is supporting evidence; the instruction-count screen is the
+qualification gate. Earlier wall attempts and the failed job 1261 remain
+preserved under `final-wall/`.
 
 ## Gate
 
-For promotion, the candidate must retain identical benchmark outputs, at least
-10% fewer `behav` instructions, no other benchmark regression above 2%, final
-wall-time medians, and reconciled JSON-gate results. Do not merge while the
-Slurm/A3 JSON discrepancy remains unexplained.
+The instruction screen qualifies: outputs are byte-identical, `behav` uses
+14.079590% fewer instructions, and no other benchmark regresses. Final wall
+medians are recorded as supporting evidence, including the `gate_strength`
+wall-time increase. Do not merge until A4 records its verdict on the
+16-failure Slurm JSON discrepancy.
