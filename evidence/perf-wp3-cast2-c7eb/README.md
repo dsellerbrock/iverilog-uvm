@@ -50,8 +50,12 @@ separate successful FST pair completes that missing row.
   install, legacy ivtest gate, and real-DPI UVM regression. Its full JSON run
   reported 16 failures and returned 16. Job 1246 rebuilt the pinned reference
   and reran exactly those cases on both runtimes; all 16 results matched byte
-  for byte. A4 is investigating why A3's gate reports zero failures. The
-  discrepancy remains open pending A4's verdict. See
+  for byte. A4 then reproduced the same 16 failures on pinned main in job 1278.
+  A4 traced them to stale/missing split-stream golds and incorrect JSON test
+  classifications; the corrected 16-case run passed on the same reference
+  build in job 1280. This is a baseline test-fixture issue, not a WP3 behavior
+  regression, and does not block #593. A4's fixture corrections are in PR #595.
+  Evidence is in
   [`full-gates/linux-1242/`](full-gates/linux-1242/) and
   [`full-gates/json-baseline-1246/`](full-gates/json-baseline-1246/).
 - macOS ARM64 build, install, UVM install, and FPGA target install completed.
@@ -72,5 +76,6 @@ preserved under `final-wall/`.
 The instruction screen qualifies: outputs are byte-identical, `behav` uses
 14.079590% fewer instructions, and no other benchmark regresses. Final wall
 medians are recorded as supporting evidence, including the `gate_strength`
-wall-time increase. Do not merge until A4 records its verdict on the
-16-failure Slurm JSON discrepancy.
+wall-time increase. A4 confirmed the JSON failures were pre-existing fixture
+issues on main and corrected them separately in PR #595; they are not a WP3
+merge blocker.

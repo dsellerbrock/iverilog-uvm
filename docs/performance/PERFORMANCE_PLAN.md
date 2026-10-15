@@ -497,7 +497,7 @@ the reference semantics throughout.
 | --- | --- | --- | --- |
 | WP0 | MERGED | #584 | Campaign-pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; final source head `296d5a555781a0edd502b442c8c69295a911246e`, merged as `0490e2ff48f3169283e7d71afe2a16424e2cf3aa`. The original five-pair result was 18/18 outputs matched, every sample under 10 s, reference task-clock spread <=5%; the one-time `7f35ca38c86723ab40e6ebfe9fd77259827e23f9` follow-up passed correctness and showed +274 whole-process Callgrind instructions with selected hot-path counts identical. Exact-head Fast Linux, Ubuntu 22.04/24.04, and MINGW64/UCRT64/CLANG64 passed. Evidence: [WP0 results and base history](../../evidence/perf-wp0-a5aad316/README.md). |
 | WP1 | REJECTED | - | Pinned base `0490e2ff48f3169283e7d71afe2a16424e2cf3aa`; `behav` improved 3.310901% (94,570,528,237 → 91,439,391,991 Ir), below the 10% gate; worst other regression was +0.168452%; 18/18 outputs and focused trace checks matched. Candidate reverted. [Evidence](../../evidence/perf-wp1-debug-tax-0490e2ff/README.md). |
-| WP3 | PR #593 ready for review | exact-head CI passed on prior evidence commit; rerun after wall table update | Measurement base `c7ebca768c21c251d9c165c9aff0e363768030b1` (pinned); `behav` 94,553,323,869 → 81,240,603,069 Ir (−14.079590%), 18/18 outputs identical, no instruction-count regression. Final three-run wall medians are recorded; A4's verdict on 16 Slurm JSON failures remains open. [Evidence](../../evidence/perf-wp3-cast2-c7eb/README.md). |
+| WP3 | PR #593 ready for review | exact-head CI pending after evidence update | Measurement base `c7ebca768c21c251d9c165c9aff0e363768030b1` (pinned); `behav` 94,553,323,869 → 81,240,603,069 Ir (−14.079590%), 18/18 outputs identical, no instruction-count regression. Final three-run wall medians are recorded. A4 confirmed the 16 JSON failures are pre-existing gold/classification issues on main and fixes them separately in #595. [Evidence](../../evidence/perf-wp3-cast2-c7eb/README.md). |
 | WP2, WP4-WP15 | NOT STARTED | - | - |
 
 ### WP0 pinned-base before/after table
@@ -576,7 +576,7 @@ ceiling spike.
 | Candidate | Measurement base | Target before → after | Worst other count change | Verdict | PR |
 | --- | --- | --- | --- | --- | --- |
 | WP1 trace/context stats | `0490e2ff48f3169283e7d71afe2a16424e2cf3aa` (pinned) | `behav`: 94,570,528,237 → 91,439,391,991 Ir (−3.310901%) | `randomize_z3`: +0.168452% | REJECTED: target below 10%; outputs identical | [evidence](../../evidence/perf-wp1-debug-tax-0490e2ff/README.md) |
-| WP3 word-wide `of_CAST2` | `c7ebca768c21c251d9c165c9aff0e363768030b1` (pinned) | `behav`: 94,553,323,869 → 81,240,603,069 Ir (−14.079590%) | 0.000000% | SCREEN QUALIFIED; PR #593 ready; wall medians recorded; A4 JSON verdict and updated exact-head CI pending | [PR #593](https://github.com/dsellerbrock/iverilog-uvm/pull/593), [evidence](../../evidence/perf-wp3-cast2-c7eb/README.md) |
+| WP3 word-wide `of_CAST2` | `c7ebca768c21c251d9c165c9aff0e363768030b1` (pinned) | `behav`: 94,553,323,869 → 81,240,603,069 Ir (−14.079590%) | 0.000000% | SCREEN QUALIFIED; PR #593 ready; wall medians recorded; A4 confirmed JSON fixture issue is pre-existing; exact-head CI pending | [PR #593](https://github.com/dsellerbrock/iverilog-uvm/pull/593), [evidence](../../evidence/perf-wp3-cast2-c7eb/README.md) |
 | #536 `vpip_vec4_to_int64_saturated` | - | - | - | NOT RUN | - |
 | #536 `of_LOAD_VEC4` | - | - | - | NOT RUN | - |
 | #536 `copy_from_big_` | - | - | - | NOT RUN | - |
