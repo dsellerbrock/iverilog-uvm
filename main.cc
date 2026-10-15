@@ -1015,6 +1015,11 @@ int main(int argc, char*argv[])
       if (flag_errors)
 	    return flag_errors;
 
+      if (gn_system_verilog() && !had_timescale) {
+	    def_ts_units = -12;
+	    def_ts_prec = -12;
+      }
+
       if (version_flag) {
 	    cout << "\nIcarus Verilog Parser/Elaborator version "
 		 << VERSION << " (" << VERSION_TAG << ")" << endl << endl;
