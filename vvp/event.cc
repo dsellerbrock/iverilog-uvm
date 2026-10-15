@@ -2008,6 +2008,15 @@ bool vvp_fun_wait_order::arm(vthread_t thread, vvp_code_t success,
 	    return true;
       }
 
+	  /* Only the first listed event may use its persistent trigger state. */
+	  for (size_t idx = 1; idx < events_.size(); idx += 1) {
+	    vvp_named_event*event = dynamic_cast<vvp_named_event*>(events_[idx]->fun);
+	    if (event != first && event->triggered_now()) {
+		  immediate = failure;
+		  return true;
+	    }
+	  }
+
       waiter_s waiter;
       waiter.thread = thread;
       waiter.next = first_seen ? 1 : 0;

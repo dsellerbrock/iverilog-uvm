@@ -3,8 +3,8 @@ module sv_wait_order;
   event cancel_first, cancel_second;
   event nba_first, nba_second;
   event pre_entry_first, pre_entry_later;
+  event persistent_first, persistent_later;
   integer duplicate_completed = 0;
-  integer pre_entry_completed = 0;
 
   task automatic automatic_event_order;
     event auto_first, auto_second;
@@ -38,22 +38,33 @@ module sv_wait_order;
       end
     join
 
-    // Interpretation of §15.5.4: only the first event consumes persistent state.
+    // A later event cannot use persistent triggered state.
     -> pre_entry_later;
-    -> pre_entry_first;
     fork
       begin
         #1;
-        if (pre_entry_completed)
-          $fatal(1, "later pre-entry trigger satisfied wait_order");
+        -> pre_entry_first;
         -> pre_entry_later;
       end
       begin
-        wait_order(pre_entry_first, pre_entry_later) begin
-          pre_entry_completed = 1;
-          $display("pre-entry-later-ignored-interpretation-pass");
-        end
-        else $fatal(1, "pre-entry later event changed wait_order result");
+        wait_order(pre_entry_first, pre_entry_later)
+          $fatal(1, "pre-entry later event satisfied wait_order");
+        else $display("pre-entry-later-out-of-order-pass");
+      end
+    join
+
+    -> pre_entry_first;
+    -> pre_entry_later;
+    fork
+      begin
+        #1;
+        -> pre_entry_first;
+        -> pre_entry_later;
+      end
+      begin
+        wait_order(pre_entry_first, pre_entry_later)
+          $fatal(1, "pre-entry later event satisfied persistent first wait_order");
+        else $display("pre-entry-later-with-first-out-of-order-pass");
       end
     join
 
@@ -75,19 +86,18 @@ module sv_wait_order;
       end
     join
 
-    -> first;
-    -> later;
     -> single;
     wait_order(single)
       $display("single-event-triggered-pass");
     else $fatal(1, "single triggered event failed");
+    -> persistent_first;
     fork
       begin
         #1;
-        -> later;
+        -> persistent_later;
       end
       begin
-        wait_order(first, later)
+        wait_order(persistent_first, persistent_later)
           $display("first-trigger-persistent-pass");
         else $fatal(1, "persistent first event failed");
       end

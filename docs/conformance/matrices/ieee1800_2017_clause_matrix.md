@@ -2268,21 +2268,22 @@ preceding triggers, out-of-order `else`, first-event persistent state,
 single-event persistent state, duplicate identifiers, nonblocking triggers,
 automatic event contexts, and cancellation. Duplicate identifiers are
 handled as distinct sequence positions, so each position requires its own
-trigger activation; §15.5.4 does not state this edge rule explicitly. One
-pre-entry case is also pinned as an implementation interpretation: if a later
-event fires before `wait_order` starts in the same time slot, only the first
-event's persistent state is consumed and the later event must fire again.
-§15.5.4 says only the first event can use persistent triggered state, but does
-not define this pre-entry history explicitly. The default-failure fixtures
-cover both editions. Empty `else` is rejected in 2017 and accepted in 2023,
-matching the edition-specific grammar. Slurm job 1231 built the frozen source,
+trigger activation; §15.5.4 does not state this edge rule explicitly. The
+pre-entry fixtures apply §15.5.4's requirement that subsequent events be
+untriggered: a later event whose trigger remains persistent when `wait_order`
+begins causes failure, while the first event may use its persistent state.
+The default-failure fixtures cover both editions. Empty `else` is rejected in
+2017 and accepted in 2023, matching the edition-specific grammar. Slurm job
+1231 built the frozen source,
 passed `make check` and install (2:17.77 wall time; 1,757,808 KiB peak RSS).
 Job 1233 ran T0/T1 against that build: T0 passed 9/9 legacy cases, all 6 JSON
 rows, and the smoke set; graph-selected T1 passed 12/12 legacy and 12/12 JSON
 cases for static/dynamic pulses, automatic rebinding, NBA event scheduling,
 parallel automatic contexts, and persistent triggered state. Target rejection
 checks for Verilog-95, VHDL, synthesis, and the 2017 empty-`else` boundary also
-passed. This is focused `wait_order` evidence, not full §15 qualification.
+passed on the earlier pre-entry interpretation; this evidence does not cover
+the revised persistent-later-event checks. Refreshed T0/T1 and batch T2 are
+pending. This is focused `wait_order` evidence, not full §15 qualification.
 Event-variable assignment/merging (§15.5.5.1), event arrays, and class-event
 operands remain outside this implementation's scope.
 
