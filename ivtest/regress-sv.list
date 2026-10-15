@@ -5593,3 +5593,13 @@ sv_m5_issue436_interconnect_concat_2017 normal,-g2017,-gstrict-expr-width,-s,iss
 sv_m5_issue436_interconnect_concat_2023 normal,-g2023,-gstrict-expr-width,-s,issue436 ivltests
 sv_m5_issue436_interconnect_signed_concat_2017 normal,-g2017,-gstrict-expr-width,-s,issue436_signed_concat ivltests
 sv_m5_issue436_interconnect_signed_concat_2023 normal,-g2023,-gstrict-expr-width,-s,issue436_signed_concat ivltests
+# IEEE 1800-2017/2023 15.5.4 wait_order ordering and failure behavior
+sv_wait_order_2017 normal,-g2017,-s,sv_wait_order ivltests gold=sv_wait_order.gold
+sv_wait_order_2023 normal,-g2023,-s,sv_wait_order ivltests gold=sv_wait_order.gold
+sv_wait_order_default_error_2017 normal,-g2017,-s,sv_wait_order_default_error ivltests gold=sv_wait_order_default_error.gold
+sv_wait_order_default_error_2023 normal,-g2023,-s,sv_wait_order_default_error ivltests gold=sv_wait_order_default_error.gold
+sv_wait_order_null_else_2017 CE,-g2017,-s,sv_wait_order_null_else ivltests gold=sv_wait_order_null_else_2017.gold
+sv_wait_order_null_else_2023 normal,-g2023,-s,sv_wait_order_null_else ivltests gold=sv_wait_order_null_else_2023.gold
+sv_wait_order_vlog95 CE,-g2017,-tvlog95,-s,sv_wait_order_target ivltests gold=sv_wait_order_vlog95.gold
+sv_wait_order_vhdl CE,-g2017,-tvhdl,-s,sv_wait_order_target ivltests gold=sv_wait_order_vhdl.gold
+sv_wait_order_synth CE,-g2017,-S,-tnull,-s,sv_wait_order_synthesis ivltests gold=sv_wait_order_synth.gold

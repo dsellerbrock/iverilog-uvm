@@ -1206,7 +1206,12 @@ void PDoWhile::dump(ostream&out, unsigned ind) const
 
 void PEventStatement::dump(ostream&out, unsigned ind) const
 {
-      if (expr_.size() == 0) {
+      if (wait_order_) {
+	    out << setw(ind) << "" << "wait_order(";
+	    for (unsigned idx = 0; idx < expr_.size(); idx += 1)
+		  out << (idx ? ", " : "") << *(expr_[idx]);
+	    out << ")";
+      } else if (expr_.size() == 0) {
 	    out << setw(ind) << "" << "@* ";
 
       } else if ((expr_.size() == 1) && (expr_[0] == 0)) {
@@ -1226,6 +1231,14 @@ void PEventStatement::dump(ostream&out, unsigned ind) const
 	    statement_->dump(out, ind+2);
       } else {
 	    out << " ;" << endl;
+      }
+
+      if (wait_order_else_) {
+	    out << setw(ind) << "" << "else" << endl;
+	    if (else_statement_)
+		  else_statement_->dump(out, ind+2);
+	    else
+		  out << setw(ind+2) << "" << "/* NOOP */" << endl;
       }
 }
 

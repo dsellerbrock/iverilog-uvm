@@ -1,0 +1,2 @@
+ERROR: ./ivltests/sv_wait_order_default_error.v:12: wait_order events triggered out of order
+       Time: 1  Scope: sv_wait_order_default_error

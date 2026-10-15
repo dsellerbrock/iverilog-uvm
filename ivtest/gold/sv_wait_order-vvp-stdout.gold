@@ -1,0 +1,12 @@
+same-slot-repeat-pass
+parallel-waiter-state-before-resume-pass
+pre-entry-later-out-of-order-pass
+pre-entry-later-with-first-out-of-order-pass
+out-of-order-else-pass
+single-event-triggered-pass
+first-trigger-persistent-pass
+duplicate-event-pass
+duplicate-persistent-later-out-of-order-pass
+nonblocking-trigger-pass
+automatic-event-pass
+automatic-event-pass

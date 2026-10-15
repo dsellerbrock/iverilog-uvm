@@ -506,6 +506,8 @@ extern void compile_ufunc_resolver_real(char*label, char*code, unsigned wid,
  */
 extern void compile_event(char*label, char*type,
 			  unsigned argc, struct symb_s*argv);
+extern void compile_event_order(char*label, unsigned argc,
+				struct symb_s*argv);
 extern void compile_named_event(char*label, char*type, int lifetime_flag=0,
 				bool local_flag=false);
 

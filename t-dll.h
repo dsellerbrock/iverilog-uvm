@@ -1092,7 +1092,7 @@ struct ivl_statement_s {
 		  unsigned super_call;
 	    } utask_;
 
-	    struct { /* IVL_ST_TRIGGER IVL_ST_NB_TRIGGER IVL_ST_WAIT */
+	    struct { /* IVL_ST_TRIGGER IVL_ST_NB_TRIGGER IVL_ST_WAIT, IVL_ST_WAIT_ORDER */
 		  unsigned needs_t0_trigger;
 		  unsigned nevent;
 		  union {
@@ -1101,6 +1101,7 @@ struct ivl_statement_s {
 		  };
 		  ivl_expr_t delay;
 		  ivl_statement_t stmt_;
+		  ivl_statement_t failure_stmt_;
 	    } wait_;
 
 	    struct { /* IVL_ST_TRIGGER_OBJ IVL_ST_NB_TRIGGER_OBJ
