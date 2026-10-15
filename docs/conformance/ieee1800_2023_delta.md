@@ -650,11 +650,18 @@ specifies the default `$error` action. Paired `-g2017`/`-g2023` fixtures cover
 the supported named-event subset and reject `else ;` only in 2017. The
 duplicate-identifier behavior is in a separate implementation-interpretation
 fixture because §15.5.4 does not define it. The
-refreshed exact-head T0/T1 run passed in Slurm job 1265 on
-`15ca10f07500caae118ddd998d8b9351f7c1e8de`: T0 passed 4/4 legacy and 4/4
-JSON/VVP cases, smoke passed, and graph-selected T1 passed 10/10 legacy and
-10/10 JSON/VVP cases. Exact-head Fast Linux run 38771525748 also passed.
-Windows lanes and batch T2 remain pending.
+current-head T0 Slurm job 1412 on
+`51ee4ff8bb745d87f243fa39b0550e27a160019d` passed 6/6 legacy and 6/6 strict
+JSON/VVP cases plus smoke (compiler 56/56, VPI 131/131, negative tests
+152/152; Slurm `ExitCode=0:0`). The build took 2:23.42 and peaked at
+1,757,876 KiB RSS. Added tests cover opposite outcomes from automatic-event
+invocations, one trigger completing one waiter while failing another, and
+cancellation followed by a fresh invocation. Graph-selected T1 Slurm job 1265
+passed 10/10 legacy and 10/10 JSON/VVP cases on implementation commit
+`15ca10f07500caae118ddd998d8b9351f7c1e8de`; implementation code is unchanged
+since that run. Exact-head Fast Linux run 38817316300 passed. The PR's prior
+Windows run 38814828764 targets an older head; a fresh exact-head Windows run
+and batch T2 remain pending.
 See the [2017 clause matrix](matrices/ieee1800_2017_clause_matrix.md#october-15-bounded-wait_order-subset)
 for the tested boundary; merged event assignment remains a separate
 §15.5.5.1 limitation.

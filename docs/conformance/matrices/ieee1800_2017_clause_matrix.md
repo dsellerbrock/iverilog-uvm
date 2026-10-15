@@ -2275,16 +2275,21 @@ subsequent events be untriggered: a later event whose trigger remains
 persistent when `wait_order` begins causes failure, while the first event may
 use its persistent state.
 The default-failure fixtures cover both editions. Empty `else` is rejected in
-2017 and accepted in 2023, matching the edition-specific grammar. The refreshed
-exact-head T0/T1 run, Slurm job 1265 on
-`15ca10f07500caae118ddd998d8b9351f7c1e8de`, passed: T0 had 4/4 legacy and
-4/4 JSON/VVP cases; smoke passed; graph-selected T1 had 10/10 legacy and
-10/10 JSON/VVP cases. The issue fixture also covers concurrent waiters where
-one success continuation triggers the next event. The GCC 15.2.0 build took
-2:16.96 and peaked at 1,757,644 KiB RSS. Exact-head Fast Linux run
-38771525748 passed. Windows lanes and batch T2 remain pending; the `ivl.def`
-target API export requires Windows validation before merge. This is focused
-`wait_order` evidence, not full §15 qualification.
+2017 and accepted in 2023, matching the edition-specific grammar. Current-head
+T0 Slurm job 1412 on `51ee4ff8bb745d87f243fa39b0550e27a160019d` passed all
+6/6 legacy and 6/6 strict JSON/VVP cases plus smoke (compiler 56/56, VPI
+131/131, negative tests 152/152); Slurm recorded `ExitCode=0:0`. Its GCC
+15.2.0 build took 2:23.42 and peaked at 1,757,876 KiB RSS. Added coverage
+checks automatic-event invocations with opposite expected outcomes, one trigger
+that completes one waiter and fails another, and cancellation followed by a
+fresh invocation. Graph-selected T1 Slurm job 1265 passed 10/10 legacy and
+10/10 JSON/VVP cases on implementation commit
+`15ca10f07500caae118ddd998d8b9351f7c1e8de`; implementation code is unchanged
+since that run. Exact-head Fast Linux run 38817316300 passed. Windows lanes and
+batch T2 remain pending; the `ivl.def` target API export requires Windows
+validation before merge. Full logs and the source archive hash are retained in
+`~/codex-supervisor/evidence/a3-m5-issue441-review-20261015/job1412/`. This is
+focused `wait_order` evidence, not full §15 qualification.
 Event-variable assignment/merging (§15.5.5.1), event arrays, and class-event
 operands remain outside this implementation's scope.
 
