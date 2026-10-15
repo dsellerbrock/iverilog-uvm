@@ -62,12 +62,14 @@ The source and correctness evidence remain pinned to
 medians. If it qualifies, rebase exactly once immediately before merge and
 follow the pre-merge path-diff rule in `docs/performance/PERFORMANCE_PLAN.md`.
 
-The prepared [`final-wall/run-final-wall.sbatch`](final-wall/run-final-wall.sbatch)
-uses the paired reference/candidate installs built from this pin. It compiles
-each benchmark once with the reference compiler, runs three interleaved pairs,
-and records wall time, instructions where available, RSS, and output hashes.
-It can run alongside exact-head CI after a Slurm capacity check, within the
-three-job A5 limit.
+Final wall job 1261 failed before any benchmark ran: the wrapper invoked the
+Bash `run.sh` through Python. Its empty result and Slurm log are preserved in
+[`final-wall/attempt-1261/`](final-wall/attempt-1261/). Corrected job 1263 uses
+[`final-wall/run-final-wall-r2.sbatch`](final-wall/run-final-wall-r2.sbatch)
+with the same paired installs built from this pin. It compiles each benchmark
+once with the reference compiler, runs three interleaved pairs, and records
+wall time, instructions where available, RSS, and output hashes. It is running
+alongside exact-head CI within the three-job A5 limit.
 
 ## Gate
 

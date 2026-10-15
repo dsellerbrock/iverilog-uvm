@@ -562,10 +562,21 @@ exact-head CI. If any changed, remeasure once on the new base. A GitHub bot
 sync that merges main into a PR branch does not trigger a rebase or remeasure.
 Record the pinned SHA in each evidence directory and PR table.
 
+The source-verified technique ranking and limits are in [`SOTA.md`](SOTA.md).
+WP1's trace/context-stat screen was rejected at −3.31% `behav` instructions;
+do not repeat it without a runtime change. Next, screen property/index
+predecode, then the profiled vec4 conversion or load path with proven 2-state
+handling, then vec4 stack-slot capacity reuse. Profile A2's Caliptra regression
+separately with `perf record` on both builds over the same fixed mcycle window.
+In phase 2, inspect the existing virtual-dispatch memo and hot casts, then
+choose one pair from the pinned WP0 histogram. Gate activity suppression on
+more than 35% inclusive net-propagation cost and keep the JIT as a measured
+ceiling spike.
+
 | Candidate | Measurement base | Target before → after | Worst other count change | Verdict | PR |
 | --- | --- | --- | --- | --- | --- |
 | WP1 trace/context stats | `0490e2ff48f3169283e7d71afe2a16424e2cf3aa` (pinned) | `behav`: 94,570,528,237 → 91,439,391,991 Ir (−3.310901%) | `randomize_z3`: +0.168452% | REJECTED: target below 10%; outputs identical | [evidence](../../evidence/perf-wp1-debug-tax-0490e2ff/README.md) |
-| WP3 word-wide `of_CAST2` | `c7ebca768c21c251d9c165c9aff0e363768030b1` (pinned) | `behav`: 94,553,323,869 → 81,240,603,069 Ir (−14.079590%) | 0.000000% | SCREEN QUALIFIED; draft PR, final wall medians, exact-head CI and JSON discrepancy investigation pending | [evidence](../../evidence/perf-wp3-cast2-c7eb/README.md) |
+| WP3 word-wide `of_CAST2` | `c7ebca768c21c251d9c165c9aff0e363768030b1` (pinned) | `behav`: 94,553,323,869 → 81,240,603,069 Ir (−14.079590%) | 0.000000% | SCREEN QUALIFIED; draft PR #593, final wall medians, exact-head CI and JSON discrepancy investigation pending | [PR #593](https://github.com/dsellerbrock/iverilog-uvm/pull/593), [evidence](../../evidence/perf-wp3-cast2-c7eb/README.md) |
 | #536 `vpip_vec4_to_int64_saturated` | - | - | - | NOT RUN | - |
 | #536 `of_LOAD_VEC4` | - | - | - | NOT RUN | - |
 | #536 `copy_from_big_` | - | - | - | NOT RUN | - |
