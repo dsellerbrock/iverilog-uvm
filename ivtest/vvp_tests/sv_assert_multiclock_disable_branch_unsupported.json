@@ -1,0 +1,8 @@
+{
+  "type": "CE",
+  "source": "sv_assert_multiclock_disable_branch_unsupported.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_assert_multiclock_disable_branch_unsupported"
+}

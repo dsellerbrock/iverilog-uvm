@@ -15731,6 +15731,14 @@ static void sva_tree_leaves_(sva_stree_t*t,
       sva_tree_leaves_(t->b, out);
 }
 
+static bool sva_tree_only_or_(const sva_stree_t*t)
+{
+      if (!t) return false;
+      if (t->kind == sva_stree_t::LEAF) return t->chain != nullptr;
+      return t->kind == sva_stree_t::SEQ_OR
+	     && sva_tree_only_or_(t->a) && sva_tree_only_or_(t->b);
+}
+
 static bool sva_chain_has_match_calls_(
       const std::vector<sva_seq_step_t>*steps)
 {
@@ -16115,6 +16123,33 @@ sva_property_t* pform_sva_tree_implication(
       p->tree = ct;
       p->op_type = op_type;
       return p;
+}
+
+/* A combinator antecedent with two or more clock-flow boundaries is kept
+   for the fixed-OR multiclock lowering. */
+sva_property_t* pform_sva_multiclock_comb_antecedent(
+					const struct vlltype&loc, int op_type,
+					sva_property_t*ante, PEventStatement*clk,
+					std::vector<sva_seq_step_t>*conseq,
+					std::vector<sva_mc_seg_t>*tail)
+{
+	(void)loc;
+	sva_stree_t*at = sva_prop_take_tree_(ante);
+	if (!at || !clk || !conseq || !tail || tail->empty()) {
+	      sva_tree_delete_(at, true);
+	      delete clk;
+	      pform_sva_destroy_sequence(conseq);
+	      pform_sva_destroy_mc_segments(tail);
+	      return nullptr;
+	}
+	sva_property_t*p = new sva_property_t;
+	p->ante_tree = at;
+	p->seq_clk_evt = clk;
+	p->seq = conseq;
+	p->mc_boundary = (op_type == 1) ? 0 : 1;
+	p->mc_more = tail;
+	p->op_type = op_type;
+	return p;
 }
 
 /* The mirror of pform_sva_comb_antecedent_sorry: move a combinator
@@ -22248,10 +22283,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
    Generalizes the 2-domain request/ack handoff above
    (`pform_make_multiclock_assertion_') to a chain of
    M = 1 + prop->mc_more->size() clock-flow segments PAST domain 0:
-   domain 0 (c1) keeps its EXISTING antecedent/prefix bit-flag pipeline
-   completely unchanged -- a plain sequence or an implication still
-   starts exactly one attempt per c1 tick, so a 1-bit-per-age pipeline
-   stays exact there. Every later domain (1..M) receives an incoming
+   domain 0 (c1) pipelines each fixed OR branch independently and counts
+   every branch match before forwarding it. Every later domain (1..M)
+   receives an incoming
    obligation COUNT from the domain before it (an age slot IS an
    obligation count, the same reasoning the 2-domain consequent already
    relies on: at most one batch enters a domain's own pipeline per its
@@ -22296,8 +22330,16 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    why = "a multiclocked property with an empty clock-flow segment";
       else if (plain && (!prop->mc_prefix || prop->mc_prefix->empty()))
 	    why = "a multiclocked sequence with an empty first-clock prefix";
-      else if (!plain && (!prop->antecedent || prop->antecedent->empty()))
+      else if (!plain && !prop->antecedent && !prop->ante_tree)
 	    why = "a multiclocked implication with an empty antecedent";
+      else if (!plain && prop->antecedent && prop->antecedent->empty())
+	    why = "a multiclocked implication with an empty antecedent";
+      if (!why && prop->ante_tree
+	  && (!sva_tree_only_or_(prop->ante_tree) || prop->antecedent))
+	    why = "a multiclocked branched antecedent that is not a fixed OR tree";
+      /* shortcut: branch pass actions stay rejected until vacuity is tracked per branch. */
+      if (!why && prop->ante_tree && pass_stmt && !cover)
+	    why = "a multiclocked OR antecedent with a user pass statement";
 
       for (size_t i = 0 ; !why && i < prop->mc_more->size() ; i += 1) {
 	    const sva_mc_seg_t&seg = (*prop->mc_more)[i];
@@ -22312,27 +22354,54 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			"segment";
       }
 
-	/* Domain 0: antecedent + mc_prefix, spliced/expanded exactly as
-	   the 2-domain lowering does. */
-      std::vector<PExpr*> a_slots, p_slots;
+	/* Domain 0: a linear antecedent, or independent fixed OR branches. */
+      std::vector<std::vector<PExpr*> > a_branch_slots;
+      std::vector<std::vector<sva_seq_step_t>* > a_chains;
+      std::vector<PExpr*> p_slots;
       if (!why) {
-	    if (prop->antecedent)
-		  sva_splice_sequences_(loc, *prop->antecedent);
+	    if (prop->ante_tree) {
+		  sva_tree_leaves_(prop->ante_tree, a_chains);
+		  if (a_chains.size() < 2 || prop->mc_prefix)
+			why = "a multiclocked OR antecedent combined with a first-clock prefix";
+	    } else if (prop->antecedent) {
+		  a_chains.push_back(prop->antecedent);
+	    }
+	    size_t total_a_slots = 0;
+	    for (size_t b = 0 ; !why && b < a_chains.size() ; b += 1) {
+	      if (!a_chains[b] || a_chains[b]->empty()) {
+		    why = "a multiclocked OR branch with an empty chain";
+			break;
+		  }
+		  sva_splice_sequences_(loc, *a_chains[b]);
+	      if (prop->ante_tree && sva_chain_has_match_calls_(a_chains[b])) {
+		    why = "a multiclocked OR branch with a match-item call";
+		    break;
+	      }
+		  std::vector<PExpr*> branch_slots;
+		  if (!sva_mc_expand_chain_(*a_chains[b], branch_slots)) {
+			why = prop->ante_tree
+			      ? "a multiclocked OR branch that is not a fixed-length boolean chain"
+			      : "a multiclocked implication whose ANTECEDENT is not "
+				"a fixed-length boolean chain (constant ##N delays "
+				"only; a variable-length antecedent creates one "
+				"obligation per match, which the request counter "
+				"cannot distinguish)";
+		  } else {
+			total_a_slots += branch_slots.size();
+			/* shortcut: 64 total branch ticks max; raise with wider request counters. */
+			if (branch_slots.size() > 64 || total_a_slots > 64)
+			      why = "a multiclocked OR antecedent with over 64 total ticks";
+			a_branch_slots.push_back(branch_slots);
+		  }
+	    }
 	    if (prop->mc_prefix)
 		  sva_splice_sequences_(loc, *prop->mc_prefix);
-	    if (prop->antecedent
-		&& !sva_mc_expand_chain_(*prop->antecedent, a_slots))
-		  why = "a multiclocked implication whose ANTECEDENT is not "
-			"a fixed-length boolean chain (constant ##N delays "
-			"only; a variable-length antecedent creates one "
-			"obligation per match, which the request counter "
-			"cannot distinguish)";
-	    else if (prop->mc_prefix
+	    if (!why && prop->mc_prefix
 		     && !sva_mc_expand_chain_(*prop->mc_prefix, p_slots))
 		  why = "a multiclocked sequence whose first-clock prefix "
 			"is not a fixed-length boolean chain (constant "
 			"##N delays only)";
-	    else if (a_slots.size() > 64 || p_slots.size() > 64)
+	    else if (!why && p_slots.size() > 64)
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
       }
@@ -22464,9 +22533,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       }
 
 	/* Steal the slot booleans from their steps. */
-      if (prop->antecedent)
-	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
-		  (*prop->antecedent)[j].expr = nullptr;
+      for (size_t b = 0 ; b < a_chains.size() ; b += 1)
+	    for (size_t j = 0 ; j < a_chains[b]->size() ; j += 1)
+		  (*a_chains[b])[j].expr = nullptr;
       if (prop->mc_prefix)
 	    for (size_t j = 0 ; j < prop->mc_prefix->size() ; j += 1)
 		  (*prop->mc_prefix)[j].expr = nullptr;
@@ -22477,7 +22546,6 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  (*chain)[j].expr = nullptr;
       }
 
-      size_t Ta = a_slots.size();
       size_t Tp = p_slots.size();
       std::vector<perm_string> domain_fail(M + 1);
 
@@ -22493,7 +22561,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  s[k] = prep;
 	    }
       };
-      sample_slots(a_slots);
+      for (size_t b = 0 ; b < a_branch_slots.size() ; b += 1)
+	    sample_slots(a_branch_slots[b]);
       sample_slots(p_slots);
       for (size_t d = 1 ; d <= M ; d += 1) sample_slots(slots[d]);
 
@@ -22512,16 +22581,21 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  if (bound && bound != s[k]) s[k] = bound;
 	    }
       };
-      bind_sampled(a_slots, mc_pre0, mc_post0, mc_init0);
+      for (size_t b = 0 ; b < a_branch_slots.size() ; b += 1)
+	    bind_sampled(a_branch_slots[b], mc_pre0, mc_post0, mc_init0);
       bind_sampled(p_slots, mc_pre0, mc_post0, mc_init0);
       for (size_t d = 1 ; d <= M ; d += 1)
 	    bind_sampled(slots[d], mc_pre[d], mc_post[d], mc_init[d]);
 
-	/* ---- domain 0 (c1): antecedent + mc_prefix pipeline, same shape
-	   as the 2-domain lowering, but its match bumps req_in[1]. ---- */
-      std::vector<perm_string> pa(Ta), pp(Tp);
-      for (size_t k = 1 ; k < Ta ; k += 1)
-	    pa[k] = sva_make_reg_(loc, inst, "mca", (unsigned)k);
+	/* ---- domain 0 (c1): independent antecedent branches feed req_in[1]. ---- */
+      std::vector<std::vector<perm_string> > pa(a_branch_slots.size());
+      for (size_t b = 0 ; b < a_branch_slots.size() ; b += 1) {
+	    pa[b].resize(a_branch_slots[b].size());
+	    for (size_t k = 1 ; k < a_branch_slots[b].size() ; k += 1)
+		  pa[b][k] = sva_make_reg_(loc, inst, "mca",
+					   (unsigned)(b * 64 + k));
+      }
+      std::vector<perm_string> pp(Tp);
       for (size_t k = 1 ; k < Tp ; k += 1)
 	    pp[k] = sva_make_reg_(loc, inst, "mcp", (unsigned)k);
       perm_string pstart;
@@ -22563,8 +22637,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  initv.push_back(sva_assign_(loc, ffdue[d], sva_num32_(loc, 0)));
 	    }
       }
-      for (size_t k = 1 ; k < Ta ; k += 1)
-	    initv.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
+      for (size_t b = 0 ; b < pa.size() ; b += 1)
+	    for (size_t k = 1 ; k < pa[b].size() ; k += 1)
+		  initv.push_back(sva_assign_(loc, pa[b][k], sva_bit_(loc, 0)));
       for (size_t k = 1 ; k < Tp ; k += 1)
 	    initv.push_back(sva_assign_(loc, pp[k], sva_bit_(loc, 0)));
       if (pstart != perm_string())
@@ -22602,49 +22677,72 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       bool overlap0 = (in_boundary[1] == 0);
       std::vector<Statement*> body0;
       {
-	    auto ante_gate = [&](size_t k) -> PExpr* {
-		  return (k == 0) ? sva_bit_(loc, 1) : (PExpr*)sva_id_(loc, pa[k]);
-	    };
 	    perm_string vcount;
 	    if (!plain && !cover && have_pass_action) {
 		  vcount = sva_make_reg_(loc, inst, "mcva", 0, true);
 		  body0.push_back(sva_assign_(loc, vcount, sva_num32_(loc, 0)));
 	    }
+	    perm_string branch_hits;
+	    if (prop->ante_tree) {
+		  branch_hits = sva_make_reg_(loc, inst, "mcahit", 0, true);
+		  body0.push_back(sva_assign_(loc, branch_hits, sva_num32_(loc, 0)));
+	    }
 	    PExpr*ante_match = nullptr;
 	    if (!plain) {
-		  for (size_t k = 0 ; k < Ta ; k += 1) {
-			PExpr*advance;
-			if (a_slots[k]) {
-			      perm_string adv = sva_make_reg_(
-					loc, inst, "mcaadv", (unsigned)k);
-			      PEBinary*advx = new PEBLogic('a', ante_gate(k),
-							   a_slots[k]);
-			      FILE_NAME(advx, loc);
-			      body0.push_back(sva_assign_(loc, adv, advx));
-			      advance = sva_id_(loc, adv);
-			      if (!cover && have_pass_action) {
-				    PEBinary*dead = new PEBLogic(
-					      'a', ante_gate(k),
-					      sva_not_(loc, sva_id_(loc, adv)));
-				    FILE_NAME(dead, loc);
-				    PEBinary*add = new PEBinary(
-					      '+', sva_id_(loc, vcount), dead);
-				    FILE_NAME(add, loc);
-				    body0.push_back(
-					      sva_assign_(loc, vcount, add));
+		  for (size_t b = 0 ; b < a_branch_slots.size() ; b += 1) {
+			std::vector<PExpr*>&branch = a_branch_slots[b];
+			auto ante_gate = [&](size_t k) -> PExpr* {
+			      return (k == 0) ? sva_bit_(loc, 1)
+				    : (PExpr*)sva_id_(loc, pa[b][k]);
+			};
+			PExpr*branch_match = nullptr;
+			for (size_t k = 0 ; k < branch.size() ; k += 1) {
+			      PExpr*advance;
+			      if (branch[k]) {
+				    bool branched = (prop->ante_tree != nullptr);
+				    perm_string adv = sva_make_reg_(
+					      loc, inst, branched ? "mcabadv" : "mcaadv",
+					      branched ? (unsigned)(b * 64 + k)
+						       : (unsigned)k);
+				    PEBinary*advx = new PEBLogic('a', ante_gate(k),
+							 branch[k]);
+				    FILE_NAME(advx, loc);
+				    body0.push_back(sva_assign_(loc, adv, advx));
+				    advance = sva_id_(loc, adv);
+				    if (!branched && !cover && have_pass_action) {
+					  PEBinary*dead = new PEBLogic(
+						    'a', ante_gate(k),
+						    sva_not_(loc, sva_id_(loc, adv)));
+					  FILE_NAME(dead, loc);
+					  PEBinary*add = new PEBinary(
+						    '+', sva_id_(loc, vcount), dead);
+					  FILE_NAME(add, loc);
+					  body0.push_back(
+						    sva_assign_(loc, vcount, add));
+				    }
+			      } else {
+				    advance = ante_gate(k);
 			      }
-			} else {
-			      advance = ante_gate(k);
+			      if (k + 1 < branch.size())
+				    body0.push_back(sva_assign_nb_(
+					      loc, pa[b][k+1], advance));
+			      else
+				    branch_match = advance;
 			}
-			if (k + 1 < Ta)
-			      body0.push_back(sva_assign_nb_(
-					loc, pa[k+1], advance));
-			else
-			      ante_match = advance;
+			if (prop->ante_tree) {
+			      PEBinary*add = new PEBinary(
+				    '+', sva_id_(loc, branch_hits), sva_num32_(loc, 1));
+			      FILE_NAME(add, loc);
+			      body0.push_back(sva_if_(loc, branch_match,
+				    sva_assign_(loc, branch_hits, add), nullptr));
+			} else {
+			      ante_match = branch_match;
+			}
 		  }
 	    }
 
-	    PExpr*match = ante_match;
+	    PExpr*match = prop->ante_tree
+		  ? (PExpr*)sva_id_(loc, branch_hits) : ante_match;
 	    perm_string fcount;
 	    if (Tp) {
 		  if (!cover) {
@@ -22705,7 +22803,10 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  delete prefix_start;
 	    }
 
-	    PExpr*inc = new PEBinary('+', sva_id_(loc, req_in[1]), sva_num32_(loc, 1));
+	    PExpr*inc = new PEBinary(
+		  '+', sva_id_(loc, req_in[1]),
+		  prop->ante_tree ? (PExpr*)sva_id_(loc, branch_hits)
+				  : (PExpr*)sva_num32_(loc, 1));
 	    FILE_NAME(inc, loc);
 	    Statement*bump = overlap0
 		  ? sva_assign_(loc, req_in[1], inc)
@@ -22728,8 +22829,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       }
       auto clear_domain0_state = [&]() -> Statement* {
 	    std::vector<Statement*> clear;
-	    for (size_t k = 1 ; k < Ta ; k += 1)
-		  clear.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
+	    for (size_t b = 0 ; b < pa.size() ; b += 1)
+	  for (size_t k = 1 ; k < pa[b].size() ; k += 1)
+		clear.push_back(sva_assign_(loc, pa[b][k], sva_bit_(loc, 0)));
 	    for (size_t k = 1 ; k < Tp ; k += 1)
 		  clear.push_back(sva_assign_(loc, pp[k], sva_bit_(loc, 0)));
 	    if (pstart != perm_string())
@@ -22988,8 +23090,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	   are intentionally retained. */
       if (disable) {
 	    std::vector<Statement*> clear;
-	    for (size_t k = 1 ; k < Ta ; k += 1)
-		  clear.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
+	    for (size_t b = 0 ; b < pa.size() ; b += 1)
+	  for (size_t k = 1 ; k < pa[b].size() ; k += 1)
+		clear.push_back(sva_assign_(loc, pa[b][k], sva_bit_(loc, 0)));
 	    for (size_t k = 1 ; k < Tp ; k += 1)
 		  clear.push_back(sva_assign_(loc, pp[k], sva_bit_(loc, 0)));
 	    if (pstart != perm_string())
