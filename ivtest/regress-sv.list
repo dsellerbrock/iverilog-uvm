@@ -2322,6 +2322,9 @@ sv_union_unpacked_storage normal,-g2012 ivltests gold=sv_union_unpacked_storage.
 sv_union_tagged_runtime normal,-g2012 ivltests gold=sv_union_tagged_runtime.gold
 sv_union_tagged_packed_storage normal,-g2012 ivltests gold=sv_union_tagged_packed_storage.gold
 sv_union_tagged_inactive_read_fail RE,-g2012 ivltests gold=sv_union_tagged_inactive_read_fail.gold
+sv_soft_packed_union_2023 normal,-g2023 ivltests gold=sv_soft_packed_union.gold
+sv_soft_packed_union_2017 CE,-g2017 ivltests
+sv_soft_packed_union_bad_member_2023 CE,-g2023 ivltests
 
 # IEEE 1800-2017 pattern matching
 sv_pattern_matching_structured normal,-g2012 ivltests gold=sv_pattern_matching_structured.gold
