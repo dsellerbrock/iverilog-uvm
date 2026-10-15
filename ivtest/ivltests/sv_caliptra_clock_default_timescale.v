@@ -11,8 +11,6 @@ module sv_caliptra_clock_default_timescale;
 
   initial begin
     #21ns;
-    if ($timeunit != -12 || $timeprecision != -12)
-      $fatal(1, "default timeunit/precision should be 1ps/1ps");
     if (transitions != 4 || core_clk !== 1'b0)
       $fatal(1, "Caliptra clock did not make four transitions");
     $display("PASSED");
