@@ -279,7 +279,8 @@ bool PDoWhile::contains_detached_fork() const
 
 bool PEventStatement::contains_detached_fork() const
 {
-      return statement_ && statement_->contains_detached_fork();
+      return (statement_ && statement_->contains_detached_fork())
+	  || (else_statement_ && else_statement_->contains_detached_fork());
 }
 
 bool PForeach::contains_detached_fork() const
@@ -1570,12 +1571,14 @@ bool PEventStatement::refs_name(perm_string name) const
       for (unsigned idx = 0 ; idx < expr_.size() ; idx += 1)
 	    if (expr_[idx] && expr_[idx]->refs_name(name))
 		  return true;
-      return statement_ && statement_->refs_name(name);
+	  return (statement_ && statement_->refs_name(name))
+	      || (else_statement_ && else_statement_->refs_name(name));
 }
 
 bool PEventStatement::detached_fork_refs_name(perm_string name) const
 {
-      return statement_ && statement_->detached_fork_refs_name(name);
+	  return (statement_ && statement_->detached_fork_refs_name(name))
+	      || (else_statement_ && else_statement_->detached_fork_refs_name(name));
 }
 
 bool PForeach::refs_name(perm_string name) const

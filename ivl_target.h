@@ -468,7 +468,8 @@ typedef enum ivl_statement_type_e {
 	   design-global base slot instead of a static ivl_event_t. */
       IVL_ST_TRIGGER_ARR    = 38,
       IVL_ST_NB_TRIGGER_ARR = 39,
-      IVL_ST_WAIT_ARR       = 40
+      IVL_ST_WAIT_ARR       = 40,
+      IVL_ST_WAIT_ORDER     = 41
 } ivl_statement_type_t;
 
 /* Randsequence flow control is independent of the nearest procedural loop.
@@ -2602,6 +2603,8 @@ extern ivl_sfunc_as_task_t ivl_stmt_sfunc_as_task(ivl_statement_t net);
   /* IVL_ST_DELAY, IVL_ST_DELAYX, IVL_ST_FOREVER, IVL_ST_FORLOOP,
      IVL_ST_REPEAT, IVL_ST_WAIT, IVL_ST_WHILE */
 extern ivl_statement_t ivl_stmt_sub_stmt(ivl_statement_t net);
+/* IVL_ST_WAIT_ORDER only: failure continuation for wait_order's optional else. */
+extern ivl_statement_t ivl_stmt_wait_order_fail_stmt(ivl_statement_t net);
   /* IVL_ST_FORLOOP */
 extern ivl_statement_t ivl_stmt_init_stmt(ivl_statement_t net);
   /* IVL_ST_FORLOOP */

@@ -134,6 +134,8 @@ void codespace_delete(void)
 		             ((cur+idx)->opcode == &of_PUSHI_STR) ||
 		             ((cur+idx)->opcode == &of_QUEUE_TO_DARRAY)) {
 			delete [] ((cur+idx)->text);
+		  } else if ((cur+idx)->opcode == &of_WAIT_ORDER) {
+			delete (cur+idx)->wait_order_data;
 		  }
 		  if (count_opcodes == 0) break;
 	    }

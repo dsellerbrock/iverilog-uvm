@@ -695,6 +695,7 @@ extern bool of_VPI_CALL(vthread_t thr, vvp_code_t code);
 extern bool of_VIF_FATAL(vthread_t thr, vvp_code_t code);
 extern bool of_VIF_TICKCHG(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_ORDER(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_FORK(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t code);
@@ -741,6 +742,8 @@ struct vvp_container_opcode_data_s {
       class __vpiHandle*prototype;
 };
 
+struct vvp_wait_order_opcode_data_s;
+
 /*
  * This is the format of a machine code instruction.
  */
@@ -756,6 +759,7 @@ struct vvp_code_s {
 	    __vpiScope*scope;
 	    const char*text;
 	    struct vvp_container_opcode_data_s*container_data;
+	    struct vvp_wait_order_opcode_data_s*wait_order_data;
       };
 
       union {
@@ -764,6 +768,11 @@ struct vvp_code_s {
 	    vvp_code_t   cptr2;
 	    class ufunc_core*ufunc_core_ptr;
       };
+};
+
+struct vvp_wait_order_opcode_data_s {
+      vvp_net_t*observer;
+      struct vvp_code_s branches;
 };
 
 /*
