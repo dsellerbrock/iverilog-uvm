@@ -58,7 +58,7 @@ initial begin
 
     // Other stuff
     f = $sformatf("sformatf test 4: %t %v %u %z", 120s, test_net, word, word);
-    if(f != "sformatf test 4:                  120 Pu1 UUUU UUUU") begin
+    if(f != "sformatf test 4:      120000000000000 Pu1 UUUU UUUU") begin
         $display(f);
         $display("FAILED 4");
         $finish();

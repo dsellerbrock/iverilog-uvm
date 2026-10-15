@@ -1016,7 +1016,6 @@ int main(int argc, char*argv[])
 	    return flag_errors;
 
       if (gn_system_verilog() && !had_timescale) {
-	    def_ts_units = -12;
 	    def_ts_prec = -12;
       }
 
