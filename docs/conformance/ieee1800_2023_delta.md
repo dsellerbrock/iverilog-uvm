@@ -186,9 +186,33 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 16 | `$stacktrace` standardized (task + string function) | CERTAIN | task and string-function forms implemented; edition-gated to 2023 (§20.17.2) | S |
 | 17 | Preprocessor conditional identifiers and boolean form (syntax 22-5) | CERTAIN | Parenthesized 2023 expressions are under #460; plain escaped `text_macro_identifier` support in both editions is separately under #468. Focused candidate evidence and boundaries are recorded in the [paired clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-225-escaped-conditional-identifiers); PR/CI pending | M |
 | 18 | `weak_reference#(T)` | CERTAIN | UNSUPPORTED; needs GC/refcount hooks | L |
-| 19 | `rand real` | CERTAIN | FOCUSED IMPLEMENTATION: scalar finite-interval constraints and real solve-before; broader real-solving shapes remain open (2026-10-07) | L |
+| 19 | `rand real` | CERTAIN | FOCUSED IMPLEMENTATION: scalar finite-interval constraints, real solve-before, and scalar finite constant-point `dist` items with static weights. Tests cover `:=`, `:/`, mixed integral/real points, zero weight, weighted selection, infeasible points and rollback; real ranges remain unsupported but fail with rollback. Strict 2017 rejection remains covered. Real ranges, defaults, dynamic weights and array/aggregate real leaves remain open (2026-10-15; IEEE 1800-2023 §§18.4, 18.5.3; 2017 §§18.4, 18.5.4) | L |
 | 20 | Tolerance range operators `[a +/- b]`, `[a +%- b]` | CERTAIN | UNSUPPORTED by grammar inspection | S–M |
 | 21 | Relational/equality results formally sized 1-bit | CERTAIN (clarification) | already conformant ($bits probes = 1) | N/A |
+
+## Paired `rand real` point-distribution checkpoint (2026-10-15)
+
+IEEE 1800-2023 §18.4 permits randomization of singular real variables and
+prohibits `randc` real variables. Section 18.5.3 permits distributions over
+real values and ranges, allows `:=` for a single real value, and requires
+real ranges to use `:/` with an explicit weight. IEEE 1800-2017 §18.4 limits
+singular random variables to integral types, and §18.5.4 limits distribution
+expressions to integral expressions.
+
+The focused increment samples direct scalar real properties from finite
+constant point items with explicit static weights. The registered test
+exercises both weight operators on points, mixed integral and real point items,
+a zero-weight point, the 1:3 weighting, an infeasible point set, and failure
+rollback. A valid weighted real range using `:/` remains outside the implemented subset
+and is checked for deterministic failure and rollback. The test also verifies
+that an unsupported range is not ignored after a point distribution pins the
+same property. Real ranges, defaults, dynamic weights, and arrays or aggregates
+containing real leaves remain open. Section 18.5.3 gives an implicit weight of
+1 for integral items but does not specify one for a bare real point; the
+current shared lowering assigns 1 in that case, an Icarus interpretation
+outside this qualified subset.
+The red baseline on `c7ebca768` reported that real-valued `dist` sampling was
+unsupported; the focused legacy and JSON suites pass on the implementation.
 
 ## Paired clause-19 checkpoint (2026-08-26)
 
