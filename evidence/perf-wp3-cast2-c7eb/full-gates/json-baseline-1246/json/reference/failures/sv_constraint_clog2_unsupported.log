@@ -1,0 +1,18 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-json-baseline-c7eb-20261015-r2/json/reference/lists/sv_constraint_clog2_unsupported.list
+----------------------------------------------------------------------------
+gold/sv_constraint_clog2_unsupported-iverilog-stderr.gold and log/sv_constraint_clog2_unsupported-iverilog-stderr.log differ:
+--- gold/sv_constraint_clog2_unsupported-iverilog-stderr.gold
++++ log/sv_constraint_clog2_unsupported-iverilog-stderr.log
+@@ -9,6 +9,7 @@
+ ivltests/sv_constraint_clog2_unsupported.v:31: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+ ivltests/sv_constraint_clog2_unsupported.v:32: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+ ivltests/sv_constraint_clog2_unsupported.v:35: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
++ivltests/sv_constraint_clog2_unsupported.v:39: error: X/Z-valued constant is illegal in a constraint (IEEE 1800-2017/2023 18.3).
+ ivltests/sv_constraint_clog2_unsupported.v:39: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+ ivltests/sv_constraint_clog2_unsupported.v:44: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+-13 error(s) during elaboration.
++14 error(s) during elaboration.
+sv_constraint_clog2_unsupported: Failed - CE (Gold file doesn't match output).
+============================================================================
+Test results: Ran 1, Failed 1.

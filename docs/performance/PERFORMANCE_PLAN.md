@@ -495,8 +495,10 @@ the reference semantics throughout.
 
 | WP | Status | PR | Measured result |
 | --- | --- | --- | --- |
-| WP0 | FINAL CI CHECKS IN PROGRESS | #584 (draft) | Campaign-pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; final candidate `1174ea06ac5e3a926b1fa1c1bd3449a396507272`, rebased once onto `7f35ca38c86723ab40e6ebfe9fd77259827e23f9`. Original five-pair result: 18/18 outputs matched, every sample under 10 s, reference task-clock spread <=5%; new-base correctness passed: 4,651 JSON/VVP tests with 16 baseline failures and zero delta, UVM 367/0/0 with real DPI. Callgrind job 1182: +274 whole-process instructions (+0.000000290%), selected hot-path counts identical, outputs byte-identical; exact-head Linux/Windows CI remains pending. No more wall-time calibration. Evidence: [WP0 results and base history](../../evidence/perf-wp0-a5aad316/README.md). |
-| WP1-WP15 | NOT STARTED | - | - |
+| WP0 | MERGED | #584 | Campaign-pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; final source head `296d5a555781a0edd502b442c8c69295a911246e`, merged as `0490e2ff48f3169283e7d71afe2a16424e2cf3aa`. The original five-pair result was 18/18 outputs matched, every sample under 10 s, reference task-clock spread <=5%; the one-time `7f35ca38c86723ab40e6ebfe9fd77259827e23f9` follow-up passed correctness and showed +274 whole-process Callgrind instructions with selected hot-path counts identical. Exact-head Fast Linux, Ubuntu 22.04/24.04, and MINGW64/UCRT64/CLANG64 passed. Evidence: [WP0 results and base history](../../evidence/perf-wp0-a5aad316/README.md). |
+| WP1 | REJECTED | - | Pinned base `0490e2ff48f3169283e7d71afe2a16424e2cf3aa`; `behav` improved 3.310901% (94,570,528,237 → 91,439,391,991 Ir), below the 10% gate; worst other regression was +0.168452%; 18/18 outputs and focused trace checks matched. Candidate reverted. [Evidence](../../evidence/perf-wp1-debug-tax-0490e2ff/README.md). |
+| WP3 | PR #593 open; final gates pending | exact-head Fast Linux + test.yml pending on the refreshed head | Pinned base `c7ebca768c21c251d9c165c9aff0e363768030b1`; `behav` 94,553,323,869 → 81,240,603,069 Ir (−14.079590%), 18/18 outputs identical, no instruction-count regression. Final three-run wall medians and all spreads are recorded. A4’s JSON fixture fixes are in merged #595. Rebased once onto `1814cc6483e420321a8243185ac52b2d7b5380bc`; required runtime/build diff is empty, so timing evidence holds. [Evidence](../../evidence/perf-wp3-cast2-c7eb/README.md). |
+| WP2, WP4-WP15 | NOT STARTED | - | - |
 
 ### WP0 pinned-base before/after table
 
@@ -551,10 +553,30 @@ and record the result below. Run wall time only for a kept candidate's final
 PR table, as the median of three runs. The Caliptra reference is 7.775
 cycles/s.
 
+Pin one base SHA per WP and build both reference and candidate from it; do not
+rebase during measurement. Rebase a qualifying PR exactly once, immediately
+before merge. Then compare `<pinned base>..origin/main` with `git diff --stat`
+for `vvp/ libvpi/ vpi/ benchmarks/ configure.ac Makefile.in`. If none of those
+paths changed, keep the timing evidence and rerun only correctness gates and
+exact-head CI. If any changed, remeasure once on the new base. A GitHub bot
+sync that merges main into a PR branch does not trigger a rebase or remeasure.
+Record the pinned SHA in each evidence directory and PR table.
+
+The source-verified technique ranking and limits are in [`SOTA.md`](SOTA.md).
+WP1's trace/context-stat screen was rejected at −3.31% `behav` instructions;
+do not repeat it without a runtime change. Next, screen property/index
+predecode, then the profiled vec4 conversion or load path with proven 2-state
+handling, then vec4 stack-slot capacity reuse. Profile A2's Caliptra regression
+separately with `perf record` on both builds over the same fixed mcycle window.
+In phase 2, inspect the existing virtual-dispatch memo and hot casts, then
+choose one pair from the pinned WP0 histogram. Gate activity suppression on
+more than 35% inclusive net-propagation cost and keep the JIT as a measured
+ceiling spike.
+
 | Candidate | Measurement base | Target before → after | Worst other count change | Verdict | PR |
 | --- | --- | --- | --- | --- | --- |
-| WP1 trace/context stats | - | - | - | NOT RUN | - |
-| WP3 word-wide `of_CAST2` | - | - | - | NOT RUN | - |
+| WP1 trace/context stats | `0490e2ff48f3169283e7d71afe2a16424e2cf3aa` (pinned) | `behav`: 94,570,528,237 → 91,439,391,991 Ir (−3.310901%) | `randomize_z3`: +0.168452% | REJECTED: target below 10%; outputs identical | [evidence](../../evidence/perf-wp1-debug-tax-0490e2ff/README.md) |
+| WP3 word-wide `of_CAST2` | `c7ebca768c21c251d9c165c9aff0e363768030b1` (pinned) | `behav`: 94,553,323,869 → 81,240,603,069 Ir (−14.079590%) | 0.000000% | SCREEN QUALIFIED; 18/18 outputs match; wall medians recorded with all spreads; rebased once onto `1814cc648`; required runtime/build diff empty; final-head gates pending | [PR #593](https://github.com/dsellerbrock/iverilog-uvm/pull/593), [evidence](../../evidence/perf-wp3-cast2-c7eb/README.md) |
 | #536 `vpip_vec4_to_int64_saturated` | - | - | - | NOT RUN | - |
 | #536 `of_LOAD_VEC4` | - | - | - | NOT RUN | - |
 | #536 `copy_from_big_` | - | - | - | NOT RUN | - |

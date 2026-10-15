@@ -616,6 +616,7 @@ sv_assoc_unique_object_index_fail CE,-g2012 ivltests gold=sv_assoc_unique_object
 sv_array_query		normal,-g2005-sv	ivltests
 sv_cast_integer		normal,-g2005-sv	ivltests
 sv_cast_integer2		normal,-g2005-sv	ivltests
+sv_cast2_4state		normal,-g2005-sv	ivltests
 sv_cast_packed_array	normal,-g2005-sv	ivltests
 sv_cast_packed_struct	normal,-g2005-sv	ivltests
 sv_cast_string		normal,-g2005-sv	ivltests

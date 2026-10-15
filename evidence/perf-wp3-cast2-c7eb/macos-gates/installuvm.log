@@ -1,0 +1,10 @@
+./mkinstalldirs "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install/bin" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install/include/iverilog" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install/lib/ivl" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install/lib/ivl/include" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install/share/man/man1" \
+	    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install"
+Installing UVM sources to /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install/lib/ivl/uvm/src ...
+Building UVM DPI runtime module ...
+make[1]: `uvm_dpi.vpi' is up to date.
+Installed /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp3/local-install/lib/ivl/uvm_dpi.vpi

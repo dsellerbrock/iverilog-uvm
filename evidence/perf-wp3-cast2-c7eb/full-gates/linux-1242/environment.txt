@@ -1,0 +1,5 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+Icarus Verilog version 13.0 (devel) ()
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+uvm_core=78c06547a2a0a29b3dc9dcafae62b75b2ff61544

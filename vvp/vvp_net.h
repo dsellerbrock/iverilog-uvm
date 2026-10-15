@@ -382,6 +382,8 @@ class vvp_vector4_t {
 
 	// Return true if there is an X or Z anywhere in the vector.
       bool has_xz() const;
+	// Replace X/Z bits with zero while preserving known bits.
+      void cast2();
 
 	// If the vector fits in a single word and has no X or Z bits,
 	// store its bits in val (zero above size()) and return true.
@@ -577,6 +579,28 @@ inline bool vvp_vector4_t::small_2state_word(unsigned long&val) const
 	    return false;
       val = abits_val_ & mask;
       return true;
+}
+
+inline void vvp_vector4_t::cast2()
+{
+      if (size_ <= BITS_PER_WORD) {
+	    unsigned long mask = size_ == BITS_PER_WORD
+		  ? ~0UL : (1UL << size_) - 1UL;
+	    abits_val_ &= ~(bbits_val_ & mask);
+	    bbits_val_ &= ~mask;
+      } else {
+	    unsigned words = size_ / BITS_PER_WORD;
+	    for (unsigned idx = 0; idx < words; idx += 1) {
+		  abits_ptr_[idx] &= ~bbits_ptr_[idx];
+		  bbits_ptr_[idx] = 0;
+	    }
+	    unsigned remaining = size_ % BITS_PER_WORD;
+	    if (remaining > 0) {
+		  unsigned long mask = (1UL << remaining) - 1UL;
+		  abits_ptr_[words] &= ~(bbits_ptr_[words] & mask);
+		  bbits_ptr_[words] &= ~mask;
+	    }
+      }
 }
 
 inline vvp_vector4_t vvp_vector4_t::subvalue(unsigned adr, unsigned wid) const

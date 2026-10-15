@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "sv_cast2_4state.v",
+  "iverilog-args": [
+    "-g2005-sv"
+  ]
+}

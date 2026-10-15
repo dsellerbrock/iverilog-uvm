@@ -1,0 +1,3 @@
+FST info: dumpfile waveform.fst opened for output.
+wave=318f2f28
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/incoming/reference/source/benchmarks/sim-hotspots/waveform.sv:17: $finish called at 1000000000 (1ps)
