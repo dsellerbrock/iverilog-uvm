@@ -52,6 +52,12 @@ void netstruct_t::tagged_flag(bool flag)
       tagged_ = flag;
 }
 
+void netstruct_t::soft_union_flag(bool flag)
+{
+      ivl_assert(*this, members_.empty());
+      soft_union_ = flag;
+}
+
 unsigned netstruct_t::tag_bits() const
 {
       if (members_.empty()) return 0;
@@ -88,7 +94,7 @@ void netstruct_t::append_member(Design*des, const netstruct_t::member_t&val)
 		  des->errors += 1;
 	    }
       }
-      if (union_ && packed_ && members_.size() > 1) {
+      if (union_ && packed_ && !soft_union_ && members_.size() > 1) {
 	    unsigned long expect_wid = members_.front().net_type->packed_width();
 	    unsigned long got_wid = members_.back().net_type->packed_width();
 	    if (expect_wid != got_wid) {
@@ -125,11 +131,17 @@ long netstruct_t::packed_width(void) const
       if (! packed_)
 	    return -1;
 
-	// A plain packed union is exactly one member wide. A tagged packed
+	// A hard packed union is exactly one member wide. A soft packed union
+	// uses the largest member width. A tagged packed
 	// union additionally stores the discriminant at the MSB.
-	if (union_)
-	    return members_.front().net_type->packed_width()
-	         + (tagged_ ? tag_bits() : 0);
+	if (union_) {
+	    long width = members_.front().net_type->packed_width();
+	    if (soft_union_)
+		  for (size_t idx = 1; idx < members_.size(); idx += 1)
+			if (members_[idx].net_type->packed_width() > width)
+			      width = members_[idx].net_type->packed_width();
+	    return width + (tagged_ ? tag_bits() : 0);
+	}
 
 	// The width of a packed struct is the sum of member widths.
       long res = 0;
