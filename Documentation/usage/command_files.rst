@@ -165,10 +165,11 @@ list of the special records with their meaning.
 * +timescale+*units/precision*
 
   Define the default timescale. This is the timescale that is used if there is
-  no other timescale directive in the Verilog source. The compiler default
-  default is "+timescale+1s/1s", which this command file setting can
-  change. The format of the units/precision is the same as that for the
-  timescale directive in the verilog source.
+  no other timescale directive in the source. The compiler default is
+  "+timescale+1ps/1ps" for SystemVerilog and "+timescale+1s/1s" for Verilog.
+  This command file setting can change either default. The format of the
+  units/precision is the same as that for the timescale directive in the
+  source.
 
 * +toupper-filename
 

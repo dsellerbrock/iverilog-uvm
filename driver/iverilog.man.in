@@ -582,7 +582,7 @@ command line.
 The \fB+timescale+\fP token is used to set the default timescale for
 the simulation. This is the time units and precision before any
 `timescale directive or after a `resetall directive. The default is
-1s/1s.
+1s/1s for Verilog and 1ps/1ps for SystemVerilog.
 
 .TP 8
 .B +toupper-filename

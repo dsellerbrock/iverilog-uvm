@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_caliptra_clock_default_timescale.v",
+  "iverilog-args": ["-g2017", "-s", "sv_caliptra_clock_default_timescale"]
+}

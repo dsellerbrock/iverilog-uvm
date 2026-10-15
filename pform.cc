@@ -724,7 +724,8 @@ void pform_set_scope_timescale(const struct vlltype&loc)
  * Phase 60: when the parent is the compilation unit ($unit) and a
  * `timescale directive is in effect, prefer the directive's values
  * over $unit's defaults.  Without this, classes declared at file scope
- * inherit $unit->time_unit=0 (which is `def_ts_units`, default 1 sec)
+ * inherit $unit->time_unit from `def_ts_units` (1ps in SystemVerilog
+ * and 1s in Verilog unless +timescale overrides it)
  * instead of the file's `timescale, and time literals like `100ns`
  * inside class methods scale incorrectly.
  */
