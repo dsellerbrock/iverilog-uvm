@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_m5_issue436_interconnect_signed_concat.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gstrict-expr-width",
+    "-s",
+    "issue436_signed_concat"
+  ]
+}

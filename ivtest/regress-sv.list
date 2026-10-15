@@ -5580,3 +5580,13 @@ sv_constraint_override_extern_mismatch_fail_2023 CE,-g2023 ivltests
 sv_constraint_override_static_fail_2023 CE,-g2023 ivltests
 sv_constraint_override_pure_final_fail_2023 CE,-g2023 ivltests
 sv_constraint_override_specifiers_2017 CE,-g2017 ivltests
+sv_m5_issue431_concat_target_snapshot_2017 normal,-g2017,-gstrict-expr-width,-s,issue431 ivltests
+sv_m5_issue431_concat_target_snapshot_2023 normal,-g2023,-gstrict-expr-width,-s,issue431 ivltests
+sv_m5_issue434_detached_aggregate_2017 normal,-g2017,-gstrict-expr-width,-s,issue434 ivltests
+sv_m5_issue434_detached_aggregate_2023 normal,-g2023,-gstrict-expr-width,-s,issue434 ivltests
+sv_m5_issue434_detached_vif_2017 normal,-g2017,-gstrict-expr-width,-s,issue434_interface ivltests
+sv_m5_issue434_detached_vif_2023 normal,-g2023,-gstrict-expr-width,-s,issue434_interface ivltests
+sv_m5_issue436_interconnect_concat_2017 normal,-g2017,-gstrict-expr-width,-s,issue436 ivltests
+sv_m5_issue436_interconnect_concat_2023 normal,-g2023,-gstrict-expr-width,-s,issue436 ivltests
+sv_m5_issue436_interconnect_signed_concat_2017 normal,-g2017,-gstrict-expr-width,-s,issue436_signed_concat ivltests
+sv_m5_issue436_interconnect_signed_concat_2023 normal,-g2023,-gstrict-expr-width,-s,issue436_signed_concat ivltests
