@@ -2705,3 +2705,28 @@ check` pass. The VVP parser conflict count is 14 shift/reduce and 5
 reduce/reduce. Full-suite and CI qualification remain pending; see the
 [session record](../session_logs/2026-10-09_ieee_packed_subfield_release.json)
 and [issue #493](https://github.com/dsellerbrock/iverilog-uvm/issues/493).
+
+## October 15, 2026 — multiclock `disable iff` with fixed OR antecedents
+
+PARTIAL §§16.9.7, 16.12, 16.12.7, 16.13.1 and 16.13.3: explicit asynchronous
+`disable iff` now applies to a same-clock, fixed-length OR antecedent feeding
+a consequent across at least two clock-flow boundaries. Each OR branch has
+independent pipeline state, and every match creates its own consequent
+obligation, including multiple branches matching at one endpoint. A disable
+transition clears branch state and pending cross-domain obligations.
+
+The 2017/2023 clause wording is materially unchanged for these semantics.
+Paired positive cases check simultaneous branch matches and reset coincident
+with a later clock handoff; boundary cases check reset at the handoff edge and
+pending work near end-of-simulation. Paired compile-error cases keep an
+unsupported `and` antecedent tree explicit. These six cases pass in both
+editions in the legacy and JSON runners. T0 also passes the 56-case
+compiler/VVP smoke, 131-case VPI smoke, 152 negative checks, and the remaining
+smoke reproducers/runtime checks. Slurm T1 passes: fixed multiclock control
+28/28 legacy and 28/28 JSON/VVP; implication-tree neighbors 1/1 legacy and
+2/2 JSON/VVP; SVA NFA parity 65/65.
+
+This does not qualify variable-length branches, non-OR trees, `first_match`,
+local variables, match-item calls, branch pass actions, two-domain OR
+antecedents, or general clause-16 behavior. Issue #447 remains open for the
+broader shapes; see the [evidence record](../../../evidence/sva-multiclock-disable-iff-or-antecedent-20261015/README.md).
