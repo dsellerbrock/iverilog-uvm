@@ -1,0 +1,2 @@
+PASSED
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-converter-edge65-c7eb-20261015-r1/input/sv_vpi_wide_index.v:69: $finish called at 0 (1s)

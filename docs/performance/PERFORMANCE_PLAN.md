@@ -551,19 +551,43 @@ and record the result below. Run wall time only for a kept candidate's final
 PR table, as the median of three runs. The Caliptra reference is 7.775
 cycles/s.
 
+The source-verified technique ranking and limits are in
+[`SOTA.md`](SOTA.md). The WP1 trace/context-stat screen (−3.31% `behav` Ir)
+and WP2 property/index predecode screens (best: −9.212159% focused
+Callgrind Ir; the added fast path regressed 0.322130%) are rejected at their
+pinned base; do not repeat them without a changed workload or design. The active
+order is the screened fused word-plane converter (remeasure after #593 before
+its PR), then `of_LOAD_VEC4`, then measured vec4 stack-slot capacity reuse. A2's c339/main
+Caliptra sampling is a separate diagnosis; neither its 500-cycle nor 4,900-cycle
+sample reproduced the full-row regression. In Phase
+2, inspect the existing virtual-dispatch memo and hot cast sites, then fuse one
+pair chosen from the pinned WP0 histogram. Gate activity suppression or
+levelization on more than 35% inclusive net-propagation cost; keep the JIT in
+Phase 3 as a measured ceiling spike.
+
 | Candidate | Measurement base | Target before → after | Worst other count change | Verdict | PR |
 | --- | --- | --- | --- | --- | --- |
-| WP1 trace/context stats | - | - | - | NOT RUN | - |
-| WP3 word-wide `of_CAST2` | - | - | - | NOT RUN | - |
-| #536 `vpip_vec4_to_int64_saturated` | - | - | - | NOT RUN | - |
-| #536 `of_LOAD_VEC4` | - | - | - | NOT RUN | - |
-| #536 `copy_from_big_` | - | - | - | NOT RUN | - |
-| #536 allocation | - | - | - | NOT RUN | - |
-| #536 `__dynamic_cast` | - | - | - | NOT RUN | - |
+| WP1 trace/context stats | `0490e2ff48f3169283e7d71afe2a16424e2cf3aa` | `behav`: 94,570,528,237 → 91,439,391,991 Ir (−3.310901%) | `randomize_z3`: +0.168452% | REJECTED: below 10%; outputs identical | [evidence](../../evidence/perf-wp1-debug-tax-0490e2ff/README.md) |
+| WP3 word-wide `of_CAST2` | `c7ebca768c21c251d9c165c9aff0e363768030b1` | `behav`: 94,553,323,869 → 81,240,603,069 Ir (−14.079590%) | 0.000000% | PR #593 open; rebased once onto #595; final wall medians recorded; final-head Slurm gate job 1292 passed; exact-head CI run 38784048913 in flight | [evidence](../../evidence/perf-wp3-cast2-c7eb/README.md) |
+| A2 Caliptra regression profile | A5 pin `c7ebca768c21c251d9c165c9aff0e363768030b1`; compare c339 vs `3335fe7ec1495956c8adc5788e9a53b0f1756ecf` | Same test; 100–5000 cycle sample was 0.094% faster on main and did not explain the reported row | - | Diagnosis only; neither sampled window reproduces the full-row slowdown | [evidence](../../evidence/a5-a2-top-profile-d1529-20261015/README.md) |
+| `%prop/index/check` predecode | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Best focused Callgrind: 1,128,370,773 → 1,024,423,467 Ir (−9.212159%); v3: 1,027,723,440 Ir (−8.919704%) | - | REJECTED: best below 10%; v3 regressed 0.322130% vs v2; 32-case focused checks passed | [evidence](../../evidence/wp2-predecode-c7eb-20261015/README.md) |
+| `vpip_vec4_to_int64_saturated` word-plane fallback | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Whole focused process: 2,342,072,014 → 1,863,201,596 Ir (−20.446443%) | 18/18 Callgrind counts; worst +0.001880%; outputs 18/18 match; FST paired under `--fair-sched=yes` | SCREEN PASSED on c7eb; run one deliberate remeasurement after #593 merges because `vvp/vvp_net.h` changed; `perf stat` instructions unsupported | [evidence](../../evidence/wp2-converter-c7eb-20261015/wordscan-screen/README.md) |
+| `vpip_vec4_to_int64_saturated` fused X/Z scan follow-up | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Whole focused process: 2,342,144,538 → 1,861,170,476 Ir (−20.535627%) | 18/18 outputs match; counts range −0.026238% to +0.002218%; wide/narrow X/Z edge checks pass | SCREEN PASSED on c7eb; 0.089-point focused difference vs earlier variant is unmatched because input added a narrow-Z assertion; rebase once and remeasure after #593 because `vvp/vvp_net.h` changed | [evidence](../../evidence/wp2-converter-c7eb-20261015/wordscan-screen/fusedxz-broad-20261015/README.md) |
+| Allocation reuse for thread vec4 stack | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind Ir / allocation counts before → after | - | PENDING; separate candidate | - |
+| `of_LOAD_VEC4` / `copy_from_big_` | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind inclusive before → after | - | PENDING; profile after stack screen | - |
+| `__dynamic_cast` / type-tag path | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind by call site before → after | - | PENDING; profile UVM and Caliptra; no padding assumption | - |
+| Existing virtual-dispatch memo / optional inline cache | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind map lookup/miss cost | - | PENDING; only consider a call-site cache if the current memo is hot | - |
+| Hot-pair fusion | `c7ebca768c21c251d9c165c9aff0e363768030b1` | WP0 pair count / Callgrind before → after | - | PENDING; one non-suspending pair, not top 15 | - |
+| Activity suppression / local levelization | `c7ebca768c21c251d9c165c9aff0e363768030b1` | `recv_vec4` + `send_vec4` + `schedule_*` inclusive share | - | GATED; prototype only above 35% | - |
+| Copy-and-patch JIT ceiling spike | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind Ir, startup cost, code size | - | PENDING; spike only, no productionization | - |
 
-Completion requires WP0 merged, at least three merged speedup PRs with
-before/after instruction counts and final wall-time medians, and a cumulative
-`caliptra_top` cycles/s result against the 7.775 baseline.
+Completion requires WP0 merged, WP3 plus at least two more aggressive-technique
+PRs merged, final before/after instruction counts and wall-time medians, a
+cumulative `caliptra_top` cycles/s result against 7.775, and a measured JIT
+ceiling. Each evidence directory and PR table records its pinned base. Rebase
+once immediately before each merge; compare the pinned base with
+`origin/main` for runtime/benchmark/build-path changes and remeasure only when
+that diff requires it.
 
 ## References
 
