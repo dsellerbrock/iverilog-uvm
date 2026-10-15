@@ -4431,6 +4431,12 @@ bool NetEvWait::synth_async(Design*des, NetScope*scope,
 			    NexusSet&nex_map, NetBus&nex_out,
 			    NetBus&enables, vector<mask_t>&bitmasks)
 {
+	  if (is_wait_order()) {
+	    cerr << get_fileline() << ": error: wait_order cannot be synthesized."
+		 << endl;
+	    des->errors += 1;
+	    return false;
+	  }
       bool flag = statement_->synth_async(des, scope, nex_map, nex_out, enables, bitmasks);
       return flag;
 }
@@ -5654,6 +5660,12 @@ bool NetEvWait::synth_sync(Design*des, NetScope*scope,
 			   vector<mask_t>&bitmasks,
 			   const vector<NetEvProbe*>&events_in)
 {
+	  if (is_wait_order()) {
+	    cerr << get_fileline() << ": error: wait_order cannot be synthesized."
+		 << endl;
+	    des->errors += 1;
+	    return false;
+	  }
       if (debug_synth2) {
 	    cerr << get_fileline() << ": NetEvWait::synth_sync: "
 		 << "Synchronous process an event statement." << endl;

@@ -10960,6 +10960,15 @@ void vthread_cancel_resource_wait(vthread_t thr)
 	/* keep_alive releases the owner here, after the unlink is complete. */
 }
 
+void vthread_resume_resource_wait(vthread_t thr, void*owner_id, vvp_code_t pc)
+{
+      vvp_object_t keep_alive;
+      if (!vthread_claim_resource_wait(thr, owner_id, keep_alive))
+	    return;
+      thr->pc = pc;
+      schedule_vthread(thr, 0, true);
+}
+
 void vthread_cancel_mutation_wait(vthread_t thr)
 {
       if (!thr)
@@ -33130,6 +33139,24 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
       thr->wait_next = ep->add_waiting_thread(thr);
 
 	/* Return false to suspend this thread. */
+      return false;
+}
+
+/* %wait/order <observer>, <success>, <failure>. The observer keeps one
+ * cancellable registration per executing thread. */
+bool of_WAIT_ORDER(vthread_t thr, vvp_code_t cp)
+{
+	  const vvp_wait_order_opcode_data_s*data = cp->wait_order_data;
+	  vvp_fun_wait_order*observer = data && data->observer
+	    ? dynamic_cast<vvp_fun_wait_order*>(data->observer->fun) : nullptr;
+      assert(observer);
+      vvp_code_t immediate = nullptr;
+	  if (observer->arm(thr, data->branches.cptr,
+			    data->branches.cptr2, immediate)) {
+	    thr->pc = immediate;
+	    return true;
+      }
+      thr->in_region_drain = 0;
       return false;
 }
 

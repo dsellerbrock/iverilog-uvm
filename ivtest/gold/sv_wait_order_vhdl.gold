@@ -1,0 +1,2 @@
+VHDL conversion error: wait_order statements cannot be translated to VHDL
+error: Code generation had 1 error(s).

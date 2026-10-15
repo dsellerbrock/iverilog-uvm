@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_wait_order.v",
+  "iverilog-args": ["-g2023", "-s", "sv_wait_order"],
+  "gold": "sv_wait_order"
+}
