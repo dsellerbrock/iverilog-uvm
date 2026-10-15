@@ -2274,17 +2274,16 @@ subsequent events be untriggered: a later event whose trigger remains
 persistent when `wait_order` begins causes failure, while the first event may
 use its persistent state.
 The default-failure fixtures cover both editions. Empty `else` is rejected in
-2017 and accepted in 2023, matching the edition-specific grammar. Slurm job
-1231 built the frozen source,
-passed `make check` and install (2:17.77 wall time; 1,757,808 KiB peak RSS).
-Job 1233 ran T0/T1 against that build: T0 passed 9/9 legacy cases, all 6 JSON
-rows, and the smoke set; graph-selected T1 passed 12/12 legacy and 12/12 JSON
-cases for static/dynamic pulses, automatic rebinding, NBA event scheduling,
-parallel automatic contexts, and persistent triggered state. Target rejection
-checks for Verilog-95, VHDL, synthesis, and the 2017 empty-`else` boundary also
-passed on the earlier pre-entry interpretation; this evidence does not cover
-the revised persistent-later-event checks. Refreshed T0/T1 and batch T2 are
-pending. This is focused `wait_order` evidence, not full §15 qualification.
+2017 and accepted in 2023, matching the edition-specific grammar. The refreshed
+exact-head T0/T1 run, Slurm job 1265 on
+`15ca10f07500caae118ddd998d8b9351f7c1e8de`, passed: T0 had 4/4 legacy and
+4/4 JSON/VVP cases; smoke passed; graph-selected T1 had 10/10 legacy and
+10/10 JSON/VVP cases. The issue fixture also covers concurrent waiters where
+one success continuation triggers the next event. The GCC 15.2.0 build took
+2:16.96 and peaked at 1,757,644 KiB RSS. Exact-head Fast Linux run
+38771525748 passed. Windows lanes and batch T2 remain pending; the `ivl.def`
+target API export requires Windows validation before merge. This is focused
+`wait_order` evidence, not full §15 qualification.
 Event-variable assignment/merging (§15.5.5.1), event arrays, and class-event
 operands remain outside this implementation's scope.
 
