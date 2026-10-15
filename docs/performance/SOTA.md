@@ -122,9 +122,11 @@ sketches, not current VVP members.
 ## A5 experiment order
 
 1. Finish WP3 `of_CAST2` on pinned base
-   `c7ebca768c21c251d9c165c9aff0e363768030b1`; draft PR #593 is open. Finish
-   its final wall medians, reconcile the Slurm/A3 JSON-gate difference, and
-   complete exact-head gates/CI before merge.
+   `c7ebca768c21c251d9c165c9aff0e363768030b1`; PR #593 is open and the
+   instruction gate and final three-run wall table are complete. A4's JSON
+   fixture fixes merged in #595. Rebase once onto `1814cc6483e420321a8243185ac52b2d7b5380bc`;
+   the required runtime/build-path diff is empty, so the timing evidence holds.
+   Finish final-head correctness gates and CI before merge.
 2. Profile A2's M7 row 14, `smoke_test_dma_aes_gcm_short_1_dword`, on c339 and
    `3335fe7ec` to investigate its 7.023 vs 6.384 cycles/s result. Use `perf
    record` sampling on both builds over the same fixed mcycle window; do not
