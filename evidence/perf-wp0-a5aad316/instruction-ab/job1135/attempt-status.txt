@@ -1,0 +1,18 @@
+pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+candidate=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+slurm_job=1135
+benchmark=behav.sv; one candidate-compiled shared .vvp; +ntb_random_seed=73014
+counter=Callgrind Ir; Valgrind 3.26.0
+reference_instructions=94558243526
+candidate_instructions=94558243596
+instruction_delta=70
+instruction_delta_percent=0.000000074
+hot_path_instruction_counts_match=yes
+hot_path_counts=hot-path-counts.csv
+stdout_byte_identical=yes
+stderr_byte_identical=yes
+stats_off_config=VVP_PERF_STATS undefined
+candidate_vvp_perf_stats_symbols=absent
+vvp_runs=completed successfully under Callgrind
+original_helper_exit=1 (exact-count assertion after both profiles and output comparisons)
+result=profiles captured; output equality passed; instruction-count delta recorded

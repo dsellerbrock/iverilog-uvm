@@ -50,6 +50,9 @@
  */
 # undef CHECK_WITH_VALGRIND
 
+/* Define to compile opt-in VVP performance counters. */
+# undef VVP_PERF_STATS
+
 /* Figure if I can use readline. */
 #undef USE_READLINE
 #ifdef HAVE_LIBREADLINE

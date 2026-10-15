@@ -1,0 +1,9 @@
+function,reference_ir,candidate_ir,identical
+vthread_run(vthread_s*),613578381,613578381,yes
+vthread_run(vthread_s*)'2,2086502400,2086502400,yes
+"of_CAST2(vthread_s*, vvp_code_s*)",14047605600,14047605600,yes
+"of_DELAY(vthread_s*, vvp_code_s*)",9600,9600,yes
+"schedule_event_(event_s*, unsigned long, event_queue_e)",76851,76851,yes
+schedule_simulate(),13,13,yes
+vthread_run_unpin_(vthread_s*),36880862,36880862,yes
+"vvp_send_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)",621855646,621855646,yes

@@ -1,0 +1,6 @@
+host=DAN-DESKTOP
+date_utc=2026-10-14T17:31:20Z
+source_archive_hashes:
+b5787860e1c4dd03b32b95e75d5b573cc24743cf65d3ab35205889d5cefdf46f  source.tar.gz
+47edabcda41a463532346d45b5479a7e3101202e620af762fc203467526e3845  uvm-core.tar.gz
+stats-enabled configure, symbols, disabled identity, and bounded JSON smoke passed

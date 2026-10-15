@@ -149,6 +149,8 @@ behavior.
 opportunistically fix neighboring gaps, warnings, refactors, APIs,
 tests, or technical debt.
 
+A5 VVP performance tickets use `.ai/ACTIVE_WORK.yaml` `active.perf` entries (`PERF-WPn`); leave A3's `active.features` section untouched.
+
 A source file may be modified only if its relationship to the active
 work item can be explained in one sentence.
 

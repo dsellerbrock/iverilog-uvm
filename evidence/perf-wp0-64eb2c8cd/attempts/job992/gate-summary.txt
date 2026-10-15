@@ -1,0 +1,3 @@
+benchmark,ref_wall_median_s,ref_wall_spread_pct,ref_task_median_ms,ref_task_spread_pct,candidate_wall_median_s,candidate_wall_spread_pct,candidate_task_median_ms,candidate_task_spread_pct,ref_instructions,candidate_instructions
+behav,4.471786,0.030846,4452.240000,0.298501,4.473686,1.178804,4460.840000,0.680813,,
+classq,5.775517,3.480292,5744.120000,3.033363,5.773925,0.050016,5739.210000,0.580568,,

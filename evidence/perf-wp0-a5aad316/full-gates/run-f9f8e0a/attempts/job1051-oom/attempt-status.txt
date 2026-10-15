@@ -1,0 +1,12 @@
+job=1051
+run_directory=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-uvm-a5aad316-f9f8-20261014-r1
+candidate=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+resources=2 CPUs, 2 GiB RAM, 2 hours
+scheduler_state=OUT_OF_MEMORY
+elapsed=00:30:36
+exit_code=0:125
+uvm_gate=311 passed, 56 failed, 0 skipped
+failure_cause=56 compiler SIGKILLs matched 56 cgroup OOM kills under the 2 GiB job memory cap
+measurement=not run
+remote_evidence_sha256=6f78400a3a6b8c96d7a9107c6c6b1e52c2c77411b0af93581f62a28ae32143f2

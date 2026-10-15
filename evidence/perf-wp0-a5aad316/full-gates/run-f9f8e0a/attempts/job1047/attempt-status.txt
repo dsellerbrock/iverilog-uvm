@@ -1,0 +1,10 @@
+job_id=1047
+status=SETUP_FAILURE
+tested_head=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+slurm_exit_code=1
+runtime=00:00:01
+failed_stage=archive_checksum_verification
+reason=malformed remote SHA256SUMS quoting caused sha256sum to treat all three archive rows as one filename
+compile_or_test_ran=no
+next=submit the same immutable source archives and scripts to a fresh r2 run directory with a staged checksum file

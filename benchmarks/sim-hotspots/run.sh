@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# The JSON mode performs strict byte-for-byte comparison and defaults to five
+# interleaved samples with perf and RSS data when the host supports them.
+if [[ ${1:-} == --json ]]; then
+      HERE=$(cd "$(dirname "$0")" && pwd)
+      exec python3 "$HERE/run_json.py" "${@:2}"
+fi
 # Compare two vvp runtimes on the simulation hot-spot benchmarks.
 #
 # Usage: run.sh <reference-vvp> <candidate-vvp> [runs]

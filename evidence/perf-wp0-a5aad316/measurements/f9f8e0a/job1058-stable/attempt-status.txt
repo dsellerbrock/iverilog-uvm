@@ -1,0 +1,20 @@
+job=1058
+run_directory=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-measure-a5aad316-f9f8-20261014-r5
+pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+candidate=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+uvm_core_submodule=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+resources=1 CPU, 1 GiB RAM, 1 hour
+scheduler_state=COMPLETED
+elapsed=00:08:58
+fixed_random_seed=73014
+temporary_output_root=/dev/shm/a5-wp0-measure-f9f8-r5
+primary_metric=task_clock_ms; perf was available but instructions were unsupported
+screen=18 benchmarks, outputs identical, every sample under 10 seconds
+five_pair_gate=18 benchmarks, outputs identical, every sample under 10 seconds, every reference task-clock spread <=5 percent
+maximum_sample_wall_seconds=see result.json
+maximum_reference_rss_bytes=see result.csv
+accepted_performance_evidence=yes
+attempt_bundle_sha256=3dc94591bc78fcc161e02b81753b0b038a6dbe6e141e252de565d645211dfa3e
+result_csv_bundle_sha256=b5ec373e9254d187f42fa0c471c12be70d47c401a7d9a7087b1bbddb89e8d400
+result_csv_review_copy_sha256=8f1f8cf64bfa1ac7db3f34e015786d7a0bb6d5bc1712dd711a6cc8f23655be44
+result_json_sha256=c3c8d04b9753d870a6045dfc84c45159ac92b12a0f02f9ef851329fde5f4b91b

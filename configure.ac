@@ -198,6 +198,12 @@ AC_ARG_ENABLE([libveriuser],
     [AC_SUBST(LIBVERIUSER, yes)],
     [AC_SUBST(LIBVERIUSER, no)])
 
+AC_ARG_ENABLE([perf-stats],
+    [AS_HELP_STRING([--enable-perf-stats], [compile opt-in VVP performance counters])],
+    [enable_perf_stats=$enableval], [enable_perf_stats=no])
+AS_IF([test "x$enable_perf_stats" = "xyes"],
+    [AC_DEFINE([VVP_PERF_STATS], [1], [Compile opt-in VVP performance counters])])
+
 # Package Options
 # ---------------
 

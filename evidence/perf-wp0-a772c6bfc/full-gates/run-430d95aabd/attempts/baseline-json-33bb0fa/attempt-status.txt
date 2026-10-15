@@ -1,0 +1,10 @@
+job_id=1044
+status=COMPLETED_COMPARISON
+baseline_head=33bb0fa640d8862198ea88ef86dd3e4674f791ee
+resources=2 CPUs, 4 GiB RAM, 2 hours
+runtime=00:02:21
+per_test_timeout=300 seconds
+build=PASS
+focused_result=all 16 selectors returned one known regression-suite mismatch on origin/main
+comparison=all 16 failures from WP0 full JSON run are present on the current main baseline
+scope=diagnostic only; this does not replace the full post-rebase WP0 gates

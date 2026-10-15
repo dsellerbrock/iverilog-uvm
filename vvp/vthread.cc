@@ -38,6 +38,7 @@
 # include  "vthread.h"
 # include  "codes.h"
 # include  "schedule.h"
+# include  "vvp_perf_stats.h"
 # include  "ufunc.h"
 # include  "event.h"
 # include  "vpi_priv.h"
@@ -868,6 +869,9 @@ struct vthread_s {
 	   mailbox, semaphore, or process object. */
       unsigned waiting_for_resource :1;
       unsigned is_scheduled      :1;
+#ifdef VVP_PERF_STATS
+      bool perf_has_run;
+#endif
 	/* A break (1) or continue (2) executed in a forked block nested in
 	   this thread's loop, pending until the block's join (see
 	   %flow/pending/break). */
@@ -1251,6 +1255,9 @@ inline vthread_s::vthread_s()
       event_expr_recipe_observer = 0;
       event_expr_recipe_complete = false;
       event_expr_recipe_failed = false;
+#ifdef VVP_PERF_STATS
+      perf_has_run = false;
+#endif
       last_pause_pc = 0;
 }
 
@@ -10164,6 +10171,9 @@ static void multiply_array_imm(unsigned long*res, const unsigned long*val,
  */
 static vvp_context_t vthread_alloc_context(__vpiScope*scope)
 {
+#ifdef VVP_PERF_STATS
+      vvp_perf_stats_context_alloc();
+#endif
       assert(scope->has_automatic_context());
 
       vvp_context_t context = scope->free_contexts;
@@ -10311,6 +10321,9 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
                               bool seed_process_rng)
 {
       vthread_t thr = new struct vthread_s;
+#ifdef VVP_PERF_STATS
+      vvp_perf_stats_thread_created();
+#endif
       thr->pc     = pc;
 	//thr->bits4  = vvp_vector4_t(32);
       thr->parent = 0;
@@ -11096,6 +11109,10 @@ class dispatch_pin_list_s {
 
 void vthread_run(vthread_t thr)
 {
+#ifdef VVP_PERF_STATS
+      vthread_t stats_last_thread = 0;
+      vvp_perf_opcode_t stats_last_opcode = 0;
+#endif
       static int pc_hottrace_enabled = -1;
       static unsigned long pc_hottrace_limit = 100000;
       static std::map<const struct vvp_code_s*, unsigned long> pc_hottrace_hits;
@@ -11148,6 +11165,12 @@ void vthread_run(vthread_t thr)
 		  thr = tmp;
 		  continue;
 	    }
+#ifdef VVP_PERF_STATS
+            if (thr->perf_has_run)
+                  vvp_perf_stats_thread_wake();
+            else
+                  thr->perf_has_run = true;
+#endif
 
 	    dispatch_pin_list_s dispatch_pins;
 	    vthread_run_pin_(thr);
@@ -11212,6 +11235,13 @@ void vthread_run(vthread_t thr)
 			do {
 			      cp = thr->pc;
 			      thr->pc += 1;
+#ifdef VVP_PERF_STATS
+                              if (stats_last_thread != thr)
+                                    stats_last_opcode = 0;
+                              vvp_perf_stats_opcode(stats_last_opcode, cp->opcode);
+                              stats_last_thread = thr;
+                              stats_last_opcode = cp->opcode;
+#endif
 			      rc = (cp->opcode)(thr, cp);
 			} while (rc && !trampoline_switch_to);
 		  } else {
@@ -11222,6 +11252,13 @@ void vthread_run(vthread_t thr)
 			      trace_step = step_trace_enabled_(step_scope_name);
 			}
 			thr->pc += 1;
+#ifdef VVP_PERF_STATS
+                        if (stats_last_thread != thr)
+                              stats_last_opcode = 0;
+                        vvp_perf_stats_opcode(stats_last_opcode, cp->opcode);
+                        stats_last_thread = thr;
+                        stats_last_opcode = cp->opcode;
+#endif
 
 			unsigned long hits = 0;
 			if (pc_hottrace_enabled)

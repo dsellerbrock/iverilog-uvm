@@ -1,0 +1,1 @@
+18/18 outputs identical; every reference and candidate sample is under 10 s.

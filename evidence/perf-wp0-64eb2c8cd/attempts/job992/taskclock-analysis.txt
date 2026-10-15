@@ -1,0 +1,23 @@
+Post-run campaign metric analysis for Slurm job 992.
+Candidate benchmark source: 281d1bca8 (see measure.sh and source metadata).
+perf_stat_available=True; CPU affinity=[4].
+Hardware instructions were unavailable; task-clock is the primary fallback metric. Wall time is supporting evidence.
+All 18 benchmark outputs byte-identical: True.
+behav: ref wall median 4.472s, ref task-clock spread 0.30%, candidate task-clock spread 0.68%, max sample wall ref/candidate 4.473/4.523s.
+classq: ref wall median 5.776s, ref task-clock spread 3.03%, candidate task-clock spread 0.58%, max sample wall ref/candidate 5.927/5.774s.
+fork_heavy: ref wall median 54.661s, ref task-clock spread 28.57%, candidate task-clock spread 36.00%, max sample wall ref/candidate 55.623/57.560s.
+gate_strength: ref wall median 0.165s, ref task-clock spread 0.85%, candidate task-clock spread 7.57%, max sample wall ref/candidate 0.168/0.164s.
+io_text: ref wall median 0.115s, ref task-clock spread 1.88%, candidate task-clock spread 0.97%, max sample wall ref/candidate 0.117/0.115s.
+large_memory: ref wall median 0.114s, ref task-clock spread 3.41%, candidate task-clock spread 7.72%, max sample wall ref/candidate 0.115/0.115s.
+multi_clock: ref wall median 0.064s, ref task-clock spread 1.22%, candidate task-clock spread 0.92%, max sample wall ref/candidate 0.064/0.064s.
+randomize_dv_txn: ref wall median 4.576s, ref task-clock spread 0.63%, candidate task-clock spread 2.11%, max sample wall ref/candidate 4.577/4.628s.
+randomize_z3: ref wall median 1.267s, ref task-clock spread 2.66%, candidate task-clock spread 2.60%, max sample wall ref/candidate 1.270/1.269s.
+rtl_alu: ref wall median 3.870s, ref task-clock spread 1.77%, candidate task-clock spread 2.02%, max sample wall ref/candidate 3.874/3.921s.
+rtl_pipe: ref wall median 7.227s, ref task-clock spread 3.21%, candidate task-clock spread 0.90%, max sample wall ref/candidate 7.380/7.228s.
+strings_aa_queue: ref wall median 1.567s, ref task-clock spread 5.30%, candidate task-clock spread 2.56%, max sample wall ref/candidate 1.667/1.620s.
+uvm_config_factory: ref wall median 0.615s, ref task-clock spread 2.81%, candidate task-clock spread 2.49%, max sample wall ref/candidate 0.619/0.616s.
+uvm_traffic: ref wall median 3.523s, ref task-clock spread 2.80%, candidate task-clock spread 1.70%, max sample wall ref/candidate 3.524/3.524s.
+vpi_callbacks: ref wall median 5.124s, ref task-clock spread 0.64%, candidate task-clock spread 1.17%, max sample wall ref/candidate 5.174/5.175s.
+waveform_fst: ref wall median 0.666s, ref task-clock spread 1.63%, candidate task-clock spread 1.34%, max sample wall ref/candidate 0.716/0.666s.
+waveform_vcd: ref wall median 0.615s, ref task-clock spread 1.33%, candidate task-clock spread 1.59%, max sample wall ref/candidate 0.616/0.618s.
+wide_vectors: ref wall median 0.264s, ref task-clock spread 0.86%, candidate task-clock spread 0.33%, max sample wall ref/candidate 0.267/0.264s.

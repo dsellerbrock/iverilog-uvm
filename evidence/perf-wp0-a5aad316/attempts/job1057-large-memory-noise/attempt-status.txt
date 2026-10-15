@@ -1,0 +1,15 @@
+job=1057
+run_directory=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp0-measure-a5aad316-f9f8-20261014-r4
+pinned_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+candidate=a5aad31659540d6a4c67bbaeffbeaa484b31f442
+resources=1 CPU, 1 GiB RAM, 1 hour
+scheduler_state=FAILED (measurement stability gate)
+elapsed=00:09:01
+fixed_random_seed=73014
+temporary_output_root=/dev/shm/a5-wp0-measure-f9f8-r4
+screen=18 benchmarks, outputs identical, every sample under 10 seconds
+five_pair_run=17 reference baselines passed stability; large_memory spread 51.917%
+large_memory_samples=first measured reference 143.23 task-clock ms; remaining references 94.20-94.49 ms; screen reference 94.28 ms
+all_outputs_identical=True
+accepted_performance_evidence=no; isolated same-base repeat required
+remote_evidence_sha256=070e0b330785f0b96fb261c85a6c747c1bd520d52579d22bf397a10f12c434c6

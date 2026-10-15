@@ -1,0 +1,4 @@
+benchmark source: commit 64eb2c8cd (randomize_z3.sv is unchanged from earlier WP0 snapshots)
+candidate compiler: /home/dsell/toolchains/iverilog-a5-wp0-281d1bca-off/bin/iverilog
+stats-enabled VVP: source commit 39d959d3a; binary hash is recorded in binary.sha256 and matches job987.
+Each direct VVP invocation had a 60-second GNU timeout with a 5-second kill grace.

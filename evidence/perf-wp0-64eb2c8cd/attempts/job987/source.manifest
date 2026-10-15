@@ -1,0 +1,4 @@
+source_commit=39d959d3ac512ab362c9cb60f7d46297a0b6e889
+uvm_core_commit=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+source_tree_clean_at_commit=true
+configure=--enable-libveriuser --enable-perf-stats

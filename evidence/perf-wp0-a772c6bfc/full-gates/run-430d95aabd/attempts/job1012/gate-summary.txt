@@ -1,0 +1,38 @@
+head=430d95aabd93b9922f5987b108bf27de894aed1d
+resources=4 CPUs, 8 GiB RAM, 4 hours; serial gates after parallel build targets
+BEGIN extract-off 2026-10-14T19:07:12Z
+END extract-off exit_code=0 2026-10-14T19:07:12Z
+BEGIN extract-on 2026-10-14T19:07:12Z
+END extract-on exit_code=0 2026-10-14T19:07:13Z
+BEGIN extract-uvm-off 2026-10-14T19:07:13Z
+END extract-uvm-off exit_code=0 2026-10-14T19:07:13Z
+BEGIN extract-uvm-on 2026-10-14T19:07:13Z
+END extract-uvm-on exit_code=0 2026-10-14T19:07:13Z
+BEGIN autoconf-off 2026-10-14T19:07:13Z
+END autoconf-off exit_code=0 2026-10-14T19:07:13Z
+BEGIN configure-off 2026-10-14T19:07:13Z
+END configure-off exit_code=0 2026-10-14T19:07:15Z
+BEGIN build-off 2026-10-14T19:07:15Z
+END build-off exit_code=0 2026-10-14T19:08:31Z
+BEGIN install-off 2026-10-14T19:08:31Z
+END install-off exit_code=0 2026-10-14T19:08:32Z
+BEGIN autoconf-on 2026-10-14T19:08:32Z
+END autoconf-on exit_code=0 2026-10-14T19:08:32Z
+BEGIN configure-on 2026-10-14T19:08:32Z
+END configure-on exit_code=0 2026-10-14T19:08:34Z
+BEGIN build-on 2026-10-14T19:08:34Z
+END build-on exit_code=0 2026-10-14T19:09:55Z
+BEGIN install-on 2026-10-14T19:09:55Z
+END install-on exit_code=0 2026-10-14T19:09:56Z
+counter_symbols=off_absent,on_present
+BEGIN perf-stats-regression 2026-10-14T19:09:56Z
+END perf-stats-regression exit_code=0 2026-10-14T19:09:59Z
+BEGIN make-check 2026-10-14T19:09:59Z
+END make-check exit_code=0 2026-10-14T19:09:59Z
+BEGIN ivtest-gate 2026-10-14T19:09:59Z
+END ivtest-gate exit_code=0 2026-10-14T19:33:32Z
+BEGIN fpga-install 2026-10-14T19:33:32Z
+END fpga-install exit_code=0 2026-10-14T19:33:32Z
+BEGIN full-json-ivtest 2026-10-14T19:33:32Z
+END full-json-ivtest exit_code=16 2026-10-14T19:53:10Z
+FAILED_GATE=full-json-ivtest

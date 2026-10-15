@@ -24,6 +24,7 @@
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "slab.h"
+# include  "vvp_perf_stats.h"
 # include  "compile.h"
 # include  <new>
 # include  <typeinfo>
@@ -869,6 +870,9 @@ static void region_check_schedule_(event_queue_t target, vvp_time64_t delay)
 static inline void region_enter_(struct event_s*cur)
 {
       sched_current_region = cur->region;
+#ifdef VVP_PERF_STATS
+      vvp_perf_stats_event_region(cur->region, region_name_(cur->region));
+#endif
       if (region_trace_enabled_()) {
 	    cerr << "REGION @ " << schedule_time << " ps "
 		 << region_name_(cur->region) << ": ";
@@ -885,6 +889,9 @@ static inline void region_enter_(struct event_s*cur)
 static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 			    event_queue_t select_queue)
 {
+#ifdef VVP_PERF_STATS
+      unsigned time_list_walk = 0;
+#endif
       cur->region = select_queue;
       region_check_schedule_(select_queue, delay);
 
@@ -914,6 +921,9 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 	    struct event_time_s*prev = 0;
 
 	    while (ctim->next && (ctim->delay < delay)) {
+#ifdef VVP_PERF_STATS
+		  time_list_walk += 1;
+#endif
 		  delay -= ctim->delay;
 		  prev = ctim;
 		  ctim = ctim->next;
@@ -940,6 +950,10 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 		  ctim = tmp;
 	    }
       }
+
+#ifdef VVP_PERF_STATS
+      vvp_perf_stats_time_list_walk(time_list_walk);
+#endif
 
 	/* By this point, ctim is the event_time structure that is to
 	   receive the event at hand. Put the event in to the

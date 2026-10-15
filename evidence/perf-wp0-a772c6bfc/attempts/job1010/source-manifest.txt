@@ -1,0 +1,5 @@
+candidate_benchmark_repository_revision=a772c6bfc
+candidate_benchmark_repository_state=clean at staging
+uvm_core_submodule_revision=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+candidate_runtime_source_revision=281d1bca8 (runtime files unchanged through a772c6bfc)
+reference_runtime_source_revision=47bc28987caaece4b176f610212f170290b3039c

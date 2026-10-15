@@ -14,7 +14,7 @@ module top;
   bit [31:0] chk = 0;
   int n = 0;
   initial begin
-    for (int i=0;i<200000;i++) begin
+    for (int i=0;i<800000;i++) begin
       automatic btxn b = new(i);
       automatic txn t = b;
       mb.put(t);
@@ -27,7 +27,7 @@ module top;
       q.push_back(t);
       if (q.size() > 8) begin automatic txn o = q.pop_front(); chk ^= o.crc(); end
       n++;
-      if (n == 200000) begin $display("chk=%h n=%0d", chk, n); $finish; end
+      if (n == 800000) begin $display("chk=%h n=%0d", chk, n); $finish; end
     end
   end
 endmodule
