@@ -29466,7 +29466,7 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 			      if (!formal_type
 				  || (formal_type->base_type() != IVL_VT_BOOL
 				      && formal_type->base_type() != IVL_VT_LOGIC)
-				  || formal_type->unpacked_dimensions() != 0) {
+			      || !formal_type->packed()) {
 				    cerr << value->get_fileline()
 					 << ": sorry: covergroup ref constructor arguments "
 					    "currently require a packed integral formal."
