@@ -1,5 +1,11 @@
 # WP0 performance evidence
 
+Current WP0 campaign pin: `f9f8e0a79f230f38da6cbb4445994ad1075ad531`. This
+directory preserves earlier calibration attempts measured against
+`47bc28987caaece4b176f610212f170290b3039c`; those results are historical and
+are not the accepted comparison for PR #584. The accepted pinned-base evidence
+is in [`perf-wp0-a5aad316`](../perf-wp0-a5aad316/README.md).
+
 The candidate benchmark snapshot is commit `64eb2c8cd`; the reference is the merged WP0 baseline `47bc28987caaece4b176f610212f170290b3039c`. The candidate VVP binary is built from `281d1bca8`; `configure.ac` and `vvp/` are unchanged from that build through the measurement snapshot. Source manifests, commands, binary hashes, tool versions, and raw JSON are preserved under `attempts/`. Large console logs are gzip-compressed without changing their contents.
 
 The run host was `DAN-DESKTOP` under Slurm. Linux `perf stat` could measure task-clock but reported hardware `instructions` as unsupported. Therefore task-clock is the primary metric for spread; wall time is reported as supporting evidence. No instruction-count result is claimed.

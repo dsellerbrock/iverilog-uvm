@@ -67,6 +67,12 @@ Raw results: [`result.csv`](measurements/f9f8e0a/job1058-stable/result.csv),
 [`result.json`](measurements/f9f8e0a/job1058-stable/result.json), and the
 complete [job 1058 evidence bundle](measurements/f9f8e0a/job1058-stable/attempt-logs.tgz).
 
+The disabled-build instruction-count A/B on the same pinned base preserved
+byte-identical output and exact counts for the selected VVP hot paths. The
+whole-process Callgrind totals differ by 70 instructions; the stats-off build
+has no performance-counter symbols. See the [instruction-count evidence](instruction-ab/README.md)
+for raw profiles, exact counts, and attempt notes.
+
 Earlier attempts 1053, 1055, 1056, and 1057 are retained under `attempts/`;
 each passed output equality and the 10-second cap but failed the stability
 gate. Job 1058 is the accepted measurement. The ratios are effectively neutral;

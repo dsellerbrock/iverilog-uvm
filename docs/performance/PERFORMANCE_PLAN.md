@@ -495,7 +495,7 @@ the reference semantics throughout.
 
 | WP | Status | PR | Measured result |
 | --- | --- | --- | --- |
-| WP0 | IN PROGRESS | - | Pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; candidate `a5aad31659540d6a4c67bbaeffbeaa484b31f442`. All 18 outputs matched, every sample stayed under 10 s, and all reference task-clock spreads were at most 5%. Full local correctness gates passed (JSON baseline delta 0; UVM 367/0/0 with real DPI); PR and exact-head CI are pending. Evidence: [WP0 pinned-base results](../../evidence/perf-wp0-a5aad316/README.md). |
+| WP0 | IN PROGRESS | #584 (draft) | Pinned base `f9f8e0a79f230f38da6cbb4445994ad1075ad531`; candidate `a5aad31659540d6a4c67bbaeffbeaa484b31f442`. All 18 outputs matched, every sample stayed under 10 s, and all reference task-clock spreads were at most 5%. Full local correctness gates passed (JSON baseline delta 0; UVM 367/0/0 with real DPI); final-head CI remains pending after the once-only pre-merge rebase. Evidence: [WP0 pinned-base results](../../evidence/perf-wp0-a5aad316/README.md). |
 | WP1-WP15 | NOT STARTED | - | - |
 
 ### WP0 pinned-base before/after table
@@ -528,6 +528,14 @@ The exact pinned base is `f9f8e0a79f230f38da6cbb4445994ad1075ad531`.
 Job 1058 supplied `+ntb_random_seed=73014` to both runtimes and used
 `/dev/shm` for temporary outputs. The complete five-pair JSON and CSV are in
 the [WP0 evidence directory](../../evidence/perf-wp0-a5aad316/measurements/f9f8e0a/job1058-stable/).
+
+The disabled-build Callgrind A/B on the same pinned base produced byte-identical
+output. The selected hot-path instruction counts matched exactly between the
+reference and stats-off candidate; the full process totals were 94,558,243,526
+and 94,558,243,596 (+70 outside those selected functions). The stats-off
+configuration leaves `VVP_PERF_STATS` undefined and the candidate has no
+`vvp_perf_stats_*` symbols. Raw profiles and the attempt note are in
+[`instruction-ab`](../../evidence/perf-wp0-a5aad316/instruction-ab/README.md).
 
 ## References
 

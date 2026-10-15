@@ -1,5 +1,11 @@
 # WP0 calibration evidence
 
+Current WP0 campaign pin: `f9f8e0a79f230f38da6cbb4445994ad1075ad531`. This
+directory preserves earlier calibration attempts measured against
+`47bc28987caaece4b176f610212f170290b3039c`; those results are historical and
+are not the accepted comparison for PR #584. The accepted pinned-base evidence
+is in [`perf-wp0-a5aad316`](../perf-wp0-a5aad316/README.md).
+
 This revision-scoped record covers the calibrated benchmark sources at
 `a772c6bfc`. The reference VVP is from `47bc28987caaece4b176f610212f170290b3039c`;
 the counters-off candidate VVP was built from runtime sources at `281d1bca8`,
