@@ -5,7 +5,7 @@ module sv_covergroup_ref_tracking_bad_actual;
     cp: coverpoint ref_value;
   endgroup
 
-  ref_cg instance;
+  ref_cg ref_instance;
 
-  initial instance = new(sampled & 1'b1);
+  initial ref_instance = new(sampled & 1'b1);
 endmodule
