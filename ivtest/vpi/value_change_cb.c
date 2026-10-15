@@ -27,27 +27,30 @@ static PLI_INT32 report_change(p_cb_data cb)
     time.type = vpiSimTime;
     vpi_get_time(NULL, &time);
 #endif
+#if !defined(TEST_SCALED_TIME)
+    uint64_t sim_time = ((uint64_t)time.high << 32) | time.low;
+#endif
 
     switch (cb->value->format) {
       case vpiIntVal:
 #if     defined(TEST_SCALED_TIME)
         vpi_printf("At time %f %s = %d\n", time.real, vpi_get_str(vpiName, handle), cb->value->value.integer);
 #else
-        vpi_printf("At time %d %s = %d\n", time.low,  vpi_get_str(vpiName, handle), cb->value->value.integer);
+        vpi_printf("At time %" PLI_UINT64_FMT " %s = %d\n", sim_time, vpi_get_str(vpiName, handle), cb->value->value.integer);
 #endif
         break;
       case vpiRealVal:
 #ifdef TEST_SCALED_TIME
         vpi_printf("At time %f %s = %f\n", time.real, vpi_get_str(vpiName, handle), cb->value->value.real);
 #else
-        vpi_printf("At time %d %s = %f\n", time.low,  vpi_get_str(vpiName, handle), cb->value->value.real);
+        vpi_printf("At time %" PLI_UINT64_FMT " %s = %f\n", sim_time, vpi_get_str(vpiName, handle), cb->value->value.real);
 #endif
         break;
       case vpiSuppressVal:
 #ifdef TEST_SCALED_TIME
         vpi_printf("At time %f %s changed\n", time.real, vpi_get_str(vpiName, handle));
 #else
-        vpi_printf("At time %d %s changed\n", time.low,  vpi_get_str(vpiName, handle));
+        vpi_printf("At time %" PLI_UINT64_FMT " %s changed\n", sim_time, vpi_get_str(vpiName, handle));
 #endif
         break;
       default:

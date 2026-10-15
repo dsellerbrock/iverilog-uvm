@@ -7,4 +7,4 @@ FAILURE t=25
 STEP_OK t=25
 STEP_FAIL t=25
 PASSED failures=1
-vpi/m12_endpoint_fanout_step.v:27: $finish called at 26 (1s)
+vpi/m12_endpoint_fanout_step.v:27: $finish called at 26 (1ps)
