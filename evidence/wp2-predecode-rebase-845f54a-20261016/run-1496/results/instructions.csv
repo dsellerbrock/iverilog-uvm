@@ -1,0 +1,3 @@
+measurement_base,case,window,variant,instructions,delta_from_reference_pct
+845f54a5724c4d2af13dde40eca6d290c80c41d9,smoke_test_dma_aes_gcm_short_1_dword,100:200,reference,183325396223,0.000000
+845f54a5724c4d2af13dde40eca6d290c80c41d9,smoke_test_dma_aes_gcm_short_1_dword,100:200,predecode+setarray,164442681700,-10.300108

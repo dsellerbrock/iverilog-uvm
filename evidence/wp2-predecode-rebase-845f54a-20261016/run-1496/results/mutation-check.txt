@@ -1,0 +1,1 @@
+PASS: inverted 4-state regression assertion rejected, vvp exit=1
