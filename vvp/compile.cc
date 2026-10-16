@@ -421,6 +421,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%fork/p", of_FORK_P, 2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%fork/v", of_FORK_V, 2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%free",   of_FREE,   1,  {OA_VPI_PTR,  OA_NONE,     OA_NONE} },
+      { "%function/deferred/check", of_FUNCTION_DEFERRED_CHECK, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%get_randstate", of_GET_RANDSTATE, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%hist/on", of_HIST_ON, 1, {OA_FUNC_PTR, OA_NONE,    OA_NONE} },
       { "%hist/on/av", of_HIST_ON_AV, 1, {OA_ARR_PTR, OA_NONE,  OA_NONE} },
@@ -3266,13 +3267,15 @@ void compile_vpi_func_call(char*label, char*name,
  * with the start address referenced by the program symbol passed to
  * me.
  */
-void compile_thread(char*start_sym, char*flag)
+void compile_thread(char*start_sym, char*flag, char*flag2)
 {
       bool push_flag = false;
+      bool function_background_ok = false;
 
       if (!vthread_init_design_root_seed()) {
 	    free(start_sym);
 	    free(flag);
+	    free(flag2);
 	    return;
       }
 
@@ -3280,13 +3283,21 @@ void compile_thread(char*start_sym, char*flag)
       vvp_code_t pc = reinterpret_cast<vvp_code_t>(tmp.ptr);
       if (pc == 0) {
 	    yyerror("unresolved address");
+	    free(start_sym);
+	    free(flag);
+	    free(flag2);
 	    return;
       }
 
       if (flag && (strcmp(flag,"$push") == 0))
 	    push_flag = true;
+	if ((flag && strcmp(flag,"$function_background_ok") == 0)
+	    || (flag2 && strcmp(flag2,"$function_background_ok") == 0))
+		function_background_ok = true;
 
       vthread_t thr = vthread_new(pc, vpip_peek_current_scope());
+	if (function_background_ok)
+	      vthread_mark_function_background_ok(thr);
 	/* A synthesized clocking sampler belongs to the design-region
 	   pipeline even when its declaration scope is a program. */
       if (flag && (strcmp(flag,"$clocking") == 0))
@@ -3306,6 +3317,7 @@ void compile_thread(char*start_sym, char*flag)
 
       free(start_sym);
       free(flag);
+      free(flag2);
 }
 
 void compile_param_logic(char*label, const char*name, char*value, bool signed_flag,

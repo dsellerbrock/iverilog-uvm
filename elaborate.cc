@@ -11549,6 +11549,10 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       return blk;
 }
 
+static NetProc*guard_function_background_event_(NetScope*scope,
+						const LineInfo&loc,
+						NetProc*statement);
+
 NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -11604,7 +11608,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  NetProc*drive = elaborate_clocking_output_drive_(
 			des, scope, lid, rval(), *this, clocking_drive_handled);
 		  if (clocking_drive_handled)
-			return drive;
+			return guard_function_background_event_(scope, *this, drive);
 	    }
       }
 
@@ -11704,8 +11708,9 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			bool reverse_src = uarray_ranges_need_reverse_(
 			      lv_uarray->static_dimensions()[0],
 			      src.remaining_dims[0]);
-			return make_uarray_prefix_copy_(scope, *this, lv, src,
-						 reverse_src, true);
+			return guard_function_background_event_(scope, *this,
+				make_uarray_prefix_copy_(scope, *this, lv, src,
+						 reverse_src, true));
 		  }
 
 		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
@@ -11747,8 +11752,9 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
                                     uarray_prefix_source_t whole;
                                     whole.sig = sr.net;
                                     whole.count = sr.net->unpacked_count();
-                                    return make_uarray_prefix_copy_(
-                                          scope, *this, lv, whole, reverse_src, true);
+					return guard_function_background_event_(scope, *this,
+					      make_uarray_prefix_copy_(scope, *this, lv, whole,
+							      reverse_src, true));
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -11766,9 +11772,10 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			      bool reverse_src = uarray_ranges_need_reverse_(
 				    lv_uarray->static_dimensions()[0],
 				    sr.net->unpacked_dims()[0]);
-			      return make_uarray_copy_loop_(
-				    des, scope, *this, lv, sr.net->unpacked_count(),
-				    sr.net, 0, true, 0, 0, reverse_src);
+			      return guard_function_background_event_(scope, *this,
+				    make_uarray_copy_loop_(
+					des, scope, *this, lv, sr.net->unpacked_count(),
+					sr.net, 0, true, 0, 0, reverse_src));
 			}
 		  }
 	    }
@@ -11831,7 +11838,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  if (blk) {
 			delete lv;
 			delete rv;
-			return blk;
+			return guard_function_background_event_(scope, *this, blk);
 		  }
 		    /* A pattern the elaborator already complained about
 		       (wrong entry count, bad element type) lands here
@@ -11958,7 +11965,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssignNB*cur = new NetAssignNB(lv, rv, event, count);
       cur->set_delay(delay);
       cur->set_line(*this);
-      return cur;
+      return guard_function_background_event_(scope, *this, cur);
 }
 
 
@@ -11978,6 +11985,25 @@ static bool scope_is_within_function_(const NetScope*scope)
 	    scope = scope->parent();
       }
       return false;
+}
+
+static NetProc*guard_function_background_event_(NetScope*scope,
+						const LineInfo&loc,
+						NetProc*statement)
+{
+      if (!statement || !scope_is_within_function_(scope))
+	    return statement;
+
+      vector<NetExpr*>args;
+      NetSTask*guard = new NetSTask("$ivl_function_background_guard",
+					    IVL_SFUNC_AS_TASK_IGNORE, args);
+      guard->set_line(loc);
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(loc);
+      block->append(guard);
+      block->append(statement);
+      return block;
 }
 
 NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
@@ -12225,10 +12251,15 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    scope->calls_sys_task(true);
 
       cur->set_line(*this);
+      const bool needs_function_background_guard =
+	    type == NetBlock::PARA_JOIN_NONE
+	    && scope_is_within_function_(scope) && cur->proc_first();
       if (prefix) {
 	    prefix->set_line(*this);
 	    if (cur->proc_first())
-		  prefix->append(cur);
+		  prefix->append(needs_function_background_guard
+				 ? guard_function_background_event_(scope, *this, cur)
+				 : cur);
 	    else
 		  delete cur;
 	    NetFree*fp = new NetFree(nscope);
@@ -12236,7 +12267,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    prefix->append(fp);
 	    return prefix;
       }
-      return cur;
+      return needs_function_background_guard
+	    ? guard_function_background_event_(scope, *this, cur) : cur;
 }
 
 NetProc* PNoop::elaborate(Design*, NetScope*) const
@@ -26262,7 +26294,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
 		  trig->set_line(*this);
-		  return trig;
+		  return guard_function_background_event_(scope, *this, trig);
 	    }
       }
 
@@ -26275,7 +26307,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, true, dly);
 		  trig->set_line(*this);
-		  return trig;
+		  return guard_function_background_event_(scope, *this, trig);
 	    }
       }
 
@@ -26324,7 +26356,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
       if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
       NetEvNBTrig*trig = new NetEvNBTrig(eve, dly);
       trig->set_line(*this);
-      return trig;
+      return guard_function_background_event_(scope, *this, trig);
 }
 
 /*
@@ -26368,6 +26400,21 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       NetProcTop*top=new NetProcTop(scope, type(), cur);
       ivl_assert(*this, top);
       top->generated_verification(is_generated_verification());
+      if (!is_generated_verification()) {
+	    switch (type()) {
+		case IVL_PR_INITIAL:
+		case IVL_PR_ALWAYS:
+		case IVL_PR_ALWAYS_COMB:
+		case IVL_PR_ALWAYS_FF:
+		case IVL_PR_ALWAYS_LATCH:
+		      top->attribute(
+			    perm_string::literal("_ivl_function_background_ok"),
+			    verinum(1));
+		      break;
+		case IVL_PR_FINAL:
+		      break;
+	    }
+      }
 
 	// Evaluate the attributes for this process, if there
 	// are any. These attributes are to be attached to the

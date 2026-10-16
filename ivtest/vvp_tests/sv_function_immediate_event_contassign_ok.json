@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_function_immediate_event_contassign_ok.v",
+  "iverilog-args": ["-g2012"],
+  "gold": "sv_function_immediate_event_contassign_ok"
+}

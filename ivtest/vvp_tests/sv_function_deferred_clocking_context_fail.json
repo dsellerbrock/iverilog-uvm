@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "sv_function_deferred_clocking_context_fail.v",
+  "iverilog-args": ["-g2012"],
+  "gold": "sv_function_deferred_clocking_context_fail"
+}
