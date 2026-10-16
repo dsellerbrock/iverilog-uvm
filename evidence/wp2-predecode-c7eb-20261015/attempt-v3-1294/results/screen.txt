@@ -1,0 +1,9 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+hotloop_accesses=100000
+outputs_identical=yes
+predecode_instructions=1052269912
+packed_instructions=1024423467
+fast_path_instructions=1027723440
+delta_from_reference_pct=-8.919704
+incremental_delta_from_packed_pct=0.322130
+clears_10_percent_screen=no

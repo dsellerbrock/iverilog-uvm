@@ -1,0 +1,4 @@
+workloads=18
+runs_per_side=3
+all_outputs_identical=yes
+wall_spread_is_supporting_only=yes

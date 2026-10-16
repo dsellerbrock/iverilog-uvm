@@ -1,0 +1,9 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+case=smoke_test_dma_aes_gcm_short_1_dword
+window=100:200
+reference_instructions=184080599400
+candidate_instructions=165194086031
+delta_pct=-10.259915
+clears_10_percent_instruction_gate=yes
+generated_inputs_identical=yes
+sim_output_identical_except_progress_heartbeat=yes

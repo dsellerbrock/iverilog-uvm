@@ -1,0 +1,1 @@
+command=tar -xzf /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/archives/candidate.tar.gz -C /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/source-candidate 

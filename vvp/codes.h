@@ -744,6 +744,22 @@ struct vvp_container_opcode_data_s {
 
 struct vvp_wait_order_opcode_data_s;
 
+struct vvp_property_index_dim_s {
+      bool is_signed;
+      int64_t low;
+      uint64_t width;
+      uint64_t stride;
+};
+
+struct vvp_property_index_opcode_data_s {
+      bool valid;
+      unsigned count;
+      vvp_property_index_dim_s*dims;
+};
+
+extern vvp_property_index_opcode_data_s*
+      vvp_property_index_compile(const char*text);
+
 /*
  * This is the format of a machine code instruction.
  */
@@ -760,6 +776,7 @@ struct vvp_code_s {
 	    const char*text;
 	    struct vvp_container_opcode_data_s*container_data;
 	    struct vvp_wait_order_opcode_data_s*wait_order_data;
+	    struct vvp_property_index_opcode_data_s*property_index_data;
       };
 
       union {

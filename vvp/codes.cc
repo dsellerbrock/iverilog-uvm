@@ -136,6 +136,13 @@ void codespace_delete(void)
 			delete [] ((cur+idx)->text);
 		  } else if ((cur+idx)->opcode == &of_WAIT_ORDER) {
 			delete (cur+idx)->wait_order_data;
+		  } else if ((cur+idx)->opcode == &of_PROP_INDEX_CHECK) {
+			struct vvp_property_index_opcode_data_s*data =
+			      (cur+idx)->property_index_data;
+			if (data) {
+			      delete [] data->dims;
+			      delete data;
+			}
 		  }
 		  if (count_opcodes == 0) break;
 	    }

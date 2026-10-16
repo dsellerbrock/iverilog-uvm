@@ -1,0 +1,12 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+59e1dfed065404f649b2f07fddbd365dfdbffcddf57d468b9c04c38d25722b98  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/build/candidate/install/bin/iverilog
+1db5f5ec7f895df9b012983575a764fb69762728f706a92f069784c33abac1e9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/build/candidate/install/bin/vvp
+f21a07b9b8c2a92b36d6537f4d3a54e72880d6c2009bdcd4908f3f8774b13fbb  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/build/candidate/install/bin/iverilog-vpi
+94d00d12315865856c62ca0608ccabac83ae717eb9bc4b0df9fa783cdcae0404  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/bin/vvp
+json_tests=19
+legacy_tests=19
+smoke=passed
+focused_legacy=passed
+focused_json=passed
+sim_hotspots_one_pair_byte_output=passed
+status=0

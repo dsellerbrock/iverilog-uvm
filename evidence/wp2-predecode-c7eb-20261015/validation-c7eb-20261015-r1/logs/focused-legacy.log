@@ -1,0 +1,24 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+             sv_class_packed_enum_property_index_2017: Passed.
+             sv_class_packed_enum_property_index_2023: Passed.
+              sv_class_unpacked_property_index_4state: Passed.
+               sv_class_packed_property_2d_index_2017: Passed.
+               sv_class_packed_property_2d_index_2023: Passed.
+       sv_class_packed_property_2d_range_invalid_2017: Passed - CE.
+       sv_class_packed_property_2d_range_invalid_2023: Passed - CE.
+   sv_class_packed_property_dynamic_nested_slice_2017: Passed.
+   sv_class_packed_property_dynamic_nested_slice_2023: Passed.
+    sv_class_packed_property_dynamic_slice_cross_2017: Passed.
+    sv_class_packed_property_dynamic_slice_cross_2023: Passed.
+      sv_class_packed_property_narrow_cast_cross_2017: Passed.
+      sv_class_packed_property_narrow_cast_cross_2023: Passed.
+    sv_class_packed_property_dynamic_range_width_2017: Passed.
+    sv_class_packed_property_dynamic_range_width_2023: Passed.
+                     sv_class_property_oob_range_2017: Passed.
+                     sv_class_property_oob_range_2023: Passed.
+sv_class_packed_property_ascending_dynamic_slice_2017: Passed.
+sv_class_packed_property_ascending_dynamic_slice_2023: Passed.
+============================================================================
+Test results:
+  Total=19, Passed=19, Failed=0, Not Implemented=0, Expected Fail=0

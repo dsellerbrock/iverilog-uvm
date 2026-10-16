@@ -1,0 +1,11 @@
+patching file ivtest/gold/sv_class_unpacked_property_index_4state-vvp-stdout.gold
+patching file ivtest/gold/sv_class_unpacked_property_index_4state.gold
+patching file ivtest/ivltests/sv_class_unpacked_property_index_4state.v
+patching file ivtest/regress-sv.list
+patching file ivtest/regress-vvp.list
+patching file ivtest/vvp_tests/sv_class_unpacked_property_index_4state.json
+patching file tests/vvp_runtime/run_property_index_metadata_malformed.sh
+patching file vvp/codes.cc
+patching file vvp/codes.h
+patching file vvp/compile.cc
+patching file vvp/vthread.cc

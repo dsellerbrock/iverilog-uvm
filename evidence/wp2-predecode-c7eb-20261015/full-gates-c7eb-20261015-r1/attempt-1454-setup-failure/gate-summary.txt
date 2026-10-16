@@ -1,0 +1,32 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+candidate=4f4ec93c86ce6d767ec4639d22213ef7dc05cfc9
+uvm_core=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+resources=4 CPUs, 8 GiB, 4 hours
+BEGIN extract-base 2026-10-16T02:26:07Z
+END extract-base exit_code=0 2026-10-16T02:26:12Z
+BEGIN extract-candidate 2026-10-16T02:26:12Z
+END extract-candidate exit_code=0 2026-10-16T02:26:27Z
+BEGIN extract-uvm-base 2026-10-16T02:26:27Z
+END extract-uvm-base exit_code=0 2026-10-16T02:26:27Z
+BEGIN extract-uvm-candidate 2026-10-16T02:26:27Z
+END extract-uvm-candidate exit_code=0 2026-10-16T02:26:27Z
+BEGIN autoconf-base 2026-10-16T02:26:27Z
+END autoconf-base exit_code=0 2026-10-16T02:26:27Z
+BEGIN configure-base 2026-10-16T02:26:27Z
+END configure-base exit_code=0 2026-10-16T02:26:32Z
+BEGIN build-base 2026-10-16T02:26:32Z
+END build-base exit_code=0 2026-10-16T02:27:57Z
+BEGIN install-base 2026-10-16T02:27:57Z
+END install-base exit_code=0 2026-10-16T02:27:58Z
+BEGIN fpga-install-base 2026-10-16T02:27:58Z
+END fpga-install-base exit_code=0 2026-10-16T02:27:59Z
+BEGIN autoconf-candidate 2026-10-16T02:27:59Z
+END autoconf-candidate exit_code=0 2026-10-16T02:27:59Z
+BEGIN configure-candidate 2026-10-16T02:27:59Z
+END configure-candidate exit_code=0 2026-10-16T02:28:01Z
+BEGIN build-candidate 2026-10-16T02:28:01Z
+END build-candidate exit_code=0 2026-10-16T02:29:25Z
+BEGIN install-candidate 2026-10-16T02:29:25Z
+END install-candidate exit_code=0 2026-10-16T02:29:26Z
+BEGIN fpga-install-candidate 2026-10-16T02:29:26Z
+END fpga-install-candidate exit_code=0 2026-10-16T02:29:27Z

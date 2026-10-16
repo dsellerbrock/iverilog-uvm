@@ -1,0 +1,5 @@
+58567adb4d9337e26c2adce4c2e9d3ad2968ccc34a2ff9ec9fae4dc4029ba6c9  ./candidate-overlay.patch
+c13c7c8ddf1e45b590a66b3dd64fdb01bffe7fd7c16453693435a7a28343f28d  ./ecc_secp384r1-deterministic.c
+6fc97b87ee757cfbe1ac4c7a0baa8b788440e0a57b5f536c3a01dde8e7c58dc9  ./mcycle-window-callgrind.c
+5792cbea3a3fd19b9071e5bd50e1c7d8902f2457b9dc7c1c4949f48ce6b2814c  ./reference-source.tar.gz
+dcba910748a57e939ec87fd12bcda2fc4eaea88b882c5a70397df2cad4db6b70  ./source-manifest.txt

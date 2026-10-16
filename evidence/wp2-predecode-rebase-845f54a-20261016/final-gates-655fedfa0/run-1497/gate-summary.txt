@@ -1,0 +1,42 @@
+pinned_campaign_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+measurement_base=845f54a5724c4d2af13dde40eca6d290c80c41d9
+candidate=655fedfa06b0e2018183e280d3e8a3142c525b32
+uvm_core=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+resources=4 CPUs, 8 GiB, 4 hours
+BEGIN extract-base 2026-10-16T04:23:19Z
+END extract-base exit_code=0 2026-10-16T04:23:19Z
+BEGIN extract-candidate 2026-10-16T04:23:19Z
+END extract-candidate exit_code=0 2026-10-16T04:23:20Z
+BEGIN extract-uvm-base 2026-10-16T04:23:20Z
+END extract-uvm-base exit_code=0 2026-10-16T04:23:20Z
+BEGIN extract-uvm-candidate 2026-10-16T04:23:20Z
+END extract-uvm-candidate exit_code=0 2026-10-16T04:23:20Z
+BEGIN autoconf-base 2026-10-16T04:23:20Z
+END autoconf-base exit_code=0 2026-10-16T04:23:20Z
+BEGIN configure-base 2026-10-16T04:23:20Z
+END configure-base exit_code=0 2026-10-16T04:23:22Z
+BEGIN build-base 2026-10-16T04:23:22Z
+END build-base exit_code=0 2026-10-16T04:24:55Z
+BEGIN install-base 2026-10-16T04:24:55Z
+END install-base exit_code=0 2026-10-16T04:24:56Z
+BEGIN fpga-install-base 2026-10-16T04:24:56Z
+END fpga-install-base exit_code=0 2026-10-16T04:24:57Z
+BEGIN autoconf-candidate 2026-10-16T04:24:57Z
+END autoconf-candidate exit_code=0 2026-10-16T04:24:57Z
+BEGIN configure-candidate 2026-10-16T04:24:57Z
+END configure-candidate exit_code=0 2026-10-16T04:24:59Z
+BEGIN build-candidate 2026-10-16T04:24:59Z
+END build-candidate exit_code=0 2026-10-16T04:26:32Z
+BEGIN install-candidate 2026-10-16T04:26:32Z
+END install-candidate exit_code=0 2026-10-16T04:26:33Z
+BEGIN fpga-install-candidate 2026-10-16T04:26:33Z
+END fpga-install-candidate exit_code=0 2026-10-16T04:26:34Z
+BEGIN make-check 2026-10-16T04:26:34Z
+END make-check exit_code=0 2026-10-16T04:26:34Z
+BEGIN ivtest-gate 2026-10-16T04:26:34Z
+END ivtest-gate exit_code=0 2026-10-16T05:14:06Z
+Test results: Ran 4675, Failed 0.
+BEGIN uvm-regression 2026-10-16T05:14:06Z
+END uvm-regression exit_code=0 2026-10-16T05:25:46Z
+all_required_gates=PASS
+full_correctness_gates=PASS
