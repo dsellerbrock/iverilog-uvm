@@ -4433,3 +4433,21 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   by source read.
 - **Triage status:** isolated case fixed on agent/sim-perf-hotspots-20261009;
   coupled case needs exact joint sampling and is open.
+
+### DD-122 — rounded-to-zero time literals have no diagnostic
+
+- **Discovered while working:** M6 issue #545 triage (2026-10-16).
+- **Observation:** With no `timescale` or `timeunit`, Icarus's documented
+  default is `1s/1s`. A standalone `#5ns` then reports `$time == 0` and
+  `$realtime == 0.0` without a rounding warning. In an `always` clock loop,
+  the compiler reports that the process has no delay and will loop forever.
+- **File/function:** `pform.cc:pform_set_scope_timescale` selects default
+  precision; `netmisc.cc:get_scaled_time_from_real` scales and rounds delay
+  values without reporting a nonzero value rounded to zero.
+- **Possible clause:** IEEE 1800-2017/2023 §§3.14.1, 3.14.2.3, 5.8, and 9.4.5.
+- **Evidence:** Main `7f508a8a`; local Mac test matrix and zero-time probe in
+  `~/codex-supervisor/evidence/a3-m6-issue545-current-main-20261016/`.
+- **Reproducer status:** Confirmed; the same reducer passes with
+  `` `timescale 1ns/1ps`` in both editions.
+- **Triage status:** Open, diagnostic-quality follow-up. No simulator change
+  is included in #545; the source must specify its intended time scale.

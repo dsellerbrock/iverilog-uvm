@@ -4606,6 +4606,7 @@ sv_event_null_x_conditional_runtime RE,-g2017 ivltests gold=sv_event_null_x_cond
 sv_event_null_x_conditional_runtime_2023 RE,-g2023 ivltests gold=sv_event_null_x_conditional_runtime_2023.gold
 sv_event_automatic_static_null_active RE,-g2017 ivltests gold=sv_event_automatic_static_null_active.gold
 sv_event_automatic_static_null_active_2023 RE,-g2023 ivltests gold=sv_event_automatic_static_null_active_2023.gold
+sv_event_static_loop_local_wait normal,-g2017 ivltests gold=sv_event_static_loop_local_wait.gold
 sv_event_real_edge_reject CE,-g2017 ivltests gold=sv_event_real_edge_reject.gold
 sv_event_real_edge_reject_2023 CE,-g2023 ivltests gold=sv_event_real_edge_reject_2023.gold
 sv_event_automatic_part_context normal,-g2017 ivltests gold=sv_event_automatic_part_context.gold
