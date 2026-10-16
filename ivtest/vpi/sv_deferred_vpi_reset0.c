@@ -4,6 +4,20 @@
 #include <string.h>
 
 static int registered_before_simulation;
+static int assertion_reset_callbacks;
+
+static PLI_INT32 assertion_reset_cb(PLI_INT32 reason, p_vpi_time time,
+				    vpiHandle assertion,
+				    p_vpi_attempt_info attempt,
+				    PLI_BYTE8* user_data)
+{
+      (void)time;
+      (void)assertion;
+      (void)attempt;
+      (void)user_data;
+      if (reason == cbAssertionReset) assertion_reset_callbacks++;
+      return 0;
+}
 
 static int count_assertions(const char*scope_name)
 {
@@ -44,7 +58,10 @@ static int reset_one(const char*scope_name)
       it = vpi_iterate(vpiAssertion, scope);
       if (!it) return 0;
       while ((assertion = vpi_scan(it))) {
-	    if (found || !vpi_control(vpiAssertionReset, assertion)) {
+	    if (found
+		|| !vpi_register_assertion_cb(assertion, cbAssertionReset,
+					     assertion_reset_cb, 0)
+		|| !vpi_control(vpiAssertionReset, assertion)) {
 		  vpi_free_object(it);
 		  return 0;
 	    }
@@ -58,18 +75,23 @@ static int reset_one_of_two(const char*scope_name)
       vpiHandle scope = vpi_handle_by_name(scope_name, 0);
       vpiHandle it, assertion;
       int count = 0, reset = 0, pass = 1;
+      int callbacks_before = assertion_reset_callbacks;
       if (!scope) return 0;
       it = vpi_iterate(vpiAssertion, scope);
       if (!it) return 0;
       while ((assertion = vpi_scan(it))) {
 	    count++;
+	    if (!vpi_register_assertion_cb(assertion, cbAssertionReset,
+					   assertion_reset_cb, 0))
+		  pass = 0;
 	    if (!reset) {
 		  if (!vpi_control(vpiAssertionReset, assertion))
 			pass = 0;
 		  reset = 1;
 	    }
       }
-      return pass && count == 2;
+      return pass && count == 2
+	    && assertion_reset_callbacks == callbacks_before + 1;
 }
 
 static PLI_INT32 reset_calltf(PLI_BYTE8*name)
@@ -84,6 +106,7 @@ static PLI_INT32 reset_calltf(PLI_BYTE8*name)
 	    "sv_deferred_vpi_reset0.vpi_process.vpi_shared") && pass;
       pass = reset_one_of_two(
 	    "sv_deferred_vpi_reset0.vpi_process.vpi_final_shared") && pass;
+      pass = assertion_reset_callbacks == 4 && pass;
       pass = registered_before_simulation && pass;
       vpi_printf(pass ? "PASS: deferred assertion VPI reset\n"
 		      : "FAIL: deferred assertion VPI reset\n");
