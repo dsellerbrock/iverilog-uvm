@@ -73,6 +73,20 @@ class variable_size_array_with_empty;
     else payload.size() == 2;
   }
 endclass
+class sparse_size_dynamic_array_uniformity;
+  rand bit payload[];
+  constraint c {
+    payload.size() inside {1, 3};
+    if (payload.size() == 3) payload[0] == 0;
+  }
+endclass
+class sparse_size_dynamic_array_unsatisfiable;
+  rand bit payload[];
+  constraint c {
+    payload.size() inside {1, 3};
+    payload.size() == 2;
+  }
+endclass
 class correlated_variable_arrays;
   rand bit mode;
   rand bit a[];
@@ -297,6 +311,8 @@ module main;
   dynamic_array_ordered dyn_ordered = new;
   variable_size_array_unordered variable_size = new;
   variable_size_array_with_empty variable_size_empty = new;
+  sparse_size_dynamic_array_uniformity sparse_size_array = new;
+  sparse_size_dynamic_array_unsatisfiable sparse_size_array_unsat = new;
   correlated_variable_arrays correlated_arrays = new;
   variable_size_array_above_old_cap larger_array = new;
   variable_size_array_at_128_129 array_at_cap = new;
@@ -329,6 +345,7 @@ module main;
   int soft_dynamic_size_foreach_count[5];
   int variable_size_count[5];
   int variable_size_empty_count[11];
+  int sparse_size_tuple_count[6];
   int correlated_array_count[12];
   int larger_array_size_count[2];
   int array_at_cap_size_count[2];
@@ -669,6 +686,35 @@ module main;
         || enum_array_size_count[1] < 84 || enum_array_size_count[1] > 108)
       $fatal(1, "enum-array sizes are not weighted by complete tuples: %0d/%0d out of 120",
              enum_array_size_count[0], enum_array_size_count[1]);
+
+    // Sparse sizes 1 and 3 leave six complete tuples: two at size 1 and four
+    // at size 3 after constraining its first element. Every tuple is uniform.
+    sparse_size_array.srandom(417);
+    repeat (600) begin
+      if (!sparse_size_array.randomize())
+        $fatal(1, "sparse-size dynamic-array solve failed");
+      if (sparse_size_array.payload.size() == 1)
+        sparse_size_tuple_count[sparse_size_array.payload[0]]++;
+      else if (sparse_size_array.payload.size() == 3) begin
+        if (sparse_size_array.payload[0] != 0)
+          $fatal(1, "invalid sparse size-three tuple");
+        sparse_size_tuple_count[2 + 2 * sparse_size_array.payload[1]
+                                  + sparse_size_array.payload[2]]++;
+      end else
+        $fatal(1, "sparse dynamic-array size escaped {1,3}");
+    end
+    for (int i = 0; i < 6; ++i)
+      if (sparse_size_tuple_count[i] < 60 || sparse_size_tuple_count[i] > 140)
+        $fatal(1, "sparse-size legal tuple %0d is biased: %0d/600",
+               i, sparse_size_tuple_count[i]);
+
+    sparse_size_array_unsat.payload = new[1];
+    sparse_size_array_unsat.payload[0] = 1;
+    if (sparse_size_array_unsat.randomize())
+      $fatal(1, "contradictory sparse-size constraint succeeded");
+    if (sparse_size_array_unsat.payload.size() != 1
+        || sparse_size_array_unsat.payload[0] != 1)
+      $fatal(1, "failed sparse-size randomization changed array state");
 
     // One active struct member participates in the same three legal tuples.
     member_uniform.srandom(101);
