@@ -1137,6 +1137,16 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
+		    /* IEEE 1800-2017/2023 §7.8.7 allocates a missing key used as
+		       a nested fixed-array assignment target. */
+		  if (ivl_type_base(sig_type) == IVL_VT_QUEUE
+		      && ivl_type_queue_assoc_compat(sig_type)
+		      && type_is_fixed_uarray_property_(element_type)) {
+			const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
+			fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
+				key_kind, lval_sig, AA_VIV_FIXED);
+			return element_type;
+		  }
 		    /* The element is object-backed when it is a class handle or
 		       an object-backed unpacked struct (base IVL_VT_NO_TYPE with
 		       properties). A dynamic array / queue of such an element
@@ -1312,6 +1322,18 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	  && (ivl_type_base(sub_type) == IVL_VT_QUEUE
 	      || ivl_type_base(sub_type) == IVL_VT_DARRAY))
 	    return sub_type;
+
+      /* Keep a module associative array's fixed child alive for the
+	 fixed-slot store in its enclosing l-value. */
+      if (prop_idx < 0 && ivl_lval_idx(lval) && sub_type
+	  && type_is_fixed_uarray_property_(sub_type)) {
+	    ivl_signal_t assoc_sig = ivl_lval_sig(lval_nest);
+	    ivl_type_t assoc_type = assoc_sig
+		  ? ivl_signal_net_type(assoc_sig) : 0;
+	    if (assoc_type && ivl_type_base(assoc_type) == IVL_VT_QUEUE
+		&& ivl_type_queue_assoc_compat(assoc_type))
+		  return sub_type;
+      }
 
       if ((sub_type == 0) || (ivl_type_properties(sub_type) <= 0)) {
 	    /* Compile-progress fallback: nested receiver is not class-typed,
