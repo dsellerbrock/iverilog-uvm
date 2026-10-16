@@ -2237,6 +2237,13 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 	    schedule_stop(diag_msg);
 	    break;
 
+	  case vpiAssertionReset:
+	    if (!vpip_reset_deferred_assertion(va_arg(ap, vpiHandle))) {
+		  vpi_printf("vpiAssertionReset currently supports deferred immediate assertions only.\n");
+		  return 0;
+	    }
+	    break;
+
 	  default:
 	    fprintf(stderr, "Unsupported VPI control operation %d.\n", operation);
 	    return 0;
@@ -2389,5 +2396,6 @@ vpip_routines_s vpi_routines = {
     .assertion_report_all       = vpip_assertion_report_all,
     .object_urandom             = vpip_object_urandom,
     .print_stacktrace           = vpip_print_stacktrace,
+    .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
 };
 #endif

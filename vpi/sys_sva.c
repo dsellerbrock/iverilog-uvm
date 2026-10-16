@@ -446,15 +446,17 @@ static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 				   "request ignored.\n", name);
 			continue;
 		  }
-		  (void)sva_control_append_rule_(value.value.str, levels,
-					 enabled, kill);
+		  if (sva_control_append_rule_(value.value.str, levels,
+					 enabled, kill) && kill)
+			vpip_cancel_deferred_asserts(value.value.str, levels);
 	    }
       }
 
       /* No selector means the whole design. Retain this as a chronological
 	 rule too, so later checker registration sees the same control order. */
       if (!saw_selector)
-	    (void)sva_control_append_rule_(0, levels, enabled, kill);
+	    if (sva_control_append_rule_(0, levels, enabled, kill) && kill)
+		  vpip_cancel_deferred_asserts(0, levels);
 
       for (i = before; i < sva_control_rule_count; i += 1) {
 	    size_t j;

@@ -679,6 +679,12 @@ class __vpiAssertion : public __vpiHandle {
 	  // start is the failing tick itself.
 	fail_full_latency_((flags & 1) != 0) { }
 
+      __vpiAssertion(unsigned long source_id, __vpiScope*scope)
+	: idx_(-1), name_(""), file_(""),
+	  line_(scope ? scope->vpi_get(vpiLineNo) : 0), scope_(scope),
+	  latency_(-1), fail_full_latency_(false),
+	  deferred_source_id_(source_id) { }
+
       int get_type_code(void) const override { return vpiAssertion; }
 
       int vpi_get(int code) override
@@ -694,8 +700,13 @@ class __vpiAssertion : public __vpiHandle {
 	    if (code == vpiName || code == vpiDefName) {
 		  use = &name_;
 	    } else if (code == vpiFullName) {
-		  full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
-			 + name_;
+	  if (deferred_source_id_) {
+			char*scope_name = scope_ ? scope_->vpi_get_str(vpiFullName) : 0;
+			full = scope_name ? scope_name : "";
+		  } else {
+			full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
+			      + name_;
+		  }
 		  use = &full;
 	    } else if (code == vpiFile) {
 		  use = &file_;
@@ -713,6 +724,19 @@ class __vpiAssertion : public __vpiHandle {
 		  return scope_;
 	    return 0;
       }
+
+      bool reset_deferred(void)
+	{
+	    if (!deferred_source_id_) return false;
+	    vpip_cancel_deferred_assertion(deferred_source_id_, scope_);
+	    fire(cbAssertionReset);
+	    return true;
+	}
+
+      void report_control_reset(void)
+	{
+	    if (deferred_source_id_) fire(cbAssertionReset);
+	}
 
       void add_cb(int reason, vpi_assertion_cb_func cb, char*data)
       {
@@ -816,13 +840,77 @@ class __vpiAssertion : public __vpiHandle {
       std::vector<assert_cb_t> cbs_;
       int latency_;                    // M12-2: fixed tick latency, or -1
       bool fail_full_latency_;         // M12-1: failures run full latency
+      unsigned long deferred_source_id_ = 0;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
 static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
+static std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>
+      deferred_assertion_by_key;
 static int assertion_cb_total = 0;
+
+static bool selector_path_prefix_(const char*path, const char*prefix)
+{
+      size_t len;
+      if (!path || !prefix) return false;
+      len = strlen(prefix);
+      return strncmp(path, prefix, len) == 0
+	    && (path[len] == 0 || path[len] == '.');
+}
+
+static bool scope_is_hierarchy_level_(const __vpiScope*scope)
+{
+      return scope->is_cell || scope->get_type_code() == vpiModule;
+}
+
+bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
+				       const char*selector,
+				       int levels)
+{
+      __vpiScope*cur;
+      __vpiScope*selected_module = 0;
+      int depth = 0;
+      const char*full;
+      if (!selector) return true;
+      if (!scope) return false;
+      full = scope->vpi_get_str(vpiFullName);
+      if (!selector_path_prefix_(full, selector)) return false;
+      if (levels == 0) return true;
+
+      /* Find the deepest module/cell scope that contains the selector. A
+	 named block, task, or process in the path does not consume a level. */
+      for (cur = scope; cur; cur = cur->scope) {
+	    const char*cur_name;
+	    if (!scope_is_hierarchy_level_(cur)) continue;
+	    cur_name = cur->vpi_get_str(vpiFullName);
+	    if (selector_path_prefix_(selector, cur_name)) {
+		  selected_module = cur;
+		  break;
+	    }
+      }
+      if (!selected_module) return false;
+
+      for (cur = scope; cur; cur = cur->scope) {
+	    if (scope_is_hierarchy_level_(cur)) depth += 1;
+	    if (cur == selected_module) break;
+      }
+      return cur == selected_module && depth <= levels;
+}
+
+void vpip_report_deferred_assertion_reset_callbacks(const char*selector,
+						     int levels)
+{
+      for (std::map<std::pair<__vpiScope*,unsigned long>,
+			__vpiAssertion*>::const_iterator cur =
+		       deferred_assertion_by_key.begin();
+	   cur != deferred_assertion_by_key.end(); ++cur) {
+	    if (vpip_deferred_assert_scope_matches(cur->first.first,
+						 selector, levels))
+		  cur->second->report_control_reset();
+      }
+}
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
@@ -836,6 +924,25 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 	    vpip_attach_to_scope(sc, obj);
 	    assertion_by_key[std::make_pair(sc, (int)idx)] = obj;
       }
+}
+
+void vpip_register_deferred_assertion(unsigned long source_id, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+	  if (!source_id || !sc) return;
+	  std::pair<__vpiScope*,unsigned long>key(sc, source_id);
+      if (deferred_assertion_by_key.find(key) != deferred_assertion_by_key.end())
+	    return;
+	  __vpiAssertion*obj = new __vpiAssertion(source_id, sc);
+      assertion_registry.push_back(obj);
+      deferred_assertion_by_key[key] = obj;
+      vpip_attach_to_scope(sc, obj);
+}
+
+PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion)
+{
+      __vpiAssertion*obj = dynamic_cast<__vpiAssertion*>(assertion);
+      return obj && obj->reset_deferred();
 }
 
 /* M12B-cb: fire success/failure callbacks for the (scope, idx) assertion. */
