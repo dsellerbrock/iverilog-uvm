@@ -7,6 +7,13 @@ class sparse_size_array;
   }
 endclass
 
+// With no explicit element references, the solver uses the dynamic-size
+// sampler directly. The number of legal payload tuples still grows with size.
+class sparse_size_unconstrained_array;
+  rand bit payload[];
+  constraint legal { payload.size() inside {1, 3}; }
+endclass
+
 class sparse_size_unsatisfiable;
   rand bit payload[];
   constraint impossible {
@@ -17,8 +24,10 @@ endclass
 
 module main;
   sparse_size_array item;
+  sparse_size_unconstrained_array unconstrained;
   sparse_size_unsatisfiable impossible;
   integer tuple_count[6];
+  integer unconstrained_size_one = 0;
   initial begin
     item = new;
     item.srandom(417);
@@ -42,6 +51,21 @@ module main;
       if (tuple_count[i] < 60 || tuple_count[i] > 140)
         $fatal(1, "sparse-size legal tuple %0d is biased: %0d/600",
                i, tuple_count[i]);
+
+    unconstrained = new;
+    unconstrained.srandom(418);
+    repeat (600) begin
+      if (!unconstrained.randomize())
+        $fatal(1, "unconstrained sparse-size dynamic-array solve failed");
+      if (unconstrained.payload.size() == 1)
+        unconstrained_size_one++;
+      else if (unconstrained.payload.size() != 3)
+        $fatal(1, "unconstrained sparse size escaped {1,3}");
+    end
+    // There are two legal size-one tuples and eight legal size-three tuples.
+    if (unconstrained_size_one < 75 || unconstrained_size_one > 165)
+      $fatal(1, "sparse sizes are not weighted by legal tuples: unconstrained size-one %0d/600",
+             unconstrained_size_one);
 
     impossible = new;
     impossible.payload = new[1];
