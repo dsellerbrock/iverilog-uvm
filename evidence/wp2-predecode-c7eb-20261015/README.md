@@ -18,7 +18,7 @@ and candidate focused checks passed all 32 valid and malformed cases.
   −10.259915% instructions. The broad Callgrind corpus matched all 18 outputs,
   with a largest non-target count increase of +0.038453%; the focused legacy
   and JSON lists passed 19/19 each, and malformed metadata returned X for all
-  16 reads. Full gates and exact-head CI remain pending. The bounded Caliptra
+  16 reads. Pinned-base full gates are recorded below. The bounded Caliptra
   screen and its incomplete-run limitation are documented in
   [attempt 1420](../wp2-predecode-caliptra-c7eb-20261015/attempt-1420/README.md).
 
@@ -35,8 +35,9 @@ A4 confirmed these were pre-existing fixture issues and #595 corrected them.
 The first gate setup attempt, job 1454, stopped before testing because its
 binary-hash command used the wrong `ivl` install path; the corrected fresh run
 is documented in [full-gates r2](full-gates-c7eb-20261015-r2/README.md).
-Final-head gates and cross-platform CI still need to run after the one
-merge-time rebase and any required new-base measurement.
+The one merge-time rebase is complete. Because the pinned-path diff changes
+`vvp/`, a new-base instruction measurement, final correctness gates, and
+exact-head cross-platform CI remain pending.
 
 The code patch and focused test inputs are under `input/`. Full Slurm logs and
 Callgrind outputs remain in the local evidence archive.

@@ -34,8 +34,8 @@ prediction.
   so this is a screen, not a firmware pass. Pinned-base full gates passed in
   job 1457, with zero JSON failure delta versus the reference; A4 confirmed
   the 16 shared JSON failures were existing fixture defects corrected by #595.
-  Exact-head cross-platform CI and the merge-time new-base check remain
-  pending. The run is in
+  The merge-time rebase is complete; the required new-base instruction screen,
+  final correctness gates, and exact-head cross-platform CI remain pending. The run is in
   [Caliptra evidence](../../evidence/wp2-predecode-caliptra-c7eb-20261015/attempt-1420/README.md);
   earlier variants remain in [focused evidence](../../evidence/wp2-predecode-c7eb-20261015/README.md).
 - `vpip_vec4_to_int64_saturated` already has a fast path for a 2-state value
@@ -94,8 +94,9 @@ prediction.
   at −10.259915% with predecode plus packed result construction. Focused checks
   and all 18 broad output comparisons pass; pinned-base full gates also pass.
   The 16 full-JSON failures matched the reference and are corrected on main by
-  #595. Exact-head CI after the merge-time rebase remains pending. Do not treat
-  the truncated profile as a complete firmware result.
+  #595. The merge-time rebase is complete; the new-base instruction screen, final
+  correctness gates, and exact-head CI remain pending. Do not treat the
+  truncated profile as a complete firmware result.
   The final three-run wall table reports every median and spread as supporting
   evidence; the largest candidate spread is 43.445690%.
 - `perf record` sampled c339 and current main over matched Caliptra mcycle
@@ -190,10 +191,10 @@ sketches, not current VVP members.
 2. Draft PR #599 contains the predecode candidate. The pinned Caliptra screen
    clears the instruction gate at −10.259915%; focused checks, broad output
    comparisons, and pinned-base full gates pass. The old 16 JSON fixture
-   failures matched the reference and are corrected by #595. The three-run
-   wall medians and spreads are supporting evidence regardless of spread.
-   Rebase once immediately before merge, measure once on the new base because
-   the change touches runtime code, then rerun exact-head gates and CI.
+   failures matched the reference and were corrected by #595. The three-run
+   wall medians and spreads are supporting evidence regardless of spread. It
+   has been rebased once onto `845f54a`; because `vvp/` changed since the pin,
+   run one new-base instruction screen, then final gates and exact-head CI.
 3. Re-measure the fused converter candidate after its single rebase onto
    `ccaecfe7`; use the pinned-base path diff to decide and record the required
    scope. Open it only after its instruction and correctness evidence is ready.
