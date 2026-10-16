@@ -703,6 +703,10 @@ module main;
       end else
         $fatal(1, "sparse dynamic-array size escaped {1,3}");
     end
+    if (sparse_size_tuple_count[0] + sparse_size_tuple_count[1] < 150
+        || sparse_size_tuple_count[0] + sparse_size_tuple_count[1] > 250)
+      $fatal(1, "sparse sizes are not weighted by legal tuples: size-one %0d/600",
+             sparse_size_tuple_count[0] + sparse_size_tuple_count[1]);
     for (int i = 0; i < 6; ++i)
       if (sparse_size_tuple_count[i] < 60 || sparse_size_tuple_count[i] > 140)
         $fatal(1, "sparse-size legal tuple %0d is biased: %0d/600",
