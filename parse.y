@@ -5791,7 +5791,7 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   : assert_or_assume deferred_mode '(' expression ')' statement_or_null %prec less_than_K_else
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_deferred_assertion(@1, $4, $6, 0, $2 != 0);
+	      $$ = pform_make_deferred_assertion(@1, $4, $6, 0, $1, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."
@@ -5814,7 +5814,7 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 		    fail = new PNoop;
 		    FILE_NAME(fail, @6);
 	      }
-	      $$ = pform_make_deferred_assertion(@1, $4, 0, fail, $2 != 0);
+	      $$ = pform_make_deferred_assertion(@1, $4, 0, fail, $1, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."
@@ -5836,7 +5836,7 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 		    fail = new PNoop;
 		    FILE_NAME(fail, @7);
 	      }
-	      $$ = pform_make_deferred_assertion(@1, $4, $6, fail, $2 != 0);
+	      $$ = pform_make_deferred_assertion(@1, $4, $6, fail, $1, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."

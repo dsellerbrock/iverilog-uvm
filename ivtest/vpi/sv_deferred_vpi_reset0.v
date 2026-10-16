@@ -17,6 +17,10 @@ module sv_deferred_vpi_reset0;
       assert final (1) $display("VPI_FINAL_SHARED_SURVIVOR");
       assert final (1) $display("VPI_FINAL_SHARED_SURVIVOR");
     end
+    begin : vpi_kinds
+      assume #0 (1);
+      cover #0 (1);
+    end
     $reset_deferred_assertions;
   end
 endmodule

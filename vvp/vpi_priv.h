@@ -390,6 +390,9 @@ extern vpiHandle vpip_make_covergroup_iterator(void);
 extern vpiHandle vpip_make_assertion_iterator(void);
 /* Deferred-immediate assertions register while the VVP image is linked. */
 extern void vpip_register_deferred_assertion(unsigned long source_id,
+					     unsigned assertion_kind,
+					     unsigned file_idx,
+					     unsigned line,
 					     vpiHandle scope);
 extern void vpip_cancel_deferred_assertion(unsigned long source_id,
 					   vpiHandle scope);

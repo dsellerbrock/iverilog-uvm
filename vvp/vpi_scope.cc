@@ -679,16 +679,18 @@ class __vpiAssertion : public __vpiHandle {
 	  // start is the failing tick itself.
 	fail_full_latency_((flags & 1) != 0) { }
 
-      __vpiAssertion(unsigned long source_id, __vpiScope*scope)
-	: idx_(-1), name_(""), file_(""),
-	  line_(scope ? scope->vpi_get(vpiLineNo) : 0), scope_(scope),
-	  latency_(-1), fail_full_latency_(false),
-	  deferred_source_id_(source_id) { }
+      __vpiAssertion(unsigned long source_id, __vpiScope*scope,
+		     int deferred_type, const char*file, int line)
+	: idx_(-1), name_(""), file_(file ? file : ""), line_(line),
+	  scope_(scope), latency_(-1), fail_full_latency_(false),
+	  deferred_source_id_(source_id), deferred_type_(deferred_type) { }
 
       int get_type_code(void) const override { return vpiAssertion; }
 
       int vpi_get(int code) override
       {
+	    if (code == vpiType && deferred_source_id_)
+		  return deferred_type_;
 	    if (code == vpiLineNo) return line_;
 	    return vpiUndefined;
       }
@@ -853,6 +855,7 @@ class __vpiAssertion : public __vpiHandle {
       int latency_;                    // M12-2: fixed tick latency, or -1
       bool fail_full_latency_;         // M12-1: failures run full latency
       unsigned long deferred_source_id_ = 0;
+      int deferred_type_ = vpiUndefined;
       bool deferred_enabled_ = true;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
@@ -939,14 +942,30 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
       }
 }
 
-void vpip_register_deferred_assertion(unsigned long source_id, vpiHandle scope)
+void vpip_register_deferred_assertion(unsigned long source_id,
+				     unsigned assertion_kind,
+				     unsigned file_idx,
+				     unsigned line,
+				     vpiHandle scope)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-	  if (!source_id || !sc) return;
-	  std::pair<__vpiScope*,unsigned long>key(sc, source_id);
+      int deferred_type;
+      if (!source_id || !sc || !line || file_idx >= file_names.size())
+	    return;
+      /* assertion_kind is the IEEE assertion-control selector retained by
+	 the front end: assert=1, cover=2, assume=4. */
+      switch (assertion_kind) {
+	    case 1: deferred_type = vpiImmediateAssert; break;
+	    case 2: deferred_type = vpiImmediateCover; break;
+	    case 4: deferred_type = vpiImmediateAssume; break;
+	    default: return;
+      }
+      std::pair<__vpiScope*,unsigned long>key(sc, source_id);
       if (deferred_assertion_by_key.find(key) != deferred_assertion_by_key.end())
 	    return;
-	  __vpiAssertion*obj = new __vpiAssertion(source_id, sc);
+      __vpiAssertion*obj = new __vpiAssertion(source_id, sc, deferred_type,
+						      file_names[file_idx],
+						      line);
       assertion_registry.push_back(obj);
       deferred_assertion_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);

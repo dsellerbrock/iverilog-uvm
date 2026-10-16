@@ -355,7 +355,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%defer/final",of_DEFER_FINAL,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
       { "%defer/final/key",of_DEFER_FINAL_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/final/taskkey",of_DEFER_FINAL_TASK_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
-      { "%defer/register",of_DEFER_REGISTER,2,{OA_NUMBER,OA_VPI_PTR2,OA_NONE} },
+      { "%defer/register",of_DEFER_REGISTER,2,{OA_STRING,OA_VPI_PTR2,OA_NONE} },
       { "%delay",  of_DELAY,  2,  {OA_BIT1,     OA_BIT2,     OA_NONE} },
       { "%delayx", of_DELAYX, 1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%delete/elem",of_DELETE_ELEM,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
@@ -1861,14 +1861,28 @@ void compile_cleanup(void)
                   vvp_code_t code = deferred_assertion_registrations[idx];
                   __vpiScope*scope = dynamic_cast<__vpiScope*>(
                         reinterpret_cast<vpiHandle>(code->cptr2));
-                  if (!code->number || !scope) {
+                  unsigned source_id = 0;
+                  unsigned assertion_kind = 0;
+                  unsigned file_idx = 0;
+                  unsigned line = 0;
+                  int consumed = 0;
+                  if (!code->text
+		      || sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
+				&assertion_kind, &file_idx, &line,
+				&consumed) != 4
+		      || code->text[consumed] != 0
+		      || !source_id || !line || file_idx >= file_names.size()
+		      || (assertion_kind != 1 && assertion_kind != 2
+			  && assertion_kind != 4)
+		      || !scope) {
                         fprintf(stderr,
                                 "vvp: invalid deferred assertion registration.\n");
                         compile_errors += 1;
                         continue;
                   }
                   vpip_register_deferred_assertion(
-                        static_cast<unsigned long>(code->number), scope);
+                        static_cast<unsigned long>(source_id),
+			assertion_kind, file_idx, line, scope);
             }
       }
       deferred_assertion_registrations.clear();

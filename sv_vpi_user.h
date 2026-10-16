@@ -106,6 +106,12 @@ EXTERN_C_START
 
 /********* Assertion object (IEEE 1800-2017 clause 40) ***********/
 #define vpiAssertion        686
+/* vpiType values for immediate assertion statements (IEEE 1800 Annex E).
+ * VPI property codes are a separate value set; vpiImmediateAssert shares the
+ * integer value of the Icarus vpiCoverCount property code. */
+#define vpiImmediateAssert  665
+#define vpiImmediateAssume  694
+#define vpiImmediateCover   695
 
 /* Assertion callback reasons (IEEE 1800-2017 40.x). All are delivered
    by the automaton engine: cbAssertionStart (each attempt tick),

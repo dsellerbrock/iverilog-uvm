@@ -6047,9 +6047,12 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       unsigned parm_count = ivl_stmt_parm_count(net);
       ivl_expr_t mode_expr = parm_count > 0 ? ivl_stmt_parm(net, 0) : 0;
       ivl_expr_t source_expr = parm_count > 1 ? ivl_stmt_parm(net, 1) : 0;
-      ivl_expr_t kind_expr = parm_count > 2 ? ivl_stmt_parm(net, 2) : 0;
+      ivl_expr_t assertion_kind_expr = parm_count > 2
+	    ? ivl_stmt_parm(net, 2) : 0;
+      ivl_expr_t kind_expr = parm_count > 3 ? ivl_stmt_parm(net, 3) : 0;
       long mode = -1;
       long source_id = -1;
+      long assertion_kind = -1;
       long kind = -1;
 
       if (mode_expr && ivl_expr_type(mode_expr) == IVL_EX_NUMBER
@@ -6062,6 +6065,12 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
           && !number_is_unknown(source_expr))
             source_id = get_number_immediate(source_expr);
 
+      if (assertion_kind_expr
+	  && ivl_expr_type(assertion_kind_expr) == IVL_EX_NUMBER
+	  && number_is_immediate(assertion_kind_expr, 32, 0)
+	  && !number_is_unknown(assertion_kind_expr))
+	    assertion_kind = get_number_immediate(assertion_kind_expr);
+
       if (kind_expr && ivl_expr_type(kind_expr) == IVL_EX_NUMBER
           && number_is_immediate(kind_expr, 32, 0)
           && !number_is_unknown(kind_expr))
@@ -6070,14 +6079,18 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       if ((final_marker && mode != 1) || (!final_marker && mode != 0))
             kind = -1;
 
+      if (assertion_kind != 1 && assertion_kind != 2
+	  && assertion_kind != 4)
+	    kind = -1;
+
       if (kind == 0) {
-            if (parm_count != 3)
+	    if (parm_count != 4)
                   kind = -1;
       } else if (kind == 1) {
-            if (parm_count < 3)
+            if (parm_count < 4)
                   kind = -1;
       } else if (kind == 2) {
-            if (parm_count < 3)
+            if (parm_count < 4)
                   kind = -1;
       } else {
             kind = -1;
@@ -6095,8 +6108,11 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
             return 1;
       }
 
-      fprintf(vvp_out, "    %%defer/register %ld, S_%p;\n",
-              source_id, sscope);
+      fprintf(vvp_out,
+	      "    %%defer/register \"%ld,%ld,%u,%u\", S_%p;\n",
+	      source_id, assertion_kind,
+	      ivl_file_table_index(ivl_stmt_file(net)), ivl_stmt_lineno(net),
+	      sscope);
 
       /* Action arguments must be evaluated by the source process and captured
        * before either pending report is queued. The shared VPI lowering emits
@@ -6106,7 +6122,7 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
             show_stmt_file_line(net,
                   final_marker ? "Final deferred immediate assertion pin."
                                : "Deferred immediate assertion enqueue.");
-            return draw_vpi_deferred_call(net, 3,
+            return draw_vpi_deferred_call(net, 4,
                                           kind == 1 ? "$error" : "$display",
                                           source_id, sscope, final_marker);
       }

@@ -4,6 +4,7 @@
 #include <string.h>
 
 static int registered_before_simulation;
+static int deferred_metadata_valid;
 static int assertion_reset_callbacks;
 
 static PLI_INT32 assertion_reset_cb(PLI_INT32 reason, p_vpi_time time,
@@ -31,6 +32,31 @@ static int count_assertions(const char*scope_name)
       return count;
 }
 
+static int check_deferred_metadata(const char*scope_name, int expected_type,
+				   const char*expected_type_name,
+				   int expected_line)
+{
+      vpiHandle scope = vpi_handle_by_name(scope_name, 0);
+      vpiHandle it, assertion;
+      int count = 0;
+      if (!scope) return 0;
+      it = vpi_iterate(vpiAssertion, scope);
+      if (!it) return 0;
+      while ((assertion = vpi_scan(it))) {
+	    const char*file = vpi_get_str(vpiFile, assertion);
+	    const char*type_name = vpi_get_str(vpiType, assertion);
+	    if (vpi_get(vpiType, assertion) != expected_type) continue;
+	    if (vpi_get(vpiLineNo, assertion) != expected_line
+		|| !file || !strstr(file, "sv_deferred_vpi_reset0.v")
+		|| !type_name || strcmp(type_name, expected_type_name) != 0) {
+		  vpi_free_object(it);
+		  return 0;
+	    }
+	    count++;
+      }
+      return count == 1;
+}
+
 static PLI_INT32 check_registered_at_start(p_cb_data data)
 {
       int count =
@@ -40,12 +66,26 @@ static PLI_INT32 check_registered_at_start(p_cb_data data)
 	    + count_assertions(
 		  "sv_deferred_vpi_reset0.vpi_process.vpi_shared")
 	    + count_assertions(
-		  "sv_deferred_vpi_reset0.vpi_process.vpi_final_shared");
+		  "sv_deferred_vpi_reset0.vpi_process.vpi_final_shared")
+	    + count_assertions(
+		  "sv_deferred_vpi_reset0.vpi_process.vpi_kinds");
       (void)data;
-      registered_before_simulation = count == 6;
+      registered_before_simulation = count == 8;
+      deferred_metadata_valid = check_deferred_metadata(
+	    "sv_deferred_vpi_reset0.vpi_process.vpi_target",
+	    vpiImmediateAssert, "vpiImmediateAssert", 4)
+	    && check_deferred_metadata(
+		  "sv_deferred_vpi_reset0.vpi_process.vpi_kinds",
+		  vpiImmediateAssume, "vpiImmediateAssume", 21)
+	    && check_deferred_metadata(
+		  "sv_deferred_vpi_reset0.vpi_process.vpi_kinds",
+		  vpiImmediateCover, "vpiImmediateCover", 22);
       vpi_printf(registered_before_simulation
 		 ? "PASS: deferred assertions registered before simulation\n"
 		 : "FAIL: deferred assertions missing before simulation\n");
+      vpi_printf(deferred_metadata_valid
+		 ? "PASS: deferred assertion VPI source metadata\n"
+		 : "FAIL: deferred assertion VPI source metadata\n");
       return 0;
 }
 
@@ -108,6 +148,7 @@ static PLI_INT32 reset_calltf(PLI_BYTE8*name)
 	    "sv_deferred_vpi_reset0.vpi_process.vpi_final_shared") && pass;
       pass = assertion_reset_callbacks == 4 && pass;
       pass = registered_before_simulation && pass;
+      pass = deferred_metadata_valid && pass;
       vpi_printf(pass ? "PASS: deferred assertion VPI reset\n"
 		      : "FAIL: deferred assertion VPI reset\n");
       return 0;
