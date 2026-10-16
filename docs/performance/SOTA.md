@@ -31,7 +31,10 @@ prediction.
   focused legacy and JSON lists passed 19/19 each, and malformed metadata
   returned X for all 16 reads. Its fixed ECC inputs and visible simulation
   prefix matched; the window intentionally stops before testbench completion,
-  so this is a screen, not a firmware pass. Full gates and exact-head CI remain
+  so this is a screen, not a firmware pass. Pinned-base full gates passed in
+  job 1457, with zero JSON failure delta versus the reference; A4 confirmed
+  the 16 shared JSON failures were existing fixture defects corrected by #595.
+  Exact-head cross-platform CI and the merge-time new-base check remain
   pending. The run is in
   [Caliptra evidence](../../evidence/wp2-predecode-caliptra-c7eb-20261015/attempt-1420/README.md);
   earlier variants remain in [focused evidence](../../evidence/wp2-predecode-c7eb-20261015/README.md).
@@ -89,8 +92,10 @@ prediction.
   (−9.212159%), and its added zero-based/unit-stride fast path was 0.322130%
   worse. The fixed Caliptra mcycle 100–200 screen clears the instruction gate
   at −10.259915% with predecode plus packed result construction. Focused checks
-  and all 18 broad output comparisons pass; full gates and exact-head CI remain
-  pending. Do not treat the truncated profile as a complete firmware result.
+  and all 18 broad output comparisons pass; pinned-base full gates also pass.
+  The 16 full-JSON failures matched the reference and are corrected on main by
+  #595. Exact-head CI after the merge-time rebase remains pending. Do not treat
+  the truncated profile as a complete firmware result.
   The final three-run wall table reports every median and spread as supporting
   evidence; the largest candidate spread is 43.445690%.
 - `perf record` sampled c339 and current main over matched Caliptra mcycle
@@ -133,7 +138,7 @@ prediction.
 
 | Report phase | What source verification supports | Campaign treatment |
 | --- | --- | --- |
-| **1: predecode `%prop/index/check`** | The pinned base parses the operand string and builds a local dimensions vector at execution. The stack-pop contract continues after invalid dimensions, so a descriptor must retain the parsed count and malformed-metadata behavior. | Caliptra mcycle 100–200 screen clears the instruction gate by −10.259915%; the 100,000-access microbenchmark is −9.212159%. Focused checks and all 18 broad outputs match; full gates and exact-head CI remain pending. The bounded run is not a firmware pass. |
+| **1: predecode `%prop/index/check`** | The pinned base parses the operand string and builds a local dimensions vector at execution. The stack-pop contract continues after invalid dimensions, so a descriptor must retain the parsed count and malformed-metadata behavior. | Caliptra mcycle 100–200 screen clears the instruction gate by −10.259915%; the 100,000-access microbenchmark is −9.212159%. Focused checks and all 18 broad outputs match; pinned-base full gates pass. Exact-head CI after the merge-time rebase remains pending. The bounded run is not a firmware pass. |
 | **1: vec4 conversion, word arithmetic, 2-state specialization** | The small 2-state fast path and word-wise add/sub already exist. The fused wide converter scan is a screened candidate; a general 2-state opcode family remains a separate experiment. | The initial `has_xz()` fallback remains below the 10% process bar. The later fused word scan improves the focused process by 20.535627%, passes all 18 broad output checks, and has no broad count increase above 0.002218%. Re-measure once on the post-#593 base because the shared header changed; do not infer gains for a new opcode family. |
 | **1: allocation reduction** | `vvp_vector4_t` has one inline word per plane and wider copies allocate. The vthread vec4 stack is a `std::vector`, so retaining capacity in its live slots is plausible. Assignment-event objects already use a slab allocator, although their region queues remain linked. | First measure stack widths, copies, and allocation counts. Start with stack-slot reuse only. Wider inline storage, read-only slice views, and NBA coalescing are separate changes with representation, lifetime, and event-order risks. |
 | **2: type tags, subtype checks, virtual-call cache** | Dynamic casts exist, but their aggregate count is not a hot-site profile. Class ancestry is walked through `runtime_super()`. Virtual method target resolution already has a memo keyed by runtime class and base method scope. | Profile casts and the existing memo on UVM/Caliptra before changing dispatch. Do not assume tags fit in padding or that subtype lookup is O(1); avoid adding a second cache unless lookup cost is material. |
@@ -182,12 +187,13 @@ sketches, not current VVP members.
 1. WP3 #593 is merged as `ccaecfe7`. Its instruction screen is −14.079590%,
    all 18 benchmark outputs match, the final three-run wall table records every
    spread, and exact-head Linux, macOS, Windows, and Slurm gates passed.
-2. Open the predecode candidate after committing its evidence. The pinned
-   Caliptra screen clears the instruction gate at −10.259915%; focused checks
-   and broad output comparisons pass. Finish full gates and exact-head CI. The
-   three-run wall medians and spreads are supporting evidence regardless of
-   spread. Rebase once immediately before merge and remeasure once because the
-   change touches runtime code.
+2. Draft PR #599 contains the predecode candidate. The pinned Caliptra screen
+   clears the instruction gate at −10.259915%; focused checks, broad output
+   comparisons, and pinned-base full gates pass. The old 16 JSON fixture
+   failures matched the reference and are corrected by #595. The three-run
+   wall medians and spreads are supporting evidence regardless of spread.
+   Rebase once immediately before merge, measure once on the new base because
+   the change touches runtime code, then rerun exact-head gates and CI.
 3. Re-measure the fused converter candidate after its single rebase onto
    `ccaecfe7`; use the pinned-base path diff to decide and record the required
    scope. Open it only after its instruction and correctness evidence is ready.

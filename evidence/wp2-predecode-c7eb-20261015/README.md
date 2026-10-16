@@ -27,5 +27,16 @@ The final three-run wall-time support table is in
 It reports every median and spread; the largest candidate spread is 43.445690%
 on `large_memory`. Wall-time spread does not block the instruction-count gate.
 
+Pinned-base full gates passed in Slurm job 1457: `make check`, the complete
+legacy/VPI/negative/runtime gate, the full JSON differential, and UVM with real
+DPI (367/0/0). The candidate JSON run reported 16 failures; the pinned
+reference reproduced the same 16 names, with zero new failures and no timeouts.
+A4 confirmed these were pre-existing fixture issues and #595 corrected them.
+The first gate setup attempt, job 1454, stopped before testing because its
+binary-hash command used the wrong `ivl` install path; the corrected fresh run
+is documented in [full-gates r2](full-gates-c7eb-20261015-r2/README.md).
+Final-head gates and cross-platform CI still need to run after the one
+merge-time rebase and any required new-base measurement.
+
 The code patch and focused test inputs are under `input/`. Full Slurm logs and
 Callgrind outputs remain in the local evidence archive.

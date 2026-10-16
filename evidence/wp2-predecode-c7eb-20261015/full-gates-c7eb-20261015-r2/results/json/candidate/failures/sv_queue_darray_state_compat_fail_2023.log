@@ -1,0 +1,20 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-c7eb-20261015-r2/json/candidate/lists/sv_queue_darray_state_compat_fail_2023.list
+----------------------------------------------------------------------------
+gold/sv_queue_darray_state_compat_fail-iverilog-stderr.gold and log/sv_queue_darray_state_compat_fail_2023-iverilog-stderr.log differ:
+--- gold/sv_queue_darray_state_compat_fail-iverilog-stderr.gold
++++ log/sv_queue_darray_state_compat_fail_2023-iverilog-stderr.log
+@@ -28,9 +28,7 @@
+ ivltests/sv_queue_darray_state_compat_fail.v:52: error: the type of the variable 'logic64_q' doesn't match the context type.
+ ivltests/sv_queue_darray_state_compat_fail.v:52:      : variable type=queue of netvector_t:logic unsigned[63:0]
+ ivltests/sv_queue_darray_state_compat_fail.v:52:      : context type=dynamic array of netvector_t:bool unsigned[63:0]
+-ivltests/sv_queue_darray_state_compat_fail.v:55: error: the type of the variable 'logic_q' doesn't match the context type.
+-ivltests/sv_queue_darray_state_compat_fail.v:55:      : variable type=queue of netvector_t:logic unsigned[7:0]
+-ivltests/sv_queue_darray_state_compat_fail.v:55:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
++ivltests/sv_queue_darray_state_compat_fail.v:55: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+ ivltests/sv_queue_darray_state_compat_fail.v:56: error: the type of the variable 'logic_q' doesn't match the context type.
+ ivltests/sv_queue_darray_state_compat_fail.v:56:      : variable type=queue of netvector_t:logic unsigned[7:0]
+ ivltests/sv_queue_darray_state_compat_fail.v:56:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+sv_queue_darray_state_compat_fail_2023: Failed - CE (Gold file doesn't match output).
+============================================================================
+Test results: Ran 1, Failed 1.

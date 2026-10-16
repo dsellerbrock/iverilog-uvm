@@ -1,0 +1,3 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+candidate=4f4ec93c86ce6d767ec4639d22213ef7dc05cfc9
+uvm_core=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
