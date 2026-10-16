@@ -1,0 +1,1 @@
+sv_assert_tree_implication_both_sides normal,-g2012 ivltests gold=sv_assert_tree_implication_both_sides.gold
