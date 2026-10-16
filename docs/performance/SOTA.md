@@ -203,8 +203,8 @@ sketches, not current VVP members.
    `374b037e7c8fba7097e0b86b05be7956ca6b5487` passes: focused instructions
    fall 20.535761%, all 18 broad outputs match, and the largest other increase
    is +0.000684%. Full correctness passed in job 1733; isolated wall support is
-   recorded in job 1758. Open one PR, run exact-head CI, and rebase once only
-   immediately before merge.
+   recorded in job 1758. Draft PR #601 is open; run exact-head CI and rebase once
+   only immediately before merge.
 4. A2's Caliptra regression profile is a completed diagnosis. Matched c339/main
    samples over mcycle 100–600 and 100–5000 did not reproduce the reported
    row slowdown. The archived QD-BFM commit is d1529c9 rather than the cited

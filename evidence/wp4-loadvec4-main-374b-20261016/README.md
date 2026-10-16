@@ -31,8 +31,8 @@ The focused and broad instruction gates and full pinned-base correctness gates
 pass. Slurm job 1733 passed `make check`, FPGA target installation, the full
 ivtest gate (including JSON), a standalone JSON replay, and real-DPI UVM. Both
 JSON runs reported 4,676/4,676; UVM reported 367/0/0. The candidate's final
-three-run wall table is recorded in job 1758; exact-head CI will run after the
-PR opens. Its 18 outputs match. `waveform_fst` is 7.55% slower with a
+three-run wall table is recorded in job 1758; draft PR #601 is open and
+exact-head CI is pending. Its 18 outputs match. `waveform_fst` is 7.55% slower with a
 7.22% candidate spread; wall time is supporting evidence and does not override
 the instruction-count gate. See [`full-gates/README.md`](full-gates/README.md)
 and [`final-wall/job-1758/wall-summary.md`](final-wall/job-1758/wall-summary.md).
