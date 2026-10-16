@@ -6269,6 +6269,13 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 13.4.4: check a function's caller before
+	 * executing a deferred side effect. */
+      if (strcmp(stmt_name,"$ivl_function_background_guard") == 0) {
+	    fprintf(vvp_out, "    %%function/deferred/check;\n");
+	    return 0;
+      }
+
 	/* A synthesized assertion-action dispatcher is permanently a
 	 * Reactive-region process. Its delayed/event-controlled continuations
 	 * and detached action children inherit that affinity. */
@@ -8089,12 +8096,15 @@ int draw_process(ivl_process_t net, void*x)
       int push_flag = 0;
       int clocking_bg_flag = 0;
       int clocking_sync_flag = 0;
+      int function_background_ok = 0;
 
       (void)x; /* Parameter is not used. */
 
       for (idx = 0 ;  idx < ivl_process_attr_cnt(net) ;  idx += 1) {
 
 	    ivl_attribute_t attr = ivl_process_attr_val(net, idx);
+	    if (strcmp(attr->key, "_ivl_function_background_ok") == 0)
+		  function_background_ok = 1;
 
 	    if (strcmp(attr->key, "_ivl_schedule_init") == 0) {
 
@@ -8189,12 +8199,14 @@ int draw_process(ivl_process_t net, void*x)
 	  case IVL_PR_ALWAYS_COMB:
 	  case IVL_PR_ALWAYS_FF:
 	  case IVL_PR_ALWAYS_LATCH:
+	    {
+		  const char*thread_flag = 0;
 	    if (init_flag) {
-		  fprintf(vvp_out, "    .thread T_%u, $init;\n", thread_count);
+		  thread_flag = "$init";
 	    } else if (push_flag) {
-		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
+		  thread_flag = "$push";
 	    } else if (clocking_sync_flag) {
-		  fprintf(vvp_out, "    .thread T_%u, $clocking;\n", thread_count);
+		  thread_flag = "$clocking";
 	    } else if (ivl_process_type(net) == IVL_PR_INITIAL
 		       && ivl_scope_program(scope) && !clocking_bg_flag) {
 		    /* M6B: a program-block INITIAL procedure. Mark it so the
@@ -8202,9 +8214,21 @@ int draw_process(ivl_process_t net, void*x)
 		       initial completes (IEEE 1800-2017 24.7). Concurrent
 		       assertions/clocking in the program are ALWAYS-type and
 		       are not marked, so they do not keep the sim alive. */
-		  fprintf(vvp_out, "    .thread T_%u, $prog;\n", thread_count);
+		  thread_flag = "$prog";
+	    }
+	    if (function_background_ok) {
+		  if (thread_flag)
+			fprintf(vvp_out, "    .thread T_%u, %s, $function_background_ok;\n",
+				thread_count, thread_flag);
+		  else
+			fprintf(vvp_out, "    .thread T_%u, $function_background_ok;\n",
+				thread_count);
+	    } else if (thread_flag) {
+		  fprintf(vvp_out, "    .thread T_%u, %s;\n",
+			  thread_count, thread_flag);
 	    } else {
 		  fprintf(vvp_out, "    .thread T_%u;\n", thread_count);
+	    }
 	    }
 	    break;
 

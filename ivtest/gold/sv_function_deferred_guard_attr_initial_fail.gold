@@ -1,0 +1,2 @@
+./ivltests/sv_function_deferred_guard_attr_initial_fail.v:9: error: attribute `_ivl_function_background_ok` is reserved for compiler use.
+1 error(s) during elaboration.

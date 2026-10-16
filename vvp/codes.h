@@ -272,6 +272,7 @@ extern bool of_END(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT(vthread_t thr, vvp_code_t code);
 extern bool of_EVTEST(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_NB(vthread_t thr, vvp_code_t code);
+extern bool of_FUNCTION_DEFERRED_CHECK(vthread_t thr, vvp_code_t code);
 extern bool of_EVT_ARR(vthread_t thr, vvp_code_t code);
 extern bool of_EVT_ARR_NB(vthread_t thr, vvp_code_t code);
 extern bool of_EVTEST_ARR(vthread_t thr, vvp_code_t code);

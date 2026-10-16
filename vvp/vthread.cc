@@ -850,6 +850,7 @@ struct vthread_s {
       unsigned i_am_detached     :1;
       unsigned i_am_waiting      :1;
       unsigned i_am_in_function  :1; // True if running function code
+      unsigned function_deferred_events_allowed :1;
       unsigned i_have_ended      :1;
       unsigned i_was_disabled    :1;
       unsigned waiting_for_event :1;
@@ -10352,6 +10353,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->i_am_detached = 0;
       thr->i_am_waiting  = 0;
       thr->i_am_in_function = 0;
+      thr->function_deferred_events_allowed = 0;
       thr->is_scheduled  = 0;
       thr->flow_pending  = 0;
       thr->i_have_ended  = 0;
@@ -11047,6 +11049,12 @@ void vthread_mark_final(vthread_t thr)
 	    thr->i_am_in_function = 1;
 	    thr = thr->wait_next;
       }
+}
+
+void vthread_mark_function_background_ok(vthread_t thr)
+{
+      if (thr)
+	    thr->function_deferred_events_allowed = 1;
 }
 
 void vthread_delay_delete()
@@ -14384,6 +14392,8 @@ class lazy_scope_name_s {
 
 static bool do_callf_void(vthread_t thr, vthread_t child)
 {
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       callf_depth++;
       __vpiScope*caller_scope = thr->parent_scope;
       __vpiScope*child_scope = child->parent_scope;
@@ -18787,6 +18797,22 @@ bool of_EVENT_NB(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_FUNCTION_DEFERRED_CHECK(vthread_t thr, vvp_code_t)
+{
+      if (thr->function_deferred_events_allowed)
+	    return true;
+      const char*message =
+	    "function call that schedules a background event is not allowed "
+	    "from this context (IEEE 1800 13.4.4)";
+      string fileline = thr ? thr->get_fileline() : string();
+      fprintf(stderr, "%serror: %s\n", fileline.c_str(), message);
+      if (vthread_t owner = logical_process_thread_(thr))
+	    (void)do_disable(owner, owner);
+      vpip_set_return_value(1);
+      schedule_finish(0);
+      return false;
+}
+
 bool of_EVCTL(vthread_t thr, vvp_code_t cp)
 {
       assert(thr->event == 0 && thr->ecount == 0);
@@ -19149,6 +19175,8 @@ bool of_FORCE_WR(vthread_t thr, vvp_code_t cp)
 static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);
       if (thr->staged_alloc_rd_scope
           && child_ctx_scope == thr->staged_alloc_rd_scope) {
@@ -19352,6 +19380,8 @@ bool of_FORK_P(vthread_t thr, vvp_code_t cp)
 bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);
       if (thr->staged_alloc_rd_scope
           && child_ctx_scope == thr->staged_alloc_rd_scope) {
@@ -20487,6 +20517,8 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       }
 
       vthread_t child = vthread_new(code, scope);
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       child->parent = thr;
       child->is_callf_child = 1;
       child->i_am_in_function = 1;

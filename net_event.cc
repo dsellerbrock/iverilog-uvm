@@ -179,12 +179,10 @@ static bool vif_probes_match_(const NetEvProbe*a, const NetEvProbe*b)
 	  && a->vif_root_pin() == b->vif_root_pin();
 }
 
-/* Mirrors tgt-vvp's scope_needs_call_frame(): the runtime allocates a
-   context for an automatic subroutine, and also for a static subroutine or
-   named block that holds explicitly automatic declarations. */
+/* Mirrors the scopes that own a distinct VVP automatic context. */
 bool NetScope::owns_call_frame() const
 {
-      if (is_auto())
+      if (is_auto() && auto_frame())
 	    return true;
 
       switch (type()) {
@@ -203,6 +201,14 @@ bool NetScope::owns_call_frame() const
 		  return true;
       }
       return false;
+}
+
+static const NetScope* call_frame_owner_(const NetScope*scope)
+{
+      for (; scope; scope = scope->parent())
+	    if (scope->owns_call_frame())
+		  return scope;
+      return 0;
 }
 
 void NetEvent::find_similar_event(list<NetEvent*>&event_list)
@@ -268,20 +274,8 @@ void NetEvent::find_similar_event(list<NetEvent*>&event_list)
 	    if (tmp == this)
 		  continue;
 
-              /* The VVP runtime holds event state for a scope that owns a
-                 call frame inside that automatically allocated context, so
-                 such an event may only merge with one in the very same
-                 scope. The test must be symmetric and must also cover a
-                 static block that merely holds automatic declarations:
-                 merging a static-scope event into that block's event leaves
-                 the surviving functor context-local, and the static-scope
-                 waiter then has no context to resolve it in. It aborts in
-                 vthread_add_event_wait on a null wait-list head -- for
-                 example a wait(...) preceding a declaring for-loop whose
-                 implicit automatic block contains an identical wait(...). */
-            if (tmp->scope() != scope()
-                && (scope()->owns_call_frame()
-                    || tmp->scope()->owns_call_frame()))
+              /* Event functors resolve state through their nearest frame owner. */
+            if (call_frame_owner_(tmp->scope()) != call_frame_owner_(scope()))
                   continue;
 
 	    unsigned tcnt = 0;
