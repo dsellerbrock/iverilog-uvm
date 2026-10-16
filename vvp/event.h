@@ -26,8 +26,10 @@
 # include  <set>
 # include  <map>
 # include  <functional>
+# include  <cstdint>
 
 class scalar_event_history;
+class vvp_fun_wait_order;
 
 /* A source update is one signal/object publication and all combinational
    fanout caused by it. Event-cone functors settle once at the boundary;
@@ -202,10 +204,11 @@ struct waitable_state_s {
 
 struct named_event_aa_state_s : waitable_state_s {
       named_event_aa_state_s() : triggered_change_threads(0),
-            last_trigger_time(0), ever_triggered(false) {}
+            last_trigger_time(0), ever_triggered(false), context(0) {}
       vthread_t triggered_change_threads;
       vvp_time64_t last_trigger_time;
       bool ever_triggered;
+      vvp_context_t context;
 };
 
 /*
@@ -425,6 +428,38 @@ class vvp_fun_event_or : public vvp_net_fun_t, public waitable_hooks_s {
       vvp_net_t*base_net_;
 };
 
+/* Ordered named-event observer used by SystemVerilog wait_order. */
+class vvp_fun_wait_order : public vvp_net_fun_t {
+    public:
+      explicit vvp_fun_wait_order(unsigned nevents);
+      ~vvp_fun_wait_order() override;
+      vvp_net_t*&event_ref(unsigned idx) { return events_[idx]; }
+      bool arm(vthread_t thread, vvp_code_t success, vvp_code_t failure,
+	       vvp_code_t&immediate);
+      void trigger(class vvp_named_event*source, vvp_context_t context);
+      void cancel_context(vvp_context_t context);
+
+    private:
+      struct waiter_s {
+	    vthread_t thread;
+	    size_t next;
+	    vvp_context_t context;
+	    uint64_t context_generation;
+	    vvp_code_t success;
+	    vvp_code_t failure;
+      };
+      bool bind_sources_();
+      void register_observers_();
+      void unregister_observers_();
+      static void cancel_waiter_(void*owner, vthread_t thread);
+
+      std::vector<vvp_net_t*> events_;
+      std::set<class vvp_named_event*> sources_;
+      bool sources_bound_ = false;
+      bool registered_ = false;
+      std::vector<waiter_s> waiters_;
+};
+
 /*
  * Statically allocated vvp_fun_event_or.
  */
@@ -493,13 +528,18 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
 	// and report whether the event fired in the current time step.
       void note_triggered(void);
       virtual bool triggered_now(void) const;
+      void add_wait_order_observer(vvp_fun_wait_order*observer);
+      void remove_wait_order_observer(vvp_fun_wait_order*observer);
 
     protected:
+      void notify_wait_order_observers(vvp_context_t context);
+      void cancel_wait_order_context(vvp_context_t context);
       class __vpiHandle*handle_;
 
     private:
       vvp_time64_t last_trigger_time_ = 0;
       bool ever_triggered_ = false;
+      std::set<vvp_fun_wait_order*> wait_order_observers_;
 };
 
 /*

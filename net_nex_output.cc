@@ -316,6 +316,7 @@ void NetEvNBTrig::nex_output(NexusSet&)
 void NetEvWait::nex_output(NexusSet&out)
 {
       if (statement_) statement_->nex_output(out);
+      if (failure_statement_) failure_statement_->nex_output(out);
 }
 
 void NetForever::nex_output(NexusSet&out)

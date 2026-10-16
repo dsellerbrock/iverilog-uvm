@@ -378,6 +378,7 @@ ivl_stmt_rval
 ivl_stmt_sfunc_as_task
 ivl_stmt_step_stmt
 ivl_stmt_sub_stmt
+ivl_stmt_wait_order_fail_stmt
 ivl_stmt_is_super_call
 ivl_stmt_is_immediate_assertion
 ivl_stmt_vif_method

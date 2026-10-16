@@ -4187,6 +4187,41 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
       return rc;
 }
 
+static int show_stmt_wait_order(ivl_statement_t net, ivl_scope_t sscope)
+{
+      static unsigned monitor_count = 0;
+      unsigned success_label = local_count++;
+      unsigned failure_label = local_count++;
+      unsigned done_label = local_count++;
+      unsigned monitor = monitor_count++;
+      unsigned count = ivl_stmt_nevent(net);
+      int rc = 0;
+
+      if (count == 0) {
+	    fprintf(stderr, "%s:%u: internal error: wait_order has no events.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+
+      show_stmt_file_line(net, "wait_order statement.");
+      fprintf(vvp_out, "Ewaitorder_%u .event/order", monitor);
+      for (unsigned idx = 0; idx < count; idx += 1)
+	    fprintf(vvp_out, " E_%p%s", ivl_stmt_events(net, idx),
+		    idx + 1 == count ? ";\n" : ",");
+
+      fprintf(vvp_out, "    %%wait/order Ewaitorder_%u, T_%u.%u, T_%u.%u;\n",
+	      monitor, thread_count, success_label,
+	      thread_count, failure_label);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done_label);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, success_label);
+      rc += show_statement(ivl_stmt_sub_stmt(net), sscope);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done_label);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, failure_label);
+      rc += show_statement(ivl_stmt_wait_order_fail_stmt(net), sscope);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, done_label);
+      return rc;
+}
+
 static int expr_is_queue_expr(ivl_expr_t expr);
 static int show_queue_object_receiver(ivl_expr_t parm);
 static int expr_is_static_array_expr(ivl_expr_t expr);
@@ -8015,6 +8050,10 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 
 	  case IVL_ST_WAIT:
 	    rc += show_stmt_wait(net, sscope);
+	    break;
+
+	  case IVL_ST_WAIT_ORDER:
+	    rc += show_stmt_wait_order(net, sscope);
 	    break;
 
 	  case IVL_ST_WHILE:
