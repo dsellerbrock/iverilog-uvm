@@ -2611,6 +2611,21 @@ array, and member components remain outside this exact path. No full uniformity
 suite or CI run was performed for this increment.
 See the [revision-scoped evidence](../../../evidence/solve-before-array/sparse-coupled-uniform-sampling-20261009.md).
 
+### 2026-10-16 wide sparse coupled follow-up (#416)
+
+IEEE 1800-2017 §18.5.10 and 1800-2023 §18.5.9 use the same requirement:
+sample uniformly across all legal value combinations. The paired regression
+adds a 65-bit scalar constrained with a one-bit mode: the legal space has 257
+tuples, one with mode zero and 256 with mode one. On baseline `7f508a8a`, the
+mode-one branch appeared 20/32 times at seed 416, below the 28/32 minimum.
+Eligible direct-scalar components wider than 64 bits now use complete-tuple
+reservoir sampling after 64 rejected proposals, up to 1,024 legal tuples.
+Both strict-edition legacy and JSON registrations also check unsatisfiable
+failure rollback. A 1,025-tuple wide control checks fallback legality only;
+uniformity is not claimed above the 1,024-tuple cap. Unsupported components
+retain the documented fallback; broader §18.5 conformance remains partial. See the
+[revision evidence](../../../evidence/solve-before-array/sparse-wide-coupled-20261016.md).
+
 ## 2026-10-08 IEEE 1800-2023 §22.5 parenthesized conditional expressions
 
 IEEE 1800-2017 §22.5 Syntax 22-5 permits only a `text_macro_identifier`
