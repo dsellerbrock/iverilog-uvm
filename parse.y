@@ -5769,6 +5769,7 @@ deferred_immediate_assertion_item /* IEEE1800-2012: A.6.10 */
 	   assertion identity needed by future cancellation support. */
 	if ($1 && item) {
 	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      scope->deferred_assertion_label_scope();
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);
@@ -8479,6 +8480,7 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 	}
 	if ($1 && item) {
 	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      scope->deferred_assertion_label_scope();
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);

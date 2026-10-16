@@ -535,6 +535,7 @@ extern PLI_INT32 vpi_control(PLI_INT32 operation, ...);
 #define vpiFinish              67  /* execute simulator's $finish */
 #define vpiReset               68  /* execute simulator's $reset */
 #define vpiSetInteractiveScope 69  /* set simulator's interactive scope */
+#define vpiAssertionReset      622 /* IEEE 1800-2017 39.5.2 */
 #define __ivl_legacy_vpiStop 1
 #define __ivl_legacy_vpiFinish 2
 
@@ -671,6 +672,9 @@ extern int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val);
    available, unlike best-effort tracking for outer frames. */
 extern const char* vpip_get_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_stacktrace(const char*call_file, long call_line);
+/* Cancel pending deferred-immediate reports selected by hierarchy path. */
+extern void vpip_cancel_deferred_asserts(const char*selector,
+                                         PLI_INT32 levels);
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
@@ -775,7 +779,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 9;
+static const PLI_UINT32 vpip_routines_version = 10;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -832,6 +836,7 @@ typedef struct {
     void        (*assertion_report_all)(PLI_INT32);
     int         (*object_urandom)(const PLI_INT32*, unsigned int*);
     void        (*print_stacktrace)(const char*, long);
+    void        (*cancel_deferred_asserts)(const char*, PLI_INT32);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

@@ -262,6 +262,10 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       ~PBlock() override;
 
       BL_TYPE bl_type() const { return bl_type_; }
+      void deferred_assertion_label_scope()
+      { deferred_assertion_label_scope_ = true; }
+      void deferred_assertion_process_scope()
+      { deferred_assertion_process_scope_ = true; }
       void randsequence_block(ivl_randsequence_block_t kind)
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
@@ -299,6 +303,8 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
     private:
       friend class pform_constructor_order_audit_t;
       BL_TYPE bl_type_;
+      bool deferred_assertion_label_scope_ = false;
+      bool deferred_assertion_process_scope_ = false;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
       std::vector<Statement*>list_;
 };

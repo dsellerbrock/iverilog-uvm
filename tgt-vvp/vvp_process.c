@@ -2948,6 +2948,18 @@ static void publish_materialized_return(ivl_scope_t scope)
       fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", ivl_signal_width(sig));
 }
 
+static int scope_has_internal_attribute_(ivl_scope_t scope, const char*name)
+{
+      unsigned idx;
+      for (idx = 0; idx < ivl_scope_attr_cnt(scope); idx += 1) {
+	    ivl_attribute_t attr = ivl_scope_attr_val(scope, idx);
+	    if (attr && strcmp(attr->key, name) == 0
+		&& attr->type == IVL_ATT_NUM && attr->val.num != 0)
+		  return 1;
+      }
+      return 0;
+}
+
 static int show_stmt_disable(ivl_statement_t net, ivl_scope_t sscope)
 {
       int rc = 0;
@@ -2962,6 +2974,14 @@ static int show_stmt_disable(ivl_statement_t net, ivl_scope_t sscope)
 		  show_stmt_file_line(net, "Flow control disable statement.");
 		  fprintf(vvp_out, "    %%disable/flow S_%p;\n", target);
 	    } else {
+		  if (scope_has_internal_attribute_(target,
+			    "_ivl_deferred_assert_label"))
+			fprintf(vvp_out,
+				"    %%defer/cancel/label S_%p;\n", target);
+		  else if (scope_has_internal_attribute_(target,
+			       "_ivl_deferred_process_scope"))
+			fprintf(vvp_out,
+				"    %%defer/cancel/process S_%p;\n", target);
 		  show_stmt_file_line(net, "Disable statement.");
 		  fprintf(vvp_out, "    %%disable S_%p;\n", target);
 	    }
@@ -6074,6 +6094,9 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
             vvp_errors += 1;
             return 1;
       }
+
+      fprintf(vvp_out, "    %%defer/register %ld, S_%p;\n",
+              source_id, sscope);
 
       /* Action arguments must be evaluated by the source process and captured
        * before either pending report is queued. The shared VPI lowering emits

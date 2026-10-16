@@ -180,6 +180,7 @@ m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log
 m12_sv_coverage  normal,-g2012   m12_sv_coverage.c m12_sv_coverage.log
 m12b_assert_vpi  normal,-g2012   m12b_assert_vpi.c m12b_assert_vpi.log
 m12bcb_assert_cb normal,-g2012   m12bcb_assert_cb.c m12bcb_assert_cb.log
+sv_deferred_vpi_reset0 normal,-g2012 sv_deferred_vpi_reset0.c sv_deferred_vpi_reset0.log
 m12_endpoint_fanout_cb normal,-g2012 m12_endpoint_fanout_cb.c m12_endpoint_fanout_cb.log
 m12_endpoint_fanout_step normal,-g2012 m12_endpoint_fanout_step.c m12_endpoint_fanout_step.log
 force_cb		normal			force_cb.c		force_cb.log
