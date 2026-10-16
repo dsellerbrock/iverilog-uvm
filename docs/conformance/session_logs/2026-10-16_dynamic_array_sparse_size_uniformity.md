@@ -2,10 +2,15 @@
 
 ## Requirement
 
-IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 require the random values
-to be uniformly distributed over legal value combinations. The corresponding
-paragraphs use the same requirement in both editions. For a dynamic array,
-the selected size and active element values together form the tested tuple.
+IEEE 1800-2017 §18.5.10 and IEEE 1800-2023 §18.5.9 require uniform
+distribution over legal value combinations. For this non-iterative case, the
+tested combinations are the selected size and active element values; there is
+no `solve...before` constraint. Clause 18.4 describes resizing before element
+randomization, but does not state a probability ordering. The explicit
+size-first rules are for size constraints combined with foreach or array
+reduction constraints: §18.5.8.1/.2 (2017), §18.5.7.1/.2 (2023). The tested
+scope excludes those iterative cases and is based on the absence of a general
+size-first probability rule.
 
 ## Reproducer
 
@@ -35,7 +40,8 @@ manifest and local checksum verification are included there. The remote
 
 ## Boundary
 
-This evidence covers the bounded one-dimensional direct-integral array path.
-Nested/member arrays, queues, associative arrays, unsupported solver shapes,
-and cases exceeding existing solver budgets remain outside this result; see
-the dynamic-array uniformity entry in `../BLOCKERS.md`.
+This evidence covers the bounded one-dimensional direct-integral array path
+without iterative constraints or `solve...before`. Nested/member arrays,
+queues, associative arrays, unsupported solver shapes, iterative size-first
+cases, and cases exceeding existing solver budgets remain outside this
+result; see the dynamic-array uniformity entry in `../BLOCKERS.md`.
