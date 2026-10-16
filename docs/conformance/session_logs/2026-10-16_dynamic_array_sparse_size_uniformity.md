@@ -14,13 +14,14 @@ size-first probability rule.
 
 ## Reproducer
 
-`ivtest/ivltests/sv_randomize_global_uniform.v` adds a paired-edition case with
+`ivtest/ivltests/sv_randomize_sparse_size_uniform.v` and its 2023 companion
+contain the paired-edition case with
 `payload.size()` in `{1, 3}` and `payload[0] == 0` at size 3. There are two
 legal size-one tuples and four legal size-three tuples. Across 600 draws, each
 of the six bins must be between 60 and 140. The same test asks for the
 contradictory size 2 and checks that failed randomization preserves an existing
-one-element array. The existing suite also retains its 512/513 size boundary
-case.
+one-element array. The broader global-uniform suite retains its 512/513 size
+boundary case.
 
 ## Verification
 

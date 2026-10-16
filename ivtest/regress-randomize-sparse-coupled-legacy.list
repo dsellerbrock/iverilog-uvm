@@ -1,2 +1,4 @@
 sv_randomize_sparse_coupled normal,-g2017,-s,main ivltests gold=sv_randomize_sparse_coupled.gold
 sv_randomize_sparse_coupled_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_sparse_coupled.gold
+sv_randomize_sparse_size_uniform normal,-g2017,-s,main ivltests gold=sv_randomize_sparse_size_uniform.gold
+sv_randomize_sparse_size_uniform_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_sparse_size_uniform.gold
