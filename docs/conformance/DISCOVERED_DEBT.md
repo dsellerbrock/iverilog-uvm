@@ -3709,17 +3709,17 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Reproducer status:** strict 2017/2023 CE control passes in the 16-case JSON and legacy focus; transactional runtime implementation remains absent.
 - **Triage status:** explicit unsupported boundary for this blocker; select separately before claiming full §7.6 pattern assignment support.
 
-### DD-073 — module associative fixed arrays with class-handle leaves still reject indexed writes
+### DD-073 — module associative fixed-array class-handle writes (fixed subset)
 
 - **Issue status:** [OPEN #484](https://github.com/dsellerbrock/iverilog-uvm/issues/484).
 
 - **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
-- **Observation:** A module variable `entry src[int][8:9]` with a class-handle leaf still fails target code generation on `src[4][8] = handle` with `could not recover the selected nested container type`. The active class-property handle control passes; the pinned Flash handle array is a class property.
-- **File/function:** `tgt-vvp/stmt_assign.c` nested object-element assignment type recovery.
-- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.6, 7.8.
-- **Evidence:** `work/flash-queue-triage-20260928/flash-review-handle-cross-orientation.sv` in the projectless campaign workspace; strict 2017 emits three explicit `sorry` diagnostics and exits nonzero, while the class-property control passes both strict editions.
-- **Reproducer status:** focused compile boundary; no silent runtime success.
-- **Triage status:** separate follow-on beyond this blocker’s Flash class-property handle path.
+- **Observation:** Fixed for module variables whose associative elements are fixed unpacked arrays of class handles. In `entry src[int][8:9]`, reading a missing key returns the fixed-array default without creating the key; assigning `src[4][8] = handle` creates the entry, leaves `src[4][9]` null, and preserves the assigned handle identity. Class-property handling is unchanged.
+- **File/function:** `tgt-vvp/stmt_assign.c` module associative-array lvalue lowering; existing `%aa/viv/sig` with `AA_VIV_FIXED` allocates the missing key and the enclosing fixed-slot lvalue retains the child type.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.8.6, and 7.8.7.
+- **Evidence:** Paired tests `ivtest/ivltests/sv_assoc_fixed_module_class_handle.v` and `_2023.v` check absent-read nonallocation, write allocation, the untouched default handle, and handle identity. Local focused legacy/JSON runs passed; exact-head Fast Linux passed. Full T0/T1 remains pending.
+- **Reproducer status:** 2017 and 2023 reducers pass. They check absent-read nonallocation, not the §7.8.6 warning. This qualifies only the module-scope class-handle leaf write/read shape.
+- **Triage status:** this slice fixes DD-073. Issue #484 remains open for other shapes, including DD-074 packed-bit tails and DD-075 indexed nonblocking writes.
 
 ### DD-074 — packed-bit write after an associative fixed slot is unsupported
 
