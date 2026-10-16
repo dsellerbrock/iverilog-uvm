@@ -379,6 +379,12 @@ extern vpiHandle vpip_make_root_iterator(int type_code);
 extern vpiHandle vpip_make_covergroup_iterator(void);
 /* M12B: iterator over all registered assertions (vpi_iterate(vpiAssertion, 0)). */
 extern vpiHandle vpip_make_assertion_iterator(void);
+/* Deferred-immediate assertions register while the VVP image is linked. */
+extern void vpip_register_deferred_assertion(unsigned long source_id,
+					     vpiHandle scope);
+extern void vpip_cancel_deferred_assertion(unsigned long source_id,
+					   vpiHandle scope);
+extern PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion);
 extern void vpip_make_root_iterator(class __vpiHandle**&table,
 				    unsigned&ntable);
 

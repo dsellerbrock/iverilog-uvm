@@ -6879,6 +6879,12 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 {
       pform_bind_procedural_sampled_(type, st);
 
+	/* Remember the named outer block of a process so the VVP backend can
+	   flush its pending deferred reports on `disable`. */
+      if (PBlock*block = dynamic_cast<PBlock*>(st))
+	    if (!block->pscope_name().nil())
+		  block->deferred_assertion_process_scope();
+
 	// Add an implicit @* around the statement for the always_comb and
 	// always_latch statements.
       if ((type == IVL_PR_ALWAYS_COMB) || (type == IVL_PR_ALWAYS_LATCH)) {
@@ -7169,6 +7175,9 @@ Statement* pform_make_deferred_cover(const struct vlltype&loc,
 	    delete expr;
 	    return 0;
       }
+
+      if (!pass_marker && !is_final)
+	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 0);
 
       /* A false final cover selection replaces an earlier true pin from the
 	 same source assertion and logical process. For #0, a false evaluation

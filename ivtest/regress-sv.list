@@ -1714,6 +1714,7 @@ sv_deferred_reactive_order0	normal,-g2012		ivltests gold=sv_deferred_reactive_or
 sv_deferred_null_action0	normal,-g2012		ivltests gold=sv_deferred_null_action0.gold
 sv_deferred_assert_control0	normal,-g2012		ivltests gold=sv_deferred_assert_control0.gold
 sv_deferred_matured_disable0	normal,-g2012		ivltests gold=sv_deferred_matured_disable0.gold
+sv_deferred_cancel0	normal,-g2012		ivltests gold=sv_deferred_cancel0.gold
 sv_deferred_supported_only0	normal,-g2012,-gsupported-assertions	ivltests gold=sv_deferred_supported_only0.gold
 sv_deferred_observed_args0	normal,-g2012		ivltests gold=sv_deferred_observed_args0.gold
 sv_deferred_observed_error_args0	normal,-g2012	ivltests gold=sv_deferred_observed_error_args0.gold

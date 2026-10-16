@@ -172,6 +172,7 @@ struct deferred_assert_args_s {
 };
 
 struct deferred_assert_report_s {
+      unsigned long source_id;
       vvp_code_t action_pc;
       __vpiScope*action_scope;
       deferred_assert_args_s action_args;
@@ -198,10 +199,16 @@ class vvp_process : public vvp_object {
 	/* vthread_resource_cancel_t for process::await waits. */
       static void cancel_await_waiter(void*owner, vthread_t thr);
 
-      void enqueue_deferred_assert(vvp_code_t action_pc,
+      void enqueue_deferred_assert(unsigned long source_id,
+                                   vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
       void flush_deferred_asserts();
+      void cancel_all_deferred_asserts();
+      void cancel_deferred_asserts(__vpiScope*scope);
+      void cancel_deferred_assertion(unsigned long source_id,
+				     __vpiScope*scope);
+      void cancel_deferred_asserts(const char*selector, int levels);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
                                      vvp_code_t action_pc,
@@ -210,6 +217,8 @@ class vvp_process : public vvp_object {
       void mature_final_deferred_asserts();
 
     private:
+      template <typename Predicate>
+      void cancel_deferred_asserts_(Predicate predicate);
       void signal_waiters_();
 
     private:
@@ -1319,7 +1328,8 @@ static void logical_process_threads_(vthread_t thr,
 				     std::vector<vthread_t>&out);
 
 vvp_process::vvp_process(vthread_t owner)
-: owner_(owner), final_status_(PROCESS_STATE_RUNNING), final_status_valid_(false),
+: owner_(owner), final_status_(PROCESS_STATE_RUNNING),
+  final_status_valid_(false),
   deferred_assert_observed_armed_(false), final_deferred_rosync_armed_(false)
 {
 }
@@ -1328,9 +1338,34 @@ vvp_process::vvp_process(vthread_t owner)
    has nothing to discard while this is zero, so vthread_run skips the
    process lookup for it. */
 static size_t pending_deferred_assert_reports_ = 0;
+static std::set<vvp_process*> deferred_assert_processes_;
+
+static bool deferred_assert_selector_match_(const char*full,
+                                            const char*selector,
+                                            int levels)
+{
+      size_t len;
+      const char*tail;
+      int depth;
+      if (!selector) return true;
+      if (!full) return false;
+      if (strcmp(full, selector) == 0) return true;
+      len = strlen(selector);
+      if (strncmp(full, selector, len) != 0 || full[len] != '.')
+            return false;
+      if (levels == 0) return true;
+      tail = full + len + 1;
+      depth = 1;
+      while (*tail) {
+            if (*tail == '.') depth += 1;
+            tail += 1;
+      }
+      return depth <= levels;
+}
 
 vvp_process::~vvp_process()
 {
+      deferred_assert_processes_.erase(this);
       pending_deferred_assert_reports_ -= deferred_asserts_.size();
 }
 
@@ -1733,11 +1768,15 @@ struct final_deferred_assert_mature_event_s : public vvp_gen_event_s {
       }
 };
 
-void vvp_process::enqueue_deferred_assert(vvp_code_t action_pc,
+void vvp_process::enqueue_deferred_assert(unsigned long source_id,
+                                          vvp_code_t action_pc,
                                           __vpiScope*action_scope,
                                           const deferred_assert_args_s&action_args)
 {
+      if (deferred_asserts_.empty())
+            deferred_assert_processes_.insert(this);
       deferred_assert_report_s report;
+      report.source_id = source_id;
       report.action_pc = action_pc;
       report.action_scope = action_scope;
       report.action_args = action_args;
@@ -1755,14 +1794,105 @@ void vvp_process::flush_deferred_asserts()
 {
       pending_deferred_assert_reports_ -= deferred_asserts_.size();
       deferred_asserts_.clear();
+      if (final_deferred_asserts_.empty())
+            deferred_assert_processes_.erase(this);
       /* Leave the already-scheduled Observed pump armed. If this process
          executes another deferred assertion before that pass, the same
          pump will mature the new report. */
 }
 
+template <typename Predicate>
+void vvp_process::cancel_deferred_asserts_(Predicate predicate)
+{
+      size_t before = deferred_asserts_.size();
+      std::vector<deferred_assert_report_s>::iterator end =
+            std::remove_if(deferred_asserts_.begin(), deferred_asserts_.end(),
+                           predicate);
+      deferred_asserts_.erase(end, deferred_asserts_.end());
+      pending_deferred_assert_reports_ -= before - deferred_asserts_.size();
+
+      for (std::map<unsigned long, deferred_assert_report_s>::iterator cur =
+                 final_deferred_asserts_.begin();
+           cur != final_deferred_asserts_.end();) {
+            if (predicate(cur->second))
+                  cur = final_deferred_asserts_.erase(cur);
+            else
+                  ++cur;
+      }
+      final_deferred_order_.erase(
+            std::remove_if(final_deferred_order_.begin(),
+                           final_deferred_order_.end(),
+                  [this](unsigned long source_id) {
+                        return final_deferred_asserts_.find(source_id)
+                              == final_deferred_asserts_.end();
+                  }), final_deferred_order_.end());
+      if (deferred_asserts_.empty() && final_deferred_asserts_.empty())
+            deferred_assert_processes_.erase(this);
+}
+
+void vvp_process::cancel_deferred_asserts(__vpiScope*scope)
+{
+      cancel_deferred_asserts_([scope](const deferred_assert_report_s&report) {
+            return report.action_scope == scope;
+      });
+}
+
+void vvp_process::cancel_all_deferred_asserts()
+{
+      cancel_deferred_asserts_([](const deferred_assert_report_s&) {
+            return true;
+      });
+}
+
+void vvp_process::cancel_deferred_asserts(const char*selector, int levels)
+{
+      cancel_deferred_asserts_([selector, levels](
+            const deferred_assert_report_s&report) {
+            const char*full = report.action_scope
+                  ? report.action_scope->vpi_get_str(vpiFullName) : 0;
+            return deferred_assert_selector_match_(full, selector, levels);
+      });
+}
+
+void vvp_process::cancel_deferred_assertion(unsigned long source_id,
+                                            __vpiScope*scope)
+{
+      cancel_deferred_asserts_([source_id, scope](
+            const deferred_assert_report_s&report) {
+            return report.source_id == source_id
+                  && report.action_scope == scope;
+      });
+}
+
+extern "C" void vpip_cancel_deferred_asserts(const char*selector,
+                                               PLI_INT32 levels)
+{
+      for (std::set<vvp_process*>::iterator cur =
+                 deferred_assert_processes_.begin();
+           cur != deferred_assert_processes_.end();) {
+            vvp_process*process = *cur++;
+            process->cancel_deferred_asserts(selector, levels);
+      }
+}
+
+void vpip_cancel_deferred_assertion(unsigned long source_id,
+				    vpiHandle scope_handle)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(scope_handle);
+      if (!source_id || !scope) return;
+      for (std::set<vvp_process*>::iterator cur =
+		 deferred_assert_processes_.begin();
+	   cur != deferred_assert_processes_.end();) {
+	    vvp_process*process = *cur++;
+	    process->cancel_deferred_assertion(source_id, scope);
+      }
+}
+
 void vvp_process::mature_deferred_asserts()
 {
       deferred_assert_observed_armed_ = false;
+      if (final_deferred_asserts_.empty())
+            deferred_assert_processes_.erase(this);
 
       std::vector<deferred_assert_report_s> reports;
       reports.swap(deferred_asserts_);
@@ -1803,6 +1933,7 @@ void vvp_process::pin_final_deferred_assert(unsigned long source_id,
                                             const deferred_assert_args_s&action_args)
 {
       deferred_assert_report_s report;
+      report.source_id = source_id;
       report.action_pc = action_pc;
       report.action_scope = action_scope;
       report.action_args = action_args;
@@ -1818,6 +1949,7 @@ void vvp_process::pin_final_deferred_assert(unsigned long source_id,
 	       this stable position is the simulator's deterministic tie-break. */
 	    cur->second = report;
       }
+      deferred_assert_processes_.insert(this);
 
       if (final_deferred_rosync_armed_)
 	    return;
@@ -1839,6 +1971,8 @@ void vvp_process::mature_final_deferred_asserts()
       std::vector<unsigned long> order;
       reports.swap(final_deferred_asserts_);
       order.swap(final_deferred_order_);
+      if (deferred_asserts_.empty())
+            deferred_assert_processes_.erase(this);
 
       for (size_t odx = 0 ; odx < order.size() ; odx += 1) {
 	    unsigned long source_id = order[odx];
@@ -17407,23 +17541,73 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 
       vvp_process*process = owner->process_obj_.peek<vvp_process>();
       __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+      vvp_code_t key = cp->cptr2;
 
-      if (!process || !cp->cptr2 || !scope) {
+      if (!process || !key || key->opcode != of_DEFER_ENQUEUE_KEY
+          || !key->number || !scope) {
 	    static bool warned = false;
 	    if (!warned) {
 		  fprintf(stderr,
-		          "vvp: invalid %%defer/enqueue action or scope; "
+		          "vvp: invalid %%defer/enqueue metadata or scope; "
 		          "dropping report (further warnings suppressed).\n");
 		  warned = true;
 	    }
 	    return true;
       }
-
+      vvp_code_t action_pc = deferred_action_next_code_(key);
       deferred_assert_args_s action_args;
-      if (!capture_deferred_args_(thr, cp->cptr2, action_args, "observed"))
+      if (!capture_deferred_args_(thr, action_pc, action_args, "observed"))
 	    return true;
 
-      process->enqueue_deferred_assert(cp->cptr2, scope, action_args);
+      process->enqueue_deferred_assert(
+	    static_cast<unsigned long>(key->number), action_pc, scope, action_args);
+      return true;
+}
+
+bool of_DEFER_ENQUEUE_KEY(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
+bool of_DEFER_REGISTER(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
+static void cancel_deferred_asserts_for_scope_(__vpiScope*scope)
+{
+      for (std::set<vvp_process*>::iterator cur =
+                 deferred_assert_processes_.begin();
+           cur != deferred_assert_processes_.end();) {
+            vvp_process*process = *cur++;
+            process->cancel_deferred_asserts(scope);
+      }
+}
+
+bool of_DEFER_CANCEL_LABEL(vthread_t, vvp_code_t cp)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+      if (scope)
+            cancel_deferred_asserts_for_scope_(scope);
+      return true;
+}
+
+bool of_DEFER_CANCEL_PROCESS(vthread_t, vvp_code_t cp)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+      if (scope) {
+            std::set<vvp_process*> processes;
+            for (std::set<vthread_t>::const_iterator cur =
+                       scope->threads.begin(); cur != scope->threads.end();
+                 ++cur) {
+                  vthread_t owner = logical_process_thread_(*cur);
+                  if (!owner) continue;
+                  vvp_process*process =
+                        owner->process_obj_.peek<vvp_process>();
+                  if (process && processes.insert(process).second)
+                        process->cancel_all_deferred_asserts();
+            }
+      }
       return true;
 }
 
