@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_deferred_kill_matured0_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_deferred_kill_matured0"
+}
