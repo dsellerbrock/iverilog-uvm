@@ -733,6 +733,11 @@ class __vpiAssertion : public __vpiHandle {
 	    return true;
 	}
 
+      void report_control_reset(void)
+	{
+	    if (deferred_source_id_) fire(cbAssertionReset);
+	}
+
       void add_cb(int reason, vpi_assertion_cb_func cb, char*data)
       {
 	    assert_cb_t c;
@@ -845,6 +850,67 @@ static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
 static std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>
       deferred_assertion_by_key;
 static int assertion_cb_total = 0;
+
+static bool selector_path_prefix_(const char*path, const char*prefix)
+{
+      size_t len;
+      if (!path || !prefix) return false;
+      len = strlen(prefix);
+      return strncmp(path, prefix, len) == 0
+	    && (path[len] == 0 || path[len] == '.');
+}
+
+static bool scope_is_hierarchy_level_(const __vpiScope*scope)
+{
+      return scope->is_cell || scope->get_type_code() == vpiModule;
+}
+
+bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
+				       const char*selector,
+				       int levels)
+{
+      __vpiScope*cur;
+      __vpiScope*selected_module = 0;
+      int depth = 0;
+      const char*full;
+      if (!selector) return true;
+      if (!scope) return false;
+      full = scope->vpi_get_str(vpiFullName);
+      if (!selector_path_prefix_(full, selector)) return false;
+      if (levels == 0) return true;
+
+      /* Find the deepest module/cell scope that contains the selector. A
+	 named block, task, or process in the path does not consume a level. */
+      for (cur = scope; cur; cur = cur->scope) {
+	    const char*cur_name;
+	    if (!scope_is_hierarchy_level_(cur)) continue;
+	    cur_name = cur->vpi_get_str(vpiFullName);
+	    if (selector_path_prefix_(selector, cur_name)) {
+		  selected_module = cur;
+		  break;
+	    }
+      }
+      if (!selected_module) return false;
+
+      for (cur = scope; cur; cur = cur->scope) {
+	    if (scope_is_hierarchy_level_(cur)) depth += 1;
+	    if (cur == selected_module) break;
+      }
+      return cur == selected_module && depth <= levels;
+}
+
+void vpip_report_deferred_assertion_reset_callbacks(const char*selector,
+						     int levels)
+{
+      for (std::map<std::pair<__vpiScope*,unsigned long>,
+			__vpiAssertion*>::const_iterator cur =
+		       deferred_assertion_by_key.begin();
+	   cur != deferred_assertion_by_key.end(); ++cur) {
+	    if (vpip_deferred_assert_scope_matches(cur->first.first,
+						 selector, levels))
+		  cur->second->report_control_reset();
+      }
+}
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,

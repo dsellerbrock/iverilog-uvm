@@ -340,6 +340,15 @@ class __vpiScope : public __vpiHandle {
       bool shares_parent_frame_ = false;
 };
 
+/* Deferred-report selectors use module/cell hierarchy depth, not the number
+   of lexical scope components in a VPI full name. */
+extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
+					       const char*selector,
+					       int levels);
+extern void vpip_report_deferred_assertion_reset_callbacks(
+					       const char*selector,
+					       int levels);
+
 class vpiScopeFunction  : public __vpiScope {
     public:
       inline vpiScopeFunction(const char*nam, const char*tnam,

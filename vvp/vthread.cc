@@ -1340,29 +1340,6 @@ vvp_process::vvp_process(vthread_t owner)
 static size_t pending_deferred_assert_reports_ = 0;
 static std::set<vvp_process*> deferred_assert_processes_;
 
-static bool deferred_assert_selector_match_(const char*full,
-                                            const char*selector,
-                                            int levels)
-{
-      size_t len;
-      const char*tail;
-      int depth;
-      if (!selector) return true;
-      if (!full) return false;
-      if (strcmp(full, selector) == 0) return true;
-      len = strlen(selector);
-      if (strncmp(full, selector, len) != 0 || full[len] != '.')
-            return false;
-      if (levels == 0) return true;
-      tail = full + len + 1;
-      depth = 1;
-      while (*tail) {
-            if (*tail == '.') depth += 1;
-            tail += 1;
-      }
-      return depth <= levels;
-}
-
 vvp_process::~vvp_process()
 {
       deferred_assert_processes_.erase(this);
@@ -1848,9 +1825,8 @@ void vvp_process::cancel_deferred_asserts(const char*selector, int levels)
 {
       cancel_deferred_asserts_([selector, levels](
             const deferred_assert_report_s&report) {
-            const char*full = report.action_scope
-                  ? report.action_scope->vpi_get_str(vpiFullName) : 0;
-            return deferred_assert_selector_match_(full, selector, levels);
+            return vpip_deferred_assert_scope_matches(
+                  report.action_scope, selector, levels);
       });
 }
 
@@ -1873,6 +1849,7 @@ extern "C" void vpip_cancel_deferred_asserts(const char*selector,
             vvp_process*process = *cur++;
             process->cancel_deferred_asserts(selector, levels);
       }
+      vpip_report_deferred_assertion_reset_callbacks(selector, levels);
 }
 
 void vpip_cancel_deferred_assertion(unsigned long source_id,

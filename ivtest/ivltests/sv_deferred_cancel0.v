@@ -1,6 +1,31 @@
+module sv_deferred_cancel_level_child(output bit queued);
+  initial begin : child_process
+    begin : nested_child
+      assert #0 (1'b0) else $display("LEVEL_CHILD_REPORT");
+      queued = 1;
+    end
+  end
+endmodule
+
 module sv_deferred_cancel0;
   bit outer_queued, sibling_queued;
+  bit level_parent_queued, level_child_queued;
   event both_queued;
+
+  sv_deferred_cancel_level_child level_child(level_child_queued);
+
+  initial begin : level_parent_process
+    begin : nested_parent
+      assert #0 (1'b0) else $display("LEVEL_PARENT_REPORT");
+      level_parent_queued = 1;
+    end
+  end
+
+  initial begin : level_kill_process
+    wait (level_parent_queued && level_child_queued);
+    #0;
+    $assertkill(1, sv_deferred_cancel0);
+  end
 
   function void queue_outer_function_reports;
     function_a: assert #0 (1) $display("OUTER_FUNCTION_A");
