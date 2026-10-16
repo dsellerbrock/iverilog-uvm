@@ -38,6 +38,8 @@ module sv_deferred_cancel0;
     wait (level_parent_queued && level_child_queued);
     #0;
     $assertkill(1, sv_deferred_cancel0);
+    // Keep later independent checks active; kill still cancels reports queued above.
+    $asserton(1, sv_deferred_cancel0);
   end
 
   function void queue_outer_function_reports;
