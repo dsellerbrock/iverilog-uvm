@@ -26424,8 +26424,16 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       attrib_list = evaluate_attributes(attributes, attrib_list_n, des, scope);
 
       for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
-	    top->attribute(attrib_list[adx].key,
-			   attrib_list[adx].val);
+	    if (attrib_list[adx].key == "_ivl_function_background_ok") {
+		  /* This marker grants language semantics and must not be forgeable. */
+		  cerr << get_fileline() << ": error: attribute `"
+		       << attrib_list[adx].key
+		       << "` is reserved for compiler use." << endl;
+		  des->errors += 1;
+	    } else {
+		  top->attribute(attrib_list[adx].key,
+				 attrib_list[adx].val);
+	    }
 
       delete[]attrib_list;
 
