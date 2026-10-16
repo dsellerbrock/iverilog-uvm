@@ -1,0 +1,9 @@
+repository=https://github.com/dsellerbrock/iverilog-uvm.git
+measurement_base=374b037e7c8fba7097e0b86b05be7956ca6b5487
+local_worktree=clean_at_base_before_evidence_edits
+profile_case=smoke_test_dma_aes_gcm_short_1_dword
+mcycle_window=100:5000
+qd_bfm_commit=d1529c922da402943148a0fb22648f347e30eed9
+caliptra_rtl_commit=49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e
+adams_bridge_commit=b77e3d899e828d626cfc2a0d26a6b5704cc121e0
+toolchain=xPack RISC-V GCC 15.2.0-1; Icarus rebuilt from measurement_base

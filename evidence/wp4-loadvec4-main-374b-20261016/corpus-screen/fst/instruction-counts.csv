@@ -1,0 +1,2 @@
+measurement_base,benchmark,reference_ir,candidate_ir,delta_ir,delta_pct,output_identical
+374b037e7c8fba7097e0b86b05be7956ca6b5487,waveform_fst,13756744511,13756744467,-44,-0.000000,yes

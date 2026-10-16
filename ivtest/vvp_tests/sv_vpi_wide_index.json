@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "sv_vpi_wide_index.v",
+  "iverilog-args": [
+    "-g2012"
+  ]
+}

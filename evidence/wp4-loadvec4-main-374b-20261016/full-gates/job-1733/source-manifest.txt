@@ -1,0 +1,5 @@
+Pinned measurement base: 374b037e7c8fba7097e0b86b05be7956ca6b5487.
+Reference and candidate source trees are separate clones checked out at this commit.
+The candidate patch contains only the fused word-plane conversion and its test-list entry.
+The wide-index fixture and Callgrind runner are copied as independent hashed inputs.
+Builds use the same configure flags, compiler, dependencies, and Slurm node.

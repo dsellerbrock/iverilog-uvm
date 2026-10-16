@@ -1,0 +1,3 @@
+window_complete=1
+runner_exit=1
+full_test_pass=not_applicable_early_stop

@@ -1,0 +1,3 @@
+measurement_base=374b037e7c8fba7097e0b86b05be7956ca6b5487
+group=mixed
+benchmarks=rtl_alu behav strings_aa_queue randomize_z3 waveform_vcd
