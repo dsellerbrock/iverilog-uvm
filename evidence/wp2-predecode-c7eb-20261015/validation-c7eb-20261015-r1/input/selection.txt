@@ -1,0 +1,2 @@
+json_tests=19
+legacy_tests=19

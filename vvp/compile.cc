@@ -3077,7 +3077,11 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 			break;
 		  }
 
-		  code->text = opa->argv[idx].text;
+		  if (code->opcode == &of_PROP_INDEX_CHECK)
+			code->property_index_data =
+			      vvp_property_index_compile(opa->argv[idx].text);
+		  else
+			code->text = opa->argv[idx].text;
 		  break;
 
 		case OA_CONTAINER_STRING:

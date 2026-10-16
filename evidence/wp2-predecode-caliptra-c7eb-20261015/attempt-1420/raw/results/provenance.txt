@@ -1,0 +1,8 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+case=smoke_test_dma_aes_gcm_short_1_dword
+window=100:200
+c13c7c8ddf1e45b590a66b3dd64fdb01bffe7fd7c16453693435a7a28343f28d  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/input/ecc_secp384r1-deterministic.c
+6fc97b87ee757cfbe1ac4c7a0baa8b788440e0a57b5f536c3a01dde8e7c58dc9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/input/mcycle-window-callgrind.c
+9fe70e0e8c2b8e4c92848f71de5fe5d40ae46511b8e720284dbea5552c41c601  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/input/profile-predecode-caliptra-r3.sbatch
+829a3f91a62778c7f1599c140b020098ee04d1cbb2289d6786feb02cb50859cb  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/input/wp2-predecode-v2.patch
+978dca86942e3f3c07211779f8e53c9570b2ad6bb4f2ac1300eec3e340c0a47a  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3/input/wp2-predecode.patch

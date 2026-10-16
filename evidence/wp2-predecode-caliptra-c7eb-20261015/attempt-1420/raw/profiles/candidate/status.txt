@@ -1,0 +1,2 @@
+runner_exit=1
+	Maximum resident set size (kbytes): 1852896

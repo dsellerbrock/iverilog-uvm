@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_class_unpacked_property_index_4state.v",
+  "iverilog-args": ["-g2012", "-s", "sv_class_unpacked_property_index_4state"],
+  "gold": "sv_class_unpacked_property_index_4state"
+}

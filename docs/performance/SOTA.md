@@ -19,10 +19,22 @@ prediction.
   three-word instruction with a pointer union and an existing owned-data
   cleanup pattern (`container_data` in [`codes.h`](../../vvp/codes.h) and
   [`codes.cc`](../../vvp/codes.cc)).
-  The WP2 worktree has an uncommitted prototype using a new
-  `property_index_data` member in that union; it is not part of the pinned
-  baseline and has not passed the target build, equivalence, or performance
-  screen yet.
+  The prototype was built and passed a 32-case focused check, including
+  malformed metadata. Predecode alone reduced the 100,000-access Callgrind
+  count to 1,052,269,912 (−6.744313%); packed result construction improved
+  that to 1,024,423,467 (−9.212159%). A single-dimension fast path worsened
+  it to 1,027,723,440 (−8.919704%). The 100,000-access microbenchmark remains
+  below the 10% bar. A paired Caliptra mcycle 100–200 screen on the same pin
+  measured 184,080,599,400 → 165,194,086,031 instructions (−10.259915%) for
+  predecode plus packed result construction. The 18-workload Callgrind outputs
+  all matched, with no non-target instruction increase above +0.038453%; the
+  focused legacy and JSON lists passed 19/19 each, and malformed metadata
+  returned X for all 16 reads. Its fixed ECC inputs and visible simulation
+  prefix matched; the window intentionally stops before testbench completion,
+  so this is a screen, not a firmware pass. Full gates and exact-head CI remain
+  pending. The run is in
+  [Caliptra evidence](../../evidence/wp2-predecode-caliptra-c7eb-20261015/attempt-1420/README.md);
+  earlier variants remain in [focused evidence](../../evidence/wp2-predecode-c7eb-20261015/README.md).
 - `vpip_vec4_to_int64_saturated` already has a fast path for a 2-state value
   that fits in one native word (`small_2state_word`). Its fallback scans bits
   to reject X/Z and handle arbitrary-width signedness and saturation.
@@ -71,12 +83,58 @@ prediction.
   specialization is a real compiler/runtime project, distinct from the
   existing dynamic one-word fast path.
 
+## Measurements and next experiment order
+
+- The focused property-access microbenchmark remains below the 10% bar
+  (−9.212159%), and its added zero-based/unit-stride fast path was 0.322130%
+  worse. The fixed Caliptra mcycle 100–200 screen clears the instruction gate
+  at −10.259915% with predecode plus packed result construction. Focused checks
+  and all 18 broad output comparisons pass; full gates and exact-head CI remain
+  pending. Do not treat the truncated profile as a complete firmware result.
+  The final three-run wall table reports every median and spread as supporting
+  evidence; the largest candidate spread is 43.445690%.
+- `perf record` sampled c339 and current main over matched Caliptra mcycle
+  100–600 and 100–5000 windows. The early window was 0.5% slower on main; the
+  longer window was 0.094% faster. Neither explains the full-row slowdown. The
+  longer profile still shows `of_PROP_INDEX_CHECK`, `of_LOAD_VEC4`, and
+  `vpip_vec4_to_int64_saturated` as major paths, but the largest shares shift
+  slightly between builds. The archive's QD-BFM commit differs from the
+  supervisor's M7 table citation, so provenance remains an open caveat.
+- The first converter prototype replaces its per-bit X/Z pre-scan with the
+  existing word-wise `vvp_vector4_t::has_xz()` guard. It cuts converter
+  inclusive instructions by 45.8852%, but the focused process improves only
+  9.6545%, below the 10% screen, so that variant is rejected.
+- A follow-up keeps the one-word 2-state fast path and X/Z rejection, then
+  extracts the A-plane a machine word at a time instead of calling `value()`
+  per bit. On the 100,000-access workload it reduces whole-process instructions
+  from 2,342,072,014 to 1,863,201,596 (−20.446443%). The broad Callgrind
+  corpus has 18/18 byte-identical outputs; the maximum increase is +0.001880%.
+  Default Callgrind crashed in the FST writer's pthread on the reference, so
+  the FST pair was run separately with `--fair-sched=yes` on both builds; it
+  matched output and differed by −63 Ir. Job 1348 independently passed native
+  outputs 18/18, and job 1351 passed signed/unsigned overflow, sign-extension,
+  and X/Z index checks. This word-plane follow-up clears the screen on pinned
+  base c7eb. `perf stat` instruction events remain unsupported on DAN-DESKTOP.
+  The fused X/Z-and-overflow scan measured -20.535627% focused, passed the
+  18-workload broad screen, and had count changes from -0.026238% to +0.002218%.
+  Jobs 1396 and 1405 passed wide/narrow X/Z, overflow, sign-extension, and
+  65-bit partial-tail checks on both installs. Because the focused input adds a
+  narrow-Z assertion, the 0.089-point difference from the earlier result is
+  not a matched variant comparison. The converter branch is now rebased onto
+  `ccaecfe7`; compare the original pin with `origin/main` on runtime/benchmark/
+  build paths and rerun this instruction screen once on the new base before
+  opening its PR. The next separate target is `of_LOAD_VEC4`; stack-slot
+  capacity reuse follows.
+  Broader 2-state opcodes, wider inline storage, NBA coalescing, type tags,
+  superinstructions, and JIT work remain separate measured experiments rather
+  than assumed consequences of the Gemini projections.
+
 ## Gemini phase audit
 
 | Report phase | What source verification supports | Campaign treatment |
 | --- | --- | --- |
-| **1: predecode `%prop/index/check`** | The pinned base parses the operand string and builds a local dimensions vector at execution. The stack-pop contract continues after invalid dimensions, so a descriptor must retain the parsed count and malformed-metadata behavior. | Screen the existing predecode prototype on the pinned base. The old sampled handler share gives an Amdahl ceiling of about 1.09x even if the whole handler disappeared; that is not a prediction and predecode removes only part of it. Keep only on measured campaign gates. |
-| **1: vec4 conversion, word arithmetic, 2-state specialization** | The converter's small 2-state fast path and word-wise `has_xz`, add, and sub already exist. Only the converter fallback and the absence of a broad 2-state opcode family remain plausible targets. | Profile the converter and `of_LOAD_VEC4` as separate #536 candidates. Prototype one measured path; do not rewrite the existing word arithmetic or infer a gain from another simulator. |
+| **1: predecode `%prop/index/check`** | The pinned base parses the operand string and builds a local dimensions vector at execution. The stack-pop contract continues after invalid dimensions, so a descriptor must retain the parsed count and malformed-metadata behavior. | Caliptra mcycle 100–200 screen clears the instruction gate by −10.259915%; the 100,000-access microbenchmark is −9.212159%. Focused checks and all 18 broad outputs match; full gates and exact-head CI remain pending. The bounded run is not a firmware pass. |
+| **1: vec4 conversion, word arithmetic, 2-state specialization** | The small 2-state fast path and word-wise add/sub already exist. The fused wide converter scan is a screened candidate; a general 2-state opcode family remains a separate experiment. | The initial `has_xz()` fallback remains below the 10% process bar. The later fused word scan improves the focused process by 20.535627%, passes all 18 broad output checks, and has no broad count increase above 0.002218%. Re-measure once on the post-#593 base because the shared header changed; do not infer gains for a new opcode family. |
 | **1: allocation reduction** | `vvp_vector4_t` has one inline word per plane and wider copies allocate. The vthread vec4 stack is a `std::vector`, so retaining capacity in its live slots is plausible. Assignment-event objects already use a slab allocator, although their region queues remain linked. | First measure stack widths, copies, and allocation counts. Start with stack-slot reuse only. Wider inline storage, read-only slice views, and NBA coalescing are separate changes with representation, lifetime, and event-order risks. |
 | **2: type tags, subtype checks, virtual-call cache** | Dynamic casts exist, but their aggregate count is not a hot-site profile. Class ancestry is walked through `runtime_super()`. Virtual method target resolution already has a memo keyed by runtime class and base method scope. | Profile casts and the existing memo on UVM/Caliptra before changing dispatch. Do not assume tags fit in padding or that subtype lookup is O(1); avoid adding a second cache unless lookup cost is material. |
 | **2: top-15 superinstructions and `musttail`** | The current interpreter already runs consecutive opcodes in a loop and invokes their function pointers. No pinned opcode-pair histogram justifies a top-15 list. The loop also owns pause, trampoline, tracing, and thread-lifetime behavior. | Use the pinned pair histogram to select one frequent non-suspending pair. Treat `musttail` as a separate compiler/lifetime experiment, not a drop-in dispatch edit. |
@@ -99,7 +157,7 @@ the experiment's recorded base.
 
 | Technique / precedent | Expected gain in VVP | Main risk | First experiment |
 | --- | --- | --- | --- |
-| Operand predecode for `%prop/index/check` | Unknown. The older sampled share gives an Amdahl ceiling of about 1.09x if the entire handler vanished; predecode removes only part of it. | Malformed `.vvp` metadata, count limits, reverse pop order, invalid dimensions, overflow and descriptor cleanup. | Callgrind the pinned Caliptra run; attribute parse, allocation and value-conversion costs. Prototype a typed descriptor only if the inclusive share justifies it; preserve the legacy pop contract. |
+| Operand predecode for `%prop/index/check` | The pinned Caliptra mcycle 100–200 instruction count fell 10.259915% with predecode plus packed result construction; the synthetic 100,000-access loop fell 9.212159%. No wall-time gain is claimed. | Malformed `.vvp` metadata, count limits, reverse pop order, invalid dimensions, overflow and descriptor cleanup. | Screen clears. Run the full correctness and byte-identical output gates, then compare the pinned-base path diff before the single pre-merge rebase; remeasure once if runtime paths changed. |
 | Word-wide vec4-to-int64 and proven 2-state operations | Unknown; an older sample put the converter at 7.15% self time, an upper bound near 1.08x only if all that cost disappeared. | X/Z rejection, arbitrary widths, signed extension, saturation, and operators that can produce X. | Profile the pinned converter, record widths and state patterns, then test exact 0/1/X/Z and boundary widths before benchmarking. Keep the existing fast path. |
 | Allocation reuse for the vthread vec4 stack | Unknown; large vec4 copies and allocation show up in older profiles, but not every allocation is on the hot stack. | Object lifetime, aliasing, peak memory, and vector representation changes. | Measure stack depth/width and allocation counts. Prototype capacity retention in stack slots only; defer slice views and wider inline storage until that screen wins. |
 | Type tags, subtype checks, virtual-call inline caches | Unknown; dynamic casts appear in VVP, but the old 5–7% class/UVM samples do not isolate which casts are hot on the pinned workloads. Virtual target resolution already has a `std::map` memo. | Incorrect downcasts or stale caches across runtime-created handles and class dispatch. | Profile hot casts and the existing memo by call site before changing one closed, measured hierarchy. |
@@ -121,29 +179,34 @@ sketches, not current VVP members.
 
 ## A5 experiment order
 
-1. Finish WP3 `of_CAST2` on pinned base
-   `c7ebca768c21c251d9c165c9aff0e363768030b1`; PR #593 is open and the
-   instruction gate and final three-run wall table are complete. A4's JSON
-   fixture fixes merged in #595. Rebase once onto `1814cc6483e420321a8243185ac52b2d7b5380bc`;
-   the required runtime/build-path diff is empty, so the timing evidence holds.
-   Finish final-head correctness gates and CI before merge.
-2. Profile A2's M7 row 14, `smoke_test_dma_aes_gcm_short_1_dword`, on c339 and
-   `3335fe7ec` to investigate its 7.023 vs 6.384 cycles/s result. Use `perf
-   record` sampling on both builds over the same fixed mcycle window; do not
-   use Callgrind at Caliptra speed. The archived row records QD-BFM `d1529c9`,
-   while the supervisor note cites table commit `5f15a13`; retain the recorded
-   row inputs and note the provenance mismatch. The mcycle-600 profile is an
-   early-path diagnosis, not a full-test timing result.
-3. Screen property-index predecode on the pinned base. Keep it only if it
-   clears the campaign's 10% Caliptra instruction gate.
-4. Screen the #536 converter/2-state path and allocation reuse as separate
-   candidates. Prioritize the converter fallback or `of_LOAD_VEC4` only where
-   pinned Callgrind confirms the hot path; begin allocation work with vec4
-   stack-slot capacity reuse.
-5. In phase 2, profile the existing virtual-dispatch memo and hot cast sites.
+1. WP3 #593 is merged as `ccaecfe7`. Its instruction screen is −14.079590%,
+   all 18 benchmark outputs match, the final three-run wall table records every
+   spread, and exact-head Linux, macOS, Windows, and Slurm gates passed.
+2. Open the predecode candidate after committing its evidence. The pinned
+   Caliptra screen clears the instruction gate at −10.259915%; focused checks
+   and broad output comparisons pass. Finish full gates and exact-head CI. The
+   three-run wall medians and spreads are supporting evidence regardless of
+   spread. Rebase once immediately before merge and remeasure once because the
+   change touches runtime code.
+3. Re-measure the fused converter candidate after its single rebase onto
+   `ccaecfe7`; use the pinned-base path diff to decide and record the required
+   scope. Open it only after its instruction and correctness evidence is ready.
+4. A2's Caliptra regression profile is a completed diagnosis. Matched c339/main
+   samples over mcycle 100–600 and 100–5000 did not reproduce the reported
+   row slowdown. The archived QD-BFM commit is d1529c9 rather than the cited
+   5f15a13; do not repeat until a longer matched window and its inputs are fixed.
+5. Both word-plane converter screens passed on c7eb. The fused X/Z and
+   overflow scan measured −20.535627% focused, matched outputs across all 18
+   broad Callgrind rows, and ranged from −0.026238% to +0.002218% in counts.
+   Jobs 1396 and 1405 pass the wide/narrow X/Z, partial-tail, and saturation
+   edge cases on both installs. The follow-up adds a narrow-Z assertion, so its 0.089-point
+   focused difference from the prior version is not a matched variant
+   comparison. After the converter remeasurement, screen `of_LOAD_VEC4` and
+   vec4 stack-slot capacity reuse separately.
+6. In phase 2, profile the existing virtual-dispatch memo and hot cast sites.
    Then select one safe bytecode pair from the pinned WP0 histogram; do not
    implement the report's top-15 set or assume `musttail` is drop-in.
-6. In phase 3, measure value-change suppression only if inclusive net
+7. In phase 3, measure value-change suppression only if inclusive net
    propagation clears the 35% gate. Run copy-and-patch as an isolated
    speed-of-light spike, report its measured ceiling, and stop before
    productionizing it.
