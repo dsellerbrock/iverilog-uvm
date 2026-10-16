@@ -675,6 +675,11 @@ extern void vpip_print_stacktrace(const char*call_file, long call_line);
 /* Cancel pending deferred-immediate reports selected by hierarchy path. */
 extern void vpip_cancel_deferred_asserts(const char*selector,
                                          PLI_INT32 levels);
+extern PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
+                                                  vpiHandle scope);
+extern void vpip_set_deferred_assertions_enabled(const char*selector,
+                                                  PLI_INT32 levels,
+                                                  PLI_INT32 enabled);
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
@@ -779,7 +784,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 10;
+static const PLI_UINT32 vpip_routines_version = 11;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -837,6 +842,9 @@ typedef struct {
     int         (*object_urandom)(const PLI_INT32*, unsigned int*);
     void        (*print_stacktrace)(const char*, long);
     void        (*cancel_deferred_asserts)(const char*, PLI_INT32);
+    PLI_INT32   (*deferred_assertion_enabled)(unsigned long, vpiHandle);
+    void        (*set_deferred_assertions_enabled)(const char*, PLI_INT32,
+                                                   PLI_INT32);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

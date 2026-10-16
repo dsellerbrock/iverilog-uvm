@@ -733,6 +733,18 @@ class __vpiAssertion : public __vpiHandle {
 	    return true;
 	}
 
+      PLI_INT32 deferred_enabled(void) const
+	{
+	    return deferred_source_id_ ? deferred_enabled_ : -1;
+	}
+
+      void set_deferred_enabled(bool enabled)
+	{
+	    if (!deferred_source_id_ || deferred_enabled_ == enabled) return;
+	    deferred_enabled_ = enabled;
+	    fire(enabled ? cbAssertionEnable : cbAssertionDisable);
+	}
+
       void report_control_reset(void)
 	{
 	    if (deferred_source_id_) fire(cbAssertionReset);
@@ -841,6 +853,7 @@ class __vpiAssertion : public __vpiHandle {
       int latency_;                    // M12-2: fixed tick latency, or -1
       bool fail_full_latency_;         // M12-1: failures run full latency
       unsigned long deferred_source_id_ = 0;
+      bool deferred_enabled_ = true;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
 };
@@ -937,6 +950,32 @@ void vpip_register_deferred_assertion(unsigned long source_id, vpiHandle scope)
       assertion_registry.push_back(obj);
       deferred_assertion_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
+}
+
+PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
+					  vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!source_id || !sc) return -1;
+      std::map<std::pair<__vpiScope*,unsigned long>,
+	       __vpiAssertion*>::const_iterator it = deferred_assertion_by_key.find(
+					    std::make_pair(sc, source_id));
+      return it == deferred_assertion_by_key.end()
+	    ? -1 : it->second->deferred_enabled();
+}
+
+void vpip_set_deferred_assertions_enabled(const char*selector,
+					 PLI_INT32 levels,
+					 PLI_INT32 enabled)
+{
+      for (std::map<std::pair<__vpiScope*,unsigned long>,
+			__vpiAssertion*>::iterator cur =
+	       deferred_assertion_by_key.begin();
+	   cur != deferred_assertion_by_key.end(); ++cur) {
+	    if (vpip_deferred_assert_scope_matches(cur->first.first,
+						  selector, levels))
+		  cur->second->set_deferred_enabled(enabled != 0);
+      }
 }
 
 PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion)

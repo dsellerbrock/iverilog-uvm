@@ -6926,8 +6926,10 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 }
 
 /* Defined with the concurrent-assertion helpers below. Deferred immediate
- * assertions use the same global assertion-control state. */
+ * assertions query their own registered control state. */
 static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst = -1);
+static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
+					 unsigned source_id);
 
 /* Give every source assertion a stable identity. For `assert final', repeated
  * executions by one logical process in one time slot update the same pending
@@ -7155,7 +7157,8 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
       result->immediate_assertion();
       FILE_NAME(result, loc);
 
-      PCondit*enabled = new PCondit(sva_enabled_expr_(loc), result, 0);
+      PCondit*enabled = new PCondit(
+	    sva_deferred_enabled_expr_(loc, source_id), result, 0);
       FILE_NAME(enabled, loc);
       return enabled;
 }
@@ -7189,7 +7192,8 @@ Statement* pform_make_deferred_cover(const struct vlltype&loc,
       result->immediate_assertion();
       FILE_NAME(result, loc);
 
-      PCondit*enabled = new PCondit(sva_enabled_expr_(loc), result, 0);
+      PCondit*enabled = new PCondit(
+	    sva_deferred_enabled_expr_(loc, source_id), result, 0);
       FILE_NAME(enabled, loc);
       return enabled;
 }
@@ -11668,6 +11672,22 @@ static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst)
 	 as a Boolean.  Normalize it here so inserting the enable term into an
 	 instance-sized token expression cannot widen that expression and retain
 	 bits which the checker deliberately shifts out of its state vector. */
+      return sva_not_(loc, sva_not_(loc, en));
+}
+
+/* Deferred immediate assertions have source ids rather than the per-scope
+   checker indices used by concurrent assertions. Keep their query separate
+   so the two identity spaces cannot collide. */
+static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
+					 unsigned source_id)
+{
+      std::list<named_pexpr_t> parms;
+      named_pexpr_t arg;
+      arg.parm = new PENumber(new verinum((uint64_t)source_id, 32));
+      parms.push_back(arg);
+      PECallFunction*en = new PECallFunction(
+	    perm_string::literal("$ivl_deferred_assert_enabled"), parms);
+      FILE_NAME(en, loc);
       return sva_not_(loc, sva_not_(loc, en));
 }
 

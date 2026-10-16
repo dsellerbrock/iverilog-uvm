@@ -6,6 +6,8 @@
 static int registered_assertions;
 static int top_reset_callbacks;
 static int child_reset_callbacks;
+static int top_disable_callbacks;
+static int child_disable_callbacks;
 
 static PLI_INT32 assertion_reset_cb(PLI_INT32 reason, p_vpi_time time,
 				    vpiHandle assertion,
@@ -16,12 +18,18 @@ static PLI_INT32 assertion_reset_cb(PLI_INT32 reason, p_vpi_time time,
       (void)time;
       (void)attempt;
       (void)user_data;
-      if (reason != cbAssertionReset) return 0;
       name = vpi_get_str(vpiFullName, assertion);
-      if (name && strstr(name, ".vpi_target"))
-	    top_reset_callbacks++;
-      else if (name && strstr(name, ".child_process"))
-	    child_reset_callbacks++;
+      if (reason == cbAssertionDisable) {
+	    if (name && strstr(name, ".vpi_target"))
+		  top_disable_callbacks++;
+	    else if (name && strstr(name, ".child_process"))
+		  child_disable_callbacks++;
+      } else if (reason == cbAssertionReset) {
+	    if (name && strstr(name, ".vpi_target"))
+		  top_reset_callbacks++;
+	    else if (name && strstr(name, ".child_process"))
+		  child_reset_callbacks++;
+      }
       return 0;
 }
 
@@ -35,7 +43,9 @@ static int register_scope_assertions(const char*scope_name)
       if (!it) return 0;
       while ((assertion = vpi_scan(it))) {
 	    if (!vpi_register_assertion_cb(assertion, cbAssertionReset,
-					   assertion_reset_cb, 0))
+					   assertion_reset_cb, 0)
+		|| !vpi_register_assertion_cb(assertion, cbAssertionDisable,
+					      assertion_reset_cb, 0))
 		  continue;
 	    registered_assertions++;
 	    count++;
@@ -60,10 +70,12 @@ static PLI_INT32 check_kill_callbacks(PLI_BYTE8*name)
 {
       int pass = registered_assertions == 2
 	    && top_reset_callbacks == 1
-	    && child_reset_callbacks == 0;
+	    && child_reset_callbacks == 0
+	    && top_disable_callbacks == 1
+	    && child_disable_callbacks == 0;
       (void)name;
-      vpi_printf(pass ? "PASS: selected deferred kill reset callback\n"
-		      : "FAIL: selected deferred kill reset callback\n");
+      vpi_printf(pass ? "PASS: selected deferred kill disable/reset callbacks\n"
+		      : "FAIL: selected deferred kill disable/reset callbacks\n");
       return 0;
 }
 

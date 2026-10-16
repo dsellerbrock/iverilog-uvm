@@ -7,12 +7,25 @@ module sv_deferred_cancel_level_child(output bit queued);
   end
 endmodule
 
+module sv_deferred_cancel_persistent_kill;
+  initial begin
+    #10;
+    $assertkill(0, sv_deferred_cancel0.persistent_target);
+    assert #0 (1'b0) else $display("PERSISTENT_DISABLED_REPORT");
+    #1;
+    $asserton(0, sv_deferred_cancel0.persistent_target);
+    assert #0 (1'b0) else $display("PERSISTENT_REENABLED_REPORT");
+    #1;
+  end
+endmodule
+
 module sv_deferred_cancel0;
   bit outer_queued, sibling_queued;
   bit level_parent_queued, level_child_queued;
   event both_queued;
 
   sv_deferred_cancel_level_child level_child(level_child_queued);
+  sv_deferred_cancel_persistent_kill persistent_target();
 
   initial begin : level_parent_process
     begin : nested_parent

@@ -2397,5 +2397,7 @@ vpip_routines_s vpi_routines = {
     .object_urandom             = vpip_object_urandom,
     .print_stacktrace           = vpip_print_stacktrace,
     .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
+    .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
+    .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
 };
 #endif
