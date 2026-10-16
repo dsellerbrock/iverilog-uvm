@@ -2439,9 +2439,22 @@ sv_net_decl_delay_wide normal,-g2012 ivltests gold=sv_net_decl_delay_wide.gold
 sv_net_decl_delay_invalid_expr_fail CE,-g2012 ivltests gold=sv_net_decl_delay_invalid_expr_fail.gold
 sv_net_decl_delay_port_inline_fail CE,-g2012 ivltests gold=sv_net_decl_delay_port_inline_fail.gold
 
-# IEEE 1800-2017 13.4.4 function fork boundary
+# IEEE 1800-2017/2023 13.4.4 function fork boundary and deferred side effects
 sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
 sv_function_fork_blocking_fail CE,-g2012 ivltests gold=sv_function_fork_blocking_fail.gold
+sv_function_background_always_fork_ok normal,-g2012 ivltests gold=sv_function_background_always_fork_ok.gold
+sv_function_deferred_nba_context_fail RE,-g2012 ivltests gold=sv_function_deferred_nba_context_fail.gold
+sv_function_deferred_fork_context_fail RE,-g2012 ivltests gold=sv_function_deferred_fork_context_fail.gold
+sv_function_deferred_event_nb_context_fail RE,-g2012 ivltests gold=sv_function_deferred_event_nb_context_fail.gold
+sv_function_deferred_clocking_context_fail RE,-g2012 ivltests gold=sv_function_deferred_clocking_context_fail.gold
+sv_function_deferred_final_context_fail RE,-g2012 ivltests gold=sv_function_deferred_final_context_fail.gold
+sv_function_deferred_guard_attr_final_fail CE,-g2012 ivltests gold=sv_function_deferred_guard_attr_final_fail.gold
+sv_function_deferred_guard_attr_initial_fail CE,-g2012 ivltests gold=sv_function_deferred_guard_attr_initial_fail.gold
+sv_function_background_always_fork_ok_2017 normal,-g2017,-I./ivltests ivltests gold=sv_function_background_always_fork_ok.gold
+sv_function_background_always_fork_ok_2023 normal,-g2023,-I./ivltests ivltests gold=sv_function_background_always_fork_ok.gold
+sv_function_deferred_final_context_fail_2017 RE,-g2017,-I./ivltests ivltests gold=sv_function_deferred_final_context_fail.gold
+sv_function_deferred_final_context_fail_2023 RE,-g2023,-I./ivltests ivltests gold=sv_function_deferred_final_context_fail.gold
+sv_function_immediate_event_contassign_ok normal,-g2012 ivltests gold=sv_function_immediate_event_contassign_ok.gold
 
 # IEEE 1800-2017 11.8.1 binary operand contextual sizing
 sv_binary_self_determined_operand_width normal,-g2012 ivltests gold=sv_binary_self_determined_operand_width.gold

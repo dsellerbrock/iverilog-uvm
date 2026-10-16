@@ -944,10 +944,13 @@ statement
      may also take an optional flag word. */
 
 	|         K_THREAD T_SYMBOL ';'
-		{ compile_thread($2, 0); }
+		{ compile_thread($2, 0, 0); }
 
 	|         K_THREAD T_SYMBOL ',' T_SYMBOL ';'
-		{ compile_thread($2, $4); }
+		{ compile_thread($2, $4, 0); }
+
+	|         K_THREAD T_SYMBOL ',' T_SYMBOL ',' T_SYMBOL ';'
+		{ compile_thread($2, $4, $6); }
 
   /* Var statements declare a bit of a variable. This also implicitly
      creates a functor with the same name that acts as the output of
