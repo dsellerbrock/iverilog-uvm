@@ -125,6 +125,7 @@ extern void vthread_mark_program_init(vthread_t thr);
  * This function marks the thread as being a final procedure.
  */
 extern void vthread_mark_final(vthread_t thr);
+extern void vthread_mark_function_background_ok(vthread_t thr);
 
 /*
  * This function causes deletion of the currently running thread to
