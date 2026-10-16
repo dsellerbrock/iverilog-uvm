@@ -10507,11 +10507,14 @@ static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
 /* Exact uniform sampling over a finite projected component. Blocking each
  * complete projection makes every legal tuple appear once; reservoir
  * sampling keeps only the selected tuple in host memory. Solver blocking
- * state grows with the solution count. The finite product of bit-vector
- * ranges bounds the loop. */
+ * state grows with the solution count. */
+// shortcut: cap wide sparse components at 1,024 tuples; over-cap sets keep the
+// documented fallback until exact counting is practical.
+static const size_t SPARSE_JOINT_TUPLE_CAP = 1024;
+
 static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       const vector<Z3_ast>&variables, z3_rng_stream_t&rng,
-      vector<uint64_t>&selected, const char*&reason,
+      vector<Z3_ast>&selected, const char*&reason,
       size_t max_tuples = 0, bool*limit_exceeded = nullptr)
 {
       selected.clear();
@@ -10521,30 +10524,34 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
             reason = "joint sampling requires at least one projection variable";
             return Z3_L_UNDEF;
       }
+      bool bounded = max_tuples != 0;
       uint64_t total_width = 0;
       for (Z3_ast var : variables) {
             Z3_sort sort = Z3_get_sort(ctx, var);
             if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT
-                || Z3_get_bv_sort_size(ctx, sort) == 0
-                || Z3_get_bv_sort_size(ctx, sort) > 64) {
-                  reason = "a joint variable exceeds the supported 64-bit width";
+                || Z3_get_bv_sort_size(ctx, sort) == 0) {
+                  reason = "a joint variable is not a non-empty bit-vector";
                   return Z3_L_UNDEF;
             }
             unsigned width = Z3_get_bv_sort_size(ctx, sort);
-            if (total_width > UINT_MAX - width) {
+            if (!bounded && width > 64) {
+                  reason = "an unbounded joint projection exceeds the supported 64-bit width";
+                  return Z3_L_UNDEF;
+            }
+            if (!bounded && total_width > UINT_MAX - width) {
                   reason = "the joint projection is too wide to bound exactly";
                   return Z3_L_UNDEF;
             }
-            total_width += width;
+            if (!bounded) total_width += width;
       }
 
       dist_wide_uint_t universe;
-      universe.set_bit((unsigned)total_width);
+      if (!bounded) universe.set_bit((unsigned)total_width);
       const dist_wide_uint_t one = dist_wide_uint_t::from_u64(1);
       dist_wide_uint_t count;
       Z3_solver_push(ctx, base);
       Z3_lbool result = Z3_L_FALSE;
-      while (dist_wide_uint_t::cmp(count, universe) < 0) {
+      while (bounded || dist_wide_uint_t::cmp(count, universe) < 0) {
             result = Z3_solver_check(ctx, base);
             if (result == Z3_L_TRUE && max_tuples
                   && dist_wide_uint_t::cmp(count,
@@ -10562,18 +10569,26 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
 
             Z3_model model = Z3_solver_get_model(ctx, base);
             Z3_model_inc_ref(ctx, model);
-            vector<uint64_t> tuple;
+            vector<Z3_ast> tuple;
             vector<Z3_ast> different;
             for (Z3_ast var : variables) {
-                  uint64_t bits = 0;
-                  if (!z3_eval_uint64(ctx, model, var, bits)) {
+                  unsigned width = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, var));
+                  Z3_ast value = nullptr;
+                  if (width <= 64) {
+                        uint64_t bits = 0;
+                        if (!z3_eval_uint64(ctx, model, var, bits)) {
+                              reason = "a joint model value could not be extracted";
+                              result = Z3_L_UNDEF;
+                              break;
+                        }
+                        value = Z3_mk_unsigned_int64(ctx, bits, Z3_get_sort(ctx, var));
+                  } else if (!Z3_model_eval(ctx, model, var, true, &value)
+                        || !value || !Z3_is_numeral_ast(ctx, value)) {
                         reason = "a joint model value could not be extracted";
                         result = Z3_L_UNDEF;
                         break;
                   }
-                  tuple.push_back(bits);
-                  Z3_ast value = Z3_mk_unsigned_int64(ctx, bits,
-                                                     Z3_get_sort(ctx, var));
+                  tuple.push_back(value);
                   different.push_back(Z3_mk_not(ctx, Z3_mk_eq(ctx, var, value)));
             }
             Z3_model_dec_ref(ctx, model);
@@ -10582,7 +10597,7 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
             count = dist_wide_uint_t::add(count, one);
             if (dist_wide_uint_t::uniform_below(rng, count).zero())
                   selected.swap(tuple);
-            if (dist_wide_uint_t::cmp(count, universe) == 0) {
+            if (!bounded && dist_wide_uint_t::cmp(count, universe) == 0) {
                   result = Z3_L_TRUE;
                   break;
             }
@@ -12048,19 +12063,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  static const unsigned uniform_joint_free_bit_threshold = 16;
 		  unsigned enumerate_after = uniform_joint_enumerate_after;
 		  bool enumerate_direct_scalars = builder.pending_soft.empty();
+		  bool wide_direct_scalars = false;
 		  for (Z3_ast var : component)
-			if (!uniform_joint_direct_scalars.count(var)
-			    || uniform_joint_width.at(var) > 64)
+			if (!uniform_joint_direct_scalars.count(var))
 			      enumerate_direct_scalars = false;
+			else if (uniform_joint_width.at(var) > 64)
+			      wide_direct_scalars = true;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
 			if (enumerate_direct_scalars && attempt == enumerate_after) {
 			      bool sampled_projection = false;
-			      vector<Z3_ast> dependents = component;
-			      stable_sort(dependents.begin(), dependents.end(),
+		      vector<Z3_ast> dependents;
+		      if (!wide_direct_scalars) {
+			    dependents = component;
+			    stable_sort(dependents.begin(), dependents.end(),
 				    [&](Z3_ast left, Z3_ast right) {
 					  return uniform_joint_width.at(left)
 						> uniform_joint_width.at(right);
 				    });
+		      }
 			      for (Z3_ast dependent : dependents) {
 				    vector<Z3_ast> projection;
 				    for (Z3_ast var : component)
@@ -12122,23 +12142,23 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			            enumerate_after = uniform_joint_attempt_cap - 1;
 			            continue;
 			      }
-		      // shortcut: count at most 64 legal tuples before rejection; raise
-			      // the limit only if larger sparse projections regress.
-			      vector<uint64_t> tuple;
+		      // shortcut: cap wide direct-scalar traversal at 1,024 tuples;
+		      // narrow components keep their existing complete traversal.
+		      vector<Z3_ast> tuple;
 			      const char*reason = nullptr;
 			      bool limit_exceeded = false;
+		      size_t tuple_cap = wide_direct_scalars
+			    ? SPARSE_JOINT_TUPLE_CAP : 64;
 			      z3_rng_stream_t&rng = property_rng(
 				    uniform_joint_property.at(component.front()));
 			      Z3_lbool sampled = z3_sample_joint_(ctx, base, component,
-				    rng, tuple, reason, 64, &limit_exceeded);
+			    rng, tuple, reason, tuple_cap, &limit_exceeded);
 			      if (sampled == Z3_L_TRUE) {
 				    vector<Z3_ast> pins;
 				    pins.reserve(component.size());
 				    for (size_t i = 0; i < component.size(); ++i) {
 					  Z3_ast var = component[i];
-					  pins.push_back(Z3_mk_eq(ctx, var,
-						Z3_mk_unsigned_int64(ctx, tuple[i],
-						      Z3_get_sort(ctx, var))));
+				  pins.push_back(Z3_mk_eq(ctx, var, tuple[i]));
 				    }
 				    for (Z3_ast pin : pins) {
 					  Z3_solver_assert(ctx, base, pin);
@@ -12226,13 +12246,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 		  if (enumerate_direct_scalars
 		      && !uniform_sampled_vars.count(component.front())) {
-			vector<uint64_t> tuple;
+			vector<Z3_ast> tuple;
 			const char*reason = nullptr;
+			bool limit_exceeded = false;
+			size_t tuple_cap = wide_direct_scalars
+			      ? SPARSE_JOINT_TUPLE_CAP : 0;
 			z3_rng_stream_t&rng = property_rng(
 			      uniform_joint_property.at(component.front()));
 			Z3_lbool sampled = z3_sample_joint_(ctx, base, component,
-			      rng, tuple, reason);
+			      rng, tuple, reason, tuple_cap, &limit_exceeded);
 			if (sampled != Z3_L_TRUE) {
+			      if (limit_exceeded) continue;
 			      if (sampled == Z3_L_FALSE)
 				    return fail_joint(
 					  "the joint solution set became empty during exact sampling");
@@ -12241,9 +12265,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			}
 			for (size_t i = 0; i < component.size(); ++i) {
 			      Z3_ast var = component[i];
-			      Z3_ast value = Z3_mk_unsigned_int64(ctx, tuple[i],
-				    Z3_get_sort(ctx, var));
-			      Z3_ast pin = Z3_mk_eq(ctx, var, value);
+			      Z3_ast pin = Z3_mk_eq(ctx, var, tuple[i]);
 			      Z3_solver_assert(ctx, base, pin);
 			      Z3_optimize_assert(ctx, opt, pin);
 			      uniform_sampled_vars.insert(var);
