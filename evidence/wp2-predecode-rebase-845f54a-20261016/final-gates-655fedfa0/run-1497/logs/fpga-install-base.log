@@ -1,0 +1,208 @@
+make: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/source-base/tgt-fpga'
+mkdir dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c edif.c -o edif.o
+mv edif.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c fpga.c -o fpga.o
+fpga.c: In function ‘scope_has_attribute’:
+fpga.c:43:18: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+   43 |       for (i=0; i<ivl_scope_attr_cnt(s); i++) {
+      |                  ^
+mv fpga.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c gates.c -o gates.o
+mv gates.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c mangle.c -o mangle.o
+mangle.c: In function ‘xnf_mangle_nexus_name’:
+mangle.c:183:7: warning: ‘ivl_nexus_name’ is deprecated [-Wdeprecated-declarations]
+  183 |       name = xnf_mangle_identifier(ivl_nexus_name(net));
+      |       ^~~~
+In file included from device.h:22,
+                 from fpga_priv.h:23,
+                 from mangle.c:20:
+../ivl_target.h:1838:24: note: declared here
+ 1838 | extern const char*     ivl_nexus_name(ivl_nexus_t net) __attribute__((deprecated));
+      |                        ^~~~~~~~~~~~~~
+mv mangle.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c tables.c -o tables.o
+tables.c: In function ‘device_from_arch’:
+tables.c:43:38: warning: declaration of ‘arch’ shadows a global declaration [-Wshadow]
+   43 | device_t device_from_arch(const char*arch)
+      |                           ~~~~~~~~~~~^~~~
+In file included from tables.c:20:
+fpga_priv.h:38:19: note: shadowed declaration is here
+   38 | extern const char*arch;
+      |                   ^~~~
+mv tables.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c generic.c -o generic.o
+mv generic.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c xilinx.c -o xilinx.o
+xilinx.c: In function ‘xilinx_cell_buf’:
+xilinx.c:29:45: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+   29 | edif_cell_t xilinx_cell_buf(edif_xlibrary_t xlib)
+      |                             ~~~~~~~~~~~~~~~~^~~~
+In file included from xilinx.c:21:
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_bufe’:
+xilinx.c:40:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+   40 | edif_cell_t xilinx_cell_bufe(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_bufg’:
+xilinx.c:52:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+   52 | edif_cell_t xilinx_cell_bufg(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_buft’:
+xilinx.c:63:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+   63 | edif_cell_t xilinx_cell_buft(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_ibuf’:
+xilinx.c:75:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+   75 | edif_cell_t xilinx_cell_ibuf(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_inv’:
+xilinx.c:86:45: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+   86 | edif_cell_t xilinx_cell_inv(edif_xlibrary_t xlib)
+      |                             ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_muxf5’:
+xilinx.c:97:47: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+   97 | edif_cell_t xilinx_cell_muxf5(edif_xlibrary_t xlib)
+      |                               ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_muxf6’:
+xilinx.c:110:47: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  110 | edif_cell_t xilinx_cell_muxf6(edif_xlibrary_t xlib)
+      |                               ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_obuf’:
+xilinx.c:123:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  123 | edif_cell_t xilinx_cell_obuf(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_lut2’:
+xilinx.c:135:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  135 | edif_cell_t xilinx_cell_lut2(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_lut3’:
+xilinx.c:147:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  147 | edif_cell_t xilinx_cell_lut3(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_lut4’:
+xilinx.c:160:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  160 | edif_cell_t xilinx_cell_lut4(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_fdce’:
+xilinx.c:175:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  175 | edif_cell_t xilinx_cell_fdce(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_fdcpe’:
+xilinx.c:189:47: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  189 | edif_cell_t xilinx_cell_fdcpe(edif_xlibrary_t xlib)
+      |                               ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_fdre’:
+xilinx.c:204:46: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  204 | edif_cell_t xilinx_cell_fdre(edif_xlibrary_t xlib)
+      |                              ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_mult_and’:
+xilinx.c:219:50: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  219 | edif_cell_t xilinx_cell_mult_and(edif_xlibrary_t xlib)
+      |                                  ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_muxcy’:
+xilinx.c:231:47: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  231 | edif_cell_t xilinx_cell_muxcy(edif_xlibrary_t xlib)
+      |                               ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_muxcy_l’:
+xilinx.c:244:49: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  244 | edif_cell_t xilinx_cell_muxcy_l(edif_xlibrary_t xlib)
+      |                                 ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+xilinx.c: In function ‘xilinx_cell_xorcy’:
+xilinx.c:257:47: warning: declaration of ‘xlib’ shadows a global declaration [-Wshadow]
+  257 | edif_cell_t xilinx_cell_xorcy(edif_xlibrary_t xlib)
+      |                               ~~~~~~~~~~~~~~~~^~~~
+generic.h:25:24: note: shadowed declaration is here
+   25 | extern edif_xlibrary_t xlib;
+      |                        ^~~~
+mv xilinx.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c d-generic.c -o d-generic.o
+d-generic.c: In function ‘generic_show_add’:
+d-generic.c:507:19: warning: this statement may fall through [-Wimplicit-fallthrough=]
+  507 |                   xnf_draw_pin_bit(nex, nadd4*4+2, ivl_lpm_width(net), "S2", 'O');
+      |                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+d-generic.c:508:17: note: here
+  508 |                 case 2:
+      |                 ^~~~
+d-generic.c:516:19: warning: this statement may fall through [-Wimplicit-fallthrough=]
+  516 |                   xnf_draw_pin_bit(nex, nadd4*4+1, ivl_lpm_width(net), "S1", 'O');
+      |                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+d-generic.c:517:17: note: here
+  517 |                 case 1:
+      |                 ^~~~
+mv d-generic.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c d-generic-edif.c -o d-generic-edif.o
+mv d-generic-edif.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c d-lpm.c -o d-lpm.o
+mv d-lpm.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c d-virtex.c -o d-virtex.o
+d-virtex.c:33:1: warning: ‘static’ is not at beginning of declaration [-Wold-style-declaration]
+   33 | const static struct edif_xlib_celltable virtex_celltable[] = {
+      | ^~~~~
+mv d-virtex.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g0 -O2 -MD -c d-virtex2.c -o d-virtex2.o
+d-virtex2.c:34:1: warning: ‘static’ is not at beginning of declaration [-Wold-style-declaration]
+   34 | const static struct edif_xlib_celltable virtex2_celltable[] = {
+      | ^~~~~
+mv d-virtex2.d dep
+gcc -shared  -o fpga.tgt edif.o fpga.o gates.o mangle.o tables.o generic.o xilinx.o d-generic.o d-generic-edif.o d-lpm.o d-virtex.o d-virtex2.o 
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/install-base/lib/ivl" "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/install-base/share/man/man1"
+/usr/bin/install -c -m 644 ./iverilog-fpga.man "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/install-base/share/man/man1/iverilog-fpga.1"
+/usr/bin/install -c ./fpga.tgt "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/install-base/lib/ivl/fpga.tgt"
+/usr/bin/install -c -m 644 ./fpga.conf "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/install-base/lib/ivl/fpga.conf"
+/usr/bin/install -c -m 644 ./fpga-s.conf "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/install-base/lib/ivl/fpga-s.conf"
+make: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1/source-base/tgt-fpga'

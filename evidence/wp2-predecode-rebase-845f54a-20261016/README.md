@@ -32,7 +32,8 @@ rejected it with exit status 1. The summary files are
 `input/` contains the reference source archive, source overlay, deterministic
 ECC input, measurement VPI source, source manifest, and input checksums.
 `run-1496/` contains the Slurm logs, reference/candidate Callgrind profiles,
-runner summaries, binary/input hashes, and the screen result. The candidate's
-full correctness gates and exact-head cross-platform workflow remain separate
-required checks. The campaign status and supporting wall-time table are in
+runner summaries, binary/input hashes, and the screen result. The final
+post-rebase correctness gates passed in [Slurm job 1497](final-gates-655fedfa0/README.md);
+the exact-head cross-platform workflow remains the last required check. The
+campaign status and supporting wall-time table are in
 [`PERFORMANCE_PLAN.md`](../../docs/performance/PERFORMANCE_PLAN.md).
