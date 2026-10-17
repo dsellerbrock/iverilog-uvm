@@ -11,7 +11,7 @@ endclass
 // sampler directly. The number of legal payload tuples still grows with size.
 class sparse_size_unconstrained_array;
   rand bit payload[];
-  constraint legal { payload.size() inside {1, 3}; }
+  constraint legal { payload.size() inside {1, 4}; }
 endclass
 
 class sparse_size_unsatisfiable;
@@ -59,11 +59,12 @@ module main;
         $fatal(1, "unconstrained sparse-size dynamic-array solve failed");
       if (unconstrained.payload.size() == 1)
         unconstrained_size_one++;
-      else if (unconstrained.payload.size() != 3)
-        $fatal(1, "unconstrained sparse size escaped {1,3}");
+      else if (unconstrained.payload.size() != 4)
+        $fatal(1, "unconstrained sparse size escaped {1,4}");
     end
-    // There are two legal size-one tuples and eight legal size-three tuples.
-    if (unconstrained_size_one < 75 || unconstrained_size_one > 165)
+    // There are two legal size-one tuples and sixteen legal size-four tuples.
+    // The expected size-one rate is 2/18, not a uniform size or length rate.
+    if (unconstrained_size_one < 36 || unconstrained_size_one > 98)
       $fatal(1, "sparse sizes are not weighted by legal tuples: unconstrained size-one %0d/600",
              unconstrained_size_one);
 
