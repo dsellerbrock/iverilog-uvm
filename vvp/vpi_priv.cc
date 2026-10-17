@@ -460,6 +460,12 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiIntVar";
 	  case vpiIntegerVar:
 	    return "vpiIntegerVar";
+	  case vpiImmediateAssert:
+	    return "vpiImmediateAssert";
+	  case vpiImmediateAssume:
+	    return "vpiImmediateAssume";
+	  case vpiImmediateCover:
+	    return "vpiImmediateCover";
 	  case vpiIterator:
 	    return "vpiIterator";
 	  case vpiLongIntVar:
@@ -529,15 +535,19 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
 	    return vpip_get_global(property);
 
       if (property == vpiType) {
+	    int type = ref->get_type_code();
+	    if (type == vpiAssertion) {
+		  int assertion_type = ref->vpi_get(property);
+		  if (assertion_type != vpiUndefined) type = assertion_type;
+	    }
 	    if (vpi_trace) {
 		  fprintf(vpi_trace, "vpi_get(vpiType, %p) --> %s\n",
-			  ref, vpi_type_as_string(ref->get_type_code()));
+			  ref, vpi_type_as_string(type));
 	    }
 
-	    if (ref->get_type_code() == vpiMemory && is_net_array(ref))
+	    if (type == vpiMemory && is_net_array(ref))
 		  return vpiNetArray;
-	    else
-		  return ref->get_type_code();
+	    return type;
       }
 
       int res = ref->vpi_get(property);
@@ -592,16 +602,18 @@ char* vpi_get_str(PLI_INT32 property, vpiHandle ref)
       }
 
       if (property == vpiType) {
+	    int type = ref->get_type_code();
+	    if (type == vpiAssertion) {
+		  int assertion_type = ref->vpi_get(property);
+		  if (assertion_type != vpiUndefined) type = assertion_type;
+	    }
 	    if (vpi_trace) {
 		  fprintf(vpi_trace, "vpi_get(vpiType, %p) --> %s\n",
-			  ref, vpi_type_as_string(ref->get_type_code()));
+			  ref, vpi_type_as_string(type));
 	    }
 
-            PLI_INT32 type;
-	    if (ref->get_type_code() == vpiMemory && is_net_array(ref))
+	    if (type == vpiMemory && is_net_array(ref))
 		  type = vpiNetArray;
-	    else
-		  type = ref->get_type_code();
 	    return (char *)vpi_type_as_string(type);
       }
 
@@ -2237,6 +2249,13 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 	    schedule_stop(diag_msg);
 	    break;
 
+	  case vpiAssertionReset:
+	    if (!vpip_reset_deferred_assertion(va_arg(ap, vpiHandle))) {
+		  vpi_printf("vpiAssertionReset currently supports deferred immediate assertions only.\n");
+		  return 0;
+	    }
+	    break;
+
 	  default:
 	    fprintf(stderr, "Unsupported VPI control operation %d.\n", operation);
 	    return 0;
@@ -2389,5 +2408,8 @@ vpip_routines_s vpi_routines = {
     .assertion_report_all       = vpip_assertion_report_all,
     .object_urandom             = vpip_object_urandom,
     .print_stacktrace           = vpip_print_stacktrace,
+    .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
+    .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
+    .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
 };
 #endif

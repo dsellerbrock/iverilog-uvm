@@ -5769,6 +5769,7 @@ deferred_immediate_assertion_item /* IEEE1800-2012: A.6.10 */
 	   assertion identity needed by future cancellation support. */
 	if ($1 && item) {
 	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      scope->deferred_assertion_label_scope();
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);
@@ -5790,7 +5791,7 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   : assert_or_assume deferred_mode '(' expression ')' statement_or_null %prec less_than_K_else
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_deferred_assertion(@1, $4, $6, 0, $2 != 0);
+	      $$ = pform_make_deferred_assertion(@1, $4, $6, 0, $1, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."
@@ -5813,7 +5814,7 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 		    fail = new PNoop;
 		    FILE_NAME(fail, @6);
 	      }
-	      $$ = pform_make_deferred_assertion(@1, $4, 0, fail, $2 != 0);
+	      $$ = pform_make_deferred_assertion(@1, $4, 0, fail, $1, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."
@@ -5835,7 +5836,7 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 		    fail = new PNoop;
 		    FILE_NAME(fail, @7);
 	      }
-	      $$ = pform_make_deferred_assertion(@1, $4, $6, fail, $2 != 0);
+	      $$ = pform_make_deferred_assertion(@1, $4, $6, fail, $1, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."
@@ -8479,6 +8480,7 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 	}
 	if ($1 && item) {
 	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      scope->deferred_assertion_label_scope();
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);

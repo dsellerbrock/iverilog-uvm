@@ -6879,6 +6879,12 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 {
       pform_bind_procedural_sampled_(type, st);
 
+	/* Remember the named outer block of a process so the VVP backend can
+	   flush its pending deferred reports on `disable`. */
+      if (PBlock*block = dynamic_cast<PBlock*>(st))
+	    if (!block->pscope_name().nil())
+		  block->deferred_assertion_process_scope();
+
 	// Add an implicit @* around the statement for the always_comb and
 	// always_latch statements.
       if ((type == IVL_PR_ALWAYS_COMB) || (type == IVL_PR_ALWAYS_LATCH)) {
@@ -6920,8 +6926,10 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 }
 
 /* Defined with the concurrent-assertion helpers below. Deferred immediate
- * assertions use the same global assertion-control state. */
+ * assertions query their own registered control state. */
 static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst = -1);
+static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
+					 unsigned source_id);
 
 /* Give every source assertion a stable identity. For `assert final', repeated
  * executions by one logical process in one time slot update the same pending
@@ -6931,13 +6939,14 @@ static unsigned deferred_assertion_source_id_ = 0;
 /* Build the internal report marker consumed by the VVP target. The source
  * process chooses an arm now, so the runtime only has to queue the already
  * selected call. The first arguments are mode (0 = #0, 1 = final), source id,
- * and action kind (0 = null, 1 = `$error', 2 = `$display'). Both modes may
- * carry the original positional action arguments after that header; the VVP
- * target evaluates those expressions before queueing the report and snapshots
- * their typed stack values. */
+ * assertion kind (assert=1, cover=2, assume=4), and action kind (0 = null,
+ * 1 = `$error', 2 = `$display'). Action markers then carry any original
+ * positional action arguments; the VVP target evaluates those expressions
+ * before queueing the report and snapshots their typed stack values. */
 static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 					    bool is_final,
 					    unsigned source_id,
+					    unsigned assertion_kind,
 					    unsigned kind,
 					    const std::vector<named_pexpr_t>*action_args = 0)
 {
@@ -6954,6 +6963,12 @@ static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 	    new verinum((uint64_t)source_id, 32));
       FILE_NAME(source_arg.parm, loc);
       args.push_back(source_arg);
+
+      named_pexpr_t assertion_kind_arg;
+      assertion_kind_arg.parm = new PENumber(
+	    new verinum((uint64_t)assertion_kind, 32));
+      FILE_NAME(assertion_kind_arg.parm, loc);
+      args.push_back(assertion_kind_arg);
 
       named_pexpr_t kind_arg;
       kind_arg.parm = new PENumber(new verinum((uint64_t)kind, 32));
@@ -7015,6 +7030,7 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 				    bool default_error,
 				    bool is_final,
 				    unsigned source_id,
+				    unsigned assertion_kind,
 				    const char*arm,
 				    Statement*&marker)
 {
@@ -7022,16 +7038,18 @@ static bool deferred_action_marker_(const struct vlltype&loc,
       if (source == 0) {
 	    if (default_error)
 		  marker = deferred_enqueue_marker_(loc, is_final,
-						   source_id, 1);
+						   source_id, assertion_kind, 1);
 	    else if (is_final)
-		  marker = deferred_enqueue_marker_(loc, true, source_id, 0);
+		  marker = deferred_enqueue_marker_(loc, true, source_id,
+						    assertion_kind, 0);
 	    return true;
       }
 
       if (dynamic_cast<PNoop*>(source)) {
 	    delete source;
 	    if (is_final)
-		  marker = deferred_enqueue_marker_(loc, true, source_id, 0);
+		  marker = deferred_enqueue_marker_(loc, true, source_id,
+					    assertion_kind, 0);
 	    return true;
       }
 
@@ -7068,7 +7086,7 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 		  positional = positional && parm.name.nil();
 	    if (positional) {
 		  marker = deferred_enqueue_marker_(
-			loc, is_final, source_id, 1,
+			loc, is_final, source_id, assertion_kind, 1,
 			&parms);
 		  delete source;
 		  return true;
@@ -7080,7 +7098,8 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 	    for (const named_pexpr_t&parm : parms)
 		  positional = positional && parm.name.nil();
 	    if (positional) {
-		  marker = deferred_enqueue_marker_(loc, is_final, source_id, 2,
+		  marker = deferred_enqueue_marker_(loc, is_final, source_id,
+					  assertion_kind, 2,
 					  &parms);
 		  delete source;
 		  return true;
@@ -7121,6 +7140,7 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
 					 PExpr*expr,
 					 Statement*pass_stmt,
 					 Statement*fail_stmt,
+					 unsigned assertion_kind,
 					 bool is_final)
 {
       unsigned source_id = ++deferred_assertion_source_id_;
@@ -7129,7 +7149,7 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
 
       Statement*pass_marker = 0;
       if (!deferred_action_marker_(loc, pass_stmt, false, is_final,
-				   source_id, "pass",
+				   source_id, assertion_kind, "pass",
 				   pass_marker)) {
 	    delete expr;
 	    delete fail_stmt;
@@ -7138,7 +7158,7 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
 
       Statement*fail_marker = 0;
       if (!deferred_action_marker_(loc, fail_stmt, true, is_final,
-				   source_id, "fail",
+				   source_id, assertion_kind, "fail",
 				   fail_marker)) {
 	    delete expr;
 	    delete pass_marker;
@@ -7149,7 +7169,8 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
       result->immediate_assertion();
       FILE_NAME(result, loc);
 
-      PCondit*enabled = new PCondit(sva_enabled_expr_(loc), result, 0);
+      PCondit*enabled = new PCondit(
+	    sva_deferred_enabled_expr_(loc, source_id), result, 0);
       FILE_NAME(enabled, loc);
       return enabled;
 }
@@ -7165,22 +7186,26 @@ Statement* pform_make_deferred_cover(const struct vlltype&loc,
 
       Statement*pass_marker = 0;
       if (!deferred_action_marker_(loc, pass_stmt, false, is_final,
-				   source_id, "pass", pass_marker)) {
+				   source_id, 2, "pass", pass_marker)) {
 	    delete expr;
 	    return 0;
       }
+
+      if (!pass_marker && !is_final)
+	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 2, 0);
 
       /* A false final cover selection replaces an earlier true pin from the
 	 same source assertion and logical process. For #0, a false evaluation
 	 simply adds no report; normal process flush points handle reactivation. */
       Statement*false_marker = is_final
-	    ? deferred_enqueue_marker_(loc, true, source_id, 0) : 0;
+	    ? deferred_enqueue_marker_(loc, true, source_id, 2, 0) : 0;
 
       PCondit*result = new PCondit(expr, pass_marker, false_marker);
       result->immediate_assertion();
       FILE_NAME(result, loc);
 
-      PCondit*enabled = new PCondit(sva_enabled_expr_(loc), result, 0);
+      PCondit*enabled = new PCondit(
+	    sva_deferred_enabled_expr_(loc, source_id), result, 0);
       FILE_NAME(enabled, loc);
       return enabled;
 }
@@ -11659,6 +11684,22 @@ static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst)
 	 as a Boolean.  Normalize it here so inserting the enable term into an
 	 instance-sized token expression cannot widen that expression and retain
 	 bits which the checker deliberately shifts out of its state vector. */
+      return sva_not_(loc, sva_not_(loc, en));
+}
+
+/* Deferred immediate assertions have source ids rather than the per-scope
+   checker indices used by concurrent assertions. Keep their query separate
+   so the two identity spaces cannot collide. */
+static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
+					 unsigned source_id)
+{
+      std::list<named_pexpr_t> parms;
+      named_pexpr_t arg;
+      arg.parm = new PENumber(new verinum((uint64_t)source_id, 32));
+      parms.push_back(arg);
+      PECallFunction*en = new PECallFunction(
+	    perm_string::literal("$ivl_deferred_assert_enabled"), parms);
+      FILE_NAME(en, loc);
       return sva_not_(loc, sva_not_(loc, en));
 }
 
