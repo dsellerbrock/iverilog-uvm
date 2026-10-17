@@ -1,6 +1,6 @@
 # VVP performance research and experiment order
 
-Reviewed 2026-10-16 against the pinned A5 source base
+Reviewed 2026-10-17 against the pinned A5 source base
 `c7ebca768c21c251d9c165c9aff0e363768030b1`. The Gemini report is useful
 for candidate generation; its speedup multipliers are Amdahl projections,
 not VVP measurements. No external simulator's speedup is treated as a VVP
@@ -128,14 +128,12 @@ prediction.
   and X/Z index checks. This word-plane follow-up clears the screen on pinned
   base c7eb. `perf stat` instruction events remain unsupported on DAN-DESKTOP.
   The fused X/Z-and-overflow scan measured -20.535627% focused on c7eb; its
-  historical broad counts range from -0.026238% to +0.002218%. On the current
-  measurement pin `374b037e7c8fba7097e0b86b05be7956ca6b5487`, after #593 and
-  #599, jobs 1620 and 1621 remeasured the same implementation at -20.535761%
-  focused. All 18 broad outputs match, with the largest positive instruction
-  change +0.000684%; wide-index edge outputs match. This current-pin screen
-  qualifies; full correctness passed in job 1733, and isolated three-run wall
-  evidence from job 1758 records the `waveform_fst` increase with its spread.
-  Exact-head CI remains. The next separate target is
+  historical broad counts range from -0.026238% to +0.002218%. It measured
+  -20.535761% on `374b037e` and -20.535580% on the current measurement pin
+  `631b7a869faaa05216d8749224520227b4b23d43`. On the latter, all 18 broad
+  outputs match, the largest positive instruction change is +0.000684%, and
+  all five correctness gates pass in job 1955. The three-run wall table
+  records every spread. Exact-head CI remains on the final PR head. The next separate target is
   `of_LOAD_VEC4`; stack-slot capacity reuse follows.
   Broader 2-state opcodes, wider inline storage, NBA coalescing, type tags,
   superinstructions, and JIT work remain separate measured experiments rather
@@ -146,12 +144,11 @@ prediction.
 | Report phase | What source verification supports | Campaign treatment |
 | --- | --- | --- |
 | **1: predecode `%prop/index/check`** | The pinned base parses the operand string and builds a local dimensions vector at execution. The stack-pop contract continues after invalid dimensions, so a descriptor must retain the parsed count and malformed-metadata behavior. | Pinned Caliptra screen: −10.259915%; post-rebase screen on `845f54a`: −10.300108%. The 100,000-access microbenchmark is −9.212159%. Focused checks and all 18 broad outputs match; pinned-base and final post-rebase full gates pass. PR #599 has since merged; the pinned and post-rebase measurement evidence remains archived. Both Caliptra screens end at mcycle 200 and are not firmware passes. |
-| **1: vec4 conversion, word arithmetic, 2-state specialization** | The small 2-state fast path and word-wise add/sub already exist. The fused wide converter scan passes its current-pin instruction screen; a general 2-state opcode family remains a separate experiment. | The initial `has_xz()` fallback remains below the 10% process bar. The current-pin fused word scan improves the focused process by 20.535761%, passes all 18 broad output checks, and has no broad count increase above 0.000684%. Full correctness passed in job 1733; the three-run wall table is in job 1758,
-  with exact-head CI pending. Do not infer gains for a new opcode family. |
+| **1: vec4 conversion, word arithmetic, 2-state specialization** | The small 2-state fast path and word-wise add/sub already exist. The fused wide converter scan passes its current-pin instruction screen; a general 2-state opcode family remains a separate experiment. | The initial `has_xz()` fallback remains below the 10% process bar. The current-main pin improves the focused process by 20.535580%, passes all 18 broad output checks, and has no broad count increase above 0.000684%. All five correctness gates pass; final three-run wall data records all spreads. Exact-head CI remains required after the last docs and pre-merge rebase. Do not infer gains for a new opcode family. |
 | **1: allocation reduction** | `vvp_vector4_t` has one inline word per plane and wider copies allocate. The vthread vec4 stack is a `std::vector`, so retaining capacity in its live slots is plausible. Assignment-event objects already use a slab allocator, although their region queues remain linked. | First measure stack widths, copies, and allocation counts. Start with stack-slot reuse only. Wider inline storage, read-only slice views, and NBA coalescing are separate changes with representation, lifetime, and event-order risks. |
 | **2: type tags, subtype checks, virtual-call cache** | Dynamic casts exist, but their aggregate count is not a hot-site profile. Class ancestry is walked through `runtime_super()`. Virtual method target resolution already has a memo keyed by runtime class and base method scope. | Profile casts and the existing memo on UVM/Caliptra before changing dispatch. Do not assume tags fit in padding or that subtype lookup is O(1); avoid adding a second cache unless lookup cost is material. |
 | **2: top-15 superinstructions and `musttail`** | The current interpreter already runs consecutive opcodes in a loop and invokes their function pointers. No pinned opcode-pair histogram justifies a top-15 list. The loop also owns pause, trampoline, tracing, and thread-lifetime behavior. | Use the pinned pair histogram to select one frequent non-suspending pair. Treat `musttail` as a separate compiler/lifetime experiment, not a drop-in dispatch edit. |
-| **3: copy-and-patch JIT and value-change suppression** | A block JIT is a plausible ceiling experiment with interpreter fallback. The general `send_vec4` boundary does not suppress equal values; suppressing events can affect visible deltas, strengths, and VPI/waveform observers. | Measure a JIT ceiling in isolation, including compile/startup cost and exact output. Gate suppression or local levelization on the existing 35% inclusive net-propagation threshold and restrict any prototype to proven untapped cones. |
+| **3: copy-and-patch JIT and value-change suppression** | A block JIT is a plausible ceiling experiment with interpreter fallback. The general `send_vec4` boundary does not suppress equal values; suppressing events can affect visible deltas, strengths, and VPI/waveform observers. | The isolated Caliptra SHA-256 round spike measured 5.008× over its small function-pointer interpreter, with 0.921% spread and exact RTL output; this is a kernel ceiling, not a VVP speedup. No further JIT work is authorized by this spike. Gate suppression or local levelization on the existing 35% inclusive net-propagation threshold and restrict any prototype to proven untapped cones. See [WP14 evidence](../../evidence/wp14-copy-patch-sha256-20261017/README.md). |
 
 The report's per-technique multipliers and stacked 3.2x–5.5x estimate remain
 unsupported for VVP. They are projections from profile shares that are not a
@@ -177,7 +174,7 @@ the experiment's recorded base.
 | Hot bytecode-pair fusion | Unknown; possible savings include both indirect calls and intermediate stack/copy work. | Stack effects, jumps, suspension, tracing and scheduler/VPI boundaries. | Use the pinned WP0 opcode-pair histogram, choose one frequent non-suspending pair, and compare instructions plus exact output. Do not start with the proposed top-15 set or `musttail`. |
 | Activity suppression and local levelization (ESSENT/GSIM ideas) | Unknown. Older RTL samples put net propagation around 18–22%, below the tech lead's 35% inclusive-share gate for a levelization prototype. | Delta ordering, glitches, initialization, strengths, VPI callbacks and waveform visibility. | Measure inclusive `recv_vec4`, `send_vec4`, and `schedule_*` cost on the pinned workload. Prototype one untapped cone only if the combined share exceeds 35%; compare VCD/FST and callback behavior. |
 | Whole-vector NBA coalescing | Unknown; scheduler queue traversal may matter, but vector event objects already use a slab. | FIFO ordering, mixed partial writes, Re-NBA, callbacks and intermediate propagation. | First profile queue traversal and event counts. Only then test an isolated whole-vector case with same-timestep multi-process and partial-write coverage. |
-| Copy-and-patch block JIT | A measured ceiling is required; the paper's gains on SQL/WebAssembly workloads do not predict VVP. | Executable-memory policy, architecture-specific stencils, code size, startup cost and exact VVP scheduling semantics. | Spike on one hot straight-line block with interpreter fallback; measure Callgrind instructions, compile/startup cost and output equality. No productionization or LLVM dependency without supervisor approval. |
+| Copy-and-patch block JIT | The isolated SHA-256 round kernel ran 5.008× faster than a custom function-pointer interpreter at 0.921% spread; the matching full VVP testbench ran in 0.980 s, but the two times are not a direct comparison. No whole-simulator gain is established. | Executable-memory policy, architecture-specific stencils, code size, startup cost and exact VVP scheduling semantics. | Spike complete on one x86-64 host with exact RTL output and an X/Z fallback check. No-go for expansion or runtime integration without a new user instruction. See [WP14 evidence](../../evidence/wp14-copy-patch-sha256-20261017/README.md). |
 | Verilator compiled models | No gain inside VVP. A compiled model is a useful RTL-only reference; it changes code generation and may not match the target's feature/semantic contract. | Timing, four-state behavior, VPI/UVM and output compatibility vary by model and options. | Keep as a separate reference comparison, using identical supported inputs and explicit compatibility checks. |
 | ESSENT activity-driven static partitions | No direct VVP gain without a new FIRRTL/static-simulation path. Its result is evidence for coarsened activity checks in its own compiled, cycle-accurate model. | Static cycle execution does not preserve every event-driven observation in VVP. | Revisit only after the net-propagation profile clears the 35% gate; first prototype one side-effect-free cone. |
 | RepCut parallel partitioning | No validated gain for the single-thread event-driven VVP runtime; it targets full-cycle parallel RTL simulation. | Cross-partition ordering and VPI/DPI/UVM side effects. | No production experiment in this campaign. A separate cycle-only backend would need a compatibility census first. |
@@ -200,11 +197,12 @@ sketches, not current VVP members.
    The former 16 JSON fixture failures matched the reference and were corrected
    by #595. Its three-run wall medians and spreads are supporting evidence.
 3. The fused converter remeasurement on pinned base
-   `374b037e7c8fba7097e0b86b05be7956ca6b5487` passes: focused instructions
-   fall 20.535761%, all 18 broad outputs match, and the largest other increase
-   is +0.000684%. Full correctness passed in job 1733; isolated wall support is
-   recorded in job 1758. Draft PR #601 is open; run exact-head CI and rebase once
-   only immediately before merge.
+   `631b7a869faaa05216d8749224520227b4b23d43` passes: focused instructions
+   fall 20.535580%, all 18 broad outputs match, and the largest other increase
+   is +0.000684%. All five correctness gates pass; final three-run wall support
+   is recorded with every spread. Draft PR #601 is open; matrix run
+   39004115344 is still on its prior evidence head, so the final exact-head run
+   follows the last documentation update and the single pre-merge rebase.
 4. A2's Caliptra regression profile is a completed diagnosis. Matched c339/main
    samples over mcycle 100–600 and 100–5000 did not reproduce the reported
    row slowdown. The archived QD-BFM commit is d1529c9 rather than the cited
@@ -219,10 +217,11 @@ sketches, not current VVP members.
 6. In phase 2, profile the existing virtual-dispatch memo and hot cast sites.
    Then select one safe bytecode pair from the pinned WP0 histogram; do not
    implement the report's top-15 set or assume `musttail` is drop-in.
-7. In phase 3, measure value-change suppression only if inclusive net
-   propagation clears the 35% gate. Run copy-and-patch as an isolated
-   speed-of-light spike, report its measured ceiling, and stop before
-   productionizing it.
+7. WP14's isolated SHA-256 copy-and-patch spike is complete: the round kernel
+   measured 5.008× over a custom interpreter, with matching RTL output and
+   0.921% spread. It does not establish a VVP speedup; stop here. Any further
+   JIT work requires a new user instruction. Measure value-change suppression
+   only if inclusive net propagation clears the 35% gate.
 
 WP1's prior screen was −3.31% `behav` instructions on its own pinned base,
 below the 10% keep threshold; do not repeat it unless its runtime code changes.

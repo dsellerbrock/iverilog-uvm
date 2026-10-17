@@ -1,0 +1,3 @@
+FAIL smoke_test_sha256: /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp14-copy-patch-sha256-20261017/output/smoke_test_sha256/result.json
+[ perf record: Woken up 783 times to write data ]
+[ perf record: Captured and wrote 195.670 MB /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp14-copy-patch-sha256-20261017/profiles/smoke_test_sha256.data (23817 samples) ]

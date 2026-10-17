@@ -1,0 +1,10 @@
+vvp_workload_wall_median_seconds=0.980000
+vvp_workload_wall_spread_percent=2.041
+spike_process_wall_median_seconds=4.950000
+spike_process_wall_spread_percent=0.202
+round_interpreter_median_seconds=0.004571
+round_interpreter_repeat_spread_percent=0.109
+copy_patch_jit_median_seconds=0.000913
+copy_patch_jit_repeat_spread_percent=0.836
+round_kernel_speedup_median=5.008x
+round_kernel_speedup_repeat_spread_percent=0.921

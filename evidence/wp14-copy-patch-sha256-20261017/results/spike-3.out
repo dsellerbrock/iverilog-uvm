@@ -1,0 +1,9 @@
+NBLK=800 sha256=f14ea99f sum=6541416fc3f26974
+blocks=1600 rounds=102400 repeats=9 workloads_per_sample=100
+stencil_bytes=199 code_bytes=13312 patch_offset=14
+copy_patch_compile_seconds=2.1166e-05
+round_interpreter_median_seconds=0.00457517 spread_percent=0.884936
+copy_patch_jit_median_seconds=0.00091035 spread_percent=0.525654
+round_kernel_speedup=5.02572x
+jit_rounds=92160000 fallback_rounds=0
+xz_guard=fallback_to_4state_interpreter

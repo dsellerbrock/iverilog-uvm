@@ -499,8 +499,9 @@ the reference semantics throughout.
 | WP1 | REJECTED | - | The `IVL_*` trace/context-stat screen improved `behav` instructions by 3.310901%, below the gate; outputs matched. See [WP1 evidence](../../evidence/perf-wp1-debug-tax-0490e2ff/README.md). |
 | WP2 | MERGED | #599 | On pinned base `c7ebca768c21c251d9c165c9aff0e363768030b1`, Caliptra mcycle 100–200 Callgrind instructions fell 10.259915%; the focused hotloop fell 9.212159%. On the single new base `845f54a5724c4d2af13dde40eca6d290c80c41d9`, the same window fell from 183,325,396,223 to 164,442,681,700 instructions (−10.300108%, Slurm job 1496). The VPI screen intentionally stops at mcycle 200; it is not a full firmware pass. All 18 pinned-base corpus outputs matched, and the largest other instruction increase was +0.038453%. Slurm job 1457 passed pinned-base gates. Slurm job 1497 passed the final new-base build and correctness gates: `make check`, legacy (7,436 total; 7,431 passed, 0 failed, 2 not implemented, 3 expected failures), VPI (131/131), negative (152/152), JSON (4,675/4,675), runtime invariants (15/15), and UVM (367/0/0, real DPI). A4 confirmed the prior 16 JSON failures were fixed by #595. The full three-run wall table is [here](../../evidence/wp2-predecode-c7eb-20261015/wall-corpus-c7eb-20261015-r1/results/wall-summary.csv); the largest candidate spread is 43.445690%, supporting only. Rebased exactly once. Exact-head CI passed before #599 merged. See [post-rebase screen and gates](../../evidence/wp2-predecode-rebase-845f54a-20261016/README.md). |
 | WP3 | MERGED | #593 | `of_CAST2` improved `behav` instructions by 14.079590%; 18/18 outputs matched and exact-head Linux, macOS, Windows, and Slurm gates passed. See [WP3 evidence](../../evidence/perf-wp3-cast2-c7eb/README.md). |
-| WP4 | PINNED SCREENS/GATES PASS; EXACT-HEAD CI PENDING | #601 (draft) | On pinned base `374b037e7c8fba7097e0b86b05be7956ca6b5487`, the fused converter reduced focused whole-process instructions by 20.535761%; all 18 broad outputs matched and the largest other instruction increase was +0.000684%. Slurm job 1733 passed `make check`, full ivtest/JSON, VPI, negative, runtime-invariant, and real-DPI UVM gates; the expanded exhaustive X/Z fixture passed against both builds in job 1760. Final three-run wall medians are in isolated job 1758; exact-head CI remains. See [WP4 evidence](../../evidence/wp4-loadvec4-main-374b-20261016/README.md). |
-| WP5-WP15 | NOT STARTED | - | - |
+| WP4 | PINNED SCREENS/GATES PASS; EXACT-HEAD CI PENDING | #601 (draft) | Current-main pin `631b7a869faaa05216d8749224520227b4b23d43`: focused instructions 2,342,085,316 → 1,861,124,521 (−20.535580%); 18/18 broad outputs match and max non-target increase is +0.000684%. Slurm job 1955 passed all five pinned correctness gates. The final three-run wall table records all medians/spreads. Exact-head CI is required after the final docs and one pre-merge rebase. See [WP4 evidence](../../evidence/wp4-loadvec4-remeasure-631-20261016/README.md). |
+| WP5-WP13, WP15 | NOT STARTED | - | - |
+| WP14 | SPIKE COMPLETE; NO-GO TO EXPAND | - | On measurement base `631b7a869faaa05216d8749224520227b4b23d43` and Caliptra RTL `49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e`, the SHA-256 T1/T2 round kernel ran 4.571 ms → 0.913 ms per 1,600-block workload (5.008×; 0.921% spread) versus the custom bytecode interpreter. RTL output matched; this is not a VVP speedup estimate. Stop after the isolated spike. See [WP14 evidence](../../evidence/wp14-copy-patch-sha256-20261017/README.md). |
 
 ### WP0 pinned-base before/after table
 
@@ -569,9 +570,11 @@ and broad instruction screens on pinned base
 seven runtime-file changes, so WP4 was remeasured once on `631b7a8`: focused
 and broad instruction/output checks and all correctness gates passed in job
 1955. The final three-test Caliptra run records +30.91% cumulative throughput
-over the campaign base and +14.08% over main before #601. The full matrix is
-running on the current evidence head; rerun it after this table commit. Next screen
-`of_LOAD_VEC4`, then measured
+over the campaign base and +14.08% over main before #601. WP14's isolated
+copy-and-patch ceiling is 5.008× over its custom interpreter with 0.921%
+spread, but the run does not measure a VVP speedup; the authorized spike ends
+there. Exact-head CI must run after the last documentation update and the one
+pre-merge rebase. Next screen `of_LOAD_VEC4`, then measured
 vec4 stack-slot capacity reuse. A2's c339/main
 Caliptra sampling is a separate diagnosis; neither its 500-cycle nor 4,900-cycle
 sample reproduced the full-row regression. In Phase
@@ -597,7 +600,7 @@ Phase 3 as a measured ceiling spike.
 | Existing virtual-dispatch memo / optional inline cache | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind map lookup/miss cost | - | PENDING; only consider a call-site cache if the current memo is hot | - |
 | Hot-pair fusion | `c7ebca768c21c251d9c165c9aff0e363768030b1` | WP0 pair count / Callgrind before → after | - | PENDING; one non-suspending pair, not top 15 | - |
 | Activity suppression / local levelization | `c7ebca768c21c251d9c165c9aff0e363768030b1` | `recv_vec4` + `send_vec4` + `schedule_*` inclusive share | - | GATED; prototype only above 35% | - |
-| Copy-and-patch JIT ceiling spike | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind Ir, startup cost, code size | - | PENDING; spike only, no productionization | - |
+| Copy-and-patch JIT ceiling spike | `631b7a869faaa05216d8749224520227b4b23d43`; campaign base `f9f8e0a79f230f38da6cbb4445994ad1075ad531` | SHA-256 round kernel: 4.571 ms → 0.913 ms per workload; 5.008×, 0.921% spread; stencil 199 B, 64 patched copies 13,312 B | Exact output match to the RTL testbench; X/Z guard deopts | SPIKE COMPLETE; no-go for expansion/integration because the microbenchmark is not VVP bytecode or end-to-end simulation | [WP14 evidence](../../evidence/wp14-copy-patch-sha256-20261017/README.md) |
 
 Completion requires WP0 merged, WP3 plus at least two more aggressive-technique
 PRs merged, final before/after instruction counts and wall-time medians, a
