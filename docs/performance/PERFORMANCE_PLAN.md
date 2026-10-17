@@ -565,7 +565,11 @@ Focused correctness and broad output checks and pinned-base full gates pass;
 the final new-base correctness gates passed in Slurm job 1497. #599 has since merged. The fused word-plane converter now clears its focused
 and broad instruction screens on pinned base
 `374b037e7c8fba7097e0b86b05be7956ca6b5487`; full correctness passed in job
-1733 and the isolated wall table is in job 1758. Exact-head CI remains before PR merge. Next screen `of_LOAD_VEC4`, then measured
+1733 and the isolated wall table is in job 1758. Main later advanced with
+seven runtime-file changes, so WP4 was remeasured once on `631b7a8`: focused
+and broad instruction/output checks and all correctness gates passed in job
+1955. Exact-head CI must run on the evidence commit before PR merge. Next screen
+`of_LOAD_VEC4`, then measured
 vec4 stack-slot capacity reuse. A2's c339/main
 Caliptra sampling is a separate diagnosis; neither its 500-cycle nor 4,900-cycle
 sample reproduced the full-row regression. In Phase
@@ -583,6 +587,7 @@ Phase 3 as a measured ceiling spike.
 | `vpip_vec4_to_int64_saturated` word-plane fallback | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Whole focused process: 2,342,072,014 → 1,863,201,596 Ir (−20.446443%) | 18/18 Callgrind counts; worst +0.001880%; outputs 18/18 match; FST paired under `--fair-sched=yes` | SCREEN PASSED on c7eb; repeat once after rebase to `ccaecfe7`; `perf stat` instructions unsupported | [evidence](../../evidence/wp2-converter-c7eb-20261015/wordscan-screen/README.md) |
 | `vpip_vec4_to_int64_saturated` fused X/Z scan follow-up | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Whole focused process: 2,342,144,538 → 1,861,170,476 Ir (−20.535627%) | 18/18 outputs match; counts range −0.026238% to +0.002218%; wide/narrow X/Z edge checks pass | SCREEN PASSED on c7eb; repeat once after rebase to `ccaecfe7`; 0.089-point difference is unmatched because input added a narrow-Z assertion | [evidence](../../evidence/wp2-converter-c7eb-20261015/wordscan-screen/fusedxz-broad-20261015/README.md) |
 | `vpip_vec4_to_int64_saturated` fused X/Z + overflow scan | `374b037e7c8fba7097e0b86b05be7956ca6b5487` | Focused whole process: 2,342,064,005 → 1,861,103,335 Ir (−20.535761%) | 18/18 outputs match; max non-target increase +0.000684%; 65,280 X/Z patterns plus wide signed/unsigned, saturation, 65-bit tail fixture passes | SCREEN AND PINNED GATES PASSED; final wall support recorded, exact-head CI pending | [current-pin evidence](../../evidence/wp4-loadvec4-main-374b-20261016/README.md) |
+| `vpip_vec4_to_int64_saturated` fused X/Z + overflow scan, current-main remeasurement | `631b7a869faaa05216d8749224520227b4b23d43` (PR table base); campaign base `f9f8e0a79f230f38da6cbb4445994ad1075ad531` | Focused process: 2,342,085,316 → 1,861,124,521 Ir (−20.535580%) | 18/18 broad outputs match; max non-target count change +0.000684%; all five pinned gates pass | Three-run wall medians/spreads are recorded; spreads above 5% remain supporting evidence. Full `test.yml` run 38984312563 covers the candidate code head; exact-head CI must rerun after this evidence commit. | [current-main remeasurement](../../evidence/wp4-loadvec4-remeasure-631-20261016/README.md) |
 | Allocation reuse for thread vec4 stack | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind Ir / allocation counts before → after | - | PENDING; separate candidate | - |
 | `of_LOAD_VEC4` / `copy_from_big_` | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind inclusive before → after | - | PENDING; profile after stack screen | - |
 | `__dynamic_cast` / type-tag path | `c7ebca768c21c251d9c165c9aff0e363768030b1` | Callgrind by call site before → after | - | PENDING; profile UVM and Caliptra; no padding assumption | - |
