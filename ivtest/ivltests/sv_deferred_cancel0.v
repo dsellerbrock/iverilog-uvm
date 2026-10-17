@@ -7,6 +7,15 @@ module sv_deferred_cancel_level_child(output bit queued);
   end
 endmodule
 
+module sv_deferred_cancel_all_levels_child(output bit queued);
+  initial begin
+    #5;
+    assert #0 (1'b0) else $display("LEVEL_ZERO_CHILD_OBSERVED");
+    assert final (1'b0) else $display("LEVEL_ZERO_CHILD_FINAL");
+    queued = 1;
+  end
+endmodule
+
 module sv_deferred_cancel_persistent_kill;
   initial begin
     #10;
@@ -22,10 +31,23 @@ endmodule
 module sv_deferred_cancel0;
   bit outer_queued, sibling_queued;
   bit level_parent_queued, level_child_queued;
+  bit level_generated_queued;
+  bit level_zero_parent_queued, level_zero_child_queued;
   event both_queued;
 
   sv_deferred_cancel_level_child level_child(level_child_queued);
+  sv_deferred_cancel_all_levels_child level_zero_child(
+      level_zero_child_queued);
   sv_deferred_cancel_persistent_kill persistent_target();
+
+  generate
+    if (1) begin : generated_assertions
+      initial begin : generated_process
+        assert #0 (1'b0) else $display("LEVEL_GENERATED_REPORT");
+        level_generated_queued = 1;
+      end
+    end
+  endgenerate
 
   initial begin : level_parent_process
     begin : nested_parent
@@ -35,11 +57,28 @@ module sv_deferred_cancel0;
   end
 
   initial begin : level_kill_process
-    wait (level_parent_queued && level_child_queued);
+    wait (level_parent_queued && level_child_queued
+          && level_generated_queued);
     #0;
     $assertkill(1, sv_deferred_cancel0);
     // Keep later independent checks active; kill still cancels reports queued above.
     $asserton(1, sv_deferred_cancel0);
+  end
+
+  initial begin : level_zero_parent_process
+    #5;
+    assert #0 (1'b0) else $display("LEVEL_ZERO_PARENT_OBSERVED");
+    assert final (1'b0) else $display("LEVEL_ZERO_PARENT_FINAL");
+    level_zero_parent_queued = 1;
+  end
+
+  initial begin : level_zero_kill_process
+    #5;
+    wait (level_zero_parent_queued && level_zero_child_queued);
+    #0;
+    $assertkill(0, sv_deferred_cancel0);
+    $asserton(0, sv_deferred_cancel0);
+    $display("LEVEL_ZERO_KILL_COMPLETED");
   end
 
   function void queue_outer_function_reports;
