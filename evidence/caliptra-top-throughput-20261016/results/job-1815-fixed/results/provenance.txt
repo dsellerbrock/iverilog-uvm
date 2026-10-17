@@ -1,0 +1,8 @@
+host=DAN-DESKTOP
+qd_bfm=d1529c922da402943148a0fb22648f347e30eed9
+caliptra_rtl=49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e
+rtl_adams_bridge=b77e3d899e828d626cfc2a0d26a6b5704cc121e0
+base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+main=7f508a8a3ab4f1a230d65abfa2543a12ca2f40a9
+window=100:2100
+c13c7c8ddf1e45b590a66b3dd64fdb01bffe7fd7c16453693435a7a28343f28d  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r3-20261016/input/ecc_secp384r1-deterministic.c

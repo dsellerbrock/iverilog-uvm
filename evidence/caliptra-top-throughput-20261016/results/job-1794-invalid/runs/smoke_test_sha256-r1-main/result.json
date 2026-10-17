@@ -1,0 +1,219 @@
+{
+  "test": "smoke_test_sha256",
+  "testname": "smoke_test_sha256",
+  "case_yaml": "src/integration/test_suites/smoke_test_sha256/smoke_test_sha256.yml",
+  "passed": false,
+  "caliptra_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "case_yaml_sha256": "bf0fa0fc6d0b8f1624f2cfe509c8262356c38186069e83f6da3a3e2a8b6aa8cc",
+  "bfm_wrapper_sha256": "2a5b59b60371e1508305014fdabcbb217b47e3978c2f84c12ed545ae1c85d400",
+  "aes_pkg_overlay_sha256": "d29c80cd5e51629b25a924e5249f85032c0b42f0f4006c3944906395e98ec158",
+  "trng_duty_cycle": 500,
+  "physical_rng_source_sha256": "85b73db47fdab769e55d8ca58c976a0cad68631d3f3eed0e7d13649c38abf01f",
+  "axi_if_overlay_sha256": "d9173b5d3ecf2bff70412016f752e902f3f6ccf4fdb68ffd58764fb33e34f834",
+  "checker_overlay_sha256": "6e67d67966b030931ec222aacfd0863086c7d35b5e916acd5f358a90ed538654",
+  "reset_overlay_sha256": "c5b901d338d0ee31feca6ea0cf9dd67f898c9d053e016cf835ab3468a21af3ed",
+  "jtag_overlay_sha256": "6b3d6eeb6bbb3acddcc6045b86c9cc6c6ca3934164f29564485a9a3d2fc4d02a",
+  "pq_vector_source_sha256": null,
+  "services_overlay_sha256": null,
+  "dma_generator_overlay_sha256": null,
+  "profile_sha256": "a98e4c0e62fe77b052ced5bfbdaf17bc799bf19c5c259b1697caa81b88e5b9b5",
+  "profile_excluded_sources": [
+    "${CALIPTRA_AXI4PC_DIR}/Axi4PC.sv"
+  ],
+  "caliptra_bfm_checker_enabled": true,
+  "compile_command": [
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r1-20261016/install/main/bin/iverilog",
+    "-g2017",
+    "-gassertions",
+    "-gcommercial-unsafe",
+    "-s",
+    "caliptra_top_tb",
+    "-D",
+    "RV_OPENSOURCE",
+    "-D",
+    "CLP_ASSERT_ON",
+    "-D",
+    "CALIPTRA_INTERNAL_TRNG",
+    "-D",
+    "CALIPTRA_BFM_CHECKER",
+    "-f",
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/open_caliptra_top.vf",
+    "-o",
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/caliptra_top_tb.vvp"
+  ],
+  "compile_exit": 0,
+  "firmware_command": [
+    "make",
+    "-f",
+    "/home/dsell/toolchains/iverilog-c339/firmware/caliptra-rtl/tools/scripts/Makefile",
+    "TESTNAME=smoke_test_sha256",
+    "GCC_PREFIX=riscv-none-elf",
+    "CALIPTRA_INTERNAL_TRNG=1",
+    "PLAYBOOK_RANDOM_SEED=1",
+    "BUILD_CFLAGS=-std=gnu11 -O2",
+    "program.hex"
+  ],
+  "firmware_exit": 0,
+  "firmware_compat_overlay": null,
+  "firmware_compat_overlay_sha256": null,
+  "aes_case_limit": null,
+  "aes_case_start": null,
+  "aes_case_limit_source_sha256": null,
+  "rand_dma_iterations": null,
+  "force_first_rand_dma_reset": false,
+  "rand_dma_reset_delay_cycles": null,
+  "firmware_image_sha256": {
+    "program.hex": "8e6f4d00f071359b6e740249c062d65aa4c3028fc10b18d2f8916cb673f80a51",
+    "dccm.hex": "d492a82d179acf5fdaae01d6adab1bb13d4bbb30ced3af7f0e84d6902ddef8b5",
+    "iccm.hex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mailbox.hex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "simulation_image_sha256": {
+    "program.hex": "8e6f4d00f071359b6e740249c062d65aa4c3028fc10b18d2f8916cb673f80a51",
+    "dccm.hex": "d492a82d179acf5fdaae01d6adab1bb13d4bbb30ced3af7f0e84d6902ddef8b5",
+    "iccm.hex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mailbox.hex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "fast_boot_data_preload": null,
+  "diagnostic_modes": {
+    "fast_trng": false,
+    "fast_boot_data_preload": false,
+    "first_aes_case": false,
+    "aes_case_limit": null,
+    "aes_case_start": null,
+    "rand_dma_iterations": null,
+    "force_first_rand_dma_reset": false,
+    "rand_dma_reset_delay_cycles": null,
+    "caliptra_bfm_checker": true,
+    "skip_pq_vector_generation": false,
+    "quiet_firmware": false
+  },
+  "native_vector_build_commands": [
+    [
+      "/usr/bin/cc",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-O2",
+      "-I/home/dsell/toolchains/iverilog-c339/openssl/include",
+      "/home/dsell/toolchains/qd-bfm-d1529c922da402943148a0fb22648f347e30eed9/dv/caliptra_bfm/native_vectors/native_mlkem.c",
+      "-L/home/dsell/toolchains/iverilog-c339/openssl/lib",
+      "-lcrypto",
+      "-o",
+      "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/native_vectors/native_mlkem"
+    ],
+    [
+      "/usr/bin/cc",
+      "-O2",
+      "-I/home/dsell/toolchains/iverilog-c339/deps/include",
+      "/home/dsell/toolchains/iverilog-c339/firmware/caliptra-rtl/src/ecc/tb/ecc_secp384r1.c",
+      "-L/home/dsell/toolchains/iverilog-c339/deps/lib",
+      "-lmbedtls",
+      "-lmbedx509",
+      "-lmbedcrypto",
+      "-o",
+      "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/native_vectors/ecc_secp384r1.exe"
+    ],
+    [
+      "/home/dsell/toolchains/iverilog-c339/deps/bin/python3.12",
+      "/home/dsell/toolchains/qd-bfm-d1529c922da402943148a0fb22648f347e30eed9/dv/caliptra_bfm/native_vectors/stage_mldsa.py",
+      "/home/dsell/toolchains/iverilog-c339/firmware/caliptra-rtl/submodules/adams-bridge/src/abr_top/uvmf/Dilithium_ref/dilithium/ref/test/test_dilithium.c",
+      "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/native_vectors/dilithium-ref/test/test_dilithium.c"
+    ],
+    [
+      "/usr/bin/make",
+      "-C",
+      "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/native_vectors/dilithium-ref",
+      "CC=/usr/bin/cc",
+      "test/test_dilithium5"
+    ],
+    [
+      "/home/dsell/toolchains/iverilog-c339/deps/bin/python3.12",
+      "/home/dsell/toolchains/qd-bfm-d1529c922da402943148a0fb22648f347e30eed9/dv/caliptra_bfm/native_vectors/stage_sha256_wntz.py",
+      "/home/dsell/toolchains/iverilog-c339/firmware/caliptra-rtl/src/sha256/tb/sha256_wntz_test_gen.py",
+      "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/native_vectors/sha256_wntz_test_gen.py"
+    ],
+    [
+      "/home/dsell/toolchains/iverilog-c339/deps/bin/python3.12",
+      "/home/dsell/toolchains/qd-bfm-d1529c922da402943148a0fb22648f347e30eed9/dv/caliptra_bfm/native_vectors/check_native_mlkem.py",
+      "/home/dsell/toolchains/iverilog-c339/firmware/caliptra-rtl/submodules/adams-bridge",
+      "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/native_vectors/native_mlkem"
+    ],
+    [
+      "/home/dsell/toolchains/iverilog-c339/deps/bin/python3.12",
+      "/home/dsell/toolchains/qd-bfm-d1529c922da402943148a0fb22648f347e30eed9/dv/caliptra_bfm/native_vectors/check_native_mldsa.py",
+      "/home/dsell/toolchains/iverilog-c339/firmware/caliptra-rtl/submodules/adams-bridge",
+      "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/native_vectors/dilithium-ref/test/test_dilithium5"
+    ]
+  ],
+  "native_vector_tools": {
+    "make": "/usr/bin/make",
+    "openssl": "/home/dsell/toolchains/iverilog-c339/openssl/bin/openssl",
+    "xxd": "/usr/bin/xxd",
+    "python3.12": "/home/dsell/toolchains/iverilog-c339/deps/bin/python3.12",
+    "compiler": "/usr/bin/cc"
+  },
+  "native_vector_sha256": {
+    "ecc_secp384r1.exe": "e2951be7890d3d3bf8f2251573f64cfef8b9152eb9cbe175b32f2a9d89e0477f",
+    "test_dilithium5": "03f78c7fff4f96a8df380cc4017f3881094253eb47e76876d0361db1f647de4e",
+    "doe_test_gen.py": "d94bd571dd599a9431398778f195c05fb3a2f3ddb1adcc38925a2c1b3db6bdc0",
+    "sha256_wntz_test_gen.py": "45c8a4f5ac7032c0bdb3b62b3a7b8645bec78b09e028f6bf8ac9cda232b4fce9",
+    "smoke_test_mldsa_vector.hex": "b68858c347fe7b12d4f173c2a6d21844aad8d547fc6cd8587091692365cea775",
+    "ml-kem/native_mlkem": "b9d59922fdb2f5e3b59da7bc0619c232c5346d276bf1803ed0b7b773b5d06e20",
+    "ml-kem/random_test_ml_kem.py": "fe772557377e9b0c3c44ee487019edae7870cf24f1b4113de0042cb7543af492"
+  },
+  "progress_vpi_source_sha256": "4aa0a263112077a8dbdbf8162442eddc8ec9dc816ae594e5be22c7c8c5a9134b",
+  "progress_vpi_plugin_sha256": "8ef28bb34327cfa26f6554ea5312d2e19db78ea2d6576607f4d59aaa643c6391",
+  "progress_vpi_compile_command": [
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r1-20261016/install/main/bin/iverilog-vpi",
+    "/home/dsell/toolchains/qd-bfm-d1529c922da402943148a0fb22648f347e30eed9/dv/caliptra_bfm/uvm/tests/sim-axi-trace-vpi.c"
+  ],
+  "progress_vpi_compile_exit": 0,
+  "axi_trace_source_sha256": null,
+  "axi_trace_plugin_sha256": null,
+  "axi_trace_compile_command": null,
+  "axi_trace_compile_exit": null,
+  "sim_command": [
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r1-20261016/install/main/bin/vvp",
+    "-d",
+    "/home/dsell/toolchains/iverilog-uvm-3335fe7ec1495956c8adc5788e9a53b0f1756ecf/caliptra-jtagdpi/jtagdpi.vpi",
+    "-n",
+    "-m",
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/trace_vpi/sim-axi-trace-vpi.vpi",
+    "-m",
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/window/main.vpi",
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/output/smoke_test_sha256-r1-main/caliptra_top_tb.vvp",
+    "+CLP_REGRESSION"
+  ],
+  "simulator_provenance": {
+    "iverilog": {
+      "path": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r1-20261016/install/main/bin/iverilog",
+      "version": "Icarus Verilog version 13.0 (devel) ()",
+      "version_exit_code": 0,
+      "sha256": "71d1a511a427eca455bff74d3c2d14a6d809581406a86a50863b508d205fec82"
+    },
+    "vvp": {
+      "path": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r1-20261016/install/main/bin/vvp",
+      "version": "Icarus Verilog runtime version 13.0 (devel) ()",
+      "version_exit_code": 0,
+      "sha256": "f869a48ee57b986a357d6416e0a24ea13831acfb2ccaaa67cf8fd41c6f09216c"
+    },
+    "source_checkout": {
+      "root": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/source/main",
+      "commit": "7f508a8a3ab4f1a230d65abfa2543a12ca2f40a9",
+      "clean": true,
+      "remote_tracking_refs_containing_head": []
+    }
+  },
+  "sim_exit": 0,
+  "testcase_pass_markers": 0,
+  "testcase_fail_markers": 0,
+  "jtag_server_errors": 0,
+  "jtag_bind_denials": 0,
+  "reset_assert_cycles": [],
+  "outstanding_writes_at_reset": [],
+  "reset_in_flight": false,
+  "bad_diagnostics": 0,
+  "finish": null,
+  "sim_log_sha256": "ab44384509274f9c32c04283a9f6414df7c1d7cc5bd1a68c3d1c3c7f03fe906a"
+}
