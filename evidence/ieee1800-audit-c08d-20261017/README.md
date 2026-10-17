@@ -36,8 +36,14 @@ hashes, runner, and combined raw output are preserved in this directory.
   `super.new(2)`. IEEE 1800-2017 §8.17 (p. 182) and IEEE 1800-2023 §8.17
   (p. 192) prohibit a subclass constructor from containing `super.new()` when
   superclass arguments are supplied in the `extends` specifier. This is a
-  probe-confirmed gap candidate; the audit lead has not yet classified or
-  deduplicated it, so the matrix remains unchanged for clauses 8.13–8.17.
+  probe-confirmed gap. The lead classified §8.17 as PARTIAL and filed
+  [issue #619](https://github.com/dsellerbrock/iverilog-uvm/issues/619). The
+  matrix records this gap and the supported probed subsets for §§8.13–8.17.
+
+Lead classification: §§8.13, 8.14, and 8.15 are QUALIFIED for the listed
+probes; §8.16 is QUALIFIED for the tested `$cast` forms (interface-class
+sources and task-form runtime error remain unprobed); §8.17 is PARTIAL due to
+the issue #619 behavior. These labels do not claim complete clause coverage.
 
 Full compile/run output, including the confirmed mismatch, is in
 [`results.txt`](results.txt). SHA-256 values for all probe sources are in
