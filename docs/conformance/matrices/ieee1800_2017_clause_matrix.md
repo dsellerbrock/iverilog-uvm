@@ -2768,3 +2768,17 @@ This does not qualify variable-length branches, non-OR trees, `first_match`,
 local variables, match-item calls, branch pass actions, two-domain OR
 antecedents, or general clause-16 behavior. Issue #447 remains open for the
 broader shapes; see the [evidence record](../../../evidence/sva-multiclock-disable-iff-or-antecedent-20261015/README.md).
+
+## 2026-10-16 clauses 16.4 and 39.5 deferred assertion cancellation
+
+The 2017 and 2023 wording was checked for §§16.4.2, 16.4.4, 20.12/20.11,
+39.5.2, and 39.5.3. `sv_deferred_cancel0` covers cancellation by assertion
+label, outermost-process disable (including reports queued in a called
+function), non-flushing nested disable, sibling-process survival, and selective
+`$assertkill` for observed and final reports. Its paired 2017/2023 runners use
+the same boundary. `sv_deferred_vpi_reset0` verifies that deferred assertion
+handles exist at `cbStartOfSimulation`, before any report is pending, and that
+`vpiAssertionReset` cancels only the selected observed/final source across
+process queues while same-scope assertions survive. Concurrent assertion
+attempt reset remains unsupported and is diagnosed explicitly; this evidence
+does not claim that part of §39.5.2.

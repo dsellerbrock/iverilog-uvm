@@ -371,6 +371,25 @@ void vpip_print_stacktrace(const char*call_file, long call_line)
       assert(vpip_routines);
       vpip_routines->print_stacktrace(call_file, call_line);
 }
+void vpip_cancel_deferred_asserts(const char*selector, PLI_INT32 levels)
+{
+      assert(vpip_routines);
+      vpip_routines->cancel_deferred_asserts(selector, levels);
+}
+PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
+                                          vpiHandle scope)
+{
+      assert(vpip_routines);
+      return vpip_routines->deferred_assertion_enabled(source_id, scope);
+}
+void vpip_set_deferred_assertions_enabled(const char*selector,
+                                          PLI_INT32 levels,
+                                          PLI_INT32 enabled)
+{
+      assert(vpip_routines);
+      vpip_routines->set_deferred_assertions_enabled(selector, levels,
+                                                     enabled);
+}
 void vpip_set_return_value(int value)
 {
       assert(vpip_routines);

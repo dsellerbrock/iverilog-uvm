@@ -6481,6 +6481,12 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	    my_scope = new NetScope(scope, use_name, bl_type_!=BL_SEQ
 				    ? NetScope::FORK_JOIN
 				    : NetScope::BEGIN_END);
+	    if (deferred_assertion_label_scope_)
+		  my_scope->attribute(perm_string::literal("_ivl_deferred_assert_label"),
+				     verinum((uint64_t)1, 1));
+	    if (deferred_assertion_process_scope_)
+		  my_scope->attribute(perm_string::literal("_ivl_deferred_process_scope"),
+				     verinum((uint64_t)1, 1));
 	    my_scope->set_line(get_file(), get_lineno());
 	      // The block itself inherits the enclosing lifetime. An explicit
 	      // automatic declaration in a static block must not turn its

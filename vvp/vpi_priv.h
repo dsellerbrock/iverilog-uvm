@@ -340,6 +340,15 @@ class __vpiScope : public __vpiHandle {
       bool shares_parent_frame_ = false;
 };
 
+/* Deferred-report selectors use module/cell hierarchy depth, not the number
+   of lexical scope components in a VPI full name. */
+extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
+					       const char*selector,
+					       int levels);
+extern void vpip_report_deferred_assertion_reset_callbacks(
+					       const char*selector,
+					       int levels);
+
 class vpiScopeFunction  : public __vpiScope {
     public:
       inline vpiScopeFunction(const char*nam, const char*tnam,
@@ -379,6 +388,15 @@ extern vpiHandle vpip_make_root_iterator(int type_code);
 extern vpiHandle vpip_make_covergroup_iterator(void);
 /* M12B: iterator over all registered assertions (vpi_iterate(vpiAssertion, 0)). */
 extern vpiHandle vpip_make_assertion_iterator(void);
+/* Deferred-immediate assertions register while the VVP image is linked. */
+extern void vpip_register_deferred_assertion(unsigned long source_id,
+					     unsigned assertion_kind,
+					     unsigned file_idx,
+					     unsigned line,
+					     vpiHandle scope);
+extern void vpip_cancel_deferred_assertion(unsigned long source_id,
+					   vpiHandle scope);
+extern PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion);
 extern void vpip_make_root_iterator(class __vpiHandle**&table,
 				    unsigned&ntable);
 

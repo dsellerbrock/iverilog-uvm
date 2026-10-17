@@ -1248,15 +1248,22 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    args[idx].text = strdup(buffer);
       }
       if (deferred) {
-	    fprintf(vvp_out, "    %%defer/%s T_%u.%u, S_%p;\n",
-		    deferred->is_final ? "final" : "enqueue",
-		    thread_count, deferred->action_lab, deferred->scope);
+	    if (deferred->is_final)
+		  fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+			  thread_count, deferred->action_lab, deferred->scope);
+	    else
+		  fprintf(vvp_out,
+			  "    %%defer/enqueue T_%u.%u, S_%p;\n",
+			  thread_count, deferred->action_lab, deferred->scope);
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
 		    thread_count, deferred->after_lab);
 	    fprintf(vvp_out, "T_%u.%u ;\n",
 		    thread_count, deferred->action_lab);
 	    if (deferred->is_final)
 		  fprintf(vvp_out, "    %%defer/final/key %ld;\n",
+			  deferred->source_id);
+	    else
+		  fprintf(vvp_out, "    %%defer/enqueue/key %ld;\n",
 			  deferred->source_id);
       }
 

@@ -40,6 +40,7 @@
 # include  <map>
 # include  <set>
 # include  <string>
+# include  <vector>
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
@@ -52,6 +53,7 @@
 # include  "ivl_alloc.h"
 
 unsigned compile_errors = 0;
+static std::vector<vvp_code_t> deferred_assertion_registrations;
 
 static void unresolved_warn_once(const char*kind, const char*label, const char*detail);
 
@@ -346,10 +348,14 @@ static const struct opcode_table_s opcode_table[] = {
       { "%deassign",of_DEASSIGN,3,{OA_FUNC_PTR, OA_BIT1,     OA_BIT2} },
       { "%deassign/wr",of_DEASSIGN_WR,1,{OA_FUNC_PTR, OA_NONE,     OA_NONE} },
       { "%debug/thr",  of_DEBUG_THR,  1,{OA_STRING,   OA_NONE,     OA_NONE} },
+      { "%defer/cancel/label",of_DEFER_CANCEL_LABEL,1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
+      { "%defer/cancel/process",of_DEFER_CANCEL_PROCESS,1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
       { "%defer/enqueue",of_DEFER_ENQUEUE,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
+      { "%defer/enqueue/key",of_DEFER_ENQUEUE_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/final",of_DEFER_FINAL,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
       { "%defer/final/key",of_DEFER_FINAL_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/final/taskkey",of_DEFER_FINAL_TASK_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%defer/register",of_DEFER_REGISTER,2,{OA_STRING,OA_VPI_PTR2,OA_NONE} },
       { "%delay",  of_DELAY,  2,  {OA_BIT1,     OA_BIT2,     OA_NONE} },
       { "%delayx", of_DELAYX, 1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%delete/elem",of_DELETE_ELEM,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
@@ -1850,6 +1856,38 @@ void compile_cleanup(void)
 
       compile_errors += nerrs;
 
+      if (!nerrs) {
+            for (size_t idx = 0; idx < deferred_assertion_registrations.size();
+                 idx += 1) {
+                  vvp_code_t code = deferred_assertion_registrations[idx];
+                  __vpiScope*scope = dynamic_cast<__vpiScope*>(
+                        reinterpret_cast<vpiHandle>(code->cptr2));
+                  unsigned source_id = 0;
+                  unsigned assertion_kind = 0;
+                  unsigned file_idx = 0;
+                  unsigned line = 0;
+                  int consumed = 0;
+                  if (!code->text
+		      || sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
+				&assertion_kind, &file_idx, &line,
+				&consumed) != 4
+		      || code->text[consumed] != 0
+		      || !source_id || !line || file_idx >= file_names.size()
+		      || (assertion_kind != 1 && assertion_kind != 2
+			  && assertion_kind != 4)
+		      || !scope) {
+                        fprintf(stderr,
+                                "vvp: invalid deferred assertion registration.\n");
+                        compile_errors += 1;
+                        continue;
+                  }
+                  vpip_register_deferred_assertion(
+                        static_cast<unsigned long>(source_id),
+			assertion_kind, file_idx, line, scope);
+            }
+      }
+      deferred_assertion_registrations.clear();
+
       if (verbose_flag) {
 	    fprintf(stderr, " ... Removing symbol tables\n");
 	    fflush(stderr);
@@ -3156,6 +3194,9 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 		  break;
 	    }
       }
+
+      if (op->opcode == of_DEFER_REGISTER)
+            deferred_assertion_registrations.push_back(code);
 
       if (op->opcode == of_EVENT_EXPR_LOAD_VEC4 && code->bit_idx[0] == 0) {
             yyerror("%event/expr/load/v width must be nonzero");

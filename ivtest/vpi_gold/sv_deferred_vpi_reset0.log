@@ -1,0 +1,10 @@
+Compiling vpi/sv_deferred_vpi_reset0.c...
+Making sv_deferred_vpi_reset0.vpi from  sv_deferred_vpi_reset0.o...
+PASS: deferred assertions registered before simulation
+PASS: deferred assertion VPI source metadata
+PASS: deferred assertion VPI reset
+VPI_TARGET_REENABLED_FAIL
+VPI_SIBLING
+VPI_SHARED_SURVIVOR
+VPI_FINAL_SIBLING
+VPI_FINAL_SHARED_SURVIVOR

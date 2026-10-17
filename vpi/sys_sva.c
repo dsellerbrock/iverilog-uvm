@@ -379,6 +379,34 @@ static PLI_INT32 sva_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+static PLI_INT32 sva_deferred_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      unsigned long source_id = 0;
+      PLI_INT32 enabled;
+      s_vpi_value rv;
+      (void)name;
+      if (argv) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (arg) {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  vpi_get_value(arg, &value);
+		  if (value.value.integer > 0)
+			  source_id = (unsigned long)value.value.integer;
+	    }
+	    vpi_free_object(argv);
+      }
+      enabled = source_id
+	    ? vpip_deferred_assertion_enabled(source_id,
+					      vpi_handle(vpiScope, callh)) : -1;
+      rv.format = vpiIntVal;
+      rv.value.integer = enabled >= 0 ? enabled : sva_assert_enabled;
+      vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      return 0;
+}
+
 /* Every synthesized checker process remembers this monotonically increasing
  * generation.  A changed value means that $assertkill selected this exact
  * (runtime scope, assertion index) since the process last ran.  Unlike a
@@ -446,15 +474,24 @@ static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 				   "request ignored.\n", name);
 			continue;
 		  }
-		  (void)sva_control_append_rule_(value.value.str, levels,
-					 enabled, kill);
+		  if (sva_control_append_rule_(value.value.str, levels,
+					       enabled, kill)) {
+			vpip_set_deferred_assertions_enabled(value.value.str,
+							     levels, enabled);
+			if (kill)
+			      vpip_cancel_deferred_asserts(value.value.str, levels);
+		  }
 	    }
       }
 
       /* No selector means the whole design. Retain this as a chronological
 	 rule too, so later checker registration sees the same control order. */
       if (!saw_selector)
-	    (void)sva_control_append_rule_(0, levels, enabled, kill);
+	    if (sva_control_append_rule_(0, levels, enabled, kill)) {
+		  vpip_set_deferred_assertions_enabled(0, levels, enabled);
+		  if (kill)
+			vpip_cancel_deferred_asserts(0, levels);
+	    }
 
       for (i = before; i < sva_control_rule_count; i += 1) {
 	    size_t j;
@@ -650,6 +687,8 @@ void sys_sva_register(void)
 	/* Assertion control (20.12): the enable-query function used by
 	   synthesized checkers, and the control tasks. */
       register_one_("$ivl_sva_enabled", sva_enabled_calltf);
+	register_one_("$ivl_deferred_assert_enabled",
+		      sva_deferred_enabled_calltf);
       register_one_("$ivl_sva_kill_generation",
 		    sva_kill_generation_calltf);
       register_task_("$asserton",   sva_control_calltf);
