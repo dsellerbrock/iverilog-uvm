@@ -1,0 +1,8 @@
+measurement_base=631b7a869faaa05216d8749224520227b4b23d43
+campaign_base=f9f8e0a79f230f38da6cbb4445994ad1075ad531
+candidate=3b620c5ea5857ba7c022a7fba058f8a31b7ac564
+rtl=49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e
+cpu=0
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+model name	: Intel(R) Core(TM) Ultra 9 285K
+g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0

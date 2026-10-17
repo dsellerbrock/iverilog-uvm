@@ -1,0 +1,1 @@
+`objdump -r -j .text.sha256_round_stencil copy_patch_sha256.o` reported no relocation records.

@@ -1,0 +1,2 @@
+42cf2e05046598b0d14ae458c344e2ddc78fe0c77116716167982412ef21eba4  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp14-copy-patch-sha256-measure-r3-20261017/build/copy_patch_sha256
+1820e005a631f511c1f31d24fb32f08e137d8729223e6a720bcfc1bfe27b9e4c  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp14-copy-patch-sha256-measure-r3-20261017/build/stencil.bin

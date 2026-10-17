@@ -65,52 +65,53 @@ bool vpip_vec4_to_int64_saturated(const vvp_vector4_t&vec, bool is_signed,
 	    return true;
       }
 
-      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
-            vvp_bit4_t bit = vec.value(idx);
-            if (bit != BIT4_0 && bit != BIT4_1)
-                  return false;
-      }
+      uint64_t bits = 0;
+      bool overflow = false;
+      const unsigned size = vec.size();
+      const unsigned words = (size - 1) / vec.BITS_PER_WORD + 1;
+      const unsigned sign_index = (size - 1) / vec.BITS_PER_WORD;
+      const unsigned sign_offset = (size - 1) % vec.BITS_PER_WORD;
+      unsigned long sign_word = size > vec.BITS_PER_WORD
+	    ? vec.abits_ptr_[sign_index] : vec.abits_val_;
+      bool negative = is_signed && ((sign_word >> sign_offset) & 1);
 
-      bool negative = is_signed && vec.size()
-	    && vec.value(vec.size()-1) == BIT4_1;
-      uint64_t magnitude = 0;
+      for (unsigned idx = 0; idx < words; idx += 1) {
+	    unsigned base = idx * vec.BITS_PER_WORD;
+	    unsigned count = size - base;
+	    if (count > vec.BITS_PER_WORD)
+		  count = vec.BITS_PER_WORD;
+	    unsigned long mask = count == vec.BITS_PER_WORD
+		  ? ~0UL : (1UL << count) - 1UL;
+	    unsigned long abits = size > vec.BITS_PER_WORD
+		  ? vec.abits_ptr_[idx] : vec.abits_val_;
+	    unsigned long bbits = size > vec.BITS_PER_WORD
+		  ? vec.bbits_ptr_[idx] : vec.bbits_val_;
+	    unsigned long word = abits & mask;
+	    if (bbits & mask)
+		  return false;
 
-      if (!negative) {
-	    for (unsigned idx = 0; idx < vec.size(); idx += 1) {
-		  if (vec.value(idx) != BIT4_1)
-			continue;
-		  if (idx >= 63) {
-			value = LLONG_MAX;
-			return true;
-		  }
-		  magnitude |= uint64_t(1) << idx;
+	    if (base < 64) {
+		  unsigned copy = count < 64 - base ? count : 64 - base;
+		  unsigned long low_mask = copy == vec.BITS_PER_WORD
+			? ~0UL : (1UL << copy) - 1UL;
+		  bits |= uint64_t(word & low_mask) << base;
 	    }
-	    value = static_cast<int64_t>(magnitude);
-	    return true;
-      }
 
-      /* Form the unsigned magnitude of a negative two's-complement value
-	 * without first narrowing it. This also recognizes sign extension, so
-	 * a 128-bit -5 remains exactly -5 while a value below INT64_MIN
-	 * saturates. */
-      bool carry = true;
-      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
-	    bool inverted = vec.value(idx) == BIT4_0;
-	    bool magnitude_bit = inverted != carry;
-	    carry = inverted && carry;
-	    if (!magnitude_bit)
-		  continue;
-	    if (idx > 63) {
-		  value = LLONG_MIN;
-		  return true;
+	    unsigned high = base < 63 ? 63 - base : 0;
+	    if (high < count) {
+		  unsigned long high_mask = mask & (~0UL << high);
+		  if ((word & high_mask) != (negative ? high_mask : 0))
+			  overflow = true;
 	    }
-	    magnitude |= uint64_t(1) << idx;
       }
 
-      if (magnitude >= (uint64_t(1) << 63))
-	    value = LLONG_MIN;
-      else
-	    value = -static_cast<int64_t>(magnitude);
+      if (overflow)
+	    value = negative ? LLONG_MIN : LLONG_MAX;
+      else {
+	    if (negative && size < 64)
+		  bits |= ~uint64_t(0) << size;
+	    value = static_cast<int64_t>(bits);
+      }
       return true;
 }
 

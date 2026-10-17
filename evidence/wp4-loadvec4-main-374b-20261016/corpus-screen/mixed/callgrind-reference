@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name=$(basename "$(dirname "$PWD")")-$(basename "$PWD")
+args=(--quiet --tool=callgrind)
+if [[ "$name" == waveform_fst-* ]]; then args+=(--fair-sched=yes); fi
+exec "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp1-debug-tax-0490e2ff-20261015-r3/tools/root/usr/bin/valgrind" "${args[@]}" \
+  --callgrind-out-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/corpus-screen/mixed/callgrind/$name.callgrind" \
+  --log-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/corpus-screen/mixed/callgrind/$name.valgrind.log" \
+  "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/install/reference/bin/vvp" "$@"

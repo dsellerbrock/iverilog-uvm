@@ -1,0 +1,18 @@
+analyze.py: OK
+ecc_secp384r1-deterministic.c: OK
+mcycle-window-vpi.c: OK
+run_caliptra_top_profile-template.py: OK
+run_caliptra_top_profile.py: OK
+runner-throughput.patch: OK
+source-archive-sha256.txt: OK
+source-base.commit: OK
+source-main.commit: OK
+uvm-core.commit: OK
+source-base.tar.gz: OK
+source-main.tar.gz: OK
+uvm-core.tar.gz: OK
+Traceback (most recent call last):
+  File "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r3-20261016/input/analyze.py", line 71, in <module>
+    assert not log_diffs, f"simulation output differs after removing the timing marker: {log_diffs}"
+           ^^^^^^^^^^^^^
+AssertionError: simulation output differs after removing the timing marker: [('smoke_test_dma_aes_gcm_short_1_dword', 2), ('smoke_test_sha256', 2), ('cptra_ss_test_rom', 1)]

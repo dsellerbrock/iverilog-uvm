@@ -1,0 +1,7 @@
+Slurm job: 2018
+Pinned campaign base: f9f8e0a79f230f38da6cbb4445994ad1075ad531
+Pinned current main before #601: 631b7a869faaa05216d8749224520227b4b23d43
+Pinned #601 evidence head: 3b620c5ea5857ba7c022a7fba058f8a31b7ac564
+Mcycle window: 100-2100 (2,000 cycles)
+Tests: smoke_test_dma_aes_gcm_short_1_dword, smoke_test_sha256, cptra_ss_test_rom
+Schedule: 3 repeats, variants interleaved, taskset pinned to one CPU
