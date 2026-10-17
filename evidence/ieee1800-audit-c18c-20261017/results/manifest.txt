@@ -1,0 +1,4 @@
+HOST=DAN-DESKTOP.localdomain
+UNAME=Linux x86_64
+SOURCE_COMMIT=9b5fad2af
+CC=gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
