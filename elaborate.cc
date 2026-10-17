@@ -35573,12 +35573,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      ivl_type_t mtype = mem ? mem->net_type : nullptr;
 			      const netuarray_t*marray =
 				    dynamic_cast<const netuarray_t*>(mtype);
-			      if (one_level && mem && marray
+			      // shortcut: no nested size/foreach IR; upgrade with owner-aware tokens.
+			      const netdarray_t*mdarray =
+				    dynamic_cast<const netdarray_t*>(mtype);
+			      if (one_level && mem && (marray || mdarray)
 				  && member->index.size() == 1) {
-				    const netranges_t&dims = marray->static_dimensions();
+				    const netranges_t*dims = marray
+					  ? &marray->static_dimensions() : nullptr;
 				    const index_component_t&select =
 					  member->index.front();
-				    ivl_type_t etype = marray->element_type();
+				    ivl_type_t etype = marray ? marray->element_type()
+					  : mdarray->element_type();
 				    ivl_variable_type_t ebase = etype
 					  ? etype->base_type() : IVL_VT_NO_TYPE;
 				    unsigned ewidth = etype && etype->packed()
@@ -35593,15 +35598,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						value_slots, scope, loop_env) : "";
 				    constraint_const_ir_t index;
 				    uint64_t digit = 0;
-				    long low = dims.size() == 1
-					  ? std::min(dims[0].get_msb(),
-						     dims[0].get_lsb()) : 0;
-				    if (dims.size() == 1 && integral
-					  && ewidth > 0
+				    bool selected_element = false;
+				    if (marray && dims->size() == 1
 					  && constraint_parse_const_ir_(index_ir, index)
-					  && index.width <= 64
-					  && constraint_fixed_index_offset_(index,
-						(int64_t)low, dims[0].width(), digit)) {
+					  && index.width <= 64) {
+				      long low = std::min(dims->front().get_msb(),
+					    dims->front().get_lsb());
+				      selected_element = constraint_fixed_index_offset_(index,
+					    (int64_t)low, dims->front().width(), digit);
+				    } else if (mdarray
+					  && constraint_parse_const_ir_(index_ir, index)
+					  && index.width <= 64) {
+				      digit = constraint_resize_const_bits_(
+					    index, 64, index.is_signed);
+				      selected_element = (!index.is_signed
+					  || (int64_t)digit >= 0) && digit <= UINT_MAX;
+				    }
+				    if (integral && ewidth > 0 && selected_element) {
 					  string token = "a:" + to_string(pidx) + ":"
 						+ to_string(midx) + ":"
 						+ to_string(ewidth) + ":"
