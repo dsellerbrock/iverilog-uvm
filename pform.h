@@ -1084,6 +1084,7 @@ extern Statement* pform_make_deferred_assertion(const struct vlltype&loc,
 					 PExpr*expr,
 					 Statement*pass_stmt,
 					 Statement*fail_stmt,
+					 unsigned assertion_kind,
 					 bool is_final);
 extern Statement* pform_make_deferred_cover(const struct vlltype&loc,
 				     PExpr*expr,
