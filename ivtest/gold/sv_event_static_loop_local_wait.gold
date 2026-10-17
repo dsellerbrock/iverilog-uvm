@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_event_static_loop_local_wait.v:27: $finish called at 15 (1s)

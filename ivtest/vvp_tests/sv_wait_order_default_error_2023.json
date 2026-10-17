@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_wait_order_default_error.v",
+  "iverilog-args": ["-g2023", "-s", "sv_wait_order_default_error"],
+  "gold": "sv_wait_order_default_error_json"
+}

@@ -1509,10 +1509,8 @@ class NetScope : public Definitions, public Attrib {
       const std::map<perm_string,NetNet*>& signals_map() const { return signals_map_; };
 
 	/* True when the runtime gives this scope its own automatic call
-	   frame: an automatic subroutine, or a static subroutine/block that
-	   still holds explicitly automatic declarations. Mirrors tgt-vvp's
-	   scope_needs_call_frame(); event state for such a scope lives in
-	   that frame, so events must not be merged across the boundary. */
+	   frame: an automatic subroutine/block with its own frame, or a static
+	   subroutine/block that holds explicitly automatic declarations. */
       bool owns_call_frame() const;
 
         /* Allow tracking of elaboration stages. The three stages are:
@@ -4537,10 +4535,15 @@ class NetEvWait  : public NetProc {
       inline const NetEvent*event(unsigned idx) const { return events_[idx]; }
       inline NetEvent*event(unsigned idx) { return events_[idx]; }
       inline bool has_t0_trigger() const { return has_t0_trigger_; };
+      inline bool is_wait_order() const { return wait_order_; }
+      inline void set_wait_order() { wait_order_ = true; }
 
       NetProc*statement();
       const NetProc*statement() const;
       inline void set_statement(NetProc*s) { statement_ = s; }
+      NetProc*failure_statement() { return failure_statement_; }
+      const NetProc*failure_statement() const { return failure_statement_; }
+      inline void set_failure_statement(NetProc*s) { failure_statement_ = s; }
 
       virtual bool emit_proc(struct target_t*) const override;
       bool emit_recurse(struct target_t*) const;
@@ -4580,9 +4583,12 @@ class NetEvWait  : public NetProc {
 
     private:
       NetProc*statement_;
+	// Present only for wait_order; the absent source else is elaborated to $error.
+      NetProc*failure_statement_ = nullptr;
 	// Events that I might wait for.
       std::vector<NetEvent*>events_;
       bool has_t0_trigger_;
+      bool wait_order_ = false;
 };
 
 std::ostream& operator << (std::ostream&out, const NetEvWait&obj);

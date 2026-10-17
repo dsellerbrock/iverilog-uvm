@@ -1,0 +1,5 @@
+job_id=1261
+state=FAILED
+exit_code=1:0
+runtime=00:00:01
+failure=runner invoked Bash run.sh using python3; SyntaxError stopped before any benchmark execution

@@ -2635,7 +2635,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <parmvalue> parameter_value_opt
 %type <parmvalue> type_parameter_value
 
-%type <event_exprs> event_expression_list
+%type <event_exprs> event_expression_list wait_order_event_list
 %type <event_expr> event_expression
 %type <event_statement> event_control
 %type <statement> statement statement_item statement_or_null
@@ -8702,6 +8702,23 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	p->mc_boundary = 0;
 	p->mc_more = $5;
 	$$ = p; }
+  /* IEEE 1800-2017/2023 16.9.7 and 16.12.7: a same-clock OR antecedent
+     may produce multiple matches, each with its own consequent. Clause
+     16.13.3 permits the later clock-flow chain. Keep this bounded to
+     chains with at least two clock changes; the lowering preserves each
+     fixed OR-branch match as a separate obligation. */
+  | sva_seq_comb K_PIPE_IMPL_NOV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 2, $1, $3, $4, $5); }
+  | sva_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 1, $1, $3, $4, $5); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_NOV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 2, $1, $3, $4, $5); }
+  | sva_grouped_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
+      { $$ = pform_sva_multiclock_comb_antecedent(
+		@2, 1, $1, $3, $4, $5); }
   /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
   | K_not '(' property_expr ')'
@@ -10731,6 +10748,18 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->members .reset($4);
 	$$ = tmp;
       }
+  /* IEEE 1800-2023 7.3.1: soft packed unions allow different member
+     widths, and `packed` is optional when `soft` is present. */
+  | K_union K_soft packed_signing '{' struct_union_member_list '}'
+      { struct_type_t*tmp = new struct_type_t;
+	FILE_NAME(tmp, @1);
+	tmp->packed_flag = true;
+	tmp->signed_flag = $3.signed_flag;
+	tmp->union_flag = true;
+	tmp->soft_flag = true;
+	tmp->members .reset($5);
+	$$ = tmp;
+      }
   /* Tagged union — IEEE 1800-2017 §7.3.2.  Currently parses and lowers to
      a regular union; tag values and pattern-matching are not enforced.
      Without this rule, real testbenches that use `union tagged { ... }`
@@ -11467,6 +11496,26 @@ event_expression_list
   | event_expression_list ',' event_expression
       { $1->push_back($3);
 	$$ = $1;
+      }
+  ;
+
+wait_order_event_list
+  : hierarchy_identifier
+      { PEIdent*id = new PEIdent(*$1, @1.lexical_pos);
+	FILE_NAME(id, @1);
+	PEEvent*event = new PEEvent(PEEvent::ANYEDGE, id);
+	FILE_NAME(event, @1);
+	$$ = new std::vector<PEEvent*>(1, event);
+	delete $1;
+      }
+  | wait_order_event_list ',' hierarchy_identifier
+      { PEIdent*id = new PEIdent(*$3, @3.lexical_pos);
+	FILE_NAME(id, @3);
+	PEEvent*event = new PEEvent(PEEvent::ANYEDGE, id);
+	FILE_NAME(event, @3);
+	$1->push_back(event);
+	$$ = $1;
+	delete $3;
       }
   ;
 
@@ -19302,6 +19351,28 @@ statement_item /* This is roughly statement_item in the LRM */
 	tmp = new PEventStatement(etmp);
 	FILE_NAME(tmp,@1);
 	tmp->set_statement($5);
+	$$ = tmp;
+      }
+  | K_wait_order '(' wait_order_event_list ')' statement_or_null
+    K_else statement_or_null
+      { PEventStatement*tmp = new PEventStatement(*$3);
+	FILE_NAME(tmp,@1);
+	tmp->set_statement($5);
+	tmp->set_wait_order_else($7);
+	if (generation_flag < GN_VER2023 && dynamic_cast<PNoop*>($7))
+	      yyerror(@6, "error: empty wait_order else action requires IEEE 1800-2023.");
+	pform_requires_sv(@1, "wait_order statement");
+	delete $3;
+	$$ = tmp;
+      }
+  | K_wait_order '(' wait_order_event_list ')' statement_or_null
+    %prec less_than_K_else
+      { PEventStatement*tmp = new PEventStatement(*$3);
+	FILE_NAME(tmp,@1);
+	tmp->set_statement($5);
+	tmp->set_wait_order();
+	pform_requires_sv(@1, "wait_order statement");
+	delete $3;
 	$$ = tmp;
       }
   | K_wait K_fork ';'

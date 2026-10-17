@@ -272,6 +272,7 @@ extern bool of_END(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT(vthread_t thr, vvp_code_t code);
 extern bool of_EVTEST(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_NB(vthread_t thr, vvp_code_t code);
+extern bool of_FUNCTION_DEFERRED_CHECK(vthread_t thr, vvp_code_t code);
 extern bool of_EVT_ARR(vthread_t thr, vvp_code_t code);
 extern bool of_EVT_ARR_NB(vthread_t thr, vvp_code_t code);
 extern bool of_EVTEST_ARR(vthread_t thr, vvp_code_t code);
@@ -696,6 +697,7 @@ extern bool of_VPI_CALL(vthread_t thr, vvp_code_t code);
 extern bool of_VIF_FATAL(vthread_t thr, vvp_code_t code);
 extern bool of_VIF_TICKCHG(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_ORDER(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_FORK(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t code);
@@ -742,6 +744,24 @@ struct vvp_container_opcode_data_s {
       class __vpiHandle*prototype;
 };
 
+struct vvp_wait_order_opcode_data_s;
+
+struct vvp_property_index_dim_s {
+      bool is_signed;
+      int64_t low;
+      uint64_t width;
+      uint64_t stride;
+};
+
+struct vvp_property_index_opcode_data_s {
+      bool valid;
+      unsigned count;
+      vvp_property_index_dim_s*dims;
+};
+
+extern vvp_property_index_opcode_data_s*
+      vvp_property_index_compile(const char*text);
+
 /*
  * This is the format of a machine code instruction.
  */
@@ -757,6 +777,8 @@ struct vvp_code_s {
 	    __vpiScope*scope;
 	    const char*text;
 	    struct vvp_container_opcode_data_s*container_data;
+	    struct vvp_wait_order_opcode_data_s*wait_order_data;
+	    struct vvp_property_index_opcode_data_s*property_index_data;
       };
 
       union {
@@ -765,6 +787,11 @@ struct vvp_code_s {
 	    vvp_code_t   cptr2;
 	    class ufunc_core*ufunc_core_ptr;
       };
+};
+
+struct vvp_wait_order_opcode_data_s {
+      vvp_net_t*observer;
+      struct vvp_code_s branches;
 };
 
 /*

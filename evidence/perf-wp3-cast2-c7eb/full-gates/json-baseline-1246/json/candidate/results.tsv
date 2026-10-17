@@ -1,0 +1,17 @@
+test	exit_code	wall_seconds	result
+sv_assoc_default_expression_contexts	1	0.057	Failed - Gold output doesn't match actual output.
+sv_assoc_explicit_pattern_opentitan	1	0.046	Failed - Gold output doesn't match actual output.
+sv_assoc_explicit_pattern_opentitan_2023	1	0.045	Failed - Gold output doesn't match actual output.
+sv_assoc_fixed_prefix_pattern	1	0.050	Failed - Gold output doesn't match actual output.
+sv_assoc_fixed_prefix_pattern_2023	1	0.047	Failed - Gold output doesn't match actual output.
+sv_commercial_unsafe_fail	1	0.045	Failed - CE (Gold file doesn't match output).
+sv_commercial_unsafe_fail_2023	1	0.040	Failed - CE (Gold file doesn't match output).
+sv_constraint_clog2_unsupported	1	0.043	Failed - CE (Gold file doesn't match output).
+sv_constraint_clog2_unsupported_2023	1	0.040	Failed - CE (Gold file doesn't match output).
+sv_queue_darray_state_compat_fail	1	0.044	Failed - CE (Gold file doesn't match output).
+sv_queue_darray_state_compat_fail_2023	1	0.042	Failed - CE (Gold file doesn't match output).
+sv_ref_event_relay	1	0.042	Failed - Compile failed.
+sv_ref_event_relay_2023	1	0.041	Failed - Compile failed.
+sv_type_this	1	0.046	Failed - Gold output doesn't match actual output.
+sv_type_this_2017	1	0.040	Failed - CE (Gold file doesn't match output).
+sv_type_this_outside_class	1	0.041	Failed - CE (Gold file doesn't match output).

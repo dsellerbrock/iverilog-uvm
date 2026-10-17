@@ -1,0 +1,8 @@
+command: ~/codex-supervisor/localrun 5400 /Users/danielellerbrock/codex-supervisor/evidence/a3-m5-issue447-disable-iff-edge-20261015/run-local-t0-t1.sh
+exit: 0
+wall: 487.67 s
+peak RSS: 1,269,596,160 bytes
+build: Icarus Verilog source commit faf93ff5540c77b8c96d1caf2dffb2e286639785 (test fixtures included), clang 21.0.0, Bison 3.8.2, Autoconf 2.73; make -j2
+T0 issue tests: 8/8 legacy, 8/8 JSON/VVP
+T0 smoke: pass
+T1 fixed multiclock control: 30/30 legacy, 30/30 JSON/VVP

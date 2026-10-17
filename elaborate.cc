@@ -11549,6 +11549,10 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       return blk;
 }
 
+static NetProc*guard_function_background_event_(NetScope*scope,
+						const LineInfo&loc,
+						NetProc*statement);
+
 NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -11604,7 +11608,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  NetProc*drive = elaborate_clocking_output_drive_(
 			des, scope, lid, rval(), *this, clocking_drive_handled);
 		  if (clocking_drive_handled)
-			return drive;
+			return guard_function_background_event_(scope, *this, drive);
 	    }
       }
 
@@ -11704,8 +11708,9 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			bool reverse_src = uarray_ranges_need_reverse_(
 			      lv_uarray->static_dimensions()[0],
 			      src.remaining_dims[0]);
-			return make_uarray_prefix_copy_(scope, *this, lv, src,
-						 reverse_src, true);
+			return guard_function_background_event_(scope, *this,
+				make_uarray_prefix_copy_(scope, *this, lv, src,
+						 reverse_src, true));
 		  }
 
 		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
@@ -11747,8 +11752,9 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
                                     uarray_prefix_source_t whole;
                                     whole.sig = sr.net;
                                     whole.count = sr.net->unpacked_count();
-                                    return make_uarray_prefix_copy_(
-                                          scope, *this, lv, whole, reverse_src, true);
+					return guard_function_background_event_(scope, *this,
+					      make_uarray_prefix_copy_(scope, *this, lv, whole,
+							      reverse_src, true));
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -11766,9 +11772,10 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			      bool reverse_src = uarray_ranges_need_reverse_(
 				    lv_uarray->static_dimensions()[0],
 				    sr.net->unpacked_dims()[0]);
-			      return make_uarray_copy_loop_(
-				    des, scope, *this, lv, sr.net->unpacked_count(),
-				    sr.net, 0, true, 0, 0, reverse_src);
+			      return guard_function_background_event_(scope, *this,
+				    make_uarray_copy_loop_(
+					des, scope, *this, lv, sr.net->unpacked_count(),
+					sr.net, 0, true, 0, 0, reverse_src));
 			}
 		  }
 	    }
@@ -11831,7 +11838,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  if (blk) {
 			delete lv;
 			delete rv;
-			return blk;
+			return guard_function_background_event_(scope, *this, blk);
 		  }
 		    /* A pattern the elaborator already complained about
 		       (wrong entry count, bad element type) lands here
@@ -11958,7 +11965,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssignNB*cur = new NetAssignNB(lv, rv, event, count);
       cur->set_delay(delay);
       cur->set_line(*this);
-      return cur;
+      return guard_function_background_event_(scope, *this, cur);
 }
 
 
@@ -11978,6 +11985,25 @@ static bool scope_is_within_function_(const NetScope*scope)
 	    scope = scope->parent();
       }
       return false;
+}
+
+static NetProc*guard_function_background_event_(NetScope*scope,
+						const LineInfo&loc,
+						NetProc*statement)
+{
+      if (!statement || !scope_is_within_function_(scope))
+	    return statement;
+
+      vector<NetExpr*>args;
+      NetSTask*guard = new NetSTask("$ivl_function_background_guard",
+					    IVL_SFUNC_AS_TASK_IGNORE, args);
+      guard->set_line(loc);
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(loc);
+      block->append(guard);
+      block->append(statement);
+      return block;
 }
 
 NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
@@ -12225,10 +12251,15 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    scope->calls_sys_task(true);
 
       cur->set_line(*this);
+      const bool needs_function_background_guard =
+	    type == NetBlock::PARA_JOIN_NONE
+	    && scope_is_within_function_(scope) && cur->proc_first();
       if (prefix) {
 	    prefix->set_line(*this);
 	    if (cur->proc_first())
-		  prefix->append(cur);
+		  prefix->append(needs_function_background_guard
+				 ? guard_function_background_event_(scope, *this, cur)
+				 : cur);
 	    else
 		  delete cur;
 	    NetFree*fp = new NetFree(nscope);
@@ -12236,7 +12267,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    prefix->append(fp);
 	    return prefix;
       }
-      return cur;
+      return needs_function_background_guard
+	    ? guard_function_background_event_(scope, *this, cur) : cur;
 }
 
 NetProc* PNoop::elaborate(Design*, NetScope*) const
@@ -23976,6 +24008,11 @@ NetProc* PEventStatement::elaborate_wait_fork(Design*des, const NetScope*scope) 
 
 NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 {
+	/* wait_order uses named-event identifiers and has two continuations, so
+	   it must not pass through the ordinary event-or lowering below. */
+      if (wait_order_)
+	    return elaborate_wait_order_(des, scope);
+
 	/* Check to see if this is a wait fork statement. */
       if ((expr_.size() == 1) && (expr_[0] == 0))
 		  return elaborate_wait_fork(des, scope);
@@ -24062,6 +24099,70 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    return elaborate_wait(des, scope, enet);
 
       return elaborate_st(des, scope, enet);
+}
+
+NetProc* PEventStatement::elaborate_wait_order_(Design*des,
+						NetScope*scope) const
+{
+      ivl_assert(*this, scope);
+
+      if (scope->in_func() || scope->in_final()) {
+	    cerr << get_fileline() << ": error: wait_order is not allowed in "
+	            "functions or final procedures." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      std::vector<NetEvent*>events;
+      for (PEEvent*event : expr_) {
+	    const PEIdent*id = event && event->expr()
+		  ? dynamic_cast<const PEIdent*>(event->expr()) : nullptr;
+	    prepared_event_leaf_t prepared;
+	    unsigned errors_before = des->errors;
+	    if (id)
+		  prepare_event_leaf_(des, scope, *event, event, prepared);
+	    if (des->errors != errors_before)
+		  return nullptr;
+	    if (!id || event->type() != PEEvent::ANYEDGE
+		|| !prepared.named_event || prepared.class_event) {
+		  cerr << get_fileline() << ": error: wait_order currently requires "
+		          "scalar named-event identifiers." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    events.push_back(prepared.named_event);
+      }
+
+      NetProc*success = statement_
+	    ? statement_->elaborate(des, scope)
+	    : new NetBlock(NetBlock::SEQU, nullptr);
+      if (!success)
+	    return nullptr;
+
+      NetProc*failure = nullptr;
+      if (wait_order_else_) {
+	    failure = else_statement_
+		  ? else_statement_->elaborate(des, scope)
+		  : new NetBlock(NetBlock::SEQU, nullptr);
+	    if (!failure) {
+		  delete success;
+		  return nullptr;
+	    }
+      } else {
+	    std::vector<NetExpr*>args;
+	    args.push_back(new NetECString("wait_order events triggered out of order"));
+	    NetSTask*default_error = new NetSTask("$error", IVL_SFUNC_AS_TASK_IGNORE, args);
+	    default_error->set_line(*this);
+	    failure = default_error;
+      }
+
+      NetEvWait*wait = new NetEvWait(success);
+      wait->set_line(*this);
+      wait->set_wait_order();
+      wait->set_failure_statement(failure);
+      for (NetEvent*event : events)
+	    wait->add_event(event);
+      return wait;
 }
 
 /*
@@ -26195,7 +26296,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
 		  trig->set_line(*this);
-		  return trig;
+		  return guard_function_background_event_(scope, *this, trig);
 	    }
       }
 
@@ -26208,7 +26309,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, true, dly);
 		  trig->set_line(*this);
-		  return trig;
+		  return guard_function_background_event_(scope, *this, trig);
 	    }
       }
 
@@ -26257,7 +26358,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
       if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
       NetEvNBTrig*trig = new NetEvNBTrig(eve, dly);
       trig->set_line(*this);
-      return trig;
+      return guard_function_background_event_(scope, *this, trig);
 }
 
 /*
@@ -26301,6 +26402,21 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       NetProcTop*top=new NetProcTop(scope, type(), cur);
       ivl_assert(*this, top);
       top->generated_verification(is_generated_verification());
+      if (!is_generated_verification()) {
+	    switch (type()) {
+		case IVL_PR_INITIAL:
+		case IVL_PR_ALWAYS:
+		case IVL_PR_ALWAYS_COMB:
+		case IVL_PR_ALWAYS_FF:
+		case IVL_PR_ALWAYS_LATCH:
+		      top->attribute(
+			    perm_string::literal("_ivl_function_background_ok"),
+			    verinum(1));
+		      break;
+		case IVL_PR_FINAL:
+		      break;
+	    }
+      }
 
 	// Evaluate the attributes for this process, if there
 	// are any. These attributes are to be attached to the
@@ -26310,8 +26426,16 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       attrib_list = evaluate_attributes(attributes, attrib_list_n, des, scope);
 
       for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
-	    top->attribute(attrib_list[adx].key,
-			   attrib_list[adx].val);
+	    if (attrib_list[adx].key == "_ivl_function_background_ok") {
+		  /* This marker grants language semantics and must not be forgeable. */
+		  cerr << get_fileline() << ": error: attribute `"
+		       << attrib_list[adx].key
+		       << "` is reserved for compiler use." << endl;
+		  des->errors += 1;
+	    } else {
+		  top->attribute(attrib_list[adx].key,
+				 attrib_list[adx].val);
+	    }
 
       delete[]attrib_list;
 

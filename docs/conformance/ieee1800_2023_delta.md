@@ -9,6 +9,14 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+Soft packed unions are supported for the tested subset of IEEE 1800-2023
+§7.3.1 and Syntax 7-2. `soft` permits different packed member widths; the
+union width is the widest member, each view is right-justified, and a narrow
+member write preserves the remaining union bits. Both `union soft packed` and
+`union soft` are covered. The paired regressions accept this syntax in
+`-g2023`, reject it in `-g2017`, and reject a non-packed member. This is a
+focused feature record, not full §7.3.1 qualification.
+
 The 2023-only class-constructor `default` argument, `super.new(default)`
 chaining, and `extends Base(default)` form are tracked in the
 [paired constructor clause record](matrices/ieee1800_2017_clause_matrix.md#october-14-2026--class-constructor-default-arguments).
@@ -178,9 +186,33 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 | 16 | `$stacktrace` standardized (task + string function) | CERTAIN | task and string-function forms implemented; edition-gated to 2023 (§20.17.2) | S |
 | 17 | Preprocessor conditional identifiers and boolean form (syntax 22-5) | CERTAIN | Parenthesized 2023 expressions are under #460; plain escaped `text_macro_identifier` support in both editions is separately under #468. Focused candidate evidence and boundaries are recorded in the [paired clause record](matrices/ieee1800_2017_clause_matrix.md#2026-10-08-ieee-1800-225-escaped-conditional-identifiers); PR/CI pending | M |
 | 18 | `weak_reference#(T)` | CERTAIN | UNSUPPORTED; needs GC/refcount hooks | L |
-| 19 | `rand real` | CERTAIN | FOCUSED IMPLEMENTATION: scalar finite-interval constraints and real solve-before; broader real-solving shapes remain open (2026-10-07) | L |
+| 19 | `rand real` | CERTAIN | FOCUSED IMPLEMENTATION: scalar finite-interval constraints, real solve-before, and scalar finite constant-point `dist` items with static weights. Tests cover `:=`, `:/`, mixed integral/real points, zero weight, weighted selection, infeasible points and rollback; real ranges remain unsupported but fail with rollback. Strict 2017 rejection remains covered. Real ranges, defaults, dynamic weights and array/aggregate real leaves remain open (2026-10-15; IEEE 1800-2023 §§18.4, 18.5.3; 2017 §§18.4, 18.5.4) | L |
 | 20 | Tolerance range operators `[a +/- b]`, `[a +%- b]` | CERTAIN | UNSUPPORTED by grammar inspection | S–M |
 | 21 | Relational/equality results formally sized 1-bit | CERTAIN (clarification) | already conformant ($bits probes = 1) | N/A |
+
+## Paired `rand real` point-distribution checkpoint (2026-10-15)
+
+IEEE 1800-2023 §18.4 permits randomization of singular real variables and
+prohibits `randc` real variables. Section 18.5.3 permits distributions over
+real values and ranges, allows `:=` for a single real value, and requires
+real ranges to use `:/` with an explicit weight. IEEE 1800-2017 §18.4 limits
+singular random variables to integral types, and §18.5.4 limits distribution
+expressions to integral expressions.
+
+The focused increment samples direct scalar real properties from finite
+constant point items with explicit static weights. The registered test
+exercises both weight operators on points, mixed integral and real point items,
+a zero-weight point, the 1:3 weighting, an infeasible point set, and failure
+rollback. A valid weighted real range using `:/` remains outside the implemented subset
+and is checked for deterministic failure and rollback. The test also verifies
+that an unsupported range is not ignored after a point distribution pins the
+same property. Real ranges, defaults, dynamic weights, and arrays or aggregates
+containing real leaves remain open. Section 18.5.3 gives an implicit weight of
+1 for integral items but does not specify one for a bare real point; the
+current shared lowering assigns 1 in that case, an Icarus interpretation
+outside this qualified subset.
+The red baseline on `c7ebca768` reported that real-valued `dist` sampling was
+unsupported; the focused legacy and JSON suites pass on the implementation.
 
 ## Paired clause-19 checkpoint (2026-08-26)
 
@@ -382,7 +414,7 @@ The 2023 enum, increment/decrement and packed-select clauses share the implement
 
 ## L92 shared assertion-control evidence
 
-The 2023 assertion-control semantics share the implementation in the [2017 matrix L92 entry](matrices/ieee1800_2017_clause_matrix.md#l92--fixed-multiclock-assertion-control), with separate edition regressions.
+The 2023 assertion-control semantics share the implementation in the [2017 matrix L92 entry](matrices/ieee1800_2017_clause_matrix.md#l92--fixed-multiclock-assertion-control), with separate edition regressions. The paired §16.12 boundary fixtures assert disable by NBA on the first antecedent edge, release it before later clocks, and assert it by NBA again on the final consequent edge. Matching no-disable controls fail. §§4.4.2.4 and 4.4.2.5 establish that NBA updates precede Observed-region evaluation; exact-head Slurm evidence is recorded in the [L92 qualification record](matrices/ieee1800_2017_clause_matrix.md#october-15-2026--multiclock-disable-iff-with-fixed-or-antecedents).
 
 L93 uses the same 6.16.11–6.16.15 and 13.4.3 requirements in 2023; [paired evidence](session_logs/2026-09-15_constant_string_formatting_validation.json) records edition-specific tests.
 
@@ -640,3 +672,28 @@ pure-final rejection, matching/mismatched extern declarations, and the 2017
 edition boundary. T0/T1 evidence is recorded with the issue branch; batch T2
 is pending, so this is a focused implementation record, not full §18.5
 qualification.
+
+## 2026-10-15 — §15.5.4 `wait_order` edition boundary
+
+IEEE 1800-2017 and 1800-2023 §15.5.4 use the same ordered-trigger and failure
+semantics. The 2017 syntax requires a statement after `else`; 2023 permits a
+null statement. With no `else`, 2017 specifies a run-time error while 2023
+specifies the default `$error` action. Paired `-g2017`/`-g2023` fixtures cover
+the supported named-event subset and reject `else ;` only in 2017. The
+duplicate-identifier behavior is in a separate implementation-interpretation
+fixture because §15.5.4 does not define it. The
+current-head T0 Slurm job 1412 on
+`51ee4ff8bb745d87f243fa39b0550e27a160019d` passed 6/6 legacy and 6/6 strict
+JSON/VVP cases plus smoke (compiler 56/56, VPI 131/131, negative tests
+152/152; Slurm `ExitCode=0:0`). The build took 2:23.42 and peaked at
+1,757,876 KiB RSS. Added tests cover opposite outcomes from automatic-event
+invocations, one trigger completing one waiter while failing another, and
+cancellation followed by a fresh invocation. Graph-selected T1 Slurm job 1265
+passed 10/10 legacy and 10/10 JSON/VVP cases on implementation commit
+`15ca10f07500caae118ddd998d8b9351f7c1e8de`; implementation code is unchanged
+since that run. Exact-head Fast Linux run 38817316300 passed. The PR's prior
+Windows run 38814828764 targets an older head; a fresh exact-head Windows run
+and batch T2 remain pending.
+See the [2017 clause matrix](matrices/ieee1800_2017_clause_matrix.md#october-15-bounded-wait_order-subset)
+for the tested boundary; merged event assignment remains a separate
+§15.5.5.1 limitation.

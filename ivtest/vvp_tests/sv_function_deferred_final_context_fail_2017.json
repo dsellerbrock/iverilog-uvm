@@ -1,0 +1,8 @@
+{
+  "type": "RE",
+  "source": "sv_function_deferred_final_context_fail.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_function_deferred_final_context_fail"
+}

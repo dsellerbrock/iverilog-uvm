@@ -1,0 +1,5 @@
+reference.tar.gz: OK
+candidate.tar.gz: OK
+libc6-dbg_2.43-2ubuntu2.4_amd64.deb: OK
+valgrind_1%3a3.26.0-0ubuntu1_amd64.deb: OK
+sha256sum: /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp1-debug-tax-0490e2ff-20261015-r3/results/callgrind: Is a directory

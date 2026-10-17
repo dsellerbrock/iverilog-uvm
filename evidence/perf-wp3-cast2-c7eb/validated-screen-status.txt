@@ -1,0 +1,7 @@
+campaign_pinned_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+instruction_screen=one pair per benchmark; waveform_fst pair from isolated successful retry job 1239
+behav_improvement_pct=14.079590
+largest_other_regression_pct=0.000000
+all_18_outputs_identical=yes
+qualifies=yes

@@ -1,0 +1,259 @@
+#! /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/bin/vvp
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/lib/ivl/system.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/lib/ivl/va_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/lib/ivl/v2009.vpi";
+S_0x7d1cf08fa010 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x7d1cf08fa070 .scope module, "sv_class_unpacked_property_index_4state" "sv_class_unpacked_property_index_4state" 3 1;
+ .timescale 0 0;
+C0x623420986d90  .class "matrix_t" "sv_class_unpacked_property_index_4state.matrix_t" [1]
+   0: "values", "q0:L8" [1:0]
+ ;
+v0x7d1cf08d9050_0 .var "actual", 7 0;
+v0x7d1cf08d9050_0 .vpi_source_location 3 14;
+v0x7d1cf08d9070_0 .var "expected", 7 0;
+v0x7d1cf08d9070_0 .vpi_source_location 3 14;
+v0x7d1cf08d9090_0 .var/2u "malformed", 0 0;
+v0x7d1cf08d9090_0 .vpi_source_location 3 13;
+v0x7d1cf08d90b0_0 .var/cobj "matrix", TC0x623420986d90;
+v0x7d1cf08d90b0_0 .vpi_source_location 3 12;
+v0x7d1cf08d90d0 .array "patterns", 15 0, 1 0;
+S_0x7d1cf08fa190 .scope begin.ctx, "$unm_blk_2" "$unm_blk_2" 3 28, 3 28 0, S_0x7d1cf08fa070;
+ .timescale 0 0;
+v0x7d1cf08d9030_0 .var/2s ^"idx", 31 0;
+v0x7d1cf08d9030_0 .vpi_source_location 3 28;
+S_0x7d1cf08fa0d0 .scope class, "matrix_t" "matrix_t" 3 2, 3 2 0, S_0x7d1cf08fa070;
+ .timescale 0 0;
+S_0x7d1cf08fa130 .scope autofunction.obj, "new" "new" 3 5, 3 5 0, S_0x7d1cf08fa0d0;
+ .timescale 0 0;
+v0x7d1cf08d9010_0 .var/cobj "@", TC0x623420986d90;
+v0x7d1cf08d9010_0 .vpi_source_location 3 5;
+TD_sv_class_unpacked_property_index_4state.matrix_t.new ;
+    %load/obj v0x7d1cf08d9010_0;
+    %test_nul/obj;
+    %jmp/1 T_0.2, 4;
+    %pushi/vec4 1, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 2, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %jmp/1xz T_0.4, 8; fixed property slot is X/Z
+    %jmp/0xz T_0.4, 9; fixed property slot is OOB
+    %pushi/vec4 19, 0, 8;
+    %pad/u 8;
+    %store/prop/v/i 0, 4, 8; Store in logic property values
+    %pop/obj 1, 0;
+    %jmp T_0.3;
+T_0.4;
+    %pushi/vec4 19, 0, 8;
+    %pop/vec4 1; discard invalid-slot RHS
+    %vpi_call/w 3 6 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 1, 0; invalid fixed slot receiver
+    %jmp T_0.3;
+T_0.2;
+    %pop/obj 1, 0;
+T_0.3;
+    %load/obj v0x7d1cf08d9010_0;
+    %test_nul/obj;
+    %jmp/1 T_0.7, 4;
+    %pushi/vec4 0, 0, 64;
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 2, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %jmp/1xz T_0.9, 8; fixed property slot is X/Z
+    %jmp/0xz T_0.9, 9; fixed property slot is OOB
+    %pushi/vec4 3, 0, 8;
+    %pad/u 8;
+    %store/prop/v/i 0, 4, 8; Store in logic property values
+    %pop/obj 1, 0;
+    %jmp T_0.8;
+T_0.9;
+    %pushi/vec4 3, 0, 8;
+    %pop/vec4 1; discard invalid-slot RHS
+    %vpi_call/w 3 7 "$warning", "fixed unpacked-array property index is undefined or out of range; write was ignored" {0 0 0 0};
+    %pop/obj 1, 0; invalid fixed slot receiver
+    %jmp T_0.8;
+T_0.7;
+    %pop/obj 1, 0;
+T_0.8;
+    %end;
+    .scope S_0x7d1cf08fa070;
+T_1 ;
+    %pushi/vec4 0, 0, 2;
+    %ix/load 4, 0, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 1, 0, 2;
+    %ix/load 4, 1, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 2, 0, 2;
+    %ix/load 4, 2, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 3, 0, 2;
+    %ix/load 4, 3, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 1, 1, 2;
+    %ix/load 4, 4, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 0, 1, 2;
+    %ix/load 4, 5, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 2, 2, 2;
+    %ix/load 4, 6, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 3, 2, 2;
+    %ix/load 4, 7, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 2, 3, 2;
+    %ix/load 4, 8, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 0, 2, 2;
+    %ix/load 4, 9, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 1, 2, 2;
+    %ix/load 4, 10, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 1, 3, 2;
+    %ix/load 4, 11, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 3, 3, 2;
+    %ix/load 4, 12, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 0, 3, 2;
+    %ix/load 4, 13, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 3, 1, 2;
+    %ix/load 4, 14, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %pushi/vec4 2, 1, 2;
+    %ix/load 4, 15, 0;
+    %flag_set/imm 4, 0;
+    %store/vec4a v0x7d1cf08d90d0, 4, 0;
+    %alloc S_0x7d1cf08fa130;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x623420986d90;
+    %store/obj v0x7d1cf08d9010_0;
+    %callf/obj TD_sv_class_unpacked_property_index_4state.matrix_t.new, S_0x7d1cf08fa130;
+    %load/obj v0x7d1cf08d9010_0;
+    %free S_0x7d1cf08fa130;
+    %store/obj v0x7d1cf08d90b0_0;
+    %vpi_func 3 26 "$test$plusargs" 32, "MALFORMED" {0 0 0 0};
+    %cast2;
+    %pad/s 1;
+    %store/vec4 v0x7d1cf08d9090_0, 0, 1;
+    %alloc S_0x7d1cf08fa190;
+    %fork t_1, S_0x7d1cf08fa190;
+    %jmp t_0;
+    .scope S_0x7d1cf08fa190;
+t_1 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7d1cf08d9030_0, 0, 32;
+T_1.0 ; Top of for-loop
+    %load/vec4 v0x7d1cf08d9030_0;
+    %cmpi/s 16, 0, 32;
+	  %jmp/0xz T_1.1, 5;
+    %pushi/vec4 255, 255, 8;
+    %store/vec4 v0x7d1cf08d9070_0, 0, 8;
+    %load/vec4 v0x7d1cf08d9090_0;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_1.3, 8;
+    %ix/getv/s 4, v0x7d1cf08d9030_0;
+    %load/vec4a v0x7d1cf08d90d0, 4;
+    %dup/vec4;
+    %pushi/vec4 0, 0, 2;
+    %cmp/u;
+    %jmp/1 T_1.5, 6;
+    %dup/vec4;
+    %pushi/vec4 1, 0, 2;
+    %cmp/u;
+    %jmp/1 T_1.6, 6;
+    %pop/vec4 1;
+    %jmp T_1.8;
+T_1.5 ;
+    %pop/vec4 1;
+    %pushi/vec4 3, 0, 8;
+    %store/vec4 v0x7d1cf08d9070_0, 0, 8;
+    %jmp T_1.8;
+T_1.6 ;
+    %pop/vec4 1;
+    %pushi/vec4 19, 0, 8;
+    %store/vec4 v0x7d1cf08d9070_0, 0, 8;
+    %jmp T_1.8;
+T_1.8 ;
+T_1.3 ;
+    %ix/getv/s 5, v0x7d1cf08d9030_0;
+    %load/vec4a v0x7d1cf08d90d0, 5;
+    %prop/index/check "1|bad";
+    %dup/vec4; fixed property slot index
+    %ix/vec4 4; fixed property slot word
+    %flag_mov 8, 4; fixed property slot X/Z
+    %cmpi/u 2, 0, 64; fixed property slot in range
+    %flag_mov 9, 5; fixed property slot in range
+    %load/obj v0x7d1cf08d90b0_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_1.9, 4;
+    %jmp/1xz T_1.9, 8; invalid fixed property slot
+    %jmp/0xz T_1.9, 9; fixed property slot out of range
+    %prop/v/i 0, 4;
+    %pop/obj 1, 0;
+    %jmp T_1.10;
+T_1.9;
+    %pop/obj 1, 0;
+    %pushi/vec4 255, 255, 8;
+T_1.10;
+    %store/vec4 v0x7d1cf08d9050_0, 0, 8;
+    %load/vec4 v0x7d1cf08d9050_0;
+    %load/vec4 v0x7d1cf08d9070_0;
+    %cmp/ne;
+    %jmp/0xz  T_1.11, 6;
+    %vpi_call/w 3 38 "$fatal", 32'sb00000000000000000000000000000001, "index pattern %b: got %h expected %h", &A<v0x7d1cf08d90d0, v0x7d1cf08d9030_0 >, v0x7d1cf08d9050_0, v0x7d1cf08d9070_0 {0 0 0 0};
+T_1.11 ;
+T_1.2 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7d1cf08d9030_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7d1cf08d9030_0, 0, 32;
+    %jmp T_1.0;
+T_1.1 ; for-loop exit label
+    %end;
+    .scope S_0x7d1cf08fa070;
+t_0 %join;
+    %free S_0x7d1cf08fa190;
+    %vpi_call/w 3 42 "$display", "PASSED" {0 0 0 0};
+    %end;
+    .thread T_1;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "sv_class_unpacked_property_index_4state.v";

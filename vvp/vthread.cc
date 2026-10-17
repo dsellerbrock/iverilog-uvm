@@ -850,6 +850,7 @@ struct vthread_s {
       unsigned i_am_detached     :1;
       unsigned i_am_waiting      :1;
       unsigned i_am_in_function  :1; // True if running function code
+      unsigned function_deferred_events_allowed :1;
       unsigned i_have_ended      :1;
       unsigned i_was_disabled    :1;
       unsigned waiting_for_event :1;
@@ -10352,6 +10353,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->i_am_detached = 0;
       thr->i_am_waiting  = 0;
       thr->i_am_in_function = 0;
+      thr->function_deferred_events_allowed = 0;
       thr->is_scheduled  = 0;
       thr->flow_pending  = 0;
       thr->i_have_ended  = 0;
@@ -10960,6 +10962,15 @@ void vthread_cancel_resource_wait(vthread_t thr)
 	/* keep_alive releases the owner here, after the unlink is complete. */
 }
 
+void vthread_resume_resource_wait(vthread_t thr, void*owner_id, vvp_code_t pc)
+{
+      vvp_object_t keep_alive;
+      if (!vthread_claim_resource_wait(thr, owner_id, keep_alive))
+	    return;
+      thr->pc = pc;
+      schedule_vthread(thr, 0, true);
+}
+
 void vthread_cancel_mutation_wait(vthread_t thr)
 {
       if (!thr)
@@ -11038,6 +11049,12 @@ void vthread_mark_final(vthread_t thr)
 	    thr->i_am_in_function = 1;
 	    thr = thr->wait_next;
       }
+}
+
+void vthread_mark_function_background_ok(vthread_t thr)
+{
+      if (thr)
+	    thr->function_deferred_events_allowed = 1;
 }
 
 void vthread_delay_delete()
@@ -14375,6 +14392,8 @@ class lazy_scope_name_s {
 
 static bool do_callf_void(vthread_t thr, vthread_t child)
 {
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       callf_depth++;
       __vpiScope*caller_scope = thr->parent_scope;
       __vpiScope*child_scope = child->parent_scope;
@@ -15308,19 +15327,7 @@ bool of_CASSIGN_WR(vthread_t thr, vvp_code_t cp)
 bool of_CAST2(vthread_t thr, vvp_code_t)
 {
       vvp_vector4_t&val = thr->peek_vec4();
-      unsigned wid = val.size();
-
-      for (unsigned idx = 0 ; idx < wid ; idx += 1) {
-	    switch (val.value(idx)) {
-		case BIT4_0:
-		case BIT4_1:
-		  break;
-		default:
-		  val.set_bit(idx, BIT4_0);
-		  break;
-	    }
-      }
-
+      val.cast2();
       return true;
 }
 
@@ -18790,6 +18797,22 @@ bool of_EVENT_NB(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_FUNCTION_DEFERRED_CHECK(vthread_t thr, vvp_code_t)
+{
+      if (thr->function_deferred_events_allowed)
+	    return true;
+      const char*message =
+	    "function call that schedules a background event is not allowed "
+	    "from this context (IEEE 1800 13.4.4)";
+      string fileline = thr ? thr->get_fileline() : string();
+      fprintf(stderr, "%serror: %s\n", fileline.c_str(), message);
+      if (vthread_t owner = logical_process_thread_(thr))
+	    (void)do_disable(owner, owner);
+      vpip_set_return_value(1);
+      schedule_finish(0);
+      return false;
+}
+
 bool of_EVCTL(vthread_t thr, vvp_code_t cp)
 {
       assert(thr->event == 0 && thr->ecount == 0);
@@ -19152,6 +19175,8 @@ bool of_FORCE_WR(vthread_t thr, vvp_code_t cp)
 static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);
       if (thr->staged_alloc_rd_scope
           && child_ctx_scope == thr->staged_alloc_rd_scope) {
@@ -19355,6 +19380,8 @@ bool of_FORK_P(vthread_t thr, vvp_code_t cp)
 bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);
       if (thr->staged_alloc_rd_scope
           && child_ctx_scope == thr->staged_alloc_rd_scope) {
@@ -20490,6 +20517,8 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       }
 
       vthread_t child = vthread_new(code, scope);
+      child->function_deferred_events_allowed =
+	    thr->function_deferred_events_allowed;
       child->parent = thr;
       child->is_callf_child = 1;
       child->i_am_in_function = 1;
@@ -27852,13 +27881,6 @@ static void fixed_prop_copy_back_(
       }
 }
 
-struct checked_property_index_dim_t {
-      bool is_signed;
-      int64_t low;
-      uint64_t width;
-      uint64_t stride;
-};
-
 static bool checked_property_index_parse_i64_(const char*&cursor,
                                               int64_t&value)
 {
@@ -27886,6 +27908,46 @@ static bool checked_property_index_parse_u64_(const char*&cursor,
       value = (uint64_t)parsed;
       cursor = delimiter ? end + 1 : end;
       return true;
+}
+
+vvp_property_index_opcode_data_s*
+vvp_property_index_compile(const char*text)
+{
+      const char*cursor = text ? text : "";
+      char*count_end = 0;
+      errno = 0;
+      unsigned long parsed_count = strtoul(cursor, &count_end, 10);
+      bool valid = count_end != cursor && errno != ERANGE
+            && *count_end == '|' && parsed_count <= 65536;
+      vvp_property_index_opcode_data_s*data =
+            new vvp_property_index_opcode_data_s;
+      data->valid = false;
+      data->count = valid ? (unsigned)parsed_count : 0;
+      data->dims = data->count ? new vvp_property_index_dim_s[data->count]() : 0;
+
+      if (valid) {
+            cursor = count_end + 1;
+            for (unsigned idx = 0 ; idx < data->count && valid ; idx += 1) {
+                  vvp_property_index_dim_s&dim = data->dims[idx];
+                  if ((*cursor != 's' && *cursor != 'u') || cursor[1] != ':') {
+                        valid = false;
+                        break;
+                  }
+                  dim.is_signed = *cursor == 's';
+                  cursor += 2;
+                  valid = checked_property_index_parse_i64_(cursor, dim.low)
+                        && checked_property_index_parse_u64_(cursor, dim.width, ':')
+                        && checked_property_index_parse_u64_(
+                              cursor, dim.stride,
+                              idx + 1 < data->count ? ';' : '\0')
+                        && dim.width != 0;
+            }
+            if (valid && *cursor != '\0')
+                  valid = false;
+      }
+
+      data->valid = valid;
+      return data;
 }
 
 /* Convert the complete mathematical value of RAW to the signed-64 domain
@@ -27951,36 +28013,9 @@ static bool checked_property_index_value_(const vvp_vector4_t&raw,
  * the canonical flat index. */
 bool of_PROP_INDEX_CHECK(vthread_t thr, vvp_code_t cp)
 {
-      const char*cursor = cp->text ? cp->text : "";
-      char*count_end = 0;
-      errno = 0;
-      unsigned long parsed_count = strtoul(cursor, &count_end, 10);
-      bool valid = count_end != cursor && errno != ERANGE
-            && *count_end == '|' && parsed_count <= 65536;
-      unsigned count = valid ? (unsigned)parsed_count : 0;
-      vector<checked_property_index_dim_t> dims;
-
-      if (valid) {
-            cursor = count_end + 1;
-            dims.resize(count);
-            for (unsigned idx = 0 ; idx < count && valid ; idx += 1) {
-                  checked_property_index_dim_t&dim = dims[idx];
-                  if ((*cursor != 's' && *cursor != 'u') || cursor[1] != ':') {
-                        valid = false;
-                        break;
-                  }
-                  dim.is_signed = *cursor == 's';
-                  cursor += 2;
-                  valid = checked_property_index_parse_i64_(cursor, dim.low)
-                        && checked_property_index_parse_u64_(cursor, dim.width, ':')
-                        && checked_property_index_parse_u64_(
-                              cursor, dim.stride,
-                              idx + 1 < count ? ';' : '\0')
-                        && dim.width != 0;
-            }
-            if (valid && *cursor != '\0')
-                  valid = false;
-      }
+      const vvp_property_index_opcode_data_s*data = cp->property_index_data;
+      bool valid = data && data->valid;
+      unsigned count = data ? data->count : 0;
 
       uint64_t flat = 0;
       for (unsigned rev = count ; rev > 0 ; rev -= 1) {
@@ -27988,7 +28023,7 @@ bool of_PROP_INDEX_CHECK(vthread_t thr, vvp_code_t cp)
             if (!valid)
                   continue;
 
-            const checked_property_index_dim_t&dim = dims[rev - 1];
+            const vvp_property_index_dim_s&dim = data->dims[rev - 1];
             int64_t raw_value = 0;
             if (!checked_property_index_value_(raw, dim.is_signed, raw_value)
                 || raw_value < dim.low) {
@@ -28017,9 +28052,10 @@ bool of_PROP_INDEX_CHECK(vthread_t thr, vvp_code_t cp)
       }
 
       vvp_vector4_t result(64, BIT4_0);
-      for (unsigned idx = 0 ; idx < 64 ; idx += 1)
-            if ((flat >> idx) & UINT64_C(1))
-                  result.set_bit(idx, BIT4_1);
+      unsigned long result_words[2] = {
+            (unsigned long)flat, (unsigned long)(flat >> 32)
+      };
+      result.setarray(0, 64, result_words);
       thr->push_vec4(result);
       return true;
 }
@@ -33168,6 +33204,24 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
       thr->wait_next = ep->add_waiting_thread(thr);
 
 	/* Return false to suspend this thread. */
+      return false;
+}
+
+/* %wait/order <observer>, <success>, <failure>. The observer keeps one
+ * cancellable registration per executing thread. */
+bool of_WAIT_ORDER(vthread_t thr, vvp_code_t cp)
+{
+	  const vvp_wait_order_opcode_data_s*data = cp->wait_order_data;
+	  vvp_fun_wait_order*observer = data && data->observer
+	    ? dynamic_cast<vvp_fun_wait_order*>(data->observer->fun) : nullptr;
+      assert(observer);
+      vvp_code_t immediate = nullptr;
+	  if (observer->arm(thr, data->branches.cptr,
+			    data->branches.cptr2, immediate)) {
+	    thr->pc = immediate;
+	    return true;
+      }
+      thr->in_region_drain = 0;
       return false;
 }
 

@@ -1,0 +1,11 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-c7eb-20261015-r2/json/candidate/lists/sv_assoc_explicit_pattern_opentitan_2023.list
+----------------------------------------------------------------------------
+gold/sv_assoc_explicit_pattern_opentitan-vvp-stderr.gold and log/sv_assoc_explicit_pattern_opentitan_2023-vvp-stderr.log differ:
+--- gold/sv_assoc_explicit_pattern_opentitan-vvp-stderr.gold
++++ log/sv_assoc_explicit_pattern_opentitan_2023-vvp-stderr.log
+@@ -0,0 +1 @@
++: warning: read of a nonexistent associative-array entry (IEEE 1800-2017/2023 7.8.6).
+sv_assoc_explicit_pattern_opentitan_2023: Failed - Gold output doesn't match actual output.
+============================================================================
+Test results: Ran 1, Failed 1.

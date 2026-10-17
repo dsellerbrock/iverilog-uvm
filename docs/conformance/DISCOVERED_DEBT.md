@@ -3709,17 +3709,17 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Reproducer status:** strict 2017/2023 CE control passes in the 16-case JSON and legacy focus; transactional runtime implementation remains absent.
 - **Triage status:** explicit unsupported boundary for this blocker; select separately before claiming full §7.6 pattern assignment support.
 
-### DD-073 — module associative fixed arrays with class-handle leaves still reject indexed writes
+### DD-073 — module associative fixed-array class-handle writes (fixed subset)
 
 - **Issue status:** [OPEN #484](https://github.com/dsellerbrock/iverilog-uvm/issues/484).
 
 - **Discovered while working:** OT-FLASH-ASSOC-OF-FIXED-ARRAY.
-- **Observation:** A module variable `entry src[int][8:9]` with a class-handle leaf still fails target code generation on `src[4][8] = handle` with `could not recover the selected nested container type`. The active class-property handle control passes; the pinned Flash handle array is a class property.
-- **File/function:** `tgt-vvp/stmt_assign.c` nested object-element assignment type recovery.
-- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.6, 7.8.
-- **Evidence:** `work/flash-queue-triage-20260928/flash-review-handle-cross-orientation.sv` in the projectless campaign workspace; strict 2017 emits three explicit `sorry` diagnostics and exits nonzero, while the class-property control passes both strict editions.
-- **Reproducer status:** focused compile boundary; no silent runtime success.
-- **Triage status:** separate follow-on beyond this blocker’s Flash class-property handle path.
+- **Observation:** Fixed for module variables whose associative elements are fixed unpacked arrays of class handles. In `entry src[int][8:9]`, reading a missing key returns the fixed-array default without creating the key; assigning `src[4][8] = handle` creates the entry, leaves `src[4][9]` null, and preserves the assigned handle identity. Class-property handling is unchanged.
+- **File/function:** `tgt-vvp/stmt_assign.c` module associative-array lvalue lowering; existing `%aa/viv/sig` with `AA_VIV_FIXED` allocates the missing key and the enclosing fixed-slot lvalue retains the child type.
+- **Possible clause:** IEEE 1800-2017/2023 §§7.4, 7.8.6, and 7.8.7.
+- **Evidence:** Paired tests `ivtest/ivltests/sv_assoc_fixed_module_class_handle.v` and `_2023.v` check absent-read nonallocation, write allocation, the untouched default handle, and handle identity. Local focused legacy/JSON runs passed; exact-head Fast Linux passed. Full T0/T1 remains pending.
+- **Reproducer status:** 2017 and 2023 reducers pass. They check absent-read nonallocation, not the §7.8.6 warning. This qualifies only the module-scope class-handle leaf write/read shape.
+- **Triage status:** this slice fixes DD-073. Issue #484 remains open for other shapes, including DD-074 packed-bit tails and DD-075 indexed nonblocking writes.
 
 ### DD-074 — packed-bit write after an associative fixed slot is unsupported
 
@@ -4434,7 +4434,25 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** isolated case fixed on agent/sim-perf-hotspots-20261009;
   coupled case needs exact joint sampling and is open.
 
-### DD-122 — side-effecting covergroup iff guard is treated as enabled
+### DD-122 — rounded-to-zero time literals have no diagnostic
+
+- **Discovered while working:** M6 issue #545 triage (2026-10-16).
+- **Observation:** With no `timescale` or `timeunit`, Icarus's documented
+  default is `1s/1s`. A standalone `#5ns` then reports `$time == 0` and
+  `$realtime == 0.0` without a rounding warning. In an `always` clock loop,
+  the compiler reports that the process has no delay and will loop forever.
+- **File/function:** `pform.cc:pform_set_scope_timescale` selects default
+  precision; `netmisc.cc:get_scaled_time_from_real` scales and rounds delay
+  values without reporting a nonzero value rounded to zero.
+- **Possible clause:** IEEE 1800-2017/2023 §§3.14.1, 3.14.2.3, 5.8, and 9.4.5.
+- **Evidence:** Main `7f508a8a`; local Mac test matrix and zero-time probe in
+  `~/codex-supervisor/evidence/a3-m6-issue545-current-main-20261016/`.
+- **Reproducer status:** Confirmed; the same reducer passes with
+  `` `timescale 1ns/1ps`` in both editions.
+- **Triage status:** Open, diagnostic-quality follow-up. No simulator change
+  is included in #545; the source must specify its intended time scale.
+
+### DD-123 — side-effecting covergroup iff guard is treated as enabled
 
 - **Discovered while working:** #448 / PR #594 (2026-10-15).
 - **Observation:** Sampling a coverpoint with `iff (value++)` on a covergroup

@@ -1,0 +1,10 @@
+measurement_base=845f54a5724c4d2af13dde40eca6d290c80c41d9
+candidate_commit=5579876e005c8406396f97ca8e051e5460846eae
+case=smoke_test_dma_aes_gcm_short_1_dword
+window=100:200
+827ed00eef512dd9967206446912c10a297ae5fd8e8941fbd8c854d3ca4deee9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/input/SHA256SUMS
+58567adb4d9337e26c2adce4c2e9d3ad2968ccc34a2ff9ec9fae4dc4029ba6c9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/input/candidate-overlay.patch
+c13c7c8ddf1e45b590a66b3dd64fdb01bffe7fd7c16453693435a7a28343f28d  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/input/ecc_secp384r1-deterministic.c
+6fc97b87ee757cfbe1ac4c7a0baa8b788440e0a57b5f536c3a01dde8e7c58dc9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/input/mcycle-window-callgrind.c
+5792cbea3a3fd19b9071e5bd50e1c7d8902f2457b9dc7c1c4949f48ce6b2814c  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/input/reference-source.tar.gz
+dcba910748a57e939ec87fd12bcda2fc4eaea88b882c5a70397df2cad4db6b70  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/input/source-manifest.txt

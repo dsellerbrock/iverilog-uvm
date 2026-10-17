@@ -1,0 +1,2 @@
+PASS wide converter screen checksum=000000ee negative=4X xz=xx
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/input/converter-wide-index.sv:27: $finish called at 0 (1s)

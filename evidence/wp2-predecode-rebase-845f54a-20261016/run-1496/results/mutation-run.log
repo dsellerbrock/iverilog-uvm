@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/mutant-test.sv:38: index pattern 00: got 03 expected 03
+       Time: 0  Scope: sv_class_unpacked_property_index_4state.$unm_blk_2

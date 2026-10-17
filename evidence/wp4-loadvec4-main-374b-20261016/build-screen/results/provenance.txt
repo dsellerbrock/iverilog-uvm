@@ -1,0 +1,3 @@
+measurement_base=374b037e7c8fba7097e0b86b05be7956ca6b5487
+reference_source=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/source/reference
+candidate_source=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/source/candidate

@@ -1,0 +1,6 @@
+Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+bison (GNU Bison) 3.8.2
+Apple clang version 21.0.0 (clang-2100.3.34.2)
+6ce7113886453295321d03cc4d31300b288c17d6
+c7ebca768c21c251d9c165c9aff0e363768030b1
+78c06547a2a0a29b3dc9dcafae62b75b2ff61544

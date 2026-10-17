@@ -6600,6 +6600,8 @@ void PEventStatement::elaborate_scope(Design*des, NetScope*scope) const
 {
       if (statement_)
 	    statement_ -> elaborate_scope(des, scope);
+      if (else_statement_)
+	    else_statement_ -> elaborate_scope(des, scope);
 }
 
 /*

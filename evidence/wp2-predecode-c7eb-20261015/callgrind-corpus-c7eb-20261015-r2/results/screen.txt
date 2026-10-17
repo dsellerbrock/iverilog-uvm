@@ -1,0 +1,5 @@
+benchmark_rows=18
+all_outputs_identical=yes
+worst_instruction_regression_pct=0.038453
+regression_gate_pct=2.0
+status=passed

@@ -1,0 +1,8 @@
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+job_id=1420
+cpus=2
+memory=8G
+case=smoke_test_dma_aes_gcm_short_1_dword
+mcycle_window=100:200
+run_root=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-caliptra-c7eb-20261015-r3
+input_policy=deterministic ecc_secp384r1.c substitution applied equally to reference and candidate

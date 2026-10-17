@@ -219,6 +219,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".enum4/s"      { return K_ENUM4_S; }
 ".event"        { return K_EVENT; }
 ".event/or"     { return K_EVENT_OR; }
+".event/order"  { return K_EVENT_ORDER; }
 ".export"       { return K_EXPORT; }
 ".extend/s"     { return K_EXTEND_S; }
 ".sample"       { return K_SAMPLE; }

@@ -1,0 +1,5 @@
+job_id	state	role
+1787	OUT_OF_MEMORY	failed 3 GiB, 4-worker build
+1788	FAILED_EXIT_127	builds completed; Python path check failed before measurements
+1794	INVALID_INPUTS	18 windows completed; randomized ECC vectors differed
+1815	COMPLETE_POSTPROCESSED	18 fixed-input windows; postprocessor validated logs and hashes

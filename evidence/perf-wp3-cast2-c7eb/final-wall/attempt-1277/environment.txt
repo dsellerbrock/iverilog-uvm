@@ -1,0 +1,7 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+measurement_base=c7ebca768c21c251d9c165c9aff0e363768030b1
+94d00d12315865856c62ca0608ccabac83ae717eb9bc4b0df9fa783cdcae0404  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/bin/vvp
+20d1898f6860c6fe90da509dd7537d9eaae7f585a11116d8ff902532344925a5  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/candidate/install/bin/vvp
+6e9d270ec97270ab150377a43a964e9529cbe36fbbd3ae8a0e9b7a6cb32f30d9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-20261015-r2/build/reference/install/bin/iverilog
+d2a5ca20b79d95216d79955a234e6f983941695e878022e6de393b6ac3b8a7f0  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp3-cast2-c7eb-final-wall-20261015-r5/runner/run_json_warmup_r4.py

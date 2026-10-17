@@ -1,0 +1,1 @@
+./ivltests/sv_assert_multiclock_disable_branch_unsupported_2023.v:5: sorry: a multiclocked branched antecedent that is not a fixed OR tree is not supported (IEEE 1800-2017 16.13); the assertion is dropped.

@@ -1119,6 +1119,10 @@ struct Z3Builder {
 	    bool is_default;
 	    Z3_ast default_condition;
       };
+      struct RealDistPoint {
+	    Z3_ast value;
+	    unsigned weight;
+      };
       struct DistSpec {
             vvp_cobject*rng_owner = nullptr;
             size_t priority = 0;
@@ -1134,6 +1138,9 @@ struct Z3Builder {
             bool requires_large_exact;
             bool state_weights;
 	    bool disableable;
+	    bool real_subject = false;
+	    bool real_points_supported = false;
+	    std::vector<RealDistPoint> real_points;
       };
       std::vector<DistSpec> dist_specs;
 
@@ -5891,6 +5898,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    dspec.disableable = b.soft_keyword_depth != 0;
 	    bool exact_supported = true;
 	    bool real_subject = b.is_real(subject);
+	    bool real_points_supported = real_subject
+		  && b.real_property(subject) != UINT_MAX;
+	    dspec.real_subject = real_subject;
 	    auto warn_exact_item_boundary = []() {
 		  static bool warned = false;
 		  if (!warned) {
@@ -5902,10 +5912,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  }
 	    };
 	    if (real_subject) {
-		  /* shortcut: real dist uses weighted-soft fallback, not exact interval
-		   * sampling; upgrade when the sampler supports FPA intervals. */
+		  /* shortcut: finite static point items only; upgrade for exact real-range sampling. */
 		  exact_supported = false;
-		  warn_exact_item_boundary();
 	    }
 	    auto width_mask = [](unsigned width) -> uint64_t {
 		  return width >= 64 ? UINT64_MAX
@@ -6052,6 +6060,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  string br_op = par.read_token();
 		  bool is_default = br_op == "d";
 		  if (br_op != "b" && !is_default) {
+			if (real_subject) real_points_supported = false;
 			// Unknown branch shape; skip to matching ')'.
 			int depth = 1;
 			while (!par.at_end() && depth > 0) {
@@ -6118,6 +6127,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      warned_weight_overflow = true;
 			}
 			exact_supported = false;
+			if (real_subject) real_points_supported = false;
 		  } else if (!dynamic_weight && weight64 > UINT_MAX) {
 			static bool warned_weight_width = false;
 			if (!warned_weight_width) {
@@ -6128,6 +6138,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      warned_weight_width = true;
 			}
 			exact_supported = false;
+			if (real_subject) real_points_supported = false;
 		  }
 		  unsigned weight = dynamic_weight ? 1
 			: weight_overflow || weight64 > UINT_MAX
@@ -6135,6 +6146,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  unsigned soft_weight = dynamic_weight ? 1 : weight;
 		  Z3_ast clause = b.mk_false();
 		  if (is_default) {
+			if (real_subject) real_points_supported = false;
 			string marker = par.read_token();
 			par.expect(')');
 			if (marker != "default" || have_default_item) {
@@ -6153,6 +6165,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  }
 		  par.skip_ws();
 		  if (par.peek() == '[') {
+			if (real_subject) real_points_supported = false;
 			par.consume();
 			par.skip_ws();
 			bool lo_open = par.peek() == '*';
@@ -6325,15 +6338,43 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			  clause = Z3_mk_eq(b.ctx,
 				    coerce_for_compare(subject, vw,
 						       value_compare_signed), value);
+		    if (real_subject) {
+			  if (!value_valid || dynamic_weight) {
+				real_points_supported = false;
+			  } else {
+				Z3_ast point = value_raw;
+				if (!b.is_real(value_raw)) {
+				      Z3_ast integral_value =
+					    b.resolve_signed_constants(value_raw);
+				      Z3_ast real_value = b.is_signed(value_raw)
+					    ? Z3_mk_fpa_to_fp_signed(b.ctx,
+						  Z3_mk_fpa_rne(b.ctx), integral_value,
+						  z3_real_sort_(b.ctx))
+					    : Z3_mk_fpa_to_fp_unsigned(b.ctx,
+						  Z3_mk_fpa_rne(b.ctx), integral_value,
+						  z3_real_sort_(b.ctx));
+				      point = z3_from_real_(b, real_value);
+				}
+				point = Z3_simplify(b.ctx, point);
+				uint64_t point_bits = 0;
+				if (!Z3_is_numeral_ast(b.ctx, point)
+				    || !z3_ground_uint64(b.ctx, point, point_bits)
+				    || !isfinite(z3_bits_real_(point_bits))) {
+				      real_points_supported = false;
+				} else if (weight != 0) {
+				      dspec.real_points.push_back({point, weight});
+				}
+			  }
+		    } else {
 			uint64_t value_bits = 0;
 			Z3_ast value_wide = 0;
-		    bool value_ok = value_valid && !real_subject
-			  && !b.is_real(value_raw) && (vw > 64
-			      ? ground_wide(value_raw, vw, value_compare_signed,
-					    value_wide)
-			      : ground_at_width(value_raw, vw,
-					 value_compare_signed, value_bits,
-					 &value_source_ir));
+			bool value_ok = value_valid && !b.is_real(value_raw)
+			      && (vw > 64
+				  ? ground_wide(value_raw, vw, value_compare_signed,
+						value_wide)
+				  : ground_at_width(value_raw, vw,
+						value_compare_signed, value_bits,
+						&value_source_ir));
 			if (!value_ok) {
 			      exact_supported = false;
 			      warn_exact_item_boundary();
@@ -6341,15 +6382,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			if (weight != 0 && value_ok && vw > 64) {
 			      dspec.requires_large_exact = true;
 			      Z3_ast coord = ordered_wide(value_wide, vw,
-							  value_compare_signed);
-		      Z3Builder::DistBranch db = {
+						  value_compare_signed);
+			      Z3Builder::DistBranch db = {
 				    weight, true, false, vw,
 				    value_compare_signed, 0, 0, coord, coord,
 				    weight_expression, false, nullptr
 			      };
 			      dspec.branches.push_back(db);
 			} else if (weight != 0 && value_ok) {
-		      Z3Builder::DistBranch db = {
+			      Z3Builder::DistBranch db = {
 				    weight, false, false, vw,
 				    value_compare_signed,
 				    value_bits, value_bits, nullptr, nullptr,
@@ -6357,6 +6398,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      };
 			      dspec.branches.push_back(db);
 			}
+		    }
 		  }
 		  par.skip_ws();
 		  par.expect(')'); // close (b ...)
@@ -6442,12 +6484,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			dspec.requires_large_exact = true;
 		  }
 	    }
+	    if (real_subject) {
+		  exact_supported = real_points_supported;
+		  dspec.real_points_supported = real_points_supported;
+		  if (!real_points_supported) warn_exact_item_boundary();
+	    }
 	    // Keep the structural eligibility independent of an enclosing
 	    // constraint guard. The resolver may use exact sampling for a large
 	    // guarded dist only after proving every guard active in the current
 	    // solve context; inactive and unresolved guards must not be sampled.
 	    dspec.exact_supported_without_guard = exact_supported
-		  && !dspec.branches.empty();
+		  && (!dspec.branches.empty()
+		      || (real_subject && !dspec.real_points.empty()));
 	    dspec.exact_supported = dspec.exact_supported_without_guard
 		  && b.soft_guards.empty();
 	      // Scope std::randomize keeps its weighted soft group as the
@@ -10349,6 +10397,51 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 					false, indeterminate);
 }
 
+static bool z3_resolve_real_dist_points(Z3_context ctx, Z3_solver base,
+					 Z3_optimize opt,
+					 const Z3Builder::DistSpec&spec,
+					 z3_rng_stream_t&rng)
+{
+      if (!spec.real_subject || !spec.real_points_supported
+	  || spec.real_points.empty()) return false;
+
+      struct candidate_t {
+	    const Z3Builder::RealDistPoint*point;
+	    Z3_ast pin;
+      };
+      vector<candidate_t> feasible;
+      uint64_t total_weight = 0;
+      Z3_sort real_sort = Z3_mk_fpa_sort_double(ctx);
+      Z3_ast subject = Z3_mk_fpa_to_fp_bv(ctx, spec.subject, real_sort);
+      for (const auto&point : spec.real_points) {
+	    if (!point.weight) continue;
+	    // Real equality treats +0 and -0 as equal, unlike their bit patterns.
+	    Z3_ast point_value = Z3_mk_fpa_to_fp_bv(ctx, point.value, real_sort);
+	    Z3_ast pin = Z3_mk_fpa_eq(ctx, subject, point_value);
+	    Z3_solver_push(ctx, base);
+	    Z3_solver_assert(ctx, base, pin);
+	    Z3_lbool result = Z3_solver_check(ctx, base);
+	    Z3_solver_pop(ctx, base, 1);
+	    if (result == Z3_L_UNDEF
+		|| UINT64_MAX - total_weight < point.weight) return false;
+	    if (result != Z3_L_TRUE) continue;
+	    feasible.push_back({&point, pin});
+	    total_weight += point.weight;
+      }
+      if (feasible.empty() || !total_weight) return false;
+
+      uint64_t ticket = rng.uniform_u64(total_weight);
+      for (const auto&candidate : feasible) {
+	    if (ticket < candidate.point->weight) {
+		  Z3_solver_assert(ctx, base, candidate.pin);
+		  Z3_optimize_assert(ctx, opt, candidate.pin);
+		  return true;
+	    }
+	    ticket -= candidate.point->weight;
+      }
+      return false;
+}
+
 /* IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: sample complete legal
  * combinations, not independently uniform conditional projections. Block
  * only semantic variables, so auxiliary model assignments are not counted.
@@ -10414,11 +10507,14 @@ static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
 /* Exact uniform sampling over a finite projected component. Blocking each
  * complete projection makes every legal tuple appear once; reservoir
  * sampling keeps only the selected tuple in host memory. Solver blocking
- * state grows with the solution count. The finite product of bit-vector
- * ranges bounds the loop. */
+ * state grows with the solution count. */
+// shortcut: cap wide sparse components at 1,024 tuples; over-cap sets keep the
+// documented fallback until exact counting is practical.
+static const size_t SPARSE_JOINT_TUPLE_CAP = 1024;
+
 static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       const vector<Z3_ast>&variables, z3_rng_stream_t&rng,
-      vector<uint64_t>&selected, const char*&reason,
+      vector<Z3_ast>&selected, const char*&reason,
       size_t max_tuples = 0, bool*limit_exceeded = nullptr)
 {
       selected.clear();
@@ -10428,30 +10524,34 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
             reason = "joint sampling requires at least one projection variable";
             return Z3_L_UNDEF;
       }
+      bool bounded = max_tuples != 0;
       uint64_t total_width = 0;
       for (Z3_ast var : variables) {
             Z3_sort sort = Z3_get_sort(ctx, var);
             if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT
-                || Z3_get_bv_sort_size(ctx, sort) == 0
-                || Z3_get_bv_sort_size(ctx, sort) > 64) {
-                  reason = "a joint variable exceeds the supported 64-bit width";
+                || Z3_get_bv_sort_size(ctx, sort) == 0) {
+                  reason = "a joint variable is not a non-empty bit-vector";
                   return Z3_L_UNDEF;
             }
             unsigned width = Z3_get_bv_sort_size(ctx, sort);
-            if (total_width > UINT_MAX - width) {
+            if (!bounded && width > 64) {
+                  reason = "an unbounded joint projection exceeds the supported 64-bit width";
+                  return Z3_L_UNDEF;
+            }
+            if (!bounded && total_width > UINT_MAX - width) {
                   reason = "the joint projection is too wide to bound exactly";
                   return Z3_L_UNDEF;
             }
-            total_width += width;
+            if (!bounded) total_width += width;
       }
 
       dist_wide_uint_t universe;
-      universe.set_bit((unsigned)total_width);
+      if (!bounded) universe.set_bit((unsigned)total_width);
       const dist_wide_uint_t one = dist_wide_uint_t::from_u64(1);
       dist_wide_uint_t count;
       Z3_solver_push(ctx, base);
       Z3_lbool result = Z3_L_FALSE;
-      while (dist_wide_uint_t::cmp(count, universe) < 0) {
+      while (bounded || dist_wide_uint_t::cmp(count, universe) < 0) {
             result = Z3_solver_check(ctx, base);
             if (result == Z3_L_TRUE && max_tuples
                   && dist_wide_uint_t::cmp(count,
@@ -10469,18 +10569,26 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
 
             Z3_model model = Z3_solver_get_model(ctx, base);
             Z3_model_inc_ref(ctx, model);
-            vector<uint64_t> tuple;
+            vector<Z3_ast> tuple;
             vector<Z3_ast> different;
             for (Z3_ast var : variables) {
-                  uint64_t bits = 0;
-                  if (!z3_eval_uint64(ctx, model, var, bits)) {
+                  unsigned width = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, var));
+                  Z3_ast value = nullptr;
+                  if (width <= 64) {
+                        uint64_t bits = 0;
+                        if (!z3_eval_uint64(ctx, model, var, bits)) {
+                              reason = "a joint model value could not be extracted";
+                              result = Z3_L_UNDEF;
+                              break;
+                        }
+                        value = Z3_mk_unsigned_int64(ctx, bits, Z3_get_sort(ctx, var));
+                  } else if (!Z3_model_eval(ctx, model, var, true, &value)
+                        || !value || !Z3_is_numeral_ast(ctx, value)) {
                         reason = "a joint model value could not be extracted";
                         result = Z3_L_UNDEF;
                         break;
                   }
-                  tuple.push_back(bits);
-                  Z3_ast value = Z3_mk_unsigned_int64(ctx, bits,
-                                                     Z3_get_sort(ctx, var));
+                  tuple.push_back(value);
                   different.push_back(Z3_mk_not(ctx, Z3_mk_eq(ctx, var, value)));
             }
             Z3_model_dec_ref(ctx, model);
@@ -10489,7 +10597,7 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
             count = dist_wide_uint_t::add(count, one);
             if (dist_wide_uint_t::uniform_below(rng, count).zero())
                   selected.swap(tuple);
-            if (dist_wide_uint_t::cmp(count, universe) == 0) {
+            if (!bounded && dist_wide_uint_t::cmp(count, universe) == 0) {
                   result = Z3_L_TRUE;
                   break;
             }
@@ -11955,19 +12063,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  static const unsigned uniform_joint_free_bit_threshold = 16;
 		  unsigned enumerate_after = uniform_joint_enumerate_after;
 		  bool enumerate_direct_scalars = builder.pending_soft.empty();
+		  bool wide_direct_scalars = false;
 		  for (Z3_ast var : component)
-			if (!uniform_joint_direct_scalars.count(var)
-			    || uniform_joint_width.at(var) > 64)
+			if (!uniform_joint_direct_scalars.count(var))
 			      enumerate_direct_scalars = false;
+			else if (uniform_joint_width.at(var) > 64)
+			      wide_direct_scalars = true;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
 			if (enumerate_direct_scalars && attempt == enumerate_after) {
 			      bool sampled_projection = false;
-			      vector<Z3_ast> dependents = component;
-			      stable_sort(dependents.begin(), dependents.end(),
+		      vector<Z3_ast> dependents;
+		      if (!wide_direct_scalars) {
+			    dependents = component;
+			    stable_sort(dependents.begin(), dependents.end(),
 				    [&](Z3_ast left, Z3_ast right) {
 					  return uniform_joint_width.at(left)
 						> uniform_joint_width.at(right);
 				    });
+		      }
 			      for (Z3_ast dependent : dependents) {
 				    vector<Z3_ast> projection;
 				    for (Z3_ast var : component)
@@ -12029,23 +12142,23 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			            enumerate_after = uniform_joint_attempt_cap - 1;
 			            continue;
 			      }
-		      // shortcut: count at most 64 legal tuples before rejection; raise
-			      // the limit only if larger sparse projections regress.
-			      vector<uint64_t> tuple;
+		      // shortcut: cap wide direct-scalar traversal at 1,024 tuples;
+		      // narrow components keep their existing complete traversal.
+		      vector<Z3_ast> tuple;
 			      const char*reason = nullptr;
 			      bool limit_exceeded = false;
+		      size_t tuple_cap = wide_direct_scalars
+			    ? SPARSE_JOINT_TUPLE_CAP : 64;
 			      z3_rng_stream_t&rng = property_rng(
 				    uniform_joint_property.at(component.front()));
 			      Z3_lbool sampled = z3_sample_joint_(ctx, base, component,
-				    rng, tuple, reason, 64, &limit_exceeded);
+			    rng, tuple, reason, tuple_cap, &limit_exceeded);
 			      if (sampled == Z3_L_TRUE) {
 				    vector<Z3_ast> pins;
 				    pins.reserve(component.size());
 				    for (size_t i = 0; i < component.size(); ++i) {
 					  Z3_ast var = component[i];
-					  pins.push_back(Z3_mk_eq(ctx, var,
-						Z3_mk_unsigned_int64(ctx, tuple[i],
-						      Z3_get_sort(ctx, var))));
+				  pins.push_back(Z3_mk_eq(ctx, var, tuple[i]));
 				    }
 				    for (Z3_ast pin : pins) {
 					  Z3_solver_assert(ctx, base, pin);
@@ -12133,13 +12246,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 		  if (enumerate_direct_scalars
 		      && !uniform_sampled_vars.count(component.front())) {
-			vector<uint64_t> tuple;
+			vector<Z3_ast> tuple;
 			const char*reason = nullptr;
+			bool limit_exceeded = false;
+			size_t tuple_cap = wide_direct_scalars
+			      ? SPARSE_JOINT_TUPLE_CAP : 0;
 			z3_rng_stream_t&rng = property_rng(
 			      uniform_joint_property.at(component.front()));
 			Z3_lbool sampled = z3_sample_joint_(ctx, base, component,
-			      rng, tuple, reason);
+			      rng, tuple, reason, tuple_cap, &limit_exceeded);
 			if (sampled != Z3_L_TRUE) {
+			      if (limit_exceeded) continue;
 			      if (sampled == Z3_L_FALSE)
 				    return fail_joint(
 					  "the joint solution set became empty during exact sampling");
@@ -12148,9 +12265,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			}
 			for (size_t i = 0; i < component.size(); ++i) {
 			      Z3_ast var = component[i];
-			      Z3_ast value = Z3_mk_unsigned_int64(ctx, tuple[i],
-				    Z3_get_sort(ctx, var));
-			      Z3_ast pin = Z3_mk_eq(ctx, var, value);
+			      Z3_ast pin = Z3_mk_eq(ctx, var, tuple[i]);
 			      Z3_solver_assert(ctx, base, pin);
 			      Z3_optimize_assert(ctx, opt, pin);
 			      uniform_sampled_vars.insert(var);
@@ -12454,6 +12569,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    exact_spec.exact_supported = exact_supported;
+	    if (spec.real_subject && !exact_supported
+		&& dist_resolved_vars.count(spec.subject)) {
+		  fprintf(stderr, "ERROR: additional real-valued dist sampling "
+			  "is not supported for this property.\n");
+		  return false;
+	    }
+	    if (spec.real_subject && exact_supported
+		&& !dist_resolved_vars.count(spec.subject)) {
+		  resolved = z3_resolve_real_dist_points(ctx, base, opt, spec,
+						 owner_rng(spec.rng_owner));
+		  if (!resolved) {
+			  fprintf(stderr, "ERROR: exact real dist sampling failed: "
+				  "no feasible finite point item.\n");
+			  return false;
+		  }
+		  dist_resolved_vars.insert(spec.subject);
+		  return true;
+	    }
 	    if (dynamic_weights
 		&& !materialize_dist_weights(spec, exact_spec)) {
 		  fprintf(stderr, "ERROR: exact dist sampling failed: a random-dependent "
@@ -12525,10 +12658,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!rand_scalar_active_(builder, prop_active, pv.idx)) continue;
 	    if (sampled_real_vars.count(pv.var)) continue;
 	    if (pv.is_real) {
+		  if (dist_resolved_vars.count(pv.var)) continue;
 		  auto bounds = builder.real_bounds.find(pv.idx);
 		  uint64_t bits = 0;
-		  if (dist_resolved_vars.count(pv.var)
-		      || dist_fallback_vars.count(pv.var)
+		  if (dist_fallback_vars.count(pv.var)
 		      || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0)) {
 			real_sampling_failed = true;
 			real_sampling_error =
@@ -14320,6 +14453,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					return pv.idx == ref.idx && pv.is_real;
 				  });
 		      if (real_ordered) {
+			    if (dist_resolved_vars.count(var)) continue;
 			    auto bounds = builder.real_bounds.find(ref.idx);
 			    uint64_t bits = 0;
 			    if (bounds == builder.real_bounds.end()

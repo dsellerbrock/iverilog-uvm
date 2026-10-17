@@ -1,0 +1,43 @@
+base.tar.gz: OK
+candidate.tar.gz: OK
+uvm-core.tar.gz: OK
+BEGIN extract-base 2026-10-16T02:32:43Z
+END extract-base exit_code=0 2026-10-16T02:32:43Z
+BEGIN extract-candidate 2026-10-16T02:32:43Z
+END extract-candidate exit_code=0 2026-10-16T02:32:44Z
+BEGIN extract-uvm-base 2026-10-16T02:32:44Z
+END extract-uvm-base exit_code=0 2026-10-16T02:32:44Z
+BEGIN extract-uvm-candidate 2026-10-16T02:32:44Z
+END extract-uvm-candidate exit_code=0 2026-10-16T02:32:44Z
+BEGIN autoconf-base 2026-10-16T02:32:44Z
+END autoconf-base exit_code=0 2026-10-16T02:32:44Z
+BEGIN configure-base 2026-10-16T02:32:44Z
+END configure-base exit_code=0 2026-10-16T02:32:46Z
+BEGIN build-base 2026-10-16T02:32:46Z
+END build-base exit_code=0 2026-10-16T02:34:11Z
+BEGIN install-base 2026-10-16T02:34:11Z
+END install-base exit_code=0 2026-10-16T02:34:12Z
+BEGIN fpga-install-base 2026-10-16T02:34:12Z
+END fpga-install-base exit_code=0 2026-10-16T02:34:13Z
+BEGIN autoconf-candidate 2026-10-16T02:34:13Z
+END autoconf-candidate exit_code=0 2026-10-16T02:34:13Z
+BEGIN configure-candidate 2026-10-16T02:34:13Z
+END configure-candidate exit_code=0 2026-10-16T02:34:15Z
+BEGIN build-candidate 2026-10-16T02:34:15Z
+END build-candidate exit_code=0 2026-10-16T02:35:39Z
+BEGIN install-candidate 2026-10-16T02:35:39Z
+END install-candidate exit_code=0 2026-10-16T02:35:40Z
+BEGIN fpga-install-candidate 2026-10-16T02:35:40Z
+END fpga-install-candidate exit_code=0 2026-10-16T02:35:40Z
+BEGIN make-check 2026-10-16T02:35:40Z
+END make-check exit_code=0 2026-10-16T02:35:41Z
+BEGIN ivtest-gate 2026-10-16T02:35:41Z
+END ivtest-gate exit_code=0 2026-10-16T03:00:55Z
+BEGIN json-candidate 2026-10-16T03:00:55Z
+END json-candidate exit_code=0 2026-10-16T03:24:44Z
+BEGIN json-baseline-targeted 2026-10-16T03:24:44Z
+END json-baseline-targeted exit_code=0 2026-10-16T03:24:45Z
+json_candidate=4662 tests, baseline_failures=16, new_failures=0
+BEGIN uvm-regression 2026-10-16T03:24:45Z
+END uvm-regression exit_code=0 2026-10-16T03:37:30Z
+all_required_gates=PASS

@@ -1,0 +1,10 @@
+Pinned campaign measurement base: c7ebca768c21c251d9c165c9aff0e363768030b1
+New measurement/reference base: 845f54a5724c4d2af13dde40eca6d290c80c41d9
+Candidate source commit: 655fedfa06b0e2018183e280d3e8a3142c525b32
+uvm-core commit: 78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+Slurm run: /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-gates-845f54a-20261016-r1
+
+Archive SHA-256 (verified remotely before Slurm submission):
+4f1d8c47e7ccd94f28d084be5f7e34f09a871795a8e646a77275079f51fb6b59  base.tar.gz
+46e96b85d3aad9bce898f978e278e8e7d0178fffa02c50b76a9fd4683806bf5a  candidate.tar.gz
+47edabcda41a463532346d45b5479a7e3101202e620af762fc203467526e3845  uvm-core.tar.gz

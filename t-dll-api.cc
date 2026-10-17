@@ -3801,6 +3801,7 @@ extern "C" unsigned ivl_stmt_nevent(ivl_statement_t net)
 	    return 1;
 
 	  case IVL_ST_WAIT:
+	  case IVL_ST_WAIT_ORDER:
 	    return net->u_.wait_.nevent;
 
 	  default:
@@ -3830,6 +3831,7 @@ extern "C" ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx)
 	    return net->u_.wait_.event;
 
 	  case IVL_ST_WAIT:
+	  case IVL_ST_WAIT_ORDER:
 	    assert(idx < net->u_.wait_.nevent);
 	    if (net->u_.wait_.nevent == 1)
 		  return net->u_.wait_.event;
@@ -4071,6 +4073,7 @@ extern "C" ivl_statement_t ivl_stmt_sub_stmt(ivl_statement_t net)
 	  case IVL_ST_FORLOOP:
 	    return net->u_.forloop_.stmt;
 	  case IVL_ST_WAIT:
+	  case IVL_ST_WAIT_ORDER:
 	    return net->u_.wait_.stmt_;
 	  case IVL_ST_WAIT_OBJ:
 	    return net->u_.evobj_.stmt_;
@@ -4085,6 +4088,13 @@ extern "C" ivl_statement_t ivl_stmt_sub_stmt(ivl_statement_t net)
       }
 
       return 0;
+}
+
+extern "C" ivl_statement_t ivl_stmt_wait_order_fail_stmt(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_WAIT_ORDER);
+      return net->u_.wait_.failure_stmt_;
 }
 
 extern "C" const char*ivl_switch_basename(ivl_switch_t net)

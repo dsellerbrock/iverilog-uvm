@@ -1,0 +1,105 @@
+{
+  "benchmarks": {
+    "waveform_fst": {
+      "identical_all_runs": true,
+      "samples": [
+        {
+          "candidate": {
+            "artifacts": {
+              "stdout.bin": "d43257c3cf4fc5b19908c790d4bad3786b532b07925f172254b1d0293fa64960",
+              "waveform.fst": "6c376947b516a47e443cd298a33ee622b7f4818de2e62f97a68edc175df8e549"
+            },
+            "instructions": null,
+            "max_rss_bytes": 149893120,
+            "output_sha256": "c4c1abc19e2b85f82a83fe6e569338d5cc2cd9d87be7c14d5f67d87335da3db5",
+            "return_code": 0,
+            "task_clock_ms": null,
+            "wall_seconds": 33.31645397399552
+          },
+          "identical": true,
+          "order": [
+            "reference",
+            "candidate"
+          ],
+          "reference": {
+            "artifacts": {
+              "stdout.bin": "d43257c3cf4fc5b19908c790d4bad3786b532b07925f172254b1d0293fa64960",
+              "waveform.fst": "6c376947b516a47e443cd298a33ee622b7f4818de2e62f97a68edc175df8e549"
+            },
+            "instructions": null,
+            "max_rss_bytes": 149876736,
+            "output_sha256": "c4c1abc19e2b85f82a83fe6e569338d5cc2cd9d87be7c14d5f67d87335da3db5",
+            "return_code": 0,
+            "task_clock_ms": null,
+            "wall_seconds": 33.813888142991345
+          },
+          "run": 1
+        }
+      ],
+      "status": "ok",
+      "summary": {
+        "candidate": {
+          "instructions": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "max_rss_bytes": {
+            "max": 149893120,
+            "median": 149893120.0,
+            "min": 149893120.0,
+            "spread_pct": 0.0
+          },
+          "task_clock_ms": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "wall_seconds": {
+            "max": 33.31645397399552,
+            "median": 33.31645397399552,
+            "min": 33.31645397399552,
+            "spread_pct": 0.0
+          }
+        },
+        "reference": {
+          "instructions": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "max_rss_bytes": {
+            "max": 149876736,
+            "median": 149876736.0,
+            "min": 149876736.0,
+            "spread_pct": 0.0
+          },
+          "task_clock_ms": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "wall_seconds": {
+            "max": 33.813888142991345,
+            "median": 33.813888142991345,
+            "min": 33.813888142991345,
+            "spread_pct": 0.0
+          }
+        },
+        "speedup": 1.0149305856314745
+      }
+    }
+  },
+  "candidate_vvp": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/corpus-screen/fst/callgrind-candidate",
+  "cpu_affinity": [
+    0
+  ],
+  "perf_stat_available": false,
+  "reference_vvp": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp4-converter-screen-374b-20261016-r2/corpus-screen/fst/callgrind-reference",
+  "runs": 1,
+  "schema_version": 1
+}

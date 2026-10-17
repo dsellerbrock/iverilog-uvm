@@ -1,0 +1,21 @@
+# callgrind format
+version: 1
+creator: callgrind-3.26.0
+pid: 3622661
+cmd:  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/build/reference/install/bin/vvp -d /home/dsell/toolchains/iverilog-uvm-3335fe7ec1495956c8adc5788e9a53b0f1756ecf/caliptra-jtagdpi/jtagdpi.vpi -n -m /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/output/reference/trace_vpi/sim-axi-trace-vpi.vpi -m /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/window/reference/mcycle-window-callgrind.vpi /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp2-predecode-rebase-845f54a-20261016-r1/output/reference/caliptra_top_tb.vvp +CLP_REGRESSION +CLP_DMA_TB_MODE_NOT_EMPTY
+part: 2
+
+
+desc: I1 cache: 
+desc: D1 cache: 
+desc: LL cache: 
+
+desc: Timerange: Basic block 38616796621 - 38616796622
+desc: Trigger: Program termination
+
+positions: line
+events: Ir
+summary: 0
+
+
+totals: 0

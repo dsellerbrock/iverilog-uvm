@@ -1,0 +1,3 @@
+./ivltests/sv_wait_order_synthesis.v:5: error: wait_order cannot be synthesized.
+./ivltests/sv_wait_order_synthesis.v:4: error: Unable to synthesize synchronous process.
+2 error(s) in post-elaboration processing.

@@ -616,6 +616,7 @@ sv_assoc_unique_object_index_fail CE,-g2012 ivltests gold=sv_assoc_unique_object
 sv_array_query		normal,-g2005-sv	ivltests
 sv_cast_integer		normal,-g2005-sv	ivltests
 sv_cast_integer2		normal,-g2005-sv	ivltests
+sv_cast2_4state		normal,-g2005-sv	ivltests
 sv_cast_packed_array	normal,-g2005-sv	ivltests
 sv_cast_packed_struct	normal,-g2005-sv	ivltests
 sv_cast_string		normal,-g2005-sv	ivltests
@@ -2133,6 +2134,8 @@ sv_assoc_fixed_class_element normal,-g2017 ivltests gold=sv_assoc_fixed_element.
 sv_assoc_fixed_class_element_2023 normal,-g2023 ivltests gold=sv_assoc_fixed_element.gold
 sv_assoc_fixed_class_handle normal,-g2017 ivltests gold=sv_assoc_fixed_element.gold
 sv_assoc_fixed_class_handle_2023 normal,-g2023 ivltests gold=sv_assoc_fixed_element.gold
+sv_assoc_fixed_module_class_handle normal,-g2017 ivltests gold=sv_assoc_fixed_element.gold
+sv_assoc_fixed_module_class_handle_2023 normal,-g2023 ivltests gold=sv_assoc_fixed_element.gold
 sv_assoc_fixed_handle_method normal,-g2017 ivltests gold=sv_assoc_fixed_handle_method.gold
 sv_assoc_fixed_handle_method_2023 normal,-g2023 ivltests gold=sv_assoc_fixed_handle_method.gold
 sv_assoc_fixed_child_order normal,-g2017 ivltests gold=sv_assoc_fixed_child_order.gold
@@ -2340,6 +2343,9 @@ sv_union_unpacked_storage normal,-g2012 ivltests gold=sv_union_unpacked_storage.
 sv_union_tagged_runtime normal,-g2012 ivltests gold=sv_union_tagged_runtime.gold
 sv_union_tagged_packed_storage normal,-g2012 ivltests gold=sv_union_tagged_packed_storage.gold
 sv_union_tagged_inactive_read_fail RE,-g2012 ivltests gold=sv_union_tagged_inactive_read_fail.gold
+sv_soft_packed_union_2023 normal,-g2023 ivltests gold=sv_soft_packed_union.gold
+sv_soft_packed_union_2017 CE,-g2017 ivltests
+sv_soft_packed_union_bad_member_2023 CE,-g2023 ivltests
 
 # IEEE 1800-2017 pattern matching
 sv_pattern_matching_structured normal,-g2012 ivltests gold=sv_pattern_matching_structured.gold
@@ -2451,9 +2457,22 @@ sv_net_decl_delay_wide normal,-g2012 ivltests gold=sv_net_decl_delay_wide.gold
 sv_net_decl_delay_invalid_expr_fail CE,-g2012 ivltests gold=sv_net_decl_delay_invalid_expr_fail.gold
 sv_net_decl_delay_port_inline_fail CE,-g2012 ivltests gold=sv_net_decl_delay_port_inline_fail.gold
 
-# IEEE 1800-2017 13.4.4 function fork boundary
+# IEEE 1800-2017/2023 13.4.4 function fork boundary and deferred side effects
 sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
 sv_function_fork_blocking_fail CE,-g2012 ivltests gold=sv_function_fork_blocking_fail.gold
+sv_function_background_always_fork_ok normal,-g2012 ivltests gold=sv_function_background_always_fork_ok.gold
+sv_function_deferred_nba_context_fail RE,-g2012 ivltests gold=sv_function_deferred_nba_context_fail.gold
+sv_function_deferred_fork_context_fail RE,-g2012 ivltests gold=sv_function_deferred_fork_context_fail.gold
+sv_function_deferred_event_nb_context_fail RE,-g2012 ivltests gold=sv_function_deferred_event_nb_context_fail.gold
+sv_function_deferred_clocking_context_fail RE,-g2012 ivltests gold=sv_function_deferred_clocking_context_fail.gold
+sv_function_deferred_final_context_fail RE,-g2012 ivltests gold=sv_function_deferred_final_context_fail.gold
+sv_function_deferred_guard_attr_final_fail CE,-g2012 ivltests gold=sv_function_deferred_guard_attr_final_fail.gold
+sv_function_deferred_guard_attr_initial_fail CE,-g2012 ivltests gold=sv_function_deferred_guard_attr_initial_fail.gold
+sv_function_background_always_fork_ok_2017 normal,-g2017,-I./ivltests ivltests gold=sv_function_background_always_fork_ok.gold
+sv_function_background_always_fork_ok_2023 normal,-g2023,-I./ivltests ivltests gold=sv_function_background_always_fork_ok.gold
+sv_function_deferred_final_context_fail_2017 RE,-g2017,-I./ivltests ivltests gold=sv_function_deferred_final_context_fail.gold
+sv_function_deferred_final_context_fail_2023 RE,-g2023,-I./ivltests ivltests gold=sv_function_deferred_final_context_fail.gold
+sv_function_immediate_event_contassign_ok normal,-g2012 ivltests gold=sv_function_immediate_event_contassign_ok.gold
 
 # IEEE 1800-2017 11.8.1 binary operand contextual sizing
 sv_binary_self_determined_operand_width normal,-g2012 ivltests gold=sv_binary_self_determined_operand_width.gold
@@ -2879,6 +2898,8 @@ sv_randomize_global_uniform normal,-g2017,-s,main ivltests gold=sv_randomize_glo
 sv_randomize_global_uniform_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_uniform.gold
 sv_randomize_sparse_coupled normal,-g2017,-s,main ivltests gold=sv_randomize_sparse_coupled.gold
 sv_randomize_sparse_coupled_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_sparse_coupled.gold
+sv_randomize_sparse_wide_coupled normal,-g2017,-s,main ivltests gold=sv_randomize_sparse_wide_coupled.gold
+sv_randomize_sparse_wide_coupled_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_sparse_wide_coupled.gold
 sv_randomize_global_sampling_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_sampling_fail.gold
 sv_randomize_global_sampling_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_sampling_fail.gold
 sv_constraint_prototype_collision_fail CE,-g2017,-s,main ivltests gold=sv_constraint_prototype_collision_fail.gold
@@ -3667,6 +3688,7 @@ sv_array_packed_select_incdec_fail_2023 CE,-g2023,-s,sv_array_packed_select_incd
 sv_class_packed_select_incdec normal,-g2017,-s,sv_class_packed_select_incdec ivltests gold=sv_class_packed_select_incdec.gold
 sv_class_packed_enum_property_index_2017 normal,-g2017,-s,sv_class_packed_enum_property_index ivltests gold=sv_class_packed_enum_property_index.gold
 sv_class_packed_enum_property_index_2023 normal,-g2023,-s,sv_class_packed_enum_property_index ivltests gold=sv_class_packed_enum_property_index.gold
+sv_class_unpacked_property_index_4state normal,-g2012,-s,sv_class_unpacked_property_index_4state ivltests gold=sv_class_unpacked_property_index_4state.gold
 sv_class_packed_property_2d_index_2017 normal,-g2017,-s,sv_class_packed_property_2d_index ivltests gold=sv_class_packed_property_2d_index.gold
 sv_class_packed_property_2d_index_2023 normal,-g2023,-s,sv_class_packed_property_2d_index ivltests gold=sv_class_packed_property_2d_index.gold
 sv_class_packed_property_2d_range_invalid_2017 CE,-g2017,-s,sv_class_packed_property_2d_range_invalid ivltests
@@ -4021,6 +4043,14 @@ sv_assert_multiclock_fixed_control_selected normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_selected_2023 normal,-g2023 ivltests
 sv_assert_multiclock_fixed_control_coincident normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_coincident_2023 normal,-g2023 ivltests
+sv_assert_multiclock_disable_branch normal,-g2017 ivltests
+sv_assert_multiclock_disable_branch_2023 normal,-g2023 ivltests
+sv_assert_multiclock_disable_branch_boundary normal,-g2017 ivltests
+sv_assert_multiclock_disable_branch_boundary_2023 normal,-g2023 ivltests
+sv_assert_multiclock_disable_edge_boundaries normal,-g2017 ivltests
+sv_assert_multiclock_disable_edge_boundaries_2023 normal,-g2023 ivltests
+sv_assert_multiclock_disable_branch_unsupported CE,-g2017 ivltests gold=sv_assert_multiclock_disable_branch_unsupported.gold
+sv_assert_multiclock_disable_branch_unsupported_2023 CE,-g2023 ivltests gold=sv_assert_multiclock_disable_branch_unsupported_2023.gold
 
 sv_const_string_format normal,-g2017 ivltests gold=sv_const_string_format.gold
 sv_const_string_format_2023 normal,-g2023 ivltests gold=sv_const_string_format.gold
@@ -4609,6 +4639,7 @@ sv_event_null_x_conditional_runtime RE,-g2017 ivltests gold=sv_event_null_x_cond
 sv_event_null_x_conditional_runtime_2023 RE,-g2023 ivltests gold=sv_event_null_x_conditional_runtime_2023.gold
 sv_event_automatic_static_null_active RE,-g2017 ivltests gold=sv_event_automatic_static_null_active.gold
 sv_event_automatic_static_null_active_2023 RE,-g2023 ivltests gold=sv_event_automatic_static_null_active_2023.gold
+sv_event_static_loop_local_wait normal,-g2017 ivltests gold=sv_event_static_loop_local_wait.gold
 sv_event_real_edge_reject CE,-g2017 ivltests gold=sv_event_real_edge_reject.gold
 sv_event_real_edge_reject_2023 CE,-g2023 ivltests gold=sv_event_real_edge_reject_2023.gold
 sv_event_automatic_part_context normal,-g2017 ivltests gold=sv_event_automatic_part_context.gold
@@ -4897,6 +4928,7 @@ sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests
 sv_constraint_cross_object_solve_before normal,-g2017,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
 sv_constraint_cross_object_solve_before_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
 sv_constraint_rand_real_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_rand_real_2023.gold
+sv_constraint_rand_real_dist_points_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_rand_real_dist_points_2023.gold
 sv_constraint_rand_real_2017_fail CE,-g2017,-s,test ivltests gold=sv_constraint_rand_real_2017_fail.gold
 sv_constraint_rand_real_randc_2023_fail CE,-g2023,-s,test ivltests gold=sv_constraint_rand_real_randc_2023_fail.gold
 sv_constraint_solve_before_fixed_array_neg CE,-g2017,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
@@ -5608,3 +5640,16 @@ sv_m5_issue436_interconnect_concat_2017 normal,-g2017,-gstrict-expr-width,-s,iss
 sv_m5_issue436_interconnect_concat_2023 normal,-g2023,-gstrict-expr-width,-s,issue436 ivltests
 sv_m5_issue436_interconnect_signed_concat_2017 normal,-g2017,-gstrict-expr-width,-s,issue436_signed_concat ivltests
 sv_m5_issue436_interconnect_signed_concat_2023 normal,-g2023,-gstrict-expr-width,-s,issue436_signed_concat ivltests
+# IEEE 1800-2017/2023 15.5.4 wait_order ordering and failure behavior
+sv_wait_order_2017 normal,-g2017,-s,sv_wait_order ivltests gold=sv_wait_order.gold
+sv_wait_order_2023 normal,-g2023,-s,sv_wait_order ivltests gold=sv_wait_order.gold
+sv_wait_order_default_error_2017 normal,-g2017,-s,sv_wait_order_default_error ivltests gold=sv_wait_order_default_error.gold
+sv_wait_order_default_error_2023 normal,-g2023,-s,sv_wait_order_default_error ivltests gold=sv_wait_order_default_error.gold
+sv_wait_order_null_else_2017 CE,-g2017,-s,sv_wait_order_null_else ivltests gold=sv_wait_order_null_else_2017.gold
+sv_wait_order_null_else_2023 normal,-g2023,-s,sv_wait_order_null_else ivltests gold=sv_wait_order_null_else_2023.gold
+# Icarus interpretation; IEEE 1800-2017/2023 §15.5.4 does not define duplicate identifiers.
+sv_wait_order_duplicate_interpretation_2017 normal,-g2017,-s,sv_wait_order_duplicate_interpretation ivltests gold=sv_wait_order_duplicate_interpretation.gold
+sv_wait_order_duplicate_interpretation_2023 normal,-g2023,-s,sv_wait_order_duplicate_interpretation ivltests gold=sv_wait_order_duplicate_interpretation.gold
+sv_wait_order_vlog95 CE,-g2017,-tvlog95,-s,sv_wait_order_target ivltests gold=sv_wait_order_vlog95.gold
+sv_wait_order_vhdl CE,-g2017,-tvhdl,-s,sv_wait_order_target ivltests gold=sv_wait_order_vhdl.gold
+sv_wait_order_synth CE,-g2017,-S,-tnull,-s,sv_wait_order_synthesis ivltests gold=sv_wait_order_synth.gold

@@ -38,6 +38,7 @@
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  "netmisc.h"
+# include  "sv_edition.h"
 # include  <algorithm>
 # include  <functional>
 # include  <set>
@@ -2509,6 +2510,11 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 
       if (union_flag)
 	    res->union_flag(true);
+      if (soft_flag) {
+	    res->soft_union_flag(true);
+	    if (!sv_require_feature(this, SVF_SOFT_PACKED_UNION))
+		  des->errors += 1;
+      }
       if (tagged_flag)
 	    res->tagged_flag(true);
 

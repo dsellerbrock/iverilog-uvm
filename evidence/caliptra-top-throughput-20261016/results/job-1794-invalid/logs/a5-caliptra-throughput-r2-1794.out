@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-top-throughput-r2-20261016/input/analyze.py", line 66, in <module>
+    assert row["hex_inputs"] == expected_inputs, (case, repeat, variant, "firmware input mismatch")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('smoke_test_dma_aes_gcm_short_1_dword', 1, 'main', 'firmware input mismatch')
