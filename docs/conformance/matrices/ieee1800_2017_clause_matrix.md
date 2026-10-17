@@ -2568,7 +2568,12 @@ complete legal tuples within 12–55/300 in both editions.
 See the [revision-scoped evidence](../../../evidence/solve-before-array/uniform-legal-combinations-20261006.md)
 and the historical
 [`dynamic_array_order.sv`](../../../evidence/solve-before-array/dynamic_array_order.sv)
-result. No broader clause-18 qualification is claimed.
+result. The paired 2026-10-16 sparse-size follow-up checks six equal tuples
+across sizes 1 and 3, a contradictory size request with rollback, and the
+512/513 boundary; T0 passes the targeted legacy/JSON cases 2/2 each and T1
+passes neighboring dynamic-array suites 10/10 in both runners. See the
+[revision-scoped record](../session_logs/2026-10-16_dynamic_array_sparse_size_uniformity.md).
+No broader clause-18 qualification is claimed.
 
 Fix 13 adds an exact constrained-randc fallback for direct scalar properties
 within the existing 20-bit history limit. It proposes values uniformly over
