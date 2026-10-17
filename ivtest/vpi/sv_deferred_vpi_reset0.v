@@ -1,9 +1,17 @@
 module sv_deferred_vpi_reset0;
+  integer target_attempt;
   initial begin : vpi_process
     #1;
-    vpi_target: assert #0 (0)
-      $display("VPI_TARGET_STALE_PASS");
-    else $display("VPI_TARGET_STALE_FAIL");
+    for (target_attempt = 0; target_attempt < 3;
+         target_attempt = target_attempt + 1) begin
+      vpi_target: assert #0 (0)
+        $display("VPI_TARGET_REENABLED_PASS");
+      else $display("VPI_TARGET_REENABLED_FAIL");
+      if (target_attempt == 0)
+        $disable_reset_deferred_target;
+      else if (target_attempt == 1)
+        $enable_deferred_target;
+    end
     vpi_sibling: assert #0 (1) $display("VPI_SIBLING");
     vpi_final_target: assert final (0)
       $display("VPI_FINAL_STALE_PASS");

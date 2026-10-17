@@ -730,6 +730,9 @@ class __vpiAssertion : public __vpiHandle {
       bool reset_deferred(void)
 	{
 	    if (!deferred_source_id_) return false;
+	    /* Reset clears assertion evaluation state and pending reports. Keep the
+	       independent enable/disable control status; an explicit enable is
+	       required after a VPI disable. */
 	    vpip_cancel_deferred_assertion(deferred_source_id_, scope_);
 	    fire(cbAssertionReset);
 	    return true;
