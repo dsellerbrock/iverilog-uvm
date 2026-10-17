@@ -1,0 +1,5 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:16: error: Invalid declaration `cg2 g2 = ...;`: `cg2' is not a visible data type, and a module instantiation cannot have an initializer.
