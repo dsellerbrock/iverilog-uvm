@@ -26,7 +26,7 @@ one owner. Documentation reviewed against `5c0f5588e` on 2026-09-14.
 | What are the correctness and completion requirements? | [Manifesto](conformance/iverilog_ieee1800_uvm_manifesto.md) |
 | What workflow and toolchain should an agent use? | [AGENTS](../AGENTS.md) |
 | What are the program goals? | [Roadmap](conformance/ROADMAP.md) |
-| What semantics have evidence? | [2017 matrix](conformance/matrices/ieee1800_2017_clause_matrix.md), [2023 edition relationships](conformance/ieee1800_2023_delta.md) |
+| What semantics have evidence? | [2017 matrix](conformance/matrices/ieee1800_2017_clause_matrix.md), [2023 edition relationships](conformance/ieee1800_2023_delta.md), [IEEE status audit](conformance/matrices/ieee1800_status.md) |
 | What is the latest committed regression/application evidence? | [CURRENT_WORK](conformance/CURRENT_WORK.md) |
 | What remains to be addressed? | [BLOCKERS](conformance/BLOCKERS.md) |
 | What is selected now, and how should it resume? | [ACTIVE_WORK](../.ai/ACTIVE_WORK.yaml), [CAMPAIGN](../.ai/CAMPAIGN.yaml) |
