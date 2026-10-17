@@ -1,0 +1,103 @@
+SOURCE_COMMIT=16404e84d
+SOURCE_DIRTY=uncommitted c19b probe sources
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:14:49-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+823c09a568ee9881b4412ea4c125e46d5897f161a4d995f6d38d9293b6a81afa  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv
+5999b7bbf8b0c3eed608cbf193e2e9c25f78476bf027493bf19405b3e035e655  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv
+88fecc8e87d109064bcaebab09a79f713ae8c92877809643cdee5b3fd634d375  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_extends_outside_class.sv
+4ab01aacfb07cdd5ec9da2945e3ce8ae9db47fa7f8d54c439a22836a7cc42488  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_output_formal.sv
+a12baa4efb69889fbf2a2ade05e96a881e226b9a124679cc689e02e3d24b3dcd  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_04_assign_outside_new.sv
+
+=== cg-2017 (-g2017, expected=run) ===
+compile_rc=7
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:15: warning: Unable to bind wire/reg/memory `m_z' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:14: warning: Failed to evaluate event expression 'm_z' (compile-progress: event skipped).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:22: error: Enable of unknown task ``cv1.x.get_inst_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:24: error: Enable of unknown task ``cg.x.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:25: error: Enable of unknown task ``cg.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:27: error: Object top.cv1 has no method "x.get_inst_coverage(...)".
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:28: error: Object top.cv1 has no method "y.get_inst_coverage(...)".
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:30: error: No function named `cg.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:30: error: No function named `cg.x.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:36: warning: Enable of unknown task ``set_inst_name'' ignored (class cs is covergroup stub; compile-progress fallback).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:36: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+7 error(s) during elaboration.
+
+=== block-2017 (-g2017, expected=run) ===
+compile_rc=134
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:4: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:1: assert: pform.cc:2723: failed assertion lexical_scope == cur_module
+Aborted
+
+=== neg-output-2017 (-g2017, expected=reject) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_output_formal.sv:2: error: Covergroup constructor formal 'x' cannot have output or inout direction (IEEE 1800 19.3).
+EXPECTED_REJECTION
+
+=== neg-assign-2017 (-g2017, expected=reject) ===
+compile_rc=0
+UNEXPECTED_ACCEPTANCE_OR_ROOT
+
+=== neg-extends-2017 (-g2017, expected=reject) ===
+compile_rc=4
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_extends_outside_class.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_extends_outside_class.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_extends_outside_class.sv:3: syntax error
+I give up.
+EXPECTED_REJECTION
+
+=== cg-2023 (-g2023, expected=run) ===
+compile_rc=7
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:15: warning: Unable to bind wire/reg/memory `m_z' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:14: warning: Failed to evaluate event expression 'm_z' (compile-progress: event skipped).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:22: error: Enable of unknown task ``cv1.x.get_inst_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:24: error: Enable of unknown task ``cg.x.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:25: error: Enable of unknown task ``cg.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:27: error: Object top.cv1 has no method "x.get_inst_coverage(...)".
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:28: error: Object top.cv1 has no method "y.get_inst_coverage(...)".
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:30: error: No function named `cg.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:30: error: No function named `cg.x.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:36: warning: Enable of unknown task ``set_inst_name'' ignored (class cs is covergroup stub; compile-progress fallback).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:36: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+7 error(s) during elaboration.
+
+=== block-2023 (-g2023, expected=run) ===
+compile_rc=134
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:4: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_block_event.sv:1: assert: pform.cc:2723: failed assertion lexical_scope == cur_module
+Aborted
+
+=== neg-output-2023 (-g2023, expected=reject) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_output_formal.sv:2: error: Covergroup constructor formal 'x' cannot have output or inout direction (IEEE 1800 19.3).
+EXPECTED_REJECTION
+
+=== neg-assign-2023 (-g2023, expected=reject) ===
+compile_rc=0
+UNEXPECTED_ACCEPTANCE_OR_ROOT
+
+=== neg-extends-2023 (-g2023, expected=reject) ===
+compile_rc=4
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_extends_outside_class.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_extends_outside_class.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/neg/n19_03_extends_outside_class.sv:3: syntax error
+I give up.
+EXPECTED_REJECTION
+RESULT=FAIL
