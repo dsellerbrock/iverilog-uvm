@@ -8,9 +8,12 @@ module sv_deferred_vpi_reset0;
         $display("VPI_TARGET_REENABLED_PASS");
       else $display("VPI_TARGET_REENABLED_FAIL");
       if (target_attempt == 0)
-        $disable_reset_deferred_target;
+        begin
+          $assertoff(0, vpi_target);
+          $reset_deferred_target;
+        end
       else if (target_attempt == 1)
-        $enable_deferred_target;
+        $asserton(0, vpi_target);
     end
     vpi_sibling: assert #0 (1) $display("VPI_SIBLING");
     vpi_final_target: assert final (0)

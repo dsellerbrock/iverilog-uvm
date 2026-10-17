@@ -9,6 +9,9 @@ static int assertion_reset_callbacks;
 static int assertion_disable_callbacks;
 static int assertion_enable_callbacks;
 static int reset_control_valid = 1;
+static int target_control_callbacks_registered;
+
+static vpiHandle deferred_target_assertion_(void);
 
 static PLI_INT32 assertion_reset_cb(PLI_INT32 reason, p_vpi_time time,
 				    vpiHandle assertion,
@@ -76,6 +79,7 @@ static int check_deferred_metadata(const char*scope_name, int expected_type,
 
 static PLI_INT32 check_registered_at_start(p_cb_data data)
 {
+      vpiHandle target = deferred_target_assertion_();
       int count =
 	    count_assertions("sv_deferred_vpi_reset0.vpi_process.vpi_target")
 	    + count_assertions(
@@ -88,15 +92,20 @@ static PLI_INT32 check_registered_at_start(p_cb_data data)
 		  "sv_deferred_vpi_reset0.vpi_process.vpi_kinds");
       (void)data;
       registered_before_simulation = count == 8;
+      target_control_callbacks_registered = target
+	    && vpi_register_assertion_cb(target, cbAssertionDisable,
+					 assertion_control_cb, 0)
+	    && vpi_register_assertion_cb(target, cbAssertionEnable,
+					 assertion_control_cb, 0);
       deferred_metadata_valid = check_deferred_metadata(
 	    "sv_deferred_vpi_reset0.vpi_process.vpi_target",
 	    vpiImmediateAssert, "vpiImmediateAssert", 7)
 	    && check_deferred_metadata(
 		  "sv_deferred_vpi_reset0.vpi_process.vpi_kinds",
-	    vpiImmediateAssume, "vpiImmediateAssume", 29)
+	    vpiImmediateAssume, "vpiImmediateAssume", 32)
 	    && check_deferred_metadata(
 		  "sv_deferred_vpi_reset0.vpi_process.vpi_kinds",
-		  vpiImmediateCover, "vpiImmediateCover", 30);
+		  vpiImmediateCover, "vpiImmediateCover", 33);
       vpi_printf(registered_before_simulation
 		 ? "PASS: deferred assertions registered before simulation\n"
 		 : "FAIL: deferred assertions missing before simulation\n");
@@ -136,11 +145,6 @@ static vpiHandle deferred_target_assertion_(void)
 	  it = vpi_iterate(vpiAssertion, scope);
 	  if (!it) return 0;
 	  assertion = vpi_scan(it);
-	  if (!assertion || vpi_scan(it)) {
-	    vpi_free_object(it);
-	    return 0;
-	  }
-	  vpi_free_object(it);
 	  return assertion;
 }
 
@@ -152,28 +156,13 @@ static PLI_INT32 disable_reset_target_calltf(PLI_BYTE8*name)
 	  int enable_before = assertion_enable_callbacks;
 	  (void)name;
 	  reset_control_valid = assertion
+	    && target_control_callbacks_registered
 	    && vpi_register_assertion_cb(assertion, cbAssertionReset,
 					 assertion_reset_cb, 0)
-	    && vpi_register_assertion_cb(assertion, cbAssertionDisable,
-					 assertion_control_cb, 0)
-	    && vpi_register_assertion_cb(assertion, cbAssertionEnable,
-					 assertion_control_cb, 0)
-	    && vpi_control(vpiAssertionDisable, assertion)
 	    && vpi_control(vpiAssertionReset, assertion)
 	    && assertion_reset_callbacks == reset_before + 1
-	    && assertion_disable_callbacks == disable_before + 1
+	    && assertion_disable_callbacks == disable_before
 	    && assertion_enable_callbacks == enable_before;
-	  return 0;
-}
-
-static PLI_INT32 enable_target_calltf(PLI_BYTE8*name)
-{
-	  vpiHandle assertion = deferred_target_assertion_();
-	  int enable_before = assertion_enable_callbacks;
-	  (void)name;
-	  reset_control_valid = assertion && reset_control_valid
-	    && vpi_control(vpiAssertionEnable, assertion)
-	    && assertion_enable_callbacks == enable_before + 1;
 	  return 0;
 }
 
@@ -231,14 +220,8 @@ static void register_reset(void)
       s_cb_data cb;
 	  memset(&tf, 0, sizeof tf);
 	  tf.type = vpiSysTask;
-	  tf.tfname = "$disable_reset_deferred_target";
+	  tf.tfname = "$reset_deferred_target";
 	  tf.calltf = disable_reset_target_calltf;
-	  vpi_register_systf(&tf);
-
-	  memset(&tf, 0, sizeof tf);
-	  tf.type = vpiSysTask;
-	  tf.tfname = "$enable_deferred_target";
-	  tf.calltf = enable_target_calltf;
 	  vpi_register_systf(&tf);
 
       memset(&tf, 0, sizeof tf);
