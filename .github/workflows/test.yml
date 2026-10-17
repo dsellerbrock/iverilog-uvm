@@ -207,14 +207,6 @@ jobs:
       with:
         msystem: ${{ matrix.msystem }}
         update: true
-        install: >
-          git
-          base-devel
-          mingw-w64-${{ matrix.env }}-python-pip
-          mingw-w64-${{ matrix.env }}-perl
-          mingw-w64-${{ matrix.env }}-z3
-          mingw-w64-${{ matrix.env }}-libffi
-          mingw-w64-${{ matrix.env }}-libsystre
 
     - name: Prefer primary MSYS2 mirror, retain fallbacks
       run: |
@@ -223,6 +215,19 @@ jobs:
             'BEGIN { print primary } $0 != primary' "$mirrorlist" > "$mirrorlist.tmp"
           mv "$mirrorlist.tmp" "$mirrorlist"
         done
+
+    - name: Install MSYS2 packages (retry mirrors)
+      run: |
+        packages=(
+          git
+          base-devel
+          mingw-w64-${{ matrix.env }}-python-pip
+          mingw-w64-${{ matrix.env }}-perl
+          mingw-w64-${{ matrix.env }}-z3
+          mingw-w64-${{ matrix.env }}-libffi
+          mingw-w64-${{ matrix.env }}-libsystre
+        )
+        bash .github/retry-msys2-command.sh -- pacman --noconfirm -S --needed --overwrite '*' "${packages[@]}"
 
     - name: Install Python dependencies
       run: pip3 install docopt
@@ -233,7 +238,8 @@ jobs:
         if [ "${{ matrix.msystem }}" != "CLANG64" ] ; then
             export IVL_CONFIG_OPTIONS="--enable-libveriuser"
         fi
-        makepkg-mingw --noconfirm --noprogressbar -sCLf
+        # makepkg exit 8 is dependency installation; other build failures should stop immediately.
+        bash ../.github/retry-msys2-command.sh --retry-exit 8 -- makepkg-mingw --noconfirm --noprogressbar -sCLf
 
     - name: Install binary
       run: pacman -U --noconfirm msys2/*.zst
