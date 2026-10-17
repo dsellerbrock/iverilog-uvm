@@ -1,0 +1,70 @@
+SOURCE_COMMIT=16404e84d
+Bisection: explicit coverpoint identifier and executable §19.4 assignment test
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:17:53-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+e32182cc26d83fa51e2a348e640a199458475f8c8a6226feddf156979d5895b1  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_04_assignment_exec.sv
+cf1a141bb234772d6f9127149e3869a7eca7b4f76963e6d5d050dac59946994a  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_04_embedded_event.sv
+ac8f571a979d9643df15a7c6d6f1e9aff8f7ea133926e782814c4a4b8922cd84  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_08_cp_method.sv
+e5530b36599963767c1a3ddd372ee4cfe6613c88c47d38c8fc55066bb58f0978  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_08_type_methods.sv
+
+=== cp-method-2017 (-g2017) ===
+compile_rc=0
+run_rc=0
+INFO cp_inst=50.000000
+
+=== type-methods-2017 (-g2017) ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_08_type_methods.sv:5: error: No function named `cg.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_08_type_methods.sv:5: error: No function named `cg.cp_v.get_coverage' found in this context (top).
+2 error(s) during elaboration.
+
+=== embedded-event-2017 (-g2017) ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_04_embedded_event.sv:4: warning: Unable to bind wire/reg/memory `m_z' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_04_embedded_event.sv:2: warning: Failed to evaluate event expression 'm_z' (compile-progress: event skipped).
+run_rc=0
+INFO event1=50.000000
+PASS 19.4.embedded_cg_event_1
+FAIL 19.4.embedded_cg_event_2
+
+=== assignment-outside-new-2017 (-g2017) ===
+compile_rc=0
+run_rc=0
+INFO before=50.000000
+INFO after_reassignment=0.000000
+SPEC_REQUIRES_REJECTION; observed compile accepted and runtime completed
+
+=== cp-method-2023 (-g2023) ===
+compile_rc=0
+run_rc=0
+INFO cp_inst=50.000000
+
+=== type-methods-2023 (-g2023) ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_08_type_methods.sv:5: error: No function named `cg.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_08_type_methods.sv:5: error: No function named `cg.cp_v.get_coverage' found in this context (top).
+2 error(s) during elaboration.
+
+=== embedded-event-2023 (-g2023) ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_04_embedded_event.sv:4: warning: Unable to bind wire/reg/memory `m_z' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-03/input/p19_04_embedded_event.sv:2: warning: Failed to evaluate event expression 'm_z' (compile-progress: event skipped).
+run_rc=0
+INFO event1=50.000000
+PASS 19.4.embedded_cg_event_1
+FAIL 19.4.embedded_cg_event_2
+
+=== assignment-outside-new-2023 (-g2023) ===
+compile_rc=0
+run_rc=0
+INFO before=50.000000
+INFO after_reassignment=0.000000
+SPEC_REQUIRES_REJECTION; observed compile accepted and runtime completed
+RESULT=FINDINGS

@@ -1,0 +1,74 @@
+
+=== positive -g2017 ===
+compile_rc=0
+run_rc=0
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
+PASS 18.7.inline_plus_class_constraints
+PASS 18.7.unrestricted_resolution_obj_then_local
+PASS 18.7.restricted_idlist_other_names_local
+PASS 18.7.restricted_with_local_qualifier
+PASS 18.7.1.local_qualifier_binds_caller
+PASS 18.7.this_binds_object_class
+PASS 18.7.dotted_names_downward
+PASS 18.7.usable_in_expression
+PASS 18.7.infeasible_returns_0
+PASS 18.7.inline_constraint_forms
+DONE fails=0
+
+=== isolated local::this -g2017 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18c-attempt-02-20261017/source/tests/1800_audit/c18/p18_07_local_this.sv:6: syntax error
+GAP local::this rejected at compile time
+
+=== negative n18_07_this_unresolved -g2017 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18c-attempt-02-20261017/source/tests/1800_audit/c18/neg/n18_07_this_unresolved.sv:3: error: Inline constraint member `nope' is not a property of the randomize() receiver.
+1 error(s) during elaboration.
+EXPECTED_REJECTION
+
+=== negative n18_07_scope_randomize_idlist -g2017 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18c-attempt-02-20261017/source/tests/1800_audit/c18/neg/n18_07_scope_randomize_idlist.sv:3: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+1 error(s) during elaboration.
+EXPECTED_REJECTION
+
+=== negative n18_07_scope_randomize_null -g2017 ===
+compile_rc=0
+UNEXPECTED_ACCEPTANCE
+
+=== positive -g2023 ===
+compile_rc=0
+run_rc=0
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
+PASS 18.7.inline_plus_class_constraints
+PASS 18.7.unrestricted_resolution_obj_then_local
+PASS 18.7.restricted_idlist_other_names_local
+PASS 18.7.restricted_with_local_qualifier
+PASS 18.7.1.local_qualifier_binds_caller
+PASS 18.7.this_binds_object_class
+PASS 18.7.dotted_names_downward
+PASS 18.7.usable_in_expression
+PASS 18.7.infeasible_returns_0
+PASS 18.7.inline_constraint_forms
+DONE fails=0
+
+=== isolated local::this -g2023 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18c-attempt-02-20261017/source/tests/1800_audit/c18/p18_07_local_this.sv:6: syntax error
+GAP local::this rejected at compile time
+
+=== negative n18_07_this_unresolved -g2023 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18c-attempt-02-20261017/source/tests/1800_audit/c18/neg/n18_07_this_unresolved.sv:3: error: Inline constraint member `nope' is not a property of the randomize() receiver.
+1 error(s) during elaboration.
+EXPECTED_REJECTION
+
+=== negative n18_07_scope_randomize_idlist -g2023 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18c-attempt-02-20261017/source/tests/1800_audit/c18/neg/n18_07_scope_randomize_idlist.sv:3: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+1 error(s) during elaboration.
+EXPECTED_REJECTION
+
+=== negative n18_07_scope_randomize_null -g2023 ===
+compile_rc=0
+UNEXPECTED_ACCEPTANCE

@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+I give up.

@@ -1,0 +1,13 @@
+Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+9b5fad2afb4104caa816b257d5bccc40f01b8c66
+Icarus Verilog version 13.0 (devel) ()
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+9e98c3c982456148c2b15e866072448366fec4d5dae4273649d3e0cafcc37ed5  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-svtests-qualified-if-20260813/local-install/bin/iverilog
+87a81327f5eddd5d2281190338ea38e128774ff66b08c57b1de724f09a59615b  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-svtests-qualified-if-20260813/local-install/bin/vvp
+bison (GNU Bison) 3.8.2
+Z3 version 5.1.0 - 64 bit
+bison 3.8.2
+libffi 3.8.0
+z3 5.1.0
+command: ~/codex-supervisor/localrun 1800 bash /tmp/a3-c08b-run.sh

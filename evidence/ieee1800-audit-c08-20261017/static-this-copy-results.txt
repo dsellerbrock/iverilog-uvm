@@ -1,0 +1,115 @@
+### p08_09_12_static_this_copy -g2017
+compile_rc=0
+/tmp/a3-c08b-run.sh: line 23: 69216 Abort trap: 6              perl -e 'alarm 30; exec @ARGV' "$B/vvp" -n "$O/$b.$g.vvp" > "$O/$b.$g.run" 2>&1
+run_rc=134
+Assertion failed: (defn_ == that->defn_), function shallow_copy, file vvp_cobject.cc, line 1190.
+PASS 8.9.no_object
+PASS 8.9.via_null_handle
+PASS 8.9.shared_single_copy
+PASS 8.10.static_call_no_instance
+PASS 8.10.static_calls_static
+PASS 8.10.static_task_automatic_vars
+PASS 8.11.this_disambiguates_arg
+PASS 8.11.this_is_handle
+PASS 8.12.shallow_copies_scalar
+PASS 8.12.shallow_shares_nested
+PASS 8.12.copy_is_new_object
+### p08_11_type_this -g2017
+compile_rc=2
+tests/1800_audit/c08/p08_11_type_this.sv:3: error: the type(this) self type requires IEEE1800-2023; compile with -g2023 (or -glatest).
+tests/1800_audit/c08/p08_11_type_this.sv:3: error: Variable t does not have a field named: a.
+2 error(s) during elaboration.
+### n08_04_eq_unrelated -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_05_param_not_const -g2017
+compile_rc=1
+tests/1800_audit/c08/neg/n08_05_param_not_const.sv:2: error: A reference to a net or variable (`v.W') is not allowed in a constant expression.
+1 error(s) during elaboration.
+### n08_07_event_in_new -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_07_wait_in_new -g2017
+compile_rc=2
+tests/1800_audit/c08/neg/n08_07_wait_in_new.sv:2: error: functions cannot have wait statements.
+tests/1800_audit/c08/neg/n08_07_wait_in_new.sv:2: error: Unable to elaborate statement in function new.
+2 error(s) during elaboration.
+### n08_10_this_in_static -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_10_nonstatic_in_static -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_10_static_virtual -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_11_this_outside_class -g2017
+compile_rc=1
+tests/1800_audit/c08/neg/n08_11_this_outside_class.sv:2: warning: Unable to bind wire/reg/memory `this' in `top' (compile-progress: unresolved reference).
+Elaboration failed
+### n08_12_typed_ctor_shallow -g2017
+compile_rc=2
+tests/1800_audit/c08/neg/n08_12_typed_ctor_shallow.sv:2: syntax error
+tests/1800_audit/c08/neg/n08_12_typed_ctor_shallow.sv:2: error: Malformed statement
+### p08_09_12_static_this_copy -g2023
+compile_rc=0
+/tmp/a3-c08b-run.sh: line 23: 69306 Abort trap: 6              perl -e 'alarm 30; exec @ARGV' "$B/vvp" -n "$O/$b.$g.vvp" > "$O/$b.$g.run" 2>&1
+run_rc=134
+Assertion failed: (defn_ == that->defn_), function shallow_copy, file vvp_cobject.cc, line 1190.
+PASS 8.9.no_object
+PASS 8.9.via_null_handle
+PASS 8.9.shared_single_copy
+PASS 8.10.static_call_no_instance
+PASS 8.10.static_calls_static
+PASS 8.10.static_task_automatic_vars
+PASS 8.11.this_disambiguates_arg
+PASS 8.11.this_is_handle
+PASS 8.12.shallow_copies_scalar
+PASS 8.12.shallow_shares_nested
+PASS 8.12.copy_is_new_object
+### p08_11_type_this -g2023
+compile_rc=0
+run_rc=0
+PASS 8.11.type_this
+### n08_04_eq_unrelated -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_05_param_not_const -g2023
+compile_rc=1
+tests/1800_audit/c08/neg/n08_05_param_not_const.sv:2: error: A reference to a net or variable (`v.W') is not allowed in a constant expression.
+1 error(s) during elaboration.
+### n08_07_event_in_new -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_07_wait_in_new -g2023
+compile_rc=2
+tests/1800_audit/c08/neg/n08_07_wait_in_new.sv:2: error: functions cannot have wait statements.
+tests/1800_audit/c08/neg/n08_07_wait_in_new.sv:2: error: Unable to elaborate statement in function new.
+2 error(s) during elaboration.
+### n08_10_this_in_static -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_10_nonstatic_in_static -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_10_static_virtual -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_11_this_outside_class -g2023
+compile_rc=1
+tests/1800_audit/c08/neg/n08_11_this_outside_class.sv:2: warning: Unable to bind wire/reg/memory `this' in `top' (compile-progress: unresolved reference).
+Elaboration failed
+### n08_12_typed_ctor_shallow -g2023
+compile_rc=2
+tests/1800_audit/c08/neg/n08_12_typed_ctor_shallow.sv:2: syntax error
+tests/1800_audit/c08/neg/n08_12_typed_ctor_shallow.sv:2: error: Malformed statement

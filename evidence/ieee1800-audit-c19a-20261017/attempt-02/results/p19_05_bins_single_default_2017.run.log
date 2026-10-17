@@ -1,0 +1,13 @@
+PASS 19.11.1.no_samples_0
+INFO cg1 cov=7.142857 n=0 d=0
+FAIL 19.5.1.bins_default_excluded_5_of_70
+PASS 19.5.1.fixed_last_bin_gets_remainder
+PASS 19.5.1.fixed_duplicates_retained
+INFO cg3 cov=33.333333 n=0 d=0
+FAIL 19.11.1.empty_bins_excluded
+PASS 19.5.iff_false_ignored
+PASS 19.5.iff_true_counts
+PASS 19.11.no_items_weight_nonzero_0
+PASS 19.11.no_items_weight_zero_100
+PASS 19.11.all_item_weights_zero_0
+DONE fails=2

@@ -1,0 +1,42 @@
+
+=== positive -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 18.6.randomize_success_and_constraint
+PASS 18.6.virtual_randomize_uses_derived_constraint
+PASS 18.6.inherited_pre_post
+PASS 18.6.override_without_super_skips_base
+PASS 18.6.failure_retains_values_and_skips_post
+PASS 18.6.enabled_rand_object_callbacks
+PASS 18.6.nonrand_object_callbacks_skipped
+PASS 18.6.rand_mode_zero_object_callbacks_skipped
+PASS 18.6.static_rand_shared_across_instances
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18a-20261017/source/tests/1800_audit/c18/p18_06_methods.sv:104: $finish called at 0 (1s)
+
+=== negative -g2017 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18a-20261017/source/tests/1800_audit/c18/neg/n18_06_override_randomize.sv:2: error: Class method `randomize' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.
+EXPECTED_REJECTION
+
+=== positive -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 18.6.randomize_success_and_constraint
+PASS 18.6.virtual_randomize_uses_derived_constraint
+PASS 18.6.inherited_pre_post
+PASS 18.6.override_without_super_skips_base
+PASS 18.6.failure_retains_values_and_skips_post
+PASS 18.6.enabled_rand_object_callbacks
+PASS 18.6.nonrand_object_callbacks_skipped
+PASS 18.6.rand_mode_zero_object_callbacks_skipped
+PASS 18.6.static_rand_shared_across_instances
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18a-20261017/source/tests/1800_audit/c18/p18_06_methods.sv:104: $finish called at 0 (1s)
+
+=== negative -g2023 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18a-20261017/source/tests/1800_audit/c18/neg/n18_06_override_randomize.sv:2: error: Class method `randomize' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.
+EXPECTED_REJECTION
