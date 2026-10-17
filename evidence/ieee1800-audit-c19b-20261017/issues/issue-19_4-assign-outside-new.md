@@ -1,4 +1,4 @@
-Clause: IEEE 1800-2017/2023 §19.4.
+Clause: IEEE 1800-2017 §19.4 (p. 557) / IEEE 1800-2023 §19.4 (p. 579).
 
 Requirement: “An embedded covergroup variable may only be assigned in the new method.”
 

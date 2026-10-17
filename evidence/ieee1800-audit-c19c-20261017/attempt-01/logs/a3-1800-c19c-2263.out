@@ -1,0 +1,167 @@
+SOURCE_COMMIT=0ee663139
+IEEE_PROBE=c19c; two editions
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:24:04-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+cb95f623406dbb1080f82f2ef12034254cd33cfab1fbbb74c475fb8c8b76205c  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_03_clock_event.sv
+669ff58b141b8d85afe5db11fd47600c2a18f39b97076dcf6d8bdfc982a91f8d  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv
+0cfc0d0654ca8be57dba382118ce64c4a71ef0f1bb29ed97ba5b49eaaecc6925  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_05_implicit_cp_name.sv
+19723c18cdede0d4dc7b3d1616f7f43d1d55e184002e3473c6a72bc367aa480b  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_inst.sv
+2bb618beff98035283b06182eaf4684ffd4bd2b062edb2735fa6c5d4d3aa5afe  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_type.sv
+883e1715aa9e1e104ce584279f9023b7db936985320866b950be7ec1e3b2c630  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/neg/n19_04_1_extends_undefined.sv
+
+=== clock-event-2017 (-g2017, expected run) ===
+compile_rc=0
+run_rc=0
+PASS 19.3.clocking_event_samples cov=50.000000
+PASS 19.3.multiple_events_one_timestep_sample_twice cov=25.000000
+
+=== two-arg-inst-2017 (-g2017, two-argument totals) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_inst.sv:10: error: Enable of unknown task ``cv1.cx.get_inst_coverage''.
+1 error(s) during elaboration.
+
+=== two-arg-type-2017 (-g2017, type-level two-argument totals) ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_type.sv:9: error: Enable of unknown task ``cg.cx.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_type.sv:10: error: Enable of unknown task ``cg.get_coverage''.
+2 error(s) during elaboration.
+INCONCLUSIVE_BLOCKED_BY_627
+
+=== implicit-cp-2017 (-g2017, expected run) ===
+compile_rc=3
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_05_implicit_cp_name.sv:5: error: Covergroup has no named coverpoint or cross `v'.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_05_implicit_cp_name.sv:5: error: Covergroup has no named coverpoint or cross `v'.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_05_implicit_cp_name.sv:5: error: Covergroup has no named coverpoint or cross `v'.
+3 error(s) during elaboration.
+
+=== extends-positive-2017 (-g2017, expected reject: edition-only) ===
+compile_rc=38
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:10: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: error: cb doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:16: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: r doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:19: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:19: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: r doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:21: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:21: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:22: syntax error
+I give up.
+EXPECTED_REJECTION
+
+=== extends-undefined-2017 (-g2017, expected reject: undefined-base) ===
+compile_rc=4
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/neg/n19_04_1_extends_undefined.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+I give up.
+EXPECTED_REJECTION
+
+=== clock-event-2023 (-g2023, expected run) ===
+compile_rc=0
+run_rc=0
+PASS 19.3.clocking_event_samples cov=50.000000
+PASS 19.3.multiple_events_one_timestep_sample_twice cov=25.000000
+
+=== two-arg-inst-2023 (-g2023, two-argument totals) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_inst.sv:10: error: Enable of unknown task ``cv1.cx.get_inst_coverage''.
+1 error(s) during elaboration.
+
+=== two-arg-type-2023 (-g2023, type-level two-argument totals) ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_type.sv:9: error: Enable of unknown task ``cg.cx.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_type.sv:10: error: Enable of unknown task ``cg.get_coverage''.
+2 error(s) during elaboration.
+INCONCLUSIVE_BLOCKED_BY_627
+
+=== implicit-cp-2023 (-g2023, expected run) ===
+compile_rc=3
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_05_implicit_cp_name.sv:5: error: Covergroup has no named coverpoint or cross `v'.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_05_implicit_cp_name.sv:5: error: Covergroup has no named coverpoint or cross `v'.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_05_implicit_cp_name.sv:5: error: Covergroup has no named coverpoint or cross `v'.
+3 error(s) during elaboration.
+
+=== extends-positive-2023 (-g2023, expected run) ===
+compile_rc=38
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:10: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: error: cb doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:16: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: r doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:19: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:19: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: r doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:21: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:21: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:22: syntax error
+I give up.
+
+=== extends-undefined-2023 (-g2023, expected reject: undefined-base) ===
+compile_rc=4
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/neg/n19_04_1_extends_undefined.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+I give up.
+EXPECTED_UNDEFINED_BASE_DIAGNOSTIC
+RESULT=FINDINGS

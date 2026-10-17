@@ -1,4 +1,4 @@
-Clause: IEEE 1800-2017/2023 §19.4.
+Clause: IEEE 1800-2017 §19.4 (p. 557) / IEEE 1800-2023 §19.4 (p. 579).
 
 Requirement: §19.4’s embedded-covergroup example states that data members `m_x` and `m_y` are sampled on every change of member `m_z`.
 

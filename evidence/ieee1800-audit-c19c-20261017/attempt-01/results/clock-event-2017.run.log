@@ -1,0 +1,2 @@
+PASS 19.3.clocking_event_samples cov=50.000000
+PASS 19.3.multiple_events_one_timestep_sample_twice cov=25.000000
