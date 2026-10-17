@@ -4932,6 +4932,8 @@ sv_constraint_solve_before_fixed_array normal,-g2017,-s,top ivltests
 sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests
 sv_constraint_cross_object_solve_before normal,-g2017,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
 sv_constraint_cross_object_solve_before_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_cross_object_solve_before.gold
+sv_constraint_parent_child_class_joint normal,-g2017,-s,test ivltests gold=sv_constraint_parent_child_class_joint.gold
+sv_constraint_parent_child_class_joint_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_parent_child_class_joint.gold
 sv_constraint_rand_real_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_rand_real_2023.gold
 sv_constraint_rand_real_dist_points_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_rand_real_dist_points_2023.gold
 sv_constraint_rand_real_2017_fail CE,-g2017,-s,test ivltests gold=sv_constraint_rand_real_2017_fail.gold
