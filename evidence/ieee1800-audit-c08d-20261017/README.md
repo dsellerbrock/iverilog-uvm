@@ -40,10 +40,12 @@ hashes, runner, and combined raw output are preserved in this directory.
   [issue #619](https://github.com/dsellerbrock/iverilog-uvm/issues/619). The
   matrix records this gap and the supported probed subsets for §§8.13–8.17.
 
-Lead classification: §§8.13, 8.14, and 8.15 are QUALIFIED for the listed
-probes; §8.16 is QUALIFIED for the tested `$cast` forms (interface-class
-sources and task-form runtime error remain unprobed); §8.17 is PARTIAL due to
-the issue #619 behavior. These labels do not claim complete clause coverage.
+Lead classification found the listed subsets of §§8.13, 8.14, and 8.15
+supported, and the tested `$cast` forms in §8.16 supported (interface-class
+sources and task-form runtime error remain unprobed). The matrix calls these
+passing probe subsets `IMPLEMENTED`, since they have no registered regression
+coverage yet. Section 8.17 is `PARTIAL` due to the issue #619 behavior. These
+labels do not claim complete clause coverage.
 
 Full compile/run output, including the confirmed mismatch, is in
 [`results.txt`](results.txt). SHA-256 values for all probe sources are in

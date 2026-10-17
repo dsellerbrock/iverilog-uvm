@@ -15,8 +15,10 @@ The audit lead read both editions and filed ten verified gaps:
 [#614](https://github.com/dsellerbrock/iverilog-uvm/issues/614),
 [#615](https://github.com/dsellerbrock/iverilog-uvm/issues/615),
 [#616](https://github.com/dsellerbrock/iverilog-uvm/issues/616), and
-[#617](https://github.com/dsellerbrock/iverilog-uvm/issues/617). `QUALIFIED`
-means the named probe subset passed; it does not mean full-clause conformance.
+[#617](https://github.com/dsellerbrock/iverilog-uvm/issues/617). The matrix
+uses `IMPLEMENTED` for probe-passing subsets and reserves `QUALIFIED` for
+subsets that also have registered regression coverage and passed the required
+gate. Neither label claims full-clause conformance.
 
 ## Build and run provenance
 
@@ -64,12 +66,12 @@ negative control, not a clause 13 audit.
 | --- | --- | --- | --- |
 | 8.4 | Default-null handles, equality/case equality, conditional and compatible/null assignment pass; relational comparison is rejected. Arithmetic and equality between unrelated handles compile. Null dereference runs without a diagnostic, which is permitted for an indeterminate result. | PARTIAL | [#608](https://github.com/dsellerbrock/iverilog-uvm/issues/608), [#612](https://github.com/dsellerbrock/iverilog-uvm/issues/612) |
 | 8.5 | Instance property/enum/parameter access passes; instance-qualified type access is rejected; the class-scoped type-parameter cast example fails to compile. | PARTIAL | [#611](https://github.com/dsellerbrock/iverilog-uvm/issues/611) |
-| 8.6 | Method calls and automatic method lifetime pass; static method/task lifetime is rejected. | QUALIFIED | — |
+| 8.6 | Method calls and automatic method lifetime pass; static method/task lifetime is rejected. | IMPLEMENTED | — |
 | 8.7 | Initialization and argument forms, implicit `new`, local/protected factory access, and rejection of `wait` in `new` pass. Static/virtual constructors and `@e` in `new` compile; module code can call a local constructor. | PARTIAL | [#609](https://github.com/dsellerbrock/iverilog-uvm/issues/609), [#610](https://github.com/dsellerbrock/iverilog-uvm/issues/610), [#613](https://github.com/dsellerbrock/iverilog-uvm/issues/613) |
-| 8.8 | Typed constructors, parameterized/named arguments, dynamic type, and incompatible-target rejection pass. | QUALIFIED | — |
-| 8.9 | Static property access without an object, through a null handle, and shared updates pass. | QUALIFIED | — |
+| 8.8 | Typed constructors, parameterized/named arguments, dynamic type, and incompatible-target rejection pass. | IMPLEMENTED | — |
+| 8.9 | Static property access without an object, through a null handle, and shared updates pass. | IMPLEMENTED | — |
 | 8.10 | Static method/task calls pass; `this` and non-static members in static methods, and `static virtual` methods, compile. | PARTIAL | [#614](https://github.com/dsellerbrock/iverilog-uvm/issues/614), [#615](https://github.com/dsellerbrock/iverilog-uvm/issues/615) |
-| 8.11 | `this` disambiguation and handle return pass; `type(this)` passes in 2023 and is rejected in 2017. `this` outside a class fails elaboration with an unresolved-reference warning. | QUALIFIED | — |
+| 8.11 | `this` disambiguation and handle return pass; `type(this)` passes in 2023 and is rejected in 2017. `this` outside a class fails elaboration with an unresolved-reference warning. | IMPLEMENTED | — |
 | 8.12 | Same-type shallow copy, shared nested handles, no constructor re-run, and mode copying pass. Copying a derived object through a base handle aborts VVP; copied objects produce different next random values. | PARTIAL | [#616](https://github.com/dsellerbrock/iverilog-uvm/issues/616), [#617](https://github.com/dsellerbrock/iverilog-uvm/issues/617) |
 | 8.18 | A local constructor works through an in-class factory, but a module-scope call to it compiles. | PARTIAL | [#610](https://github.com/dsellerbrock/iverilog-uvm/issues/610) |
 
@@ -78,6 +80,6 @@ editions. Issue #101 is not a duplicate: it concerned static initialization
 order and states that procedural `b = new source` copies correctly. The
 unresolved RNG implementation boundary is reserved for the later §18.14
 audit. Probe results for §§8.13–8.17 are recorded in
-[`the follow-up evidence`](../ieee1800-audit-c08d-20261017/README.md), but
-await lead classification and a matrix update. All other unlisted features
-remain unassessed.
+[`the follow-up evidence`](../ieee1800-audit-c08d-20261017/README.md). The
+matrix lists the complete clause 8 subclause inventory and marks subclauses
+without direct probe evidence `UNASSESSED`.

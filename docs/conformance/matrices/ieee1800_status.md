@@ -2,14 +2,19 @@
 
 This is the probe-led M7 audit record. Each row covers only the feature subset
 named in its probe and evidence; a clause omitted here is unassessed.
-`IMPLEMENTED` means every listed behavior passed a dedicated probe in each
-listed edition. `QUALIFIED` means the subset also has registered regression
-coverage and has passed its required gate. `PARTIAL` means a probe verified
+`UNASSESSED` means no clause-specific probe result is recorded.
+`IMPLEMENTED` means every listed behavior produced its expected result in the
+dedicated probes for both editions, including expected edition-specific
+differences. `QUALIFIED` means the subset also has registered regression
+coverage and has passed its required gate. `PARTIAL` means probes verified
 both supported behavior and a gap; `MISSING` means a required behavior failed
 its probe. No status claims full-clause conformance.
 
 | Clause (2017 / 2023) | Feature audited | Status | Probe | Evidence | Issue |
 | --- | --- | --- | --- | --- | --- |
+| §8.1 / §8.1 | General — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.2 / §8.2 | Overview — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.3 / §8.3 | Syntax — no clause-specific probe recorded | UNASSESSED | — | — | — |
 | §8.4 / §8.4 | Default-null handles, equality/case equality, conditional and compatible/null assignment; relational comparison is rejected; arithmetic and unrelated-handle equality were tested; null dereference | PARTIAL | [`p08_04_08_objects_ctors.sv`](../../../tests/1800_audit/c08/p08_04_08_objects_ctors.sv), [`r08_04_null_deref.sv`](../../../tests/1800_audit/c08/r08_04_null_deref.sv), [`neg/n08_04_handle_arith.sv`](../../../tests/1800_audit/c08/neg/n08_04_handle_arith.sv), [`neg/n08_04_handle_relational.sv`](../../../tests/1800_audit/c08/neg/n08_04_handle_relational.sv), [`neg/n08_04_eq_unrelated.sv`](../../../tests/1800_audit/c08/neg/n08_04_eq_unrelated.sv) | [§8 probe record](../../../evidence/ieee1800-audit-c08-20261017/README.md) | [#608](https://github.com/dsellerbrock/iverilog-uvm/issues/608), [#612](https://github.com/dsellerbrock/iverilog-uvm/issues/612) |
 | §8.5 / §8.5 | Instance property/enum/parameter access; class-scoped type-parameter cast; reject instance-qualified type access and instance-parameter use in a constant expression | PARTIAL | [`p08_04_08_objects_ctors.sv`](../../../tests/1800_audit/c08/p08_04_08_objects_ctors.sv), [`neg/n08_05_handle_type_access.sv`](../../../tests/1800_audit/c08/neg/n08_05_handle_type_access.sv), [`neg/n08_05_param_not_const.sv`](../../../tests/1800_audit/c08/neg/n08_05_param_not_const.sv) | [§8 probe record](../../../evidence/ieee1800-audit-c08-20261017/README.md) | [#611](https://github.com/dsellerbrock/iverilog-uvm/issues/611) |
 | §8.6 / §8.6 | Method calls and automatic lifetime; static method/task lifetime is rejected | IMPLEMENTED | [`p08_04_08_objects_ctors.sv`](../../../tests/1800_audit/c08/p08_04_08_objects_ctors.sv), [`neg/n08_06_static_method_lifetime.sv`](../../../tests/1800_audit/c08/neg/n08_06_static_method_lifetime.sv), [`neg/n08_06_static_task_lifetime.sv`](../../../tests/1800_audit/c08/neg/n08_06_static_task_lifetime.sv) | [§8 probe record](../../../evidence/ieee1800-audit-c08-20261017/README.md) | — |
@@ -25,6 +30,18 @@ its probe. No status claims full-clause conformance.
 | §8.16 / §8.16 | `$cast` downcast success, failure, and `null`; reject direct superclass-to-subclass assignment. Interface-class sources and task-form `$cast` runtime error are unprobed | IMPLEMENTED | [`p08_13_17_inherit_super_cast.sv`](../../../tests/1800_audit/c08/p08_13_17_inherit_super_cast.sv), [`neg/n08_16_down_assign.sv`](../../../tests/1800_audit/c08/neg/n08_16_down_assign.sv) | [§8.13–8.17 probe record](../../../evidence/ieee1800-audit-c08d-20261017/README.md) | — |
 | §8.17 / §8.17 | Constructor chaining, fixed `extends` args, `super.new`, and 2023 `default` argument forms/rules; reject 2017 use of 2023-only forms. Gap: explicit `super.new()` is accepted when `extends` already supplies arguments | PARTIAL | [`p08_13_17_inherit_super_cast.sv`](../../../tests/1800_audit/c08/p08_13_17_inherit_super_cast.sv), [`p08_13_17_final_default_2023.sv`](../../../tests/1800_audit/c08/p08_13_17_final_default_2023.sv), [`neg/n08_17_extends_args_and_super_new.sv`](../../../tests/1800_audit/c08/neg/n08_17_extends_args_and_super_new.sv), [`neg/n08_17_default_not_subclass.sv`](../../../tests/1800_audit/c08/neg/n08_17_default_not_subclass.sv), [`neg/n08_17_default_twice.sv`](../../../tests/1800_audit/c08/neg/n08_17_default_twice.sv), [`neg/n08_17_default_name_clash.sv`](../../../tests/1800_audit/c08/neg/n08_17_default_name_clash.sv), [`neg/n08_17_super_default_without_default.sv`](../../../tests/1800_audit/c08/neg/n08_17_super_default_without_default.sv), [`neg/n08_17_default_local_member.sv`](../../../tests/1800_audit/c08/neg/n08_17_default_local_member.sv) | [§8.13–8.17 probe record](../../../evidence/ieee1800-audit-c08d-20261017/README.md) | [#619](https://github.com/dsellerbrock/iverilog-uvm/issues/619) |
 | §8.18 / §8.18 | Local constructor visibility and in-class factory access | PARTIAL | [`p08_04_08_objects_ctors.sv`](../../../tests/1800_audit/c08/p08_04_08_objects_ctors.sv), [`neg/n08_07_local_new_outside.sv`](../../../tests/1800_audit/c08/neg/n08_07_local_new_outside.sv) | [§8 probe record](../../../evidence/ieee1800-audit-c08-20261017/README.md) | [#610](https://github.com/dsellerbrock/iverilog-uvm/issues/610) |
+| §8.19 / §8.19 | Constant class properties — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.20 / §8.20 | Virtual methods — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.21 / §8.21 | Abstract classes and pure virtual methods — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.22 / §8.22 | Polymorphism and dynamic method lookup — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.23 / §8.23 | Class scope resolution operator `::` — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.24 / §8.24 | Out-of-block declarations — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.25 / §8.25 | Parameterized classes — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.26 / §8.26 | Interface classes — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.27 / §8.27 | Typedef class — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.28 / §8.28 | Classes and structures — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| §8.29 / §8.29 | Memory management — no clause-specific probe recorded | UNASSESSED | — | — | — |
+| — / §8.30 | Weak references (2023 only) — no clause-specific probe recorded | UNASSESSED | — | — | — |
 | §18.6.1 / §18.6.1 | `randomize()` returns success for a valid constrained solution and 0 for an infeasible call; method dispatch is virtual through a base handle | IMPLEMENTED | [`p18_06_methods.sv`](../../../tests/1800_audit/c18/p18_06_methods.sv) | [§18.6.1–.3 probe](../../../evidence/ieee1800-audit-c18a-20261017/README.md) | — |
 | §18.6.2 / §18.6.2 | Pre-hook before solving and post-hook after assignment; pre-hook on a failing call; dynamic hook dispatch; nested enabled rand-object callbacks and inherited/overridden hooks | IMPLEMENTED | [`p18_06_methods.sv`](../../../tests/1800_audit/c18/p18_06_methods.sv), [`p18_06_supplement.sv`](../../../tests/1800_audit/c18/p18_06_supplement.sv), [`neg/n18_06_task_pre_randomize.sv`](../../../tests/1800_audit/c18/neg/n18_06_task_pre_randomize.sv) | [§18.6.1–.3 probe](../../../evidence/ieee1800-audit-c18a-20261017/README.md), [supplement](../../../evidence/ieee1800-audit-c18b-20261017/README.md) | — |
 | §18.6.3 / §18.6.3 | Failed-call rollback and post-hook suppression; static rand changes shared across instances; seeded object random stability; reject `randomize()` override and blocking task hook | IMPLEMENTED | [`p18_06_methods.sv`](../../../tests/1800_audit/c18/p18_06_methods.sv), [`p18_06_supplement.sv`](../../../tests/1800_audit/c18/p18_06_supplement.sv), [`neg/n18_06_override_randomize.sv`](../../../tests/1800_audit/c18/neg/n18_06_override_randomize.sv), [`neg/n18_06_task_pre_randomize.sv`](../../../tests/1800_audit/c18/neg/n18_06_task_pre_randomize.sv) | [§18.6.1–.3 probe](../../../evidence/ieee1800-audit-c18a-20261017/README.md), [supplement](../../../evidence/ieee1800-audit-c18b-20261017/README.md) | — |
@@ -38,5 +55,5 @@ stability rule is reserved for the later §18.14 audit. The §8.16 row records
 only the tested `$cast` forms; interface-class sources and task-form runtime
 error remain unprobed. §8.17 issue #619 tracks the confirmed
 extends-arguments/explicit-`super.new()` gap. The §8 probes are not registered
-regressions, so their passing subsets are `IMPLEMENTED`, not `QUALIFIED`. All
-other unlisted features remain unassessed.
+regressions, so their passing subsets are `IMPLEMENTED`, not `QUALIFIED`. Any
+unlisted features within a probed subclause remain unassessed.
