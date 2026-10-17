@@ -77,4 +77,7 @@ For §8.12, the lead verified the same copy and RNG requirements in both
 editions. Issue #101 is not a duplicate: it concerned static initialization
 order and states that procedural `b = new source` copies correctly. The
 unresolved RNG implementation boundary is reserved for the later §18.14
-audit. Clauses 8.13–8.17 and all unlisted features remain unassessed.
+audit. Probe results for §§8.13–8.17 are recorded in
+[`the follow-up evidence`](../ieee1800-audit-c08d-20261017/README.md), but
+await lead classification and a matrix update. All other unlisted features
+remain unassessed.
