@@ -14,8 +14,15 @@ class nested_values_item;
   }
 endclass
 
+typedef struct { rand bit [7:0] values[]; } mode_values_t;
+class mode_values_item;
+  rand mode_values_t payload;
+  constraint changed_value { payload.values[0] != 8'h5a; }
+endclass
+
 module test;
   nested_values_item item;
+  mode_values_item mode_item;
   initial begin
     item = new;
     item.payload.values = new[2];
@@ -36,6 +43,13 @@ module test;
         || item.payload.values[1] != 4'h9 || item.payload.tags.size() != 2
         || item.payload.tags[0] != tag_idle || item.payload.tags[1] != tag_data)
       $fatal(1, "failed randomize changed struct array member state");
+    mode_item = new;
+    mode_item.payload.values = new[1];
+    mode_item.payload.values[0] = 8'h5a;
+    mode_item.payload.values.rand_mode(0);
+    if (mode_item.randomize() || mode_item.payload.values.size() != 1
+        || mode_item.payload.values[0] != 8'h5a)
+      $fatal(1, "disabled struct array member did not retain its value");
     $display("PASSED");
   end
 endmodule
