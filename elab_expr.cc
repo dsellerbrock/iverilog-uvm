@@ -29402,6 +29402,7 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 		  std::vector<PExpr*> actuals(nformals, nullptr);
 		  size_t next_positional = 0;
 		  bool bad_args = false;
+		  unsigned errors_before_args = des->errors;
 		  for (const named_pexpr_t&arg : parms_) {
 			size_t dst = nformals;
 			if (!arg.name.nil()) {
@@ -29460,6 +29461,79 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 				    verinum((uint64_t)0, 32)));
 			      continue;
 			}
+			if (ctype->covgrp_ctor_formal_is_ref(k)) {
+			      ivl_type_t formal_type = ctype->covgrp_ctor_formal_type(k);
+			      if (!formal_type
+				  || (formal_type->base_type() != IVL_VT_BOOL
+				      && formal_type->base_type() != IVL_VT_LOGIC)
+			      || !formal_type->packed()) {
+				    cerr << value->get_fileline()
+					 << ": sorry: covergroup ref constructor arguments "
+					    "currently require a packed integral formal."
+					 << endl;
+				    bad_args = true;
+				    init_values.push_back(new NetEConst(
+					  verinum((uint64_t)0, 32)));
+				    continue;
+			      }
+			      bool ref_arg_ok = true;
+			      // IEEE 1800-2017/2023 19.3 treats these as read-only const ref.
+			      NetAssign_*ref_lval = value->elaborate_lval(
+				    des, value_scope, false, false, false, true);
+			      if (!ref_lval) {
+				    bad_args = true;
+				    init_values.push_back(new NetEConst(
+					  verinum((uint64_t)0, 32)));
+				    continue;
+			      }
+			      ivl_type_t actual_type =
+				    netassign_type_for_equivalence(ref_lval);
+			      bool type_match = actual_type
+				    && formal_type->type_equivalent(actual_type)
+				    && actual_type->type_equivalent(formal_type);
+			      if (!type_match) {
+				    cerr << value->get_fileline()
+					 << ": error: A covergroup ref actual must have a "
+					    "type equivalent to its formal (IEEE 1800-2017/2023 "
+					    "13.5.2)." << endl;
+				    bad_args = true;
+				    ref_arg_ok = false;
+		      } else if (ref_lval->sig()
+				 && ref_lval->sig()->type() != NetNet::REG
+				 && ref_lval->sig()->type() != NetNet::IMPLICIT_REG) {
+			    cerr << value->get_fileline()
+				 << ": error: A covergroup ref actual must be a variable; "
+				    "nets and selects into nets are illegal ref actuals "
+				    "(IEEE 1800-2017/2023 13.5.2)." << endl;
+			    bad_args = true;
+			    ref_arg_ok = false;
+			      } else if (ref_lval->more || ref_lval->is_array_slice()
+				 || ref_lval->get_base()
+				 || ref_lval->get_property_idx() >= 0
+				 || ref_lval->word() || !ref_lval->sig()
+				 || ref_lval->sig()->port_type() == NetNet::PREF
+				 || ref_lval->sig()->unpacked_dimensions() != 0) {
+				    cerr << value->get_fileline()
+					 << ": sorry: covergroup ref constructor arguments "
+					    "currently require a whole packed variable."
+					 << endl;
+				    bad_args = true;
+				    ref_arg_ok = false;
+		      } else if (!ref_static_actual_is_static_lifetime(ref_lval, false)) {
+			    cerr << value->get_fileline()
+				 << ": sorry: covergroup ref actuals with automatic lifetime "
+				    "are unsupported by this bounded implementation."
+				 << endl;
+				    bad_args = true;
+				    ref_arg_ok = false;
+			      }
+			      delete ref_lval;
+			      if (!ref_arg_ok) {
+				    init_values.push_back(new NetEConst(
+					  verinum((uint64_t)0, 32)));
+				    continue;
+			      }
+			}
 			NetExpr*net_value = elaborate_rval_expr(
 			      des, value_scope, ctype->covgrp_ctor_formal_type(k),
 			      value, false);
@@ -29467,11 +29541,30 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 			      bad_args = true;
 			      net_value = new NetEConst(verinum((uint64_t)0, 32));
 			}
+			if (ctype->covgrp_ctor_formal_is_ref(k)) {
+			      const NetESignal*signal =
+				    dynamic_cast<const NetESignal*>(net_value);
+			      if (!signal || !signal->sig() || signal->word_index()
+				  || signal->sig()->unpacked_dimensions() != 0) {
+				    cerr << value->get_fileline()
+					 << ": sorry: covergroup ref constructor arguments "
+					    "currently require a whole packed variable."
+					 << endl;
+				    bad_args = true;
+				    delete net_value;
+				    net_value = new NetEConst(verinum((uint64_t)0, 32));
+			      }
+			}
 			init_values.push_back(net_value);
 		  }
-		  if (bad_args) des->errors += 1;
+		  if (bad_args && des->errors == errors_before_args) des->errors += 1;
 
-		  if (!ctype->covgrp_ctor_method_endpoints().empty()) {
+		  bool has_ref_ctor_formal = false;
+		  for (size_t k = 0; k < nformals; ++k)
+			if (ctype->covgrp_ctor_formal_is_ref(k))
+			      has_ref_ctor_formal = true;
+		  if (!ctype->covgrp_ctor_method_endpoints().empty()
+		      || has_ref_ctor_formal) {
 			// %new/cobj resolves its dynamic bins before returning. Capture
 			// each endpoint in the initializer itself, after the constructor
 			// actuals have been evaluated exactly once.
@@ -29489,7 +29582,15 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 			      NetNet*formal = new NetNet(wrapper,
 				ctype->covgrp_ctor_formal_name(k), NetNet::REG,
 				ctype->covgrp_ctor_formal_type(k));
-			      formal->port_type(NetNet::PINPUT);
+			  if (ctype->covgrp_ctor_formal_is_ref(k)) {
+				formal->port_type(NetNet::PREF);
+				formal->set_const(true);
+				/* shortcut: direct static packed actuals only, extend after
+				   binding chains and automatic lifetimes can be retained. */
+				formal->set_ref_static(true);
+			  } else {
+				formal->port_type(NetNet::PINPUT);
+			  }
 			      ports.push_back(formal);
 			      values.push_back(new NetESignal(formal));
 			}

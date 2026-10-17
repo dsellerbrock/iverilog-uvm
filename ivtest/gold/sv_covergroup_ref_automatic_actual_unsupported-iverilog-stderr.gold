@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_ref_automatic_actual_unsupported.v:10: sorry: covergroup ref actuals with automatic lifetime are unsupported by this bounded implementation.
+1 error(s) during elaboration.

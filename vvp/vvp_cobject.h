@@ -111,6 +111,10 @@ class vvp_cobject : public vvp_object {
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0);
 
+	// A covergroup ref constructor formal keeps the binding captured by
+	// its generated constructor wrapper instead of a construction-time value.
+      void set_ref_binding(size_t pid, const vvp_object_t&binding);
+
       void set_real(size_t pid, double val, size_t idx = 0);
       double get_real(size_t pid, size_t idx = 0);
 
@@ -311,6 +315,7 @@ class vvp_cobject : public vvp_object {
       const class_type* defn_;
 	// For now, only support 32bit bool signed properties.
       class_type::inst_t properties_;
+      std::map<size_t, vvp_object_t> ref_props_;
       int union_active_member_;
       vvp_vector4_t*union_vec4_;
       std::vector<bool> instance_constant_initialized_;

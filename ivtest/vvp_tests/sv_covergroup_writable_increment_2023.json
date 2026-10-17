@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_writable_increment_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_assoc_fixed_element"
+}

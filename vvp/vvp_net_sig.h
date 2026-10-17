@@ -610,6 +610,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
                           index(0), arr(0) { }
       };
       bool read_binding(binding_t&out) const;
+      vvp_object_t capture_binding() const;
       void write_binding(vvp_net_t*formal, vvp_context_t frame,
                          const binding_t&in);
       void release_binding(vvp_context_t frame);
@@ -670,6 +671,7 @@ class vvp_lvalue_ref : public vvp_object {
       value_kind_t value_kind() const { return value_kind_; }
       unsigned value_width() const { return width_; }
       vvp_object_t mutation_receiver() const;
+      bool read_vec4(vvp_vector4_t&value) const { return read_vec4_(value); }
       void set_part(int64_t base, bool valid);
       void store_vec4(const vvp_vector4_t&value);
       void store_real(double value);

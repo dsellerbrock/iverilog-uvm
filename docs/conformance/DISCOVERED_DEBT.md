@@ -4451,3 +4451,18 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   `` `timescale 1ns/1ps`` in both editions.
 - **Triage status:** Open, diagnostic-quality follow-up. No simulator change
   is included in #545; the source must specify its intended time scale.
+
+### DD-123 — side-effecting covergroup iff guard is treated as enabled
+
+- **Discovered while working:** #448 / PR #594 (2026-10-15).
+- **Observation:** Sampling a coverpoint with `iff (value++)` on a covergroup
+  `ref` formal emits `coverpoint iff guard cannot be evaluated at this
+  sample() site; the guard is treated as enabled.` The guard therefore does
+  not control sampling. Whether this expression is permitted by the LRM's
+  coverage-expression rules has not been fully checked.
+- **File/function:** generated coverpoint `iff` evaluation; source location
+  not yet identified.
+- **Possible clause:** IEEE 1800-2017/2023 §19.5.
+- **Evidence:** `evidence/a3-m5-issue448-followup/job1376/logs/ref2017.log`.
+- **Reproducer status:** confirmed for the 2017 mode.
+- **Triage status:** untriaged; outside #594.

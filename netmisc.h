@@ -900,7 +900,8 @@ extern bool ref_formal_is_bound(const NetNet*port);
 
 /* A `ref static` actual must refer to static-lifetime storage, except when
  * the actual is another `ref static` formal. */
-extern bool ref_static_actual_is_static_lifetime(const NetAssign_*actual);
+extern bool ref_static_actual_is_static_lifetime(const NetAssign_*actual,
+						 bool emit_diagnostic = true);
 
 /* Enforce IEEE 1800-2017/2023 9.3.2 for a subroutine's ref formals. */
 extern bool check_ref_formal_detached_fork_use(

@@ -1491,6 +1491,15 @@ bool vvp_ref_signal_aa::read_binding(binding_t&out) const
       return true;
 }
 
+vvp_object_t vvp_ref_signal_aa::capture_binding() const
+{
+	  binding_t binding;
+	  if (!read_binding(binding) || binding.kind != ref_aa_slot::REF_NET)
+	    return vvp_object_t();
+	  return vvp_lvalue_ref::capture_net(binding.target, binding.caller_ctx,
+					     vvp_lvalue_ref::VALUE_VEC4, size_);
+}
+
 void vvp_ref_signal_aa::write_binding(vvp_net_t*formal, vvp_context_t frame,
                                       const binding_t&in)
 {

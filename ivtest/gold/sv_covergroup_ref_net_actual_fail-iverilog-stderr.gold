@@ -1,0 +1,4 @@
+ivltests/sv_covergroup_ref_net_actual_fail.v:16: error: 'vector_net' is not a valid l-value for a procedural assignment.
+ivltests/sv_covergroup_ref_net_actual_fail.v:2:      : 'vector_net' is declared here as a wire.
+ivltests/sv_covergroup_ref_net_actual_fail.v:17: error: A const ref actual must be a variable, class property, or unpacked member or element.
+2 error(s) during elaboration.

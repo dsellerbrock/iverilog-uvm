@@ -4576,7 +4576,8 @@ bool ref_formal_is_bound(const NetNet*port)
       }
 }
 
-bool ref_static_actual_is_static_lifetime(const NetAssign_*actual)
+bool ref_static_actual_is_static_lifetime(const NetAssign_*actual,
+						 bool emit_diagnostic)
 {
       if (!actual)
 	    return false;
@@ -4594,8 +4595,9 @@ bool ref_static_actual_is_static_lifetime(const NetAssign_*actual)
 	    reason = "cannot be an element of a dynamic array or queue";
 
       if (reason) {
-	    cerr << actual->get_fileline() << ": error: A ref static actual "
-		 << reason << " (IEEE 1800-2023 13.5.2)." << endl;
+	    if (emit_diagnostic)
+		  cerr << actual->get_fileline() << ": error: A ref static actual "
+		       << reason << " (IEEE 1800-2023 13.5.2)." << endl;
 	    return false;
       }
 
@@ -4615,8 +4617,10 @@ bool ref_static_actual_is_static_lifetime(const NetAssign_*actual)
 	    break;
       }
 
-      cerr << actual->get_fileline() << ": error: A ref static actual "
-	      << "must have static lifetime (IEEE 1800-2023 13.5.2)." << endl;
+	    if (emit_diagnostic)
+		  cerr << actual->get_fileline() << ": error: A ref static actual "
+		       << "must have static lifetime (IEEE 1800-2023 13.5.2)."
+		       << endl;
       return false;
 }
 

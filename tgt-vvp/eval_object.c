@@ -496,6 +496,14 @@ static int eval_class_new(ivl_expr_t ex)
 	    for (unsigned idx = 0; idx < ninit; idx += 1) {
 		  ivl_expr_t value = ivl_expr_parm(init, idx);
 		  ivl_type_t ptype = ivl_type_prop_type(class_type, idx);
+		  if (value && ivl_expr_type(value) == IVL_EX_SIGNAL
+		      && ivl_expr_signal(value)
+		      && ivl_signal_port(ivl_expr_signal(value)) == IVL_SIP_REF) {
+			fprintf(vvp_out,
+				"    %%store/prop/ref v%p_0, %u; covergroup ctor\n",
+				ivl_expr_signal(value), idx);
+			continue;
+		  }
 		  switch (ivl_type_base(ptype)) {
 		      case IVL_VT_BOOL:
 		      case IVL_VT_LOGIC:

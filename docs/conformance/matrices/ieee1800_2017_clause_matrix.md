@@ -5,6 +5,24 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 15, 2026 — §19.3 covergroup `ref` arguments
+
+IEEE 1800-2017/2023 §19.3 says each covergroup `ref` argument tracks a
+different actual as it changes, `input` arguments keep the constructor-time
+value, and `ref` formals are read-only like `const ref`. IEEE 1800-2017/2023
+§13.5.2 excludes nets and selects into nets from ref actuals. This is a
+PARTIAL implementation: whole direct static packed integral variables are
+supported; automatic and aggregate-member actuals are outside the qualified
+subset and receive implementation-limit diagnostics. Read-only `ref` formals
+are checked in both editions. IEEE
+1800-2017 §19.3 leaves automatic actual behavior undefined, while 2023
+automatic-lifetime behavior is not qualified here. Paired regressions cover
+independent live bindings, X/Z and signed samples, input snapshots, type
+equivalence, read-only rejection, net rejection, and both implementation
+limits. T0/T1 results are pending. Per-instance option expressions and other
+§19 behavior remain open,
+so this does not close issue #448.
+
 ### October 14, 2026 — §8.20 method override specifiers
 
 IEEE 1800-2017 §8.20 covers virtual method overrides but does not include the
