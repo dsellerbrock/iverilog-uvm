@@ -1,0 +1,43 @@
+{
+  "baseline_revision": "c014c0a7975a4b0b645ea34609c802be60a10f4a",
+  "current_main_revision": "afa43b2ffa2dc1f443d25902fb0c27b655d18be0",
+  "case": "cptra_ss_test_rom",
+  "window": {
+    "start_mcycle": 100,
+    "end_mcycle": 600,
+    "cycles": 500
+  },
+  "external": {
+    "qd_bfm": "8e34e0c6d20b6f84a5a975ba6e3de7ccd9b1dc2b",
+    "caliptra_rtl": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "adams_bridge": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0"
+  },
+  "samples": {
+    "baseline": {
+      "revision": "c014c0a7975a4b0b645ea34609c802be60a10f4a",
+      "cycles_per_second": [
+        7.558768232196984,
+        7.639008637882199,
+        7.576631717358639
+      ],
+      "median_cycles_per_second": 7.576631717358639,
+      "spread_percent": 1.0590511546361454,
+      "max_rss_kb": 1853132
+    },
+    "current": {
+      "revision": "afa43b2ffa2dc1f443d25902fb0c27b655d18be0",
+      "cycles_per_second": [
+        9.981905408575544,
+        9.984963796188664,
+        9.929791489900564
+      ],
+      "median_cycles_per_second": 9.981905408575544,
+      "spread_percent": 0.5527231929156584,
+      "max_rss_kb": 1855240
+    }
+  },
+  "all_firmware_inputs_identical": true,
+  "all_normalized_logs_identical": true,
+  "matched_speedup_percent": 31.745949663967977,
+  "historical_7_775_speedup_percent": 28.384635480071307
+}

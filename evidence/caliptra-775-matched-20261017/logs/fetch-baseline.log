@@ -1,0 +1,9 @@
+From https://github.com/dsellerbrock/iverilog-uvm
+ * branch                main       -> FETCH_HEAD
+ * [new branch]          main       -> github/main
+warning: eede7c27cce2b7745c40dc66a0f11ad0b28149e1:.gitmodules, multiple configurations found for 'submodule.uvm-core.path'. Skipping second one!
+warning: eede7c27cce2b7745c40dc66a0f11ad0b28149e1:.gitmodules, multiple configurations found for 'submodule.uvm-core.url'. Skipping second one!
+warning: eede7c27cce2b7745c40dc66a0f11ad0b28149e1:.gitmodules, multiple configurations found for 'submodule.uvm-core.path'. Skipping second one!
+warning: eede7c27cce2b7745c40dc66a0f11ad0b28149e1:.gitmodules, multiple configurations found for 'submodule.uvm-core.url'. Skipping second one!
+warning: eede7c27cce2b7745c40dc66a0f11ad0b28149e1:.gitmodules, multiple configurations found for 'submodule.uvm-core.path'. Skipping second one!
+warning: eede7c27cce2b7745c40dc66a0f11ad0b28149e1:.gitmodules, multiple configurations found for 'submodule.uvm-core.url'. Skipping second one!
