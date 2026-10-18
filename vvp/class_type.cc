@@ -1351,6 +1351,10 @@ void property_cobject::set_object(char*buf, const vvp_object_t&val, uint64_t idx
 		  dst_obj->shallow_copy(src_obj);
 		  return;
 	    }
+	    if (defn_->is_covergroup()
+		&& defn_->covgrp_parent_prop() >= 0
+		&& src_obj->get_defn()->is_covergroup())
+		  return;
       }
 
       if (val.test_nil()) {
@@ -3076,7 +3080,7 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			     is_cross != 0,
 		     name ? std::string(name) : std::string(),
 		     weight_ir ? std::string(weight_ir) : std::string(),
-		     guardsrc ? static_cast<int>(guardsrc - 1) : -1);
+	     guardsrc ? static_cast<int>(guardsrc - 1) : -1);
       free(name);
       free(weight_ir);
 }
@@ -3162,6 +3166,16 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
 	    yyerror("invalid .covgrp_item_options metadata value");
 }
 
+void compile_class_covgrp_item_guard(uint64_t item_idx, uint64_t has_guard)
+{
+      assert(compile_class);
+      if (has_guard > 1
+	  || item_idx > std::numeric_limits<size_t>::max()
+	  || !compile_class->set_covgrp_item_guard(
+		(size_t)item_idx, has_guard != 0))
+	    yyerror("invalid .covgrp_item_guard metadata value");
+}
+
 /* M11-3: event-driven sampling metadata. The .covgrp_src property
  * indexes arrive biased by +1 (0 = none) because the vvp lexer only
  * accepts unsigned numbers. */
@@ -3191,6 +3205,20 @@ void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc)
       compile_class->add_covgrp_src((int)srcprop - 1, (int)guardsrc - 1);
 }
 
+void compile_class_covgrp_sample_ir(uint64_t cp, char*ir)
+{
+      assert(compile_class);
+      bool uses_parent = false;
+      bool valid = ir && cp <= std::numeric_limits<size_t>::max()
+	    && covgrp_ir_syntax_t(ir).validate(uses_parent)
+	    && compile_class->set_covgrp_sample_ir((size_t)cp, ir);
+      if (!valid)
+	    yyerror("invalid .covgrp_src_expr metadata value");
+      else if (uses_parent)
+	    compile_class_covgrp_parent_required = true;
+      delete[]ir;
+}
+
 /* M11: type-level (merged) coverage counters and registry. */
 
 void class_type::type_bump(unsigned prop) const
@@ -3216,8 +3244,10 @@ class covgrp_ir_eval_t {
 	       bool is_signed = false;
 	 };
 
-      covgrp_ir_eval_t(const string&text, vvp_cobject*obj)
-      : text_(text), obj_(obj), pos_(0), nodes_(0) { }
+      covgrp_ir_eval_t(const string&text, vvp_cobject*obj,
+		       bool allow_mutable_parent = false)
+      : text_(text), obj_(obj), pos_(0), nodes_(0),
+	allow_mutable_parent_(allow_mutable_parent) { }
 
       bool eval(uint64_t&out)
       {
@@ -3321,8 +3351,9 @@ class covgrp_ir_eval_t {
 		     unsigned declared_width = 0;
 		     bool declared_signed = false;
 		     if (atom.first >= declared_parent->property_count()
-			 || (declared_parent->property_qualifier(
-			       (size_t)atom.first) & 32) == 0
+		     || (!allow_mutable_parent_
+			 && (declared_parent->property_qualifier(
+			       (size_t)atom.first) & 32) == 0)
 			 || declared_parent->property_array_size(
 			       (size_t)atom.first) != 1
 			 || !static_property_integral_shape_(
@@ -3340,7 +3371,8 @@ class covgrp_ir_eval_t {
 		     size_t parent_idx = (size_t)atom.first;
 		     unsigned actual_width = 0;
 		     bool actual_signed = false;
-		     if ((parent_defn->property_qualifier(parent_idx) & 32) == 0
+	     if ((!allow_mutable_parent_
+		  && (parent_defn->property_qualifier(parent_idx) & 32) == 0)
 			 || parent_defn->property_array_size(parent_idx) != 1
 			 || !static_property_integral_shape_(
 			       parent_defn->property_base_type(parent_idx),
@@ -3525,6 +3557,7 @@ class covgrp_ir_eval_t {
       vvp_cobject*obj_;
       size_t pos_;
 	 unsigned nodes_;
+	 bool allow_mutable_parent_;
 };
 
 unsigned class_type::covgrp_decl_weight_(vvp_cobject*obj, size_t idx) const
@@ -3698,6 +3731,12 @@ bool class_type::covgrp_eval_ir(vvp_cobject*obj, const string&ir,
       width = result.width;
       is_signed = result.is_signed;
       return true;
+}
+
+bool class_type::covgrp_eval_sample_ir(vvp_cobject*obj, const string&ir,
+				       uint64_t&value) const
+{
+      return covgrp_ir_eval_t(ir, obj, true).eval(value);
 }
 
 uint32_t class_type::type_count(unsigned prop) const
@@ -4066,7 +4105,7 @@ void compile_class_done(void)
       assert(compile_class);
       if (compile_class_covgrp_parent_required
 	  && !compile_class_covgrp_parent_seen)
-	    yyerror("parent-dependent .covgrp_dyn_bin has no .covgrp_parent metadata");
+	yyerror("parent-dependent .covgrp_dyn_bin has no .covgrp_parent metadata");
       compile_class->set_scope_path(build_scope_path_(scope));
       if (compile_class->dispatch_prefix().empty()) {
             string prefix = compile_class->scope_path();

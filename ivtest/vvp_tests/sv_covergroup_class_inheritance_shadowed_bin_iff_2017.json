@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_class_inheritance_shadowed_bin_iff_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"]
+}

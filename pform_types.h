@@ -47,6 +47,7 @@ class NetScope;
 class Definitions;
 class PExpr;
 class PEEvent;
+class PClass;
 class PScope;
 class PPackage;
 class PWire;
@@ -734,6 +735,7 @@ struct class_type_t : public data_type_t {
 	    perm_string name;
 	    std::vector<std::pair<PExpr*, PExpr*>> ranges; // [lo, hi] pairs
 	    kind_t kind = BIN_NORMAL;
+	    const PClass* decl_class = nullptr;
 	      // M11: wildcard bins — range values with x/z/? bits match
 	      // by mask; composes with any kind.
 	    bool wildcard = false;
@@ -748,6 +750,7 @@ struct class_type_t : public data_type_t {
 	      // A bin iff is sampled dynamically and is distinct from the
 	      // construction-time with-covergroup expression above.
 	    PExpr* iff_expr = nullptr;
+	    bool declared_by_extension = false;
 	      // IEEE 1800-2017 19.5.1.1 set-covergroup expression.  The
 	      // expression yields an unpacked array/queue whose elements form
 	      // the value set for this declaration.
@@ -766,6 +769,9 @@ struct class_type_t : public data_type_t {
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)
+	    const PClass* decl_class = nullptr;
+	    bool inherited_cross_only = false;
+	    bool declared_by_extension = false;
 	    PExpr* expr;        // expression being covered (e.g., val)
 	    PExpr* iff_expr = nullptr; // M11: iff (guard) — sample gate
 	    std::vector<pform_cov_bins_t> bins;
@@ -811,16 +817,19 @@ struct class_type_t : public data_type_t {
 		  bool matches_all = false;
 	    };
 	    perm_string label;                 // cross label (or auto)
+	    const PClass* decl_class = nullptr;
 	    std::vector<perm_string> cp_labels; // names of contributing coverpoints
 	    std::vector<PExpr*> cp_exprs;       // implicit variable expressions
 	    struct_type_t* value_type = nullptr; // implicit CrossValType, when needed
 	    PExpr* iff_expr = nullptr;         // IEEE 19.6: cross iff sample gate
+	    bool declared_by_extension = false;
 	    std::vector<cross_bin_t> bins;      // M11-3: named cross bins
 	      // M11: cross-level options (option.name = const_expr)
 	    std::map<perm_string, PExpr*> options;
       };
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
+	    bool is_extension = false;
 	      // Per-instance constructor formals (19.3), distinct from
 	      // `with function sample` formals.
 	    std::vector<perm_string> ctor_formals;

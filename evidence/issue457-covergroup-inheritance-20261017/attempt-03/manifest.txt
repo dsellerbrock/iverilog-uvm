@@ -1,0 +1,7 @@
+T0/T1 rerun after adding the JSON stream-specific expected output for the new #457 2023 regression.
+Base: 9b5fad2afb4104caa816b257d5bccc40f01b8c66.
+Code source: Step 6 attempt-02 archive + overlay, with owner-property operand fix in vvp/vthread.cc and deferred inherited cross resolution in pform_pclass.cc.
+New expected-output fixture: ivtest/gold/sv_covergroup_class_inheritance-vvp-stdout.gold (content: PASSED\n).
+Resources: 3 CPUs, 5 GiB, 40 minutes.
+T0: build/install, 72-function VVP export self-check, three #457 tests, smoke.
+T1: 250 legacy and 238 JSON covergroup cases.

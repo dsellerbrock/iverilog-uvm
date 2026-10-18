@@ -307,6 +307,7 @@ class class_type : public __vpiHandle {
 	    bool is_cross = false;
 	    std::string name;   // M12-7: coverpoint/cross label
 	    int iff_src = -1;   // parent property for event-driven cross iff
+	    int has_guard = -1; // unset preserves old VVP behavior
       };
       struct cov_dyn_bin_t {
 	    unsigned cp_idx = 0;
@@ -382,6 +383,10 @@ class class_type : public __vpiHandle {
 	covgrp_items_[idx].at_least_prop = at_least_prop;
 	covgrp_items_[idx].weight_prop = weight_prop;
 	return true; }
+      bool set_covgrp_item_guard(size_t idx, bool has_guard)
+      { if (idx >= covgrp_items_.size()) return false;
+	covgrp_items_[idx].has_guard = has_guard ? 1 : 0;
+	return true; }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
 	bool covgrp_cp_real(size_t cp) const
@@ -456,6 +461,8 @@ class class_type : public __vpiHandle {
       bool covgrp_eval_ir(class vvp_cobject*obj, const std::string&ir,
 			  uint64_t&value, unsigned&width,
 			  bool&is_signed) const;
+      bool covgrp_eval_sample_ir(class vvp_cobject*obj, const std::string&ir,
+				 uint64_t&value) const;
       bool is_covergroup() const
       { return covgrp_options_present_ || !covgrp_items_.empty() || !covgrp_bins_.empty()
 	    || !covgrp_dyn_bins_.empty() || !covgrp_crosses_.empty()
@@ -529,11 +536,19 @@ class class_type : public __vpiHandle {
       int covgrp_parent_prop() const { return covgrp_parent_prop_; }
       void add_covgrp_src(int srcprop, int guardsrc)
       { covgrp_srcprops_.push_back(srcprop);
-	covgrp_guardsrcs_.push_back(guardsrc); }
+	covgrp_guardsrcs_.push_back(guardsrc);
+	covgrp_sample_irs_.push_back(std::string()); }
+      bool set_covgrp_sample_ir(size_t cp, const std::string&ir)
+      { if (cp >= covgrp_sample_irs_.size()) return false;
+	covgrp_sample_irs_[cp] = ir;
+	return true; }
       int covgrp_srcprop(size_t cp) const
       { return cp < covgrp_srcprops_.size() ? covgrp_srcprops_[cp] : -1; }
       int covgrp_guardsrc(size_t cp) const
       { return cp < covgrp_guardsrcs_.size() ? covgrp_guardsrcs_[cp] : -1; }
+      const std::string& covgrp_sample_ir(size_t cp) const
+      { static const std::string empty;
+	return cp < covgrp_sample_irs_.size() ? covgrp_sample_irs_[cp] : empty; }
       size_t covgrp_src_count() const { return covgrp_srcprops_.size(); }
       void covgrp_live_add(class vvp_cobject*obj) const;
       void covgrp_live_remove(class vvp_cobject*obj) const;
@@ -564,6 +579,7 @@ class class_type : public __vpiHandle {
       int covgrp_parent_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;
+      std::vector<std::string> covgrp_sample_irs_;
       covgrp_options_t covgrp_options_;
       unsigned covgrp_type_weight_ = 1;
       bool covgrp_options_present_ = false;

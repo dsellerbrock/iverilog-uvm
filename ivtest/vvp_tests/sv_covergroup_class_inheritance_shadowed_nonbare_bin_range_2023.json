@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_class_inheritance_shadowed_nonbare_bin_range_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"]
+}
