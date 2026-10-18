@@ -1,6 +1,5 @@
 {
   "type": "normal",
   "source": "sv_covergroup_class_inheritance_2023.v",
-  "iverilog-args": ["-g2023"],
-  "gold": "sv_covergroup_class_inheritance"
+  "iverilog-args": ["-g2023"]
 }

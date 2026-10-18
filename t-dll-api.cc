@@ -4878,6 +4878,15 @@ extern "C" int ivl_type_covgrp_item_guardsrc(ivl_type_t net, int idx)
       return -1;
 }
 
+extern "C" int ivl_type_covgrp_item_has_guard(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item_guard((size_t)idx) ? 1 : 0;
+      return 0;
+}
+
 /* M11-3: event-driven sampling metadata for class-embedded
  * covergroups. */
 extern "C" int ivl_type_covgrp_parent_prop(ivl_type_t net)
@@ -4910,6 +4919,14 @@ extern "C" int ivl_type_covgrp_guardsrc(ivl_type_t net, int idx)
       if (class_type && idx >= 0)
 	    return class_type->covgrp_cp_guardsrc((unsigned)idx);
       return -1;
+}
+
+extern "C" const char* ivl_type_covgrp_sample_ir(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_cp_sample_ir((unsigned)idx).c_str();
+      return "";
 }
 
 extern "C" int ivl_type_signed(ivl_type_t net)

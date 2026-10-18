@@ -28218,6 +28218,7 @@ static vector<netclass_t::constraint_state_call_t>*constraint_ir_state_calls_ctx
  * its values are captured from the particular parent object at construction,
  * rather than being folded once for the class type. */
 static const netclass_t*constraint_covergroup_parent_cls_ = nullptr;
+static bool constraint_covergroup_sample_source_ = false;
 
 /* The current textual IR constant atom carries at most 64 value bits. Keep
  * that bounded representation from silently aliasing a dist subject, item,
@@ -28916,6 +28917,115 @@ static string pexpr_to_covergroup_constraint_ir(
 	    expr, covergroup_cls, nullptr, des, scope);
       constraint_covergroup_parent_cls_ = save_parent;
       return out;
+}
+
+static string pexpr_to_covergroup_sample_ir(
+      const PExpr*expr, const netclass_t*covergroup_cls,
+      const netclass_t*parent_cls, Design*des, const NetScope*scope)
+{
+      const netclass_t*save_parent = constraint_covergroup_parent_cls_;
+      bool save_sample_source = constraint_covergroup_sample_source_;
+      constraint_covergroup_parent_cls_ = parent_cls;
+      constraint_covergroup_sample_source_ = true;
+      string out = pexpr_to_class_constraint_ir(
+	    expr, covergroup_cls, nullptr, des, scope);
+      constraint_covergroup_sample_source_ = save_sample_source;
+      constraint_covergroup_parent_cls_ = save_parent;
+      return out;
+}
+
+static bool covergroup_sample_ir_supported_(const string&ir,
+					   const netclass_t*covergroup_cls,
+					   const netclass_t*parent_cls)
+{
+      static const char*ops[] = {
+	    "not", "bnot", "redand", "redor", "redxor", "neg",
+	    "ite", "cast", "eq", "ne", "lt", "le", "gt", "ge",
+	    "and", "or", "impl", "iff", "shl", "lshr", "ashr",
+	    "add", "sub", "mul", "div", "mod", "band", "bor",
+	    "bxor", "pow", nullptr };
+      for (size_t pos = 0; pos < ir.size();) {
+	    if (isspace(static_cast<unsigned char>(ir[pos]))
+		|| ir[pos] == '(' || ir[pos] == ')') {
+		  pos += 1;
+		  continue;
+	    }
+	    size_t begin = pos;
+	    while (pos < ir.size() && !isspace(static_cast<unsigned char>(ir[pos]))
+		   && ir[pos] != '(' && ir[pos] != ')') pos += 1;
+	    string token = ir.substr(begin, pos - begin);
+	    bool operation = false;
+	    for (const char**op = ops; *op; op += 1)
+		  if (token == *op) { operation = true; break; }
+	    if (operation) continue;
+
+	    size_t prefix = token.compare(0, 3, "pp:") == 0 ? 3
+		  : token.compare(0, 2, "p:") == 0 ? 2
+		  : token.compare(0, 2, "c:") == 0 ? 2 : 0;
+	    if (!prefix) return false;
+	    const char*first = token.c_str() + prefix;
+	    if (!isdigit(static_cast<unsigned char>(*first))) return false;
+	    char*end = nullptr;
+	    errno = 0;
+	    uint64_t index = strtoull(first, &end, 10);
+	    if (end == first || errno == ERANGE) return false;
+	    if (*end == 0) {
+		  if (prefix != 2 || token.compare(0, 2, "c:") != 0)
+			return false;
+		  continue;
+	    }
+	    if (*end != ':' || !isdigit(static_cast<unsigned char>(end[1])))
+		  return false;
+	    errno = 0;
+	    unsigned long width = strtoul(end + 1, &end, 10);
+	    if (errno == ERANGE || width == 0 || width > 64) return false;
+	    bool is_signed = false;
+	    if (*end == ':' && end[1] == 's') { is_signed = true; end += 2; }
+	    if (*end != 0) return false;
+	    if (token.compare(0, 2, "c:") == 0) continue;
+	    const netclass_t*owner = prefix == 3 ? parent_cls : covergroup_cls;
+	    if (!owner || index >= owner->get_properties()) return false;
+	    ivl_type_t type = owner->get_prop_type((size_t)index);
+	    long packed_width = type ? type->packed_width() : 0;
+	    if (!type || !type->packed() || type->base_type() != IVL_VT_BOOL
+		|| packed_width <= 0
+		|| static_cast<unsigned long>(packed_width) != width
+		|| type->get_signed() != is_signed)
+		  return false;
+      }
+      return !ir.empty();
+}
+
+static bool inherited_expr_shadowed_(
+      Design*des, const netclass_t*current, const netclass_t*decl_class,
+      const PExpr*expr, const vector<perm_string>&ctor_formals,
+      const vector<perm_string>&sample_formals, const string&what,
+      const LineInfo*where)
+{
+      if (!des || !current || !decl_class || decl_class == current || !expr)
+	    return false;
+
+      for (size_t pi = 0; pi < decl_class->get_properties(); pi += 1) {
+	    perm_string name = perm_string::literal(decl_class->get_prop_name(pi));
+	    bool formal = false;
+	    for (perm_string candidate : ctor_formals)
+		  if (candidate == name) { formal = true; break; }
+	    if (!formal) for (perm_string candidate : sample_formals)
+		  if (candidate == name) { formal = true; break; }
+	    if (formal || !expr->refs_name(name)
+		|| current->property_idx_from_name(name)
+		   == decl_class->property_idx_from_name(name))
+		  continue;
+
+	    cerr << (where ? where->get_fileline() : expr->get_fileline())
+		 << ": sorry: " << what
+		 << " refers to shadowed class property '" << name
+		 << "'; its declaration scope cannot be represented in this "
+		    "expression (IEEE 1800-2023 19.4.1)." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      return false;
 }
 
 string pexpr_to_rooted_class_constraint_ir(
@@ -36303,13 +36413,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "p:" + to_string(idx) + ":" + to_string(wid) + sfx;
 	    }
 
-	      /* IEEE 1800-2017/2023 19.5: an embedded covergroup expression
-	       * may read a global or instance constant of its enclosing class. The primary
-	       * class above is the synthesized covergroup object (and therefore
-	       * gives constructor formals their lexical precedence). If it did not
-	       * own this simple identifier, preserve a const parent property as a
-	       * typed pp: atom. The coverage runtime follows __covgrp_parent and
-	       * freezes the value when that link is installed. */
+	      /* The primary class above is the synthesized covergroup object and
+	       * gives its formals their lexical precedence. Bin expressions retain
+	       * the 19.5 constant-only rule; sample-source expressions instead read
+	       * the enclosing object on each sample(). */
 	    if (constraint_covergroup_parent_cls_
 		&& !id->path().package && !id->has_scoped_type_prefix()
 		&& id->path().size() == 1
@@ -36327,9 +36434,19 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			bool integral = ptype && ptype->packed()
 			      && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
 				  || dynamic_cast<const netenum_t*>(ptype));
+			if (constraint_covergroup_sample_source_)
+			      integral = ptype && ptype->packed()
+				    && base == IVL_VT_BOOL;
 			unsigned wid = integral ? ptype->packed_width() : 0;
-			if (qual.test_const()
+			if ((qual.test_const() || constraint_covergroup_sample_source_)
 			    && wid > 0 && wid <= 64) {
+			      if (constraint_covergroup_sample_source_
+				  && qual.test_local()
+				  && constraint_covergroup_parent_cls_
+					->get_prop_declaring_class(
+					      (size_t)parent_idx)
+					     != constraint_covergroup_parent_cls_)
+				    return "";
 			      string sfx = ptype->get_signed() ? ":s" : "";
 			      return "pp:" + to_string(parent_idx) + ":"
 				    + to_string(wid) + sfx;
@@ -40051,6 +40168,48 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // covergroup object. Coverpoint sources are scope
 		      // signals, resolved at each sample() site.
 		    bool cg_standalone = pclass->type->is_covergroup_standalone;
+	    auto covgrp_decl_class = [&](const PClass*decl_class,
+				 const char*item_kind) -> const netclass_t* {
+		  if (cg_standalone) return this;
+		  if (!decl_class) {
+			cerr << pclass->get_fileline()
+			     << ": sorry: missing declaring class for covergroup "
+			     << item_kind << " in '" << cgdef->name
+			     << "' (IEEE 1800-2023 19.4.1)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+	  if (const netclass_t*owner = find_ancestor_by_pform(decl_class))
+		return owner;
+		  cerr << pclass->get_fileline()
+		       << ": sorry: cannot resolve the declaring class for covergroup "
+		       << item_kind << " in '" << cgdef->name
+		       << "' (IEEE 1800-2023 19.4.1)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    };
+	    auto reject_shadowed_covgrp_expr = [&](const PExpr*expr,
+						    const netclass_t*decl_class,
+						    const string&item) {
+		  string what = "inherited covergroup '" + string(cgdef->name.str())
+			+ "' " + item;
+		  return inherited_expr_shadowed_(
+			des, this, decl_class, expr, cgdef->ctor_formals,
+			cgdef->sample_formals, what, pclass);
+	    };
+	    auto reject_shadowed_nonbare_covgrp_expr = [&](const PExpr*expr,
+							 const netclass_t*decl_class,
+							 const string&item) {
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+			const pform_scoped_name_t&path = id->path();
+			if (!path.package && !id->has_scoped_type_prefix()
+			    && path.size() == 1
+			    && !path.name.front().local_scope
+			    && path.name.front().index.empty())
+			      return false;
+		  }
+		  return reject_shadowed_covgrp_expr(expr, decl_class, item);
+	    };
 
 		    netclass_t* cg_class = nullptr;
 		    size_t super_props = get_super()
@@ -41598,7 +41757,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				|| (type && dynamic_cast<const netenum_t*>(type));
 			  return integral && width > 0 && width <= 64;
 		    };
+		    auto extension_guard_source = [&](const PExpr*expr) -> int {
+			  const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+			  if (!id || id->path().package || id->has_scoped_type_prefix()
+			      || id->path().size() != 1
+			      || id->path().name.front().local_scope
+			      || !id->path().name.front().index.empty()) return -1;
+			  perm_string name = id->path().name.front().name;
+			  for (perm_string formal : cgdef->sample_formals)
+				if (formal == name) return -1;
+			  for (perm_string formal : cgdef->ctor_formals)
+				if (formal == name) return -1;
+			  int prop = property_idx_from_name(name);
+			  if (prop < 0) return -1;
+			  ivl_type_t type = get_prop_type((size_t)prop);
+			  if (!type || !type->packed() || type->packed_width() != 1
+			      || (type->base_type() != IVL_VT_BOOL
+				  && type->base_type() != IVL_VT_LOGIC)) return -1;
+			  return prop;
+		    };
 		    for (auto& cp : cgdef->coverpoints) {
+		  const netclass_t*cp_decl_class =
+			covgrp_decl_class(cp.decl_class, "coverpoint");
 			  unsigned cp_value_width = 0;
 			  bool cp_value_signed = false;
 			  bool cp_value_supported = coverpoint_effective_shape(
@@ -41690,8 +41870,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // A nested expression such as cfg.en_parity must be
 				  // elaborated as the complete expression; sampling the
 				  // `cfg` object handle itself is not equivalent.
-				if (!is_formal && pe->path().size() == 1)
-				      parent_prop = property_idx_from_name(cp_var_name);
+			const pform_scoped_name_t&path = pe->path();
+			bool direct = !path.package && !pe->has_scoped_type_prefix()
+			      && path.size() == 1 && !path.name.front().local_scope
+			      && path.name.front().index.empty();
+			if (!is_formal && direct && cp_decl_class)
+			      parent_prop = cp_decl_class->property_idx_from_name(
+				    cp_var_name);
+			  }
+			  if (!cg_standalone && cp.expr && parent_prop < 0) {
+				string item = "coverpoint source for '"
+				      + string(cp.label.str()) + "'";
+				reject_shadowed_nonbare_covgrp_expr(
+				      cp.expr, cp_decl_class, item);
 			  }
 			  if (parent_prop < 0 && !cp.expr) {
 				cerr << "sorry: covergroup '" << cgdef->name
@@ -41708,13 +41899,69 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cg_class->add_covgrp_cp_srcprop(parent_prop);
 			  {
 				int gsrc = -1;
-				if (!cg_standalone && cp.iff_expr)
+				if (!cg_standalone && cgdef->is_extension
+				    && cp.declared_by_extension && cp.iff_expr)
+				      gsrc = extension_guard_source(cp.iff_expr);
+				else if (!cg_standalone && cp.iff_expr)
 				if (const PEIdent*gpe =
 				      dynamic_cast<const PEIdent*>(cp.iff_expr))
-				      gsrc = property_idx_from_name(
-					    peek_head_name(gpe->path()));
+				      if (gpe->path().size() == 1
+					  && gpe->path().name.front().index.empty()) {
+					perm_string name = peek_head_name(gpe->path());
+					bool is_formal = false;
+					for (perm_string formal : cgdef->sample_formals)
+					      if (formal == name) is_formal = true;
+					for (perm_string formal : cgdef->ctor_formals)
+					      if (formal == name) is_formal = true;
+					if (!is_formal && cp_decl_class)
+					      gsrc = cp_decl_class->property_idx_from_name(name);
+				      }
+				if (!cg_standalone && cp.iff_expr && gsrc < 0) {
+				      string item = "coverpoint iff guard for '"
+					    + string(cp.label.str()) + "'";
+				      reject_shadowed_nonbare_covgrp_expr(
+					    cp.iff_expr, cp_decl_class, item);
+				}
+				if (!cg_standalone && cgdef->is_extension
+				    && cp.declared_by_extension && cp.iff_expr && gsrc < 0) {
+				      cerr << pclass->get_fileline() << ": sorry: covergroup '"
+					   << cgdef->name << "' extension coverpoint '"
+					   << cp.label << "': its iff guard has no supported one-bit "
+					   << "parent-property "
+					   << "source for base-class-handle sample() (IEEE 1800-2023 "
+					   << "19.4.1)." << endl;
+				      des->errors += 1;
+				}
 				cg_class->add_covgrp_cp_guardsrc(gsrc);
 			  }
+			  string sample_ir;
+			  if (!cg_standalone && cp.expr && parent_prop < 0) {
+				bool uses_sample_formal = false;
+				for (perm_string formal : cgdef->sample_formals)
+				      if (cp.expr->refs_name(formal)) {
+					    uses_sample_formal = true;
+					    break;
+				      }
+				if (!uses_sample_formal)
+				      sample_ir = pexpr_to_covergroup_sample_ir(
+					    cp.expr, cg_class, this, des, class_scope_);
+				if (!sample_ir.empty()
+			    && !covergroup_sample_ir_supported_(sample_ir,
+							cg_class, this))
+				      sample_ir.clear();
+			  }
+			  if (!cg_standalone && cgdef->is_extension
+			      && cp.declared_by_extension && cp.expr
+			      && parent_prop < 0 && sample_ir.empty()) {
+				cerr << pclass->get_fileline() << ": sorry: covergroup '"
+				     << cgdef->name << "' extension coverpoint '"
+				     << cp.label << "': an expression that depends on an "
+				     << "inherited sample argument or cannot be serialized is "
+				     << "not supported when sampled through a base-class handle "
+				     << "(IEEE 1800-2023 19.4.1)." << endl;
+				des->errors += 1;
+			  }
+			  cg_class->add_covgrp_cp_sample_ir(sample_ir);
 			    // Keep the SOURCE expression: sample() sites
 			    // elaborate it in the caller's scope when it
 			    // is not a parent-class property (standalone
@@ -41920,9 +42167,67 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  };
 
 			  for (auto& bin : cp.bins) {
+			const netclass_t*bin_decl_class = nullptr;
+			if (bin.decl_class)
+			      bin_decl_class = covgrp_decl_class(bin.decl_class, "bin");
+			string bin_item = "coverpoint '" + string(cp.label.str())
+			      + "', bin '"
+			      + string(bin.name.nil() ? "(unnamed)" : bin.name.str())
+			      + "'";
+			if (!cg_standalone && bin_decl_class
+			    && bin_decl_class != this) {
+			      std::set<const PExpr*> checked_ranges;
+			      auto check_range = [&](const PExpr*expr,
+					     const string&description) {
+				    if (expr && checked_ranges.insert(expr).second)
+					  reject_shadowed_nonbare_covgrp_expr(
+						expr, bin_decl_class, description);
+			      };
+			      for (const auto&range : bin.ranges) {
+				    check_range(range.first, "bin range for " + bin_item);
+				    check_range(range.second, "bin range for " + bin_item);
+			      }
+			      for (const auto&seq : bin.trans_seqs)
+				    for (const auto&term : seq) {
+					  for (const auto&range : term.ranges) {
+						check_range(range.first,
+						      "transition range for " + bin_item);
+						check_range(range.second,
+						      "transition range for " + bin_item);
+					  }
+					  check_range(term.repeat_lo,
+						"transition repeat for " + bin_item);
+					  check_range(term.repeat_hi,
+						"transition repeat for " + bin_item);
+				    }
+			      reject_shadowed_covgrp_expr(bin.with_expr, bin_decl_class,
+						  "bin with filter for " + bin_item);
+			      reject_shadowed_covgrp_expr(bin.set_expr, bin_decl_class,
+						  "bin set expression for " + bin_item);
+			      reject_shadowed_covgrp_expr(bin.array_size, bin_decl_class,
+						  "bin array size for " + bin_item);
+			}
 				unsigned base_kind = (unsigned)bin.kind;
 				unsigned kindval = base_kind | (bin.wildcard ? 8u : 0u);
 				if (cp_real_supported) kindval |= netclass_t::COVGRP_REAL_BIN;
+			if (!cg_standalone && bin.iff_expr && bin_decl_class) {
+				      std::string item = "bin iff guard for coverpoint '";
+				      item += cp.label.str();
+				      item += "', bin '";
+				      item += bin.name.nil() ? "(unnamed)" : bin.name.str();
+				      item += "'";
+				      reject_shadowed_covgrp_expr(bin.iff_expr,
+							  bin_decl_class, item);
+				}
+				if (!cg_standalone && cgdef->is_extension
+				    && bin.declared_by_extension && bin.iff_expr) {
+				      cerr << pclass->get_fileline() << ": sorry: covergroup '"
+				   << cgdef->name << "' extension bin '"
+				   << (bin.name.nil() ? "(unnamed)" : bin.name.str())
+					   << "' has an iff guard that cannot be sampled through a "
+					   << "base-class handle (IEEE 1800-2023 19.4.1)." << endl;
+				      des->errors += 1;
+				}
 				unsigned bin_guard = bin.iff_expr
 				      ? cg_class->add_covgrp_bin_guard(bin.iff_expr)
 				      : netclass_t::COVGRP_NO_GUARD;
@@ -43442,6 +43747,54 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // bins.  Named cross bins (binsof selects) land in
 		      // M11-3; their pform is captured already.
 		    for (auto& cross : cgdef->crosses) {
+		  const netclass_t*cross_decl_class =
+			covgrp_decl_class(cross.decl_class, "cross");
+		  if (!cg_standalone && cross_decl_class
+		      && cross_decl_class != this) {
+			string cross_item = "cross '"
+			      + string(cross.label.nil() ? "(unnamed)" : cross.label.str())
+			      + "'";
+			reject_shadowed_nonbare_covgrp_expr(
+			      cross.iff_expr, cross_decl_class,
+			      "cross iff guard for " + cross_item);
+			using cross_select_t =
+			      class_type_t::pform_cross_t::select_t;
+			std::function<void(const cross_select_t*)> check_select;
+			check_select = [&](const cross_select_t*select) {
+			      if (!select) return;
+			      for (const auto&range : select->intersect_ranges) {
+				    reject_shadowed_nonbare_covgrp_expr(
+					  range.first, cross_decl_class,
+					  "cross bin range for " + cross_item);
+				    reject_shadowed_nonbare_covgrp_expr(
+					  range.second, cross_decl_class,
+					  "cross bin range for " + cross_item);
+			      }
+			      reject_shadowed_covgrp_expr(select->with_expr,
+						  cross_decl_class,
+						  "cross bin with filter for " + cross_item);
+			      reject_shadowed_covgrp_expr(select->matches_expr,
+						  cross_decl_class,
+						  "cross bin matches expression for " + cross_item);
+			      check_select(select->a);
+			      check_select(select->b);
+			};
+			for (const auto&bin : cross.bins) {
+			      string bin_item = "cross bin '"
+				    + string(bin.name.nil() ? "(unnamed)" : bin.name.str())
+				    + "' in " + cross_item;
+			      reject_shadowed_covgrp_expr(bin.set_expr,
+						  cross_decl_class,
+						  "cross bin set expression for " + bin_item);
+			      reject_shadowed_covgrp_expr(bin.with_expr,
+						  cross_decl_class,
+						  "cross bin with filter for " + bin_item);
+			      reject_shadowed_covgrp_expr(bin.matches_expr,
+						  cross_decl_class,
+						  "cross bin matches expression for " + bin_item);
+			      check_select(bin.select);
+			}
+		  }
 			  std::vector<unsigned> cp_indexes;
 			  cp_indexes.reserve(cross.cp_labels.size());
 			  bool resolved = true;
@@ -43506,18 +43859,34 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned item_idx =
 				static_cast<unsigned>(cg_class->covgrp_item_count());
 			  int x_guard_src = -1;
-			  if (!cg_standalone && cross.iff_expr)
+			  if (!cg_standalone && cgdef->is_extension
+			      && cross.declared_by_extension && cross.iff_expr)
+				x_guard_src = extension_guard_source(cross.iff_expr);
+			  else if (!cg_standalone && cross.iff_expr)
 			  if (const PEIdent*gpe =
 				dynamic_cast<const PEIdent*>(cross.iff_expr)) {
 				perm_string gname = peek_head_name(gpe->path());
 				bool is_formal = false;
-				for (auto&fn : cgdef->sample_formals)
-				      if (fn == gname) {
-					    is_formal = true;
-					    break;
-				      }
-				if (!is_formal && gpe->path().size() == 1)
-				      x_guard_src = property_idx_from_name(gname);
+				for (perm_string formal : cgdef->sample_formals)
+				      if (formal == gname) is_formal = true;
+				for (perm_string formal : cgdef->ctor_formals)
+				      if (formal == gname) is_formal = true;
+				if (!is_formal && gpe->path().size() == 1
+				    && gpe->path().name.front().index.empty())
+		      if (cross_decl_class)
+			    x_guard_src =
+				  cross_decl_class->property_idx_from_name(gname);
+			  }
+			  if (!cg_standalone && cgdef->is_extension
+			      && cross.declared_by_extension && cross.iff_expr
+			      && x_guard_src < 0) {
+				cerr << pclass->get_fileline() << ": sorry: covergroup '"
+				     << cgdef->name << "' extension cross '"
+				     << (cross.label.nil() ? "(unnamed)" : cross.label.str())
+				     << "' has an iff guard without a supported one-bit "
+				     << "parent-property source for base-class-handle sample() "
+				     << "(IEEE 1800-2023 19.4.1)." << endl;
+				des->errors += 1;
 			  }
 			  std::pair<int,int> x_option_props =
 				add_option_props("__covgrp_item_" + std::to_string(item_idx));

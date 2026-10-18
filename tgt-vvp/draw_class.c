@@ -660,6 +660,8 @@ void draw_class_in_scope(ivl_type_t classtype)
 		  fprintf(vvp_out, " .covgrp_item_options %u %d %d\n", idx,
 			  ivl_type_covgrp_item_at_least_prop(classtype, idx) + 1,
 			  ivl_type_covgrp_item_weight_prop(classtype, idx) + 1);
+	  fprintf(vvp_out, " .covgrp_item_guard %u %u\n", idx,
+		  ivl_type_covgrp_item_has_guard(classtype, idx));
 	    }
 	      /* M11-3: event-driven sampling metadata — the hidden
 		 parent-handle property plus per-coverpoint parent
@@ -674,6 +676,10 @@ void draw_class_in_scope(ivl_type_t classtype)
 			fprintf(vvp_out, " .covgrp_src %d %d\n",
 				ivl_type_covgrp_srcprop(classtype, idx) + 1,
 				ivl_type_covgrp_guardsrc(classtype, idx) + 1);
+		  const char*sample_ir = ivl_type_covgrp_sample_ir(classtype, idx);
+		  if (sample_ir && *sample_ir)
+			fprintf(vvp_out, " .covgrp_src_expr %u \"%s\"\n",
+				idx, sample_ir);
 		  }
 	    }
       }

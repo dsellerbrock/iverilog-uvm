@@ -375,6 +375,16 @@ void netclass_t::set_class_scope(NetScope*class_scope__)
       class_scope_ = class_scope__;
 }
 
+const netclass_t*netclass_t::find_ancestor_by_pform(const PClass*pclass) const
+{
+      for (const netclass_t*owner = this; owner; owner = owner->get_super()) {
+	    const NetScope*scope = owner->class_scope();
+	    if (scope && scope->class_pform() == pclass)
+		  return owner;
+      }
+      return nullptr;
+}
+
 void netclass_t::set_definition_scope(NetScope*use_definition_scope)
 {
       assert(definition_scope_ == 0);

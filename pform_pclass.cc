@@ -937,6 +937,16 @@ void pform_class_covergroup(const struct vlltype&loc,
 	    delete sample_events;
       }
 
+	// Preserve the lexical class scope as covergroup components are copied
+	// into further derived covergroups.
+      for (auto&item : cg->coverpoints) {
+	    item.decl_class = pform_cur_class;
+	    for (auto&bin : item.bins)
+		  bin.decl_class = pform_cur_class;
+      }
+      for (auto&item : cg->crosses)
+	    item.decl_class = pform_cur_class;
+
 	// IEEE 1800-2023 19.4.1: an embedded extension replaces the
 	// same-named base property, retaining its sampling interface and
 	// merging coverage components by their declared names.
@@ -971,8 +981,16 @@ void pform_class_covergroup(const struct vlltype&loc,
 	    map<perm_string,PExpr*> added_options = std::move(cg->options);
 	    *cg = *base_cg;
 	    cg->is_extension = true;
+	    for (auto&item : cg->coverpoints) {
+		  item.declared_by_extension = false;
+		  for (auto&bin : item.bins) bin.declared_by_extension = false;
+	    }
+	    for (auto&item : cg->crosses)
+		  item.declared_by_extension = false;
 	    map<perm_string,perm_string> inherited_cross_labels;
 	    for (auto&item : added_coverpoints) {
+		  item.declared_by_extension = true;
+		  for (auto&bin : item.bins) bin.declared_by_extension = true;
 		  auto found = find_if(cg->coverpoints.begin(), cg->coverpoints.end(),
 				       [&](const class_type_t::pform_coverpoint_t&base) {
 					     return !item.label.nil()
@@ -1007,6 +1025,7 @@ void pform_class_covergroup(const struct vlltype&loc,
 			}
 	    }
 	    for (auto&item : added_crosses) {
+		  item.declared_by_extension = true;
 		  auto found = find_if(cg->crosses.begin(), cg->crosses.end(),
 				       [&](const class_type_t::pform_cross_t&base) {
 					     return !item.label.nil()

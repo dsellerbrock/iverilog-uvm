@@ -1639,7 +1639,7 @@ static void validate_external_class_constraints_(Design*des, PClass*pclass)
  * found mutable/ref/inaccessible name cannot later fall through to an enum or
  * parameter with the same spelling. */
 static void bind_covergroup_range_expr_(
-      Design*des, netclass_t*parent, netclass_t*cg_class,
+      Design*des, const netclass_t*parent, netclass_t*cg_class,
       const class_type_t::pform_covergroup_t*cgdef, perm_string bin_name,
       const PExpr*expr, bool standalone)
 {
@@ -1880,7 +1880,7 @@ static void bind_covergroup_range_expr_(
 }
 
 static void bind_covergroup_select_ranges_(
-      Design*des, netclass_t*parent, netclass_t*cg_class,
+      Design*des, const netclass_t*parent, netclass_t*cg_class,
       const class_type_t::pform_covergroup_t*cgdef, perm_string bin_name,
       const class_type_t::pform_cross_t::select_t*select, bool standalone)
 {
@@ -1903,13 +1903,20 @@ static void bind_covergroup_ranges_(
 {
       if (!cg_class || cg_class->covgrp_range_bindings_complete()) return;
 
+      auto declaring_class = [&](const PClass*decl_class) -> const netclass_t* {
+	    if (standalone || !decl_class) return parent;
+	    const netclass_t*owner = parent->find_ancestor_by_pform(decl_class);
+	    return owner ? owner : parent;
+	  };
+
       for (const class_type_t::pform_coverpoint_t&cp : cgdef->coverpoints)
 	    for (const class_type_t::pform_cov_bins_t&bin : cp.bins) {
+		  const netclass_t*bin_parent = declaring_class(bin.decl_class);
 		  for (const std::pair<PExpr*,PExpr*>&range : bin.ranges) {
-			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+			bind_covergroup_range_expr_(des, bin_parent, cg_class, cgdef,
 						    bin.name, range.first,
 						    standalone);
-			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+			bind_covergroup_range_expr_(des, bin_parent, cg_class, cgdef,
 						    bin.name, range.second,
 						    standalone);
 		  }
@@ -1918,25 +1925,27 @@ static void bind_covergroup_ranges_(
 			for (const class_type_t::pform_cov_trans_term_t&term : seq) {
 			      for (const std::pair<PExpr*,PExpr*>&range : term.ranges) {
 				    bind_covergroup_range_expr_(
-					  des, parent, cg_class, cgdef, bin.name,
+					  des, bin_parent, cg_class, cgdef, bin.name,
 					  range.first, standalone);
 				    bind_covergroup_range_expr_(
-					  des, parent, cg_class, cgdef, bin.name,
+					  des, bin_parent, cg_class, cgdef, bin.name,
 					  range.second, standalone);
 			      }
-			      bind_covergroup_range_expr_(des, parent, cg_class,
+			      bind_covergroup_range_expr_(des, bin_parent, cg_class,
 						  cgdef, bin.name,
 						  term.repeat_lo, standalone);
-			      bind_covergroup_range_expr_(des, parent, cg_class,
+			      bind_covergroup_range_expr_(des, bin_parent, cg_class,
 						  cgdef, bin.name,
 						  term.repeat_hi, standalone);
 			}
 	    }
 
-      for (const class_type_t::pform_cross_t&cross : cgdef->crosses)
+      for (const class_type_t::pform_cross_t&cross : cgdef->crosses) {
+	    const netclass_t*cross_parent = declaring_class(cross.decl_class);
 	    for (const class_type_t::pform_cross_t::cross_bin_t&bin : cross.bins)
-		  bind_covergroup_select_ranges_(des, parent, cg_class, cgdef,
+		  bind_covergroup_select_ranges_(des, cross_parent, cg_class, cgdef,
 					 bin.name, bin.select, standalone);
+      }
 
       cg_class->set_covgrp_range_bindings_complete(true);
 }

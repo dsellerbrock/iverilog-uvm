@@ -9380,14 +9380,25 @@ static bool covgrp_sample_(vthread_t thr, vvp_code_t cp, bool dynamic_type)
 	       vector<vvp_vector4_t> dynamic_wide(dynamic_ncp);
 	       vector<uint64_t> dynamic_guards(dynamic_ncp, 1);
 	       for (unsigned ci = 0; ci < dynamic_ncp; ++ci) {
+	     if (ci < ncp) {
+		   dynamic_vals[ci] = cp_vals[ci];
+		   dynamic_wide[ci] = wide_vals[ci];
+		   dynamic_guards[ci] = guards[ci];
+		   continue;
+	     }
 	     int srcprop = actual_defn->covgrp_srcprop(ci);
 	     if (srcprop >= 0) {
 		   if (!read_parent_value(srcprop, actual_defn->covgrp_cp_real(ci),
 					  dynamic_vals[ci], &dynamic_wide[ci]))
 			 source_error = true;
-	     } else if (ci < ncp) {
-		   dynamic_vals[ci] = cp_vals[ci];
-		   dynamic_wide[ci] = wide_vals[ci];
+	     } else if (!actual_defn->covgrp_sample_ir(ci).empty()) {
+		   if (!actual_defn->covgrp_eval_sample_ir(
+			     cobj, actual_defn->covgrp_sample_ir(ci),
+			     dynamic_vals[ci])) {
+		     fprintf(stderr, "vvp: covergroup extension coverpoint %u source expression could not be evaluated for base-handle sample()\n",
+			     ci);
+		     source_error = true;
+		   }
 	     } else {
 		   fprintf(stderr, "vvp: covergroup extension coverpoint %u has no parent-property source for base-handle sample()\n",
 			   ci);
@@ -9417,7 +9428,8 @@ static bool covgrp_sample_(vthread_t thr, vvp_code_t cp, bool dynamic_type)
 		   uint64_t guard_value = 0;
 		   if (read_parent_value(guardprop, false, guard_value, nullptr))
 			 dynamic_cross_guards[cross_idx] = (guard_value & 1) ? 1 : 0;
-	     } else if (cross_idx < cross_guards.size()) {
+	     } else if (actual_defn->covgrp_item(item).has_guard != 0
+		 && cross_idx < cross_guards.size()) {
 		   dynamic_cross_guards[cross_idx] = cross_guards[cross_idx];
 	     }
 	       }

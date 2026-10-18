@@ -59,6 +59,7 @@ class netclass_t : public ivl_type_s {
 	// is used for the elaboration of methods
 	// (tasks/functions). In other words, this is the class itself.
       void set_class_scope(NetScope*cscope);
+      const netclass_t* find_ancestor_by_pform(const PClass*pclass) const;
 
       inline const NetScope* class_scope(void) const { return class_scope_; }
 
@@ -844,6 +845,13 @@ class netclass_t : public ivl_type_s {
 	    if (cp_idx < covgrp_cp_guardsrcs_.size()) return covgrp_cp_guardsrcs_[cp_idx];
 	    return -1;
       }
+      void add_covgrp_cp_sample_ir(const std::string&ir)
+      { covgrp_cp_sample_irs_.push_back(ir); }
+      const std::string& covgrp_cp_sample_ir(unsigned cp_idx) const {
+	    static const std::string empty;
+	    return cp_idx < covgrp_cp_sample_irs_.size()
+		  ? covgrp_cp_sample_irs_[cp_idx] : empty;
+      }
       void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
       int covgrp_parent_prop() const { return covgrp_parent_prop_; }
       void set_covgrp_owner_prop(int p) { covgrp_owner_prop_ = p; }
@@ -880,6 +888,7 @@ class netclass_t : public ivl_type_s {
       std::vector<PExpr*> covgrp_bin_guards_;
       std::vector<int> covgrp_cp_srcprops_;
       std::vector<int> covgrp_cp_guardsrcs_;
+      std::vector<std::string> covgrp_cp_sample_irs_;
       int covgrp_parent_prop_ = -1;
       int covgrp_owner_prop_ = -1;
       bool is_covergroup_ = false;
