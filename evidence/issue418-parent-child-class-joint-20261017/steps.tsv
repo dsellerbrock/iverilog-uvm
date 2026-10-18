@@ -1,0 +1,16 @@
+T0-legacy-focused	0
+T0-json-2017	0
+T0-json-2023	0
+T1-legacy-constraint-neighbors	0
+T1-json-sv_randomize_global_randc	0
+T1-json-sv_randomize_global_randc_2023	0
+T1-json-sv_constraint_handle_rollback	0
+T1-json-sv_constraint_handle_rollback_2023	0
+T1-json-sv_randomize_global_components	0
+T1-json-sv_randomize_global_components_2023	0
+T1-json-sv_randomize_global_components_fail	0
+T1-json-sv_randomize_global_components_fail_2023	0
+T1-json-sv_constraint_cross_object_solve_before	0
+T1-json-sv_constraint_cross_object_solve_before_2023	0
+T1-json-sv_constraint_parent_child_class_joint	0
+T1-json-sv_constraint_parent_child_class_joint_2023	0

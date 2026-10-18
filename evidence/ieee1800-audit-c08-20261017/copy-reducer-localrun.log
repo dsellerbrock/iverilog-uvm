@@ -1,0 +1,58 @@
+### r08_12_copy_base_handle_derived -g2017
+compile_rc=0
+/tmp/a3-c08c-run.sh: line 18: 69625 Abort trap: 6              perl -e 'alarm 30; exec @ARGV' "$B/vvp" -n "$O/$b.$g.vvp" > "$O/$b.$g.run" 2>&1
+run_rc=134
+Assertion failed: (defn_ == that->defn_), function shallow_copy, file vvp_cobject.cc, line 1190.
+### r08_12_copy_rand_state -g2017
+compile_rc=0
+run_rc=0
+PASS rand_mode
+PASS constraint_mode
+FAIL rng_state
+### r08_12_copy_no_ctor -g2017
+compile_rc=0
+run_rc=0
+PASS no_ctor_no_init
+PASS chained
+### n13_04_event_in_function -g2017
+compile_rc=1
+tests/1800_audit/c08/neg/n13_04_event_in_function.sv:3: error: functions cannot have event statements.
+1 error(s) during elaboration.
+### r08_12_copy_base_handle_derived -g2023
+compile_rc=0
+/tmp/a3-c08c-run.sh: line 18: 69660 Abort trap: 6              perl -e 'alarm 30; exec @ARGV' "$B/vvp" -n "$O/$b.$g.vvp" > "$O/$b.$g.run" 2>&1
+run_rc=134
+Assertion failed: (defn_ == that->defn_), function shallow_copy, file vvp_cobject.cc, line 1190.
+### r08_12_copy_rand_state -g2023
+compile_rc=0
+run_rc=0
+PASS rand_mode
+PASS constraint_mode
+FAIL rng_state
+### r08_12_copy_no_ctor -g2023
+compile_rc=0
+run_rc=0
+PASS no_ctor_no_init
+PASS chained
+### n13_04_event_in_function -g2023
+compile_rc=1
+tests/1800_audit/c08/neg/n13_04_event_in_function.sv:3: error: functions cannot have event statements.
+1 error(s) during elaboration.
+        1.21 real         0.39 user         0.30 sys
+            33783808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               42544  page reclaims
+                 607  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   8  signals received
+                 114  voluntary context switches
+                1927  involuntary context switches
+            69585499  instructions retired
+            25693798  cycles elapsed
+             2408928  peak memory footprint

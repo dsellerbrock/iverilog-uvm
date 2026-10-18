@@ -2035,8 +2035,8 @@ static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
       return var;
 }
 
-// Parse "a:OUTER:MEMBER:WIDTH:ELEM[:s]" -- one selected element of a
-// fixed unpacked array member in an unpacked-struct class property.
+// Parse "a:OUTER:MEMBER:WIDTH:ELEM[:s]" -- one selected element of an
+// unpacked array member in an unpacked-struct class property.
 static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
 {
       const char*s = tok.c_str() + 2;
@@ -2068,9 +2068,12 @@ static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
 	    if (b.collect_refs_only)
 		  return Z3_mk_unsigned_int64(
 			b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    vvp_vector4_t data;
+	    if (!cobj_elem_vec4_(owner, member, elem, data)) {
+		  b.state_errors.push_back("invalid unpacked-struct member-array element");
+		  return b.mk_true();
+	    }
 	    if (!b.graph->element_active(idx, elem)) {
-		  vvp_vector4_t data;
-		  owner->get_vec4(member, data, elem);
 		  Z3_ast ground;
 		  if (!vec4_to_bv_const_(b.ctx, data, width, ground)) {
 			b.state_errors.push_back(

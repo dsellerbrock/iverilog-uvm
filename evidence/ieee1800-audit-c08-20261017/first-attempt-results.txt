@@ -1,0 +1,108 @@
+### p08_04_08_objects_ctors -g2017
+compile_rc=2
+tests/1800_audit/c08/p08_04_08_objects_ctors.sv:65: error: A hierarchical reference (`vector.T') is not allowed in a constant expression.
+tests/1800_audit/c08/p08_04_08_objects_ctors.sv:65: error: Cast size expression must be constant and greater than zero.
+2 error(s) during elaboration.
+### r08_04_null_deref -g2017
+compile_rc=0
+run_rc=0
+BEFORE
+AFTER_PROP x=0
+AFTER_VMETHOD x=1
+### n08_04_handle_arith -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_04_handle_relational -g2017
+compile_rc=1
+tests/1800_audit/c08/neg/n08_04_handle_relational.sv:2: error: Class/null is not allowed with the '<' operator.
+1 error(s) during elaboration.
+### n08_05_handle_type_access -g2017
+compile_rc=2
+tests/1800_audit/c08/neg/n08_05_handle_type_access.sv:3: error: A reference to a net or variable (`v.T') is not allowed in a constant expression.
+tests/1800_audit/c08/neg/n08_05_handle_type_access.sv:3: error: Cast size expression must be constant and greater than zero.
+2 error(s) during elaboration.
+### n08_06_static_method_lifetime -g2017
+compile_rc=1
+error: Lifetime of method `top.K.f` must not be static
+1 error(s) during elaboration.
+### n08_06_static_task_lifetime -g2017
+compile_rc=1
+error: Lifetime of method `top.K.t` must not be static
+1 error(s) during elaboration.
+### n08_07_delay_in_new -g2017
+compile_rc=2
+tests/1800_audit/c08/neg/n08_07_delay_in_new.sv:2: error: functions cannot have delay statements.
+tests/1800_audit/c08/neg/n08_07_delay_in_new.sv:2: error: Unable to elaborate statement in function new.
+2 error(s) during elaboration.
+### n08_07_local_new_outside -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_07_static_new -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_07_virtual_new -g2017
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_08_typed_ctor_incompatible -g2017
+compile_rc=1
+tests/1800_audit/c08/neg/n08_08_typed_ctor_incompatible.sv:2: error: Incompatible type in typed constructor call.
+tests/1800_audit/c08/neg/n08_08_typed_ctor_incompatible.sv:2:      : Constructor type `class B{}` is not compatible with the target type `class Dd{}`.
+Elaboration failed
+### p08_04_08_objects_ctors -g2023
+compile_rc=2
+tests/1800_audit/c08/p08_04_08_objects_ctors.sv:65: error: A hierarchical reference (`vector.T') is not allowed in a constant expression.
+tests/1800_audit/c08/p08_04_08_objects_ctors.sv:65: error: Cast size expression must be constant and greater than zero.
+2 error(s) during elaboration.
+### r08_04_null_deref -g2023
+compile_rc=0
+run_rc=0
+BEFORE
+AFTER_PROP x=0
+AFTER_VMETHOD x=1
+### n08_04_handle_arith -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_04_handle_relational -g2023
+compile_rc=1
+tests/1800_audit/c08/neg/n08_04_handle_relational.sv:2: error: Class/null is not allowed with the '<' operator.
+1 error(s) during elaboration.
+### n08_05_handle_type_access -g2023
+compile_rc=2
+tests/1800_audit/c08/neg/n08_05_handle_type_access.sv:3: error: A reference to a net or variable (`v.T') is not allowed in a constant expression.
+tests/1800_audit/c08/neg/n08_05_handle_type_access.sv:3: error: Cast size expression must be constant and greater than zero.
+2 error(s) during elaboration.
+### n08_06_static_method_lifetime -g2023
+compile_rc=1
+error: Lifetime of method `top.K.f` must not be static
+1 error(s) during elaboration.
+### n08_06_static_task_lifetime -g2023
+compile_rc=1
+error: Lifetime of method `top.K.t` must not be static
+1 error(s) during elaboration.
+### n08_07_delay_in_new -g2023
+compile_rc=2
+tests/1800_audit/c08/neg/n08_07_delay_in_new.sv:2: error: functions cannot have delay statements.
+tests/1800_audit/c08/neg/n08_07_delay_in_new.sv:2: error: Unable to elaborate statement in function new.
+2 error(s) during elaboration.
+### n08_07_local_new_outside -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_07_static_new -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_07_virtual_new -g2023
+compile_rc=0
+run_rc=0
+NEG_NOT_REJECTED
+### n08_08_typed_ctor_incompatible -g2023
+compile_rc=1
+tests/1800_audit/c08/neg/n08_08_typed_ctor_incompatible.sv:2: error: Incompatible type in typed constructor call.
+tests/1800_audit/c08/neg/n08_08_typed_ctor_incompatible.sv:2:      : Constructor type `class B{}` is not compatible with the target type `class Dd{}`.
+Elaboration failed

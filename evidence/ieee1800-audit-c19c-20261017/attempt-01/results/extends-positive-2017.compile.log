@@ -1,0 +1,38 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:10: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: error: cb doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:16: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: dobj doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:18: error: r doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:19: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:19: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: bo doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:20: error: r doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:21: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:21: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_04_1_extends_2023.sv:22: syntax error
+I give up.

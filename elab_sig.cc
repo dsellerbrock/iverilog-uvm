@@ -1639,7 +1639,7 @@ static void validate_external_class_constraints_(Design*des, PClass*pclass)
  * found mutable/ref/inaccessible name cannot later fall through to an enum or
  * parameter with the same spelling. */
 static void bind_covergroup_range_expr_(
-      Design*des, netclass_t*parent, netclass_t*cg_class,
+      Design*des, const netclass_t*parent, netclass_t*cg_class,
       const class_type_t::pform_covergroup_t*cgdef, perm_string bin_name,
       const PExpr*expr, bool standalone)
 {
@@ -1880,7 +1880,7 @@ static void bind_covergroup_range_expr_(
 }
 
 static void bind_covergroup_select_ranges_(
-      Design*des, netclass_t*parent, netclass_t*cg_class,
+      Design*des, const netclass_t*parent, netclass_t*cg_class,
       const class_type_t::pform_covergroup_t*cgdef, perm_string bin_name,
       const class_type_t::pform_cross_t::select_t*select, bool standalone)
 {
@@ -1903,13 +1903,20 @@ static void bind_covergroup_ranges_(
 {
       if (!cg_class || cg_class->covgrp_range_bindings_complete()) return;
 
+      auto declaring_class = [&](const PClass*decl_class) -> const netclass_t* {
+	    if (standalone || !decl_class) return parent;
+	    const netclass_t*owner = parent->find_ancestor_by_pform(decl_class);
+	    return owner ? owner : parent;
+	  };
+
       for (const class_type_t::pform_coverpoint_t&cp : cgdef->coverpoints)
 	    for (const class_type_t::pform_cov_bins_t&bin : cp.bins) {
+		  const netclass_t*bin_parent = declaring_class(bin.decl_class);
 		  for (const std::pair<PExpr*,PExpr*>&range : bin.ranges) {
-			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+			bind_covergroup_range_expr_(des, bin_parent, cg_class, cgdef,
 						    bin.name, range.first,
 						    standalone);
-			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+			bind_covergroup_range_expr_(des, bin_parent, cg_class, cgdef,
 						    bin.name, range.second,
 						    standalone);
 		  }
@@ -1918,25 +1925,27 @@ static void bind_covergroup_ranges_(
 			for (const class_type_t::pform_cov_trans_term_t&term : seq) {
 			      for (const std::pair<PExpr*,PExpr*>&range : term.ranges) {
 				    bind_covergroup_range_expr_(
-					  des, parent, cg_class, cgdef, bin.name,
+					  des, bin_parent, cg_class, cgdef, bin.name,
 					  range.first, standalone);
 				    bind_covergroup_range_expr_(
-					  des, parent, cg_class, cgdef, bin.name,
+					  des, bin_parent, cg_class, cgdef, bin.name,
 					  range.second, standalone);
 			      }
-			      bind_covergroup_range_expr_(des, parent, cg_class,
+			      bind_covergroup_range_expr_(des, bin_parent, cg_class,
 						  cgdef, bin.name,
 						  term.repeat_lo, standalone);
-			      bind_covergroup_range_expr_(des, parent, cg_class,
+			      bind_covergroup_range_expr_(des, bin_parent, cg_class,
 						  cgdef, bin.name,
 						  term.repeat_hi, standalone);
 			}
 	    }
 
-      for (const class_type_t::pform_cross_t&cross : cgdef->crosses)
+      for (const class_type_t::pform_cross_t&cross : cgdef->crosses) {
+	    const netclass_t*cross_parent = declaring_class(cross.decl_class);
 	    for (const class_type_t::pform_cross_t::cross_bin_t&bin : cross.bins)
-		  bind_covergroup_select_ranges_(des, parent, cg_class, cgdef,
+		  bind_covergroup_select_ranges_(des, cross_parent, cg_class, cgdef,
 					 bin.name, bin.select, standalone);
+      }
 
       cg_class->set_covgrp_range_bindings_complete(true);
 }
@@ -2557,12 +2566,28 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    if (!cgdef) continue;
 	    bool standalone = pclass->type->is_covergroup_standalone;
 	    netclass_t*cg_class = standalone ? this : nullptr;
+	    size_t super_props = get_super() ? get_super()->get_properties() : 0;
 	    if (!standalone) {
 		  int existing = property_idx_from_name(cgdef->name);
-		  if (existing >= 0)
+		  if (cgdef->is_extension) {
+			const netclass_t*base_cg = existing >= 0
+			      && static_cast<size_t>(existing) < super_props
+			      ? dynamic_cast<const netclass_t*>(
+					    get_super()->get_prop_type(static_cast<size_t>(existing)))
+			      : nullptr;
+			if (!base_cg || !base_cg->is_covergroup()) {
+			      cerr << "error: covergroup extension '" << cgdef->name
+				   << "' does not replace an inherited covergroup property."
+				   << endl;
+			      des->errors += 1;
+			      continue;
+			}
+			cg_class = covgrp_extension_class(cgdef->name);
+		  } else if (existing >= 0
+			     && static_cast<size_t>(existing) >= super_props)
 			cg_class = const_cast<netclass_t*>(
 			      dynamic_cast<const netclass_t*>(
-				    get_prop_type((size_t)existing)));
+				    get_prop_type(static_cast<size_t>(existing))));
 		  if (!cg_class) {
 			string cg_cname = string("__covgrp_")
 				      + string(name_.str())
@@ -2573,12 +2598,20 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 			cg_class->set_scope_ready(true);
 			cg_class->set_body_elaborated(true);
 			cg_class->set_is_covergroup(true);
-			set_property(cgdef->name,
-				     property_qualifier_t::make_none(), cg_class);
+			if (cgdef->is_extension)
+			      set_covgrp_extension_class(cgdef->name, cg_class);
+			else
+			      set_property(cgdef->name,
+					   property_qualifier_t::make_none(), cg_class);
 		  }
 	    }
 	    bind_covergroup_ranges_(des, this, cg_class, cgdef, standalone);
-	    if (!standalone && cg_class) {
+	    if (!standalone && !is_interface() && cg_class) {
+		  int owner_prop = property_idx_from_name(cgdef->name);
+		  if (owner_prop >= 0)
+			cg_class->set_covgrp_owner_prop(owner_prop);
+	    }
+	    if (!standalone && !cgdef->is_extension && cg_class) {
 		  int cg_property = property_idx_from_name(cgdef->name);
 		  if (cg_property >= 0)
 			embedded_covergroups[static_cast<size_t>(cg_property)] =

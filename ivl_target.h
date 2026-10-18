@@ -2849,12 +2849,15 @@ extern const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx);
   /* Parent-property source of a cross iff guard for event-driven
      sampling (-1 when unguarded or not property-backed). */
 extern int      ivl_type_covgrp_item_guardsrc(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_item_has_guard(ivl_type_t net, int idx);
   /* M11-3: event-driven sampling of class-embedded covergroups —
      hidden parent-handle property and per-coverpoint parent source /
      guard property indexes (-1 = none). */
 extern int      ivl_type_covgrp_parent_prop(ivl_type_t net);
+extern int      ivl_type_covgrp_owner_prop(ivl_type_t net);
 extern int      ivl_type_covgrp_srcprop(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_guardsrc(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_sample_ir(ivl_type_t net, int idx);
 
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)

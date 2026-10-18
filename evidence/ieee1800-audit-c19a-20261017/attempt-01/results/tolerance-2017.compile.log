@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_tolerance_2023.sv:3: error: inside tolerance ranges requires IEEE1800-2023; compile with -g2023 (or -glatest).

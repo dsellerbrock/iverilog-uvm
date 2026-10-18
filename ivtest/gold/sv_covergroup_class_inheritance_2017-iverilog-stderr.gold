@@ -1,0 +1,1 @@
+ivltests/sv_covergroup_class_inheritance_2017.v:10: error: embedded covergroup inheritance requires IEEE1800-2023; compile with -g2023 (or -glatest).

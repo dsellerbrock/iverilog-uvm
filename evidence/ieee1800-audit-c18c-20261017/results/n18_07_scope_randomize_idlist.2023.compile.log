@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18c-attempt-02-20261017/source/tests/1800_audit/c18/neg/n18_07_scope_randomize_idlist.sv:3: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+1 error(s) during elaboration.

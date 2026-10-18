@@ -1,0 +1,8 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/focused-json.list
+----------------------------------------------------------------------------
+             sv_covergroup_class_inheritance_2017: Passed - CE.
+             sv_covergroup_class_inheritance_2023: Passed.
+sv_covergroup_class_inheritance_missing_base_2023: Passed - CE.
+============================================================================
+Test results: Ran 3, Failed 0.

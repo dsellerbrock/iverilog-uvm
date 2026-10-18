@@ -1,0 +1,12 @@
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
+PASS 18.7.inline_plus_class_constraints
+PASS 18.7.unrestricted_resolution_obj_then_local
+PASS 18.7.restricted_idlist_other_names_local
+PASS 18.7.restricted_with_local_qualifier
+PASS 18.7.1.local_qualifier_binds_caller
+PASS 18.7.this_binds_object_class
+PASS 18.7.dotted_names_downward
+PASS 18.7.usable_in_expression
+PASS 18.7.infeasible_returns_0
+PASS 18.7.inline_constraint_forms
+DONE fails=0

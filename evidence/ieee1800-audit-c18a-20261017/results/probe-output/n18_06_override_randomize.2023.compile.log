@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18a-20261017/source/tests/1800_audit/c18/neg/n18_06_override_randomize.sv:2: error: Class method `randomize' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.

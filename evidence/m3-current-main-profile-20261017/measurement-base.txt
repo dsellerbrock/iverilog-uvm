@@ -1,0 +1,6 @@
+Pinned current-main profile source: ca559fd97b19bd6a56cc10f0faf8583b4077975f
+Prior reported throughput head: 9b5fad2afb4104caa816b257d5bccc40f01b8c66
+Runtime/build/benchmark path diff between those heads: empty
+Caliptra external inputs: QD-BFM d1529c922da402943148a0fb22648f347e30eed9
+Caliptra RTL: 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e
+Caliptra mcycle window: [100, 2100]
