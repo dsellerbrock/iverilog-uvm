@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name=$(basename "$(dirname "$PWD")")-$(basename "$PWD")
+args=(--quiet --tool=callgrind)
+exec /usr/bin/valgrind "${args[@]}" --callgrind-out-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/callgrind/mixed/callgrind/$name.callgrind" \
+  --log-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/callgrind/mixed/callgrind/$name.valgrind.log" "/home/dsell/toolchains/iverilog-uvm-d9caaaea5b410ed14e7ca14be828fc2f2c9fea44-a5-wp6-r2/bin/vvp" "$@"

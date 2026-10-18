@@ -1,0 +1,2 @@
+PASS vpiIntVal conversion
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/input/semantic/intval_semantics.sv:23: $finish called at 1 (1s)
