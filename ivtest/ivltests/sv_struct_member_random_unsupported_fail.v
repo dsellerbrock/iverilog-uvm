@@ -1,7 +1,7 @@
 // These are legal IEEE random-variable shapes. Class-handle members of a
 // rand unpacked struct are exercised by the paired positive regression;
-// dynamic-array members remain fail-closed until their resize/writeback path
-// is supported. Sparse enum members stay inside their named domain.
+// nested dynamic-array members remain fail-closed until their resize/writeback
+// path is supported. Sparse enum members stay inside their named domain.
 class random_member_child;
   rand bit [7:0] value;
 endclass
@@ -21,7 +21,7 @@ class handle_random_member_item;
 endclass
 
 typedef struct {
-  rand bit [7:0] dynamic_values[];
+  rand bit [7:0] dynamic_values[][];
 } dynamic_random_member_record_t;
 
 class dynamic_random_member_item;
@@ -56,6 +56,8 @@ module test;
 
     dynamic_item = new;
     dynamic_item.record.dynamic_values = new[2];
+    dynamic_item.record.dynamic_values[0] = new[2];
+    dynamic_item.record.dynamic_values[1] = new[2];
     if (dynamic_item.randomize() !== 0)
       $fatal(1, "unsupported struct dynamic-array randomization succeeded");
 
