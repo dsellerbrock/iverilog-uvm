@@ -508,15 +508,19 @@ class class_type : public __vpiHandle {
       struct covgrp_options_t {
             // Old VVP without this record retains its previous query modes.
             bool merge_instances = true;
+            bool per_instance = false;
             unsigned weight = 1, get_inst_coverage = 1;
             int weight_prop = -1, get_inst_coverage_prop = -1;
+            int per_instance_prop = -1;
       };
       void set_covgrp_options(const covgrp_options_t&options)
       { covgrp_options_ = options; covgrp_options_present_ = true; }
+      const covgrp_options_t& covgrp_options() const { return covgrp_options_; }
       unsigned covgrp_type_weight() const { return covgrp_type_weight_; }
       void covgrp_type_weight(unsigned weight) { covgrp_type_weight_ = weight; }
       unsigned covgrp_weight(vvp_cobject*obj) const;
       bool covgrp_get_inst_coverage(vvp_cobject*obj) const;
+      bool covgrp_per_instance(vvp_cobject*obj) const;
       double type_coverage(class vvp_cobject*context = 0,
                            bool*contributes = nullptr,
                            int selected_item = -1) const;
@@ -556,6 +560,17 @@ class class_type : public __vpiHandle {
       { return covgrp_live_; }
 
     private:
+      struct covgrp_instance_snapshot_t {
+            uint64_t id = 0;
+            double coverage = 0.0;
+            std::map<unsigned, uint32_t> bin_counts;
+            std::vector<unsigned> item_at_least;
+            std::vector<unsigned> item_weight;
+      };
+      uint64_t covgrp_instance_id_(class vvp_cobject*obj) const;
+      covgrp_instance_snapshot_t covgrp_snapshot_(class vvp_cobject*obj,
+                                                   uint64_t id,
+                                                   double coverage) const;
       std::vector<cov_bin_t> covgrp_bins_;
 	std::vector<bool> covgrp_real_cps_;
       std::vector<cov_dyn_bin_t> covgrp_dyn_bins_;
@@ -588,6 +603,9 @@ class class_type : public __vpiHandle {
       mutable std::vector<long double> covgrp_retired_item_weighted_;
       mutable std::vector<bool> covgrp_retired_item_has_bins_;
       mutable std::vector<class vvp_cobject*> covgrp_live_;
+      mutable std::map<const class vvp_cobject*, uint64_t> covgrp_instance_ids_;
+      mutable uint64_t covgrp_next_instance_id_ = 0;
+      mutable std::vector<covgrp_instance_snapshot_t> covgrp_retired_instances_;
       mutable std::vector<unsigned> covgrp_retired_at_least_;
       mutable bool covgrp_has_retired_options_ = false;
 

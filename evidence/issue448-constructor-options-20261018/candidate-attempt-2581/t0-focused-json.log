@@ -1,0 +1,9 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/results/2581/focused-vvp.list
+----------------------------------------------------------------------------
+           sv_covergroup_per_instance_ctor: Passed.
+      sv_covergroup_per_instance_ctor_2023: Passed.
+     sv_covergroup_per_instance_write_fail: Passed - CE.
+sv_covergroup_per_instance_write_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 4, Failed 0.

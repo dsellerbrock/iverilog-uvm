@@ -1,0 +1,7 @@
+{
+    "type": "CE",
+    "source": "sv_covergroup_per_instance_write_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ]
+}

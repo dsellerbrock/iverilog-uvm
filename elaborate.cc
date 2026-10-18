@@ -41567,9 +41567,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto inst_it = cgdef->options.find(perm_string::literal("get_inst_coverage"));
             if (inst_it != cgdef->options.end())
                   group_options.get_inst_coverage_expr = inst_it->second;
+            auto per_instance_it = cgdef->options.find(perm_string::literal("per_instance"));
+            if (per_instance_it != cgdef->options.end())
+                  group_options.per_instance_expr = per_instance_it->second;
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
+            // Keep this offset aligned across base and embedded extension types.
+            group_options.per_instance_prop = add_unique_cov_property(
+                  "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
             auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
                                    const char*where) -> unsigned {
                   auto it = options.find(perm_string::literal("type_option.weight"));
