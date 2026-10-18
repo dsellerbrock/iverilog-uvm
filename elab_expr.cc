@@ -22195,10 +22195,35 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = par_type;
 		  } else {
 			int pidx = ensure_class_property_idx_(des, class_type, name);
-			if (pidx < 0)
-			      return nullptr;
+			if (pidx >= 0) {
+			      type = class_type->get_prop_type(pidx);
+			} else if (std::next(cpath) == sr.path_tail.cend()
+				   && cpath->index.empty()) {
+			      /* A terminal class method used without parentheses is parsed
+			       * in the member path. Expose its result type to consumers
+			       * that classify expressions before elaborating the call. */
+			      NetScope*mscope = class_type->method_from_name(name);
+			      const NetFuncDef*mdef = mscope
+				    && mscope->type() == NetScope::FUNC
+				    ? mscope->func_def() : nullptr;
+			      unsigned first_arg = mdef
+				    && scope_method_uses_implicit_this(des, mscope) ? 1u : 0u;
+			      bool callable_without_parens = mdef
+				    && !mdef->is_void()
+				    && mdef->port_count() >= first_arg;
+			      for (unsigned idx = first_arg;
+				   callable_without_parens && idx < mdef->port_count(); ++idx)
+				    callable_without_parens = mdef->port_defe(idx) != nullptr;
+			      if (!callable_without_parens)
+				    return nullptr;
 
-			type = class_type->get_prop_type(pidx);
+			      const NetNet*result = mscope->find_signal(mscope->basename());
+			      if (!result) result = mdef->return_sig();
+			      if (!result) return nullptr;
+			      type = result->net_type();
+			} else {
+			      return nullptr;
+			}
 		  }
 	    } else if (auto struct_type = dynamic_cast<const netstruct_t*>(type)) {
 		  // If this net is a struct, the next path element may be a
