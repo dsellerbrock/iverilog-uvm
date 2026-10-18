@@ -34,16 +34,22 @@ module test;
     item.record.values[1] = new[1];
     item.record.values[0][0] = 32'h1234_5678;
     item.record.values[1][0] = 32'h9abc_def0;
+    item.record.values[0][0].rand_mode(0);
+    if (item.record.values[0][0].rand_mode() !== 0)
+      $fatal(1, "nested array rand_mode did not disable its element");
 
     if (!item.randomize()) $fatal(1, "nested struct dynamic-array randomize failed");
     row0 = item.record.values[0];
     row1 = item.record.values[1];
     if (item.record.values.size() != 2 || row0.size() != 1 || row1.size() != 1
-        || row0[0] == 32'h1234_5678 || row1[0] == 32'h9abc_def0)
-      $fatal(1, "nested struct dynamic-array elements or sizes were not randomized");
+        || row0[0] != 32'h1234_5678 || row1[0] == 32'h9abc_def0)
+      $fatal(1, "nested struct dynamic-array elements or modes were not randomized");
     saved0 = row0[0];
     saved1 = row1[0];
 
+    item.record.values[0][0].rand_mode(1);
+    if (item.record.values[0][0].rand_mode() !== 1)
+      $fatal(1, "nested array rand_mode did not re-enable its element");
     item.force_values = 1;
     if (!item.randomize()) $fatal(1, "nested struct element constraints failed");
     row0 = item.record.values[0];
