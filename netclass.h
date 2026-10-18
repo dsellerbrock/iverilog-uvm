@@ -609,18 +609,23 @@ class netclass_t : public ivl_type_s {
 	covgrp_items_.push_back(it); }
       struct covgrp_options_t {
             bool merge_instances = false;
+            bool per_instance = false;
             unsigned type_weight = 1;
             unsigned weight = 1, get_inst_coverage = 0;
             PExpr* weight_expr = nullptr;
+            PExpr* per_instance_expr = nullptr;
             PExpr* get_inst_coverage_expr = nullptr;
             NetScope* declaration_scope = nullptr;
-            int weight_prop = -1, get_inst_coverage_prop = -1;
+            int weight_prop = -1, per_instance_prop = -1;
+            int get_inst_coverage_prop = -1;
       };
       covgrp_options_t& covgrp_options() { return covgrp_options_; }
       const covgrp_options_t& covgrp_options() const { return covgrp_options_; }
       int covgrp_option_prop(perm_string name) const {
             if (name == perm_string::literal("weight"))
                   return covgrp_options_.weight_prop;
+            if (name == perm_string::literal("per_instance"))
+                  return covgrp_options_.per_instance_prop;
             if (name == perm_string::literal("get_inst_coverage"))
                   return covgrp_options_.get_inst_coverage_prop;
             return -1;

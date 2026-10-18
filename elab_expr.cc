@@ -29318,7 +29318,8 @@ static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
 {
       if (!type->is_covergroup()) return object;
       const auto&options = type->covgrp_options();
-      if (!options.weight_expr && !options.get_inst_coverage_expr) return object;
+      if (!options.weight_expr && !options.get_inst_coverage_expr
+            && !options.per_instance_expr) return object;
       NetScope*declaration = options.declaration_scope;
       ivl_assert(loc, declaration);
       NetScope*wrapper = new NetScope(declaration, hname_t(declaration->local_symbol()),
@@ -29369,6 +29370,7 @@ static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       };
       assign_option(options.weight_prop, options.weight_expr);
       assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr);
+      assign_option(options.per_instance_prop, options.per_instance_expr);
       def->set_proc(body);
       NetEUFunc*call = new NetEUFunc(caller, wrapper, new NetESignal(receiver), args, true);
       call->set_line(loc);

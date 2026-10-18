@@ -1,0 +1,12 @@
+EXPECTED RED -g2017 run rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:13: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:18: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:24: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:14: constructor per_instance value
+       Time: 0  Scope: test
+EXPECTED RED -g2023 run rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:13: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:18: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:24: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-c/source/sv_covergroup_per_instance_ctor.v:14: constructor per_instance value
+       Time: 0  Scope: test

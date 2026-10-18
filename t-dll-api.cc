@@ -4794,6 +4794,12 @@ extern "C" unsigned ivl_type_covgrp_get_inst_coverage(ivl_type_t net)
       return class_type ? class_type->covgrp_options().get_inst_coverage : 0;
 }
 
+extern "C" unsigned ivl_type_covgrp_per_instance(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().per_instance : 0;
+}
+
 extern "C" int ivl_type_covgrp_weight_prop(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
@@ -4804,6 +4810,12 @@ extern "C" int ivl_type_covgrp_get_inst_coverage_prop(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
       return class_type ? class_type->covgrp_options().get_inst_coverage_prop : -1;
+}
+
+extern "C" int ivl_type_covgrp_per_instance_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().per_instance_prop : -1;
 }
 
 extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)

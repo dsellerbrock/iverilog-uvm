@@ -3526,8 +3526,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
                   && member_cur.index.empty() && !member_path.empty()
                   && member_path.front().index.empty()) {
                   perm_string option = member_path.front().name;
-                  if (option == perm_string::literal("get_inst_coverage")) {
-                        cerr << get_fileline() << ": error: option.get_inst_coverage "
+                  if (option == perm_string::literal("get_inst_coverage")
+                        || option == perm_string::literal("per_instance")) {
+                        cerr << get_fileline() << ": error: option." << option << " "
                              << "can only be set in a covergroup definition." << endl;
                         des->errors += 1;
                         return 0;

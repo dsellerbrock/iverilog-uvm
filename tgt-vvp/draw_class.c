@@ -637,9 +637,14 @@ void draw_class_in_scope(ivl_type_t classtype)
             ivl_type_covgrp_weight_prop(classtype) + 1,
             ivl_type_covgrp_get_inst_coverage(classtype),
             ivl_type_covgrp_get_inst_coverage_prop(classtype) + 1);
+      }
+      if (ivl_type_covgrp_per_instance_prop(classtype) >= 0) {
+      fprintf(vvp_out, " .covgrp_per_instance %u %d\n",
+            ivl_type_covgrp_per_instance(classtype),
+            ivl_type_covgrp_per_instance_prop(classtype) + 1);
+      }
       fprintf(vvp_out, " .covgrp_type_weight %u\n",
             ivl_type_covgrp_type_weight(classtype));
-      }
 	    int ni = ivl_type_covgrp_items(classtype);
 	    for (idx = 0 ; idx < ni ; idx += 1) {
 		    /* M12-7: the strings carry the coverpoint/cross label and

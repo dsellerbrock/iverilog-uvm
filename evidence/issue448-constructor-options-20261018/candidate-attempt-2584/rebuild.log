@@ -1,0 +1,856 @@
+make -C ivlpp all &&  make -C vhdlpp all &&  make -C vvp all &&  make -C vpi all &&  make -C tgt-null all &&  make -C tgt-stub all &&  make -C tgt-vvp all &&  make -C tgt-vhdl all &&  make -C tgt-vlog95 all &&  make -C tgt-pcb all &&  make -C tgt-blif all &&  make -C tgt-sizer all &&  make -C driver all &&  make -C libveriuser all &&  make -C cadpli all &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/ivlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vhdlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vhdlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vvp'
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lib_main.cc -o lib_main.o
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c parse.cc -o parse.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from parse.y:22:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from lib_main.cc:22:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv lib_main.d dep/lib_main.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor.cc -o lexor.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from lexor.lex:25:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv parse.d dep/parse.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c array.cc -o array.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from array_common.h:25,
+                 from array.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv lexor.d dep/lexor.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c compile.cc -o compile.o
+array.cc: In member function ‘void __vpiArray::enable_sample_hist()’:
+array.cc:1415:36: warning: declaration of ‘sig’ shadows a previous local [-Wshadow]
+ 1415 |             else if (vvp_wire_vec8*sig =
+      |                                    ^~~
+array.cc:1412:31: note: shadowed declaration is here
+ 1412 |             if (vvp_wire_vec4*sig =
+      |                               ^~~
+array.cc: In member function ‘vvp_vector4_t __vpiArray::get_word_preponed(unsigned int)’:
+array.cc:1436:42: warning: declaration of ‘sig’ shadows a previous local [-Wshadow]
+ 1436 |                   else if (vvp_wire_vec8*sig =
+      |                                          ^~~
+array.cc:1433:37: note: shadowed declaration is here
+ 1433 |                   if (vvp_wire_vec4*sig =
+      |                                     ^~~
+array.cc: In member function ‘bool runtime_array_word_value_callback::snapshot_(bool)’:
+array.cc:2740:25: warning: declaration of ‘next’ shadows a member of ‘runtime_array_word_value_callback’ [-Wshadow]
+ 2740 |             std::string next = text.value.str ? text.value.str : "";
+      |                         ^~~~
+vpi_priv.h:211:28: note: shadowed declaration is here
+  211 |       struct __vpiCallback*next;
+      |                            ^~~~
+In file included from vvp_net.h:26,
+                 from delay.h:27,
+                 from compile.cc:22:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv compile.d dep/compile.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c class_type.cc -o class_type.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from class_type.h:28,
+                 from class_type.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv array.d dep/array.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c part.cc -o part.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from part.cc:21:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+class_type.cc: In member function ‘void class_type::add_constraint_state_call(unsigned int, const std::string&, const std::string&, unsigned int, bool)’:
+class_type.cc:1864:23: warning: missing initializer for member ‘class_type::constraint_state_call_t::argument_dependencies’ [-Wmissing-field-initializers]
+ 1864 |             is_virtual};
+      |                       ^
+mv part.d dep/part.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c reduce.cc -o reduce.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from reduce.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv reduce.d dep/reduce.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c resolv.cc -o resolv.o
+In file included from vvp_net.h:26,
+                 from resolv.h:23,
+                 from resolv.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv resolv.d dep/resolv.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c sfunc.cc -o sfunc.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from sfunc.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv sfunc.d dep/sfunc.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c substitute.cc -o substitute.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from substitute.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv substitute.d dep/substitute.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c ufunc.cc -o ufunc.o
+In file included from vvp_net.h:26,
+                 from ufunc.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv ufunc.d dep/ufunc.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vthread.cc -o vthread.o
+vthread.cc:22815:36: warning: ‘/*’ within comment [-Wcomment]
+22815 | /* Container spec codes for %aa/viv/*: which empty inner container to
+vthread.cc:23635:49: warning: ‘/*’ within comment [-Wcomment]
+23635 |  * c.aq[key].push_back(v) — a plain %aa/load/obj/* returns nil for a
+In file included from vvp_net.h:26,
+                 from vthread.h:22,
+                 from vthread.cc:38:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+vthread.cc: In constructor ‘active_call_context_s::active_call_context_s(vvp_context_t, __vpiScope*)’:
+vthread.cc:335:63: warning: declaration of ‘scope’ shadows a member of ‘active_call_context_s’ [-Wshadow]
+  335 |       active_call_context_s(vvp_context_t context, __vpiScope*scope)
+      |                                                    ~~~~~~~~~~~^~~~~
+vthread.cc:333:18: note: shadowed declaration is here
+  333 |       __vpiScope*scope;
+      |                  ^~~~~
+vthread.cc:335:43: warning: declaration of ‘context’ shadows a member of ‘active_call_context_s’ [-Wshadow]
+  335 |       active_call_context_s(vvp_context_t context, __vpiScope*scope)
+      |                             ~~~~~~~~~~~~~~^~~~~~~
+vthread.cc:332:21: note: shadowed declaration is here
+  332 |       vvp_context_t context;
+      |                     ^~~~~~~
+vthread.cc: In constructor ‘event_expr_observer_s::event_expr_observer_s(vthread_t, vvp_net_t*, vvp_code_t, vvp_fun_edge::edge_t)’:
+vthread.cc:371:69: warning: declaration of ‘edge’ shadows a member of ‘event_expr_observer_s’ [-Wshadow]
+  371 |                             vvp_code_t recipe, vvp_fun_edge::edge_t edge = vvp_edge_none)
+      |                                                ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+vthread.cc:362:28: note: shadowed declaration is here
+  362 |       vvp_fun_edge::edge_t edge;
+      |                            ^~~~
+vthread.cc:371:40: warning: declaration of ‘recipe’ shadows a member of ‘event_expr_observer_s’ [-Wshadow]
+  371 |                             vvp_code_t recipe, vvp_fun_edge::edge_t edge = vvp_edge_none)
+      |                             ~~~~~~~~~~~^~~~~~
+vthread.cc:360:18: note: shadowed declaration is here
+  360 |       vvp_code_t recipe;
+      |                  ^~~~~~
+vthread.cc:370:57: warning: declaration of ‘source_net’ shadows a member of ‘event_expr_observer_s’ [-Wshadow]
+  370 |       event_expr_observer_s(vthread_t waiter, vvp_net_t*source_net,
+      |                                               ~~~~~~~~~~^~~~~~~~~~
+vthread.cc:359:17: note: shadowed declaration is here
+  359 |       vvp_net_t*source_net;
+      |                 ^~~~~~~~~~
+vthread.cc:370:39: warning: declaration of ‘waiter’ shadows a member of ‘event_expr_observer_s’ [-Wshadow]
+  370 |       event_expr_observer_s(vthread_t waiter, vvp_net_t*source_net,
+      |                             ~~~~~~~~~~^~~~~~
+vthread.cc:358:17: note: shadowed declaration is here
+  358 |       vthread_t waiter;
+      |                 ^~~~~~
+vthread.cc: In constructor ‘static_formal_snapshot_s::static_formal_snapshot_s(static_formal_snapshot_kind_t)’:
+vthread.cc:433:62: warning: declaration of ‘kind’ shadows a member of ‘static_formal_snapshot_s’ [-Wshadow]
+  433 |       static_formal_snapshot_s(static_formal_snapshot_kind_t kind)
+      |                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vthread.cc:424:37: note: shadowed declaration is here
+  424 |       static_formal_snapshot_kind_t kind;
+      |                                     ^~~~
+vthread.cc: In constructor ‘static_call_setup_s::static_call_setup_s(__vpiScope*)’:
+vthread.cc:447:47: warning: declaration of ‘scope’ shadows a member of ‘static_call_setup_s’ [-Wshadow]
+  447 |       explicit static_call_setup_s(__vpiScope*scope)
+      |                                    ~~~~~~~~~~~^~~~~
+vthread.cc:442:18: note: shadowed declaration is here
+  442 |       __vpiScope*scope;
+      |                  ^~~~~
+vthread.cc: In function ‘bool of_QSORT(vthread_t, vvp_code_t)’:
+vthread.cc:4740:25: warning: unused parameter ‘thr’ [-Wunused-parameter]
+ 4740 | bool of_QSORT(vthread_t thr, vvp_code_t cp)
+      |               ~~~~~~~~~~^~~
+vthread.cc: In function ‘bool of_QSORT_R(vthread_t, vvp_code_t)’:
+vthread.cc:4755:27: warning: unused parameter ‘thr’ [-Wunused-parameter]
+ 4755 | bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
+      |                 ~~~~~~~~~~^~~
+vthread.cc: In function ‘bool of_QUNIQUE(vthread_t, vvp_code_t)’:
+vthread.cc:4770:27: warning: unused parameter ‘thr’ [-Wunused-parameter]
+ 4770 | bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
+      |                 ~~~~~~~~~~^~~
+vthread.cc: In lambda function:
+vthread.cc:8057:39: warning: declaration of ‘out’ shadows a previous local [-Wshadow]
+ 8057 |                   resolved_endpoint_t out = {
+      |                                       ^~~
+vthread.cc:7766:45: note: shadowed declaration is here
+ 7766 |       std::map<unsigned,covgrp_dyn_state_t> out;
+      |                                             ^~~
+vthread.cc: In lambda function:
+vthread.cc:8085:53: warning: declaration of ‘hi’ shadows a previous local [-Wshadow]
+ 8085 |             auto append = [&](uint64_t lo, uint64_t hi) {
+      |                                            ~~~~~~~~~^~
+vthread.cc:8066:33: note: shadowed declaration is here
+ 8066 |             resolved_endpoint_t hi = resolve_endpoint(hi_bits, hi_width,
+      |                                 ^~
+vthread.cc:8085:40: warning: declaration of ‘lo’ shadows a previous local [-Wshadow]
+ 8085 |             auto append = [&](uint64_t lo, uint64_t hi) {
+      |                               ~~~~~~~~~^~
+vthread.cc:8064:33: note: shadowed declaration is here
+ 8064 |             resolved_endpoint_t lo = resolve_endpoint(lo_bits, lo_width,
+      |                                 ^~
+vthread.cc: In function ‘bool do_callf_void(vthread_t, vthread_t)’:
+vthread.cc:14841:32: warning: declaration of ‘child_scope’ shadows a previous local [-Wshadow]
+14841 |                     __vpiScope*child_scope = child->parent_scope;
+      |                                ^~~~~~~~~~~
+vthread.cc:14510:18: note: shadowed declaration is here
+14510 |       __vpiScope*child_scope = child->parent_scope;
+      |                  ^~~~~~~~~~~
+vthread.cc: At global scope:
+vthread.cc:28424:13: warning: ‘bool get_from_process_obj(unsigned int, unsigned int, vvp_process*, std::string&)’ defined but not used [-Wunused-function]
+28424 | static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, string&val)
+      |             ^~~~~~~~~~~~~~~~~~~~
+vthread.cc:28418:13: warning: ‘bool get_from_process_obj(unsigned int, unsigned int, vvp_process*, double&)’ defined but not used [-Wunused-function]
+28418 | static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, double&val)
+      |             ^~~~~~~~~~~~~~~~~~~~
+vthread.cc:14069:13: warning: ‘bool copy_call_inputs_to_allocated_context_(__vpiScope*, vthread_t, vvp_context_t)’ defined but not used [-Wunused-function]
+14069 | static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t thr,
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+vthread.cc:11999:13: warning: ‘bool context_on_stacked_chain_(vvp_context_t, vvp_context_t, __vpiScope*, const char*)’ defined but not used [-Wunused-function]
+11999 | static bool context_on_stacked_chain_(vvp_context_t head, vvp_context_t needle,
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~
+vthread.cc:2406:21: warning: ‘vpiPortInfo* lookup_scope_port_by_index_(__vpiScope*, unsigned int)’ defined but not used [-Wunused-function]
+ 2406 | static vpiPortInfo* lookup_scope_port_by_index_(__vpiScope*scope, unsigned index)
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+mv class_type.d dep/class_type.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c schedule.cc -o schedule.o
+In file included from vvp_net.h:26,
+                 from vthread.h:22,
+                 from schedule.h:22,
+                 from schedule.cc:21:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv schedule.d dep/schedule.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c udp.cc -o udp.o
+In file included from vvp_net.h:26,
+                 from udp.h:25,
+                 from udp.cc:23:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv udp.d dep/udp.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vvp_island.cc -o vvp_island.o
+In file included from vvp_net.h:26,
+                 from vvp_island.h:23,
+                 from vvp_island.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vvp_island.d dep/vvp_island.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vvp_net_sig.cc -o vvp_net_sig.o
+In file included from vvp_net.h:26,
+                 from vvp_net_sig.cc:21:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+vvp_net_sig.cc: At global scope:
+vvp_net_sig.cc:2514:37: warning: ‘const {anonymous}::signal_object_aa_slot* {anonymous}::signal_object_aa_slot_from_raw(const void*)’ defined but not used [-Wunused-function]
+ 2514 | static const signal_object_aa_slot* signal_object_aa_slot_from_raw(const void*raw)
+      |                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+mv vvp_net_sig.d dep/vvp_net_sig.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vvp_cobject.cc -o vvp_cobject.o
+In file included from vvp_cobject.h:27,
+                 from vvp_cobject.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vvp_cobject.d dep/vvp_cobject.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vvp_darray.cc -o vvp_darray.o
+In file included from vvp_darray.h:22,
+                 from vvp_darray.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vvp_darray.d dep/vvp_darray.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vvp_vinterface.cc -o vvp_vinterface.o
+In file included from vvp_vinterface.h:27,
+                 from vvp_vinterface.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vvp_vinterface.d dep/vvp_vinterface.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vvp_z3.cc -o vvp_z3.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from class_type.h:28,
+                 from vvp_z3.cc:28:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+vvp_z3.cc: In lambda function:
+vvp_z3.cc:8331:20: warning: declaration of ‘_Z3_ast* value’ shadows a parameter [-Wshadow]
+ 8331 |             Z3_ast value;
+      |                    ^~~~~
+vvp_z3.cc:8296:56: note: shadowed declaration is here
+ 8296 | static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
+      |                                                 ~~~~~~~^~~~~
+vvp_z3.cc: In function ‘int z3_solve_pass_(const class_type*, vvp_cobject*, z3_rng_stream_t&, const std::vector<std::__cxx11::basic_string<char> >&, const std::vector<long unsigned int>&, const std::vector<vvp_vector4_t>&, const std::map<std::pair<unsigned int, unsigned int>, long unsigned int>*, std::vector<Z3Builder::DynForeach>*, const std::vector<bool>*, bool, z3_object_graph_t*, std::map<vvp_cobject*, std::unique_ptr<z3_rng_stream_t> >*, const std::vector<vvp_object_t>*, bool)’:
+vvp_z3.cc:11446:7: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+11446 |       for (const auto&pv : builder.prop_vars)
+      |       ^~~
+vvp_z3.cc:11452:13: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+11452 |             for (const auto&sv : builder.size_vars) {
+      |             ^~~
+vvp_z3.cc: In lambda function:
+vvp_z3.cc:12313:38: warning: declaration of ‘base’ shadows a previous local [-Wshadow]
+12313 |                         const string&base = type->property_base_type(pid);
+      |                                      ^~~~
+vvp_z3.cc:10976:17: note: shadowed declaration is here
+10976 |       Z3_solver base = Z3_mk_simple_solver(ctx);
+      |                 ^~~~
+vvp_z3.cc: In function ‘int z3_solve_pass_(const class_type*, vvp_cobject*, z3_rng_stream_t&, const std::vector<std::__cxx11::basic_string<char> >&, const std::vector<long unsigned int>&, const std::vector<vvp_vector4_t>&, const std::map<std::pair<unsigned int, unsigned int>, long unsigned int>*, std::vector<Z3Builder::DynForeach>*, const std::vector<bool>*, bool, z3_object_graph_t*, std::map<vvp_cobject*, std::unique_ptr<z3_rng_stream_t> >*, const std::vector<vvp_object_t>*, bool)’:
+vvp_z3.cc:14682:35: warning: declaration of ‘owner’ shadows a previous local [-Wshadow]
+14682 |                   if (vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
+      |                                   ^~~~~
+vvp_z3.cc:14624:25: note: shadowed declaration is here
+14624 |             vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer), builder.local_index(mv.outer));
+      |                         ^~~~~
+mv vthread.d dep/vthread.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c event.cc -o event.o
+In file included from vvp_net.h:26,
+                 from event.h:22,
+                 from event.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv event.d dep/event.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c logic.cc -o logic.o
+In file included from vvp_net.h:26,
+                 from logic.h:22,
+                 from logic.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv logic.d dep/logic.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c words.cc -o words.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from words.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv words.d dep/words.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c island_tran.cc -o island_tran.o
+In file included from vvp_net.h:26,
+                 from vvp_island.h:23,
+                 from island_tran.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv island_tran.d dep/island_tran.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_bit.cc -o vpi_bit.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_bit.cc:25:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_bit.d dep/vpi_bit.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_callback.cc -o vpi_callback.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from vpi_callback.cc:28:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_callback.d dep/vpi_callback.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_cobject.cc -o vpi_cobject.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_cobject.cc:21:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_cobject.d dep/vpi_cobject.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_const.cc -o vpi_const.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from vpi_const.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_const.d dep/vpi_const.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_darray.cc -o vpi_darray.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_darray.cc:21:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_darray.d dep/vpi_darray.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_event.cc -o vpi_event.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_event.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_event.d dep/vpi_event.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_scope.cc -o vpi_scope.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_scope.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_scope.d dep/vpi_scope.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_real.cc -o vpi_real.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_real.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_real.d dep/vpi_real.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_signal.cc -o vpi_signal.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_signal.cc:25:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_signal.d dep/vpi_signal.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_string.cc -o vpi_string.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from parse_misc.h:22,
+                 from compile.h:27,
+                 from vpi_string.cc:20:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_string.d dep/vpi_string.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_tasks.cc -o vpi_tasks.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from vpi_tasks.cc:25:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vpi_tasks.d dep/vpi_tasks.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c vpi_vthr_vector.cc -o vpi_vthr_vector.o
+In file included from vvp_net.h:26,
+                 from vpi_priv.h:24,
+                 from vpi_vthr_vector.cc:26:
+vvp_object.h: In constructor ‘vvp_container_layout_s::vvp_container_layout_s(vvp_container_layout_kind_t, bool, uint64_t, const vvp_container_layout_t&)’:
+vvp_object.h:64:58: warning: declaration of ‘kind’ shadows a member of ‘vvp_container_layout_s’ [-Wshadow]
+   64 |       vvp_container_layout_s(vvp_container_layout_kind_t kind,
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~
+vvp_object.h:77:35: note: shadowed declaration is here
+   77 |       vvp_container_layout_kind_t kind;
+      |                                   ^~~~
+mv vvp_z3.d dep/vvp_z3.d
+mv vpi_vthr_vector.d dep/vpi_vthr_vector.d
+g++ -rdynamic   -o vvp main.o lib_main.o parse.o parse_misc.o lexor.o arith.o array_common.o array.o bufif.o compile.o concat.o dff.o class_type.o enum_type.o extend.o file_line.o latch.o npmos.o part.o permaheap.o reduce.o resolv.o sfunc.o stop.o substitute.o symbols.o ufunc.o codes.o vthread.o schedule.o statistics.o tables.o udp.o vvp_island.o vvp_net.o vvp_net_sig.o vvp_perf_stats.o vvp_object.o vvp_assoc.o vvp_cobject.o vvp_darray.o vvp_dpi.o vvp_mailbox.o vvp_vinterface.o vvp_z3.o event.o logic.o delay.o words.o island_tran.o vpi_modules.o vpi_bit.o vpi_callback.o vpi_cobject.o vpi_const.o vpi_darray.o vpi_event.o vpi_iter.o vpi_mcd.o vpi_priv.o vpi_scope.o vpi_real.o vpi_signal.o vpi_string.o vpi_tasks.o vpi_time.o vpi_vthr_vector.o vpip_bin.o vpip_hex.o vpip_oct.o vpip_to_dec.o vpip_format.o vvp_vpi.o -lm -lbz2 -lz -lpthread -lreadline -ltermcap   -lz3 -lffi -ldl
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vpi'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vpi'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-null'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-null'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-stub'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-stub'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vvp'
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_class.c -o draw_class.o
+mv draw_class.d dep
+gcc -shared  -o vvp.tgt vvp.o draw_class.o draw_delay.o draw_enum.o draw_mux.o draw_net_input.o draw_substitute.o draw_switch.o draw_ufunc.o draw_vpi.o eval_condit.o eval_expr.o eval_object.o eval_real.o eval_string.o eval_vec4.o modpath.o stmt_assign.o vvp_process.o vvp_proc_loops.o vvp_scope.o 
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vhdl'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vhdl'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vlog95'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vlog95'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-pcb'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-blif'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-sizer'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/driver'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/libveriuser'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/cadpli'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/cadpli'
+make -C ivlpp all &&  make -C vhdlpp all &&  make -C vvp all &&  make -C vpi all &&  make -C tgt-null all &&  make -C tgt-stub all &&  make -C tgt-vvp all &&  make -C tgt-vhdl all &&  make -C tgt-vlog95 all &&  make -C tgt-pcb all &&  make -C tgt-blif all &&  make -C tgt-sizer all &&  make -C driver all &&  make -C libveriuser all &&  make -C cadpli all &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/ivlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vhdlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vhdlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vvp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vpi'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vpi'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-null'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-null'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-stub'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-stub'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vvp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vhdl'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vhdl'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vlog95'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vlog95'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-pcb'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-blif'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-sizer'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/driver'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/libveriuser'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/cadpli'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/cadpli'
+./mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/include" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/share/man/man1" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install"
+/usr/bin/install -c -m 644 iverilog-vpi.man "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/share/man/man1/iverilog-vpi.1"
+/usr/bin/install -c ./iverilog-vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin/iverilog-vpi"
+/usr/bin/install -c ./ivl "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/ivl"
+/usr/bin/install -c -m 644 ./constants.vams "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/include/constants.vams"
+/usr/bin/install -c -m 644 ./disciplines.vams "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/include/disciplines.vams"
+/usr/bin/install -c -m 644 ./uvm_dpi/uvm_legacy_recorder.svh "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/include/uvm_legacy_recorder.svh"
+/usr/bin/install -c -m 644 ./ivl_target.h "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog/ivl_target.h"
+/usr/bin/install -c -m 644 ./_pli_types.h "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog/_pli_types.h"
+/usr/bin/install -c -m 644 ./sv_vpi_user.h "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog/sv_vpi_user.h"
+/usr/bin/install -c -m 644 ./svdpi.h "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog/svdpi.h"
+/usr/bin/install -c -m 644 ./vpi_user.h "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog/vpi_user.h"
+/usr/bin/install -c -m 644 ./acc_user.h "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog/acc_user.h"
+/usr/bin/install -c -m 644 ./veriuser.h "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog/veriuser.h"
+make -C ivlpp install &&  make -C vhdlpp install &&  make -C vvp install &&  make -C vpi install &&  make -C tgt-null install &&  make -C tgt-stub install &&  make -C tgt-vvp install &&  make -C tgt-vhdl install &&  make -C tgt-vlog95 install &&  make -C tgt-pcb install &&  make -C tgt-blif install &&  make -C tgt-sizer install &&  make -C driver install &&  make -C libveriuser install &&  make -C cadpli install &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/ivlpp'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./ivlpp "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/ivlpp"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vhdlpp'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./vhdlpp "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vhdlpp"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vhdlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vvp'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" \
+	"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib" \
+	"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/share/man/man1" \
+	"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install"
+/usr/bin/install -c -m 644 vvp.man "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/share/man/man1/vvp.1"
+/usr/bin/install -c ./vvp "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin/vvp"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vpi'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c -m 644 ./libvpi.a "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/libvpi.a"
+/usr/bin/install -c ./system.vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/system.vpi"
+/usr/bin/install -c ./va_math.vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/va_math.vpi"
+/usr/bin/install -c ./v2005_math.vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/v2005_math.vpi"
+/usr/bin/install -c ./v2009.vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/v2009.vpi"
+/usr/bin/install -c ./vhdl_sys.vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vhdl_sys.vpi"
+/usr/bin/install -c ./vhdl_textio.vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vhdl_textio.vpi"
+/usr/bin/install -c ./vpi_debug.vpi "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vpi_debug.vpi"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/vpi'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-null'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./null.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/null.tgt"
+/usr/bin/install -c -m 644 ./null.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/null.conf"
+/usr/bin/install -c -m 644 ./null-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/null-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-null'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-stub'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./stub.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/stub.tgt"
+/usr/bin/install -c -m 644 ./stub.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/stub.conf"
+/usr/bin/install -c -m 644 ./stub-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/stub-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-stub'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vvp'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./vvp.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vvp.tgt"
+/usr/bin/install -c -m 644 ./vvp.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vvp.conf"
+/usr/bin/install -c -m 644 ./vvp-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vvp-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vhdl'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./vhdl.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vhdl.tgt"
+/usr/bin/install -c -m 644 ./vhdl.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vhdl.conf"
+/usr/bin/install -c -m 644 ./vhdl-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vhdl-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vhdl'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vlog95'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./vlog95.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vlog95.tgt"
+/usr/bin/install -c -m 644 ./vlog95.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vlog95.conf"
+/usr/bin/install -c -m 644 ./vlog95-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/vlog95-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-vlog95'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-pcb'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./pcb.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/pcb.tgt"
+/usr/bin/install -c -m 644 ./pcb.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/pcb.conf"
+/usr/bin/install -c -m 644 ./pcb-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/pcb-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-blif'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./blif.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/blif.tgt"
+/usr/bin/install -c -m 644 ./blif.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/blif.conf"
+/usr/bin/install -c -m 644 ./blif-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/blif-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-sizer'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./sizer.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/sizer.tgt"
+/usr/bin/install -c -m 644 ./sizer.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/sizer.conf"
+/usr/bin/install -c -m 644 ./sizer-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/sizer-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/driver'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" \
+	"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/share/man/man1" \
+	"/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install"
+/usr/bin/install -c -m 644 iverilog.man "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/share/man/man1/iverilog.1"
+/usr/bin/install -c ./iverilog "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin/iverilog"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/libveriuser'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib"
+/usr/bin/install -c -m 644 ./libveriuser.a "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/libveriuser.a"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/cadpli'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl"
+/usr/bin/install -c ./cadpli.vpl "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/cadpli.vpl"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source/cadpli'
+make installuvm
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source'
+./mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/bin" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/include/iverilog" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/lib/ivl/include" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install/share/man/man1" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/install"
+note: uvm-core submodule not checked out; skipping UVM install.
+      run 'git submodule update --init' to enable 'iverilog -uvm'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-t0-20261018-a/source'
