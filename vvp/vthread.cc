@@ -5306,8 +5306,9 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
  * IEEE 1800-2017 18.4: a rand UNPACKED STRUCT activates the members whose
  * type declarations carry rand/randc; an unqualified member remains state.
  * Structs cannot carry constraint blocks of their own, so each active
- * integral member is filled independently. Keep a nested value-struct in the
- * same graph transaction so randc history and value rollback remain atomic.
+ * integral member and existing integral dynamic-array element is prefilled.
+ * Keep a nested value-struct in the same graph transaction so randc history
+ * and value rollback remain atomic.
  * Joint class handles are solved through the containing object graph below.
  * Other member shapes that this bounded path cannot preserve fail the actual
  * randomize() call rather than leaving an enabled variable unchanged.
@@ -5360,6 +5361,41 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 	    // The joint graph collector already visits active class-handle members.
 	    if (bt == "o" && session.joint())
 		  continue;
+
+	    // A rand dynamic-array member keeps its current size when no size
+	    // constraint changes it; randomize each enabled integral element.
+	    bool integral_darray = bt.compare(0, 2, "Dv") == 0
+		  || bt.compare(0, 3, "Dsv") == 0;
+	    if (integral_darray && subdefn->property_dimensions(mpid).empty()
+		&& !subdefn->property_is_randc(mpid)) {
+		  vvp_object_t propobj;
+		  subcobj->get_object(mpid, propobj, 0);
+		  if (vvp_darray*array = propobj.peek<vvp_darray>()) {
+			for (size_t pos = 0 ; pos < array->get_size() ; pos += 1) {
+			      if (!subcobj->rand_mode(mpid, pos)) continue;
+			      vvp_vector4_t val;
+			      array->get_word((unsigned)pos, val);
+			      if (val.size() == 0) continue;
+			      if (subdefn->property_is_enum(mpid)) {
+				    if (!randomize_enum_member_(subcobj, subdefn,
+						mpid, pos, val, next_random)) {
+					  ok = false;
+					  break;
+				    }
+			      } else {
+				    for (unsigned bit = 0 ; bit < val.size(); bit += 32) {
+					  unsigned rnd = next_random();
+					  for (unsigned b = 0 ; b < 32 && bit + b < val.size();
+					       b += 1)
+						val.set_bit(bit + b,
+						    (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+				    }
+			      }
+			      array->set_word((unsigned)pos, val);
+			}
+			continue;
+		  }
+	    }
 
 	    const char*unsupported_shape = bt == "o" ? "class-handle"
 		  : (!bt.empty() && bt[0] == 'D') ? "dynamic-array"
