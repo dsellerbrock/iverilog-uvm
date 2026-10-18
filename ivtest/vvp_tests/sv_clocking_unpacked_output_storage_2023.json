@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_unpacked_output_storage.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_clocking_unpacked_output_storage" ]
+}

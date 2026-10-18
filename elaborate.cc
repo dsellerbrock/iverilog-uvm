@@ -11483,10 +11483,24 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return nullptr;
 	}
-      if (raw->vector_width() != obuf->vector_width()
-	  || raw->vector_width() != opend->vector_width()
-	  || raw->unpacked_count() != obuf->unpacked_count()
-	  || raw->unpacked_count() != opend->unpacked_count()) {
+
+      bool selected_target = false;
+      ivl_type_t target_type = raw->net_type();
+      std::map<perm_string,PExpr*>::const_iterator da =
+	    cbp->decl_assigns.find(sig_name);
+      if (da != cbp->decl_assigns.end()) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+	    if (id && !id->path().name.empty()
+		&& !id->path().name.back().index.empty()) {
+		  selected_target = true;
+		  target_type = id->test_type_of_ident(des, def_scope);
+	    }
+      }
+      if (!target_type || target_type->packed_width() != obuf->vector_width()
+	  || obuf->vector_width() != opend->vector_width()
+	  || obuf->unpacked_count() != opend->unpacked_count()
+	  || (!selected_target
+	      && raw->unpacked_count() != obuf->unpacked_count())) {
 	    cerr << loc.get_fileline() << ": error: internal clocking-output "
 		 << "storage widths do not match for `" << cb_name << "."
 		 << sig_name << "'." << endl;
@@ -11516,15 +11530,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 						  false, false, false);
       if (!obuf_lv)
 	    return 0;
-	if (raw->unpacked_dimensions() && !obuf_lv->word()) {
-	    cerr << loc.get_fileline() << ": sorry: a whole-array "
-		 << "clocking-output drive is not yet supported; "
-		 << "select one array element."
-		 << endl;
-	    des->errors += 1;
-	    delete obuf_lv;
-	    return 0;
-	}
 
       if (obuf_lv->more || obuf_lv->nest()
 	  || obuf_lv->is_array_slice() || obuf_lv->sig() != obuf) {
@@ -11556,10 +11561,23 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       blk->append(store);
 
       NetAssign_*opend_lv = clone_clocking_selected_lval_(opend, obuf_lv);
-      verinum one_v (verinum::V1, opend_lv->lwidth());
-      NetEConst*one = new NetEConst(one_v);
-      one->set_line(loc);
-      NetAssign*mark = new NetAssign(opend_lv, one);
+	  NetExpr*one;
+	  if (opend_lv->sig()->unpacked_dimensions() && !opend_lv->word()) {
+		vector<NetExpr*>items;
+		for (unsigned word = 0;
+		     word < opend_lv->sig()->unpacked_count(); ++word) {
+		      verinum one_v (verinum::V1, opend_lv->sig()->vector_width());
+		      NetEConst*item = new NetEConst(one_v);
+		      item->set_line(loc);
+		      items.push_back(item);
+		}
+		one = new NetEArrayPattern(opend_lv->net_type(), items);
+	  } else {
+		verinum one_v (verinum::V1, opend_lv->lwidth());
+		one = new NetEConst(one_v);
+	  }
+	one->set_line(loc);
+	  NetAssign*mark = new NetAssign(opend_lv, one);
       mark->set_line(loc);
       blk->append(mark);
 
@@ -27200,8 +27218,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*smp = scope->find_signal(lex_strings.make(sname.c_str()));
 		  if (!smp)
 			continue;   // not sampleable; alias behavior
-		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it,
-						      dir == NetNet::PINPUT);
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!raw)
 			continue;
 		  if (raw->unpacked_dimensions() == 1) {
@@ -27315,7 +27332,8 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 	      /* Collect the output clockvars with drive buffers
 		 (IEEE 1800-2017 14.16, M8-2b). The apply process below
 		 lands buffered drives at each clocking event. */
-	    std::vector<NetNet*> out_raws, out_bufs, out_pends;
+	    std::vector<NetNet*> out_bufs, out_pends;
+	    std::vector<std::unique_ptr<NetAssign_> > out_targets;
 	    std::vector<perm_string> out_names;
 	    std::vector<int> out_words;
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
@@ -27331,6 +27349,18 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*opend = scope->find_signal(lex_strings.make(pname.c_str()));
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!obuf || !opend || !raw)
+			continue;
+		  std::unique_ptr<NetAssign_> target_shape;
+		  auto da = cb->decl_assigns.find(*sig_it);
+		  if (da != cb->decl_assigns.end()) {
+			const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+			if (id)
+			      target_shape.reset(id->elaborate_lval(
+				    des, scope, false, false, false));
+		  } else {
+			target_shape.reset(new NetAssign_(raw));
+		  }
+		  if (!target_shape)
 			continue;
 		    /* A clocking output to a net is an additional driver of the
 		       net (IEEE 1800-2017/2023 14.16), resolved with its other
@@ -27372,13 +27402,17 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			prologue->append(init);
 			raw = drive;
 		  }
-		  unsigned words = raw->unpacked_count();
+		  unsigned words = obuf->unpacked_count();
 		  for (unsigned word = 0; word < words; ++word) {
-		    out_raws.push_back(raw);
+		    std::unique_ptr<NetAssign_> target(
+			  clone_clocking_selected_lval_(raw, target_shape.get()));
+		    if (obuf->unpacked_dimensions() && !target->word())
+			  target->set_word(make_const_val_s(word));
+		    out_targets.push_back(std::move(target));
 		    out_bufs.push_back(obuf);
 		    out_pends.push_back(opend);
 		    out_names.push_back(*sig_it);
-		    out_words.push_back(raw->unpacked_dimensions() ? int(word) : -1);
+		    out_words.push_back(obuf->unpacked_dimensions() ? int(word) : -1);
 		  }
 	    }
 	    string dname = string("_ivl_odkick$") + cb->name.str();
@@ -27548,7 +27582,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		 A selected NBA is retained through execution so other fields
 		 updated in the same time slot are merged, not overwritten by
 		 a whole-value snapshot. */
-	    if (!out_raws.empty()) {
+	    if (!out_targets.empty()) {
 		  NetEvent*kick_event = nullptr;
 		  if (kick) {
 			kick_event = new NetEvent(scope->local_symbol());
@@ -27565,7 +27599,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetBlock*apply_blk = new NetBlock(NetBlock::SEQU, 0);
 		  apply_blk->set_line(*cb);
 		  unsigned plain_outputs = 0;
-		  for (size_t idx = 0 ; idx < out_raws.size() ; idx += 1) {
+		  for (size_t idx = 0 ; idx < out_targets.size() ; idx += 1) {
 			NetESignal*pend_rd = out_words[idx] >= 0
 			  ? new NetESignal(out_pends[idx],
 					    make_const_val_s(out_words[idx]))
@@ -27580,7 +27614,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			init_expr->set_line(*cb);
 			NetESignal*cond_idx = new NetESignal(bit_idx);
 			cond_idx->set_line(*cb);
-			NetEConst*width_expr = make_const_val_s(out_raws[idx]->vector_width());
+			NetEConst*width_expr = make_const_val_s(out_bufs[idx]->vector_width());
 			width_expr->set_line(*cb);
 			NetEBComp*loop_cond = new NetEBComp('<', cond_idx, width_expr);
 			loop_cond->set_line(*cb);
@@ -27601,12 +27635,19 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			NetESelect*pend_bit = new NetESelect(pend_vec, pend_bit_idx, 1);
 			pend_bit->set_line(*cb);
 
-			NetAssign_*raw_bit = new NetAssign_(out_raws[idx]);
-			if (out_words[idx] >= 0)
-			  raw_bit->set_word(make_const_val_s(out_words[idx]));
+			NetAssign_*raw_bit = new NetAssign_(out_targets[idx]->sig());
+			if (const NetExpr*word = out_targets[idx]->word())
+			      raw_bit->set_word(word->dup_expr());
 			NetESignal*raw_bit_idx = new NetESignal(bit_idx);
 			raw_bit_idx->set_line(*cb);
-			raw_bit->set_part(raw_bit_idx, 1);
+			if (const NetExpr*base = out_targets[idx]->get_base()) {
+			      NetEBAdd*offset = new NetEBAdd(
+				    '+', base->dup_expr(), raw_bit_idx, 32, true);
+			      offset->set_line(*cb);
+			      raw_bit->set_part(offset, 1);
+			} else {
+			      raw_bit->set_part(raw_bit_idx, 1);
+			}
 			NetESignal*buf_vec = out_words[idx] >= 0
 			  ? new NetESignal(out_bufs[idx],
 					    make_const_val_s(out_words[idx]))
