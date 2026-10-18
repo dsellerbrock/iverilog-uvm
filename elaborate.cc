@@ -35728,6 +35728,52 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      // shortcut: no nested size/foreach IR; upgrade with owner-aware tokens.
 			      const netdarray_t*mdarray =
 				    dynamic_cast<const netdarray_t*>(mtype);
+		      // shortcut: nested member constraints need nonnegative constant indices; upgrade with owner-aware indexed IR.
+		      if (one_level && mem && mdarray
+			  && member->index.size() == 2) {
+			    std::list<index_component_t>::const_iterator index =
+				  member->index.begin();
+			    const index_component_t&row_select = *index++;
+			    const index_component_t&element_select = *index;
+			    const netdarray_t*rows =
+				  dynamic_cast<const netdarray_t*>(mdarray->element_type());
+			    ivl_type_t etype = rows ? rows->element_type() : nullptr;
+			    ivl_variable_type_t ebase = etype
+				  ? etype->base_type() : IVL_VT_NO_TYPE;
+			    unsigned ewidth = etype && etype->packed()
+				  ? etype->packed_width() : 0;
+			    bool integral = etype
+				  && (ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC
+				      || dynamic_cast<const netenum_t*>(etype));
+			    auto constant_index = [&](const index_component_t&select,
+					      uint64_t&digit) {
+				  if (!select.msb || select.lsb
+				      || select.sel != index_component_t::SEL_BIT)
+					return false;
+				  string index_ir = pexpr_to_constraint_ir(select.msb, cls,
+					value_slots, scope, loop_env);
+				  constraint_const_ir_t index;
+				  if (!constraint_parse_const_ir_(index_ir, index)
+				      || index.width > 64)
+					return false;
+				  digit = constraint_resize_const_bits_(index, 64,
+								 index.is_signed);
+				  return digit <= UINT_MAX
+					&& (!index.is_signed || (int64_t)digit >= 0);
+			    };
+			    uint64_t row = 0, element = 0;
+			    if (integral && ewidth > 0
+				&& constant_index(row_select, row)
+				&& row < UINT_MAX
+				&& constant_index(element_select, element)) {
+				  string token = "a:" + to_string(pidx) + ":"
+					+ to_string(midx) + ":" + to_string(ewidth)
+					+ ":" + to_string(row) + ":"
+					+ to_string(element);
+				  if (etype->get_signed()) token += ":s";
+				  return token;
+			    }
+		      }
 			      if (one_level && mem && (marray || mdarray)
 				  && member->index.size() == 1) {
 				    const netranges_t*dims = marray
