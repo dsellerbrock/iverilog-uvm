@@ -5302,6 +5302,61 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
       }
 }
 
+static bool randomize_struct_darray_(vvp_darray*array,
+				     vvp_cobject*cobj,
+				     const class_type*defn, size_t pid,
+				     const std::function<unsigned()>&next_random,
+				     bool member_root = false)
+{
+      if (!array) return true;
+	    const vvp_container_layout_t&elem_layout =
+		  array->declared_element_container_layout();
+	    if (elem_layout) {
+		  if (elem_layout->kind != VVP_CONTAINER_DARRAY)
+			return false;
+	    vvp_darray_object*objects = dynamic_cast<vvp_darray_object*>(array);
+	    if (!objects) return false;
+	    for (size_t pos = 0; pos < objects->get_size(); ++pos) {
+		  // The struct member's outer rand modes live on its value object;
+		  // nested containers carry their own element modes.
+		  if (member_root ? !cobj->rand_mode(pid, pos)
+			  : !objects->rand_mode(pos)) continue;
+		  vvp_object_t child;
+		  objects->get_word((unsigned)pos, child);
+		  if (child.test_nil()) continue;
+		  vvp_darray*nested = child.peek<vvp_darray>();
+		  if (!nested || !randomize_struct_darray_(nested, cobj, defn,
+			       pid, next_random))
+			return false;
+	    }
+	    return true;
+      }
+
+	    if (array->vec4_word_width() == 0)
+	    return false;
+      for (size_t pos = 0; pos < array->get_size(); ++pos) {
+	    if (member_root ? !cobj->rand_mode(pid, pos)
+		    : !array->rand_mode(pos)) continue;
+	    vvp_vector4_t value;
+	    array->get_word((unsigned)pos, value);
+	    if (value.size() == 0) continue;
+	    if (defn->property_is_enum(pid)) {
+		  if (!randomize_enum_member_(cobj, defn, pid, pos,
+					      value, next_random))
+			return false;
+	    } else {
+		  for (unsigned bit = 0; bit < value.size(); bit += 32) {
+			unsigned rnd = next_random();
+			for (unsigned b = 0; b < 32 && bit + b < value.size(); ++b)
+			      value.set_bit(bit + b,
+				  (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+		  }
+	    }
+	    array->set_word((unsigned)pos, value);
+      }
+      return true;
+}
+
 /*
  * IEEE 1800-2017 18.4: a rand UNPACKED STRUCT activates the members whose
  * type declarations carry rand/randc; an unqualified member remains state.
@@ -5366,35 +5421,25 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 	    // constraint changes it; randomize each enabled integral element.
 	    bool integral_darray = bt.compare(0, 2, "Dv") == 0
 		  || bt.compare(0, 3, "Dsv") == 0;
-	    if (integral_darray && subdefn->property_dimensions(mpid).empty()
+	    if ((integral_darray || subdefn->property_is_dyn2(mpid))
+		&& subdefn->property_dimensions(mpid).empty()
 		&& !subdefn->property_is_randc(mpid)) {
 		  vvp_object_t propobj;
 		  subcobj->get_object(mpid, propobj, 0);
 		  if (vvp_darray*array = propobj.peek<vvp_darray>()) {
-			for (size_t pos = 0 ; pos < array->get_size() ; pos += 1) {
-			      if (!subcobj->rand_mode(mpid, pos)) continue;
-			      vvp_vector4_t val;
-			      array->get_word((unsigned)pos, val);
-			      if (val.size() == 0) continue;
-			      if (subdefn->property_is_enum(mpid)) {
-				    if (!randomize_enum_member_(subcobj, subdefn,
-						mpid, pos, val, next_random)) {
-					  ok = false;
-					  break;
-				    }
-			      } else {
-				    for (unsigned bit = 0 ; bit < val.size(); bit += 32) {
-					  unsigned rnd = next_random();
-					  for (unsigned b = 0 ; b < 32 && bit + b < val.size();
-					       b += 1)
-						val.set_bit(bit + b,
-						    (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
-				    }
-			      }
-			      array->set_word((unsigned)pos, val);
+			if (!randomize_struct_darray_(array, subcobj, subdefn,
+				      mpid, next_random, true)) {
+			      cerr << "runtime error: randomize() cannot randomize "
+				   << (subdefn->property_is_randc(mpid)
+				       ? "randc" : "rand")
+				   << " member '" << subdefn->property_name(mpid)
+				   << "' of an unpacked struct because dynamic-array member "
+				      "randomization is not yet supported; randomize() returns "
+				      "failure instead of leaving it unchanged." << endl;
+			      ok = false;
 			}
-			continue;
 		  }
+		  continue;
 	    }
 
 	    const char*unsupported_shape = bt == "o" ? "class-handle"
