@@ -1,0 +1,7 @@
+host=DAN-DESKTOP
+cpu=0
+cpus_per_task=4
+memory=8G
+window=100:600
+baseline=c014c0a7975a4b0b645ea34609c802be60a10f4a
+current=afa43b2ffa2dc1f443d25902fb0c27b655d18be0

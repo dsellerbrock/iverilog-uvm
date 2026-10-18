@@ -1,7 +1,7 @@
 # WP3 `%cast2` performance screen
 
-**Status: instruction screen qualified; JSON-gate environment discrepancy and
-final wall medians remain open.** This candidate replaces the per-bit `%cast2` loop
+**Status: merged as #593 at 2026-10-15T23:05:34Z.** The exact-head Slurm,
+Linux, macOS, and Windows gates passed; final wall medians are recorded below. This candidate replaces the per-bit `%cast2` loop
 with an A/B-plane operation over the existing vector words. The focused test
 exhausts all four-state 8-bit inputs and checks widths around word boundaries.
 
@@ -79,3 +79,13 @@ medians are recorded as supporting evidence, including the `gate_strength`
 wall-time increase. A4 confirmed the JSON failures were pre-existing fixture
 issues on main and corrected them separately in PR #595; they are not a WP3
 merge blocker.
+
+## Final merged status
+
+PR #593 merged as ccaecfe7e123fc354ee0c97000eb44f0a2498963. Exact-head
+Fast Linux run 38784044488 and full test.yml run 38784048913 passed on
+17701de4bb02bfeb57fb5b1a0b3dc0e075d36343; the latter completed all Linux,
+macOS, and Windows jobs successfully. Slurm job 1292 passed the final
+correctness gate. The earlier 16 JSON fixture failures were confirmed on the
+reference and fixed separately by A4 in PR #595; they did not represent a
+WP3 behavior regression.
