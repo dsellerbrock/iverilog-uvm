@@ -7404,12 +7404,19 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
 	    if (obj_arg) draw_eval_object(obj_arg);
-	      /* Keep the established two-operand VVP encoding: bit 0 says
-	         coverpoint guards are present, bits 1.. carry the number of
-	         cross guards. Old streams that use 0/1 remain valid. */
-	    fprintf(vvp_out, "    %%covgrp/sample %llu, %u;\n",
-		    (unsigned long long)(((uint64_t)nreal << 32) | ncp),
-		    guard_flags);
+	    /* A class-embedded group can be extended at runtime. Standalone
+	       covergroups keep the original stack-described VVP encoding. */
+	    ivl_type_t cgtype = obj_arg ? ivl_expr_net_type(obj_arg) : 0;
+	    if (cgtype && ivl_type_base(cgtype) == IVL_VT_CLASS
+		&& ivl_type_covgrp_owner_prop(cgtype) >= 0) {
+		  ensure_class_type_emitted(cgtype);
+		  fprintf(vvp_out, "    %%covgrp/sample/dyn %u, C%p, %u;\n",
+			  guard_flags, cgtype, ncp);
+	    } else {
+		  fprintf(vvp_out, "    %%covgrp/sample %llu, %u;\n",
+			  (unsigned long long)(((uint64_t)nreal << 32) | ncp),
+			  guard_flags);
+	    }
 	    return 0;
       }
 

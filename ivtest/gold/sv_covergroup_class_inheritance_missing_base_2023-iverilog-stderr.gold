@@ -1,0 +1,1 @@
+ivltests/sv_covergroup_class_inheritance_missing_base_2023.v:9: error: covergroup 'missing_cg' is not declared in a base class (IEEE 1800-2023 19.4.1).

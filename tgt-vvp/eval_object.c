@@ -481,7 +481,12 @@ static int eval_class_new(ivl_expr_t ex)
       ivl_type_t class_type = ivl_expr_net_type(ex);
       ensure_class_type_emitted(class_type);
 
-      fprintf(vvp_out, "    %%new/cobj C%p;\n", class_type);
+	  int owner_prop = ivl_type_covgrp_owner_prop(class_type);
+	  if (owner_prop >= 0)
+		fprintf(vvp_out, "    %%new/cobj/embedded C%p, %d;\n",
+			class_type, owner_prop);
+	  else
+		fprintf(vvp_out, "    %%new/cobj C%p;\n", class_type);
 
 	/* A class-new initializer array is used by synthesized covergroup
 	 * constructors. Its heterogeneous elements map positionally to the

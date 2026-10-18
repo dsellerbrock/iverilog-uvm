@@ -4466,3 +4466,52 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** `evidence/a3-m5-issue448-followup/job1376/logs/ref2017.log`.
 - **Reproducer status:** confirmed for the 2017 mode.
 - **Triage status:** untriaged; outside #594.
+
+### DD-124 — caller-scope name can capture a covergroup guard
+
+- **Discovered while working:** #457 embedded covergroup inheritance.
+- **Observation:** Sample-site elaboration evaluates a stored covergroup guard
+  in the caller's scope before falling back to a property on the covergroup's
+  static parent type. An unrelated caller-scope identifier with the same name
+  could therefore capture the guard instead of the declaring class property.
+- **File/function:** `elaborate.cc`, generated `sample()` argument construction
+  for coverpoint, cross, and bin guards.
+- **Possible clause:** IEEE 1800-2023 §19.4.1; lexical binding is inferred from
+  inheritance semantics and is not stated explicitly in that clause.
+- **Evidence:** source review of the generated sample-site evaluation path;
+  no isolated runtime reproducer was run.
+- **Reproducer status:** sketched; not confirmed.
+- **Triage status:** untriaged, recorded as pre-existing for all covergroups;
+  outside #457.
+
+### DD-125 — shadowed non-property constants are outside covergroup owner checks
+
+- **Discovered while working:** #457 embedded covergroup inheritance.
+- **Observation:** The inherited-expression shadow check enumerates class
+  properties. A base parameter or enum constant hidden by a derived
+  declaration is not visible through the property table and may still bind by
+  name in the derived class scope.
+- **File/function:** `elab_sig.cc:bind_covergroup_range_expr_` and inherited
+  covergroup expression elaboration.
+- **Possible clause:** IEEE 1800-2023 §19.4.1; lexical lookup is inferred from
+  the inheritance replacement rule, not explicit in that clause.
+- **Evidence:** source review of property-index binding; no reducer was run.
+- **Reproducer status:** sketched.
+- **Triage status:** untriaged; outside #457.
+
+### DD-126 — class-member covergroup sampling events are skipped
+
+- **Discovered while working:** #457 embedded covergroup inheritance.
+- **Observation:** A class-embedded covergroup sampling event that names a
+  class property, such as `@(posedge clk)` with `clk` declared in the class,
+  warns that `clk` cannot bind in `$unit` and skips the event. The inherited
+  group has the same failure. An enclosing-module event binds and samples the
+  base and derived group instances correctly.
+- **File/function:** `elaborate.cc`, `elaborate_standalone_cg_samplers_`
+  elaborates event expressions in the enclosing module scope.
+- **Possible clause:** IEEE 1800-2017/2023 §19.3.
+- **Evidence:** #457 local probe: class-property event compile warnings plus
+  missed second-edge coverage; module-event control reports `edge1 b=0.0
+  d=0.0` and `edge2 b=50.0 d=50.0`.
+- **Reproducer status:** confirmed.
+- **Triage status:** untriaged; pre-existing sampler limitation, outside #457.

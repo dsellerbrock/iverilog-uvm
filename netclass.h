@@ -59,6 +59,7 @@ class netclass_t : public ivl_type_s {
 	// is used for the elaboration of methods
 	// (tasks/functions). In other words, this is the class itself.
       void set_class_scope(NetScope*cscope);
+      const netclass_t* find_ancestor_by_pform(const PClass*pclass) const;
 
       inline const NetScope* class_scope(void) const { return class_scope_; }
 
@@ -336,6 +337,8 @@ class netclass_t : public ivl_type_s {
       std::vector<const netclass_t*> interface_types_;
 	// Map property names to property table index.
       std::map<perm_string,size_t> properties_;
+	// Separate synthesized types for embedded covergroup extensions.
+      std::map<perm_string,netclass_t*> covgrp_extensions_;
 	// Vector of properties.
       struct prop_t {
 	    perm_string name;
@@ -763,6 +766,11 @@ class netclass_t : public ivl_type_s {
       int constructor_initializer_property(const Statement*statement) const;
       bool has_embedded_covergroups() const { return has_embedded_cgs_; }
       void set_has_embedded_covergroups(bool f) { has_embedded_cgs_ = f; }
+      netclass_t* covgrp_extension_class(perm_string name) const
+	    { auto found = covgrp_extensions_.find(name);
+	      return found == covgrp_extensions_.end() ? nullptr : found->second; }
+      void set_covgrp_extension_class(perm_string name, netclass_t*type)
+	    { covgrp_extensions_[name] = type; }
       unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }
       void set_covgrp_ncoverpoints(unsigned n) { covgrp_ncoverpoints_ = n; }
 
@@ -837,8 +845,17 @@ class netclass_t : public ivl_type_s {
 	    if (cp_idx < covgrp_cp_guardsrcs_.size()) return covgrp_cp_guardsrcs_[cp_idx];
 	    return -1;
       }
+      void add_covgrp_cp_sample_ir(const std::string&ir)
+      { covgrp_cp_sample_irs_.push_back(ir); }
+      const std::string& covgrp_cp_sample_ir(unsigned cp_idx) const {
+	    static const std::string empty;
+	    return cp_idx < covgrp_cp_sample_irs_.size()
+		  ? covgrp_cp_sample_irs_[cp_idx] : empty;
+      }
       void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
       int covgrp_parent_prop() const { return covgrp_parent_prop_; }
+      void set_covgrp_owner_prop(int p) { covgrp_owner_prop_ = p; }
+      int covgrp_owner_prop() const { return covgrp_owner_prop_; }
 
     private:
       std::vector<PExpr*> covgrp_cp_exprs_;
@@ -871,7 +888,9 @@ class netclass_t : public ivl_type_s {
       std::vector<PExpr*> covgrp_bin_guards_;
       std::vector<int> covgrp_cp_srcprops_;
       std::vector<int> covgrp_cp_guardsrcs_;
+      std::vector<std::string> covgrp_cp_sample_irs_;
       int covgrp_parent_prop_ = -1;
+      int covgrp_owner_prop_ = -1;
       bool is_covergroup_ = false;
       bool has_embedded_cgs_ = false;
       unsigned covgrp_ncoverpoints_ = 0;
