@@ -2239,6 +2239,124 @@ static unsigned lpm_concat_inputs(ivl_lpm_t net, unsigned start,
       return wid;
 }
 
+/* Recognize the private low-zero concat used to implement a constant
+ * left shift. Keep the rewrite limited to an unobservable part temporary. */
+static int concat_is_const_left_shift(ivl_lpm_t concat, ivl_lpm_t *part_out,
+				      ivl_nexus_t *source_out,
+				      unsigned *width_out,
+				      unsigned *shift_out)
+{
+      ivl_nexus_t pad, part_nex, source;
+      ivl_net_const_t pad_const = 0;
+      ivl_lpm_t part = 0;
+      unsigned idx, shift, width;
+
+      if (ivl_lpm_type(concat) != IVL_LPM_CONCAT
+	  || ivl_lpm_size(concat) != 2)
+	    return 0;
+
+      pad = ivl_lpm_data(concat, 0);
+      part_nex = ivl_lpm_data(concat, 1);
+      if (!pad || !part_nex || !ivl_lpm_q(concat))
+	    return 0;
+      shift = width_of_nexus(pad);
+      width = width_of_nexus(ivl_lpm_q(concat));
+      if (shift == 0 || shift >= width)
+	    return 0;
+
+      if (ivl_nexus_ptrs(pad) != 1)
+	    return 0;
+      pad_const = ivl_nexus_ptr_con(ivl_nexus_ptr(pad, 0));
+      if (!pad_const || ivl_const_width(pad_const) != shift)
+	    return 0;
+      for (idx = 0; idx < shift; idx += 1)
+	    if (ivl_const_bits(pad_const)[idx] != '0')
+		  return 0;
+
+      for (idx = 0; idx < ivl_nexus_ptrs(part_nex); idx += 1) {
+	    ivl_lpm_t candidate = ivl_nexus_ptr_lpm(ivl_nexus_ptr(part_nex, idx));
+	    if (candidate && ivl_lpm_q(candidate) == part_nex) {
+		  if (part)
+			return 0;
+		  part = candidate;
+	    }
+      }
+      if (!part || ivl_lpm_type(part) != IVL_LPM_PART_VP
+	  || ivl_lpm_data(part, 1) != 0 || ivl_lpm_base(part) != 0
+	  || ivl_lpm_event_synchronous(part)
+	  || ivl_lpm_width(part) != width - shift
+	  || ivl_lpm_q(part) != part_nex)
+	    return 0;
+
+      source = ivl_lpm_data(part, 0);
+      if (!source || width_of_nexus(source) != width)
+	    return 0;
+      for (idx = 0; idx < 3; idx += 1)
+	    if (ivl_lpm_delay(part, idx))
+		  return 0;
+
+      /* Exactly the part driver and this concat may observe the temporary. */
+      if (ivl_nexus_ptrs(part_nex) != 2)
+	    return 0;
+      {
+	    unsigned part_ptrs = 0, concat_ptrs = 0;
+	    for (idx = 0; idx < ivl_nexus_ptrs(part_nex); idx += 1) {
+		  ivl_nexus_ptr_t ptr = ivl_nexus_ptr(part_nex, idx);
+		  ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+		  if (ivl_nexus_ptr_sig(ptr))
+			return 0;
+		  if (lpm == part)
+			part_ptrs += 1;
+		  else if (lpm == concat)
+			concat_ptrs += 1;
+		  else
+			return 0;
+	    }
+	    if (part_ptrs != 1 || concat_ptrs != 1)
+		  return 0;
+      }
+
+      *part_out = part;
+      *source_out = source;
+      *width_out = width;
+      *shift_out = shift;
+      return 1;
+}
+
+static void draw_shift_amount(unsigned shift)
+{
+      unsigned bits = 1, value;
+      for (value = shift; value > 1; value >>= 1)
+	    bits += 1;
+
+      fprintf(vvp_out, "C4<");
+      while (bits > 0) {
+	    bits -= 1;
+	    fputc((shift >> bits) & 1 ? '1' : '0', vvp_out);
+      }
+      fprintf(vvp_out, ">");
+}
+
+static int part_is_fused_left_shift(ivl_lpm_t part)
+{
+      ivl_nexus_t nex = ivl_lpm_q(part);
+      unsigned idx;
+
+      for (idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_lpm_t concat = ivl_nexus_ptr_lpm(ivl_nexus_ptr(nex, idx));
+	    ivl_lpm_t candidate_part;
+	    ivl_nexus_t source;
+	    unsigned width, shift;
+	    if (concat && concat != part
+		&& concat_is_const_left_shift(concat, &candidate_part,
+					     &source, &width, &shift)
+		&& candidate_part == part)
+		  return 1;
+      }
+
+      return 0;
+}
+
 /*
  * Implement the general IVL_LPM_CONCAT using .concat nodes. Use as
  * many nested nodes as necessary to support the desired number of
@@ -2250,6 +2368,18 @@ static void draw_lpm_concat(ivl_lpm_t net)
       unsigned icnt = ivl_lpm_size(net);
       const char*dly = draw_lpm_output_delay(net, IVL_VT_LOGIC);
       const char*z = ivl_lpm_type(net)==IVL_LPM_CONCATZ? "8" : "";
+
+      ivl_lpm_t part;
+      ivl_nexus_t source;
+      unsigned width, shift;
+
+      if (concat_is_const_left_shift(net, &part, &source, &width, &shift)) {
+	    fprintf(vvp_out, "L_%p%s .shift/l %u, %s, ", net, dly, width,
+		    draw_net_input(source));
+	    draw_shift_amount(shift);
+	    fprintf(vvp_out, ";\n");
+	    return;
+      }
 
       if (icnt <= 4) {
 	      /* This is the easiest case. There are 4 or fewer input
@@ -2744,13 +2874,18 @@ static void draw_lpm_part(ivl_lpm_t net)
 {
       unsigned width, base;
       ivl_nexus_t sel;
-
-      const char*input = draw_net_input(ivl_lpm_data(net, 0));
-      const char*dly = draw_lpm_output_delay(net, IVL_VT_LOGIC);
+      const char*input;
+      const char*dly;
 
       width = ivl_lpm_width(net);
       base = ivl_lpm_base(net);
       sel = ivl_lpm_data(net,1);
+
+      if (sel == 0 && part_is_fused_left_shift(net))
+	    return;
+
+      input = draw_net_input(ivl_lpm_data(net, 0));
+      dly = draw_lpm_output_delay(net, IVL_VT_LOGIC);
 
       if (sel == 0) {
 	    fprintf(vvp_out, "L_%p%s .part%s %s", net, dly,
