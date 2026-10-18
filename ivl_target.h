@@ -2851,6 +2851,7 @@ extern int      ivl_type_covgrp_item_guardsrc(ivl_type_t net, int idx);
      hidden parent-handle property and per-coverpoint parent source /
      guard property indexes (-1 = none). */
 extern int      ivl_type_covgrp_parent_prop(ivl_type_t net);
+extern int      ivl_type_covgrp_owner_prop(ivl_type_t net);
 extern int      ivl_type_covgrp_srcprop(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_guardsrc(ivl_type_t net, int idx);
 

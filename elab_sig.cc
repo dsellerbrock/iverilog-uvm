@@ -2557,12 +2557,28 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    if (!cgdef) continue;
 	    bool standalone = pclass->type->is_covergroup_standalone;
 	    netclass_t*cg_class = standalone ? this : nullptr;
+	    size_t super_props = get_super() ? get_super()->get_properties() : 0;
 	    if (!standalone) {
 		  int existing = property_idx_from_name(cgdef->name);
-		  if (existing >= 0)
+		  if (cgdef->is_extension) {
+			const netclass_t*base_cg = existing >= 0
+			      && static_cast<size_t>(existing) < super_props
+			      ? dynamic_cast<const netclass_t*>(
+					    get_super()->get_prop_type(static_cast<size_t>(existing)))
+			      : nullptr;
+			if (!base_cg || !base_cg->is_covergroup()) {
+			      cerr << "error: covergroup extension '" << cgdef->name
+				   << "' does not replace an inherited covergroup property."
+				   << endl;
+			      des->errors += 1;
+			      continue;
+			}
+			cg_class = covgrp_extension_class(cgdef->name);
+		  } else if (existing >= 0
+			     && static_cast<size_t>(existing) >= super_props)
 			cg_class = const_cast<netclass_t*>(
 			      dynamic_cast<const netclass_t*>(
-				    get_prop_type((size_t)existing)));
+				    get_prop_type(static_cast<size_t>(existing))));
 		  if (!cg_class) {
 			string cg_cname = string("__covgrp_")
 				      + string(name_.str())
@@ -2573,12 +2589,20 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 			cg_class->set_scope_ready(true);
 			cg_class->set_body_elaborated(true);
 			cg_class->set_is_covergroup(true);
-			set_property(cgdef->name,
-				     property_qualifier_t::make_none(), cg_class);
+			if (cgdef->is_extension)
+			      set_covgrp_extension_class(cgdef->name, cg_class);
+			else
+			      set_property(cgdef->name,
+					   property_qualifier_t::make_none(), cg_class);
 		  }
 	    }
 	    bind_covergroup_ranges_(des, this, cg_class, cgdef, standalone);
-	    if (!standalone && cg_class) {
+	    if (!standalone && !is_interface() && cg_class) {
+		  int owner_prop = property_idx_from_name(cgdef->name);
+		  if (owner_prop >= 0)
+			cg_class->set_covgrp_owner_prop(owner_prop);
+	    }
+	    if (!standalone && !cgdef->is_extension && cg_class) {
 		  int cg_property = property_idx_from_name(cgdef->name);
 		  if (cg_property >= 0)
 			embedded_covergroups[static_cast<size_t>(cg_property)] =

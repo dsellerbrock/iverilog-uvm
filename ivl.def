@@ -508,6 +508,7 @@ ivl_type_covgrp_item_is_cross
 ivl_type_covgrp_item_name
 ivl_type_covgrp_item_guardsrc
 ivl_type_covgrp_parent_prop
+ivl_type_covgrp_owner_prop
 ivl_type_covgrp_srcprop
 ivl_type_covgrp_guardsrc
 

@@ -2800,3 +2800,29 @@ handles exist at `cbStartOfSimulation`, before any report is pending, and that
 process queues while same-scope assertions survive. Concurrent assertion
 attempt reset remains unsupported and is diagnosed explicitly; this evidence
 does not claim that part of §39.5.2.
+
+## October 17, 2026 — §19.4.1 embedded covergroup inheritance (#457)
+
+IEEE 1800-2023 §19.4.1 (pp. 580–581) adds `covergroup extends` for
+class-embedded groups. It replaces the inherited group instance, retains
+unoverridden components and options, suppresses an overridden base coverpoint
+from the coverage computation while retaining its base cross, and keeps the
+base sample interface. IEEE 1800-2017 §19.4 has no §19.4.1 or corresponding
+inheritance syntax, so `covergroup extends` is rejected in `-g2017`.
+
+The candidate implements the tested boundary: same-name embedded group
+replacement through a base-class handle; inherited and overridden
+coverpoints; inherited, replaced, and added crosses with named-bin resolution;
+inherited and overridden options; independent base/derived instances; and an
+unknown-base diagnostic. The three paired legacy/JSON cases are
+`sv_covergroup_class_inheritance_2017`,
+`sv_covergroup_class_inheritance_2023`, and
+`sv_covergroup_class_inheritance_missing_base_2023`.
+
+T0/T1 passed on DAN-DESKTOP Slurm job 2337 at base
+`9b5fad2afb4104caa816b257d5bccc40f01b8c66`: build and install; 72/72 VVP
+covergroup API exports; focused tests 3/3 in both runners; smoke; legacy T1
+250/250; JSON T1 238 cases, zero failures. Exact result, run script, and raw
+logs are in [attempt 03](../../../evidence/issue457-covergroup-inheritance-20261017/attempt-03/RESULT.md).
+This is a focused §19.4.1 qualification, not full clause-19 closure; PR CI and
+batch qualification are pending.

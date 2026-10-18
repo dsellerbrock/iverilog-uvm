@@ -615,9 +615,14 @@ ivl_type_t netclass_t::get_prop_type(size_t idx) const
       if (super_) super_size = super_->get_properties();
 
       assert(idx < (super_size+property_table_.size()));
-      if (idx < super_size)
+
+      if (idx < super_size) {
+	    const char* pname = get_prop_name(idx);
+	    for (const auto& extension : covgrp_extensions_)
+		  if (extension.first == pname)
+			return extension.second;
 	    return super_->get_prop_type(idx);
-      else
+	  } else
 	    return property_table_[idx-super_size].type;
 }
 

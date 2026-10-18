@@ -1,0 +1,1428 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_bin_iff: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_generate_class_covergroup: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_generate_class_covergroup_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_constructor_scope: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_tracking: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_tracking_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_tracking_bad_actual: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_tracking_bad_actual_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_value_shapes: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_value_shapes_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_net_actual_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_net_actual_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_automatic_actual_unsupported: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_automatic_actual_unsupported_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_type_mismatch_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_type_mismatch_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_packed_struct_member_limit: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_packed_struct_member_limit_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_write_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ref_write_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_writable_increment: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_writable_increment_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_formal_directions: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_formal_directions_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_formal_directions_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_formal_directions_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_real_interval: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_real_interval_fail_2017: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_real_interval_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_ranges: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_ranges_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_ranges_type_coverage: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_ranges_type_coverage_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_const_bin_ranges: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_const_bin_ranges_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_const_bin_ranges_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_const_bin_ranges_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_typed: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_typed_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_resolution: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_resolution_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_virtual_interface_sample: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_virtual_interface_sample_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_ranges_unresolved: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_bin_ranges_unresolved_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_default_mutable: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_default_mutable_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_default_pure: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_default_pure_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_illegal_impure: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_illegal_impure_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_illegal_mutable: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_illegal_mutable_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_illegal_ref: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_illegal_ref_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_nested_const: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_nested_const_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_null: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_null_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_signed: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_signed_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_dynamic: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_dynamic_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_huge_index: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_huge_index_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_mutator: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_mutator_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_mutator_strict: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_mutator_strict_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_oob: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_oob_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_strict: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_unsafe_strict_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_x: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_ctor_method_bin_x_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_array_bin_identity: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_array_bin_identity_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_struct_select: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_struct_select_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_sample_unpacked_struct_select: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_inheritance_2017: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_inheritance_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_inheritance_missing_base_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_class_sample_unpacked_struct_select_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_shape_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_shape_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_default: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_default_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_default_shape_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_sample_unpacked_default_shape_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_fixed_bin_post_carve: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_fixed_bin_post_carve_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_dynamic_cross: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_dynamic_cross_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_dynamic_cross_binsof: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_dynamic_cross_binsof_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_bin_precedence: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_bin_precedence_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_wide_exact_cross: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_wide_exact_cross_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_wide_open_array_named_cross: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_wide_open_array_named_cross_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_wide_reject_unsupported: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_wide_reject_unsupported_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_retain_auto_bins_2017: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_retain_auto_bins_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_retain_scope_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_range_tuple_overflow: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_with: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_following_localparam: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_hierarchical_cross: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_procedural_item_options: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_procedural_item_options_unsupported: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_transition_modes: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_transition_repeat: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_transition_repeat_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_value_union: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_value_union_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_instance_average: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_instance_average_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_average_empty: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_average_empty_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_inst_option_write_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_inst_option_write_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_parent_options: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_parent_options_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_four_state_options: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_four_state_options_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_option_scope: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_option_scope_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_zero: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_zero_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_negative_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_negative_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_nonconstant_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_nonconstant_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_signed_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_weight_signed_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_wide_totals: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_wide_totals_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_universe: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_universe_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_identity: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_identity_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_threshold: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_threshold_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_named: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_named_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_parent: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_parent_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_retention: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_transition: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_merged_cross_transition_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_cross: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_cross_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_modes: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_modes_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_zero: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_zero_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_scope: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_scope_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_negative_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_negative_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_signed_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_signed_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_nonconstant_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_nonconstant_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_compound_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_compound_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_group_compound_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_group_compound_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_point_compound_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_type_weight_point_compound_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_population: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_population_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_population_cross: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_population_cross_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_population_modes: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_type_population_modes_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_with_range_values: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_with_range_values_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_with_value_limit: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_with_value_limit_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_with_value_limit_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_with_value_limit_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_recursive_with: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_recursive_with_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_recursive_with_illegal: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_recursive_with_illegal_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_matches: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_matches_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_set_function: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_set_function_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_set_function_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_set_function_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_wildcard_with: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_cross_wildcard_with_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_ranges: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_ranges_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_open_end_ranges: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_open_end_ranges_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_open_end_transition: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_open_end_transition_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_open_end_both_illegal: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_open_end_both_illegal_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_range_resolution: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_range_resolution_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_cross: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_cross_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_inside_unsigned_comparison: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_inside_unsigned_comparison_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_range_cap: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_signed_range_cap_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_interface_scope_sample_2017: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_interface_scope_sample_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_illegal: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_illegal_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_boundary: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_boundary_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_wide_unsupported: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_wide_unsupported_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_bitwise_real_operand_unsupported_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_method_modes: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_method_modes_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
