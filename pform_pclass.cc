@@ -846,6 +846,7 @@ static void pform_covergroup_implicit_cross_coverpoints_(
 		  class_type_t::pform_coverpoint_t cp;
 		  cp.label = item;
 		  cp.decl_class = cross.decl_class;
+		  cp.declared_by_extension = cross.declared_by_extension;
 		  if (item_idx < cross.cp_exprs.size()
 		      && cross.cp_exprs[item_idx]) {
 			cp.expr = cross.cp_exprs[item_idx];
