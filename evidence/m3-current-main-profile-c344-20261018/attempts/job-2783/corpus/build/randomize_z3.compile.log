@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_z3.sv:12: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_z3.sv:13: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_z3.sv:14: warning: Static variable initialization requires explicit lifetime in this context.

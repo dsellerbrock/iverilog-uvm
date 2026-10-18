@@ -1,0 +1,4 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+d9caaaea5b410ed14e7ca14be828fc2f2c9fea44
+45f665ece80ae694c22fe8a544e805f27458a5c2e56249515cc02a222bfa1572  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-d9caa-20261018/input/source-d9caa.tar.gz

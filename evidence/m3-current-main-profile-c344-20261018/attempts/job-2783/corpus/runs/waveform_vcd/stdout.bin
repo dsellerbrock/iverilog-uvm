@@ -1,0 +1,2 @@
+[ perf record: Woken up 10 times to write data ]
+[ perf record: Captured and wrote 2.389 MB /home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/corpus/profiles/waveform_vcd.data (286 samples) ]

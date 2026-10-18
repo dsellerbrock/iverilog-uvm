@@ -1,0 +1,984 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 166  of event 'task-clock:u'
+# Event count (approx.): 1676767660
+#
+# Overhead  Command  Shared Object        Symbol                                                                                                                                                                                                                                     
+# ........  .......  ...................  ...........................................................................................................................................................................................................................................
+#
+    15.66%  vvp      libc.so.6            [.] _int_malloc
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--5.42%--of_VPI_CALL (inlined)
+               |          vpip_execute_vpi_call (inlined)
+               |          sys_display_calltf
+               |          vpi_get_str
+               |          simple_set_rbuf_str (inlined)
+               |          need_result_buf (inlined)
+               |          __libc_malloc2
+               |          _int_malloc
+               |          
+               |--5.42%--of_FORK (inlined)
+               |          do_fork_ (inlined)
+               |          vthread_new (inlined)
+               |          vthread_new_ (inlined)
+               |          |          
+               |          |--4.22%--vthread_s (inlined)
+               |          |          deque (inlined)
+               |          |          _Deque_base (inlined)
+               |          |          _M_initialize_map (inlined)
+               |          |          |          
+               |          |          |--3.61%--_M_create_nodes (inlined)
+               |          |          |          _M_allocate_node (inlined)
+               |          |          |          allocate (inlined)
+               |          |          |          allocate (inlined)
+               |          |          |          operator new(unsigned long)
+               |          |          |          __libc_malloc2
+               |          |          |          _int_malloc
+               |          |          |          |          
+               |          |          |           --1.20%--alloc_perturb (inlined)
+               |          |          |          
+               |          |           --0.60%--_M_allocate_map (inlined)
+               |          |                     allocate (inlined)
+               |          |                     allocate (inlined)
+               |          |                     operator new(unsigned long)
+               |          |                     __libc_malloc2
+               |          |                     _int_malloc
+               |          |          
+               |          |--0.60%--operator new (inlined)
+               |          |          alloc_slab (inlined)
+               |          |          operator new(unsigned long)
+               |          |          __libc_malloc2
+               |          |          _int_malloc
+               |          |          sysmalloc (inlined)
+               |          |          
+               |           --0.60%--insert (inlined)
+               |                     _M_insert_unique<vthread_s* const&> (inlined)
+               |                     _M_insert_<vthread_s* const&, std::_Rb_tree<vthread_s*, vthread_s*, std::_Identity<vthread_s*>, std::less<vthread_s*>, std::allocator<vthread_s*> >::_Alloc_node> (inlined)
+               |                     operator()<vthread_s* const&> (inlined)
+               |                     _M_create_node<vthread_s* const&> (inlined)
+               |                     _M_get_node (inlined)
+               |                     allocate (inlined)
+               |                     allocate (inlined)
+               |                     operator new(unsigned long)
+               |                     __libc_malloc2
+               |                     _int_malloc
+               |          
+                --4.82%--of_FORK_P (inlined)
+                          do_fork_ (inlined)
+                          vthread_new (inlined)
+                          vthread_new_ (inlined)
+                          |          
+                          |--4.22%--vthread_s (inlined)
+                          |          deque (inlined)
+                          |          _Deque_base (inlined)
+                          |          _M_initialize_map (inlined)
+                          |          |          
+                          |          |--3.01%--_M_create_nodes (inlined)
+                          |          |          _M_allocate_node (inlined)
+                          |          |          allocate (inlined)
+                          |          |          allocate (inlined)
+                          |          |          operator new(unsigned long)
+                          |          |          __libc_malloc2
+                          |          |          _int_malloc
+                          |          |          |          
+                          |          |           --0.60%--alloc_perturb (inlined)
+                          |          |          
+                          |           --1.20%--_M_allocate_map (inlined)
+                          |                     allocate (inlined)
+                          |                     allocate (inlined)
+                          |                     operator new(unsigned long)
+                          |                     __libc_malloc2
+                          |                     _int_malloc
+                          |          
+                           --0.60%--operator new(unsigned long)
+                                     __libc_malloc2
+                                     _int_malloc
+                                     alloc_perturb (inlined)
+
+     7.23%  vvp      vvp                  [.] vthread_s::~vthread_s()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               ~vthread_s (inlined)
+               |          
+               |--5.42%--~deque (inlined)
+               |          ~_Deque_base (inlined)
+               |          |          
+               |           --4.82%--_M_destroy_nodes (inlined)
+               |          
+               |--0.60%--~vvp_vector4_t (inlined)
+               |          
+                --0.60%--~vector (inlined)
+
+     5.42%  vvp      vvp                  [.] vvp_object::register_live_ptr_(vvp_object const*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--3.01%--of_FORK_P (inlined)
+               |          do_fork_ (inlined)
+               |          vthread_new (inlined)
+               |          vthread_new_ (inlined)
+               |          vvp_process (inlined)
+               |          vvp_object (inlined)
+               |          register_live_ptr_ (inlined)
+               |          insert (inlined)
+               |          insert (inlined)
+               |          _M_emplace_uniq<const vvp_object* const&> (inlined)
+               |          _M_locate (inlined)
+               |          _M_find_before_node (inlined)
+               |          |          
+               |           --2.41%--_M_bucket_index (inlined)
+               |                     _M_bucket_index (inlined)
+               |                     operator() (inlined)
+               |          
+                --2.41%--of_FORK (inlined)
+                          do_fork_ (inlined)
+                          vthread_new (inlined)
+                          vthread_new_ (inlined)
+                          vvp_process (inlined)
+                          vvp_object (inlined)
+                          register_live_ptr_ (inlined)
+                          |          
+                           --1.81%--insert (inlined)
+                                     insert (inlined)
+                                     _M_emplace_uniq<const vvp_object* const&> (inlined)
+                                     _M_locate (inlined)
+                                     _M_find_before_node (inlined)
+                                     |          
+                                      --0.60%--_M_bucket_index (inlined)
+                                                _M_bucket_index (inlined)
+                                                operator() (inlined)
+
+     5.42%  vvp      vvp                  [.] vvp_object::unregister_live_ptr_(vvp_object const*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               cleanup (inlined)
+               reset (inlined)
+               ~vvp_process (inlined)
+               ~vvp_object (inlined)
+               unregister_live_ptr_ (inlined)
+               erase (inlined)
+               erase (inlined)
+               _M_erase (inlined)
+               |          
+               |--4.82%--_M_bucket_index (inlined)
+               |          _M_bucket_index (inlined)
+               |          operator() (inlined)
+               |          
+                --0.60%--_M_remove_bucket_begin (inlined)
+
+     4.82%  vvp      vvp                  [.] automatic_context_record_insert_(void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_ALLOC (inlined)
+               vthread_alloc_context (inlined)
+               automatic_context_record_insert_ (inlined)
+               operator[] (inlined)
+               operator[] (inlined)
+               _M_find_node (inlined)
+               _M_find_before_node (inlined)
+               |          
+                --3.01%--_M_equals (inlined)
+                          _M_key_equals (inlined)
+                          operator() (inlined)
+
+     4.82%  vvp      vvp                  [.] vthread_run(vthread_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+
+     4.82%  vvp      vvp                  [.] vthread_s::operator new(unsigned long)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--3.01%--of_FORK (inlined)
+               |          do_fork_ (inlined)
+               |          vthread_new (inlined)
+               |          vthread_new_ (inlined)
+               |          operator new (inlined)
+               |          |          
+               |          |--2.41%--alloc_slab (inlined)
+               |          |          
+               |           --0.60%--memset (inlined)
+               |          
+                --1.81%--of_FORK_P (inlined)
+                          do_fork_ (inlined)
+                          vthread_new (inlined)
+                          vthread_new_ (inlined)
+                          operator new (inlined)
+                          |          
+                          |--1.20%--alloc_slab (inlined)
+                          |          
+                           --0.60%--memset (inlined)
+
+     4.22%  vvp      vvp                  [.] remove_context_from_stacked_chain_(void**, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--1.81%--of_FREE (inlined)
+               |          remove_context_from_stacked_chain_ (inlined)
+               |          insert (inlined)
+               |          
+               |--1.81%--of_END (inlined)
+               |          resume_joining_parent_ (inlined)
+               |          do_join (inlined)
+               |          remove_context_from_stacked_chain_ (inlined)
+               |          |          
+               |           --1.20%--insert (inlined)
+               |          
+                --0.60%--of_ALLOC (inlined)
+                          remove_context_from_stacked_chain_ (inlined)
+                          insert (inlined)
+
+     4.22%  vvp      vvp                  [.] std::_Rb_tree<vthread_s*, vthread_s*, std::_Identity<vthread_s*>, std::less<vthread_s*>, std::allocator<vthread_s*> >::erase(vthread_s* const&) [clone .isra.0]
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--3.61%--of_END (inlined)
+               |          resume_joining_parent_ (inlined)
+               |          vthread_reap (inlined)
+               |          erase (inlined)
+               |          erase (inlined)
+               |          |          
+               |          |--3.01%--equal_range (inlined)
+               |          |          |          
+               |          |           --1.20%--_M_lower_bound (inlined)
+               |          |                     _S_right (inlined)
+               |          |          
+               |           --0.60%--size (inlined)
+               |          
+                --0.60%--vthread_delete (inlined)
+                          erase (inlined)
+                          erase (inlined)
+                          _M_erase_aux (inlined)
+
+     4.22%  vvp      vvp                  [.] vthread_new_(vvp_code_s*, __vpiScope*, bool)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--2.41%--of_FORK_P (inlined)
+               |          do_fork_ (inlined)
+               |          vthread_new (inlined)
+               |          vthread_new_ (inlined)
+               |          insert (inlined)
+               |          _M_insert_unique<vthread_s* const&> (inlined)
+               |          _M_get_insert_unique_pos (inlined)
+               |          |          
+               |          |--1.81%--_S_right (inlined)
+               |          |          
+               |           --0.60%--operator() (inlined)
+               |          
+                --1.81%--of_FORK (inlined)
+                          do_fork_ (inlined)
+                          vthread_new (inlined)
+                          vthread_new_ (inlined)
+                          |          
+                          |--0.60%--insert (inlined)
+                          |          _M_insert_unique<vthread_s* const&> (inlined)
+                          |          _M_get_insert_unique_pos (inlined)
+                          |          _S_right (inlined)
+                          |          
+                           --0.60%--design_root_rng_next_ (inlined)
+
+     3.61%  vvp      vvp                  [.] automatic_context_record_(void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--2.41%--of_FREE (inlined)
+               |          |          
+               |          |--1.81%--context_live_in_owner (inlined)
+               |          |          automatic_context_record_ (inlined)
+               |          |          find (inlined)
+               |          |          find (inlined)
+               |          |          _M_locate (inlined)
+               |          |          _M_find_before_node (inlined)
+               |          |          _M_equals (inlined)
+               |          |          _M_key_equals (inlined)
+               |          |          operator() (inlined)
+               |          |          
+               |           --0.60%--vthread_free_context (inlined)
+               |                     vthread_free_context (inlined)
+               |                     automatic_context_record_ (inlined)
+               |                     find (inlined)
+               |                     find (inlined)
+               |                     _M_locate (inlined)
+               |                     _M_find_before_node (inlined)
+               |                     _M_equals (inlined)
+               |                     _M_key_equals (inlined)
+               |                     operator() (inlined)
+               |          
+                --1.20%--of_STORE_VEC4 (inlined)
+                          ensure_write_context_ (inlined)
+                          context_live_in_owner (inlined)
+                          automatic_context_record_ (inlined)
+                          find (inlined)
+                          find (inlined)
+                          _M_locate (inlined)
+                          _M_find_before_node (inlined)
+
+     3.01%  vvp      libstdc++.so.6.0.35  [.] __dynamic_cast
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               __dynamic_cast
+
+     3.01%  vvp      vvp                  [.] vthread_s::cleanup()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               cleanup (inlined)
+               |          
+                --1.81%--empty (inlined)
+                          begin (inlined)
+                          __normal_iterator (inlined)
+
+     2.41%  vvp      libc.so.6            [.] cfree@GLIBC_2.2.5
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               |          
+               |--1.81%--main
+               |          vvp_run
+               |          schedule_simulate (inlined)
+               |          vthread_run (inlined)
+               |          vthread_delete (inlined)
+               |          ~vthread_s (inlined)
+               |          ~deque (inlined)
+               |          ~_Deque_base (inlined)
+               |          _M_destroy_nodes (inlined)
+               |          _M_deallocate_node (inlined)
+               |          deallocate (inlined)
+               |          deallocate (inlined)
+               |          __libc_free (inlined)
+               |          
+                --0.60%--exit
+                          __run_exit_handlers
+                          ~unordered_map (inlined)
+                          ~_Hashtable (inlined)
+                          _M_deallocate_nodes (inlined)
+                          _M_deallocate_node (inlined)
+                          _M_deallocate_node_ptr (inlined)
+                          deallocate (inlined)
+                          deallocate (inlined)
+                          __libc_free (inlined)
+
+     2.41%  vvp      vvp                  [.] of_END(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               |          
+                --0.60%--mark_finished (inlined)
+
+     2.41%  vvp      vvp                  [.] vvp_object::pointer_is_live(vvp_object const*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               peek<vvp_process> (inlined)
+               pointer_is_live (inlined)
+               count (inlined)
+               count (inlined)
+               find (inlined)
+               _M_locate (inlined)
+               _M_find_before_node (inlined)
+               |          
+                --1.81%--_M_equals (inlined)
+                          _M_key_equals (inlined)
+                          operator() (inlined)
+
+     1.81%  vvp      libc.so.6            [.] _int_free_merge_chunk
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               |          
+               |--1.20%--main
+               |          vvp_run
+               |          schedule_simulate (inlined)
+               |          vthread_run (inlined)
+               |          vthread_delete (inlined)
+               |          |          
+               |          |--0.60%--~vthread_s (inlined)
+               |          |          _int_free_chunk
+               |          |          _int_free_merge_chunk
+               |          |          
+               |           --0.60%--cleanup (inlined)
+               |                     reset (inlined)
+               |                     ~vvp_process (inlined)
+               |                     ~vvp_object (inlined)
+               |                     unregister_live_ptr_ (inlined)
+               |                     erase (inlined)
+               |                     erase (inlined)
+               |                     _M_erase (inlined)
+               |                     _M_deallocate_node (inlined)
+               |                     _M_deallocate_node_ptr (inlined)
+               |                     deallocate (inlined)
+               |                     deallocate (inlined)
+               |                     _int_free_chunk
+               |                     _int_free_merge_chunk
+               |                     _int_free_create_chunk (inlined)
+               |          
+                --0.60%--exit
+                          __run_exit_handlers
+                          ~unordered_map (inlined)
+                          ~_Hashtable (inlined)
+                          _M_deallocate_nodes (inlined)
+                          _M_deallocate_node (inlined)
+                          _M_deallocate_node_ptr (inlined)
+                          deallocate (inlined)
+                          deallocate (inlined)
+                          _int_free_chunk
+                          _int_free_merge_chunk
+                          _int_free_create_chunk (inlined)
+
+     1.20%  vvp      libc.so.6            [.] unlink_chunk.isra.0
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               |          
+               |--0.60%--exit
+               |          __run_exit_handlers
+               |          ~unordered_map (inlined)
+               |          ~_Hashtable (inlined)
+               |          _M_deallocate_nodes (inlined)
+               |          _M_deallocate_node (inlined)
+               |          _M_deallocate_node_ptr (inlined)
+               |          deallocate (inlined)
+               |          deallocate (inlined)
+               |          _int_free_chunk
+               |          _int_free_merge_chunk
+               |          _int_free_create_chunk (inlined)
+               |          unlink_chunk (inlined)
+               |          
+                --0.60%--main
+                          vvp_run
+                          schedule_simulate (inlined)
+                          vthread_run (inlined)
+                          vthread_delete (inlined)
+                          erase (inlined)
+                          erase (inlined)
+                          _M_erase_aux (inlined)
+                          _M_erase_aux (inlined)
+                          _M_drop_node (inlined)
+                          _M_put_node (inlined)
+                          deallocate (inlined)
+                          deallocate (inlined)
+                          _int_free_chunk
+                          _int_free_merge_chunk
+                          _int_free_create_chunk (inlined)
+                          unlink_chunk (inlined)
+
+     1.20%  vvp      vvp                  [.] of_FREE(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_FREE (inlined)
+
+     1.20%  vvp      vvp                  [.] resolve_context_scope(__vpiScope*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+               |--0.60%--of_FREE (inlined)
+               |          resolve_context_scope (inlined)
+               |          
+                --0.60%--of_FORK (inlined)
+                          do_fork_ (inlined)
+                          resolve_context_scope (inlined)
+
+     1.20%  vvp      vvp                  [.] schedule_simulate()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+
+     0.60%  vvp      libc.so.6            [.] _int_free_chunk
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               cleanup (inlined)
+               reset (inlined)
+               ~vvp_process (inlined)
+               ~vvp_object (inlined)
+               unregister_live_ptr_ (inlined)
+               erase (inlined)
+               erase (inlined)
+               _M_erase (inlined)
+               _M_deallocate_node (inlined)
+               _M_deallocate_node_ptr (inlined)
+               deallocate (inlined)
+               deallocate (inlined)
+               _int_free_chunk
+
+     0.60%  vvp      libstdc++.so.6.0.35  [.] free@plt
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               erase (inlined)
+               erase (inlined)
+               _M_erase_aux (inlined)
+               _M_erase_aux (inlined)
+               _M_drop_node (inlined)
+               _M_put_node (inlined)
+               deallocate (inlined)
+               deallocate (inlined)
+               free@plt
+
+     0.60%  vvp      libstdc++.so.6.0.35  [.] operator new(unsigned long)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_FORK (inlined)
+               do_fork_ (inlined)
+               insert (inlined)
+               _M_insert_unique<vthread_s* const&> (inlined)
+               _M_insert_<vthread_s* const&, std::_Rb_tree<vthread_s*, vthread_s*, std::_Identity<vthread_s*>, std::less<vthread_s*>, std::allocator<vthread_s*> >::_Alloc_node> (inlined)
+               operator()<vthread_s* const&> (inlined)
+               _M_create_node<vthread_s* const&> (inlined)
+               _M_get_node (inlined)
+               allocate (inlined)
+               allocate (inlined)
+               operator new(unsigned long)
+
+     0.60%  vvp      libstdc++.so.6.0.35  [.] std::_Rb_tree_rebalance_for_erase(std::_Rb_tree_node_base*, std::_Rb_tree_node_base&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               resume_joining_parent_ (inlined)
+               vthread_reap (inlined)
+               erase (inlined)
+               erase (inlined)
+               _M_erase_aux (inlined)
+               _M_erase_aux (inlined)
+               _S_rebalance_for_erase (inlined)
+               std::_Rb_tree_rebalance_for_erase(std::_Rb_tree_node_base*, std::_Rb_tree_node_base&)
+
+     0.60%  vvp      vhdl_sys.vpi         [.] cleanup_mdata
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               vpiPostsim (inlined)
+               cleanup_mdata
+
+     0.60%  vvp      vvp                  [.] context_in_stacked_chain_(void**, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_ALLOC (inlined)
+               context_in_stacked_chain_ (inlined)
+               insert (inlined)
+
+     0.60%  vvp      vvp                  [.] do_join(vthread_s*, vthread_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               resume_joining_parent_ (inlined)
+               do_join (inlined)
+               mirror_dynamic_dispatch_outputs_if_needed_ (inlined)
+
+     0.60%  vvp      vvp                  [.] first_live_context_for_scope(void**, __vpiScope*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               resume_joining_parent_ (inlined)
+               do_join (inlined)
+               mirror_automatic_call_outputs_if_needed_ (inlined)
+               live_context_for_scope_on_thread_ (inlined)
+               first_live_context_for_scope (inlined)
+
+     0.60%  vvp      vvp                  [.] get_immediate_rval(vvp_code_s*, vvp_vector4_t&) [clone .isra.0]
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_ADDI (inlined)
+               get_immediate_rval (inlined)
+
+     0.60%  vvp      vvp                  [.] live_context_for_scope_on_thread_(vthread_s*, __vpiScope*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               resume_joining_parent_ (inlined)
+               do_join (inlined)
+               mirror_automatic_call_outputs_if_needed_ (inlined)
+               live_context_for_scope_on_thread_ (inlined)
+
+     0.60%  vvp      vvp                  [.] non-virtual thunk to automatic_signal_base::as_signal_value()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_LOAD_VEC4 (inlined)
+               non-virtual thunk to automatic_signal_base::as_signal_value()
+
+     0.60%  vvp      vvp                  [.] of_ADDI(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_ADDI (inlined)
+
+     0.60%  vvp      vvp                  [.] of_ALLOC(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_ALLOC (inlined)
+
+     0.60%  vvp      vvp                  [.] of_JOIN(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_JOIN (inlined)
+               do_join_opcode (inlined)
+
+     0.60%  vvp      vvp                  [.] of_STORE_VEC4(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+
+     0.60%  vvp      vvp                  [.] release_owned_context_(vthread_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               cleanup (inlined)
+               release_owned_context_ (inlined)
+
+     0.60%  vvp      vvp                  [.] schedule_vthread(vthread_s*, unsigned long, bool)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_FORK (inlined)
+               schedule_vthread (inlined)
+               vthread_event_s (inlined)
+
+     0.60%  vvp      vvp                  [.] std::_Rb_tree_increment(std::_Rb_tree_node_base*)@plt
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               resume_joining_parent_ (inlined)
+               vthread_reap (inlined)
+               erase (inlined)
+               erase (inlined)
+               _M_erase_aux (inlined)
+               operator++ (inlined)
+               std::_Rb_tree_increment(std::_Rb_tree_node_base*)@plt
+
+     0.60%  vvp      vvp                  [.] void** find_stacked_context_match_<first_live_context_for_scope(void**, __vpiScope*)::{lambda(void**)#1}>(void**, __vpiScope*, char const*, first_live_context_for_scope(void**, __vpiScope*)::{lambda(void**)#1}) [clone .constprop.0]
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               resume_joining_parent_ (inlined)
+               do_join (inlined)
+               mirror_automatic_call_outputs_if_needed_ (inlined)
+               live_context_for_scope_on_thread_ (inlined)
+               find_stacked_context_match_<first_live_context_for_scope(vvp_context_t, __vpiScope*)::<lambda(vvp_context_t)> > (inlined)
+
+     0.60%  vvp      vvp                  [.] vthread_cancel_event_wait(vthread_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               cleanup (inlined)
+               vthread_cancel_event_wait (inlined)
+
+     0.60%  vvp      vvp                  [.] vthread_mark_scheduled(vthread_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_END (inlined)
+               schedule_vthread (inlined)
+               vthread_mark_scheduled (inlined)
+
+     0.60%  vvp      vvp                  [.] vthread_s::pop_vec4(unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               pop_vec4 (inlined)
+
+     0.60%  vvp      vvp                  [.] vvp_fun_signal4_aa::alloc_instance(void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_ALLOC (inlined)
+               vthread_alloc_context (inlined)
+               alloc_instance (inlined)
+               signal4_aa_slot (inlined)
+               vvp_vector4_t (inlined)
+
+     0.60%  vvp      vvp                  [.] vvp_object_t::reset(vvp_object*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               vthread_delete (inlined)
+               ~vthread_s (inlined)
+               ~vvp_object_t (inlined)
+               reset (inlined)
+
+     0.60%  vvp      vvp                  [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_vec4 (inlined)
+               operator= (inlined)
+
+     0.60%  vvp      vvp                  [.] vvp_vector4_t::setarray(unsigned int, unsigned int, unsigned long const*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_SUBI (inlined)
+               get_immediate_rval (inlined)
+               setarray (inlined)
+
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

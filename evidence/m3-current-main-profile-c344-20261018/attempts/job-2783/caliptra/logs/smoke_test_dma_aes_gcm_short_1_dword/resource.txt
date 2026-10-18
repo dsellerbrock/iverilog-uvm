@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "timeout --signal=INT --kill-after=60s 1800s taskset -c 15 /home/dsell/toolchains/iverilog-c339/deps/bin/python3.12 /home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/evidence/caliptra-top-throughput-20261016/input/threeway/run_caliptra_top_profile.py --case smoke_test_dma_aes_gcm_short_1_dword --case-yaml smoke_test_dma_aes_gcm_short_1_dword/smoke_test_dma_aes_gcm_short_1_dword.yml --output /home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/caliptra/out/smoke_test_dma_aes_gcm_short_1_dword"
+	User time (seconds): 261.65
+	System time (seconds): 5.08
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 4:26.88
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1856276
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 37
+	Minor (reclaiming a frame) page faults: 1015454
+	Voluntary context switches: 2254069
+	Involuntary context switches: 2253333
+	Swaps: 0
+	File system inputs: 32936
+	File system outputs: 784584
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1

@@ -1,0 +1,5 @@
+pinned_wp6_base=d9caaaea5b410ed14e7ca14be828fc2f2c9fea44
+remeasurement_main=c344d20197a569dea8936bad95de3d185b1e78dc
+candidate_code_commit=3b9101a810714c0abd81c3fb66c4b4a2976cac0d
+rebase_count=1 (already performed at d9caaaea; no further rebase)
+reason_for_remeasurement=d9caa..c344 runtime-path diff touches ten vvp files

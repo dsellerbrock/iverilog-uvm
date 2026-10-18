@@ -1,0 +1,4 @@
+warning: Found both default and explicit timescale based delays. Use
+       : -Wtimescale to find the design element(s) with no explicit
+       : timescale.
+iverilog: note: wrote DPI export C stubs to /home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/corpus/build/uvm_traffic.dpiexport.c (compile it into your DPI object).

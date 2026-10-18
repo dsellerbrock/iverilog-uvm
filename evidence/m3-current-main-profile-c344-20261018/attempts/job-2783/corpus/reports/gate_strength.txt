@@ -1,0 +1,569 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 440  of event 'task-clock:u'
+# Event count (approx.): 4444444400
+#
+# Overhead  Command  Shared Object  Symbol                                                                                                                                        
+# ........  .......  .............  ..............................................................................................................................................
+#
+     9.32%  vvp      vvp            [.] vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               send_vec8 (inlined)
+               filter_vec8 (inlined)
+               reduce4 (inlined)
+               set_bit (inlined)
+
+     8.64%  vvp      vvp            [.] vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               vvp_send_vec4 (inlined)
+               recv_vec4 (inlined)
+               |          
+               |--1.36%--~vvp_vector4_t (inlined)
+               |          
+                --0.91%--operator= (inlined)
+
+     6.59%  vvp      vvp            [.] vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               vvp_send_vec4 (inlined)
+               recv_vec4 (inlined)
+               vvp_vector4_t (inlined)
+
+     6.36%  vvp      vvp            [.] reduce4(vvp_vector8_t const&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               send_vec8 (inlined)
+               filter_vec8 (inlined)
+               reduce4 (inlined)
+               |          
+                --3.64%--value (inlined)
+
+     5.68%  vvp      vvp            [.] schedule_simulate()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+                --0.68%--region_enter_ (inlined)
+
+     5.68%  vvp      vvp            [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+               |--2.95%--vthread_run (inlined)
+               |          of_STORE_VEC4 (inlined)
+               |          vvp_send_vec4 (inlined)
+               |          send_vec4 (inlined)
+               |          |          
+               |           --2.50%--vvp_send_vec4 (inlined)
+               |                     |          
+               |                      --0.91%--ptr (inlined)
+               |          
+                --2.73%--run_run (inlined)
+                          |          
+                           --2.27%--send_vec4 (inlined)
+                                     |          
+                                      --1.14%--vvp_send_vec4 (inlined)
+
+     5.23%  vvp      vvp            [.] vvp_vector8_t::set_vec(unsigned int, vvp_vector8_t const&)
+            |          
+            |--4.32%--_start
+            |          __libc_start_main_impl (inlined)
+            |          __libc_start_call_main
+            |          main
+            |          vvp_run
+            |          schedule_simulate (inlined)
+            |          run_run (inlined)
+            |          |          
+            |          |--2.05%--vvp_send_vec8 (inlined)
+            |          |          recv_vec8_pv (inlined)
+            |          |          set_vec (inlined)
+            |          |          |          
+            |          |          |--0.91%--set_bit (inlined)
+            |          |          |          
+            |          |           --0.68%--size (inlined)
+            |          |          
+            |          |--1.14%--send_vec4 (inlined)
+            |          |          vvp_send_vec4 (inlined)
+            |          |          recv_vec4 (inlined)
+            |          |          send_vec8 (inlined)
+            |          |          vvp_send_vec8 (inlined)
+            |          |          recv_vec8_pv (inlined)
+            |          |          set_vec (inlined)
+            |          |          
+            |           --1.14%--run_run (inlined)
+            |                     |          
+            |                      --0.68%--propagate_vec4 (inlined)
+            |                                send_vec4 (inlined)
+            |                                vvp_send_vec4 (inlined)
+            |                                recv_vec4 (inlined)
+            |                                recv_vec8_pv (inlined)
+            |                                set_vec (inlined)
+            |          
+             --0.91%--recv_vec8_pv (inlined)
+                       set_vec (inlined)
+
+     4.32%  vvp      vvp            [.] vvp_vector4_t::operator&=(vvp_vector4_t const&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               calculate (inlined)
+               operator&= (inlined)
+
+     3.86%  vvp      vvp            [.] vvp_vector4_t::eeq(vvp_vector4_t const&) const
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+                --3.41%--vthread_run (inlined)
+                          of_STORE_VEC4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          send_vec4 (inlined)
+                          |          
+                           --3.18%--vvp_send_vec4 (inlined)
+                                     recv_vec4 (inlined)
+                                     eeq (inlined)
+
+     3.41%  vvp      vvp            [.] schedule_event_(event_s*, unsigned long, event_queue_e)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+               |--2.73%--run_run (inlined)
+               |          |          
+               |          |--1.59%--send_vec4 (inlined)
+               |          |          vvp_send_vec4 (inlined)
+               |          |          |          
+               |          |           --0.91%--schedule_event_ (inlined)
+               |          |          
+               |           --0.68%--run_run (inlined)
+               |                     propagate_vec4 (inlined)
+               |                     send_vec4 (inlined)
+               |                     vvp_send_vec4 (inlined)
+               |                     recv_vec4 (inlined)
+               |                     schedule_event_ (inlined)
+               |          
+                --0.68%--vthread_run (inlined)
+                          of_STORE_VEC4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          send_vec4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          recv_vec4 (inlined)
+                          schedule_event_ (inlined)
+
+     3.18%  vvp      vvp            [.] vvp_fun_bufif::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               send_vec4 (inlined)
+               vvp_send_vec4 (inlined)
+               recv_vec4 (inlined)
+               |          
+               |--1.36%--value (inlined)
+               |          
+                --0.68%--send_vec8 (inlined)
+
+     2.95%  vvp      vvp            [.] generic_event_s::run_run()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+
+     2.27%  vvp      vvp            [.] vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+                --2.05%--run_run (inlined)
+                          send_vec4 (inlined)
+                          filter_vec4 (inlined)
+
+     2.05%  vvp      vvp            [.] schedule_functor(vvp_gen_event_s*)
+            |          
+             --1.59%--_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       vvp_run
+                       schedule_simulate (inlined)
+                       |          
+                        --1.14%--vthread_run (inlined)
+                                  of_STORE_VEC4 (inlined)
+                                  vvp_send_vec4 (inlined)
+                                  send_vec4 (inlined)
+                                  vvp_send_vec4 (inlined)
+                                  recv_vec4 (inlined)
+                                  schedule_functor (inlined)
+
+     2.05%  vvp      vvp            [.] vvp_fun_concat8::recv_vec8_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&, unsigned int, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               |          
+               |--0.91%--vvp_send_vec8 (inlined)
+               |          recv_vec8_pv (inlined)
+               |          
+                --0.68%--send_vec4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          recv_vec4 (inlined)
+                          send_vec8 (inlined)
+                          vvp_send_vec8 (inlined)
+                          recv_vec8_pv (inlined)
+
+     1.82%  vvp      vvp            [.] vvp_vector8_t::operator=(vvp_vector8_t const&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               |          
+               |--1.14%--run_run (inlined)
+               |          send_vec4 (inlined)
+               |          vvp_send_vec4 (inlined)
+               |          recv_vec4 (inlined)
+               |          send_vec8 (inlined)
+               |          filter_vec8 (inlined)
+               |          operator= (inlined)
+               |          |          
+               |           --0.91%--memcpy (inlined)
+               |          
+                --0.68%--send_vec4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          recv_vec4 (inlined)
+                          send_vec8 (inlined)
+                          filter_vec8 (inlined)
+                          operator= (inlined)
+                          memcpy (inlined)
+
+     1.82%  vvp      vvp            [.] vvp_wide_fun_core::dispatch_vec4_from_input_(unsigned int, vvp_vector4_t const&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               send_vec4 (inlined)
+               vvp_send_vec4 (inlined)
+               dispatch_vec4_from_input_ (inlined)
+               |          
+                --1.36%--operator= (inlined)
+
+     1.59%  vvp      vvp            [.] vvp_fun_concat8::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               |          
+                --1.14%--vvp_send_vec8 (inlined)
+                          recv_vec8 (inlined)
+
+     1.59%  vvp      vvp            [.] vvp_wide_fun_core::propagate_vec4(vvp_vector4_t const&, unsigned long)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               propagate_vec4 (inlined)
+               |          
+                --0.91%--send_vec4 (inlined)
+
+     1.36%  vvp      vvp            [.] (anonymous namespace)::flush_event_source_transaction_()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               |          
+                --0.91%--run_run (inlined)
+                          propagate_vec4 (inlined)
+                          send_vec4 (inlined)
+                          ~vvp_event_source_guard_s (inlined)
+                          flush_event_source_transaction_ (inlined)
+
+     1.36%  vvp      vvp            [.] non-virtual thunk to vvp_fun_part_sa::run_run()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               non-virtual thunk to vvp_fun_part_sa::run_run()
+
+     1.36%  vvp      vvp            [.] vvp_vector4_t::allocate_words_(unsigned long, unsigned long)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+                --1.14%--of_STORE_VEC4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          send_vec4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          recv_vec4 (inlined)
+                          vvp_vector4_t (inlined)
+                          allocate_words_ (inlined)
+
+     1.14%  vvp      vvp            [.] vvp_event_source_end()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+                --0.68%--run_run (inlined)
+
+     1.14%  vvp      vvp            [.] vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               vvp_send_vec8 (inlined)
+
+     1.14%  vvp      vvp            [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+                --0.68%--run_run (inlined)
+                          run_run (inlined)
+
+     1.14%  vvp      vvp            [.] vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               |          
+                --0.91%--propagate_vec4 (inlined)
+                          send_vec4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          recv_vec4 (inlined)
+                          vvp_vector8_t (inlined)
+
+     0.91%  vvp      vvp            [.] vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+
+     0.68%  vvp      vvp            [.] generic_event_s::~generic_event_s()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               ~generic_event_s (inlined)
+
+     0.68%  vvp      vvp            [.] vvp_fun_and::calculate(vvp_vector4_t const*) const
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               calculate (inlined)
+               vvp_vector4_t (inlined)
+               copy_from_ (inlined)
+
+     0.68%  vvp      vvp            [.] vvp_fun_boolean_::receive(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**, unsigned int, bool)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               send_vec4 (inlined)
+               vvp_send_vec4 (inlined)
+               receive (inlined)
+
+     0.68%  vvp      vvp            [.] vvp_fun_concat8::run_run()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+
+     0.68%  vvp      vvp            [.] vvp_fun_drive::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               send_vec4 (inlined)
+               vvp_send_vec4 (inlined)
+               recv_vec4 (inlined)
+
+     0.68%  vvp      vvp            [.] vvp_vpi_callback::run_vpi_callbacks_in_boundary()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+
+     0.45%  vvp      vvp            [.] of_CONCAT_VEC4(vthread_s*, vvp_code_s*)
+     0.45%  vvp      vvp            [.] vthread_run(vthread_s*)
+     0.45%  vvp      vvp            [.] vthread_s::push_vec4(vvp_vector4_t const&)
+     0.45%  vvp      vvp            [.] vvp_event_source_begin()
+     0.45%  vvp      vvp            [.] vvp_fun_boolean_::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     0.45%  vvp      vvp            [.] vvp_send_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+     0.45%  vvp      vvp            [.] vvp_wide_fun_core::value(unsigned int)
+     0.45%  vvp      vvp            [.] vvp_wire_vec8::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)
+     0.23%  python3  python3.12     [.] dict_subscript
+     0.23%  vvp      vvp            [.] get_immediate_rval(vvp_code_s*, vvp_vector4_t&) [clone .isra.0]
+     0.23%  vvp      vvp            [.] non-virtual thunk to vvp_fun_boolean_::run_run()
+     0.23%  vvp      vvp            [.] non-virtual thunk to vvp_fun_concat8::run_run()
+     0.23%  vvp      vvp            [.] non-virtual thunk to vvp_wire_vec4::vec4_value(vvp_vector4_t&) const
+     0.23%  vvp      vvp            [.] of_JMP(vthread_s*, vvp_code_s*)
+     0.23%  vvp      vvp            [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+     0.23%  vvp      vvp            [.] of_LOAD_VEC4_PARTI(vthread_s*, vvp_code_s*)
+     0.23%  vvp      vvp            [.] of_STORE_VEC4(vthread_s*, vvp_code_s*)
+     0.23%  vvp      vvp            [.] schedule_finished()
+     0.23%  vvp      vvp            [.] schedule_in_nba_update_region()
+     0.23%  vvp      vvp            [.] vvp_fun_boolean_::run_run()
+     0.23%  vvp      vvp            [.] vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)
+     0.23%  vvp      vvp            [.] vvp_udp_comb_s::calculate_output(udp_levels_table const&, udp_levels_table const&, vvp_bit4_t)
+     0.23%  vvp      vvp            [.] vvp_udp_fun_core::recv_vec4_from_inputs(unsigned int)
+     0.23%  vvp      vvp            [.] vvp_udp_fun_core::run_run()
+     0.23%  vvp      vvp            [.] vvp_wire_base::as_signal_value()
+     0.23%  vvp      vvp            [.] vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)
+     0.23%  vvp      vvp            [.] vvp_wire_vec4::vec4_part_value(vvp_vector4_t&, unsigned int, unsigned int) const
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

@@ -1,0 +1,12 @@
+b08641fb0b0d6e9dd1b6c9d34610c6e022cfab758385d5ed91c021425a8af118  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/gates-provenance.txt
+a8fde3e9021e21fadcab4880ce7c7a1525ad8b6438e74ac09024cdadf2f2f338  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/gates-c344/stage-status.tsv
+0f40ebdd961cbd653ae840dd6c3a177ace666a33d22dcd1ba789ee09dee86616  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/ivtest-gate.log
+2c638f3eaea95932743a59fd21b486f08b0e96f2232c63c4095bf427163dce84  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/make-check.log
+600225ead46ad91ca7688d329345b7394438be34956524f3d73b733df57c20e4  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/tgt-fpga-install.log
+24e08ab2ddcd9cf6b09baaddd6b56d462a70973e5d7db7cdf945054cd60418b9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/uvm-real-dpi.log
+ea7dbc0334093ed677184e1f8aa09b6b4c665e5d717b921438a95ed5a3d72fcc  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/vpi-intval-semantics.log
+90cf3fe24b4091560644b9f7e91c8b61d4ce9cb4c076c673464249d0da8628ce  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/ivtest-gate.time
+c50cfa1beba22cca305c5bfa561f2679bce891fcc51f802082e5efa435823962  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/make-check.time
+fa59f152977e78be11647bad71c810123f74d1876544bfabd27747c982d71b8e  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/tgt-fpga-install.time
+b1be9732a858361b6c5b644ddd16b6f646264148072195d38788017bc2e7c69e  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/uvm-real-dpi.time
+3ec764674d19b28ca91a96a34c9dd2aa2a21928e3e4a2955feb6138bad6eab4c  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/logs/gates-c344/vpi-intval-semantics.time

@@ -1,0 +1,112 @@
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 26.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 6 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 27.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 5 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 27.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 5 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 28.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 4 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 28.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 4 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 28.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 4 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 28.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 4 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 29.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 3 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 29.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 3 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 29.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 3 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 29.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 3 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 29.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 3 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 29.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 3 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 29.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 3 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 30.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 2 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35: warning: Port 3 (seed) of module lane expects 32 bit(s), given 31.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/rtl_alu.sv:35:        : Padding 1 high bits of the port.

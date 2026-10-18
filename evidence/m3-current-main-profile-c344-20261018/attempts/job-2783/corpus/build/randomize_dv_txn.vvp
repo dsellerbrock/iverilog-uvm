@@ -1,0 +1,227 @@
+#! /home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/bin/vvp
+:ivl_version "13.0 (devel)" "(c344d2019)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/system.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/va_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/v2009.vpi";
+S_0x7a1f88afd010 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+C0x5693398e3cd0  .class "bus_txn" "$unit.bus_txn" [5]
+   0: "kind", "q8:re{00,10,01}:b2"
+   1: "addr", "q8:rb32"
+   2: "len", "q8:rb8"
+   3: "be", "q8:rb4"
+   4: "data", "q8:rb32"
+ .constraint "c_kind" "(dist p:0:2 (b := c:4:32:s c:0:2) (b := c:4:32:s c:1:2) (b := c:1:32:s c:2:2))"
+ .constraint "c_addr" "(inside p:1:32 [c:4096:32,c:8191:32] [c:32768:32,c:36863:32]) (eq (part p:1:32 c:1 c:0) c:0:32:s)"
+ .constraint "c_len" "(inside p:2:8 [c:1:32:s,c:16:32:s]) (impl (eq p:0:2 c:2:2) (eq p:2:8 c:1:32:s))"
+ .constraint "c_be" "(ne p:3:4 c:0:32:s) (impl (gt p:2:8 c:4:32:s) (eq p:3:4 c:15:4))"
+ .constraint "_enum_kind" "(inside p:0:2 c:0:2 c:1:2 c:2:2)"
+ ;
+S_0x7a1f88afd0d0 .scope class, "bus_txn" "bus_txn" 3 2, 3 2 0, S_0x7a1f88afd010;
+ .timescale 0 0;
+enum0x5693398e4ad0 .enum2 (2)
+   "READ" 0,
+   "WRITE" 1,
+   "IDLE" 2
+ ;
+S_0x7a1f88afd070 .scope module, "main" "main" 3 14;
+ .timescale 0 0;
+S_0x7a1f88afd130 .scope begin, "$unm_blk_1" "$unm_blk_1" 3 15, 3 15 0, S_0x7a1f88afd070;
+ .timescale 0 0;
+v0x7a1f88adc030_0 .var/s "_ivl_0", 31 0;
+v0x7a1f88adc030_0 .vpi_source_location 3 20;
+v0x7a1f88adc050_0 .var/2s "ni", 31 0;
+v0x7a1f88adc050_0 .vpi_source_location 3 17;
+v0x7a1f88adc070_0 .var/2s "nr", 31 0;
+v0x7a1f88adc070_0 .vpi_source_location 3 17;
+v0x7a1f88adc090_0 .var/2s "nw", 31 0;
+v0x7a1f88adc090_0 .vpi_source_location 3 17;
+v0x7a1f88adc0b0_0 .var/2s "runs", 31 0;
+v0x7a1f88adc0b0_0 .vpi_source_location 3 19;
+v0x7a1f88adc0d0_0 .var/2s "sum", 63 0;
+v0x7a1f88adc0d0_0 .vpi_source_location 3 18;
+v0x7a1f88adc0f0_0 .var/cobj "t", TC0x5693398e3cd0;
+v0x7a1f88adc0f0_0 .vpi_source_location 3 16;
+S_0x7a1f88afd190 .scope begin.ctx, "$unm_blk_2" "$unm_blk_2" 3 21, 3 21 0, S_0x7a1f88afd130;
+ .timescale 0 0;
+v0x7a1f88adc010_0 .var/2s ^"i", 31 0;
+v0x7a1f88adc010_0 .vpi_source_location 3 21;
+    .scope S_0x7a1f88afd130;
+T_0 ;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x5693398e3cd0;
+    %store/obj v0x7a1f88adc0f0_0;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7a1f88adc070_0, 0, 32;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7a1f88adc090_0, 0, 32;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7a1f88adc050_0, 0, 32;
+    %pushi/vec4 0, 0, 64;
+    %store/vec4 v0x7a1f88adc0d0_0, 0, 64;
+    %pushi/vec4 1000, 0, 32;
+    %store/vec4 v0x7a1f88adc0b0_0, 0, 32;
+    %end;
+    .thread T_0, $init;
+    .scope S_0x7a1f88afd070;
+T_1 ;
+    %fork t_1, S_0x7a1f88afd130;
+    %jmp t_0;
+    .scope S_0x7a1f88afd130;
+t_1 ;
+    %vpi_func 3 20 "$value$plusargs" 32, "runs=%d", v0x7a1f88adc0b0_0 {0 0 0 0};
+    %store/vec4 v0x7a1f88adc030_0, 0, 32;
+    %alloc S_0x7a1f88afd190;
+    %fork t_3, S_0x7a1f88afd190;
+    %jmp t_2;
+    .scope S_0x7a1f88afd190;
+t_3 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7a1f88adc010_0, 0, 32;
+T_1.0 ; Top of for-loop
+    %load/vec4 v0x7a1f88adc010_0;
+    %load/vec4 v0x7a1f88adc0b0_0;
+    %cmp/s;
+	  %jmp/0xz T_1.1, 5;
+    %load/obj v0x7a1f88adc0f0_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %pad/u 1;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_1.3, 8;
+    %vpi_call/w 3 22 "$display", "FAIL" {0 0 0 0};
+T_1.3 ;
+    %load/obj v0x7a1f88adc0f0_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_1.9, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_1.10;
+T_1.9;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 2;
+T_1.10;
+    %dup/vec4;
+    %pushi/vec4 0, 0, 2;
+    %cmp/u;
+    %jmp/1 T_1.5, 6;
+    %dup/vec4;
+    %pushi/vec4 1, 0, 2;
+    %cmp/u;
+    %jmp/1 T_1.6, 6;
+    %pop/vec4 1;
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7a1f88adc050_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7a1f88adc050_0, 0, 32;
+    %jmp T_1.8;
+T_1.5 ;
+    %pop/vec4 1;
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7a1f88adc070_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7a1f88adc070_0, 0, 32;
+    %jmp T_1.8;
+T_1.6 ;
+    %pop/vec4 1;
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7a1f88adc090_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7a1f88adc090_0, 0, 32;
+    %jmp T_1.8;
+T_1.8 ;
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7a1f88adc0d0_0;
+    %cast2; compound l-value read
+    %pad/u 64;
+    %load/obj v0x7a1f88adc0f0_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_1.11, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_1.12;
+T_1.11;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_1.12;
+    %pad/u 64;
+    %load/obj v0x7a1f88adc0f0_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_1.13, 4;
+    %prop/v 2;
+    %pop/obj 1, 0;
+    %jmp T_1.14;
+T_1.13;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 8;
+T_1.14;
+    %pad/u 64;
+    %add;
+    %load/obj v0x7a1f88adc0f0_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_1.15, 4;
+    %prop/v 3;
+    %pop/obj 1, 0;
+    %jmp T_1.16;
+T_1.15;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 4;
+T_1.16;
+    %pad/u 64;
+    %add;
+    %pad/u 64;
+    %add;
+    %cast2;
+    %store/vec4 v0x7a1f88adc0d0_0, 0, 64;
+T_1.2 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7a1f88adc010_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7a1f88adc010_0, 0, 32;
+    %jmp T_1.0;
+T_1.1 ; for-loop exit label
+    %end;
+    .scope S_0x7a1f88afd130;
+t_2 %join;
+    %free S_0x7a1f88afd190;
+    %vpi_call/w 3 26 "$display", "r=%0d w=%0d i=%0d sum=%0d", v0x7a1f88adc070_0, v0x7a1f88adc090_0, v0x7a1f88adc050_0, v0x7a1f88adc0d0_0 {0 0 0 0};
+    %end;
+    .scope S_0x7a1f88afd070;
+t_0 %join;
+    %end;
+    .thread T_1, $function_background_ok;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_dv_txn.sv";

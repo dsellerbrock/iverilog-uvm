@@ -1,0 +1,9 @@
+52198c65efce132e809d52cdccede710c8efc2a815094fea67d912427130b0d2  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/rtl_pipe.candidate.vvp
+f1ac37429f5f9f23ca08f00b47cbe250c5ce75b3503557985436762792bcfd71  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/rtl_pipe.reference.vvp
+68602f779164674fdd9151b351f0ffb88cbfb112de935649c5f1f702da22ff8c  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/shift.candidate.vvp
+6c3b9b2c52f54c5242dce3f283f5d280484b47f7af07e9aee85f53278dabd229  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/shift.reference.vvp
+93e15d26f44081d2575610958ed5b7767299678911b0cd8b5a4e133c0d19b46f  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/pipe.candidate.out
+93e15d26f44081d2575610958ed5b7767299678911b0cd8b5a4e133c0d19b46f  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/pipe.reference.out
+6aad8b9af352d2c4824b5baf6b942f3ee3a7f905cd2ac23f87116d44b860e7c7  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/shift.candidate.out
+6aad8b9af352d2c4824b5baf6b942f3ee3a7f905cd2ac23f87116d44b860e7c7  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/shift.reference.out
+25aeb1474dd90e5119f6521226f4a3b5630b2f3f0f5c8f8b2b42f83d31aee263  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/results/debug-netlist/netlist-counts.txt

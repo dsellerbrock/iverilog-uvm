@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_dv_txn.sv:16: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_dv_txn.sv:17: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_dv_txn.sv:17: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_dv_txn.sv:17: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_dv_txn.sv:18: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/randomize_dv_txn.sv:19: warning: Static variable initialization requires explicit lifetime in this context.
