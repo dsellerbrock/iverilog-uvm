@@ -45,8 +45,10 @@ module test;
     item.force_conflict = 1;
     if (item.randomize()) $fatal(1, "contradictory nested member constraints solved");
     row0 = item.record.values[0];
-    if (item.record.values.size() != 1 || row0.size() != 2
-        || row0[0] != saved0 || row0[1] != saved1)
+    row1 = item.record.values[1];
+    if (item.record.values.size() != 2 || row0.size() != 1 || row1.size() != 1)
+      $fatal(1, "failed randomize changed nested struct dynamic-array sizes");
+    if (row0[0] != saved0 || row1[0] != saved1)
       $fatal(1, "failed randomize changed nested struct dynamic-array state");
 
     $display("PASSED");
