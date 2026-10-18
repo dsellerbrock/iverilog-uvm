@@ -1,0 +1,34 @@
+
+=== positive -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 18.6.2.pre_before_solve_post_after_assign
+PASS 18.6.2.pre_called_on_failure
+PASS 18.6.2.hooks_dispatch_dynamic_type
+PASS 18.6.2.nested_members_randomized_and_hooked
+PASS 18.6.3.static_rand_changes_everywhere
+PASS 18.6.3.srandom_object_stability
+DONE fails=0
+
+=== negative -g2017 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18b-20261017/source/tests/1800_audit/c18/neg/n18_06_task_pre_randomize.sv:1: error: Class randomization hook `pre_randomize' shall be declared as a void function.
+1 error(s) during elaboration.
+EXPECTED_REJECTION
+
+=== positive -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 18.6.2.pre_before_solve_post_after_assign
+PASS 18.6.2.pre_called_on_failure
+PASS 18.6.2.hooks_dispatch_dynamic_type
+PASS 18.6.2.nested_members_randomized_and_hooked
+PASS 18.6.3.static_rand_changes_everywhere
+PASS 18.6.3.srandom_object_stability
+DONE fails=0
+
+=== negative -g2023 ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18b-20261017/source/tests/1800_audit/c18/neg/n18_06_task_pre_randomize.sv:1: error: Class randomization hook `pre_randomize' shall be declared as a void function.
+1 error(s) during elaboration.
+EXPECTED_REJECTION

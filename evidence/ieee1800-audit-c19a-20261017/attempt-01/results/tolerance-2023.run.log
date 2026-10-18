@@ -1,0 +1,2 @@
+PASS 19.5.tolerance_outside cov=0.000000
+PASS 19.5.tolerance_inside cov=66.666667

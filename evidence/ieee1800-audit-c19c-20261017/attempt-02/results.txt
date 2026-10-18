@@ -1,0 +1,109 @@
+SOURCE_COMMIT=0ee663139
+Bisection: coverpoint two-argument overload, group overload control, implicit-name control, minimal extends
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:25:24-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+4f9a6333813cb838a903577f1df55aea8c7cee77efab60de19257ab3db30c0c4  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv
+c8763c2ed207e87961069f69f90257d904beddc82fd782366477d7026e5f1fad  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_05_implicit_cp_named_control.sv
+da256bf90a152376ffb670b2f0461744878bb49e8515d5c9f8cccf9d52bbcf80  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_08_two_arg_cg_only.sv
+a77e5cc9f82cb9a02986289365054ae9e66391c3ac15c2b5ce04d5bbe482d417  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_08_two_arg_cp_only.sv
+883e1715aa9e1e104ce584279f9023b7db936985320866b950be7ec1e3b2c630  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv
+
+=== cp-twoarg-2017 (-g2017, expected compile/run) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_08_two_arg_cp_only.sv:5: error: Enable of unknown task ``g.cp.get_inst_coverage''.
+1 error(s) during elaboration.
+PROBE_COMPILE_FAILED
+
+=== cg-twoarg-2017 (-g2017, expected compile/run) ===
+compile_rc=0
+run_rc=0
+INFO cg_inst cov=0 tot=0
+
+=== implicit-named-control-2017 (-g2017, expected compile/run) ===
+compile_rc=0
+run_rc=0
+PASS 19.5.named_cp_control cov=25.000000
+
+=== extends-minimal-2017 (-g2017, expected reject: edition-only) ===
+compile_rc=18
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:11: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: d doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: d doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: syntax error
+I give up.
+EXPECTED_REJECTION
+
+=== extends-undefined-2017 (-g2017, expected reject: undefined-base) ===
+compile_rc=4
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+I give up.
+EXPECTED_REJECTION
+
+=== cp-twoarg-2023 (-g2023, expected compile/run) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_08_two_arg_cp_only.sv:5: error: Enable of unknown task ``g.cp.get_inst_coverage''.
+1 error(s) during elaboration.
+PROBE_COMPILE_FAILED
+
+=== cg-twoarg-2023 (-g2023, expected compile/run) ===
+compile_rc=0
+run_rc=0
+INFO cg_inst cov=0 tot=0
+
+=== implicit-named-control-2023 (-g2023, expected compile/run) ===
+compile_rc=0
+run_rc=0
+PASS 19.5.named_cp_control cov=25.000000
+
+=== extends-minimal-2023 (-g2023, expected compile/run) ===
+compile_rc=18
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:11: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: d doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: d doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: syntax error
+I give up.
+PROBE_COMPILE_FAILED
+
+=== extends-undefined-2023 (-g2023, expected reject: undefined-base) ===
+compile_rc=4
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/neg/n19_04_1_extends_undefined.sv:2: syntax error
+I give up.
+SYNTAX_REJECTION_NOT_SPECIFIC
+RESULT=FINDINGS

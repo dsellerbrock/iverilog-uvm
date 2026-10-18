@@ -1,0 +1,12 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:15: warning: Unable to bind wire/reg/memory `m_z' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:14: warning: Failed to evaluate event expression 'm_z' (compile-progress: event skipped).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:22: error: Enable of unknown task ``cv1.x.get_inst_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:24: error: Enable of unknown task ``cg.x.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:25: error: Enable of unknown task ``cg.get_coverage''.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:27: error: Object top.cv1 has no method "x.get_inst_coverage(...)".
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:28: error: Object top.cv1 has no method "y.get_inst_coverage(...)".
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:30: error: No function named `cg.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:30: error: No function named `cg.x.get_coverage' found in this context (top).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:36: warning: Enable of unknown task ``set_inst_name'' ignored (class cs is covergroup stub; compile-progress fallback).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-01/input/p19_03_08_cg.sv:36: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+7 error(s) during elaboration.

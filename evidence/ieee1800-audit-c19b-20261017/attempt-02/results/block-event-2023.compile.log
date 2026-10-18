@@ -1,0 +1,8 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-02/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-02/input/p19_03_block_event.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-02/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-02/input/p19_03_block_event.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-02/input/p19_03_block_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-02/input/p19_03_block_event.sv:4: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19b-20261017-02/input/p19_03_block_event.sv:1: assert: pform.cc:2723: failed assertion lexical_scope == cur_module
+Aborted

@@ -1,0 +1,34 @@
+SOURCE_REVISION=5ee99d8dd
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:01:14-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+f3e7211af8dfcfc921046c663c3c0a4a3679bb2a2a1d3bfe38ee4cac883373c5  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv
+7a4e4d6eef9fe493d7fe1e6ff17eae9354395b0c473160da4488d853cb4a2f87  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_tolerance_2023.sv
+
+=== bins-2017 (-g2017, expected=run) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+
+=== bins-2023 (-g2023, expected=run) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+
+=== tolerance-2017 (-g2017, expected=reject) ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_tolerance_2023.sv:3: error: inside tolerance ranges requires IEEE1800-2023; compile with -g2023 (or -glatest).
+EXPECTED_REJECTION
+
+=== tolerance-2023 (-g2023, expected=run) ===
+compile_rc=0
+run_rc=0
+PASS 19.5.tolerance_outside cov=0.000000
+PASS 19.5.tolerance_inside cov=66.666667
+RESULT=FAIL

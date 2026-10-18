@@ -1,0 +1,43 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:06:00-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+f3e7211af8dfcfc921046c663c3c0a4a3679bb2a2a1d3bfe38ee4cac883373c5  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-03/input/p19_05_bins_cov.sv
+302eadffc40b4e343bc9481350049558b0e507b495556a558de5858aa6887766  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-03/results/p19_05_bins_without_array_default.sv
+
+=== array-default declaration removed, -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 19.11.1.no_samples_0
+INFO cg1 cov=7.142857 n=0 d=0
+FAIL 19.5.1.bins_default_excluded_5_of_70
+PASS 19.5.1.fixed_last_bin_gets_remainder
+PASS 19.5.1.fixed_duplicates_retained
+INFO cg3 cov=33.333333 n=0 d=0
+FAIL 19.11.1.empty_bins_excluded
+PASS 19.5.iff_false_ignored
+PASS 19.5.iff_true_counts
+PASS 19.11.no_items_weight_nonzero_0
+PASS 19.11.no_items_weight_zero_100
+PASS 19.11.all_item_weights_zero_0
+DONE fails=2
+
+=== array-default declaration removed, -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 19.11.1.no_samples_0
+INFO cg1 cov=7.142857 n=0 d=0
+FAIL 19.5.1.bins_default_excluded_5_of_70
+PASS 19.5.1.fixed_last_bin_gets_remainder
+PASS 19.5.1.fixed_duplicates_retained
+INFO cg3 cov=33.333333 n=0 d=0
+FAIL 19.11.1.empty_bins_excluded
+PASS 19.5.iff_false_ignored
+PASS 19.5.iff_true_counts
+PASS 19.11.no_items_weight_nonzero_0
+PASS 19.11.no_items_weight_zero_100
+PASS 19.11.all_item_weights_zero_0
+DONE fails=2
