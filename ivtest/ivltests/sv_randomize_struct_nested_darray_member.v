@@ -8,8 +8,13 @@ typedef struct {
 class nested_dynamic_member_item;
   rand nested_dynamic_member_record_t record;
   rand bit [31:0] gate;
+  bit force_values;
   bit force_conflict;
-  constraint gate_c {
+  constraint nested_values_c {
+    if (force_values) {
+      record.values[0][0] == 32'h1357_2468;
+      record.values[1][0] == 32'h89ab_cdef;
+    }
     if (force_conflict) {
       gate == 32'h0000_0000;
       gate == 32'h0000_0001;
@@ -36,6 +41,16 @@ module test;
     if (item.record.values.size() != 2 || row0.size() != 1 || row1.size() != 1
         || row0[0] == 32'h1234_5678 || row1[0] == 32'h9abc_def0)
       $fatal(1, "nested struct dynamic-array elements or sizes were not randomized");
+    saved0 = row0[0];
+    saved1 = row1[0];
+
+    item.force_values = 1;
+    if (!item.randomize()) $fatal(1, "nested struct element constraints failed");
+    row0 = item.record.values[0];
+    row1 = item.record.values[1];
+    if (item.record.values.size() != 2 || row0.size() != 1 || row1.size() != 1
+        || row0[0] != 32'h1357_2468 || row1[0] != 32'h89ab_cdef)
+      $fatal(1, "nested struct array elements did not honor class constraints");
     saved0 = row0[0];
     saved1 = row1[0];
 
