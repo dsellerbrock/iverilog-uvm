@@ -1,0 +1,8 @@
+measurement_base=ca559fd97b19bd6a56cc10f0faf8583b4077975f
+benchmark=waveform_fst
+runs=3
+cpu=6
+callgrind_reference_ir=14172749439
+callgrind_candidate_ir=14194733385
+callgrind_delta_pct=0.155025
+callgrind_profiles_from=job-2603

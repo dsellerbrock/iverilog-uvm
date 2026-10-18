@@ -1,0 +1,2 @@
+35adddc9d695a2c6d3b3dd9f2ba59e43b41433a9ff6c9555d1999d845313435f  stdout.bin
+eecf1b12fc00b282a2e5a24fd29fabd45b40cdcfa3b412d5e6f674ba98f3b439  waveform.fst

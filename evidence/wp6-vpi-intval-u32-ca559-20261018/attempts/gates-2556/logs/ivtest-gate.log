@@ -1,0 +1,61 @@
+PASS: all 71 covergroup API functions exported
+PASS copy-out context malformed-bytecode checks (6/6)
+indexed dynamic-array slice: PASS 16/16
+PASS DPI shortreal array arguments (2017/2023)
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-fixed-array.MEqCTI/export-fixed-array-2017.dpiexport.c (compile it into your DPI object).
+PASS m10_dpi_export_fixed_array_test
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/source/candidate/tests/m10_dpi_export_fixed_array_test.sv:35: $finish called at 0 (1s)
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-fixed-array.MEqCTI/export-fixed-array-2023.dpiexport.c (compile it into your DPI object).
+PASS m10_dpi_export_fixed_array_test
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/source/candidate/tests/m10_dpi_export_fixed_array_test.sv:35: $finish called at 0 (1s)
+PASS cross product limit (-g2017)
+PASS cross product limit (-g2023)
+PASS merged transition cardinality (-g2017)
+PASS merged transition cardinality (-g2023)
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)
+=== ivtest sweep (vendored suite) ===
+============================================================================
+Test results:
+  Total=7477, Passed=7472, Failed=0, Not Implemented=2, Expected Fail=3
+ivtest name-diff gate: clean (0 expected failures, 0 unexplained)
+
+=== stub type parameters ===
+
+=== bundled VPI suite ===
+Test results: Total=133, Passed=133, Failed=0, Not Implemented=0
+
+=== negative suite ===
+Negative tests: 152 passed, 0 failed
+
+=== associative-array invalid-index warning focus ===
+=== focused legacy ivtest: regress-assoc-missing-key-warning-legacy.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+     sv_assoc_missing_key_warning: Passed.
+sv_assoc_missing_key_warning_2023: Passed.
+============================================================================
+Test results:
+  Total=2, Passed=2, Failed=0, Not Implemented=0, Expected Fail=0
+
+=== focused JSON/VVP ivtest: regress-assoc-missing-key-warning-vvp.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-assoc-missing-key-warning-vvp.list
+----------------------------------------------------------------------------
+     sv_assoc_missing_key_warning: Passed.
+sv_assoc_missing_key_warning_2023: Passed.
+============================================================================
+Test results: Ran 2, Failed 0.
+
+=== VVP runtime invariants ===
+PASS state foreach runtime invariants (15/15)
+=== JSON ivtest sweep (vvp_reg.py) ===
+make: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/source/candidate/tgt-fpga'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/install/candidate/lib/ivl" "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/install/candidate/share/man/man1"
+/usr/bin/install -c -m 644 ./iverilog-fpga.man "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/install/candidate/share/man/man1/iverilog-fpga.1"
+/usr/bin/install -c ./fpga.tgt "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/install/candidate/lib/ivl/fpga.tgt"
+/usr/bin/install -c -m 644 ./fpga.conf "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/install/candidate/lib/ivl/fpga.conf"
+/usr/bin/install -c -m 644 ./fpga-s.conf "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/install/candidate/lib/ivl/fpga-s.conf"
+make: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-u32-gates-ca559-20261018-r1/source/candidate/tgt-fpga'
+Test results: Ran 4718, Failed 0.
+JSON ivtest wall time: 1158s

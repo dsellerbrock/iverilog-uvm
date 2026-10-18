@@ -894,18 +894,9 @@ void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,
           }
 
 	  case vpiIntVal: {
-		long val = 0;
-		vvp_bit4_t pad = BIT4_0;
-		if (signed_flag && word_val.size() > 0)
-		      pad = word_val.value(word_val.size()-1);
-
-		for (unsigned idx = 0 ; idx < 8*sizeof(val) ;  idx += 1) {
-		      vvp_bit4_t val4 = pad;
-		      if (idx < word_val.size())
-			    val4 = word_val.value(idx);
-		      if (val4 == BIT4_1)
-			    val |= 1L << idx;
-		}
+		uint32_t val = 0;
+		if (word_val.size())
+		      vector4_to_value(word_val, val, signed_flag, false);
 
 		vp->value.integer = val;
 		break;

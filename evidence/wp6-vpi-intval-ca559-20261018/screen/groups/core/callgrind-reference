@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name=$(basename "$(dirname "$PWD")")-$(basename "$PWD")
+args=(--quiet --tool=callgrind)
+if [[ "$name" == waveform_fst-* ]]; then args+=(--fair-sched=yes); fi
+exec "/usr/bin/valgrind" "${args[@]}" \
+  --callgrind-out-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-ca559-20261018-r1/corpus-screen/core/callgrind/$name.callgrind" \
+  --log-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-ca559-20261018-r1/corpus-screen/core/callgrind/$name.valgrind.log" \
+  "/home/dsell/toolchains/iverilog-uvm-ca559fd97b19bd6a56cc10f0faf8583b4077975f-m3-profile/bin/vvp" "$@"
