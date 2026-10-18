@@ -11041,10 +11041,11 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
    apply process in the same step (the LRM's drive-at-current-event
    case); a drive between events remains buffered for the next trigger.
 
-   All three receiver shapes retain packed members and constant bit/part
-   selects. Returns nullptr with handled false for an unrecognized clockvar
-   shape so the ordinary NBA elaborator can handle it. A recognized but
-   unsupported clockvar shape sets handled and reports its own diagnostic. */
+   All three receiver shapes retain packed members and capture run-time
+   selectors once for both the buffer and pending mask. Returns nullptr
+   with handled false for an unrecognized clockvar shape so the ordinary
+   NBA elaborator can handle it. A recognized but unsupported clockvar
+   shape sets handled and reports its own diagnostic. */
 
 /* Copy one selected output l-value's array word and packed selection onto
    another signal. The source descriptor remains owned by its assignment. */
@@ -11052,18 +11053,54 @@ static NetAssign_* clone_clocking_selected_lval_(NetNet*target,
 					       const NetAssign_*shape)
 {
       NetAssign_*res = new NetAssign_(target);
+      res->set_signed(shape->get_signed());
       if (const NetExpr*word = shape->word())
 	    res->set_word(word->dup_expr());
       const NetExpr*base = shape->get_base();
-      if (!base)
-	    return res;
-
-      NetExpr*copy = base->dup_expr();
-      if (ivl_type_t type = shape->lval_type())
-	    res->set_part(copy, type);
-      else
-	    res->set_part(copy, shape->lwidth(), shape->select_type());
+      if (base) {
+	    NetExpr*copy = base->dup_expr();
+	    if (ivl_type_t type = shape->lval_type())
+		  res->set_part(copy, type);
+	    else
+		  res->set_part(copy, shape->lwidth(), shape->select_type());
+      }
+      if (shape->has_part_carrier() && !shape->has_dynamic_part_carrier())
+	    res->set_part_carrier(shape->part_carrier_off(),
+				  shape->part_carrier_width());
+      if (shape->has_dynamic_part_carrier())
+	    res->set_dynamic_part_carrier(
+		  shape->dynamic_part_carrier()->dup_expr(),
+		  shape->part_carrier_width());
       return res;
+}
+
+static std::vector<NetNet*> capture_clocking_selectors_(
+		NetScope*scope, const LineInfo&loc, NetAssign_*lval,
+		std::vector<NetProc*>&prefix)
+{
+      /* The buffer and pending mask must use the same selector result. */
+      std::vector<const NetExpr*>expressions;
+      lval->collect_dynamic_selectors(expressions);
+      std::vector<NetNet*>snapshots;
+      for (const NetExpr*expression : expressions) {
+	    unsigned width = std::max(1U, expression->expr_width());
+	    const netvector_t*type = new netvector_t(
+		  expression->expr_type(), width - 1, 0, expression->has_sign());
+	    NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG, type);
+	    tmp->set_line(loc);
+	    tmp->local_flag(true);
+	    if (scope->is_auto())
+		  tmp->lifetime_override(IVL_VLT_AUTOMATIC);
+
+	    NetAssign*save = new NetAssign(new NetAssign_(tmp),
+					  expression->dup_expr());
+	    save->set_line(loc);
+	    prefix.push_back(save);
+	    snapshots.push_back(tmp);
+      }
+      size_t replaced = lval->replace_dynamic_selectors(snapshots);
+      ivl_assert(loc, replaced == snapshots.size());
+      return snapshots;
 }
 
 static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
@@ -11146,12 +11183,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 		       clockvar and must retain its buffered/NBA semantics. */
 		  const netclass_t*walk = class_type;
 		  bool chain_ok = true;
-		  /* The class receiver begins at the object found by symbol_search.
-		     An index on that path-head object is just as stateful as an
-		     index on a following class property: rebuilding the hidden
-		     obuf/opend/kick paths would otherwise evaluate it repeatedly. */
-		  bool indexed_receiver = !csr.path_head.empty()
-			&& !csr.path_head.back().index.empty();
 		  for (pform_name_t::const_iterator it = csr.path_tail.begin()
 			     ; it != csr.path_tail.end() && chain_ok ; ++it) {
 			if (walk->is_interface()) {
@@ -11179,7 +11210,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			if (pidx < 0) { chain_ok = false; break; }
 			ivl_type_t ptype = walk->get_prop_type(pidx);
 			if (!it->index.empty()) {
-			      indexed_receiver = true;
 			      if (const netdarray_t*darr =
 					dynamic_cast<const netdarray_t*>(ptype))
 				    ptype = darr->element_type();
@@ -11211,15 +11241,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			if (cdir == static_cast<int>(NetNet::POUTPUT)
 			    || cdir == static_cast<int>(NetNet::PINOUT)) {
 			      handled = true;
-			      if (indexed_receiver) {
-				    cerr << loc.get_fileline() << ": sorry: a clocking-output "
-					 << "drive through an indexed class receiver requires "
-					 << "capturing that receiver once; the drive was rejected "
-					 << "rather than executed as an ordinary nonblocking "
-					 << "assignment." << endl;
-				    des->errors += 1;
-				    return 0;
-			      }
 			      string vbname = string("_ivl_obuf$") + cb_c->name.str()
 				    + "$" + sig_c->name.str();
 			      string vpname = string("_ivl_opend$") + cb_c->name.str()
@@ -11254,9 +11275,34 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			      }
 
 			      pform_name_t suffix(sel_c, csr.path_tail.cend());
-			      pform_name_t prefix = path;
+			      pform_name_t receiver_path = path;
 			      for (size_t idx = 0; idx < suffix.size() + 2; ++idx)
-				    prefix.pop_back();
+				    receiver_path.pop_back();
+			      PEIdent receiver_id(receiver_path, lid->lexical_pos());
+			      receiver_id.set_line(loc);
+			      unique_ptr<NetExpr> receiver_rv(
+				    receiver_id.elaborate_expr(des, scope, 0u, 0u));
+			      if (!receiver_rv) return 0;
+			      ivl_type_t receiver_type = receiver_rv->net_type();
+			      if (!dynamic_cast<const netclass_t*>(receiver_type)) {
+				    cerr << loc.get_fileline() << ": error: selected clocking-output "
+					 << "receiver does not have a representable interface handle."
+					 << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
+			      NetNet*receiver = new NetNet(scope, scope->local_symbol(),
+							   NetNet::REG, receiver_type);
+			      receiver->set_line(loc);
+			      receiver->local_flag(true);
+			      if (scope->is_auto())
+				    receiver->lifetime_override(IVL_VLT_AUTOMATIC);
+			      NetAssign*receiver_save = new NetAssign(
+				    new NetAssign_(receiver), receiver_rv.release());
+			      receiver_save->set_line(loc);
+			      /* The hidden buffer, mask and event check must retain this handle. */
+			      pform_name_t prefix;
+			      prefix.push_back(name_component_t(receiver->name()));
 
 			      pform_name_t obuf_path = prefix;
 			      name_component_t obuf_comp = *sig_c;
@@ -11272,54 +11318,57 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			      name_component_t kick_comp(kick_p);
 			      kick_path.push_back(kick_comp);
 
-				    PEIdent obuf_id (obuf_path, lid->lexical_pos());
-				    obuf_id.set_line(loc);
-				    obuf_id.set_clocking_access(cb_c->name);
-				    unique_ptr<NetAssign_> obuf_lv(
+			      PEIdent obuf_id (obuf_path, lid->lexical_pos());
+			      obuf_id.set_line(loc);
+			      obuf_id.set_clocking_access(cb_c->name);
+			      unique_ptr<NetAssign_> obuf_lv(
 					  obuf_id.elaborate_lval(des, scope,
 								 false, false, false));
-				    if (!obuf_lv) return 0;
-				    if (obuf_lv->has_dynamic_part_carrier()
-				|| (obuf_lv->word()
-				    && !dynamic_cast<const NetEConst*>(
-							  obuf_lv->word()))
-				|| (obuf_lv->get_base()
-					&& !dynamic_cast<const NetEConst*>(obuf_lv->get_base()))) {
-				    cerr << loc.get_fileline() << ": sorry: a run-time "
-					 << "selected clocking-output drive requires one "
-					     << "captured selector and is not yet supported." << endl;
-					des->errors += 1;
-					return 0;
-				    }
-				    unique_ptr<NetExpr> rv(elaborate_rval_expr(des, scope,
-						    obuf_lv->net_type(),
-						    obuf_lv->expr_type(),
-						    obuf_lv->lwidth(), rexpr));
-				    if (!rv) return 0;
-				    unique_ptr<NetAssign> store(
-					  new NetAssign(obuf_lv.release(), rv.release()));
-				    store->set_line(loc);
+			      if (!obuf_lv) return 0;
 
 			      PEIdent opend_id (opend_path, lid->lexical_pos());
 			      opend_id.set_line(loc);
 			      opend_id.set_clocking_access(cb_c->name);
-				    unique_ptr<NetAssign_> opend_lv(
+			      unique_ptr<NetAssign_> opend_lv(
 					  opend_id.elaborate_lval(des, scope,
 								  false, false, false));
-				    if (!opend_lv) return 0;
-				    verinum one_v (verinum::V1, opend_lv->lwidth());
-				    unique_ptr<NetEConst> one(new NetEConst(one_v));
-				    one->set_line(loc);
-				    unique_ptr<NetAssign> mark(
+			      if (!opend_lv) return 0;
+			      std::vector<NetProc*>selector_prefix(1, receiver_save);
+			      std::vector<NetNet*>selector_snapshots =
+				    capture_clocking_selectors_(scope, loc, obuf_lv.get(),
+							       selector_prefix);
+			      std::vector<const NetExpr*>opend_selectors;
+			      opend_lv->collect_dynamic_selectors(opend_selectors);
+			      if (opend_selectors.size() != selector_snapshots.size()) {
+				    cerr << loc.get_fileline() << ": error: hidden clocking-output "
+					 << "buffer and pending mask selectors do not match." << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
+			      size_t opend_replaced = opend_lv->replace_dynamic_selectors(
+				    selector_snapshots);
+			      ivl_assert(loc, opend_replaced == selector_snapshots.size());
+			      unique_ptr<NetExpr> rv(elaborate_rval_expr(des, scope,
+					      obuf_lv->net_type(),
+					      obuf_lv->expr_type(),
+					      obuf_lv->lwidth(), rexpr));
+			      if (!rv) return 0;
+			      unique_ptr<NetAssign> store(
+				    new NetAssign(obuf_lv.release(), rv.release()));
+			      store->set_line(loc);
+			      verinum one_v (verinum::V1, opend_lv->lwidth());
+			      unique_ptr<NetEConst> one(new NetEConst(one_v));
+			      one->set_line(loc);
+			      unique_ptr<NetAssign> mark(
 					  new NetAssign(opend_lv.release(), one.release()));
-				    mark->set_line(loc);
+			      mark->set_line(loc);
 
 			      PEIdent pfx_id (prefix, lid->lexical_pos());
 			      pfx_id.set_line(loc);
-				    unique_ptr<NetExpr> vif_ex(
+			      unique_ptr<NetExpr> vif_ex(
 					  pfx_id.elaborate_expr(des, scope, 0u, 0u));
-				    if (!vif_ex) return 0;
-				    unique_ptr<NetESFunc> chg(new NetESFunc(
+			      if (!vif_ex) return 0;
+			      unique_ptr<NetESFunc> chg(new NetESFunc(
 						      "$ivl_vif_tick_changed",
 						      walk->get_prop_type(tick_idx), 2));
 				    chg->parm(0, vif_ex.release());
@@ -11332,32 +11381,34 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			      PEIdent kick_rd_id (kick_path, lid->lexical_pos());
 			      kick_rd_id.set_line(loc);
 			      kick_rd_id.set_clocking_access(cb_c->name);
-				    unique_ptr<NetExpr> kick_rd(
+			      unique_ptr<NetExpr> kick_rd(
 					  kick_rd_id.elaborate_expr(des, scope, 0u, 0u));
-				    if (!kick_rd) return 0;
+			      if (!kick_rd) return 0;
 				    unique_ptr<NetEUnary> inv(
 					  new NetEUnary('~', kick_rd.release(), 1, false));
 				    inv->set_line(loc);
 			      PEIdent kick_id (kick_path, lid->lexical_pos());
 			      kick_id.set_line(loc);
 			      kick_id.set_clocking_access(cb_c->name);
-				    unique_ptr<NetAssign_> kick_lv(
+			      unique_ptr<NetAssign_> kick_lv(
 					  kick_id.elaborate_lval(des, scope,
 								false, false, false));
-				    if (!kick_lv) return 0;
-				    unique_ptr<NetAssign> kick_now(
+			      if (!kick_lv) return 0;
+			      unique_ptr<NetAssign> kick_now(
 					  new NetAssign(kick_lv.release(), inv.release()));
-				    kick_now->set_line(loc);
+			      kick_now->set_line(loc);
 
-				    unique_ptr<NetCondit> cond(
+			      unique_ptr<NetCondit> cond(
 					  new NetCondit(chg.release(), kick_now.release(), 0));
-				    cond->set_line(loc);
-				    unique_ptr<NetBlock> blk(
+			      cond->set_line(loc);
+			      unique_ptr<NetBlock> blk(
 					  new NetBlock(NetBlock::SEQU, 0));
-				    blk->set_line(loc);
-				    blk->append(store.release());
-				    blk->append(mark.release());
-				    blk->append(cond.release());
+			      blk->set_line(loc);
+			      for (NetProc*save : selector_prefix)
+				    blk->append(save);
+			      blk->append(store.release());
+			      blk->append(mark.release());
+			      blk->append(cond.release());
 				    return blk.release();
 			}
 		  }
@@ -11484,18 +11535,8 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 	    delete obuf_lv;
 	    return 0;
       }
-      if (obuf_lv->has_dynamic_part_carrier()
-	  || (obuf_lv->word()
-	      && !dynamic_cast<const NetEConst*>(obuf_lv->word()))
-	  || (obuf_lv->get_base()
-	      && !dynamic_cast<const NetEConst*>(obuf_lv->get_base()))) {
-	    cerr << loc.get_fileline() << ": sorry: a run-time selected "
-		 << "clocking-output drive requires one captured selector and is "
-		 << "not yet supported." << endl;
-	    des->errors += 1;
-	    delete obuf_lv;
-	    return 0;
-      }
+	std::vector<NetProc*>selector_prefix;
+	capture_clocking_selectors_(scope, loc, obuf_lv, selector_prefix);
 
       NetExpr*rv = elaborate_rval_expr(des, scope, obuf_lv->net_type(),
 					obuf_lv->expr_type(), obuf_lv->lwidth(),
@@ -11507,6 +11548,8 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(loc);
+	for (NetProc*save : selector_prefix)
+		blk->append(save);
 
       NetAssign*store = new NetAssign(obuf_lv, rv);
       store->set_line(loc);
@@ -27367,25 +27410,15 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 
 	      /* Preserve the internal sample/output tick after sample stores.
 		 Clocking-output drives compare its history to decide whether
-		 the internal clocking event already occurred in this time step;
-		 initialize it to 0 in the prologue because ~x is x and
-		 an x->x "toggle" never fires an anyedge. The tick gets
-		 1-deep history: output drives test
+		 the internal clocking event already occurred in this time step.
+		 Seed it before enabling 1-deep history, so the initial x->0
+		 assignment is not mistaken for a clocking event. Output drives test
 		 "$ivl_clocking_sample(tick) !== tick" to decide whether
 		 the clocking event already occurred in this time step
 		 (drive now) or not (buffer for the next event). */
 	    string kname = string("_ivl_smptick$") + cb->name.str();
 	    NetNet*tick = scope->find_signal(lex_strings.make(kname.c_str()));
 	    if (tick) {
-		  NetESignal*hist_arg = new NetESignal(tick);
-		  hist_arg->set_line(*cb);
-		  vector<NetExpr*> hist_parms (1);
-		  hist_parms[0] = hist_arg;
-		  NetSTask*hist_on = new NetSTask("$ivl_clocking_hist_on",
-						  IVL_SFUNC_AS_TASK_IGNORE,
-						  hist_parms);
-		  hist_on->set_line(*cb);
-		  prologue->append(hist_on);
 		  NetAssign_*ilv = new NetAssign_(tick);
 		  verinum zero_v (verinum::V0, 1);
 		  NetEConst*zero = new NetEConst(zero_v);
@@ -27393,6 +27426,15 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetAssign*init = new NetAssign(ilv, zero);
 		  init->set_line(*cb);
 		  prologue->append(init);
+		  NetESignal*hist_arg = new NetESignal(tick);
+		  hist_arg->set_line(*cb);
+		  vector<NetExpr*> hist_parms (1);
+		  hist_parms[0] = hist_arg;
+		  NetSTask*hist_on = new NetSTask("$ivl_clocking_hist_on",
+							IVL_SFUNC_AS_TASK_IGNORE,
+							hist_parms);
+		  hist_on->set_line(*cb);
+		  prologue->append(hist_on);
 
 		  NetESignal*tsig = new NetESignal(tick);
 		  tsig->set_line(*cb);

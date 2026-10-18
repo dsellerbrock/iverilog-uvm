@@ -198,7 +198,7 @@ CASES = (
     ),
     (
         "sv_clocking_indexed_class_receiver_fail",
-        "ieee-accepted-icarus-ni",
+        "standard",
         0,
         0,
         (),
@@ -206,7 +206,7 @@ CASES = (
     ),
     (
         "sv_clocking_root_indexed_class_receiver_fail",
-        "ieee-accepted-icarus-ni",
+        "standard",
         0,
         0,
         (),
