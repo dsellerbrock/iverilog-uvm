@@ -1,0 +1,23 @@
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp5-context-unlink-gates-ca559-20261017/source/candidate/scripts/run_with_timeout.py 14400 -- bash /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp5-context-unlink-gates-ca559-20261017/source/candidate/.github/ivtest_gate.sh"
+	User time (seconds): 2443.15
+	System time (seconds): 164.59
+	Percent of CPU this job got: 98%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 43:57.52
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 437080
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 37
+	Minor (reclaiming a frame) page faults: 109918641
+	Voluntary context switches: 359904
+	Involuntary context switches: 9355
+	Swaps: 0
+	File system inputs: 41760
+	File system outputs: 2456648
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

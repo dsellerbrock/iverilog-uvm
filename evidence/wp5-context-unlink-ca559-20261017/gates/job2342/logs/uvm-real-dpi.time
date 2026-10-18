@@ -1,0 +1,23 @@
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp5-context-unlink-gates-ca559-20261017/source/candidate/scripts/run_with_timeout.py 14400 -- bash -c set -euo pipefail; cd "$1"; exec bash .github/uvm_test.sh _ /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp5-context-unlink-gates-ca559-20261017/source/candidate"
+	User time (seconds): 605.66
+	System time (seconds): 65.05
+	Percent of CPU this job got: 98%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 11:18.05
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 289500
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1118
+	Minor (reclaiming a frame) page faults: 44919903
+	Voluntary context switches: 174710
+	Involuntary context switches: 9740
+	Swaps: 0
+	File system inputs: 338544
+	File system outputs: 4208
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
