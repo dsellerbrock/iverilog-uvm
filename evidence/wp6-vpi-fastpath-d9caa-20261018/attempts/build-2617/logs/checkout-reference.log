@@ -1,0 +1,142 @@
+error: unable to read sha1 file of .ai/ACTIVE_WORK.yaml (4f5ad563abe5194fb848add6277c4bf5c8db57c0)
+error: unable to read sha1 file of docs/performance/PERFORMANCE_PLAN.md (03c3aeefc10030a67411dd874a24c9599e853305)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/README.md (702ff6ce27c90a683bf6c648e2ce928fa3d64511)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/attempts/attempt-2312-partial.tgz (6669a43b325ebf0f5c71561fb463b10fcc7b1729)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/attempts/job-2317/attempt.tgz (2d482e215f93f74948750a7cc2e29f642572399b)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/attempts/job-2319/attempt.tgz (a73083e321fea0a3b5dcbeea1e110313b23def02)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/attempts/job-2320/attempt.tgz (211e7b9fbc8387f63e263c55feaa13f197190af4)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/attempts/m3-profiles-and-reports.tgz (ae318821bbe15dfb2f9a4af338030fb923212aed)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/input/profile_corpus.py (5a5c0e43a700cd394285bab6d2012c6f647c0215)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/input/source.commit (611e60cc91d856c93920ec787df9f06cc8aaa464)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/measurement-base.txt (e2bb5b61693eeef358a4020ea4e14f340c48342a)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/submit/profile-corpus-retry.sbatch (129bb886fc110c2580633989cac0b666e4a3c856)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/submit/profile-corpus.sbatch (e830ca382c319dabec8c532648ae38de235794bb)
+error: unable to read sha1 file of evidence/m3-current-main-profile-20261017/submit/profile-current-main.sbatch (a76fd38fbd49c444c884996957d87a70dda8c5f9)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/README.md (89d87973429f87d97b728d685d922acd1d1c4a70)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/binaries.sha256 (f53542e25271af52c5df6409614f97bcd9616c50)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/candidate.patch (3bdf2209121a4776b17f60d9423f29a797ed6d6d)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/environment.txt (5ef12a6e8ecf8e59662e6066187cafb2de61db76)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/a5-wp5-full-gates-2342.out (1c741fd4fc1d27ac8061375e39f5a0c3d1b54e4b)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/build-candidate.log (33d622326bdad949938f4223a515f2da41f9b299)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/checkout.log (6d9b12e377cab7d72f19a34286e66b699ac03458)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/clone.log (12a51786e181b4823be4034dffe007cd7cf571ec)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/ivtest-gate.log (f6bf650301112b1775aef261b8a1df85b7fae3d8)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/ivtest-gate.time (5d17d34b3f84ed47d111561c9663d3fffc552245)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/json-regression.log (8139411e1d7eaf213965ef64a8cc16206d01e01c)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/json-regression.time (7be77e7b3112a438d8ff5b3866ce0382eaaa9829)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/make-check.log (c2b9156e64abf20894401cda4dbca309545415d2)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/make-check.time (417243bf720dfb8142660465ed7184029702d104)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/submodules.log (29060124ad5031dbd120b36604c75187a52e6230)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/tgt-fpga-install.log (09de521114b3b99450e93f511c4912786ac88d2e)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/tgt-fpga-install.time (42b8e56e6536ec4e7d99a2955d07dfe4fe3d4522)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/uvm-real-dpi.time (fc9410c444d8618bf223162a1fe24f1f99b7aa18)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/gates/job2342/source.commit (611e60cc91d856c93920ec787df9f06cc8aaa464)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/input/candidate.patch (3bdf2209121a4776b17f60d9423f29a797ed6d6d)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/input/source.commit (611e60cc91d856c93920ec787df9f06cc8aaa464)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/attempts/a5-wp5-cg-ca559-2331_0.out (d09391fe92c0b612d8d64fdc08a750edbb18c01e)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/attempts/callgrind-groups-job2331.sbatch (e10fe80a46164dbcbc149e44d2d3c90aff9ff033)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/attempts/job-2327-build-candidate.log (007cf95f81334d534fcaa518132da5c3a818f264)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/build/binary-source.sha256 (e3ee2e8ffa83cf028f4783cbca2c97b471a70a64)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/build/candidate-vvp-version.txt (97175da5158a97c9c6c6b13a23f4ead2519fd27d)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/build/provenance.txt (743c39d9ccb2829991a76a1f03ff46e09bd6e7e8)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/build/reference-vvp-version.txt (27da3e33901357a6a20217aaf1e76338d557eb7d)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/build/source-status.txt (d137f251e5ba025c53f9743fcbf7ff51faaf5419)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/core/SHA256SUMS.postprocessed (e5bc6d2a06d3cd24c21fbccf314728bf6dcb0809)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/core/callgrind-core.tgz (dee16f74229a113c0cba5acfc2ae43d2f2ed9272)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/core/corpus.json (662ed5c9d0a54aee2891b13d456a5fddd72785cd)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/core/instruction-counts.csv (3e0ebeee7562a3674aae427df87997352d3224e5)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/core/postprocess-note.txt (49884df32f66c1d1e6100b477a52f2538f1e251d)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/instruction-counts.csv (dda04b17d2d040b4f7b34209bbea791b4b122c46)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/mixed/SHA256SUMS (f372e0c277237f31ee703bdf54c1efb3eb01a225)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/mixed/callgrind-mixed.tgz (b54173eefa90470e2a3d86ee2615d3ab10b4e969)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/mixed/corpus.json (a22a0f03cf81a042a558ace706abf47ad3cc19cc)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/mixed/instruction-counts.csv (13703af9bda00801d8c9b63370e1c288b5d972b0)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/vectors/SHA256SUMS (1bbe7551c52fb03af66e3f9244c655431743b68f)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/vectors/callgrind-vectors.tgz (e65eba3f96fb748d0cbbfdb6a0d7453b8f672e9b)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/vectors/corpus.json (35ccce755a3f5dbdd43f7e1cedb88dba64c6ef73)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/screen/vectors/instruction-counts.csv (ba1946b3f9140b42812188df331c5ac5831c62d8)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/submit/build-screen-r2.sbatch (c191d2241a889e1d8c5dadfc95def440ef34a675)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/submit/build-screen.sbatch (5398183d2fd2f8d0177cc163a93e3ef6ce313e10)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/submit/callgrind-groups-r2.sbatch (9a26862e5bcd69eae540a2805bb26908d7db6b03)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/submit/callgrind-groups.sbatch (c1f8be60607dfaf75696fee72ec6d6718e9fe141)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/submit/final-wall-3.sbatch (9242cd5378505576a7ef4bb21cf8b1bd1ce27053)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/submit/full-gates.sbatch (e1b37b0b3146a64093d5ec8fd027a8dd7a9ed4f2)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/wall-job2356/SHA256SUMS (5fa59946a92fca1aaa3f308b55cd212ce2c3d3a8)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/wall-job2356/environment.txt (3409df1239458debe080b0a0a6f8c132e7670464)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/wall-job2356/final-wall-3.sbatch (9242cd5378505576a7ef4bb21cf8b1bd1ce27053)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/wall-job2356/status.txt (e981319e34746ded3b2726663a2c84d39b899169)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/wall-job2356/wall-3.json (32b28ec8dfafaa4887563ebaadc99f15120c53e4)
+error: unable to read sha1 file of evidence/wp5-context-unlink-ca559-20261017/wall-job2356/wall-summary.csv (e6b34282195e5e373c5301dcae2990d573ceedb9)
+error: unable to read sha1 file of vvp/vthread.cc (d60cff24cd0281ac61844f2c35ed8bb93bfc99cb)
+error: invalid object 100644 4f5ad563abe5194fb848add6277c4bf5c8db57c0 for '.ai/ACTIVE_WORK.yaml'
+D	.ai/ACTIVE_WORK.yaml
+D	docs/performance/PERFORMANCE_PLAN.md
+D	evidence/m3-current-main-profile-20261017/README.md
+D	evidence/m3-current-main-profile-20261017/attempts/attempt-2312-partial.tgz
+D	evidence/m3-current-main-profile-20261017/attempts/job-2317/attempt.tgz
+D	evidence/m3-current-main-profile-20261017/attempts/job-2319/attempt.tgz
+D	evidence/m3-current-main-profile-20261017/attempts/job-2320/attempt.tgz
+D	evidence/m3-current-main-profile-20261017/attempts/m3-profiles-and-reports.tgz
+D	evidence/m3-current-main-profile-20261017/input/profile_corpus.py
+D	evidence/m3-current-main-profile-20261017/input/source.commit
+D	evidence/m3-current-main-profile-20261017/measurement-base.txt
+D	evidence/m3-current-main-profile-20261017/submit/profile-corpus-retry.sbatch
+D	evidence/m3-current-main-profile-20261017/submit/profile-corpus.sbatch
+D	evidence/m3-current-main-profile-20261017/submit/profile-current-main.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/README.md
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/binaries.sha256
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/candidate.patch
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/environment.txt
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/a5-wp5-full-gates-2342.out
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/build-candidate.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/checkout.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/clone.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/ivtest-gate.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/ivtest-gate.time
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/json-regression.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/json-regression.time
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/make-check.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/make-check.time
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/submodules.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/tgt-fpga-install.log
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/tgt-fpga-install.time
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/logs/uvm-real-dpi.time
+D	evidence/wp5-context-unlink-ca559-20261017/gates/job2342/source.commit
+D	evidence/wp5-context-unlink-ca559-20261017/input/candidate.patch
+D	evidence/wp5-context-unlink-ca559-20261017/input/source.commit
+D	evidence/wp5-context-unlink-ca559-20261017/screen/attempts/a5-wp5-cg-ca559-2331_0.out
+D	evidence/wp5-context-unlink-ca559-20261017/screen/attempts/callgrind-groups-job2331.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/screen/attempts/job-2327-build-candidate.log
+D	evidence/wp5-context-unlink-ca559-20261017/screen/build/binary-source.sha256
+D	evidence/wp5-context-unlink-ca559-20261017/screen/build/candidate-vvp-version.txt
+D	evidence/wp5-context-unlink-ca559-20261017/screen/build/provenance.txt
+D	evidence/wp5-context-unlink-ca559-20261017/screen/build/reference-vvp-version.txt
+D	evidence/wp5-context-unlink-ca559-20261017/screen/build/source-status.txt
+D	evidence/wp5-context-unlink-ca559-20261017/screen/core/SHA256SUMS.postprocessed
+D	evidence/wp5-context-unlink-ca559-20261017/screen/core/callgrind-core.tgz
+D	evidence/wp5-context-unlink-ca559-20261017/screen/core/corpus.json
+D	evidence/wp5-context-unlink-ca559-20261017/screen/core/instruction-counts.csv
+D	evidence/wp5-context-unlink-ca559-20261017/screen/core/postprocess-note.txt
+D	evidence/wp5-context-unlink-ca559-20261017/screen/instruction-counts.csv
+D	evidence/wp5-context-unlink-ca559-20261017/screen/mixed/SHA256SUMS
+D	evidence/wp5-context-unlink-ca559-20261017/screen/mixed/callgrind-mixed.tgz
+D	evidence/wp5-context-unlink-ca559-20261017/screen/mixed/corpus.json
+D	evidence/wp5-context-unlink-ca559-20261017/screen/mixed/instruction-counts.csv
+D	evidence/wp5-context-unlink-ca559-20261017/screen/vectors/SHA256SUMS
+D	evidence/wp5-context-unlink-ca559-2026101HEAD is now at d9caaaea5 Merge pull request #640 from dsellerbrock/agent/a5-perf-m3-profile-20261017
+7/screen/vectors/callgrind-vectors.tgz
+D	evidence/wp5-context-unlink-ca559-20261017/screen/vectors/corpus.json
+D	evidence/wp5-context-unlink-ca559-20261017/screen/vectors/instruction-counts.csv
+D	evidence/wp5-context-unlink-ca559-20261017/submit/build-screen-r2.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/submit/build-screen.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/submit/callgrind-groups-r2.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/submit/callgrind-groups.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/submit/final-wall-3.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/submit/full-gates.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/wall-job2356/SHA256SUMS
+D	evidence/wp5-context-unlink-ca559-20261017/wall-job2356/environment.txt
+D	evidence/wp5-context-unlink-ca559-20261017/wall-job2356/final-wall-3.sbatch
+D	evidence/wp5-context-unlink-ca559-20261017/wall-job2356/status.txt
+D	evidence/wp5-context-unlink-ca559-20261017/wall-job2356/wall-3.json
+D	evidence/wp5-context-unlink-ca559-20261017/wall-job2356/wall-summary.csv
+D	vvp/vthread.cc
