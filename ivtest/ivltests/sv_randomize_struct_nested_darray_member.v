@@ -9,8 +9,14 @@ class nested_dynamic_member_item;
   rand nested_dynamic_member_record_t record;
   rand bit [31:0] gate;
   bit force_values;
+  bit force_resize;
   bit force_conflict;
   constraint nested_values_c {
+    if (force_resize) {
+      record.values.size() == 1;
+      foreach (record.values[i]) record.values[i].size() == 2;
+      record.values[0][1] == 32'h2468_ace0;
+    }
     if (force_values) {
       record.values[0][0] == 32'h1357_2468;
       record.values[1][0] == 32'h89ab_cdef;
@@ -60,12 +66,21 @@ module test;
     saved0 = row0[0];
     saved1 = row1[0];
 
+    item.force_values = 0;
+    item.force_resize = 1;
+    if (!item.randomize()) $fatal(1, "nested struct dynamic-array resize failed");
+    row0 = item.record.values[0];
+    if (item.record.values.size() != 1 || row0.size() != 2
+        || row0[1] != 32'h2468_ace0)
+      $fatal(1, "nested struct array sizes or new constrained leaf were wrong");
+    saved0 = row0[0];
+    saved1 = row0[1];
+
     item.force_conflict = 1;
     if (item.randomize()) $fatal(1, "contradictory nested member constraints solved");
     row0 = item.record.values[0];
-    row1 = item.record.values[1];
-    if (item.record.values.size() != 2 || row0.size() != 1 || row1.size() != 1
-        || row0[0] != saved0 || row1[0] != saved1)
+    if (item.record.values.size() != 1 || row0.size() != 2
+        || row0[0] != saved0 || row0[1] != saved1)
       $fatal(1, "failed randomize changed nested struct dynamic-array state");
 
     $display("PASSED");
