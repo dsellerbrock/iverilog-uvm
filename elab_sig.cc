@@ -2582,6 +2582,14 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 			      des->errors += 1;
 			      continue;
 			}
+			if (specialized_instance()) {
+			      cerr << pclass->get_fileline()
+				   << ": sorry: covergroup extension '" << cgdef->name
+				   << "' declared in a parameterized-class specialization "
+				   << "is not supported (IEEE 1800-2023 19.4.1)." << endl;
+			      des->errors += 1;
+			      continue;
+			}
 			cg_class = covgrp_extension_class(cgdef->name);
 		  } else if (existing >= 0
 			     && static_cast<size_t>(existing) >= super_props)

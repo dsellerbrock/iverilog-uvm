@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_covergroup_class_inheritance_generic_master_2023.v",
+  "iverilog-args": ["-g2023"]
+}

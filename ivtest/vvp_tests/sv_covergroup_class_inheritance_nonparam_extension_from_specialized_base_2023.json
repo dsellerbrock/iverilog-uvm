@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_covergroup_class_inheritance_nonparam_extension_from_specialized_base_2023.v",
+  "iverilog-args": ["-g2023"]
+}
