@@ -140,6 +140,46 @@ void NetAssign_::set_dynamic_part_carrier(NetExpr*base, unsigned wid)
       part_carrier_wid_ = wid;
 }
 
+void NetAssign_::collect_dynamic_selectors(
+		std::vector<const NetExpr*>&selectors) const
+{
+      if (nest_)
+	    nest_->collect_dynamic_selectors(selectors);
+      if (word_ && !dynamic_cast<const NetEConst*>(word_))
+	    selectors.push_back(word_);
+      if (base_ && !dynamic_cast<const NetEConst*>(base_))
+	    selectors.push_back(base_);
+      if (dynamic_part_carrier_
+	  && !dynamic_cast<const NetEConst*>(dynamic_part_carrier_))
+	    selectors.push_back(dynamic_part_carrier_);
+      if (more)
+	    more->collect_dynamic_selectors(selectors);
+}
+
+size_t NetAssign_::replace_dynamic_selectors(
+		const std::vector<NetNet*>&selectors, size_t offset)
+{
+      if (nest_)
+	    offset = nest_->replace_dynamic_selectors(selectors, offset);
+
+      auto replace = [this, &selectors, &offset] (NetExpr*&selector) {
+	    if (!selector || dynamic_cast<const NetEConst*>(selector))
+		  return;
+	    ivl_assert(*this, offset < selectors.size());
+	    NetESignal*captured = new NetESignal(selectors[offset++]);
+	    captured->set_line(*selector);
+	    delete selector;
+	    selector = captured;
+      };
+      replace(word_);
+      replace(base_);
+      replace(dynamic_part_carrier_);
+
+      if (more)
+	    offset = more->replace_dynamic_selectors(selectors, offset);
+      return offset;
+}
+
 void NetAssign_::set_stream_range(ivl_stream_range_t kind, NetExpr*first,
                                   NetExpr*second)
 {

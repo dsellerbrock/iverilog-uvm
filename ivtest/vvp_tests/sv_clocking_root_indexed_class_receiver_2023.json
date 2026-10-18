@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_clocking_root_indexed_class_receiver_fail.v",
+  "iverilog-args": ["-g2023", "-s", "sv_clocking_root_indexed_class_receiver_fail"]
+}
