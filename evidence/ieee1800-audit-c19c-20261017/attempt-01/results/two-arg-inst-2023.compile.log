@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-01/input/p19_08_two_arg_inst.sv:10: error: Enable of unknown task ``cv1.cx.get_inst_coverage''.
+1 error(s) during elaboration.

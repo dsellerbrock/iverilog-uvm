@@ -1,0 +1,815 @@
+#! /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+:ivl_version "13.0 (devel)" "(9b5fad2af)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/lib/ivl/system.vpi";
+:vpi_module "/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/lib/ivl/va_math.vpi";
+:vpi_module "/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/lib/ivl/v2009.vpi";
+S_0x7e84ac8fd010 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x7e84ac8fd070 .scope module, "top" "top" 3 1;
+ .timescale 0 0;
+C0x5e4f9df60f30  .class "B0" "top.B0" [1]
+   0: "who", "q0:sb32"
+ ;
+C0x5e4f9df621d0  .class "B1" "top.B1" "top.B0" [2]
+   0: "who", "q0:sb32"
+   1: "y", "q8:rsb32"
+ ;
+C0x5e4f9df5fc90  .class "Inf" "top.Inf" [2]
+   0: "x", "q8:rsb32"
+   1: "pre_n", "q0:sb32"
+ .constraint "c" "(gt p:0:32:s c:5:32:s) (lt p:0:32:s c:3:32:s)"
+ ;
+C0x5e4f9df635b0  .class "Leaf" "top.Leaf" [2]
+   0: "v", "q8:rb16"
+   1: "pre_n", "q0:sb32"
+ ;
+; Inline class definition for specialized/interface type
+C0x5e4f9df64810  .class "Mid" "top.Mid" [1]
+   0: "l", "q8:roh:C0x5e4f9df635b0"
+ ;
+; Inline class definition for specialized/interface type
+C0x5e4f9df65a70  .class "Outer" "top.Outer" [1]
+   0: "m", "q8:roh:C0x5e4f9df64810"
+ ;
+C0x5e4f9df5e3b0  .class "Pre" "top.Pre" [4]
+   0: "x", "q8:rb8"
+   1: "lim", "q0:sb32"
+   2: "pre_n", "q0:sb32"
+   3: "seen", "q0:b8"
+ .constraint "c" "(lt p:0:8 p:1:32:s)"
+ ;
+C0x5e4f9df67920  .class "R" "top.R" [1]
+   0: "v", "q8:rb32"
+ ;
+C0x5e4f9df66d10  .class "St" "top.St" [1]
+   0: "sv", "q9:rb16"
+ .static_prop 0 v0x7e84accbd110_0
+ ;
+v0x7e84accbd170_0 .var/2s "_ivl_0", 31 0;
+v0x7e84accbd170_0 .vpi_source_location 3 24;
+v0x7e84accbd190_0 .var/2s "_ivl_1", 31 0;
+v0x7e84accbd190_0 .vpi_source_location 3 25;
+v0x7e84accbd1b0_0 .var/2s "_ivl_2", 31 0;
+v0x7e84accbd1b0_0 .vpi_source_location 3 27;
+v0x7e84accbd1d0_0 .var/2s "_ivl_3", 31 0;
+v0x7e84accbd1d0_0 .vpi_source_location 3 30;
+v0x7e84accbd1f0_0 .var/2s "_ivl_4", 31 0;
+v0x7e84accbd1f0_0 .vpi_source_location 3 33;
+v0x7e84accbd210_0 .var/2s "_ivl_5", 31 0;
+v0x7e84accbd210_0 .vpi_source_location 3 33;
+v0x7e84accbd230_0 .var/cobj "b", TC0x5e4f9df60f30;
+v0x7e84accbd230_0 .vpi_source_location 3 19;
+v0x7e84accbd250_0 .var/2s "chg", 31 0;
+v0x7e84accbd250_0 .vpi_source_location 3 19;
+v0x7e84accbd270_0 .var/cobj "d", TC0x5e4f9df621d0;
+v0x7e84accbd270_0 .vpi_source_location 3 19;
+v0x7e84accbd290_0 .var/cobj "f", TC0x5e4f9df5fc90;
+v0x7e84accbd290_0 .vpi_source_location 3 19;
+v0x7e84accbd2b0_0 .var/2s "fails", 31 0;
+v0x7e84accbd2b0_0 .vpi_source_location 3 2;
+v0x7e84accbd2d0_0 .var/cobj "o", TC0x5e4f9df65a70;
+v0x7e84accbd2d0_0 .vpi_source_location 3 19;
+v0x7e84accbd2f0_0 .var/2s "ok", 31 0;
+v0x7e84accbd2f0_0 .vpi_source_location 3 19;
+v0x7e84accbd310_0 .var/cobj "p", TC0x5e4f9df5e3b0;
+v0x7e84accbd310_0 .vpi_source_location 3 19;
+v0x7e84accbd330_0 .var/2u "prev", 15 0;
+v0x7e84accbd330_0 .vpi_source_location 3 19;
+v0x7e84accbd350_0 .var/cobj "r1", TC0x5e4f9df67920;
+v0x7e84accbd350_0 .vpi_source_location 3 19;
+v0x7e84accbd370_0 .var/cobj "r2", TC0x5e4f9df67920;
+v0x7e84accbd370_0 .vpi_source_location 3 19;
+v0x7e84accbd390_0 .var/cobj "s1", TC0x5e4f9df66d10;
+v0x7e84accbd390_0 .vpi_source_location 3 19;
+v0x7e84accbd3b0_0 .var/cobj "s2", TC0x5e4f9df66d10;
+v0x7e84accbd3b0_0 .vpi_source_location 3 19;
+S_0x7e84ac8fd0d0 .scope class, "B0" "B0" 3 11, 3 11 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd130 .scope autofunction.void, "pre_randomize" "pre_randomize" 3 11, 3 11 0, S_0x7e84ac8fd0d0;
+ .timescale 0 0;
+v0x7e84accbd010_0 .var/cobj "@", TC0x5e4f9df60f30;
+v0x7e84accbd010_0 .vpi_source_location 3 11;
+TD_top.B0.pre_randomize ;
+    %load/obj v0x7e84accbd010_0;
+    %test_nul/obj;
+    %jmp/1 T_0.2, 4;
+    %pushi/vec4 1, 0, 32;
+    %pad/s 32;
+    %store/prop/v 0, 32; Store in logic property who
+    %pop/obj 1, 0;
+    %jmp T_0.3;
+T_0.2;
+    %pop/obj 1, 0;
+T_0.3;
+    %end;
+S_0x7e84ac8fd190 .scope class, "B1" "B1" 3 12, 3 12 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd1f0 .scope autofunction.void, "pre_randomize" "pre_randomize" 3 13, 3 13 0, S_0x7e84ac8fd190;
+ .timescale 0 0;
+v0x7e84accbd030_0 .var/cobj "@", TC0x5e4f9df621d0;
+v0x7e84accbd030_0 .vpi_source_location 3 13;
+TD_top.B1.pre_randomize ;
+    %alloc S_0x7e84ac8fd130;
+    %load/obj v0x7e84accbd030_0;
+    %store/obj v0x7e84accbd010_0;
+    %callf/void TD_top.B0.pre_randomize, S_0x7e84ac8fd130;
+    %free S_0x7e84ac8fd130;
+    %load/obj v0x7e84accbd030_0;
+    %test_nul/obj;
+    %jmp/1 T_1.6, 4;
+    %load/obj v0x7e84accbd030_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_1.8, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_1.9;
+T_1.8;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_1.9;
+    %addi 10, 0, 32;
+    %pad/s 32;
+    %store/prop/v 0, 32; Store in logic property who
+    %pop/obj 1, 0;
+    %jmp T_1.7;
+T_1.6;
+    %pop/obj 1, 0;
+T_1.7;
+    %end;
+S_0x7e84ac8fd250 .scope class, "Inf" "Inf" 3 9, 3 9 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd2b0 .scope autofunction.void, "pre_randomize" "pre_randomize" 3 10, 3 10 0, S_0x7e84ac8fd250;
+ .timescale 0 0;
+v0x7e84accbd050_0 .var/cobj "@", TC0x5e4f9df5fc90;
+v0x7e84accbd050_0 .vpi_source_location 3 10;
+TD_top.Inf.pre_randomize ;
+    %load/obj v0x7e84accbd050_0;
+    %test_nul/obj;
+    %jmp/1 T_2.12, 4;
+    %prop/v 1;
+    %pad/s 32; property l-value width
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %store/prop/v 1, 32; Store in logic property pre_n
+    %pop/obj 1, 0;
+    %jmp T_2.13;
+T_2.12;
+    %pop/obj 1, 0;
+T_2.13;
+    %end;
+S_0x7e84ac8fd310 .scope class, "Leaf" "Leaf" 3 14, 3 14 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd370 .scope autofunction.void, "pre_randomize" "pre_randomize" 3 14, 3 14 0, S_0x7e84ac8fd310;
+ .timescale 0 0;
+v0x7e84accbd070_0 .var/cobj "@", TC0x5e4f9df635b0;
+v0x7e84accbd070_0 .vpi_source_location 3 14;
+TD_top.Leaf.pre_randomize ;
+    %load/obj v0x7e84accbd070_0;
+    %test_nul/obj;
+    %jmp/1 T_3.16, 4;
+    %prop/v 1;
+    %pad/s 32; property l-value width
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %store/prop/v 1, 32; Store in logic property pre_n
+    %pop/obj 1, 0;
+    %jmp T_3.17;
+T_3.16;
+    %pop/obj 1, 0;
+T_3.17;
+    %end;
+S_0x7e84ac8fd3d0 .scope class, "Mid" "Mid" 3 15, 3 15 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd430 .scope autofunction.obj, "new@" "new@" 3 15, 3 15 0, S_0x7e84ac8fd3d0;
+ .timescale 0 0;
+v0x7e84accbd090_0 .var/cobj "@", TC0x5e4f9df64810;
+v0x7e84accbd090_0 .vpi_source_location 3 15;
+TD_top.Mid.new\x40 ;
+    %load/obj v0x7e84accbd090_0;
+    %test_nul/obj;
+    %jmp/1 T_4.20, 4;
+    %new/cobj C0x5e4f9df635b0;
+    %store/prop/obj 0, 0; IVL_VT_CLASS
+    %pop/obj 1, 0;
+    %jmp T_4.21;
+T_4.20;
+    %pop/obj 1, 0;
+T_4.21;
+    %end;
+S_0x7e84ac8fd490 .scope class, "Outer" "Outer" 3 16, 3 16 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd4f0 .scope autofunction.obj, "new@" "new@" 3 16, 3 16 0, S_0x7e84ac8fd490;
+ .timescale 0 0;
+v0x7e84accbd0b0_0 .var/cobj "@", TC0x5e4f9df65a70;
+v0x7e84accbd0b0_0 .vpi_source_location 3 16;
+TD_top.Outer.new\x40 ;
+    %load/obj v0x7e84accbd0b0_0;
+    %test_nul/obj;
+    %jmp/1 T_5.24, 4;
+    %alloc S_0x7e84ac8fd430;
+    %new/cobj C0x5e4f9df64810;
+    %store/obj v0x7e84accbd090_0;
+    %callf/obj TD_top.Mid.new\x40, S_0x7e84ac8fd430;
+    %load/obj v0x7e84accbd090_0;
+    %free S_0x7e84ac8fd430;
+    %store/prop/obj 0, 0; IVL_VT_CLASS
+    %pop/obj 1, 0;
+    %jmp T_5.25;
+T_5.24;
+    %pop/obj 1, 0;
+T_5.25;
+    %end;
+S_0x7e84ac8fd550 .scope class, "Pre" "Pre" 3 6, 3 6 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd5b0 .scope autofunction.void, "post_randomize" "post_randomize" 3 8, 3 8 0, S_0x7e84ac8fd550;
+ .timescale 0 0;
+v0x7e84accbd0d0_0 .var/cobj "@", TC0x5e4f9df5e3b0;
+v0x7e84accbd0d0_0 .vpi_source_location 3 8;
+TD_top.Pre.post_randomize ;
+    %load/obj v0x7e84accbd0d0_0;
+    %test_nul/obj;
+    %jmp/1 T_6.28, 4;
+    %load/obj v0x7e84accbd0d0_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_6.30, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_6.31;
+T_6.30;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 8;
+T_6.31;
+    %pad/u 8;
+    %store/prop/v 3, 8; Store in logic property seen
+    %pop/obj 1, 0;
+    %jmp T_6.29;
+T_6.28;
+    %pop/obj 1, 0;
+T_6.29;
+    %end;
+S_0x7e84ac8fd610 .scope autofunction.void, "pre_randomize" "pre_randomize" 3 7, 3 7 0, S_0x7e84ac8fd550;
+ .timescale 0 0;
+v0x7e84accbd0f0_0 .var/cobj "@", TC0x5e4f9df5e3b0;
+v0x7e84accbd0f0_0 .vpi_source_location 3 7;
+TD_top.Pre.pre_randomize ;
+    %load/obj v0x7e84accbd0f0_0;
+    %test_nul/obj;
+    %jmp/1 T_7.34, 4;
+    %prop/v 2;
+    %pad/s 32; property l-value width
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %store/prop/v 2, 32; Store in logic property pre_n
+    %pop/obj 1, 0;
+    %jmp T_7.35;
+T_7.34;
+    %pop/obj 1, 0;
+T_7.35;
+    %load/obj v0x7e84accbd0f0_0;
+    %test_nul/obj;
+    %jmp/1 T_7.38, 4;
+    %pushi/vec4 4, 0, 32;
+    %pad/s 32;
+    %store/prop/v 1, 32; Store in logic property lim
+    %pop/obj 1, 0;
+    %jmp T_7.39;
+T_7.38;
+    %pop/obj 1, 0;
+T_7.39;
+    %end;
+S_0x7e84ac8fd670 .scope class, "R" "R" 3 18, 3 18 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+S_0x7e84ac8fd6d0 .scope class, "St" "St" 3 17, 3 17 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+v0x7e84accbd110_0 .var/2u "sv", 15 0;
+S_0x7e84ac8fd730 .scope autotask, "chk" "chk" 3 3, 3 3 0, S_0x7e84ac8fd070;
+ .timescale 0 0;
+v0x7e84accbd130_0 .var/str "id";
+v0x7e84accbd150_0 .var/2u "ok", 0 0;
+v0x7e84accbd150_0 .vpi_source_location 3 3;
+TD_top.chk ;
+    %load/vec4 v0x7e84accbd150_0;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_8.40, 8;
+    %vpi_call/w 3 4 "$display", "PASS %s", v0x7e84accbd130_0 {0 0 0 0};
+    %jmp T_8.41;
+T_8.40 ;
+    %vpi_call/w 3 4 "$display", "FAIL %s", v0x7e84accbd130_0 {0 0 0 0};
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7e84accbd2b0_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7e84accbd2b0_0, 0, 32;
+T_8.41 ;
+    %end;
+    .scope S_0x7e84ac8fd070;
+T_9 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7e84accbd2b0_0, 0, 32;
+    %end;
+    .thread T_9, $init;
+    .scope S_0x7e84ac8fd070;
+T_10 ;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x5e4f9df5e3b0;
+    %store/obj v0x7e84accbd310_0;
+    %load/obj v0x7e84accbd310_0;
+    %test_nul/obj;
+    %jmp/1 T_10.2, 4;
+    %pushi/vec4 200, 0, 32;
+    %pad/s 32;
+    %store/prop/v 1, 32; Store in logic property lim
+    %pop/obj 1, 0;
+    %jmp T_10.3;
+T_10.2;
+    %pop/obj 1, 0;
+T_10.3;
+    %pushi/vec4 1, 0, 32;
+    %store/vec4 v0x7e84accbd2f0_0, 0, 32;
+    %pushi/vec4 20, 0, 32;
+T_10.4 %dup/vec4;
+    %cmpi/s 0, 0, 32;
+    %jmp/1xz T_10.5, 5;
+    %jmp/1 T_10.5, 4;
+    %subi 1, 0, 32;
+    ; show_stmt_assign_vector: Get l-value for compressed &= operand
+    %load/vec4 v0x7e84accbd2f0_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %load/obj v0x7e84accbd310_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %pad/u 1;
+    %flag_set/vec4 9;
+    %flag_get/vec4 9;
+    %jmp/0 T_10.7, 9;
+    %load/obj v0x7e84accbd310_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.8, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.9;
+T_10.8;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 8;
+T_10.9;
+    %pad/u 32;
+    %cmpi/u 4, 0, 32;
+    %flag_get/vec4 5;
+    %and;
+T_10.7;
+    %flag_set/vec4 8;
+    %flag_get/vec4 8;
+    %jmp/0 T_10.6, 8;
+    %load/obj v0x7e84accbd310_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.10, 4;
+    %prop/v 3;
+    %pop/obj 1, 0;
+    %jmp T_10.11;
+T_10.10;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 8;
+T_10.11;
+    %load/obj v0x7e84accbd310_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.12, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.13;
+T_10.12;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 8;
+T_10.13;
+    %cmp/e;
+    %flag_get/vec4 4;
+    %and;
+T_10.6;
+    %pad/u 32;
+    %pad/u 32;
+    %and;
+    %cast2;
+    %store/vec4 v0x7e84accbd2f0_0, 0, 32;
+    %jmp T_10.4;
+T_10.5 ;
+    %pop/vec4 1;
+    %alloc S_0x7e84ac8fd730;
+    %pushi/str "18.6.2.pre_before_solve_post_after_assign";
+    %store/str v0x7e84accbd130_0;
+    %load/vec4 v0x7e84accbd2f0_0;
+    %cmpi/ne 0, 0, 32;
+    %flag_get/vec4 4;
+    %jmp/0 T_10.14, 4;
+    %load/obj v0x7e84accbd310_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.15, 4;
+    %prop/v 2;
+    %pop/obj 1, 0;
+    %jmp T_10.16;
+T_10.15;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_10.16;
+    %pushi/vec4 20, 0, 32;
+    %cmp/e;
+    %flag_get/vec4 4;
+    %and;
+T_10.14;
+    %store/vec4 v0x7e84accbd150_0, 0, 1;
+    %fork TD_top.chk, S_0x7e84ac8fd730;
+    %join;
+    %free S_0x7e84ac8fd730;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x5e4f9df5fc90;
+    %store/obj v0x7e84accbd290_0;
+    %load/obj v0x7e84accbd290_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %store/vec4 v0x7e84accbd170_0, 0, 32;
+    %alloc S_0x7e84ac8fd730;
+    %pushi/str "18.6.2.pre_called_on_failure";
+    %store/str v0x7e84accbd130_0;
+    %load/obj v0x7e84accbd290_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.17, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_10.18;
+T_10.17;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_10.18;
+    %pushi/vec4 1, 0, 32;
+    %cmp/e;
+    %flag_get/vec4 4;
+    %store/vec4 v0x7e84accbd150_0, 0, 1;
+    %fork TD_top.chk, S_0x7e84ac8fd730;
+    %join;
+    %free S_0x7e84ac8fd730;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x5e4f9df621d0;
+    %store/obj v0x7e84accbd270_0;
+    %load/obj v0x7e84accbd270_0;
+    %store/obj v0x7e84accbd230_0;
+    %load/obj v0x7e84accbd230_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %store/vec4 v0x7e84accbd190_0, 0, 32;
+    %alloc S_0x7e84ac8fd730;
+    %pushi/str "18.6.2.hooks_dispatch_dynamic_type";
+    %store/str v0x7e84accbd130_0;
+    %load/obj v0x7e84accbd270_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.19, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.20;
+T_10.19;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_10.20;
+    %pushi/vec4 11, 0, 32;
+    %cmp/e;
+    %flag_get/vec4 4;
+    %store/vec4 v0x7e84accbd150_0, 0, 1;
+    %fork TD_top.chk, S_0x7e84ac8fd730;
+    %join;
+    %free S_0x7e84ac8fd730;
+    %alloc S_0x7e84ac8fd4f0;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x5e4f9df65a70;
+    %store/obj v0x7e84accbd0b0_0;
+    %callf/obj TD_top.Outer.new\x40, S_0x7e84ac8fd4f0;
+    %load/obj v0x7e84accbd0b0_0;
+    %free S_0x7e84ac8fd4f0;
+    %store/obj v0x7e84accbd2d0_0;
+    %load/obj v0x7e84accbd2d0_0;
+    %test_nul/obj;
+    %jmp/1 T_10.25, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.26;
+T_10.25;
+    %pop/obj 1, 0;
+    %null;
+T_10.26;
+    %test_nul/obj;
+    %jmp/1 T_10.23, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.24;
+T_10.23;
+    %pop/obj 1, 0;
+    %null;
+T_10.24;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.21, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.22;
+T_10.21;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 16;
+T_10.22;
+    %store/vec4 v0x7e84accbd330_0, 0, 16;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7e84accbd250_0, 0, 32;
+    %pushi/vec4 8, 0, 32;
+T_10.27 %dup/vec4;
+    %cmpi/s 0, 0, 32;
+    %jmp/1xz T_10.28, 5;
+    %jmp/1 T_10.28, 4;
+    %subi 1, 0, 32;
+    %load/obj v0x7e84accbd2d0_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %store/vec4 v0x7e84accbd1b0_0, 0, 32;
+    %load/obj v0x7e84accbd2d0_0;
+    %test_nul/obj;
+    %jmp/1 T_10.35, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.36;
+T_10.35;
+    %pop/obj 1, 0;
+    %null;
+T_10.36;
+    %test_nul/obj;
+    %jmp/1 T_10.33, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.34;
+T_10.33;
+    %pop/obj 1, 0;
+    %null;
+T_10.34;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.31, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.32;
+T_10.31;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 16;
+T_10.32;
+    %load/vec4 v0x7e84accbd330_0;
+    %cmp/ne;
+    %jmp/0xz  T_10.29, 4;
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7e84accbd250_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7e84accbd250_0, 0, 32;
+T_10.29 ;
+    %load/obj v0x7e84accbd2d0_0;
+    %test_nul/obj;
+    %jmp/1 T_10.41, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.42;
+T_10.41;
+    %pop/obj 1, 0;
+    %null;
+T_10.42;
+    %test_nul/obj;
+    %jmp/1 T_10.39, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.40;
+T_10.39;
+    %pop/obj 1, 0;
+    %null;
+T_10.40;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.37, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.38;
+T_10.37;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 16;
+T_10.38;
+    %store/vec4 v0x7e84accbd330_0, 0, 16;
+    %jmp T_10.27;
+T_10.28 ;
+    %pop/vec4 1;
+    %alloc S_0x7e84ac8fd730;
+    %pushi/str "18.6.2.nested_members_randomized_and_hooked";
+    %store/str v0x7e84accbd130_0;
+    %load/vec4 v0x7e84accbd250_0;
+    %cmpi/s 6, 0, 32;
+    %flag_inv 5; GE is !LT
+    %flag_get/vec4 5;
+    %jmp/0 T_10.43, 5;
+    %load/obj v0x7e84accbd2d0_0;
+    %test_nul/obj;
+    %jmp/1 T_10.48, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.49;
+T_10.48;
+    %pop/obj 1, 0;
+    %null;
+T_10.49;
+    %test_nul/obj;
+    %jmp/1 T_10.46, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_10.47;
+T_10.46;
+    %pop/obj 1, 0;
+    %null;
+T_10.47;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.44, 4;
+    %prop/v 1;
+    %pop/obj 1, 0;
+    %jmp T_10.45;
+T_10.44;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_10.45;
+    %pushi/vec4 8, 0, 32;
+    %cmp/e;
+    %flag_get/vec4 4;
+    %and;
+T_10.43;
+    %store/vec4 v0x7e84accbd150_0, 0, 1;
+    %fork TD_top.chk, S_0x7e84ac8fd730;
+    %join;
+    %free S_0x7e84ac8fd730;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x5e4f9df66d10;
+    %store/obj v0x7e84accbd390_0;
+    %new/cobj C0x5e4f9df66d10;
+    %store/obj v0x7e84accbd3b0_0;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7e84accbd250_0, 0, 32;
+    %load/vec4 v0x7e84accbd110_0;
+    %store/vec4 v0x7e84accbd330_0, 0, 16;
+    %pushi/vec4 8, 0, 32;
+T_10.50 %dup/vec4;
+    %cmpi/s 0, 0, 32;
+    %jmp/1xz T_10.51, 5;
+    %jmp/1 T_10.51, 4;
+    %subi 1, 0, 32;
+    %load/obj v0x7e84accbd390_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %store/vec4 v0x7e84accbd1d0_0, 0, 32;
+    %load/vec4 v0x7e84accbd110_0;
+    %load/vec4 v0x7e84accbd330_0;
+    %cmp/ne;
+    %jmp/0xz  T_10.52, 4;
+    ; show_stmt_assign_vector: Get l-value for compressed += operand
+    %load/vec4 v0x7e84accbd250_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %pushi/vec4 1, 0, 32;
+    %pad/u 32;
+    %add;
+    %cast2;
+    %store/vec4 v0x7e84accbd250_0, 0, 32;
+T_10.52 ;
+    %load/vec4 v0x7e84accbd110_0;
+    %store/vec4 v0x7e84accbd330_0, 0, 16;
+    %jmp T_10.50;
+T_10.51 ;
+    %pop/vec4 1;
+    %alloc S_0x7e84ac8fd730;
+    %pushi/str "18.6.3.static_rand_changes_everywhere";
+    %store/str v0x7e84accbd130_0;
+    %load/vec4 v0x7e84accbd250_0;
+    %cmpi/s 6, 0, 32;
+    %flag_inv 5; GE is !LT
+    %flag_get/vec4 5;
+    %jmp/0 T_10.54, 5;
+    %load/vec4 v0x7e84accbd110_0;
+    %load/vec4 v0x7e84accbd110_0;
+    %cmp/e;
+    %flag_get/vec4 4;
+    %and;
+T_10.54;
+    %store/vec4 v0x7e84accbd150_0, 0, 1;
+    %fork TD_top.chk, S_0x7e84ac8fd730;
+    %join;
+    %free S_0x7e84ac8fd730;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x5e4f9df67920;
+    %store/obj v0x7e84accbd350_0;
+    %new/cobj C0x5e4f9df67920;
+    %store/obj v0x7e84accbd370_0;
+    %load/obj v0x7e84accbd350_0;
+    %pushi/vec4 42, 0, 32;
+    %srandom;
+    %load/obj v0x7e84accbd370_0;
+    %pushi/vec4 42, 0, 32;
+    %srandom;
+    %pushi/vec4 1, 0, 32;
+    %store/vec4 v0x7e84accbd2f0_0, 0, 32;
+    %pushi/vec4 5, 0, 32;
+T_10.55 %dup/vec4;
+    %cmpi/s 0, 0, 32;
+    %jmp/1xz T_10.56, 5;
+    %jmp/1 T_10.56, 4;
+    %subi 1, 0, 32;
+    %load/obj v0x7e84accbd350_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %store/vec4 v0x7e84accbd1f0_0, 0, 32;
+    %load/obj v0x7e84accbd370_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %store/vec4 v0x7e84accbd210_0, 0, 32;
+    ; show_stmt_assign_vector: Get l-value for compressed &= operand
+    %load/vec4 v0x7e84accbd2f0_0;
+    %cast2; compound l-value read
+    %pad/u 32;
+    %load/obj v0x7e84accbd350_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.57, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.58;
+T_10.57;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_10.58;
+    %load/obj v0x7e84accbd370_0;
+    %test_nul/obj/prop;
+    %jmp/1 T_10.59, 4;
+    %prop/v 0;
+    %pop/obj 1, 0;
+    %jmp T_10.60;
+T_10.59;
+    %pop/obj 1, 0;
+    %pushi/vec4 0, 0, 32;
+T_10.60;
+    %cmp/e;
+    %flag_get/vec4 4;
+    %pad/u 32;
+    %pad/u 32;
+    %and;
+    %cast2;
+    %store/vec4 v0x7e84accbd2f0_0, 0, 32;
+    %jmp T_10.55;
+T_10.56 ;
+    %pop/vec4 1;
+    %alloc S_0x7e84ac8fd730;
+    %pushi/str "18.6.3.srandom_object_stability";
+    %store/str v0x7e84accbd130_0;
+    %load/vec4 v0x7e84accbd2f0_0;
+    %pad/s 1;
+    %store/vec4 v0x7e84accbd150_0, 0, 1;
+    %fork TD_top.chk, S_0x7e84ac8fd730;
+    %join;
+    %free S_0x7e84ac8fd730;
+    %vpi_call/w 3 35 "$display", "DONE fails=%0d", v0x7e84accbd2b0_0 {0 0 0 0};
+    %end;
+    .thread T_10, $function_background_ok;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c18b-20261017/source/tests/1800_audit/c18/p18_06_supplement.sv";

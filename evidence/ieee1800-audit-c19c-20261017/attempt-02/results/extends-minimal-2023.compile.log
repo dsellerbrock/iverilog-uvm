@@ -1,0 +1,18 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:11: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: d doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:12: error: d doesn't name a type.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19c-20261017-02/input/p19_04_1_extends_minimal.sv:13: syntax error
+I give up.

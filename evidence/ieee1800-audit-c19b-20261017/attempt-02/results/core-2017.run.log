@@ -1,0 +1,3 @@
+INFO cv1 coverage=66.666667 expected 66.666667
+PASS 19.3.ref_and_bins
+PASS 19.3.instances_independent
