@@ -40,10 +40,10 @@ silent) · — n/a.
 | 14.x | Cycle delay `##N` (via default clocking) | ✅ | sv_clocking_audit |
 | 14.13 | `@(cb)` and `@(vif.cb)` wake after numeric-skew samples are stored | ✅ | sv_clocking_vif_numeric_input_skew_zero_order, sv_clocking_vif_numeric_input_skew_delay_order |
 | 14.16 | Constant bit/part/member output selection | ✅ for same-scope, static-instance, alias, and VIF spellings | sv_clocking_selected_output_static, sv_clocking_selected_output_alias, sv_vif_clocking_partial_select_preserve |
-| 14.16 | Run-time-selected output drive | ⚠️ loud `sorry` pending once-only selector capture | sv_clocking_selected_output_dynamic_fail, sv_clocking_vif_selected_dynamic_fail |
+| 14.16 | Run-time-selected output drive | ✅ selector captured once for the buffered output and pending mask | sv_clocking_selected_output_dynamic_capture (2017/2023), sv_vif_clocking_selected_dynamic_capture (2017/2023) |
 | 14.16 | Clockvar in a concatenation/pattern l-value | ✅ rejected as illegal | sv_clocking_concat_member_lvalue_fail |
 | 14.x | Clocking through a **virtual interface** (`vi.cb.sig`) | ✅, including a class-held VIF | sv_clocking_skew_audit, sv_clocking_class_vif_modport_output |
-| 14.16 | Clocking-output drive through an indexed class receiver | ⚠️ loud `sorry` pending once-only receiver capture; root and nested indices take the same boundary | sv_clocking_indexed_class_receiver_fail, sv_clocking_root_indexed_class_receiver_fail |
+| 14.16 | Clocking-output drive through an indexed class receiver | ✅ root and nested receivers captured once and dispatched at the next clocking event | sv_clocking_indexed_class_receiver_fail (2017/2023), sv_clocking_root_indexed_class_receiver_fail (2017/2023) |
 | 14.x | Whole unpacked output clockvar buffering | ⚠️ loud `sorry`; no ordinary-NBA fallback | sv_clocking_unpacked_output_storage_fail |
 | 14.3–14.5 / 25.5 | Exact modport visibility through direct and carried VIFs | ✅ retained through direct types, typedefs, arrays, class properties/type parameters, inheritance, and unpacked-struct members | sv_clocking_vif_modport_*, sv_clocking_class_vif_modport_*, sv_clocking_vif_modport_typedef_raw_member_fail, sv_clocking_class_typeparam_vif_modport_raw_member_fail, sv_clocking_struct_vif_modport_raw_member_fail |
 | 14.13 / 25.5 / 36 | VIF clockvar/member passed to a VPI-backed system task/function | ✅ reads supported; every VPI property write is a loud run-time error and leaves the target unchanged | sv_clocking_vif_input_sys_task_arg, sv_clocking_vif_vpi_write_fail |

@@ -375,6 +375,16 @@ void netclass_t::set_class_scope(NetScope*class_scope__)
       class_scope_ = class_scope__;
 }
 
+const netclass_t*netclass_t::find_ancestor_by_pform(const PClass*pclass) const
+{
+      for (const netclass_t*owner = this; owner; owner = owner->get_super()) {
+	    const NetScope*scope = owner->class_scope();
+	    if (scope && scope->class_pform() == pclass)
+		  return owner;
+      }
+      return nullptr;
+}
+
 void netclass_t::set_definition_scope(NetScope*use_definition_scope)
 {
       assert(definition_scope_ == 0);
@@ -615,9 +625,14 @@ ivl_type_t netclass_t::get_prop_type(size_t idx) const
       if (super_) super_size = super_->get_properties();
 
       assert(idx < (super_size+property_table_.size()));
-      if (idx < super_size)
+
+      if (idx < super_size) {
+	    const char* pname = get_prop_name(idx);
+	    for (const auto& extension : covgrp_extensions_)
+		  if (extension.first == pname)
+			return extension.second;
 	    return super_->get_prop_type(idx);
-      else
+	  } else
 	    return property_table_[idx-super_size].type;
 }
 

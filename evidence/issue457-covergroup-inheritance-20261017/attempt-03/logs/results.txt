@@ -1,0 +1,471 @@
+host=DAN-DESKTOP
+2026-10-17T18:53:11-06:00
+base=9b5fad2afb4104caa816b257d5bccc40f01b8c66
+source_snapshot=6ba174af915d95fb5df27ef81e45ffee212d946e96451fa49bb1fbd735f99d8d
+overlay_snapshot=e02d1f8e17e41af9130c8eeee04a16b655e4e01af0540b85ba7235e6fe966455
+resources=3 CPUs, 5 GiB, 40 minutes
+27cee4163137727c20c0d654670c59980d1c3c664373c9089033629c1cd94fb7  pform_pclass.cc
+4bdda157c3c0c85869f605c9d7653d11be653f6c94df78eeab24f8212224bf90  vvp/vthread.cc
+build=PASS
+d4b3c0f280860d56f33796a7a19b642fa8c11ac395b065e20a368dee622f0e9a  /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step6-20261017-attempt02/src/local-install/bin/iverilog
+fa314413161131b84b00bd26a92b9007039c79926b27cbd2357d2bc2032624b7  /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step6-20261017-attempt02/src/local-install/bin/vvp
+PASS: all 72 covergroup API functions exported
+focused_legacy=PASS
+focused_json=PASS
+smoke=PASS
+t1_legacy_cases=250
+t1_legacy=PASS
+t1_json_cases=238
+t1_json_failures=0
+t1_json=PASS
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+             sv_covergroup_class_inheritance_2017: Passed - CE.
+             sv_covergroup_class_inheritance_2023: Passed.
+sv_covergroup_class_inheritance_missing_base_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=3, Passed=3, Failed=0, Not Implemented=0, Expected Fail=0
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/focused-json.list
+----------------------------------------------------------------------------
+             sv_covergroup_class_inheritance_2017: Passed - CE.
+             sv_covergroup_class_inheritance_2023: Passed.
+sv_covergroup_class_inheritance_missing_base_2023: Passed - CE.
+============================================================================
+Test results: Ran 3, Failed 0.
+PASS dpi_disable_export_after_state (expected fatal)
+PASS DPI disable-protocol expected-fatals (4/4)
+=== run_dpi_export_fixed_array.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-fixed-array.mhYYEZ/export-fixed-array-2017.dpiexport.c (compile it into your DPI object).
+PASS m10_dpi_export_fixed_array_test
+/home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step6-20261017-attempt02/src/tests/m10_dpi_export_fixed_array_test.sv:35: $finish called at 0 (1s)
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-fixed-array.mhYYEZ/export-fixed-array-2023.dpiexport.c (compile it into your DPI object).
+PASS m10_dpi_export_fixed_array_test
+/home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step6-20261017-attempt02/src/tests/m10_dpi_export_fixed_array_test.sv:35: $finish called at 0 (1s)
+=== run_dpi_export_output_logic_default.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-output-logic.g5eSYo/output_logic.dpiexport.c (compile it into your DPI object).
+  scalar output defaults: untouched=3 observed=3 result=3
+PASS m10_dpi_export_output_logic_default_test
+/home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step6-20261017-attempt02/src/tests/m10_dpi_export_output_logic_default_test.sv:19: $finish called at 0 (1s)
+PASS DPI export scalar output logic default-X reducer
+=== run_dpi_legacy_task_void_compat.sh ===
+PASS legacy DPI task void-ABI compatibility
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-legacy-task-void.KZpcQa/dpi_legacy_disabled_modern.dpiexport.c (compile it into your DPI object).
+PASS legacy disabled DPI task fails loudly without an ack channel
+=== run_dpi_narrow_return_metadata.sh ===
+PASS exact narrow DPI return metadata (9/9)
+=== run_dpi_plain_char_abi.sh ===
+PASS plain-char DPI ABI (flags=default)
+=== run_dpi_prefixless_vec4_compat.sh ===
+PASS prefixless DPI vec4 call compatibility
+=== run_dpi_return_prefix_malformed.sh ===
+PASS DPI return-prefix malformed-bytecode invariants (9/9)
+=== run_dpi_scalar_inout_logic_actual.sh ===
+PASS DPI scalar inout logic actual (2017/2023)
+=== run_dpi_scope_instance.sh ===
+PASS DPI context instance scope (2017/2023)
+=== run_dpi_shortreal_array.sh ===
+PASS DPI shortreal array arguments (2017/2023)
+=== run_force_array_runtime.sh ===
+PASS force-array alias and extreme-offset invariants (2/2)
+=== run_indexed_darray_slice.py ===
+indexed dynamic-array slice: PASS 16/16
+=== run_merged_transition_cardinality.sh ===
+PASS merged transition cardinality (-g2017)
+PASS merged transition cardinality (-g2023)
+=== run_mixed_wait_malformed.sh ===
+PASS mixed wait recipe ABI invariants (10/10)
+=== run_process_kill_call_context.sh ===
+PASS process-kill automatic call-context release (modern + legacy)
+=== run_prop_const_init_malformed.sh ===
+PASS instance-constant guard malformed-stack invariant (1/1)
+=== run_property_index_metadata_malformed.sh ===
+PASS malformed property-index descriptor (16/16 X results)
+=== run_queue_slice_legacy.sh ===
+PASS legacy queue-slice bytecode compatibility (3/3)
+=== run_rand_mode_stack_underflow.sh ===
+PASS rand_mode malformed-stack invariants (13/13)
+=== run_scope_solver_unknown.py ===
+PASS 2017 scope_solver_sat_unsat normal
+PASS 2017 scope_solver_unknown normal
+PASS 2017 scope_solver_unknown injected
+PASS 2023 scope_solver_sat_unsat normal
+PASS 2023 scope_solver_unknown normal
+PASS 2023 scope_solver_unknown injected
+=== run_state_foreach_invariants.py ===
+PASS state foreach runtime invariants (15/15)
+=== run_static_property_binding.sh ===
+PASS missing-label rc=134
+PASS wrong-kind rc=134
+PASS wrong-width rc=134
+PASS static property binding invariants (3/3)
+=== run_stream_target_split_malformed.sh ===
+PASS stream target split malformed/exact-width invariants (4/4)
+=== run_string_repeat_ir_compat.sh ===
+PASS string-repeat VVP compatibility and typed opcodes (6/6)
+=== run_svdpi_bitsel.sh ===
+PASS svdpi bit-select helpers
+PASS svdpi bit-select helpers
+=== run_ufunc_resolver_malformed.sh ===
+PASS ufunc resolver malformed metadata invariants (2/2)
+=== run_vif_indexed_wait_malformed.sh ===
+PASS indexed VIF wait malformed-bytecode invariants (3/3)
+=== run_vpi_source_location.sh ===
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                            sv_covergroup_chained_sample: Passed.
+                                sv_covergroup_standalone: Passed.
+                               sv_covergroup_task_sample: Passed.
+                               sv_covergroup_with_sample: Passed.
+                                   sv_covergroup_options: Passed.
+                               sv_covergroup_adversarial: Passed.
+                               sv_covergroup_class_event: Passed.
+                                 sv_covergroup_cross_iff: Passed.
+                            sv_covergroup_cross_variable: Passed.
+                          sv_covergroup_transition_cross: Passed.
+                                   sv_covergroup_bin_iff: Passed.
+                            sv_generate_class_covergroup: Passed.
+                         sv_covergroup_constructor_scope: Passed.
+                              sv_covergroup_ref_tracking: Passed.
+                         sv_covergroup_ref_tracking_2023: Passed.
+                   sv_covergroup_ref_tracking_bad_actual: Passed - CE.
+              sv_covergroup_ref_tracking_bad_actual_2023: Passed - CE.
+                          sv_covergroup_ref_value_shapes: Passed.
+                     sv_covergroup_ref_value_shapes_2023: Passed.
+                       sv_covergroup_ref_net_actual_fail: Passed - CE.
+                  sv_covergroup_ref_net_actual_fail_2023: Passed - CE.
+          sv_covergroup_ref_automatic_actual_unsupported: Passed - CE.
+     sv_covergroup_ref_automatic_actual_unsupported_2023: Passed - CE.
+                    sv_covergroup_ref_type_mismatch_fail: Passed - CE.
+               sv_covergroup_ref_type_mismatch_fail_2023: Passed - CE.
+            sv_covergroup_ref_packed_struct_member_limit: Passed - CE.
+       sv_covergroup_ref_packed_struct_member_limit_2023: Passed - CE.
+                            sv_covergroup_ref_write_fail: Passed - CE.
+                       sv_covergroup_ref_write_fail_2023: Passed - CE.
+                        sv_covergroup_writable_increment: Passed.
+                   sv_covergroup_writable_increment_2023: Passed.
+                         sv_covergroup_formal_directions: Passed.
+                    sv_covergroup_formal_directions_2023: Passed.
+                    sv_covergroup_formal_directions_fail: Passed - CE.
+               sv_covergroup_formal_directions_fail_2023: Passed - CE.
+                             sv_covergroup_real_interval: Passed.
+                   sv_covergroup_real_interval_fail_2017: Passed - CE.
+                   sv_covergroup_real_interval_fail_2023: Passed - CE.
+                           sv_covergroup_ctor_bin_ranges: Passed.
+                      sv_covergroup_ctor_bin_ranges_2023: Passed.
+             sv_covergroup_ctor_bin_ranges_type_coverage: Passed.
+        sv_covergroup_ctor_bin_ranges_type_coverage_2023: Passed.
+                    sv_covergroup_class_const_bin_ranges: Passed.
+               sv_covergroup_class_const_bin_ranges_2023: Passed.
+               sv_covergroup_class_const_bin_ranges_fail: Passed - CE.
+          sv_covergroup_class_const_bin_ranges_fail_2023: Passed - CE.
+                            sv_covergroup_ctor_bin_typed: Passed.
+                       sv_covergroup_ctor_bin_typed_2023: Passed.
+                       sv_covergroup_ctor_bin_resolution: Passed.
+                  sv_covergroup_ctor_bin_resolution_2023: Passed.
+                  sv_covergroup_virtual_interface_sample: Passed.
+             sv_covergroup_virtual_interface_sample_2023: Passed.
+                           sv_covergroup_xz_bin_matching: Passed.
+                      sv_covergroup_xz_bin_matching_2023: Passed.
+                sv_covergroup_ctor_bin_ranges_unresolved: Passed.
+           sv_covergroup_ctor_bin_ranges_unresolved_2023: Passed.
+                           sv_covergroup_ctor_method_bin: Passed.
+                      sv_covergroup_ctor_method_bin_2023: Passed.
+           sv_covergroup_ctor_method_bin_default_mutable: Passed - CE.
+      sv_covergroup_ctor_method_bin_default_mutable_2023: Passed - CE.
+              sv_covergroup_ctor_method_bin_default_pure: Passed.
+         sv_covergroup_ctor_method_bin_default_pure_2023: Passed.
+            sv_covergroup_ctor_method_bin_illegal_impure: Passed - CE.
+       sv_covergroup_ctor_method_bin_illegal_impure_2023: Passed - CE.
+           sv_covergroup_ctor_method_bin_illegal_mutable: Passed - CE.
+      sv_covergroup_ctor_method_bin_illegal_mutable_2023: Passed - CE.
+               sv_covergroup_ctor_method_bin_illegal_ref: Passed - CE.
+          sv_covergroup_ctor_method_bin_illegal_ref_2023: Passed - CE.
+              sv_covergroup_ctor_method_bin_nested_const: Passed - CE.
+         sv_covergroup_ctor_method_bin_nested_const_2023: Passed - CE.
+                      sv_covergroup_ctor_method_bin_null: Passed - RE.
+                 sv_covergroup_ctor_method_bin_null_2023: Passed - RE.
+                    sv_covergroup_ctor_method_bin_signed: Passed.
+               sv_covergroup_ctor_method_bin_signed_2023: Passed.
+                    sv_covergroup_ctor_method_bin_unsafe: Passed.
+               sv_covergroup_ctor_method_bin_unsafe_2023: Passed.
+            sv_covergroup_ctor_method_bin_unsafe_dynamic: Passed - CE.
+       sv_covergroup_ctor_method_bin_unsafe_dynamic_2023: Passed - CE.
+         sv_covergroup_ctor_method_bin_unsafe_huge_index: Passed - CE.
+    sv_covergroup_ctor_method_bin_unsafe_huge_index_2023: Passed - CE.
+            sv_covergroup_ctor_method_bin_unsafe_mutator: Passed.
+       sv_covergroup_ctor_method_bin_unsafe_mutator_2023: Passed.
+     sv_covergroup_ctor_method_bin_unsafe_mutator_strict: Passed - CE.
+sv_covergroup_ctor_method_bin_unsafe_mutator_strict_2023: Passed - CE.
+                sv_covergroup_ctor_method_bin_unsafe_oob: Passed - CE.
+           sv_covergroup_ctor_method_bin_unsafe_oob_2023: Passed - CE.
+             sv_covergroup_ctor_method_bin_unsafe_strict: Passed - CE.
+        sv_covergroup_ctor_method_bin_unsafe_strict_2023: Passed - CE.
+                         sv_covergroup_ctor_method_bin_x: Passed - RE.
+                    sv_covergroup_ctor_method_bin_x_2023: Passed - RE.
+                        sv_covergroup_array_bin_identity: Passed.
+                   sv_covergroup_array_bin_identity_2023: Passed.
+             sv_covergroup_sample_unpacked_struct_select: Passed.
+        sv_covergroup_sample_unpacked_struct_select_2023: Passed.
+       sv_covergroup_class_sample_unpacked_struct_select: Passed.
+                    sv_covergroup_class_inheritance_2017: Passed - CE.
+                    sv_covergroup_class_inheritance_2023: Passed.
+       sv_covergroup_class_inheritance_missing_base_2023: Passed - CE.
+  sv_covergroup_class_sample_unpacked_struct_select_2023: Passed.
+                sv_covergroup_sample_unpacked_shape_fail: Passed - CE.
+           sv_covergroup_sample_unpacked_shape_fail_2023: Passed - CE.
+                   sv_covergroup_sample_unpacked_default: Passed.
+              sv_covergroup_sample_unpacked_default_2023: Passed.
+        sv_covergroup_sample_unpacked_default_shape_fail: Passed - CE.
+   sv_covergroup_sample_unpacked_default_shape_fail_2023: Passed - CE.
+                      sv_covergroup_fixed_bin_post_carve: Passed.
+                 sv_covergroup_fixed_bin_post_carve_2023: Passed.
+                             sv_covergroup_dynamic_cross: Passed.
+                        sv_covergroup_dynamic_cross_2023: Passed.
+                      sv_covergroup_dynamic_cross_binsof: Passed.
+                 sv_covergroup_dynamic_cross_binsof_2023: Passed.
+                      sv_covergroup_cross_bin_precedence: Passed.
+                 sv_covergroup_cross_bin_precedence_2023: Passed.
+                          sv_covergroup_wide_exact_cross: Passed.
+                     sv_covergroup_wide_exact_cross_2023: Passed.
+               sv_covergroup_wide_open_array_named_cross: Passed.
+          sv_covergroup_wide_open_array_named_cross_2023: Passed.
+                   sv_covergroup_wide_reject_unsupported: Passed - CE.
+              sv_covergroup_wide_reject_unsupported_2023: Passed - CE.
+               sv_covergroup_cross_retain_auto_bins_2017: Passed - CE.
+               sv_covergroup_cross_retain_auto_bins_2023: Passed.
+                   sv_covergroup_cross_retain_scope_fail: Passed - CE.
+                sv_covergroup_cross_range_tuple_overflow: Passed.
+                                sv_covergroup_cross_with: Passed.
+                    sv_covergroup_cross_with_select_expr: Passed.
+                      sv_covergroup_following_localparam: Passed.
+                        sv_covergroup_hierarchical_cross: Passed.
+                   sv_covergroup_procedural_item_options: Passed.
+       sv_covergroup_procedural_item_options_unsupported: Passed - CE.
+                          sv_covergroup_transition_modes: Passed.
+                         sv_covergroup_transition_repeat: Passed.
+                    sv_covergroup_transition_repeat_fail: Passed - CE.
+                        sv_covergroup_merged_value_union: Passed.
+                   sv_covergroup_merged_value_union_2023: Passed.
+                          sv_covergroup_instance_average: Passed.
+                     sv_covergroup_instance_average_2023: Passed.
+                             sv_covergroup_average_empty: Passed.
+                        sv_covergroup_average_empty_2023: Passed.
+                    sv_covergroup_inst_option_write_fail: Passed - CE.
+               sv_covergroup_inst_option_write_fail_2023: Passed - CE.
+                            sv_covergroup_parent_options: Passed.
+                       sv_covergroup_parent_options_2023: Passed.
+                        sv_covergroup_four_state_options: Passed.
+                   sv_covergroup_four_state_options_2023: Passed.
+                              sv_covergroup_option_scope: Passed.
+                         sv_covergroup_option_scope_2023: Passed.
+                               sv_covergroup_type_weight: Passed.
+                          sv_covergroup_type_weight_2023: Passed.
+                          sv_covergroup_type_weight_zero: Passed.
+                     sv_covergroup_type_weight_zero_2023: Passed.
+                 sv_covergroup_type_weight_negative_fail: Passed - CE.
+            sv_covergroup_type_weight_negative_fail_2023: Passed - CE.
+              sv_covergroup_type_weight_nonconstant_fail: Passed - CE.
+         sv_covergroup_type_weight_nonconstant_fail_2023: Passed - CE.
+                   sv_covergroup_type_weight_signed_fail: Passed - CE.
+              sv_covergroup_type_weight_signed_fail_2023: Passed - CE.
+                        sv_covergroup_merged_wide_totals: Passed.
+                   sv_covergroup_merged_wide_totals_2023: Passed.
+                     sv_covergroup_merged_cross_universe: Passed.
+                sv_covergroup_merged_cross_universe_2023: Passed.
+                     sv_covergroup_merged_cross_identity: Passed.
+                sv_covergroup_merged_cross_identity_2023: Passed.
+                    sv_covergroup_merged_cross_threshold: Passed.
+               sv_covergroup_merged_cross_threshold_2023: Passed.
+                        sv_covergroup_merged_cross_named: Passed.
+                   sv_covergroup_merged_cross_named_2023: Passed.
+                       sv_covergroup_merged_cross_parent: Passed.
+                  sv_covergroup_merged_cross_parent_2023: Passed.
+                    sv_covergroup_merged_cross_retention: Passed.
+                   sv_covergroup_merged_cross_transition: Passed.
+              sv_covergroup_merged_cross_transition_2023: Passed.
+                          sv_covergroup_item_type_weight: Passed.
+                     sv_covergroup_item_type_weight_2023: Passed.
+                    sv_covergroup_item_type_weight_cross: Passed.
+               sv_covergroup_item_type_weight_cross_2023: Passed.
+                    sv_covergroup_item_type_weight_modes: Passed.
+               sv_covergroup_item_type_weight_modes_2023: Passed.
+                     sv_covergroup_item_type_weight_zero: Passed.
+                sv_covergroup_item_type_weight_zero_2023: Passed.
+                    sv_covergroup_item_type_weight_scope: Passed.
+               sv_covergroup_item_type_weight_scope_2023: Passed.
+            sv_covergroup_item_type_weight_negative_fail: Passed - CE.
+       sv_covergroup_item_type_weight_negative_fail_2023: Passed - CE.
+              sv_covergroup_item_type_weight_signed_fail: Passed - CE.
+         sv_covergroup_item_type_weight_signed_fail_2023: Passed - CE.
+         sv_covergroup_item_type_weight_nonconstant_fail: Passed - CE.
+    sv_covergroup_item_type_weight_nonconstant_fail_2023: Passed - CE.
+            sv_covergroup_item_type_weight_compound_fail: Passed - CE.
+       sv_covergroup_item_type_weight_compound_fail_2023: Passed - CE.
+      sv_covergroup_item_type_weight_group_compound_fail: Passed - CE.
+ sv_covergroup_item_type_weight_group_compound_fail_2023: Passed - CE.
+      sv_covergroup_item_type_weight_point_compound_fail: Passed - CE.
+ sv_covergroup_item_type_weight_point_compound_fail_2023: Passed - CE.
+                           sv_covergroup_type_population: Passed.
+                      sv_covergroup_type_population_2023: Passed.
+                     sv_covergroup_type_population_cross: Passed.
+                sv_covergroup_type_population_cross_2023: Passed.
+                     sv_covergroup_type_population_modes: Passed.
+                sv_covergroup_type_population_modes_2023: Passed.
+                   sv_covergroup_cross_with_range_values: Passed.
+              sv_covergroup_cross_with_range_values_2023: Passed.
+                    sv_covergroup_cross_with_value_limit: Passed.
+               sv_covergroup_cross_with_value_limit_2023: Passed.
+               sv_covergroup_cross_with_value_limit_fail: Passed - CE.
+          sv_covergroup_cross_with_value_limit_fail_2023: Passed - CE.
+                      sv_covergroup_cross_recursive_with: Passed.
+                 sv_covergroup_cross_recursive_with_2023: Passed.
+              sv_covergroup_cross_recursive_with_illegal: Passed.
+         sv_covergroup_cross_recursive_with_illegal_2023: Passed.
+                             sv_covergroup_cross_matches: Passed.
+                        sv_covergroup_cross_matches_2023: Passed.
+                        sv_covergroup_cross_set_function: Passed.
+                   sv_covergroup_cross_set_function_2023: Passed.
+                   sv_covergroup_cross_set_function_fail: Passed - CE.
+              sv_covergroup_cross_set_function_fail_2023: Passed - CE.
+                       sv_covergroup_cross_wildcard_with: Passed.
+                  sv_covergroup_cross_wildcard_with_2023: Passed.
+                             sv_covergroup_signed_ranges: Passed.
+                        sv_covergroup_signed_ranges_2023: Passed.
+                           sv_covergroup_open_end_ranges: Passed.
+                      sv_covergroup_open_end_ranges_2023: Passed.
+                       sv_covergroup_open_end_transition: Passed.
+                  sv_covergroup_open_end_transition_2023: Passed.
+                     sv_covergroup_open_end_both_illegal: Passed - CE.
+                sv_covergroup_open_end_both_illegal_2023: Passed - CE.
+                   sv_covergroup_signed_range_resolution: Passed.
+              sv_covergroup_signed_range_resolution_2023: Passed.
+                sv_covergroup_unbased_xz_bin_denominator: Passed.
+           sv_covergroup_unbased_xz_bin_denominator_2023: Passed.
+                              sv_covergroup_signed_cross: Passed.
+                         sv_covergroup_signed_cross_2023: Passed.
+                sv_covergroup_inside_unsigned_comparison: Passed.
+           sv_covergroup_inside_unsigned_comparison_2023: Passed.
+                          sv_covergroup_signed_range_cap: Passed - CE.
+                     sv_covergroup_signed_range_cap_2023: Passed - CE.
+                      sv_covergroup_packed_bitwise_shape: Passed.
+                 sv_covergroup_packed_bitwise_shape_2023: Passed.
+              sv_covergroup_packed_bitwise_shape_illegal: Passed - CE.
+         sv_covergroup_packed_bitwise_shape_illegal_2023: Passed - CE.
+             sv_covergroup_packed_bitwise_shape_boundary: Passed.
+        sv_covergroup_packed_bitwise_shape_boundary_2023: Passed.
+     sv_covergroup_packed_bitwise_shape_wide_unsupported: Passed.
+sv_covergroup_packed_bitwise_shape_wide_unsupported_2023: Passed.
+     sv_covergroup_bitwise_real_operand_unsupported_2023: Passed.
+                        sv_covergroup_nested_item_method: Passed.
+                   sv_covergroup_nested_item_method_2023: Passed.
+                         sv_covergroup_item_method_modes: Passed.
+                    sv_covergroup_item_method_modes_2023: Passed.
+                   sv_covergroup_nested_item_method_fail: Passed - CE.
+              sv_covergroup_nested_item_method_fail_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=250, Passed=250, Failed=0, Not Implemented=0, Expected Fail=0
+----------------------------------------------------------------------------
+sv_covergroup_interface_scope_sample_2017: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_interface_scope_sample_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_illegal: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_illegal_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_boundary: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_boundary_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_wide_unsupported: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_packed_bitwise_shape_wide_unsupported_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_bitwise_real_operand_unsupported_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_method_modes: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_item_method_modes_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/a3/issue457-step7-20261017-attempt03/one-json.list
+----------------------------------------------------------------------------
+sv_covergroup_nested_item_method_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.

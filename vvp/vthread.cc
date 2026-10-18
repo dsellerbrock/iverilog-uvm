@@ -5306,8 +5306,9 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
  * IEEE 1800-2017 18.4: a rand UNPACKED STRUCT activates the members whose
  * type declarations carry rand/randc; an unqualified member remains state.
  * Structs cannot carry constraint blocks of their own, so each active
- * integral member is filled independently. Keep a nested value-struct in the
- * same graph transaction so randc history and value rollback remain atomic.
+ * integral member and existing integral dynamic-array element is prefilled.
+ * Keep a nested value-struct in the same graph transaction so randc history
+ * and value rollback remain atomic.
  * Joint class handles are solved through the containing object graph below.
  * Other member shapes that this bounded path cannot preserve fail the actual
  * randomize() call rather than leaving an enabled variable unchanged.
@@ -5360,6 +5361,41 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 	    // The joint graph collector already visits active class-handle members.
 	    if (bt == "o" && session.joint())
 		  continue;
+
+	    // A rand dynamic-array member keeps its current size when no size
+	    // constraint changes it; randomize each enabled integral element.
+	    bool integral_darray = bt.compare(0, 2, "Dv") == 0
+		  || bt.compare(0, 3, "Dsv") == 0;
+	    if (integral_darray && subdefn->property_dimensions(mpid).empty()
+		&& !subdefn->property_is_randc(mpid)) {
+		  vvp_object_t propobj;
+		  subcobj->get_object(mpid, propobj, 0);
+		  if (vvp_darray*array = propobj.peek<vvp_darray>()) {
+			for (size_t pos = 0 ; pos < array->get_size() ; pos += 1) {
+			      if (!subcobj->rand_mode(mpid, pos)) continue;
+			      vvp_vector4_t val;
+			      array->get_word((unsigned)pos, val);
+			      if (val.size() == 0) continue;
+			      if (subdefn->property_is_enum(mpid)) {
+				    if (!randomize_enum_member_(subcobj, subdefn,
+						mpid, pos, val, next_random)) {
+					  ok = false;
+					  break;
+				    }
+			      } else {
+				    for (unsigned bit = 0 ; bit < val.size(); bit += 32) {
+					  unsigned rnd = next_random();
+					  for (unsigned b = 0 ; b < 32 && bit + b < val.size();
+					       b += 1)
+						val.set_bit(bit + b,
+						    (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+				    }
+			      }
+			      array->set_word((unsigned)pos, val);
+			}
+			continue;
+		  }
+	    }
 
 	    const char*unsupported_shape = bt == "o" ? "class-handle"
 		  : (!bt.empty() && bt[0] == 'D') ? "dynamic-array"
@@ -9122,12 +9158,13 @@ static bool covgrp_cross_route_matches_(const covgrp_cross_route_t&route,
       return true;
 }
 
-/* %covgrp/sample ncp, guard_flags
+/* %covgrp/sample keeps its original two-operand encoding for old VVP files.
+ * The compiler uses %covgrp/sample/dyn guard_flags, static_type, ncp.
  *
  * guard_flags bit 0 records whether ncp coverpoint guards are present;
  * bits 1..15 contain the number of trailing cross guards and bits 16..31
- * contain the number of bin-level guards. This preserves the original
- * two-operand encoding (whose second operand was 0/1).
+ * contain the number of bin-level guards. static_type describes the stack
+ * payload; the object can hold a derived covergroup extension at runtime.
  *
  * Stack on entry: obj-stack top = cg_obj; vec4 stack holds ncp
  * coverpoint values, ncp coverpoint guards, one cross-level iff guard per
@@ -9163,12 +9200,42 @@ static uint64_t covgrp_real_key_(double value)
 	    : bits ^ (UINT64_C(1) << 63);
 }
 
-bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
+static size_t covgrp_cp_count_(const class_type*defn)
 {
-	 uint64_t packed_ncp = cp->number;
-	 unsigned ncp = (unsigned)packed_ncp;
-	 unsigned nreal = (unsigned)(packed_ncp >> 32);
+      size_t count = 0;
+      for (size_t ii = 0; ii < defn->covgrp_item_count(); ++ii)
+	    if (!defn->covgrp_item(ii).is_cross) ++count;
+      return count;
+}
+
+static bool covgrp_sample_(vthread_t thr, vvp_code_t cp, bool dynamic_type)
+{
       unsigned guard_flags = cp->bit_idx[0];
+	 unsigned ncp, nreal;
+	 const class_type*static_defn = nullptr;
+	 if (dynamic_type) {
+	       ncp = cp->bit_idx[1];
+	       static_defn = dynamic_cast<const class_type*>(cp->handle);
+	       if (!static_defn || !static_defn->is_covergroup()) {
+		     fprintf(stderr, "vvp: malformed %%covgrp/sample/dyn static class metadata\n");
+		     return true;
+	       }
+	       if (ncp > 2097152 || ncp > covgrp_cp_count_(static_defn)) {
+		     fprintf(stderr, "vvp: malformed %%covgrp/sample/dyn coverpoint count\n");
+		     return true;
+	       }
+	       nreal = 0;
+	       for (unsigned ii = 0; ii < ncp; ++ii)
+		     nreal += static_defn->covgrp_cp_real(ii) ? 1 : 0;
+	 } else {
+	       uint64_t packed_ncp = cp->number;
+	       ncp = (unsigned)packed_ncp;
+	       nreal = (unsigned)(packed_ncp >> 32);
+	       if (thr->object_stack_size() > 0) {
+		     vvp_cobject*cobj = thr->peek_object().peek<vvp_cobject>();
+		     if (cobj) static_defn = cobj->get_defn();
+	       }
+	 }
       unsigned has_cp_guards = guard_flags & 1;
 	 unsigned ncross_guards = (guard_flags >> 1) & 0x7fff;
 	 unsigned nbin_guards = guard_flags >> 16;
@@ -9189,12 +9256,18 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 		     thr->object_stack_size());
 	       return true;
 	 }
-
-	 vvp_cobject*cobj = thr->peek_object().peek<vvp_cobject>();
-	 if (cobj) {
+	 if (static_defn) {
+	       if (!static_defn->is_covergroup()) {
+		     fprintf(stderr, "vvp: %%covgrp/sample target has a non-covergroup type\n");
+		     return true;
+	       }
+	       if (ncp > covgrp_cp_count_(static_defn)) {
+		     fprintf(stderr, "vvp: malformed %%covgrp/sample coverpoint count\n");
+		     return true;
+	       }
 	       unsigned metadata_real = 0;
 	       for (unsigned ii = 0; ii < ncp; ++ii)
-		     metadata_real += cobj->get_defn()->covgrp_cp_real(ii) ? 1 : 0;
+		     metadata_real += static_defn->covgrp_cp_real(ii) ? 1 : 0;
 	       if (metadata_real != nreal) {
 		     fprintf(stderr, "vvp: malformed %%covgrp/sample real-value metadata "
 			     "(instruction %u, class %u); operands not consumed.\n",
@@ -9202,6 +9275,7 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 		     return true;
 	       }
 	 }
+
 
 	 vector<uint64_t> bin_guards(nbin_guards, 1);
 	 for (int ii = (int)nbin_guards - 1 ; ii >= 0 ; ii -= 1) {
@@ -9231,18 +9305,16 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       vector<uint64_t> cp_vals(ncp, 0);
       vector<vvp_vector4_t> wide_vals(ncp);
       for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
-	    if (cobj && cobj->get_defn()->covgrp_cp_real(ii)) {
+	 if (static_defn && static_defn->covgrp_cp_real(ii)) {
 		  cp_vals[ii] = covgrp_real_key_(thr->pop_real());
 		  continue;
 	    }
-	    if (!cobj && nreal > 0) {
-		  // A null receiver has no bin metadata; drain real stack operands
-		  // before the vector operands because the call cannot sample.
-		  while (nreal > 0) {
-			thr->pop_real();
-			nreal -= 1;
-		  }
-	    }
+	 if (!static_defn && nreal > 0) {
+	       while (nreal > 0) {
+		     thr->pop_real();
+		     nreal -= 1;
+	       }
+	 }
 	    vvp_vector4_t v = thr->pop_vec4();
 	    if (v.size() > 64 || v.has_xz()) wide_vals[ii] = v;
 	    uint64_t val = 0;
@@ -9258,13 +9330,183 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 
 	 vvp_object_t obj;
 	 thr->pop_object(obj);
-	 cobj = obj.peek<vvp_cobject>();
-      if (!cobj) return true;
+	 vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	 if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
+
+	 const class_type*actual_defn = cobj->get_defn();
+	 if (!actual_defn || !actual_defn->is_covergroup()) {
+	       fprintf(stderr, "vvp: covergroup sample target has invalid class metadata\n");
+	       vpip_set_return_value(1);
+	       return true;
+	 }
+	 if (actual_defn != static_defn) {
+	       int parent_prop = actual_defn->covgrp_parent_prop();
+	       if (parent_prop < 0) {
+		     fprintf(stderr, "vvp: covergroup extension has no parent property\n");
+		     vpip_set_return_value(1);
+		     return true;
+	       }
+	       if ((size_t)parent_prop >= actual_defn->property_count()) {
+		     fprintf(stderr, "vvp: covergroup extension parent property is out of bounds\n");
+		     vpip_set_return_value(1);
+		     return true;
+	       }
+	       if (actual_defn->property_base_type((size_t)parent_prop) != "o") {
+		     fprintf(stderr, "vvp: covergroup extension parent property is not an object handle\n");
+		     vpip_set_return_value(1);
+		     return true;
+	       }
+	       vvp_object_t parent_obj;
+	       cobj->get_object((size_t)parent_prop, parent_obj, 0);
+	       vvp_cobject*parent = parent_obj.peek<vvp_cobject>();
+	       if (!parent) {
+		     fprintf(stderr, "vvp: covergroup extension has no parent object for sample()\n");
+		     vpip_set_return_value(1);
+		     return true;
+	       }
+	       const class_type*parent_defn = parent->get_defn();
+	       if (!parent_defn) {
+		     fprintf(stderr, "vvp: covergroup extension parent has no class metadata\n");
+		     vpip_set_return_value(1);
+		     return true;
+	       }
+	       size_t dynamic_count = actual_defn->covgrp_src_count();
+	       if (dynamic_count > 2097152
+		   || dynamic_count != covgrp_cp_count_(actual_defn)) {
+		     fprintf(stderr, "vvp: malformed covergroup extension source metadata\n");
+		     vpip_set_return_value(1);
+		     return true;
+	       }
+	       unsigned dynamic_ncp = (unsigned)dynamic_count;
+	       bool source_error = false;
+	       auto read_parent_value = [&](int prop, bool is_real,
+					    uint64_t&value,
+					    vvp_vector4_t*wide) -> bool {
+	     if (prop < 0 || (size_t)prop >= parent_defn->property_count()) {
+		   fprintf(stderr, "vvp: covergroup extension source property %d is out of bounds\n",
+			   prop);
+		   source_error = true;
+		   return false;
+	     }
+	     if (is_real) {
+		   if (parent_defn->property_base_type((size_t)prop) != "r") {
+			 fprintf(stderr, "vvp: covergroup extension real source has the wrong property type\n");
+			 source_error = true;
+			 return false;
+		   }
+		   value = covgrp_real_key_(parent->get_real((size_t)prop));
+		   return true;
+	     }
+	     if (parent_defn->property_vec4_width((size_t)prop) == 0) {
+		   fprintf(stderr, "vvp: covergroup extension vector source has the wrong property type\n");
+		   source_error = true;
+		   return false;
+	     }
+	     vvp_vector4_t v;
+	     parent->get_vec4((size_t)prop, v);
+	     if (wide && (v.size() > 64 || v.has_xz())) *wide = v;
+	     value = 0;
+	     for (unsigned b = 0; b < v.size() && b < 64; ++b)
+		   if (v.value(b) == BIT4_1) value |= UINT64_C(1) << b;
+	     return true;
+	       };
+
+	       vector<uint64_t> dynamic_vals(dynamic_ncp, 0);
+	       vector<vvp_vector4_t> dynamic_wide(dynamic_ncp);
+	       vector<uint64_t> dynamic_guards(dynamic_ncp, 1);
+	       for (unsigned ci = 0; ci < dynamic_ncp; ++ci) {
+	     if (ci < ncp) {
+		   dynamic_vals[ci] = cp_vals[ci];
+		   dynamic_wide[ci] = wide_vals[ci];
+		   dynamic_guards[ci] = guards[ci];
+		   continue;
+	     }
+	     int srcprop = actual_defn->covgrp_srcprop(ci);
+	     if (srcprop >= 0) {
+		   if (!read_parent_value(srcprop, actual_defn->covgrp_cp_real(ci),
+					  dynamic_vals[ci], &dynamic_wide[ci]))
+			 source_error = true;
+	     } else if (!actual_defn->covgrp_sample_ir(ci).empty()) {
+		   if (!actual_defn->covgrp_eval_sample_ir(
+			     cobj, actual_defn->covgrp_sample_ir(ci),
+			     dynamic_vals[ci])) {
+		     fprintf(stderr, "vvp: covergroup extension coverpoint %u source expression could not be evaluated for base-handle sample()\n",
+			     ci);
+		     source_error = true;
+		   }
+	     } else {
+		   fprintf(stderr, "vvp: covergroup extension coverpoint %u has no parent-property source for base-handle sample()\n",
+			   ci);
+		   source_error = true;
+	     }
+	     int guardprop = actual_defn->covgrp_guardsrc(ci);
+	     if (guardprop >= 0) {
+		   uint64_t guard_value = 0;
+		   if (read_parent_value(guardprop, false, guard_value, nullptr))
+			 dynamic_guards[ci] = (guard_value & 1) ? 1 : 0;
+	     } else if (ci < ncp) {
+		   dynamic_guards[ci] = guards[ci];
+	     }
+	       }
+
+	       size_t item_count = actual_defn->covgrp_item_count();
+	       if (item_count < dynamic_ncp) {
+	     fprintf(stderr, "vvp: malformed covergroup extension item metadata\n");
+	     vpip_set_return_value(1);
+	     return true;
+	       }
+	       vector<uint64_t> dynamic_cross_guards(item_count - dynamic_ncp, 1);
+	       for (size_t item = dynamic_ncp; item < item_count; ++item) {
+	     int guardprop = actual_defn->covgrp_item(item).iff_src;
+	     size_t cross_idx = item - dynamic_ncp;
+	     if (guardprop >= 0) {
+		   uint64_t guard_value = 0;
+		   if (read_parent_value(guardprop, false, guard_value, nullptr))
+			 dynamic_cross_guards[cross_idx] = (guard_value & 1) ? 1 : 0;
+	     } else if (actual_defn->covgrp_item(item).has_guard != 0
+		 && cross_idx < cross_guards.size()) {
+		   dynamic_cross_guards[cross_idx] = cross_guards[cross_idx];
+	     }
+	       }
+	       unsigned dynamic_nbin_guards = 0;
+	       for (size_t bi = 0; bi < actual_defn->covgrp_bin_count(); ++bi) {
+	     unsigned gi = actual_defn->covgrp_bin(bi).guard_idx;
+	     if (gi != class_type::COV_NO_GUARD && gi + 1 > dynamic_nbin_guards)
+		   dynamic_nbin_guards = gi + 1;
+	       }
+	       for (size_t bi = 0; bi < actual_defn->covgrp_dyn_bin_count(); ++bi) {
+	     unsigned gi = actual_defn->covgrp_dyn_bin(bi).guard_idx;
+	     if (gi != class_type::COV_NO_GUARD && gi + 1 > dynamic_nbin_guards)
+		   dynamic_nbin_guards = gi + 1;
+	       }
+	       vector<uint64_t> dynamic_bin_guards(dynamic_nbin_guards, 1);
+	       for (size_t gi = 0; gi < bin_guards.size()
+		   && gi < dynamic_bin_guards.size(); ++gi)
+	     dynamic_bin_guards[gi] = bin_guards[gi];
+	       if (source_error) {
+	     vpip_set_return_value(1);
+	     return true;
+	       }
+	       covgrp_sample_core_(cobj, dynamic_ncp, dynamic_vals, dynamic_wide,
+			   dynamic_guards, dynamic_cross_guards,
+			   dynamic_bin_guards);
+	       return true;
+	 }
 
 	 covgrp_sample_core_(cobj, ncp, cp_vals, wide_vals, guards, cross_guards,
 			     bin_guards);
       return true;
+}
+
+bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
+{
+      return covgrp_sample_(thr, cp, false);
+}
+
+bool of_COVGRP_SAMPLE_DYN(vthread_t thr, vvp_code_t cp)
+{
+      return covgrp_sample_(thr, cp, true);
 }
 
 /* The record-matching heart of %covgrp/sample, shared with
@@ -10184,6 +10426,7 @@ struct automatic_context_record_s {
       unsigned refcount = 0;     // 0 when no count is recorded.
       bool live = false;
       uint64_t generation = 0;   // Meaningful only while live.
+      vvp_context_t live_prev = 0;
 };
 static unordered_map<vvp_context_t, automatic_context_record_s> automatic_context_records;
 static uint64_t next_automatic_context_generation = 1;
@@ -10305,13 +10548,19 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
             }
       }
 
-      vvp_set_next_context(context, scope->live_contexts);
+      vvp_context_t live_head = scope->live_contexts;
+      vvp_set_next_context(context, live_head);
+      if (live_head) {
+            if (automatic_context_record_s*head_rec = automatic_context_record_(live_head))
+                  head_rec->live_prev = context;
+      }
       scope->live_contexts = context;
       automatic_context_record_s&rec = automatic_context_record_insert_(context);
       rec.owner = scope;
       rec.refcount = 1;
       rec.live = true;
       rec.generation = next_automatic_context_generation++;
+      rec.live_prev = 0;
       if (next_automatic_context_generation == 0)
             next_automatic_context_generation = 1;
 
@@ -10347,7 +10596,8 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
       if (!context)
             return;
 
-      if (automatic_context_record_s*rec_ptr = automatic_context_record_(context)) {
+      automatic_context_record_s*rec_ptr = automatic_context_record_(context);
+      if (rec_ptr) {
             automatic_context_record_s&rec = *rec_ptr;
             __vpiScope*owner = rec.owner;
             if (owner && owner != scope && owner->has_automatic_context())
@@ -10362,6 +10612,22 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             rec.generation = 0;
       }
 
+      vvp_context_t live_next = vvp_get_next_context(context);
+      vvp_context_t live_prev = rec_ptr ? rec_ptr->live_prev : 0;
+      automatic_context_record_s*next_rec = live_next ? automatic_context_record_(live_next) : 0;
+      automatic_context_record_s*prev_rec = live_prev ? automatic_context_record_(live_prev) : 0;
+      bool removed = false;
+      if ((!live_next || next_rec) &&
+          ((!live_prev && scope->live_contexts == context) ||
+           (live_prev && prev_rec && prev_rec->live &&
+            vvp_get_next_context(live_prev) == context))) {
+            if (live_prev)
+                  vvp_set_next_context(live_prev, live_next);
+            else
+                  scope->live_contexts = live_next;
+            removed = true;
+      }
+
       auto context_in_list = [](vvp_context_t head, vvp_context_t needle) -> bool {
             for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
                   if (cur == needle)
@@ -10370,15 +10636,19 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             return false;
       };
 
-      if (context == scope->live_contexts) {
-            scope->live_contexts = vvp_get_next_context(context);
-      } else {
+      if (!removed && context == scope->live_contexts) {
+            scope->live_contexts = live_next;
+            live_prev = 0;
+            removed = true;
+      } else if (!removed) {
             vvp_context_t tmp = scope->live_contexts;
             while (tmp && context != vvp_get_next_context(tmp)) {
                   tmp = vvp_get_next_context(tmp);
             }
             if (tmp) {
-                  vvp_set_next_context(tmp, vvp_get_next_context(context));
+                  vvp_set_next_context(tmp, live_next);
+                  live_prev = tmp;
+                  removed = true;
             } else {
                   // Duplicate free can happen on fallback control paths.
                   if (context_in_list(scope->free_contexts, context))
@@ -10395,10 +10665,18 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
                         warned = true;
                   }
                   vvp_set_stacked_context(context, 0);
+                  if (rec_ptr)
+                        rec_ptr->live_prev = 0;
                   vvp_set_next_context(context, scope->free_contexts);
                   scope->free_contexts = context;
                   return;
             }
+      }
+      if (removed) {
+            if (next_rec)
+                  next_rec->live_prev = live_prev;
+            if (rec_ptr)
+                  rec_ptr->live_prev = 0;
       }
 
       for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1)
@@ -25461,6 +25739,33 @@ bool of_NEW_COBJ(vthread_t thr, vvp_code_t cp)
       if (vthread_t owner = logical_process_thread_(thr))
 	    cobj->rng_srandom((int32_t)thread_rng_next_(owner));
       vvp_object_t tmp (cobj);
+      thr->push_object(tmp);
+      return true;
+}
+
+bool of_NEW_COBJ_EMBEDDED(vthread_t thr, vvp_code_t cp)
+{
+      const class_type*defn = dynamic_cast<const class_type*>(cp->handle);
+      assert(defn);
+
+      if (thr->object_stack_size() > 0) {
+	    vvp_cobject*parent = thr->peek_object().peek<vvp_cobject>();
+	    if (parent) {
+		  const class_type*parent_defn = parent->get_defn();
+		  unsigned prop = cp->bit_idx[1];
+		  if (prop < parent_defn->property_count()) {
+			const class_type*runtime_type =
+			      parent_defn->property_declared_class_type(prop);
+			if (runtime_type && runtime_type->is_covergroup())
+			      defn = runtime_type;
+		  }
+	    }
+      }
+
+      vvp_cobject*cobj = new vvp_cobject(defn);
+      if (vthread_t owner = logical_process_thread_(thr))
+	    cobj->rng_srandom((int32_t)thread_rng_next_(owner));
+      vvp_object_t tmp(cobj);
       thr->push_object(tmp);
       return true;
 }

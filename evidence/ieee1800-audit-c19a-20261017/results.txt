@@ -1,0 +1,142 @@
+===== ATTEMPT 01 — original both-edition probe =====
+SOURCE_REVISION=5ee99d8dd
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:01:14-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+f3e7211af8dfcfc921046c663c3c0a4a3679bb2a2a1d3bfe38ee4cac883373c5  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv
+7a4e4d6eef9fe493d7fe1e6ff17eae9354395b0c473160da4488d853cb4a2f87  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_tolerance_2023.sv
+
+=== bins-2017 (-g2017, expected=run) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+
+=== bins-2023 (-g2023, expected=run) ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_bins_cov.sv:9: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+
+=== tolerance-2017 (-g2017, expected=reject) ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-01/input/p19_05_tolerance_2023.sv:3: error: inside tolerance ranges requires IEEE1800-2023; compile with -g2023 (or -glatest).
+EXPECTED_REJECTION
+
+=== tolerance-2023 (-g2023, expected=run) ===
+compile_rc=0
+run_rc=0
+PASS 19.5.tolerance_outside cov=0.000000
+PASS 19.5.tolerance_inside cov=66.666667
+RESULT=FAIL
+
+===== ATTEMPT 02 — invalid inline-comment variant plus valid single-default variant =====
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:04:42-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+f3e7211af8dfcfc921046c663c3c0a4a3679bb2a2a1d3bfe38ee4cac883373c5  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/input/p19_05_bins_cov.sv
+2e1756aa8e75685fcdea2fd3bd0e0f59d64126dab2391b6be7487be5652e5cc0  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_single_default.sv
+b4b3baf79c07959805ec2e5ec57f848a1599cc9ae1ee683e794e8e0d7e416b5c  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv
+
+=== without_default -g2017 ===
+compile_rc=3
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:16: error: Invalid declaration `cg2 g2 = ...;`: `cg2' is not a visible data type, and a module instantiation cannot have an initializer.
+
+=== without_default -g2023 ===
+compile_rc=3
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:10: sorry: unsupported bins declaration was ignored (functional coverage for it is not collected).
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-02/results/p19_05_bins_without_default.sv:16: error: Invalid declaration `cg2 g2 = ...;`: `cg2' is not a visible data type, and a module instantiation cannot have an initializer.
+
+=== single_default -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 19.11.1.no_samples_0
+INFO cg1 cov=7.142857 n=0 d=0
+FAIL 19.5.1.bins_default_excluded_5_of_70
+PASS 19.5.1.fixed_last_bin_gets_remainder
+PASS 19.5.1.fixed_duplicates_retained
+INFO cg3 cov=33.333333 n=0 d=0
+FAIL 19.11.1.empty_bins_excluded
+PASS 19.5.iff_false_ignored
+PASS 19.5.iff_true_counts
+PASS 19.11.no_items_weight_nonzero_0
+PASS 19.11.no_items_weight_zero_100
+PASS 19.11.all_item_weights_zero_0
+DONE fails=2
+
+=== single_default -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 19.11.1.no_samples_0
+INFO cg1 cov=7.142857 n=0 d=0
+FAIL 19.5.1.bins_default_excluded_5_of_70
+PASS 19.5.1.fixed_last_bin_gets_remainder
+PASS 19.5.1.fixed_duplicates_retained
+INFO cg3 cov=33.333333 n=0 d=0
+FAIL 19.11.1.empty_bins_excluded
+PASS 19.5.iff_false_ignored
+PASS 19.5.iff_true_counts
+PASS 19.11.no_items_weight_nonzero_0
+PASS 19.11.no_items_weight_zero_100
+PASS 19.11.all_item_weights_zero_0
+DONE fails=2
+
+===== ATTEMPT 03 — clean removal of array-default declaration =====
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-17T15:06:00-06:00
+1
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+f3e7211af8dfcfc921046c663c3c0a4a3679bb2a2a1d3bfe38ee4cac883373c5  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-03/input/p19_05_bins_cov.sv
+302eadffc40b4e343bc9481350049558b0e507b495556a558de5858aa6887766  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c19a-20261017-03/results/p19_05_bins_without_array_default.sv
+
+=== array-default declaration removed, -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 19.11.1.no_samples_0
+INFO cg1 cov=7.142857 n=0 d=0
+FAIL 19.5.1.bins_default_excluded_5_of_70
+PASS 19.5.1.fixed_last_bin_gets_remainder
+PASS 19.5.1.fixed_duplicates_retained
+INFO cg3 cov=33.333333 n=0 d=0
+FAIL 19.11.1.empty_bins_excluded
+PASS 19.5.iff_false_ignored
+PASS 19.5.iff_true_counts
+PASS 19.11.no_items_weight_nonzero_0
+PASS 19.11.no_items_weight_zero_100
+PASS 19.11.all_item_weights_zero_0
+DONE fails=2
+
+=== array-default declaration removed, -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 19.11.1.no_samples_0
+INFO cg1 cov=7.142857 n=0 d=0
+FAIL 19.5.1.bins_default_excluded_5_of_70
+PASS 19.5.1.fixed_last_bin_gets_remainder
+PASS 19.5.1.fixed_duplicates_retained
+INFO cg3 cov=33.333333 n=0 d=0
+FAIL 19.11.1.empty_bins_excluded
+PASS 19.5.iff_false_ignored
+PASS 19.5.iff_true_counts
+PASS 19.11.no_items_weight_nonzero_0
+PASS 19.11.no_items_weight_zero_100
+PASS 19.11.all_item_weights_zero_0
+DONE fails=2

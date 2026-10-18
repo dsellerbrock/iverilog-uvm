@@ -1,0 +1,26 @@
+## static method this (exit 0)
+610	OPEN	[IEEE 1800] §§8.7/8.18 — Enforce local constructor visibility at new	1800-audit	2026-10-17T18:51:22Z
+497	CLOSED	[IEEE 1800] §§8.23/26.3 — Allow package-qualified static class calls in expressions		2026-10-14T01:37:11Z
+533	CLOSED	[SystemVerilog] Parse package-qualified parameterized class handles in interfaces	from-caliptra-dv	2026-10-11T21:37:33Z
+
+## non-static static method (exit 0)
+497	CLOSED	[IEEE 1800] §§8.23/26.3 — Allow package-qualified static class calls in expressions		2026-10-14T01:37:11Z
+533	CLOSED	[SystemVerilog] Parse package-qualified parameterized class handles in interfaces	from-caliptra-dv	2026-10-11T21:37:33Z
+
+## static virtual (exit 0)
+609	OPEN	[IEEE 1800] §8.7 — Reject static or virtual class constructors	1800-audit	2026-10-17T18:51:21Z
+
+## event control function (exit 0)
+
+## nonblocking constructor (exit 0)
+
+## equality unrelated class (exit 0)
+
+## shallow copy (exit 0)
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot		2026-07-21T03:12:27Z
+101	CLOSED	Copy constructor as a declaration initializer (`C d = new src;`) does not copy		2026-07-21T03:14:36Z
+
+## scopy (exit 0)
+
+## vvp_cobject (exit 0)
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot		2026-07-21T03:12:27Z

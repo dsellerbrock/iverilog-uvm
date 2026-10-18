@@ -1,0 +1,110 @@
+diff --git a/vvp/vthread.cc b/vvp/vthread.cc
+index 7a57ce5cf..d60cff24c 100644
+--- a/vvp/vthread.cc
++++ b/vvp/vthread.cc
+@@ -10184,6 +10184,7 @@ struct automatic_context_record_s {
+       unsigned refcount = 0;     // 0 when no count is recorded.
+       bool live = false;
+       uint64_t generation = 0;   // Meaningful only while live.
++      vvp_context_t live_prev = 0;
+ };
+ static unordered_map<vvp_context_t, automatic_context_record_s> automatic_context_records;
+ static uint64_t next_automatic_context_generation = 1;
+@@ -10305,13 +10306,19 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
+             }
+       }
+ 
+-      vvp_set_next_context(context, scope->live_contexts);
++      vvp_context_t live_head = scope->live_contexts;
++      vvp_set_next_context(context, live_head);
++      if (live_head) {
++            if (automatic_context_record_s*head_rec = automatic_context_record_(live_head))
++                  head_rec->live_prev = context;
++      }
+       scope->live_contexts = context;
+       automatic_context_record_s&rec = automatic_context_record_insert_(context);
+       rec.owner = scope;
+       rec.refcount = 1;
+       rec.live = true;
+       rec.generation = next_automatic_context_generation++;
++      rec.live_prev = 0;
+       if (next_automatic_context_generation == 0)
+             next_automatic_context_generation = 1;
+ 
+@@ -10347,7 +10354,8 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
+       if (!context)
+             return;
+ 
+-      if (automatic_context_record_s*rec_ptr = automatic_context_record_(context)) {
++      automatic_context_record_s*rec_ptr = automatic_context_record_(context);
++      if (rec_ptr) {
+             automatic_context_record_s&rec = *rec_ptr;
+             __vpiScope*owner = rec.owner;
+             if (owner && owner != scope && owner->has_automatic_context())
+@@ -10362,6 +10370,22 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
+             rec.generation = 0;
+       }
+ 
++      vvp_context_t live_next = vvp_get_next_context(context);
++      vvp_context_t live_prev = rec_ptr ? rec_ptr->live_prev : 0;
++      automatic_context_record_s*next_rec = live_next ? automatic_context_record_(live_next) : 0;
++      automatic_context_record_s*prev_rec = live_prev ? automatic_context_record_(live_prev) : 0;
++      bool removed = false;
++      if ((!live_next || next_rec) &&
++          ((!live_prev && scope->live_contexts == context) ||
++           (live_prev && prev_rec && prev_rec->live &&
++            vvp_get_next_context(live_prev) == context))) {
++            if (live_prev)
++                  vvp_set_next_context(live_prev, live_next);
++            else
++                  scope->live_contexts = live_next;
++            removed = true;
++      }
++
+       auto context_in_list = [](vvp_context_t head, vvp_context_t needle) -> bool {
+             for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
+                   if (cur == needle)
+@@ -10370,15 +10394,19 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
+             return false;
+       };
+ 
+-      if (context == scope->live_contexts) {
+-            scope->live_contexts = vvp_get_next_context(context);
+-      } else {
++      if (!removed && context == scope->live_contexts) {
++            scope->live_contexts = live_next;
++            live_prev = 0;
++            removed = true;
++      } else if (!removed) {
+             vvp_context_t tmp = scope->live_contexts;
+             while (tmp && context != vvp_get_next_context(tmp)) {
+                   tmp = vvp_get_next_context(tmp);
+             }
+             if (tmp) {
+-                  vvp_set_next_context(tmp, vvp_get_next_context(context));
++                  vvp_set_next_context(tmp, live_next);
++                  live_prev = tmp;
++                  removed = true;
+             } else {
+                   // Duplicate free can happen on fallback control paths.
+                   if (context_in_list(scope->free_contexts, context))
+@@ -10395,11 +10423,19 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
+                         warned = true;
+                   }
+                   vvp_set_stacked_context(context, 0);
++                  if (rec_ptr)
++                        rec_ptr->live_prev = 0;
+                   vvp_set_next_context(context, scope->free_contexts);
+                   scope->free_contexts = context;
+                   return;
+             }
+       }
++      if (removed) {
++            if (next_rec)
++                  next_rec->live_prev = live_prev;
++            if (rec_ptr)
++                  rec_ptr->live_prev = 0;
++      }
+ 
+       for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1)
+             scope->item[idx]->release_instance(context);

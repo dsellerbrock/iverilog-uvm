@@ -1,0 +1,7 @@
+PASS 18.6.2.pre_before_solve_post_after_assign
+PASS 18.6.2.pre_called_on_failure
+PASS 18.6.2.hooks_dispatch_dynamic_type
+PASS 18.6.2.nested_members_randomized_and_hooked
+PASS 18.6.3.static_rand_changes_everywhere
+PASS 18.6.3.srandom_object_stability
+DONE fails=0

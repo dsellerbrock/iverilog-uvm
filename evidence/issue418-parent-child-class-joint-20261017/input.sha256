@@ -1,0 +1,4 @@
+b8bfddb3353436cbfff75eef39dc18a7cfa7deae270968dad9757735c2d52cf7  a3-issue418-base.tar.gz
+4ca172fbf91c0ad9a9a9b095724ea7f677b44e93537ae75ad991722aee14e2b6  a3-issue418.patch
+2ce0ef8db95b2e7173dc239b1c278afa81f90914e9d09bd0e15b9caffad4f432  run-body.sh
+c0c7daa93aba401d2daff5505a6d3d8c04a71bbd70e7659e135a89cabeede60f  a3-issue418.sbatch

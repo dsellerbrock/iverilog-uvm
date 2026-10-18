@@ -1,0 +1,1 @@
+All six profiles completed and all workload outputs matched. The Slurm wrapper exit was 1 because its local expected-row count said 5 for the six-workload core group; this corrected post-processing derives counts from the preserved Callgrind reports and does not rerun or alter measurements.
