@@ -1,0 +1,11 @@
+build=PASS
+104ec01cb29ac204f4f3380697f8ac5da57e685d58db3b3203883710b3c68daf  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/local-install/bin/iverilog
+6f67eb48b88863d0fd25dcfff3349a30a2002d28faf88b32d848f05774171d9d  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/local-install/bin/vvp
+issue_2017=PASS
+issue_2023=PASS
+smoke=PASS
+t1_legacy_cases=10
+t1_json_cases=7
+t1_legacy=PASS
+t1_json=PASS
+runner_status=0

@@ -1,0 +1,9 @@
+base=c344d20197a569dea8936bad95de3d185b1e78dc
+4faa7c1778cee604bacb0ceeed07a206c9dd84836bd0c88a1ee7ac2b0977556b  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/full-change.patch
+5c19fa7e49e0774226335f0e0110bfb20a0d98910ee9cc75ff0975b1e709c364  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/parse.y
+e1baadddeea7905b2e96e7b7fdc9ee3ff20031232ac4d2279fa5fb76540b99f0  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/ivtest/ivltests/sv_class_extern_implicit_return.v
+2e1016003078f85d17db43e726f00a9fb8a7d85ffdf0cd968bfdcc0cbafb8809  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/ivtest/ivltests/sv_class_extern_implicit_return_2017.v
+2e1016003078f85d17db43e726f00a9fb8a7d85ffdf0cd968bfdcc0cbafb8809  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/ivtest/ivltests/sv_class_extern_implicit_return_2023.v
+3a3bbf3bf62c2d033744ef00d058d3914283d549002fc790e21272452332e976  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/ivtest/vvp_tests/sv_class_extern_implicit_return_2017.json
+116bff479da886ec2fbe56ab82c3e1143eddf9bf289d8f862b9181daafaea0c6  /home/dsell/slurm-runs/iverilog-uvm/A3/issue641-candidate-20261018-03/src/ivtest/vvp_tests/sv_class_extern_implicit_return_2023.json
+resources=3 CPUs, 5 GiB, 40 minutes
