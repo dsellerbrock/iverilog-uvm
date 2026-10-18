@@ -41573,6 +41573,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
+            // Keep this offset identical in base and extended covergroup types:
+            // embedded construction can select the extended type at runtime.
+            group_options.per_instance_prop = add_unique_cov_property(
+                  "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
             auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
                                    const char*where) -> unsigned {
                   auto it = options.find(perm_string::literal("type_option.weight"));
@@ -44932,10 +44936,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 			  }
 		    }
-
-		    // Preserve existing bin and parent property indices.
-		    group_options.per_instance_prop = add_unique_cov_property(
-			  "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
 
 		    // Replace the covergroup property declaration on the
 		    // parent class with a handle to the synthesized class
