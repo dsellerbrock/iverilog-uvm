@@ -1,0 +1,8 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+             sv_covergroup_class_inheritance_2017: Passed - CE.
+             sv_covergroup_class_inheritance_2023: Passed.
+sv_covergroup_class_inheritance_missing_base_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=3, Passed=3, Failed=0, Not Implemented=0, Expected Fail=0

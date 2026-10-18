@@ -1351,6 +1351,10 @@ void property_cobject::set_object(char*buf, const vvp_object_t&val, uint64_t idx
 		  dst_obj->shallow_copy(src_obj);
 		  return;
 	    }
+	    if (defn_->is_covergroup()
+		&& defn_->covgrp_parent_prop() >= 0
+		&& src_obj->get_defn()->is_covergroup())
+		  return;
       }
 
       if (val.test_nil()) {

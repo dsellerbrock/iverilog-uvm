@@ -3288,7 +3288,8 @@ class_items /* IEEE1800-2005: A.1.2 */
    synthesized covergroup class. */
 class_cg_port_prefix
   : K_covergroup IDENTIFIER
-      { current_function = pform_push_function_scope_unbound(
+      { pform_class_covergroup_set_extends(nullptr);
+	current_function = pform_push_function_scope_unbound(
             @2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
@@ -3297,6 +3298,15 @@ class_cg_port_prefix
 				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
 	$$ = $2;
+      }
+  | K_covergroup K_extends IDENTIFIER
+      {
+	pform_class_covergroup_set_extends($3);
+	current_function = pform_push_function_scope_unbound(
+	      @3, $3, LexicalScope::INHERITED, false);
+	if (!sv_require_feature(current_function, SVF_COVERGROUP_INHERITANCE))
+	      error_count += 1;
+	$$ = $3;
       }
   ;
 

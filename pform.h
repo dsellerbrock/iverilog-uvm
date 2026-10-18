@@ -255,6 +255,7 @@ extern void pform_class_pure_constraint(const struct vlltype&loc,
 // coverpoints is a list<pform_covergroup_t::pform_coverpoint_t*> built by parse.y.
 // Takes ownership of the list; each element is move-constructed into covergroup.
 #include "pform_types.h"
+extern void pform_class_covergroup_set_extends(const char*name);
 extern void pform_class_covergroup(const struct vlltype&loc,
 				    const char*name,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,

@@ -39,6 +39,7 @@ using namespace std;
  * The functions here help the parser put together class type declarations.
  */
 static PClass*pform_cur_class = 0;
+static perm_string pending_covergroup_extends_;
 /* A class declaration is itself a legal class item (IEEE 1800-2017
  * 8.3). Keep the enclosing class while a nested declaration is parsed so
  * items following the nested class are attached to the right owner. */
@@ -70,6 +71,35 @@ static PClass* pform_class_base_scope_(PClass*class_scope)
 
       return pform_find_visible_class_scope(
 	    class_scope, base_ref->typedef_ref()->name);
+}
+
+void pform_class_covergroup_set_extends(const char*name)
+{
+      pending_covergroup_extends_ = name ? lex_strings.make(name) : perm_string();
+}
+
+static void pform_covergroup_remap_select_(
+      class_type_t::pform_cross_t::select_t*select,
+      const map<perm_string,perm_string>&labels)
+{
+      if (!select) return;
+      if (select->op == class_type_t::pform_cross_t::select_t::SEL_BINSOF) {
+	    auto found = labels.find(select->cp_name);
+	    if (found != labels.end()) select->cp_name = found->second;
+      }
+      pform_covergroup_remap_select_(select->a, labels);
+      pform_covergroup_remap_select_(select->b, labels);
+}
+
+static class_type_t::pform_cross_t::select_t*
+pform_covergroup_clone_select_(
+      const class_type_t::pform_cross_t::select_t*select)
+{
+      if (!select) return nullptr;
+      auto*copy = new class_type_t::pform_cross_t::select_t(*select);
+      copy->a = pform_covergroup_clone_select_(select->a);
+      copy->b = pform_covergroup_clone_select_(select->b);
+      return copy;
 }
 
 static PFunction* pform_class_constructor_(PClass*class_scope)
@@ -840,6 +870,8 @@ void pform_class_covergroup(const struct vlltype&loc,
 			     std::vector<PExpr*>*ctor_defaults,
 			     std::vector<PExpr*>*sample_formal_defaults)
 {
+	  perm_string extends_name = pending_covergroup_extends_;
+	  pending_covergroup_extends_ = perm_string();
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
 	    pending_cg_options_.clear();
@@ -882,26 +914,6 @@ void pform_class_covergroup(const struct vlltype&loc,
       // I1: move accumulated cross declarations onto the covergroup.
       cg->crosses = std::move(pending_crosses_);
       pending_crosses_.clear();
-      pform_covergroup_implicit_cross_coverpoints_(loc, cg);
-      for (auto&cross : cg->crosses) {
-	    if (!cross.value_type || !cross.value_type->members) continue;
-	    auto member = cross.value_type->members->begin();
-	    for (perm_string label : cross.cp_labels) {
-		  auto cp = std::find_if(cg->coverpoints.begin(),
-					 cg->coverpoints.end(),
-					 [&](const class_type_t::pform_coverpoint_t&item) {
-					       return item.label == label;
-					 });
-		  if (member == cross.value_type->members->end()) break;
-		  if (cp != cg->coverpoints.end())
-			if (PEIdent*id = dynamic_cast<PEIdent*>(cp->expr)) {
-			      (*member)->type.reset(new type_reference_t(
-				    id->clone_for_reference()));
-			      FILE_NAME((*member)->type.get(), loc);
-			}
-		  ++member;
-	    }
-      }
       // M11: move accumulated covergroup-level options.
       cg->options = std::move(pending_cg_options_);
       pending_cg_options_.clear();
@@ -923,6 +935,112 @@ void pform_class_covergroup(const struct vlltype&loc,
       if (sample_events) {
 	    cg->sample_events = *sample_events;
 	    delete sample_events;
+      }
+
+	// IEEE 1800-2023 19.4.1: an embedded extension replaces the
+	// same-named base property, retaining its sampling interface and
+	// merging coverage components by their declared names.
+      if (!extends_name.nil()) {
+	    class_type_t::pform_covergroup_t* base_cg = nullptr;
+	    for (PClass*base = pform_class_base_scope_(pform_cur_class);
+		 base && !base_cg; base = pform_class_base_scope_(base)) {
+		  if (!base->type) continue;
+		  for (auto*item : base->type->covergroups)
+			if (item && item->name == extends_name) {
+			      base_cg = item;
+			      break;
+			}
+	    }
+	    if (!base_cg) {
+		  string message = "error: covergroup '" + string(extends_name.str())
+			+ "' is not declared in a base class (IEEE 1800-2023 19.4.1).";
+		  VLerror(loc, "%s", message.c_str());
+		  delete cg;
+		  return;
+	    }
+	    if (!cg->sample_events.empty() || !cg->sample_formals.empty()) {
+		  VLerror(loc, "error: an embedded covergroup extension inherits its base sampling event and sample arguments (IEEE 1800-2023 19.4.1).");
+		  delete cg;
+		  return;
+	    }
+
+	    vector<class_type_t::pform_coverpoint_t> added_coverpoints =
+		  std::move(cg->coverpoints);
+	    vector<class_type_t::pform_cross_t> added_crosses =
+		  std::move(cg->crosses);
+	    map<perm_string,PExpr*> added_options = std::move(cg->options);
+	    *cg = *base_cg;
+	    cg->is_extension = true;
+	    map<perm_string,perm_string> inherited_cross_labels;
+	    for (auto&item : added_coverpoints) {
+		  auto found = find_if(cg->coverpoints.begin(), cg->coverpoints.end(),
+				       [&](const class_type_t::pform_coverpoint_t&base) {
+					     return !item.label.nil()
+						&& base.label == item.label;
+				       });
+		  if (found == cg->coverpoints.end())
+			cg->coverpoints.push_back(std::move(item));
+		  else {
+			class_type_t::pform_coverpoint_t base_only = *found;
+			string alias = "$ivl_inherited_"
+			      + string(extends_name.str()) + "_"
+			      + std::to_string(found - cg->coverpoints.begin());
+			base_only.label = lex_strings.make(alias.c_str());
+			base_only.inherited_cross_only = true;
+			inherited_cross_labels[item.label] = base_only.label;
+			*found = std::move(base_only);
+			cg->coverpoints.push_back(std::move(item));
+		  }
+	    }
+	    for (auto&cross : cg->crosses) {
+		  for (auto&label : cross.cp_labels) {
+			    auto found = inherited_cross_labels.find(label);
+			    if (found != inherited_cross_labels.end())
+				  label = found->second;
+		  }
+		  if (!inherited_cross_labels.empty())
+			for (auto&bin : cross.bins) {
+			      // Extension label remapping must not mutate the base definition.
+			      bin.select = pform_covergroup_clone_select_(bin.select);
+			      pform_covergroup_remap_select_(bin.select,
+						inherited_cross_labels);
+			}
+	    }
+	    for (auto&item : added_crosses) {
+		  auto found = find_if(cg->crosses.begin(), cg->crosses.end(),
+				       [&](const class_type_t::pform_cross_t&base) {
+					     return !item.label.nil()
+						&& base.label == item.label;
+				       });
+		  if (found == cg->crosses.end())
+			cg->crosses.push_back(std::move(item));
+		  else
+			*found = std::move(item);
+	    }
+	    for (const auto&item : added_options)
+		  cg->options[item.first] = item.second;
+      }
+      // Resolve implicit cross items after inheritance is merged so names
+      // from a base covergroup remain references to its components.
+      pform_covergroup_implicit_cross_coverpoints_(loc, cg);
+      for (auto&cross : cg->crosses) {
+	    if (!cross.value_type || !cross.value_type->members) continue;
+	    auto member = cross.value_type->members->begin();
+	    for (perm_string label : cross.cp_labels) {
+		  auto cp = std::find_if(cg->coverpoints.begin(),
+					 cg->coverpoints.end(),
+					 [&](const class_type_t::pform_coverpoint_t&item) {
+					       return item.label == label;
+					 });
+		  if (member == cross.value_type->members->end()) break;
+		  if (cp != cg->coverpoints.end())
+			if (PEIdent*id = dynamic_cast<PEIdent*>(cp->expr)) {
+			      (*member)->type.reset(new type_reference_t(
+				    id->clone_for_reference()));
+			      FILE_NAME((*member)->type.get(), loc);
+			}
+		  ++member;
+	    }
       }
       pform_cur_class->type->covergroups.push_back(cg);
 }

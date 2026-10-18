@@ -4888,6 +4888,14 @@ extern "C" int ivl_type_covgrp_parent_prop(ivl_type_t net)
       return -1;
 }
 
+extern "C" int ivl_type_covgrp_owner_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type)
+	    return class_type->covgrp_owner_prop();
+      return -1;
+}
+
 extern "C" int ivl_type_covgrp_srcprop(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

@@ -1138,8 +1138,10 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 	// slot, so %covgrp/sample/all can read the coverpoint source
 	// properties. (The resulting reference cycle is intentional:
 	// coverage state persists for the whole simulation.)
-      if ((int)pid != defn_->covgrp_parent_prop())
-      if (vvp_cobject*cg = val.peek<vvp_cobject>()) {
+	 vvp_object_t stored;
+	 defn_->get_object(properties_, pid, stored, idx);
+	if ((int)pid != defn_->covgrp_parent_prop())
+	if (vvp_cobject*cg = stored.peek<vvp_cobject>()) {
 	    int pp = cg->get_defn()->covgrp_parent_prop();
 	    if (pp >= 0 && cg != this) {
 		  vvp_object_t self(this);
@@ -1147,8 +1149,6 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 		  vvp_covgrp_finalize_parent_bins(cg);
 	    }
       }
-      vvp_object_t stored;
-      defn_->get_object(properties_, pid, stored, idx);
       if (defn_->is_union_type() && old_active != union_active_member_) {
             touch();
             return;

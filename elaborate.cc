@@ -40066,21 +40066,29 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    bool cg_standalone = pclass->type->is_covergroup_standalone;
 
 		    netclass_t* cg_class = nullptr;
+		    size_t super_props = get_super()
+			? get_super()->get_properties() : 0;
 		    if (cg_standalone) {
 			  cg_class = this;
 			  cg_class->set_is_covergroup(true);
 		    }
 		    if (!cg_class) {
 			  int existing_idx = property_idx_from_name(cgdef->name);
-			  if (existing_idx >= 0)
+			  if (cgdef->is_extension)
+				cg_class = covgrp_extension_class(cgdef->name);
+			  else if (existing_idx >= 0
+				   && static_cast<size_t>(existing_idx) >= super_props)
 				cg_class = const_cast<netclass_t*>(
-					dynamic_cast<const netclass_t*>(get_prop_type(existing_idx)));
+					dynamic_cast<const netclass_t*>(get_prop_type(
+					      static_cast<size_t>(existing_idx))));
 		    }
 		    if (!cg_class) {
 			  cg_class = new netclass_t(cg_class_pname, nullptr);
 			  cg_class->set_scope_ready(true);
 			  cg_class->set_body_elaborated(true);
 			  cg_class->set_is_covergroup(true);
+			  if (cgdef->is_extension)
+				set_covgrp_extension_class(cgdef->name, cg_class);
 		    }
 
 		      // Constructor formals are immutable per-instance state of
@@ -41732,12 +41740,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  cg_at_least);
 			  std::pair<unsigned,std::string> cp_weight =
 				opt_weight(cp.options, 1);
+			  unsigned cp_type_weight = type_weight(cp.options, "coverpoint");
+			  if (cp.inherited_cross_only) {
+				cp_weight.first = 0;
+				cp_type_weight = 0;
+			  }
 			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
 						cg_auto_bin_max);
 			  std::pair<int,int> cp_option_props =
 				add_option_props("__covgrp_item_" + std::to_string(cp_idx));
 			  cg_class->add_covgrp_item(cp_at_least,
-						cp_weight.first, type_weight(cp.options, "coverpoint"), false,
+						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
 						nullptr, -1,
 						cp_option_props.first,
@@ -44470,9 +44483,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // can read the coverpoint source properties of every live
 		    // instance. Added AFTER the bin properties so their
 		    // indexes are unchanged.
-		    if (!cg_standalone
-		&& (has_parent_set_bins || has_parent_range_bins
-		    || !cgdef->sample_events.empty())) {
+	    if (!cg_standalone
+		&& (cgdef->is_extension || has_parent_set_bins
+		    || has_parent_range_bins || !cgdef->sample_events.empty())) {
 				  int parent_prop = add_unique_cov_property(
 					"__covgrp_parent", this);
 				  if (parent_prop >= 0)
@@ -44510,10 +44523,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // parent class with a handle to the synthesized class
 		    // (not for a standalone covergroup: the class IS the
 		    // covergroup object type).
-		    if (!cg_standalone)
+		    if (!cg_standalone && !cgdef->is_extension)
 			  set_property(cgdef->name,
 				       property_qualifier_t::make_none(),
 				       cg_class);
+		    if (cgdef->is_extension) {
+			  int inherited_idx = property_idx_from_name(cgdef->name);
+			  assert(properties_.find(cgdef->name) == properties_.end());
+			  assert(inherited_idx >= 0
+				 && static_cast<size_t>(inherited_idx) < super_props);
+			  assert(covgrp_extension_class(cgdef->name));
+			  assert(covgrp_extension_class(cgdef->name)
+				 == get_prop_type(static_cast<size_t>(inherited_idx)));
+			  assert(covgrp_extension_class(cgdef->name)
+				 != get_super()->get_prop_type(
+				       static_cast<size_t>(inherited_idx)));
+		    }
 	      }
 
 	      for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()

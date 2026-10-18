@@ -766,6 +766,7 @@ struct class_type_t : public data_type_t {
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)
+	    bool inherited_cross_only = false;
 	    PExpr* expr;        // expression being covered (e.g., val)
 	    PExpr* iff_expr = nullptr; // M11: iff (guard) — sample gate
 	    std::vector<pform_cov_bins_t> bins;
@@ -821,6 +822,7 @@ struct class_type_t : public data_type_t {
       };
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
+	    bool is_extension = false;
 	      // Per-instance constructor formals (19.3), distinct from
 	      // `with function sample` formals.
 	    std::vector<perm_string> ctor_formals;
