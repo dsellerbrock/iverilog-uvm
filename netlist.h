@@ -3576,6 +3576,9 @@ class NetAssign_ {
       { return dynamic_part_carrier_ != nullptr; }
       const NetExpr* dynamic_part_carrier() const
       { return dynamic_part_carrier_; }
+      void collect_dynamic_selectors(std::vector<const NetExpr*>&) const;
+      size_t replace_dynamic_selectors(const std::vector<NetNet*>&,
+                                       size_t offset = 0);
 	// Set the member or property name if the signal type is a
 	// class.
       void set_property(const perm_string&name, unsigned int idx);

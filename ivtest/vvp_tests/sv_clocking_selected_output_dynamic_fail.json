@@ -1,6 +1,5 @@
 {
-    "type"          : "CE",
+    "type"          : "normal",
     "source"        : "sv_clocking_selected_output_dynamic_fail.v",
-    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_selected_output_dynamic_fail" ],
-    "gold"          : "sv_clocking_selected_output_dynamic_fail"
+    "iverilog-args" : [ "-g2017", "-s", "sv_clocking_selected_output_dynamic_fail" ]
 }
