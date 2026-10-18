@@ -28,8 +28,10 @@ module test;
     item.record.values[1] = new[1];
     item.record.values[0][0] = 32'h1234_5678;
     item.record.values[1][0] = 32'h9abc_def0;
-    original0 = item.record.values[0][0];
-    original1 = item.record.values[1][0];
+    row0 = item.record.values[0];
+    row1 = item.record.values[1];
+    original0 = row0[0];
+    original1 = row1[0];
 
     if (!item.randomize()) $fatal(1, "nested struct dynamic-array randomize failed");
     row0 = item.record.values[0];
