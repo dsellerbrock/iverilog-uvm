@@ -42322,6 +42322,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << "' is dropped." << endl;
 					    continue;
 				      }
+				      // shortcut: wildcard transition bins need literal patterns and
+				      // cannot be arrayed; add set indexing when a case needs it.
+				      if (bin.wildcard && bin.arrayed) {
+					    cerr << "sorry: wildcard arrayed transition bin '"
+						 << bin.name << "' is not supported; the bin is "
+						 << "dropped." << endl;
+					    continue;
+				      }
 				      if (bin.trans_seqs.size() > 255) {
 					    cerr << "sorry: covergroup transition bin '" << bin.name
 						 << "' has more than 255 alternative sequences; "
@@ -42382,7 +42390,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    unsigned __int128 sequence_variants = 1;
 					    for (auto&source_term : source_terms) {
 						  trans_term_t term;
-						  if (!eval_ranges(source_term.ranges, term.ranges,
+						  if (bin.wildcard) {
+							for (auto&r : source_term.ranges) {
+							      uint64_t value, mask;
+							      if (r.first != r.second
+								  || !eval_wildcard(r.first, value, mask)) {
+								    cerr << "sorry: wildcard transition bin '"
+									 << bin.name << "' needs literal "
+									 << "patterns; the bin is dropped."
+									 << endl;
+								    bad = true;
+								    break;
+							      }
+							      term.ranges.push_back(
+								    std::make_pair(value, mask));
+							}
+						  } else if (!eval_ranges(source_term.ranges, term.ranges,
 						     cp_value_width, cp_value_signed,
 						     bin.name.str(), nullptr)) {
 							term.dynamic = true;
@@ -42414,22 +42437,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							bad = true;
 							break;
 						  }
-						  std::sort(term.ranges.begin(), term.ranges.end());
-						  std::vector<std::pair<uint64_t,uint64_t>> merged;
-						  for (auto&r : term.ranges) {
-							if (!merged.empty()
-							    && (r.first <= merged.back().second
-								|| (merged.back().second != UINT64_MAX
-								    && r.first == merged.back().second + 1)))
-							      merged.back().second = std::max(
-								merged.back().second, r.second);
-							else merged.push_back(r);
+						  if (bad) break;
+						  // One wildcard bin is one transition alternative, regardless
+						  // of how many concrete values its pattern matches.
+						  unsigned __int128 alternatives = 1;
+						  if (!bin.wildcard) {
+							std::sort(term.ranges.begin(), term.ranges.end());
+							std::vector<std::pair<uint64_t,uint64_t>> merged;
+							for (auto&r : term.ranges) {
+							      if (!merged.empty()
+								  && (r.first <= merged.back().second
+								      || (merged.back().second != UINT64_MAX
+								  && r.first == merged.back().second + 1)))
+								    merged.back().second = std::max(
+									  merged.back().second, r.second);
+								  else merged.push_back(r);
+							}
+							term.ranges = std::move(merged);
+							alternatives = 0;
+							for (auto&r : term.ranges)
+							      alternatives += (unsigned __int128)r.second
+								    - r.first + 1;
 						  }
-						  term.ranges = std::move(merged);
-						  unsigned __int128 alternatives = 0;
-						  for (auto&r : term.ranges)
-							alternatives += (unsigned __int128)r.second
-								      - r.first + 1;
 						  if ((!term.dynamic && alternatives == 0)
 						      || (bin.arrayed
 							  && alternatives > array_transition_limit)) {
@@ -42613,13 +42642,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  uint64_t alt_base = 0;
 						  for (auto&r : term.ranges) {
 							cg_class->add_covgrp_bin(cp_idx, marker_prop,
-							      r.first, r.second, 4u,
+							      r.first, r.second,
+							      4u | (bin.wildcard ? 8u : 0u),
 							      (sq << 8) | st, cp_idx,
 							      term.repeat, term.min, term.max,
 							      (unsigned)alt_base,
 							      (unsigned)term.alternatives,
 							      family, seq_bases[sq], bin_guard);
-							alt_base += r.second - r.first + 1;
+							if (!bin.wildcard)
+							      alt_base += r.second - r.first + 1;
 						  }
 					    }
 				      }

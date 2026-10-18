@@ -7685,8 +7685,8 @@ static bool covgrp_trans_match_(const covgrp_trans_term_t&term,
 {
       for (const class_type::cov_bin_t*range : term.ranges) {
 	    if (!range || !covgrp_rec_match_(*range, value)) continue;
-	    ordinal = covgrp_trans_sat_add_(range->trans_alt,
-					    value - range->lo);
+	    ordinal = range->kind & 8 ? range->trans_alt
+		  : covgrp_trans_sat_add_(range->trans_alt, value - range->lo);
 	    return true;
       }
       return false;

@@ -4417,6 +4417,8 @@ sv_covergroup_cross_set_function_fail CE,-g2017 ivltests gold=sv_covergroup_cros
 sv_covergroup_cross_set_function_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_cross_set_function_fail_2023.gold
 sv_covergroup_cross_wildcard_with normal,-g2017 ivltests gold=sv_covergroup_cross_wildcard_with.gold
 sv_covergroup_cross_wildcard_with_2023 normal,-g2023,-I./ivltests ivltests gold=sv_covergroup_cross_wildcard_with.gold
+sv_covergroup_wildcard_transition normal,-g2017 ivltests
+sv_covergroup_wildcard_transition_2023 normal,-g2023,-I./ivltests ivltests
 
 # Grouped explicitly clocked implication consequents.
 sv_assert_grouped_clocked_consequent normal,-g2017 ivltests gold=sv_assert_grouped_clocked_consequent.gold
