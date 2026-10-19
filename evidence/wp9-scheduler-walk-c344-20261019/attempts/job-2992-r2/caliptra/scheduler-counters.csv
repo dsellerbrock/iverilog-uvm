@@ -1,0 +1,4 @@
+test,insertions,total_steps,max_steps,average_steps,thread_wakes
+smoke_test_dma_aes_gcm_short_1_dword,316516459,0,0,0.000000,67385444
+smoke_test_sha256,316258679,0,0,0.000000,67349432
+cptra_ss_test_rom,316458665,0,0,0.000000,67360188

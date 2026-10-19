@@ -1,0 +1,2 @@
+ra0=00001164 rb0=0122b96f ra63=00000014 cnt5=3d
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-a5-wp7-randomization/benchmarks/sim-hotspots/rtl_alu.sv:41: $finish called at 1000020 (1s)

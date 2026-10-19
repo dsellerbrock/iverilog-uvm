@@ -1,0 +1,56 @@
+[
+  {
+    "test": "smoke_test_dma_aes_gcm_short_1_dword",
+    "scheduler_time_list": {
+      "insertions": 316516459,
+      "total_steps": 0,
+      "max_steps": 0
+    },
+    "thread_wakes": 67385444,
+    "events_by_region": {
+      "Active": 48462929,
+      "ActiveSync": 4,
+      "Inactive": 2662,
+      "NBA": 257167766,
+      "Observed": 7279531,
+      "Reactive": 17685930,
+      "DelThread": 17704
+    }
+  },
+  {
+    "test": "smoke_test_sha256",
+    "scheduler_time_list": {
+      "insertions": 316258679,
+      "total_steps": 0,
+      "max_steps": 0
+    },
+    "thread_wakes": 67349432,
+    "events_by_region": {
+      "Active": 48204981,
+      "ActiveSync": 4,
+      "Inactive": 2662,
+      "NBA": 257167764,
+      "Observed": 7279531,
+      "Reactive": 17685930,
+      "DelThread": 17704
+    }
+  },
+  {
+    "test": "cptra_ss_test_rom",
+    "scheduler_time_list": {
+      "insertions": 316458665,
+      "total_steps": 0,
+      "max_steps": 0
+    },
+    "thread_wakes": 67360188,
+    "events_by_region": {
+      "Active": 48405013,
+      "ActiveSync": 4,
+      "Inactive": 2662,
+      "NBA": 257167764,
+      "Observed": 7279531,
+      "Reactive": 17685930,
+      "DelThread": 17704
+    }
+  }
+]

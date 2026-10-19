@@ -1,0 +1,3 @@
+patching file tgt-vvp/vvp_scope.c
+patching file vvp/logic.cc
+patching file vvp/logic.h

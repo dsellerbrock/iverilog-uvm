@@ -1,0 +1,1 @@
+Caliptra full-top BFM run failed: Command '['git', '-C', '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-walk-c344-20261019/source', 'rev-parse', 'HEAD']' returned non-zero exit status 128.

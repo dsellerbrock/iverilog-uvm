@@ -1,0 +1,30 @@
+rtl_pipe	185523473	480004	1
+rtl_alu	84004275	200004	1
+behav	1201	0	0
+classq	2	0	0
+uvm_traffic	95529	20006	2
+randomize_z3	1	0	0
+randomize_dv_txn	1	0	0
+wide_vectors	1	0	0
+gate_strength	41381637	0	0
+multi_clock	5978390	6893806	7
+Traceback (most recent call last):
+  File "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-walk-c344-20261019/input/collect-stats.py", line 32, in <module>
+    runner.stage_inputs(name, run_dir / ".inputs")
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-walk-c344-20261019/source/benchmarks/sim-hotspots/run_json.py", line 73, in stage_inputs
+    (input_dir / "large_memory.hex").write_text(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "".join(f"{word:08x}\n" for word in range(LARGE_MEMORY_WORDS)),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        encoding="ascii",
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/lib/python3.14/pathlib/__init__.py", line 810, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/pathlib/__init__.py", line 772, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-walk-c344-20261019/results/corpus/runs/large_memory/.inputs/large_memory.hex'

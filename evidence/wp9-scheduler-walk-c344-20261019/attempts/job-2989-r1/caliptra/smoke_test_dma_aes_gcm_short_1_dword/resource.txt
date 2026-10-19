@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "timeout --signal=INT --kill-after=60s 1800s taskset -c 12 /home/dsell/toolchains/iverilog-c339/deps/bin/python3.12 /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-walk-c344-20261019-caliptra/input/caliptra/run_caliptra_top_profile.py --case smoke_test_dma_aes_gcm_short_1_dword --case-yaml smoke_test_dma_aes_gcm_short_1_dword/smoke_test_dma_aes_gcm_short_1_dword.yml --output /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-walk-c344-20261019-caliptra/caliptra/out/smoke_test_dma_aes_gcm_short_1_dword"
+	User time (seconds): 0.08
+	System time (seconds): 0.04
+	Percent of CPU this job got: 76%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.16
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 23912
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 12
+	Minor (reclaiming a frame) page faults: 5243
+	Voluntary context switches: 166
+	Involuntary context switches: 60
+	Swaps: 0
+	File system inputs: 22008
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1
