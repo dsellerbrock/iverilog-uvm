@@ -2671,8 +2671,18 @@ static bool cache_integral_constant_value_(Design*des, NetScope*scope,
 	    return false;
 
       const pform_scoped_name_t&path = ident->path();
-      if (path.name.size() != 1)
-	return false;
+      /* Scoped package/class constants are valid specialization actuals too.
+       * Only the final name may be selected; indexed scope prefixes cannot be
+       * resolved by this cache-only lookup. */
+      if (path.name.empty())
+	    return false;
+      auto final_name = path.name.end();
+      --final_name;
+      for (auto component = path.name.begin(); component != final_name;
+	   ++component) {
+	    if (!component->index.empty())
+		  return false;
+      }
 
       symbol_search_results search;
       if (!symbol_search(ident, des, scope, path,
@@ -2686,7 +2696,7 @@ static bool cache_integral_constant_value_(Design*des, NetScope*scope,
       /* Resolve one constant packed bit/element select without expression
        * elaboration.  symbol_search returns the whole parameter for P[1]; using
        * that value directly made P[1] collide with P. */
-      const std::list<index_component_t>&indices = path.name.front().index;
+      const std::list<index_component_t>&indices = final_name->index;
       if (!indices.empty()) {
 	if (indices.size() != 1 || !search.path_tail.empty())
 	      return false;
@@ -3473,14 +3483,31 @@ static bool cache_value_parameter_is_deferred_(Design*des, NetScope*scope,
       return cache_value_parameter_is_deferred_(des, scope, expr, seen);
 }
 
-static bool overrides_match_parameter_order_(const parmvalue_t*overrides,
-					     const std::list<perm_string>&param_order)
+static std::vector<perm_string> overridable_parameters_(const PClass*pclass)
+{
+      std::vector<perm_string> formals;
+      if (!pclass)
+	    return formals;
+      for (std::list<perm_string>::const_iterator cur = pclass->parameter_order.begin();
+	   cur != pclass->parameter_order.end(); ++cur) {
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
+		  pclass->parameters.find(*cur);
+	    if (formal != pclass->parameters.end() && formal->second
+		&& !formal->second->local_flag)
+		  formals.push_back(*cur);
+      }
+      return formals;
+}
+
+static bool overrides_match_parameter_order_(
+		const parmvalue_t*overrides,
+		const std::vector<perm_string>&param_order)
 {
       if (!overrides || !overrides->by_order)
 	    return false;
 
       std::list<PExpr*>::const_iterator expr_it = overrides->by_order->begin();
-      std::list<perm_string>::const_iterator name_it = param_order.begin();
+	std::vector<perm_string>::const_iterator name_it = param_order.begin();
       while (expr_it != overrides->by_order->end() && name_it != param_order.end()) {
 	    if (!*expr_it || !pexpr_matches_parameter_name_(*expr_it, *name_it))
 		  return false;
@@ -3511,14 +3538,16 @@ static std::string canonical_specialization_parm_key_(
       if (!overrides || !pclass)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
+      const std::vector<perm_string> formals = overridable_parameters_(pclass);
+
 	/* A single parameter has no dependency graph to traverse, so express its
 	 * effective value independent of whether the use is bare, #(), named, or
 	 * positional. Bare uses inside an unspecialized generic master are kept
 	 * deferred by specialize_bare_class_at_concrete_use(); an empty override
 	 * which reaches this helper is therefore a concrete default specialization,
 	 * not the generic master itself. */
-      if (pclass->parameter_order.size() == 1) {
-	    perm_string formal_name = pclass->parameter_order.front();
+      if (formals.size() == 1) {
+	    perm_string formal_name = formals.front();
 	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
 		  pclass->parameters.find(formal_name);
 	    if (formal == pclass->parameters.end() || !formal->second)
@@ -3673,7 +3702,7 @@ static std::string canonical_specialization_parm_key_(
 	/* Normalize concrete multi-formal actuals in declaration order. A bare
 	 * dependent value default may reuse an earlier formal of the same type;
 	 * unresolved forwarding retains its source-sensitive key. */
-      if (pclass->parameter_order.size() < 2)
+      if (formals.size() < 2)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
 	/* A nested default such as Visitor#(STRUCTURE) needs the effective
@@ -3682,9 +3711,8 @@ static std::string canonical_specialization_parm_key_(
       bool has_bare_dependent_default = false;
       bool all_bare_class_defaults = true;
       std::set<perm_string> prior_formals;
-      for (std::list<perm_string>::const_iterator name_it =
-		   pclass->parameter_order.begin()
-	   ; name_it != pclass->parameter_order.end(); ++name_it) {
+      for (std::vector<perm_string>::const_iterator name_it = formals.begin()
+	   ; name_it != formals.end(); ++name_it) {
 	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
 		  pclass->parameters.find(*name_it);
 	    if (formal != pclass->parameters.end() && formal->second) {
@@ -3706,9 +3734,8 @@ static std::string canonical_specialization_parm_key_(
 	    prior_formals.insert(*name_it);
       }
       bool has_value_formal = false;
-      for (std::list<perm_string>::const_iterator name_it =
-		   pclass->parameter_order.begin()
-	   ; name_it != pclass->parameter_order.end(); ++name_it) {
+      for (std::vector<perm_string>::const_iterator name_it = formals.begin()
+	   ; name_it != formals.end(); ++name_it) {
 	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
 		  pclass->parameters.find(*name_it);
 	    if (formal != pclass->parameters.end() && formal->second
@@ -3721,12 +3748,11 @@ static std::string canonical_specialization_parm_key_(
 
       std::map<perm_string,const PExpr*> supplied;
       if (overrides->by_order) {
-	    std::list<perm_string>::const_iterator name_it =
-		  pclass->parameter_order.begin();
+	    std::vector<perm_string>::const_iterator name_it = formals.begin();
 	    for (std::list<PExpr*>::const_iterator expr_it =
 		       overrides->by_order->begin()
 		 ; expr_it != overrides->by_order->end(); ++expr_it) {
-		  if (name_it == pclass->parameter_order.end())
+		  if (name_it == formals.end())
 			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  supplied[*name_it++] = *expr_it;
 	    }
@@ -3734,7 +3760,7 @@ static std::string canonical_specialization_parm_key_(
 	    for (std::list<named_pexpr_t>::const_iterator cur =
 		       overrides->by_name->begin()
 		 ; cur != overrides->by_name->end(); ++cur) {
-		  if (pclass->parameters.find(cur->name) == pclass->parameters.end()
+		  if (std::find(formals.begin(), formals.end(), cur->name) == formals.end()
 		      || supplied.find(cur->name) != supplied.end())
 			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  supplied[cur->name] = cur->parm;
@@ -3747,9 +3773,8 @@ static std::string canonical_specialization_parm_key_(
       std::map<perm_string,std::string> effective_type;
       std::ostringstream out;
       out << "C";
-      for (std::list<perm_string>::const_iterator name_it =
-		   pclass->parameter_order.begin()
-	   ; name_it != pclass->parameter_order.end(); ++name_it) {
+      for (std::vector<perm_string>::const_iterator name_it = formals.begin()
+	   ; name_it != formals.end(); ++name_it) {
 	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
 		  pclass->parameters.find(*name_it);
 	    if (formal == pclass->parameters.end() || !formal->second
@@ -4440,7 +4465,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       if (call_scope) {
 	    const NetScope*caller_class_scope = call_scope->get_class_scope();
 	    if (caller_class_scope && caller_class_scope->class_pform() == pclass &&
-	        overrides_match_parameter_order_(overrides, pclass->parameter_order)) {
+	        overrides_match_parameter_order_(
+	              overrides, overridable_parameters_(pclass))) {
 		  if (const netclass_t*caller_class = caller_class_scope->class_def())
 			return caller_class;
 	    }
