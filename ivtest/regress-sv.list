@@ -1743,6 +1743,8 @@ sv_constraint_dist_wide_literal_fail CE,-g2012 ivltests gold=sv_constraint_dist_
 sv_rand_distribution1 normal,-g2012 ivltests
 sv_randc_constrained1 normal,-g2012 ivltests
 sv_sampled_value_default_clocking normal,-g2012 ivltests
+sv_sampled_value_event_past_unsupported CE,-g2017 ivltests
+sv_sampled_value_event_past_unsupported_2023 CE,-g2023 ivltests
 sv_sampled_value_explicit_clock normal,-g2012 ivltests
 sv_cast_class_destination normal,-g2012 ivltests
 sv_cast_container_destination normal,-g2012 ivltests

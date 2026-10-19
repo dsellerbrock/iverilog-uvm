@@ -22,12 +22,45 @@ module main;
   logic clk = 0;
   int   d   = 0;
   logic b   = 0;
+  logic c   = 0;
 
   int fails = 0;
+  int default_changed_wakeups = 0;
+  time default_changed_wakeup_times[4];
+  int default_stable_wakeups = 0;
+  time default_stable_wakeup_times[4];
+  int race_changed_wakeups = 0;
+  time race_changed_wakeup_times[2];
 
-  always #5 clk = ~clk;
+  always begin
+    #5 clk = ~clk;
+    // Queue the clock waiters, then update c before they run in Active.
+    if (clk && $time == 35) c = 1;
+  end
 
   default clocking cb @(posedge clk); endclocking
+
+  initial forever begin
+    // @() observes either value change of the sampled result, not just true.
+    @($changed(b));
+    if (default_changed_wakeups < 4)
+      default_changed_wakeup_times[default_changed_wakeups] = $time;
+    default_changed_wakeups++;
+  end
+
+  initial forever begin
+    @($stable(b));
+    if (default_stable_wakeups < 4)
+      default_stable_wakeup_times[default_stable_wakeups] = $time;
+    default_stable_wakeups++;
+  end
+
+  initial forever begin
+    @($changed(c));
+    if (race_changed_wakeups < 2)
+      race_changed_wakeup_times[race_changed_wakeups] = $time;
+    race_changed_wakeups++;
+  end
 
   // Reader with no event control of its own: the clock comes from the
   // default clocking block.
@@ -51,10 +84,50 @@ module main;
         end
       end
     end
+    #1;
 
     if ($rose(b) !== 1'b0) begin
       fails++;
       $display("FAILED -- $rose(b)=%b after b settled low", $rose(b));
+    end
+
+    if (default_changed_wakeups != 4) begin
+      fails++;
+      $display("FAILED -- default-clock $changed event woke %0d times, want 4",
+               default_changed_wakeups);
+    end
+    if (default_changed_wakeup_times[0] != 5
+        || default_changed_wakeup_times[1] != 15
+        || default_changed_wakeup_times[2] != 25
+        || default_changed_wakeup_times[3] != 45) begin
+      fails++;
+      $display("FAILED -- default-clock $changed wake times %0t,%0t,%0t,%0t; want 5,15,25,45",
+               default_changed_wakeup_times[0],
+               default_changed_wakeup_times[1],
+               default_changed_wakeup_times[2],
+               default_changed_wakeup_times[3]);
+    end
+    if (default_stable_wakeups != 4
+        || default_stable_wakeup_times[0] != 5
+        || default_stable_wakeup_times[1] != 15
+        || default_stable_wakeup_times[2] != 25
+        || default_stable_wakeup_times[3] != 45) begin
+      fails++;
+      $display("FAILED -- default-clock $stable woke %0d times at %0t,%0t,%0t,%0t; want 4 at 5,15,25,45",
+               default_stable_wakeups,
+               default_stable_wakeup_times[0],
+               default_stable_wakeup_times[1],
+               default_stable_wakeup_times[2],
+               default_stable_wakeup_times[3]);
+    end
+    if (race_changed_wakeups != 2
+        || race_changed_wakeup_times[0] != 45
+        || race_changed_wakeup_times[1] != 55) begin
+      fails++;
+      $display("FAILED -- sampled-region $changed wakes %0d times at %0t,%0t; want 2 at 45,55",
+               race_changed_wakeups,
+               race_changed_wakeup_times[0],
+               race_changed_wakeup_times[1]);
     end
 
     if (fails == 0) $display("PASSED");
@@ -63,8 +136,14 @@ module main;
 
   initial begin
     @(negedge clk) d = 1;
-    @(negedge clk) begin d = 2; b = 1; end
-    @(negedge clk) begin d = 3; b = 0; end
+    @(negedge clk) d = 2;
+    @(negedge clk) d = 3;
+  end
+
+  initial begin
+    #2 b = 1;
+    #14 b = 0;
+    #10 b = 1;
   end
 
 endmodule
