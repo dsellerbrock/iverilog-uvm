@@ -40199,6 +40199,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
       elaborate_sig(des, pclass);
       const bool lazy_specialized_body =
 	    should_lazy_specialized_class_body_(this);
+      // IEEE 1800-2017 8.25: generic masters and specializations that still
+      // forward an unresolved type parameter are not concrete class types.
+      bool defer_parameterized_body = false;
+      for (perm_string name : pclass->parameter_order) {
+	    if (class_type_parameter_is_deferred(des, class_scope_, name)) {
+		  defer_parameterized_body = true;
+		  break;
+	    }
+      }
 
 	      if (! pclass->type->initialize_static.empty()) {
 		    const std::vector<Statement*>&stmt_list = pclass->type->initialize_static;
@@ -40220,17 +40229,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // Without this, code patterns like UVM `uvm_register_cb`
 		    // see the spec's `static = 0` reset wipe state set by a
 		    // user-class static initializer that called into the spec.
-		    // Analyze generic initializers for const-initialization checks,
-		    // but generic masters and unresolved type forwarding are not
-		    // concrete runtime types (IEEE 1800 8.25).
-		    bool deferred_init = pclass->has_parameter_port_list
-			  && !specialized_instance();
-		    for (perm_string name : pclass->parameter_order) {
-			  if (class_type_parameter_is_deferred(des, class_scope_, name)) {
-				deferred_init = true;
-				break;
-			  }
-		    }
+		    // Still elaborate generic initializers for const-init diagnostics.
+		    bool deferred_init = (pclass->has_parameter_port_list
+			  && !specialized_instance()) || defer_parameterized_body;
 		    // A generic-body-only class can still be reached by a
 		    // concrete context later; release_deferred_static_inits
 		    // decides once elaboration is complete.
@@ -45037,8 +45038,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 	      for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()
 		 ; cur != pclass->funcs.end() ; ++ cur) {
-		    if (lazy_specialized_body &&
-			!should_eagerly_elaborate_class_method_(cur->first))
+		    if (defer_parameterized_body
+			|| (lazy_specialized_body
+			    && !should_eagerly_elaborate_class_method_(cur->first)))
 			  continue;
 		    // Dynamic dispatch needs emitted bodies for override targets even
 		    // when they have no direct static call sites. Skip only bodyless
@@ -45072,8 +45074,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 	      for (map<perm_string,PTask*>::iterator cur = pclass->tasks.begin()
 		 ; cur != pclass->tasks.end() ; ++ cur) {
-		    if (lazy_specialized_body &&
-			!should_eagerly_elaborate_class_method_(cur->first))
+		    if (defer_parameterized_body
+			|| (lazy_specialized_body
+			    && !should_eagerly_elaborate_class_method_(cur->first)))
 			  continue;
 		    if (!should_eagerly_elaborate_class_method_(cur->first)
 			&& cur->second->get_statement() == 0)
