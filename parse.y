@@ -8161,122 +8161,38 @@ scoped_function_declaration
       }
     label_opt
       { delete[] $3; }
-  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { assert(current_function == 0);
-	if (!pform_reenter_class_scope(@4, $4.text))
-	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4.text);
-	current_function = pform_push_function_scope_unbound(@1, $6, $2);
-      }
-    '(' tf_port_list_opt ')' ';'
-    block_item_decls_opt
-    statement_or_null_list_opt
-    K_endfunction
-      { current_function->set_ports($9);
-	current_function->set_return($3);
-	pform_set_this_class(@6, current_function);
-	current_function_set_statement($13 ? @13 : @6, $13);
+  | scoped_function_header '(' tf_port_list_opt ')' ';'
+    block_item_decls_opt statement_or_null_list_opt K_endfunction
+      { current_function->set_ports($3);
+	pform_set_this_class(@1, current_function);
+	current_function_set_statement($7 ? @7 : @1, $7);
 	pform_bind_extern_func(current_function);
 	pform_pop_scope();
 	current_function = 0;
-	pform_leave_class_scope(@4);
+	pform_leave_class_scope(@1);
       }
     label_opt
-      { delete[] $4.text;
-	delete[] $6;
-      }
-  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER ';'
-      { assert(current_function == 0);
-	if (!pform_reenter_class_scope(@4, $4.text))
-	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4.text);
-	current_function = pform_push_function_scope_unbound(@1, $6, $2);
-	current_function->set_ports(new std::vector<pform_tf_port_t>);
-	current_function->set_return($3);
-	pform_set_this_class(@6, current_function);
-      }
-    block_item_decls_opt
-    statement_or_null_list_opt
-    K_endfunction
-      { current_function_set_statement($10 ? @10 : @6, $10);
+  | scoped_function_header ';'
+    block_item_decls_opt statement_or_null_list_opt K_endfunction
+      { current_function->set_ports(new std::vector<pform_tf_port_t>);
+	pform_set_this_class(@1, current_function);
+	current_function_set_statement($4 ? @4 : @1, $4);
 	pform_bind_extern_func(current_function);
 	pform_pop_scope();
 	current_function = 0;
-	pform_leave_class_scope(@4);
+	pform_leave_class_scope(@1);
       }
     label_opt
-      { delete[] $4.text;
-	delete[] $6;
-      }
-  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER ';' error K_endfunction
+  | scoped_function_header error K_endfunction
       { if (current_function) {
 	      pform_pop_scope();
 	      current_function = 0;
 	}
-	pform_leave_class_scope(@4);
+	pform_leave_class_scope(@1);
 	yyerror(@1, "error: Syntax error defining scoped function.");
 	yyerrok;
       }
     label_opt
-      { delete[] $4.text;
-	delete[] $6;
-      }
-  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { assert(current_function == 0);
-	if (!pform_reenter_class_scope(@4, $4))
-	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4);
-	current_function = pform_push_function_scope_unbound(@1, $6, $2);
-      }
-    '(' tf_port_list_opt ')' ';'
-    block_item_decls_opt
-    statement_or_null_list_opt
-    K_endfunction
-      { current_function->set_ports($9);
-	current_function->set_return($3);
-	pform_set_this_class(@6, current_function);
-	current_function_set_statement($13 ? @13 : @6, $13);
-	pform_bind_extern_func(current_function);
-	pform_pop_scope();
-	current_function = 0;
-	pform_leave_class_scope(@4);
-      }
-    label_opt
-      { delete[] $4;
-	delete[] $6;
-      }
-  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER ';' error K_endfunction
-      { if (current_function) {
-	      pform_pop_scope();
-	      current_function = 0;
-	}
-	pform_leave_class_scope(@4);
-	yyerror(@1, "error: Syntax error defining scoped function.");
-	yyerrok;
-      }
-    label_opt
-      { delete[] $4;
-	delete[] $6;
-      }
-  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER ';'
-      { assert(current_function == 0);
-	if (!pform_reenter_class_scope(@4, $4))
-	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4);
-	current_function = pform_push_function_scope_unbound(@1, $6, $2);
-	current_function->set_ports(new std::vector<pform_tf_port_t>);
-	current_function->set_return($3);
-	pform_set_this_class(@6, current_function);
-      }
-    block_item_decls_opt
-    statement_or_null_list_opt
-    K_endfunction
-      { current_function_set_statement($10 ? @10 : @6, $10);
-	pform_bind_extern_func(current_function);
-	pform_pop_scope();
-	current_function = 0;
-	pform_leave_class_scope(@4);
-      }
-    label_opt
-      { delete[] $4;
-	delete[] $6;
-      }
   | K_function lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES K_new error K_endfunction
       { if (current_function) {
 	      pform_pop_scope();
@@ -8324,6 +8240,41 @@ scoped_function_declaration
     label_opt
       { delete[] $4;
 	delete[] $6;
+      }
+scoped_function_header
+  : K_function lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@3, $3.text))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3.text);
+	current_function = pform_push_function_scope_unbound(@1, $5, $2);
+	@$ = @5;
+	delete[] $3.text; delete[] $5;
+      }
+  | K_function lifetime_opt IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@3, $3))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3);
+	current_function = pform_push_function_scope_unbound(@1, $5, $2);
+	@$ = @5;
+	delete[] $3; delete[] $5;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@4, $4.text))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4.text);
+	current_function = pform_push_function_scope_unbound(@1, $6, $2);
+	current_function->set_return($3);
+	@$ = @6;
+	delete[] $4.text; delete[] $6;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@4, $4))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4);
+	current_function = pform_push_function_scope_unbound(@1, $6, $2);
+	current_function->set_return($3);
+	@$ = @6;
+	delete[] $4; delete[] $6;
       }
   ;
 
