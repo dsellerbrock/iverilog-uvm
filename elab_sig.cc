@@ -904,8 +904,7 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
 
-		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it,
-						     is_in && !is_out);
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!raw) {
 			if (cb->decl_assigns.count(*sig_it))
 			      cerr << cb->get_fileline() << ": sorry: "
@@ -922,12 +921,28 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			     << "it keeps the alias behavior." << endl;
 			continue;
 		  }
+		  ivl_type_t vt = raw->net_type();
+		  bool selected_output = false;
+		  if (is_out && !is_in) {
+		    auto da = cb->decl_assigns.find(*sig_it);
+		    if (da != cb->decl_assigns.end()) {
+		      const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+		      if (id && !id->path().name.empty()
+			  && !id->path().name.back().index.empty()) {
+			selected_output = true;
+			vt = id->test_type_of_ident(des, scope);
+		      }
+		    }
+		  }
 		  bool fixed_array_input = is_in && !is_out
 		    && raw->unpacked_dimensions() == 1;
+		  // shortcut: fixed unpacked outputs are 1-D; extend when clockvar
+		  // storage and pending masks can be addressed by nested indices.
 		  bool fixed_array_output = is_out && !is_in
-		    && raw->unpacked_dimensions() == 1;
+		    && raw->unpacked_dimensions() == 1 && !selected_output;
 		  if ((raw->pin_count() != 1 || raw->unpacked_dimensions() > 0)
-		      && !fixed_array_input && !fixed_array_output) {
+		      && !fixed_array_input && !fixed_array_output
+		      && !selected_output) {
 			cerr << cb->get_fileline() << ": sorry: clocking "
 			     << "signal `" << *sig_it << "' of block `"
 			     << cb->name << "' is an array; it keeps the "
@@ -935,7 +950,6 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			continue;
 		  }
 
-		  ivl_type_t vt = raw->net_type();
 		  bool selected_input = false;
 		  if (is_in && !is_out) {
 		    auto da = cb->decl_assigns.find(*sig_it);
@@ -947,8 +961,8 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		      }
 		    }
 		  }
-		  if (selected_input && !vt) {
-		    cerr << cb->get_fileline() << ": sorry: selected clocking input `"
+		  if ((selected_input || selected_output) && !vt) {
+		    cerr << cb->get_fileline() << ": sorry: selected clocking signal `"
 			 << *sig_it << "' has no resolvable type." << endl;
 		    des->errors += 1;
 		    continue;
