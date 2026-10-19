@@ -1,0 +1,8 @@
+ M elaborate.cc
+ M ivtest/regress-sv.list
+ M ivtest/regress-vvp.list
+ M vvp/vvp_z3.cc
+?? ivtest/ivltests/sv_randomize_struct_nested_darray_constraint.v
+?? ivtest/ivltests/sv_randomize_struct_nested_darray_constraint_2023.v
+?? ivtest/vvp_tests/sv_randomize_struct_nested_darray_constraint.json
+?? ivtest/vvp_tests/sv_randomize_struct_nested_darray_constraint_2023.json

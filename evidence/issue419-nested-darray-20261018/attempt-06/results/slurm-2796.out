@@ -1,0 +1,270 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-18T16:00:37-06:00
+2
+               total        used        free      shared  buff/cache   available
+Mem:            38Gi        13Gi       2.7Gi        11Gi        33Gi        24Gi
+Swap:          8.0Gi       2.6Gi       5.4Gi
+
+=== configure-script (timeout 120s) ===
+step_exit=0
+
+=== configure (timeout 300s) ===
+step_exit=0
+checking for library containing fmin... none required
+checking for library containing fmax... none required
+checking if uint64_t and unsigned long are identical... yes
+checking for -rdynamic compiler flag... -rdynamic
+checking for shared library link flag... -shared
+checking for leading underscores... no
+checking for trailing underscores... no
+checking for sanity of prefix... ok
+checking for sanity of exec_prefix... ok
+checking for sanity of libdir... ok
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating ivlpp/Makefile
+config.status: creating vhdlpp/Makefile
+config.status: creating vvp/Makefile
+config.status: creating vpi/Makefile
+config.status: creating driver/Makefile
+config.status: creating driver-vpi/Makefile
+config.status: creating cadpli/Makefile
+config.status: creating libveriuser/Makefile
+config.status: creating tgt-null/Makefile
+config.status: creating tgt-stub/Makefile
+config.status: creating tgt-vvp/Makefile
+config.status: creating tgt-vhdl/Makefile
+config.status: creating tgt-fpga/Makefile
+config.status: creating tgt-verilog/Makefile
+config.status: creating tgt-pal/Makefile
+config.status: creating tgt-vlog95/Makefile
+config.status: creating tgt-pcb/Makefile
+config.status: creating tgt-blif/Makefile
+config.status: creating tgt-sizer/Makefile
+config.status: creating config.h
+config.status: creating _pli_types.h
+config.status: creating vhdlpp/vhdlpp_config.h
+config.status: creating vvp/config.h
+config.status: creating vpi/vpi_config.h
+config.status: creating libveriuser/config.h
+config.status: creating tgt-vvp/vvp_config.h
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: creating tgt-pcb/pcb_config.h
+
+=== build (timeout 1200s) ===
+step_exit=0
+mv a_handle_hiconn.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_handle_parent.c -o a_handle_parent.o
+mv a_handle_object.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_handle_simulated_net.c -o a_handle_simulated_net.o
+mv a_handle_parent.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_handle_tfarg.c -o a_handle_tfarg.o
+mv a_handle_simulated_net.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_initialize.c -o a_initialize.o
+mv a_initialize.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_next.c -o a_next.o
+mv a_handle_tfarg.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_next_bit.c -o a_next_bit.o
+mv a_next_bit.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_next_port.c -o a_next_port.o
+mv a_next.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_next_topmod.c -o a_next_topmod.o
+mv a_next_port.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_object_of_type.c -o a_object_of_type.o
+mv a_next_topmod.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_product_version.c -o a_product_version.o
+mv a_object_of_type.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_set_value.c -o a_set_value.o
+mv a_product_version.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_vcl.c -o a_vcl.o
+mv a_set_value.d dep
+gcc -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c a_version.c -o a_version.o
+mv a_version.d dep
+mv a_vcl.d dep
+ld  -r -o libveriuser.o asynch.o delay.o exprinfo.o finish.o getcstringp.o getinstance.o getlongp.o getp.o getsimtime.o io_print.o math.o mc_scan_plusargs.o nodeinfo.o nump.o putlongp.o putp.o spname.o typep.o workarea.o veriusertfs.o priv.o a_close.o a_compare_handles.o a_configure.o a_fetch_argc.o a_fetch_argv.o a_fetch_dir.o a_fetch_fullname.o a_fetch_location.o a_fetch_param.o a_fetch_range.o a_fetch_tfarg.o a_fetch_time.o a_fetch_type.o a_fetch_type_str.o a_fetch_value.o a_handle_by_name.o a_handle_hiconn.o a_handle_object.o a_handle_parent.o a_handle_simulated_net.o a_handle_tfarg.o a_initialize.o a_next.o a_next_bit.o a_next_port.o a_next_topmod.o a_object_of_type.o a_product_version.o a_set_value.o a_vcl.o a_version.o
+rm -f libveriuser.a
+ar cvq libveriuser.a libveriuser.o
+a - libveriuser.o
+ranlib libveriuser.a
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/cadpli'
+mkdir dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c cadpli.c
+mv cadpli.d dep
+gcc -shared  -o cadpli.vpl cadpli.o ../libveriuser/libveriuser.o -L../vpi -lvpi
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/cadpli'
+
+=== install (timeout 240s) ===
+step_exit=0
+/usr/bin/install -c -m 644 ./pcb-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/pcb-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/tgt-blif'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/bin" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl"
+/usr/bin/install -c ./blif.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/blif.tgt"
+/usr/bin/install -c -m 644 ./blif.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/blif.conf"
+/usr/bin/install -c -m 644 ./blif-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/blif-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/tgt-sizer'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/bin" "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl"
+/usr/bin/install -c ./sizer.tgt "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/sizer.tgt"
+/usr/bin/install -c -m 644 ./sizer.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/sizer.conf"
+/usr/bin/install -c -m 644 ./sizer-s.conf "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/sizer-s.conf"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/driver'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/bin" \
+	"/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/share/man/man1" \
+	"/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install"
+/usr/bin/install -c -m 644 iverilog.man "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/share/man/man1/iverilog.1"
+/usr/bin/install -c ./iverilog "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/bin/iverilog"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/libveriuser'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib"
+/usr/bin/install -c -m 644 ./libveriuser.a "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/libveriuser.a"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/cadpli'
+./../mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl"
+/usr/bin/install -c ./cadpli.vpl "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/cadpli.vpl"
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/cadpli'
+make installuvm
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source'
+./mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/bin" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/include/iverilog" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/lib/ivl/include" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install/share/man/man1" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source/local-install"
+note: uvm-core submodule not checked out; skipping UVM install.
+      run 'git submodule update --init' to enable 'iverilog -uvm'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/source'
+Icarus Verilog version 13.0 (devel) ()
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+Icarus Verilog runtime version 13.0 (devel) ()
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+t0-sv.list: 6 tests
+t0-json.list: 6 tests
+t1-sv.list: 15 tests
+t1-json.list: 15 tests
+
+=== t0-legacy (timeout 900s) ===
+step_exit=0
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                sv_randomize_struct_darray_member: Passed.
+           sv_randomize_struct_darray_member_2023: Passed.
+         sv_randomize_struct_nested_darray_member: Passed.
+    sv_randomize_struct_nested_darray_member_2023: Passed.
+     sv_randomize_struct_nested_darray_constraint: Passed.
+sv_randomize_struct_nested_darray_constraint_2023: Passed.
+============================================================================
+Test results:
+  Total=6, Passed=6, Failed=0, Not Implemented=0, Expected Fail=0
+
+=== t0-json (timeout 900s) ===
+step_exit=0
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/results/t0-json.list
+----------------------------------------------------------------------------
+                sv_randomize_struct_darray_member: Passed.
+           sv_randomize_struct_darray_member_2023: Passed.
+     sv_randomize_struct_nested_darray_constraint: Passed.
+sv_randomize_struct_nested_darray_constraint_2023: Passed.
+         sv_randomize_struct_nested_darray_member: Passed.
+    sv_randomize_struct_nested_darray_member_2023: Passed.
+============================================================================
+Test results: Ran 6, Failed 0.
+
+=== t0-smoke (timeout 3600s) ===
+step_exit=0
+=== run_mixed_wait_malformed.sh ===
+PASS mixed wait recipe ABI invariants (10/10)
+=== run_process_kill_call_context.sh ===
+PASS process-kill automatic call-context release (modern + legacy)
+=== run_prop_const_init_malformed.sh ===
+PASS instance-constant guard malformed-stack invariant (1/1)
+=== run_property_index_metadata_malformed.sh ===
+PASS malformed property-index descriptor (16/16 X results)
+=== run_queue_slice_legacy.sh ===
+PASS legacy queue-slice bytecode compatibility (3/3)
+=== run_rand_mode_stack_underflow.sh ===
+PASS rand_mode malformed-stack invariants (13/13)
+=== run_scope_solver_unknown.py ===
+PASS 2017 scope_solver_sat_unsat normal
+PASS 2017 scope_solver_unknown normal
+PASS 2017 scope_solver_unknown injected
+PASS 2023 scope_solver_sat_unsat normal
+PASS 2023 scope_solver_unknown normal
+PASS 2023 scope_solver_unknown injected
+=== run_state_foreach_invariants.py ===
+PASS state foreach runtime invariants (15/15)
+=== run_static_property_binding.sh ===
+PASS missing-label rc=134
+PASS wrong-kind rc=134
+PASS wrong-width rc=134
+PASS static property binding invariants (3/3)
+=== run_stream_target_split_malformed.sh ===
+PASS stream target split malformed/exact-width invariants (4/4)
+=== run_string_repeat_ir_compat.sh ===
+PASS string-repeat VVP compatibility and typed opcodes (6/6)
+=== run_svdpi_bitsel.sh ===
+PASS svdpi bit-select helpers
+PASS svdpi bit-select helpers
+=== run_ufunc_resolver_malformed.sh ===
+PASS ufunc resolver malformed metadata invariants (2/2)
+=== run_vif_indexed_wait_malformed.sh ===
+PASS indexed VIF wait malformed-bytecode invariants (3/3)
+=== run_vpi_source_location.sh ===
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)
+
+=== t1-legacy (timeout 1800s) ===
+step_exit=0
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                sv_randomize_struct_darray_member: Passed.
+           sv_randomize_struct_darray_member_2023: Passed.
+         sv_randomize_struct_nested_darray_member: Passed.
+    sv_randomize_struct_nested_darray_member_2023: Passed.
+     sv_randomize_struct_nested_darray_constraint: Passed.
+sv_randomize_struct_nested_darray_constraint_2023: Passed.
+                 sv_rand_array_mode_object_struct: Passed.
+                    sv_rand_mode_dynamic_indexing: Passed.
+      sv_constraint_dynarray_packed_struct_member: Passed.
+ sv_constraint_dynarray_packed_struct_member_2023: Passed.
+             sv_constraint_nested_unpacked_struct: Passed.
+        sv_constraint_nested_unpacked_struct_2023: Passed.
+                 sv_randomize_member_nested_hooks: Passed.
+            sv_randomize_member_nested_hooks_2023: Passed.
+                   sv_struct_member_randomization: Passed.
+============================================================================
+Test results:
+  Total=15, Passed=15, Failed=0, Not Implemented=0, Expected Fail=0
+
+=== t1-json (timeout 1800s) ===
+step_exit=0
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue419-nested-focused-t0t1-20261018-02/results/t1-json.list
+----------------------------------------------------------------------------
+      sv_constraint_dynarray_packed_struct_member: Passed.
+ sv_constraint_dynarray_packed_struct_member_2023: Passed.
+             sv_constraint_nested_unpacked_struct: Passed.
+        sv_constraint_nested_unpacked_struct_2023: Passed.
+                 sv_rand_array_mode_object_struct: Passed.
+                    sv_rand_mode_dynamic_indexing: Passed.
+                 sv_randomize_member_nested_hooks: Passed.
+            sv_randomize_member_nested_hooks_2023: Passed.
+                sv_randomize_struct_darray_member: Passed.
+           sv_randomize_struct_darray_member_2023: Passed.
+     sv_randomize_struct_nested_darray_constraint: Passed.
+sv_randomize_struct_nested_darray_constraint_2023: Passed.
+         sv_randomize_struct_nested_darray_member: Passed.
+    sv_randomize_struct_nested_darray_member_2023: Passed.
+                   sv_struct_member_randomization: Passed.
+============================================================================
+Test results: Ran 15, Failed 0.
+
+GATE_RESULT=PASS
