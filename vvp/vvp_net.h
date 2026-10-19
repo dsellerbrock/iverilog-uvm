@@ -503,6 +503,8 @@ inline vvp_vector4_t::vvp_vector4_t(vvp_vector4_t&&that) noexcept
 	    bbits_val_ = that.bbits_val_;
       }
       that.size_ = 0;
+      that.abits_val_ = 0;
+      that.bbits_val_ = 0;
 }
 
 inline vvp_vector4_t::vvp_vector4_t(unsigned size__, vvp_bit4_t val)
@@ -567,6 +569,8 @@ inline vvp_vector4_t& vvp_vector4_t::operator= (vvp_vector4_t&&that) noexcept
 	    bbits_val_ = that.bbits_val_;
       }
       that.size_ = 0;
+      that.abits_val_ = 0;
+      that.bbits_val_ = 0;
       return *this;
 }
 
