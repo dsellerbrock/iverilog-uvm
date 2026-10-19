@@ -5107,6 +5107,29 @@ bins_item
 	delete[] $2;
 	$$ = b;
       }
+  | K_wildcard bins_keyword bins_name '=' transition_seq_list bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($3);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$2;
+	b->wildcard = true;
+	b->trans_seqs = std::move(*$5);
+	b->iff_expr = $6;
+	delete $5;
+	delete[] $3;
+	$$ = b;
+      }
+  | K_wildcard bins_keyword bins_name '[' ']' '=' transition_seq_list bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($3);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$2;
+	b->wildcard = true;
+	b->arrayed = true;
+	b->trans_seqs = std::move(*$7);
+	b->iff_expr = $8;
+	delete $7;
+	delete[] $3;
+	$$ = b;
+	  }
   /* Default bins compose with all three bin kinds. */
   | bins_keyword bins_name '=' K_default ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
