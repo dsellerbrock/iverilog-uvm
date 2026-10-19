@@ -1,0 +1,12 @@
+job_id=3050
+host=DAN-DESKTOP
+started=2026-10-19T04:20:46-06:00
+source_commit=79c20c387f9f7f267049a9154710d3395b5bef6d
+uvm_core_shared=/home/dsell/toolchains/iverilog-uvm-d9caaaea5b410ed14e7ca14be828fc2f2c9fea44-a5-wp6-r2/lib/ivl/uvm
+iverilog=/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/local-install/bin/iverilog
+vvp=/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/local-install/bin/vvp
+t0_legacy_cases=11
+t0_json_cases=12
+t1_legacy_cases=51
+t1_json_cases=58
+finished=2026-10-19T04:23:52-06:00

@@ -1,0 +1,120 @@
+make -C ivlpp all &&  make -C vhdlpp all &&  make -C vvp all &&  make -C vpi all &&  make -C tgt-null all &&  make -C tgt-stub all &&  make -C tgt-vvp all &&  make -C tgt-vhdl all &&  make -C tgt-vlog95 all &&  make -C tgt-pcb all &&  make -C tgt-blif all &&  make -C tgt-sizer all &&  make -C driver all &&  make -C libveriuser all &&  make -C cadpli all &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/ivlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vhdlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vhdlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vvp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vpi'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vpi'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-null'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-null'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-stub'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-stub'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vvp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vhdl'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vhdl'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vlog95'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vlog95'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-pcb'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-blif'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-sizer'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/driver'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/libveriuser'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/cadpli'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/cadpli'
+make -C ivlpp check &&  make -C vhdlpp check &&  make -C vvp check &&  make -C vpi check &&  make -C tgt-null check &&  make -C tgt-stub check &&  make -C tgt-vvp check &&  make -C tgt-vhdl check &&  make -C tgt-vlog95 check &&  make -C tgt-pcb check &&  make -C tgt-blif check &&  make -C tgt-sizer check &&  make -C driver check &&  make -C libveriuser check &&  make -C cadpli check &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/ivlpp'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vhdlpp'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vhdlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vvp'
+./vvp -M../vpi ./examples/hello.vvp | grep 'Hello, World.'
+Hello, World.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vpi'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/vpi'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-null'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-null'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-stub'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-stub'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vvp'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vhdl'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vhdl'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vlog95'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-vlog95'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-pcb'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-blif'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-sizer'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/driver'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/libveriuser'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/cadpli'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue438-t0t1-20261019-r3/source/cadpli'
+test -r check.conf || cp ./check.conf .
+driver/iverilog -B. -BMvpi -BPivlpp -tcheck -ocheck.vvp ./examples/hello.vl
+vvp/vvp -M- -M./vpi ./check.vvp | grep 'Hello, World'
+Hello, World
+	Command being timed: "make check"
+	User time (seconds): 0.16
+	System time (seconds): 0.04
+	Percent of CPU this job got: 98%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.20
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 10600
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 13719
+	Voluntary context switches: 140
+	Involuntary context switches: 7
+	Swaps: 0
+	File system inputs: 264
+	File system outputs: 32
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
