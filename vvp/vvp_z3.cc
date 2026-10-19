@@ -2040,40 +2040,83 @@ static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
 static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
 {
       const char*s = tok.c_str() + 2;
-      unsigned outer = (unsigned)atoi(s);
-      while (*s && *s != ':') ++s;
-      if (*s == ':') ++s;
-      unsigned member = (unsigned)atoi(s);
-      while (*s && *s != ':') ++s;
-      unsigned width = 32;
-      if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
-      while (*s && *s != ':') ++s;
-      unsigned elem = 0;
-      if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
-      while (*s && *s != ':') ++s;
-      bool sflag = (*s == ':' && s[1] == 's');
+      auto parse_number = [&](unsigned&value) {
+	    errno = 0;
+	    char*end = nullptr;
+	    unsigned long number = strtoul(s, &end, 10);
+	    if (end == s || errno == ERANGE || number > UINT_MAX) return false;
+	    value = (unsigned)number;
+	    s = end;
+	    return true;
+      };
+      auto parse_colon = [&]() {
+	    if (*s != ':') return false;
+	    ++s;
+	    return true;
+      };
+      unsigned outer = 0, member = 0, width = 0, first = 0;
+	if (!parse_number(outer) || !parse_colon() || !parse_number(member)
+	  || !parse_colon() || !parse_number(width) || width == 0
+	  || !parse_colon() || !parse_number(first)) {
+	    b.state_errors.push_back("malformed unpacked-struct member-array element");
+	    return b.mk_true();
+      }
+      unsigned elem = first, leaf = 0;
+      bool nested = false;
+      if (*s == ':') {
+	    errno = 0;
+	    char*end = nullptr;
+	    unsigned long second = strtoul(s + 1, &end, 10);
+	    if (end != s + 1 && errno != ERANGE && second <= UINT_MAX) {
+		  if (first == UINT_MAX) {
+			b.state_errors.push_back("invalid nested struct-array row");
+			return b.mk_true();
+		  }
+		  nested = true;
+		  leaf = first + 1;
+		  elem = (unsigned)second;
+		  s = end;
+	    }
+      }
+      bool sflag = (*s == ':' && s[1] == 's' && s[2] == 0);
+      if (*s != 0 && !sflag) {
+	    b.state_errors.push_back("malformed unpacked-struct member-array element");
+	    return b.mk_true();
+      }
+      if (nested && !b.graph) {
+	    b.state_errors.push_back(
+		  "nested unpacked-struct array constraints require object-graph randomization");
+	    return b.mk_true();
+      }
       if (b.graph) {
 	    vvp_object_t value;
 	    b.cobj->get_object(outer, value, 0);
 	    vvp_cobject*owner = value.peek<vvp_cobject>();
-	    if (!owner) {
+	    if (!owner || member >= owner->get_defn()->property_count()
+		|| (nested && !owner->get_defn()->property_is_dyn2(member))) {
 		  b.state_errors.push_back("invalid unpacked-struct member-array storage");
 		  return b.mk_true();
 	    }
 	    unsigned idx = b.graph->intern(owner, member);
 	    if (b.collect_refs) {
-		  Z3Builder::VarRef ref = {Z3Builder::VarRef::ELEM, idx, elem};
+		  Z3Builder::VarRef ref = nested
+			? Z3Builder::VarRef{Z3Builder::VarRef::NESTED_ELEM,
+					    idx, leaf, elem}
+			: Z3Builder::VarRef{Z3Builder::VarRef::ELEM, idx, elem};
 		  b.collect_refs->insert(ref);
 	    }
 	    if (b.collect_refs_only)
 		  return Z3_mk_unsigned_int64(
 			b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
 	    vvp_vector4_t data;
-	    if (!cobj_elem_vec4_(owner, member, elem, data)) {
+	    if (!cobj_elem_vec4_(owner, member, elem, data, leaf)) {
 		  b.state_errors.push_back("invalid unpacked-struct member-array element");
 		  return b.mk_true();
 	    }
-	    if (!b.graph->element_active(idx, elem)) {
+	    bool active = nested
+		  ? rand_nested_elem_active_(b, b.prop_active, idx, leaf, elem)
+		  : b.graph->element_active(idx, elem);
+	    if (!active) {
 		  Z3_ast ground;
 		  if (!vec4_to_bv_const_(b.ctx, data, width, ground)) {
 			b.state_errors.push_back(
@@ -2084,7 +2127,7 @@ static Z3_ast parse_member_elem(IRParser&, Z3Builder&b, const string&tok)
 		  }
 		  return sflag ? b.tag_signed_constant(ground) : ground;
 	    }
-	    Z3_ast var = b.get_elem_var(idx, width, elem);
+	    Z3_ast var = b.get_elem_var(idx, width, elem, leaf, nested);
 	    if (sflag) b.signed_vars.insert(var);
 	    return var;
       }
@@ -8239,6 +8282,10 @@ static bool rand_nested_elem_active_(const Z3Builder&builder,
       const vector<bool>*selection, unsigned idx, unsigned leaf, unsigned elem)
 {
       if (!rand_size_active_(builder, selection, idx, leaf)) return false;
+      if (leaf > 0
+	  && builder.type(idx)->property_is_dyn2(builder.local_index(idx))
+	  && !rand_elem_active_(builder, selection, idx, leaf - 1))
+	    return false;
       if (builder.graph) {
             for (const auto&binding : builder.graph->properties.at(idx).bindings) {
                   const vector<bool>*selected = binding.scope->selection();
