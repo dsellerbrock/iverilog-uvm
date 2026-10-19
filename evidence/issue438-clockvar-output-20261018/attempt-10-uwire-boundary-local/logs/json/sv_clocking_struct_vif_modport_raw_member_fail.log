@@ -1,0 +1,24 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue438-clockvar-output-20261018/evidence/issue438-clockvar-output-20261018/attempt-10-uwire-boundary-local/results/json/sv_clocking_struct_vif_modport_raw_member_fail.list
+----------------------------------------------------------------------------
+sv_clocking_struct_vif_modport_raw_member_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+        0.14 real         0.08 user         0.03 sys
+            21708800  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                6742  page reclaims
+                  70  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  12  voluntary context switches
+                 147  involuntary context switches
+           387925372  instructions retired
+           146207829  cycles elapsed
+            13304312  peak memory footprint

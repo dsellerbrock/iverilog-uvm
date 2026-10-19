@@ -1,0 +1,54 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                sv_vif_clocking_partial_member_preserve: Passed.
+                sv_vif_clocking_partial_select_preserve: Passed.
+                      sv_vif_clocking_output_skew_scope: Passed.
+                   sv_clocking_static_output_skew_scope: Passed.
+                     sv_clocking_selected_output_static: Passed.
+                      sv_clocking_selected_output_alias: Passed.
+               sv_clocking_selected_output_dynamic_fail: Passed.
+            sv_clocking_selected_output_dynamic_capture: Passed.
+       sv_clocking_selected_output_dynamic_capture_2023: Passed.
+               sv_clocking_class_handle_shadow_selected: Passed.
+                   sv_clocking_vif_skew_precision_order: Passed.
+                         sv_clocking_vif_skew_type_only: Passed.
+                  sv_clocking_vif_selected_dynamic_fail: Passed.
+               sv_vif_clocking_selected_dynamic_capture: Passed.
+          sv_vif_clocking_selected_dynamic_capture_2023: Passed.
+                   sv_vif_clocking_output_complex_alias: Passed.
+            sv_vif_clocking_selected_decl_assign_target: Passed.
+       sv_vif_clocking_selected_decl_assign_target_2023: Passed.
+                         sv_clocking_vif_modport_output: Passed.
+                    sv_clocking_vif_modport_input_event: Passed.
+                sv_clocking_vif_modport_raw_member_fail: Passed - CE.
+       sv_clocking_vif_modport_unexported_clocking_fail: Passed - CE.
+                   sv_clocking_class_vif_modport_output: Passed.
+              sv_clocking_class_vif_modport_input_event: Passed.
+          sv_clocking_class_vif_modport_raw_member_fail: Passed - CE.
+ sv_clocking_class_vif_modport_unexported_clocking_fail: Passed - CE.
+  sv_clocking_class_vif_modport_clocking_collision_fail: Passed - CE.
+       sv_clocking_class_vif_modport_property_isolation: Passed.
+        sv_clocking_vif_modport_typedef_raw_member_fail: Passed - CE.
+sv_clocking_class_typeparam_vif_modport_raw_member_fail: Passed - CE.
+         sv_clocking_struct_vif_modport_raw_member_fail: Passed - CE.
+          sv_clocking_vif_numeric_input_skew_zero_order: Passed.
+         sv_clocking_vif_numeric_input_skew_delay_order: Passed.
+                  sv_clocking_concat_member_lvalue_fail: Passed - CE.
+                sv_clocking_indexed_class_receiver_fail: Passed.
+           sv_clocking_root_indexed_class_receiver_fail: Passed.
+                    sv_clocking_unpacked_output_storage: Passed.
+               sv_clocking_unpacked_output_storage_2023: Passed.
+                sv_clocking_selected_decl_assign_target: Passed.
+           sv_clocking_selected_decl_assign_target_2023: Passed.
+                        sv_clocking_param_if_width_2017: Passed.
+                        sv_clocking_param_if_width_2023: Passed.
+           sv_clocking_unpacked_output_bad_pattern_fail: Passed - CE.
+      sv_clocking_unpacked_output_bad_pattern_fail_2023: Passed - CE.
+                   sv_clocking_unpacked_net_output_fail: Passed - CE.
+              sv_clocking_unpacked_net_output_fail_2023: Passed - CE.
+                     sv_clocking_vif_input_sys_task_arg: Passed.
+                         sv_clocking_vif_vpi_write_fail: Passed - RE.
+               sv_clocking_nonconstant_output_skew_fail: Passed - CE.
+============================================================================
+Test results:
+  Total=49, Passed=49, Failed=0, Not Implemented=0, Expected Fail=0

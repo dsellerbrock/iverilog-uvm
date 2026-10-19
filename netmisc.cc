@@ -5087,12 +5087,11 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 }
 
 /* Resolve the raw signal a clocking-block item samples or drives. A
-   selected INPUT may sample the whole packed signal before selecting
-   its clockvar value; OUTPUT callers still require a whole target. */
+   selected declaration-assignment target still resolves to its base
+   signal; output lowering preserves the target selection separately. */
 NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 				    const Module::PClocking*cb,
-				    perm_string sig_name,
-				    bool input_select)
+				    perm_string sig_name)
 {
       std::map<perm_string,PExpr*>::const_iterator da =
 	    cb->decl_assigns.find(sig_name);
@@ -5102,11 +5101,7 @@ NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
       const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
       if (!id)
 	    return nullptr;
-	/* The hidden output machinery currently owns a whole packed raw signal.
-	   A select on the declaration-assignment target must not be discarded and
-	   reinterpreted as that whole signal. */
-      if (id->path().name.empty()
-	  || (!input_select && !id->path().name.back().index.empty()))
+	  if (id->path().name.empty())
 	    return nullptr;
       symbol_search_results sr;
       symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr);

@@ -29,7 +29,7 @@ silent) · — n/a.
 | 14.4 | Output `#N` skew in the clocking block's defining timescale | ✅ for same-scope, static-instance, and VIF drives | sv_clocking_static_output_skew_scope, sv_vif_clocking_output_skew_scope |
 | 14.4 | Nonconstant output skew | ✅ rejected once at the declaration, independent of drive count | sv_clocking_nonconstant_output_skew_fail |
 | 14.5 | clockvar rename `input cv = sig` | ✅ | sv_clocking_audit |
-| 14.5 | packed alias/member/select as the declaration-assignment target | ⚠️ selected target is rejected when hidden storage cannot represent it | sv_clocking_selected_decl_assign_target_fail |
+| 14.5 / 14.16.2 | Constant packed part-select as a declaration-assignment target, including a wire clockvar through a VIF | ✅ hidden storage has the selected width and the drive preserves unselected base bits | sv_clocking_selected_decl_assign_target, sv_vif_clocking_selected_decl_assign_target (2017/2023) |
 | 14.11 | `output` clockvar edge-aligned drive | ✅ | sv_clocking_audit |
 | 14.11 | `output #N` skew (drive applies N units **after** the edge) | ✅, including a drive issued after `@(cb)` | sv_clocking_skew_audit, sv_vif_clocking_output_skew_scope |
 | 14.13 | Preponed sampling: packed integral clockvar | ✅ | sv_clocking_audit |
@@ -41,10 +41,12 @@ silent) · — n/a.
 | 14.13 | `@(cb)` and `@(vif.cb)` wake after numeric-skew samples are stored | ✅ | sv_clocking_vif_numeric_input_skew_zero_order, sv_clocking_vif_numeric_input_skew_delay_order |
 | 14.16 | Constant bit/part/member output selection | ✅ for same-scope, static-instance, alias, and VIF spellings | sv_clocking_selected_output_static, sv_clocking_selected_output_alias, sv_vif_clocking_partial_select_preserve |
 | 14.16 | Run-time-selected output drive | ✅ selector captured once for the buffered output and pending mask | sv_clocking_selected_output_dynamic_capture (2017/2023), sv_vif_clocking_selected_dynamic_capture (2017/2023) |
+| 14.16 / 7.6 / 10.9 | Whole 1D fixed-unpacked variable output clockvar with a matching assignment pattern | ✅ for variables: all elements buffered and applied at the clocking event, with wrong pattern cardinality rejected; unpacked net arrays are rejected pending per-word drivers (#674) | sv_clocking_unpacked_output_storage (2017/2023), sv_clocking_unpacked_output_bad_pattern_fail (2017/2023), sv_clocking_unpacked_net_output_fail (2017/2023, CE) |
+| 14.16 | Output width through a non-default parameterized interface | ✅ 13-bit output drive | sv_clocking_param_if_width (2017/2023) |
 | 14.16 | Clockvar in a concatenation/pattern l-value | ✅ rejected as illegal | sv_clocking_concat_member_lvalue_fail |
 | 14.x | Clocking through a **virtual interface** (`vi.cb.sig`) | ✅, including a class-held VIF | sv_clocking_skew_audit, sv_clocking_class_vif_modport_output |
 | 14.16 | Clocking-output drive through an indexed class receiver | ✅ root and nested receivers captured once and dispatched at the next clocking event | sv_clocking_indexed_class_receiver_fail (2017/2023), sv_clocking_root_indexed_class_receiver_fail (2017/2023) |
-| 14.x | Whole unpacked output clockvar buffering | ⚠️ loud `sorry`; no ordinary-NBA fallback | sv_clocking_unpacked_output_storage_fail |
+| 14.x | Whole unpacked output clockvar buffering | ✅ for one-dimensional fixed arrays with a matching assignment pattern; other shapes remain outside this tested subset | sv_clocking_unpacked_output_storage (2017/2023), sv_clocking_unpacked_output_bad_pattern_fail (2017/2023) |
 | 14.3–14.5 / 25.5 | Exact modport visibility through direct and carried VIFs | ✅ retained through direct types, typedefs, arrays, class properties/type parameters, inheritance, and unpacked-struct members | sv_clocking_vif_modport_*, sv_clocking_class_vif_modport_*, sv_clocking_vif_modport_typedef_raw_member_fail, sv_clocking_class_typeparam_vif_modport_raw_member_fail, sv_clocking_struct_vif_modport_raw_member_fail |
 | 14.13 / 25.5 / 36 | VIF clockvar/member passed to a VPI-backed system task/function | ✅ reads supported; every VPI property write is a loud run-time error and leaves the target unchanged | sv_clocking_vif_input_sys_task_arg, sv_clocking_vif_vpi_write_fail |
 | 14.x | Clocking through a **parameterized** virtual interface | ⚠️ one-time `warning` — specialization not modeled (see repros/param_vif_member_write_truncation.sv) | M8-3 note |
@@ -96,10 +98,16 @@ silent) · — n/a.
   mask preserve constant packed bit, part, and member selections. Current-
   event same-scope, static-instance, and VIF drives wake the per-instance
   apply process, so one path owns the raw target and defining-scope output
-  skew for both current-event and buffered drives. A run-time selector,
-  indexed class receiver, unpacked output clockvar, or selected
-  declaration-assignment target is rejected before the ordinary-NBA path;
-  each requires a representation that captures its receiver/selector once.
+  skew for both current-event and buffered drives. A constant packed
+  declaration-assignment part-select carries its base l-value into the
+  per-bit Re-NBA updates, preserving unselected bits. A one-dimensional
+  fixed-unpacked output is buffered as a whole value when the assignment
+  pattern has one compatible element per array element; a wrong element
+  count is rejected during compilation. These M7 cases are pinned by the
+  paired 2017/2023 tests in the table above. Run-time selectors, indexed
+  class receivers, multidimensional/dynamic arrays, and non-identifier or
+  concatenated declaration-assignment targets remain outside this patch's
+  tested subset.
   The indexed-receiver preflight includes an index on the root class-handle
   signal as well as one on a later class property, preventing the receiver
   expression from being cloned into multiple hidden accesses.

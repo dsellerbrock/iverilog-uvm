@@ -1,0 +1,6 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/a3-438-t0t1-local-8cc364a8/lists/sv_vif_clocking_selected_dynamic_capture_2023.list
+----------------------------------------------------------------------------
+sv_vif_clocking_selected_dynamic_capture_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.

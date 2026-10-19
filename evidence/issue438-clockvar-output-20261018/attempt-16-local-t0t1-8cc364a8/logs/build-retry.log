@@ -1,0 +1,30 @@
+sed -e 's;@SHARED@;-bundle -undefined dynamic_lookup -flat_namespace;' -e 's;@PIC@;-fPIC;' \
+	    -e 's;@ENABLE_PLI1@;yes;' \
+	    -e 's;@SUFFIX@;;' \
+	    -e 's;@IVCC@;gcc -std=gnu23;' \
+	    -e 's;@IVCXX@;g++;' \
+	    -e 's;@IVCFLAGS@;-Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2;' \
+	    -e 's;@IVCXXFLAGS@;-Wall -Wextra -Wshadow   -g -O2 -std=c++11;' \
+	    -e 's;@IVCTARGETFLAGS@;;' \
+	    -e 's;@INCLUDEDIR@;/tmp/a3-438-t0t1-local-8cc364a8/install/include/iverilog;' \
+	    -e 's;@LIBDIR@;/tmp/a3-438-t0t1-local-8cc364a8/install/lib;' iverilog-vpi.sh > iverilog-vpi
+chmod +x iverilog-vpi
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C libveriuser all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C cadpli all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+echo 'flag:VVP_EXECUTABLE=/tmp/a3-438-t0t1-local-8cc364a8/install/bin/vvp' | cat ./vvp.conf.in - > vvp.conf
+echo 'flag:VVP_EXECUTABLE=/tmp/a3-438-t0t1-local-8cc364a8/install/bin/vvp' | cat ./vvp-s.conf.in - > vvp-s.conf
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+gcc -std=gnu23 -I. -I.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/include -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c -DIVL_ROOT='"/tmp/a3-438-t0t1-local-8cc364a8/install/lib/ivl"' -DIVL_SUFFIX='""' -DIVL_INC='"/tmp/a3-438-t0t1-local-8cc364a8/install/include"' -DIVL_LIB='"/tmp/a3-438-t0t1-local-8cc364a8/install/lib"' -DDLLIB='"-ldl"' -DIVL_UVM_VERSION='"Accellera UVM (not installed)"' -DIVL_INCLUDE_INSTALL_DIR="\"/private/tmp/a3-438-t0t1-local-8cc364a8/install/include\"" ./main.c
+mv main.d dep
+gcc -std=gnu23 -L/opt/homebrew/lib main.o substit.o cflexor.o cfparse.o -o iverilog 
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.

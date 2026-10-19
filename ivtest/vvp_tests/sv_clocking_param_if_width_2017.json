@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_param_if_width.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_clocking_param_if_width" ]
+}
