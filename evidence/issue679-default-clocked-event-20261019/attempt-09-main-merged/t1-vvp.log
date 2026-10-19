@@ -1,0 +1,17 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-sampled-value-preponed-focus-vvp.list
+----------------------------------------------------------------------------
+sv_sampled_value_clocking_input_unsupported_2017: Passed - CE.
+sv_sampled_value_clocking_input_unsupported_2023: Passed - CE.
+          sv_sampled_value_default_clocking_2017: Passed.
+          sv_sampled_value_default_clocking_2023: Passed.
+    sv_sampled_value_event_past_unsupported_2017: Passed - CE.
+    sv_sampled_value_event_past_unsupported_2023: Passed - CE.
+            sv_sampled_value_explicit_clock_2017: Passed.
+            sv_sampled_value_explicit_clock_2023: Passed.
+     sv_sampled_value_preponed_writer_first_2017: Passed.
+     sv_sampled_value_preponed_writer_first_2023: Passed.
+                sv_sampled_value_procedural_2017: Passed.
+                sv_sampled_value_procedural_2023: Passed.
+============================================================================
+Test results: Ran 12, Failed 0.
