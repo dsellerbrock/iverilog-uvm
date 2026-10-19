@@ -1,2 +1,1 @@
-runtime error: randomize() cannot randomize rand member 'dynamic_values' of an unpacked struct because dynamic-array member randomization is not yet supported; randomize() returns failure instead of leaving it unchanged.
 PASSED

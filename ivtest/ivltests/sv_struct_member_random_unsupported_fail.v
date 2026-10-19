@@ -1,7 +1,6 @@
-// These are legal IEEE random-variable shapes. Class-handle members of a
-// rand unpacked struct are exercised by the paired positive regression;
-// nested dynamic-array members remain fail-closed until their resize/writeback
-// path is supported. Sparse enum members stay inside their named domain.
+// These are legal IEEE random-variable shapes. Pre-sized nested dynamic-array
+// members of a rand unpacked struct are randomized without changing their
+// dimensions. Sparse enum members stay inside their named domain.
 class random_member_child;
   rand bit [7:0] value;
 endclass
@@ -42,6 +41,7 @@ module test;
     handle_random_member_item handle_item;
     dynamic_random_member_item dynamic_item;
     enum_random_member_item enum_item;
+    bit [7:0] row0[], row1[];
     bit enum_cycle_seen[8];
     bit seen_a, seen_b, seen_c;
 
@@ -55,11 +55,26 @@ module test;
       $fatal(1, "rand struct class-handle randomization failed");
 
     dynamic_item = new;
+    dynamic_item.srandom(32'h4190_1804);
+    row0 = new[2];
+    row1 = new[2];
+    row0[0] = 8'h12;
+    row0[1] = 8'h34;
+    row1[0] = 8'h56;
+    row1[1] = 8'h78;
     dynamic_item.record.dynamic_values = new[2];
-    dynamic_item.record.dynamic_values[0] = new[2];
-    dynamic_item.record.dynamic_values[1] = new[2];
-    if (dynamic_item.randomize() !== 0)
-      $fatal(1, "unsupported struct dynamic-array randomization succeeded");
+    dynamic_item.record.dynamic_values[0] = row0;
+    dynamic_item.record.dynamic_values[1] = row1;
+    if (dynamic_item.randomize() !== 1)
+      $fatal(1, "struct dynamic-array randomization failed");
+    row0 = dynamic_item.record.dynamic_values[0];
+    row1 = dynamic_item.record.dynamic_values[1];
+    if (dynamic_item.record.dynamic_values.size() != 2
+        || row0.size() != 2 || row1.size() != 2)
+      $fatal(1, "randomization changed pre-sized struct dynamic arrays");
+    if (row0[0] == 8'h12 && row0[1] == 8'h34
+        && row1[0] == 8'h56 && row1[1] == 8'h78)
+      $fatal(1, "struct dynamic-array elements were not randomized");
 
     enum_item = new;
     enum_item.srandom(32'h1804_e001);

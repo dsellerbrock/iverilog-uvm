@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_randomize_struct_nested_darray_member_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ]
+}
