@@ -1,0 +1,5 @@
+job=3113
+source_base=cae035642e056644274a01e98d4422ce286685b4 plus current feature worktree changes and the new stderr golden
+source_archive_sha256=685bd1e8defb1a189c29acc13e59522c33e2fcf0a50a4293c488e97cbbcadace
+resources=3 CPUs, 3 GiB RAM, 2 h wall limit
+submitted=2026-10-19 10:40 MDT

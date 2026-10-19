@@ -1,0 +1,5 @@
+job=3108
+resources=3 CPUs, 3 GiB RAM, 2 h wall limit
+resource_basis=similar T0/T1 job 2188 peaked at 1,758,964 KiB
+source_base=cae035642e056644274a01e98d4422ce286685b4
+source_archive_sha256=0031150f303563816c8138097e5510615020f304085d2e2add60011e3b656fb0

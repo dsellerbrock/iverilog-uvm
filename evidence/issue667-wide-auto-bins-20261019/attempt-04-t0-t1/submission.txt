@@ -1,0 +1,5 @@
+job=3111
+resources=3 CPUs, 3 GiB RAM, 2 h wall limit
+source_base=cae035642e056644274a01e98d4422ce286685b4
+source_archive_sha256=262d7f70185c31066c636dedb63894a2434a1e119aea4e150dd054cca63dba27
+outcome=FAILED exit 1:0 after 2m53s; build/install and issue regressions passed; smoke stopped on local-install path mismatch; T1 not run

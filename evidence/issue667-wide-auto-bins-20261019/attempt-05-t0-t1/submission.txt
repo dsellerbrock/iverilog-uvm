@@ -1,0 +1,5 @@
+job=3112
+resources=3 CPUs, 3 GiB RAM, 2 h wall limit
+source_base=cae035642e056644274a01e98d4422ce286685b4
+source_archive_sha256=cdbb633fe554d3c8b604d8be1433a2501234a0829abe5440d4b907cafaffa0dc
+status_at_submission=RUNNING

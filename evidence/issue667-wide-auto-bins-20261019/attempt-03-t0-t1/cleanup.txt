@@ -1,0 +1,2 @@
+Removed our completed Slurm run directory for job 3108 after copying its job status, stdout, results, logs, focused run binaries/hashes, and source compiler diagnostics to this evidence directory.
+Remote directory size immediately before removal: 972 MiB.

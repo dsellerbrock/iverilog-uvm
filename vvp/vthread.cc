@@ -7646,6 +7646,19 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 	    return true;
       }
       if (wide_val && wide_val->has_xz()) return false;
+	  if (bin.kind & 512) {
+	    unsigned width = bin.hi >> 32;
+	    unsigned bits = bin.hi & 0xffffffffu;
+	    if (!wide_val || width <= 64 || wide_val->size() != width
+		|| bits > 64 || bits > width
+		|| (bits < 64 && (bin.lo >> bits) != 0)) return false;
+	    unsigned start = width - bits;
+	    for (unsigned bit = 0; bit < bits; bit++)
+		if (wide_val->value(start + bit)
+		    != ((bin.lo >> bit) & 1 ? BIT4_1 : BIT4_0))
+		      return false;
+	    return true;
+      }
       if (bin.kind & 64) {
 	    unsigned width = bin.hi >> 16;
 	    unsigned word = (bin.hi >> 8) & 255;
