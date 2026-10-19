@@ -1,0 +1,4 @@
+toolchain=a2-pinned edition=2017 compile_exit=127
+toolchain=a2-pinned edition=2023 compile_exit=127
+toolchain=c344-branch edition=2017 compile_exit=1
+toolchain=c344-branch edition=2023 compile_exit=1
