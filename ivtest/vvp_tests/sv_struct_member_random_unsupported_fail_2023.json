@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_struct_member_random_unsupported_fail_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_struct_member_random_unsupported_fail"
+}

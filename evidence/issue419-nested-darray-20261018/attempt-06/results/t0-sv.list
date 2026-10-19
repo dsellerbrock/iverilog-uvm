@@ -1,0 +1,6 @@
+sv_randomize_struct_darray_member normal,-g2017,-s,test ivltests gold=sv_randomize_struct_darray_member.gold
+sv_randomize_struct_darray_member_2023 normal,-g2023,-s,test ivltests gold=sv_randomize_struct_darray_member.gold
+sv_randomize_struct_nested_darray_member normal,-g2017,-s,test ivltests
+sv_randomize_struct_nested_darray_member_2023 normal,-g2023,-s,test ivltests
+sv_randomize_struct_nested_darray_constraint normal,-g2017,-s,test ivltests
+sv_randomize_struct_nested_darray_constraint_2023 normal,-g2023,-s,test ivltests

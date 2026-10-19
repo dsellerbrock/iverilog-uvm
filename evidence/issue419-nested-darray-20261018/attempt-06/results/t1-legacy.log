@@ -1,0 +1,20 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                sv_randomize_struct_darray_member: Passed.
+           sv_randomize_struct_darray_member_2023: Passed.
+         sv_randomize_struct_nested_darray_member: Passed.
+    sv_randomize_struct_nested_darray_member_2023: Passed.
+     sv_randomize_struct_nested_darray_constraint: Passed.
+sv_randomize_struct_nested_darray_constraint_2023: Passed.
+                 sv_rand_array_mode_object_struct: Passed.
+                    sv_rand_mode_dynamic_indexing: Passed.
+      sv_constraint_dynarray_packed_struct_member: Passed.
+ sv_constraint_dynarray_packed_struct_member_2023: Passed.
+             sv_constraint_nested_unpacked_struct: Passed.
+        sv_constraint_nested_unpacked_struct_2023: Passed.
+                 sv_randomize_member_nested_hooks: Passed.
+            sv_randomize_member_nested_hooks_2023: Passed.
+                   sv_struct_member_randomization: Passed.
+============================================================================
+Test results:
+  Total=15, Passed=15, Failed=0, Not Implemented=0, Expected Fail=0

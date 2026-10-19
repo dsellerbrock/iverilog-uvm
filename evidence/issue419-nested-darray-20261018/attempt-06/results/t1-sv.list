@@ -1,0 +1,15 @@
+sv_randomize_struct_darray_member normal,-g2017,-s,test ivltests gold=sv_randomize_struct_darray_member.gold
+sv_randomize_struct_darray_member_2023 normal,-g2023,-s,test ivltests gold=sv_randomize_struct_darray_member.gold
+sv_randomize_struct_nested_darray_member normal,-g2017,-s,test ivltests
+sv_randomize_struct_nested_darray_member_2023 normal,-g2023,-s,test ivltests
+sv_randomize_struct_nested_darray_constraint normal,-g2017,-s,test ivltests
+sv_randomize_struct_nested_darray_constraint_2023 normal,-g2023,-s,test ivltests
+sv_rand_array_mode_object_struct normal,-g2012 ivltests gold=sv_rand_array_mode_object_struct.gold
+sv_rand_mode_dynamic_indexing normal,-g2012 ivltests gold=sv_rand_mode_dynamic_indexing.gold
+sv_constraint_dynarray_packed_struct_member normal,-g2017,-s,main ivltests gold=sv_constraint_dynarray_packed_struct_member.gold
+sv_constraint_dynarray_packed_struct_member_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_dynarray_packed_struct_member.gold
+sv_constraint_nested_unpacked_struct normal,-g2017,-s,test ivltests gold=sv_constraint_nested_unpacked_struct.gold
+sv_constraint_nested_unpacked_struct_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_nested_unpacked_struct.gold
+sv_randomize_member_nested_hooks normal,-g2017,-s,main ivltests gold=sv_randomize_member_nested_hooks.gold
+sv_randomize_member_nested_hooks_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_member_nested_hooks.gold
+sv_struct_member_randomization normal,-g2012 ivltests gold=sv_struct_member_randomization.gold
