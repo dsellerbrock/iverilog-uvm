@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_wide_auto_bins.v:12: warning: Unable to bind wire/reg/memory `coverage_trans.result' in `top' (compile-progress: unresolved reference).
+ivltests/sv_covergroup_wide_auto_bins.v:33: sorry: coverpoint 1 of covergroup '__covgrp_property_coverage_result_cg_t' cannot be evaluated at this sample() site; it samples constant 0.

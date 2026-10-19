@@ -1,0 +1,4 @@
+job=3106
+state=COMPLETED (squeue empty; sacct storage unavailable)
+resources=1 CPU, 1 GiB RAM, 00:05:00 limit
+command=see run.sbatch

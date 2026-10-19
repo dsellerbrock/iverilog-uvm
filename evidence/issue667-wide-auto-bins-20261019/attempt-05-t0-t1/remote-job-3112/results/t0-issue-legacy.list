@@ -1,0 +1,2 @@
+sv_covergroup_wide_auto_bins normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests
+sv_covergroup_wide_auto_bins_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests

@@ -284,6 +284,7 @@ class class_type : public __vpiHandle {
 	    //           5=illegal default, 6=ignore default
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    // kind & 128: exact 4-state value; lo packs 2-bit states, hi gives width/chunk.
+	    // kind & 512: wide automatic bin; lo is the prefix, hi packs width and prefix bits.
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
