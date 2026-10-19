@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_package_inline_rand_arg_fail.v:18: error: Function call 'constraint_function_package_inline_rand_arg_pkg::identity' with random-dependent arguments in an inline constraint requires staged evaluation and is not supported.
+1 error(s) during elaboration.
